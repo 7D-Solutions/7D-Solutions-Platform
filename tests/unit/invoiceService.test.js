@@ -493,6 +493,30 @@ describe('InvoiceService', () => {
       expect(result).toBeDefined();
     });
 
+    it('should throw ValidationError if appId missing', async () => {
+      const params = { ...validParams, appId: undefined };
+      await expect(invoiceService.generateInvoiceFromSubscription(params))
+        .rejects.toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError if subscriptionId missing', async () => {
+      const params = { ...validParams, subscriptionId: undefined };
+      await expect(invoiceService.generateInvoiceFromSubscription(params))
+        .rejects.toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError if billingPeriodStart missing', async () => {
+      const params = { ...validParams, billingPeriodStart: undefined };
+      await expect(invoiceService.generateInvoiceFromSubscription(params))
+        .rejects.toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError if billingPeriodEnd missing', async () => {
+      const params = { ...validParams, billingPeriodEnd: undefined };
+      await expect(invoiceService.generateInvoiceFromSubscription(params))
+        .rejects.toThrow(ValidationError);
+    });
+
     it('should throw ValidationError if billingPeriodStart >= billingPeriodEnd', async () => {
       const params = {
         ...validParams,
@@ -577,6 +601,21 @@ describe('InvoiceService', () => {
 
     it('should throw ValidationError for invalid status', async () => {
       await expect(invoiceService.updateInvoiceStatus('testapp', 789, 'invalid', {}))
+        .rejects.toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError if appId missing', async () => {
+      await expect(invoiceService.updateInvoiceStatus(undefined, 789, 'paid', {}))
+        .rejects.toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError if invoiceId missing', async () => {
+      await expect(invoiceService.updateInvoiceStatus('testapp', undefined, 'paid', {}))
+        .rejects.toThrow(ValidationError);
+    });
+
+    it('should throw ValidationError if status missing', async () => {
+      await expect(invoiceService.updateInvoiceStatus('testapp', 789, undefined, {}))
         .rejects.toThrow(ValidationError);
     });
 
