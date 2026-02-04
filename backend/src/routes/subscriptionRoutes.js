@@ -8,6 +8,10 @@ const {
   cancelSubscriptionValidator,
   updateSubscriptionValidator
 } = require('../validators/subscriptionValidators');
+const {
+  applySubscriptionChangeValidator,
+  calculateCancellationRefundValidator
+} = require('../validators/prorationValidators');
 
 const router = express.Router();
 const billingService = new BillingService();
@@ -129,6 +133,107 @@ router.put('/:id', rejectSensitiveData, updateSubscriptionValidator, async (req,
 
     const subscription = await billingService.updateSubscription(appId, Number(id), updates);
     res.json(subscription);
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /subscriptions/:subscription_id/proration/apply
+ * Apply subscription change with proration
+ *
+ * Body:
+ *   {
+ *     new_price_cents: number,
+ *     old_price_cents: number,
+ *     new_quantity: number (optional, default: 1),
+ *     old_quantity: number (optional, default: 1),
+ *     new_plan_id: string (optional),
+ *     old_plan_id: string (optional),
+ *     proration_behavior: string (optional, 'create_prorations'|'none'|'always_invoice'),
+ *     effective_date: string (ISO 8601, optional, default: now),
+ *     invoice_immediately: boolean (optional, default: false)
+ *   }
+ *
+ * Response:
+ *   {
+ *     subscription: { ... }, // Updated subscription
+ *     proration: { ... }, // Proration breakdown
+ *     charges: [ ... ] // Created proration charges/credits
+ *   }
+ */
+router.post('/:subscription_id/proration/apply', rejectSensitiveData, applySubscriptionChangeValidator, async (req, res, next) => {
+  try {
+    const { subscription_id } = req.params;
+    const {
+      new_price_cents,
+      old_price_cents,
+      new_quantity = 1,
+      old_quantity = 1,
+      new_plan_id,
+      old_plan_id,
+      proration_behavior = 'create_prorations',
+      effective_date,
+      invoice_immediately = false
+    } = req.body;
+
+    const changeDetails = {
+      newPriceCents: new_price_cents,
+      oldPriceCents: old_price_cents,
+      newQuantity: new_quantity,
+      oldQuantity: old_quantity,
+      newPlanId: new_plan_id,
+      oldPlanId: old_plan_id
+    };
+
+    const options = {};
+    if (proration_behavior) options.prorationBehavior = proration_behavior;
+    if (effective_date) options.effectiveDate = new Date(effective_date);
+    if (invoice_immediately !== undefined) options.invoiceImmediately = invoice_immediately;
+
+    const result = await billingService.applySubscriptionChange(
+      Number(subscription_id),
+      changeDetails,
+      options
+    );
+
+    res.status(200).json({
+      subscription: result.subscription,
+      proration: result.proration,
+      charges: result.charges
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /subscriptions/:subscription_id/proration/cancellation-refund
+ * Calculate refund for subscription cancellation
+ *
+ * Body:
+ *   {
+ *     cancellation_date: string (ISO 8601),
+ *     refund_behavior: string (optional, 'partial_refund'|'account_credit'|'none')
+ *   }
+ *
+ * Response:
+ *   {
+ *     cancellation_refund: { ... } // Refund details from ProrationService.calculateCancellationRefund
+ *   }
+ */
+router.post('/:subscription_id/proration/cancellation-refund', rejectSensitiveData, calculateCancellationRefundValidator, async (req, res, next) => {
+  try {
+    const { subscription_id } = req.params;
+    const { cancellation_date, refund_behavior = 'partial_refund' } = req.body;
+
+    const cancellationRefund = await billingService.calculateCancellationRefund(
+      Number(subscription_id),
+      new Date(cancellation_date),
+      refund_behavior
+    );
+
+    res.json({ cancellation_refund: cancellationRefund });
   } catch (error) {
     next(error);
   }
