@@ -7,7 +7,7 @@
 
 const BillingService = require('./billingService');
 const TilledClient = require('./tilledClient');
-const billingRoutes = require('./routes');
+const billingRoutes = require('./routes/index');
 const { captureRawBody, requireAppId, rejectSensitiveData } = require('./middleware');
 const handleBillingError = require('./middleware/errorHandler');
 const { billingPrisma } = require('./prisma');
