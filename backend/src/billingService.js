@@ -11,6 +11,7 @@ const TaxService = require('./services/TaxService');
 const DiscountService = require('./services/DiscountService');
 const ProrationService = require('./services/ProrationService');
 const UsageService = require('./services/UsageService');
+const InvoiceService = require('./services/InvoiceService');
 
 /**
  * BillingService - Facade for all billing operations
