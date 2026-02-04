@@ -7,7 +7,7 @@
 
 const request = require('supertest');
 const express = require('express');
-const routes = require('../../backend/src/routes');
+const routes = require('../../backend/src/routes/index');
 const handleBillingError = require('../../backend/src/middleware/errorHandler');
 const { billingPrisma } = require('../../backend/src/prisma');
 const { cleanDatabase, setupIntegrationTests, teardownIntegrationTests } = require('./database-cleanup');

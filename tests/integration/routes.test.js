@@ -41,7 +41,7 @@ describe('Billing Routes Integration', () => {
     await setupIntegrationTests();
 
     // Import routes AFTER mock is set up
-    const billingRoutes = require('../../backend/src/routes');
+    const billingRoutes = require('../../backend/src/routes/index');
     const handleBillingError = require('../../backend/src/middleware/errorHandler');
 
     // Setup Express app
