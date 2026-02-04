@@ -25,7 +25,7 @@ const {
   updateSubscriptionValidator,
   createOneTimeChargeValidator,
   createRefundValidator
-} = require('../../../backend/src/validators/requestValidators');
+} = require('../../../backend/src/validators/index');
 
 // Mock Express req/res/next
 const createMockRequest = (params = {}, query = {}, body = {}, headers = {}) => ({
