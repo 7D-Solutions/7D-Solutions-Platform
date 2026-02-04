@@ -2,9 +2,11 @@ const express = require('express');
 const BillingService = require('../billingService');
 const { requireAppId, rejectSensitiveData } = require('../middleware');
 const { createRefundValidator } = require('../validators/refundValidators');
+const createIdempotencyMiddleware = require('../middleware/idempotency');
 
 const router = express.Router();
 const billingService = new BillingService();
+const idempotencyMiddleware = createIdempotencyMiddleware('/refunds');
 
 // Apply requireAppId middleware to all routes in this file
 router.use(requireAppId());
@@ -34,10 +36,9 @@ router.use(requireAppId());
  *   409: Charge not settled in processor OR Idempotency-Key reuse with different payload
  *   502: Tilled refund creation failed
  */
-router.post('/', rejectSensitiveData, createRefundValidator, async (req, res, next) => {
+router.post('/', rejectSensitiveData, createRefundValidator, idempotencyMiddleware, async (req, res, next) => {
   try {
     const appId = req.verifiedAppId;
-    const idempotencyKey = req.headers['idempotency-key'];
 
     const {
       charge_id,
@@ -49,25 +50,7 @@ router.post('/', rejectSensitiveData, createRefundValidator, async (req, res, ne
       metadata,
     } = req.body;
 
-    // Compute request hash for idempotency
-    const requestHash = billingService.computeRequestHash(
-      'POST',
-      '/refunds',
-      req.body
-    );
-
-    // Check for idempotent response
-    const cachedResponse = await billingService.getIdempotentResponse(
-      appId,
-      idempotencyKey,
-      requestHash
-    );
-
-    if (cachedResponse) {
-      return res.status(cachedResponse.statusCode).json(cachedResponse.body);
-    }
-
-    // Create refund
+    // Create refund using idempotency data from middleware
     const refund = await billingService.createRefund(
       appId,
       {
@@ -79,20 +62,14 @@ router.post('/', rejectSensitiveData, createRefundValidator, async (req, res, ne
         note,
         metadata,
       },
-      { idempotencyKey, requestHash }
+      { idempotencyKey: req.idempotency.key, requestHash: req.idempotency.hash }
     );
 
     const responseBody = { refund };
     const statusCode = 201;
 
-    // Store idempotent response
-    await billingService.storeIdempotentResponse(
-      appId,
-      idempotencyKey,
-      requestHash,
-      statusCode,
-      responseBody
-    );
+    // Store idempotent response via middleware
+    await req.idempotency.store(statusCode, responseBody);
 
     res.status(statusCode).json(responseBody);
   } catch (error) {

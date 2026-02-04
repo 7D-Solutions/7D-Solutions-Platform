@@ -2,9 +2,11 @@ const express = require('express');
 const BillingService = require('../billingService');
 const { requireAppId, rejectSensitiveData } = require('../middleware');
 const { createOneTimeChargeValidator } = require('../validators/chargeValidators');
+const createIdempotencyMiddleware = require('../middleware/idempotency');
 
 const router = express.Router();
 const billingService = new BillingService();
+const idempotencyMiddleware = createIdempotencyMiddleware('/charges/one-time');
 
 // Apply requireAppId middleware to all routes in this file
 router.use(requireAppId());
@@ -35,10 +37,9 @@ router.use(requireAppId());
  *   409: No default payment method OR duplicate reference_id
  *   502: Tilled charge creation failed
  */
-router.post('/one-time', rejectSensitiveData, createOneTimeChargeValidator, async (req, res, next) => {
+router.post('/one-time', rejectSensitiveData, createOneTimeChargeValidator, idempotencyMiddleware, async (req, res, next) => {
   try {
     const appId = req.verifiedAppId;
-    const idempotencyKey = req.headers['idempotency-key'];
 
     const {
       external_customer_id,
@@ -51,25 +52,7 @@ router.post('/one-time', rejectSensitiveData, createOneTimeChargeValidator, asyn
       metadata,
     } = req.body;
 
-    // Compute request hash for idempotency
-    const requestHash = billingService.computeRequestHash(
-      'POST',
-      '/charges/one-time',
-      req.body
-    );
-
-    // Check for idempotent response
-    const cachedResponse = await billingService.getIdempotentResponse(
-      appId,
-      idempotencyKey,
-      requestHash
-    );
-
-    if (cachedResponse) {
-      return res.status(cachedResponse.statusCode).json(cachedResponse.body);
-    }
-
-    // Create one-time charge
+    // Create one-time charge using idempotency data from middleware
     const charge = await billingService.createOneTimeCharge(
       appId,
       {
@@ -82,20 +65,14 @@ router.post('/one-time', rejectSensitiveData, createOneTimeChargeValidator, asyn
         note,
         metadata,
       },
-      { idempotencyKey, requestHash }
+      { idempotencyKey: req.idempotency.key, requestHash: req.idempotency.hash }
     );
 
     const responseBody = { charge };
     const statusCode = 201;
 
-    // Store idempotent response
-    await billingService.storeIdempotentResponse(
-      appId,
-      idempotencyKey,
-      requestHash,
-      statusCode,
-      responseBody
-    );
+    // Store idempotent response via middleware
+    await req.idempotency.store(statusCode, responseBody);
 
     res.status(statusCode).json(responseBody);
   } catch (error) {
