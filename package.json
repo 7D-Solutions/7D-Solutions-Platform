@@ -12,7 +12,7 @@
     "test:unit": "jest --selectProjects=unit",
     "test:integration": "jest --selectProjects=integration --runInBand",
     "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
+    "test:coverage": "jest --coverage --runInBand",
     "verify": "node verify-setup.js",
     "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",

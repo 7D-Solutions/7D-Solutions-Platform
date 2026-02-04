@@ -13,7 +13,8 @@ jest.mock('../../backend/src/prisma', () => ({
       count: jest.fn()
     },
     billing_invoice_line_items: {
-      create: jest.fn()
+      create: jest.fn(),
+      aggregate: jest.fn()
     },
     billing_customers: {
       findFirst: jest.fn()
@@ -71,6 +72,7 @@ describe('InvoiceService', () => {
     const mockInvoice = {
       id: 789,
       app_id: 'testapp',
+      tilled_invoice_id: 'in_testapp_12345',
       billing_customer_id: 123,
       subscription_id: 456,
       status: 'draft',
@@ -104,6 +106,7 @@ describe('InvoiceService', () => {
       expect(billingPrisma.billing_invoices.create).toHaveBeenCalledWith({
         data: {
           app_id: 'testapp',
+          tilled_invoice_id: expect.any(String),
           billing_customer_id: 123,
           subscription_id: 456,
           status: 'draft',
@@ -120,6 +123,7 @@ describe('InvoiceService', () => {
       expect(result).toEqual({
         id: 789,
         app_id: 'testapp',
+        tilled_invoice_id: 'in_testapp_12345',
         billing_customer_id: 123,
         subscription_id: 456,
         status: 'draft',
@@ -160,6 +164,7 @@ describe('InvoiceService', () => {
       expect(billingPrisma.billing_invoices.create).toHaveBeenCalledWith({
         data: {
           app_id: 'testapp',
+          tilled_invoice_id: expect.any(String),
           billing_customer_id: 123,
           subscription_id: null,
           status: 'draft',
@@ -316,6 +321,7 @@ describe('InvoiceService', () => {
     beforeEach(() => {
       billingPrisma.billing_invoices.findFirst.mockResolvedValue(mockInvoice);
       billingPrisma.billing_invoice_line_items.create.mockResolvedValue(mockLineItem);
+      billingPrisma.billing_invoice_line_items.aggregate.mockResolvedValue({ _sum: { amount_cents: 5000 } });
     });
 
     it('should add line item with valid parameters', async () => {
@@ -358,6 +364,7 @@ describe('InvoiceService', () => {
         unit_price_cents: data.unit_price_cents,
         amount_cents: data.amount_cents
       }));
+      billingPrisma.billing_invoice_line_items.aggregate.mockResolvedValue({ _sum: { amount_cents: 250 } });
 
       const result = await invoiceService.addInvoiceLineItem(params);
 
@@ -414,7 +421,7 @@ describe('InvoiceService', () => {
       plan_name: 'Premium Plan',
       plan_id: 'plan_123',
       price_cents: 5000,
-      customer: {
+      billing_customers: {
         id: 123,
         email: 'customer@example.com'
       }
@@ -452,7 +459,7 @@ describe('InvoiceService', () => {
 
       expect(billingPrisma.billing_subscriptions.findFirst).toHaveBeenCalledWith({
         where: { id: 456, app_id: 'testapp' },
-        include: { customer: true }
+        include: { billing_customers: true }
       });
       expect(invoiceService.createInvoice).toHaveBeenCalledWith({
         appId: 'testapp',
@@ -471,11 +478,10 @@ describe('InvoiceService', () => {
       expect(invoiceService.addInvoiceLineItem).toHaveBeenCalledWith({
         appId: 'testapp',
         invoiceId: 789,
-        line_item_type: 'subscription',
+        lineItemType: 'subscription',
         description: 'Subscription: Premium Plan',
         quantity: 1,
-        unit_price_cents: 5000,
-        amount_cents: 5000,
+        unitPriceCents: 5000,
         metadata: {
           plan_id: 'plan_123',
           plan_name: 'Premium Plan',

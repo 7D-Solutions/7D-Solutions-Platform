@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { billingPrisma } = require('../prisma');
 const logger = require('@fireproof/infrastructure/utils/logger');
 const { NotFoundError, ValidationError } = require('../utils/errors');
@@ -97,10 +98,14 @@ class InvoiceService {
       }
     }
 
+    // Generate unique invoice ID for Tilled (required field)
+    const tilledInvoiceId = `in_${appId}_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+
     // Create invoice
     const invoice = await billingPrisma.billing_invoices.create({
       data: {
         app_id: appId,
+        tilled_invoice_id: tilledInvoiceId,
         billing_customer_id: customerId,
         subscription_id: subscriptionId,
         status,
@@ -127,6 +132,7 @@ class InvoiceService {
 
     return {
       id: invoice.id,
+      tilled_invoice_id: invoice.tilled_invoice_id,
       app_id: invoice.app_id,
       billing_customer_id: invoice.billing_customer_id,
       subscription_id: invoice.subscription_id,
@@ -260,8 +266,15 @@ class InvoiceService {
       }
     });
 
-    // Update invoice total (optional - could also be calculated on the fly)
-    // For now, we assume invoice amount is pre-calculated or updated separately
+    // Update invoice total with sum of all line items
+    const lineItemsSum = await billingPrisma.billing_invoice_line_items.aggregate({
+      where: { invoice_id: invoiceId },
+      _sum: { amount_cents: true }
+    });
+    await billingPrisma.billing_invoices.update({
+      where: { id: invoiceId },
+      data: { amount_cents: lineItemsSum._sum.amount_cents || 0 }
+    });
 
     logger.info({
       message: 'Invoice line item added',
@@ -325,7 +338,7 @@ class InvoiceService {
         app_id: appId
       },
       include: {
-        customer: true
+        billing_customers: true
       }
     });
 
@@ -393,7 +406,11 @@ class InvoiceService {
       await this.addInvoiceLineItem({
         appId,
         invoiceId: invoice.id,
-        ...lineItem
+        lineItemType: lineItem.line_item_type,
+        description: lineItem.description,
+        quantity: lineItem.quantity,
+        unitPriceCents: lineItem.unit_price_cents,
+        metadata: lineItem.metadata || {}
       });
     }
 

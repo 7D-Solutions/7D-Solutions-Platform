@@ -872,10 +872,10 @@ const createInvoiceValidator = [
     .optional()
     .isIn(['usd', 'cad', 'eur', 'gbp', 'aud'])
     .withMessage('currency must be one of: usd, cad, eur, gbp, aud'),
-  body('due_at')
+  body('due_date')
     .optional()
     .isISO8601()
-    .withMessage('due_at must be a valid ISO 8601 date'),
+    .withMessage('due_date must be a valid ISO 8601 date'),
   body('metadata')
     .optional()
     .isObject()

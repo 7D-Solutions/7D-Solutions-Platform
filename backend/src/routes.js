@@ -1016,7 +1016,7 @@ router.post('/invoices', requireAppId(), rejectSensitiveData, createInvoiceValid
       complianceCodes: compliance_codes
     });
 
-    res.status(201).json({ invoice });
+    res.status(201).json(invoice);
   } catch (error) {
     next(error);
   }
@@ -1046,7 +1046,7 @@ router.get('/invoices/:id', requireAppId(), rejectSensitiveData, getInvoiceValid
       includeLineItems
     );
 
-    res.json({ invoice });
+    res.json(invoice);
   } catch (error) {
     next(error);
   }
@@ -1092,7 +1092,7 @@ router.post('/invoices/:id/line-items', requireAppId(), rejectSensitiveData, add
       metadata
     });
 
-    res.status(201).json({ line_item: lineItem });
+    res.status(201).json(lineItem);
   } catch (error) {
     next(error);
   }
@@ -1139,7 +1139,7 @@ router.post('/invoices/generate-from-subscription', requireAppId(), rejectSensit
       includeDiscounts: include_discounts
     });
 
-    res.status(201).json({ invoice });
+    res.status(201).json(invoice);
   } catch (error) {
     next(error);
   }
@@ -1173,7 +1173,7 @@ router.patch('/invoices/:id/status', requireAppId(), rejectSensitiveData, update
       { paidAt: paid_at ? new Date(paid_at) : null }
     );
 
-    res.json({ invoice });
+    res.json(invoice);
   } catch (error) {
     next(error);
   }

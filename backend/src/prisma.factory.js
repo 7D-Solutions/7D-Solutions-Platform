@@ -32,12 +32,9 @@ function createPrismaClient() {
 }
 
 function getBillingPrisma() {
-  // In test mode, always create a fresh client to avoid caching issues
-  if (process.env.NODE_ENV === 'test') {
-    return createPrismaClient();
-  }
-
-  // In production, use cached client
+  // Use singleton pattern in both test and production to prevent connection pool exhaustion
+  // In test mode, share the same Prisma client across all test files to avoid creating
+  // multiple connection pools that compete for database connections
   if (!cachedPrismaClient) {
     cachedPrismaClient = createPrismaClient();
   }

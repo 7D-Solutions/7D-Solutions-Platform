@@ -26,7 +26,7 @@ module.exports = {
       testMatch: ['<rootDir>/tests/integration/**/*.test.js'],
       setupFiles: ['<rootDir>/tests/setup.js'],
       setupFilesAfterEnv: ['<rootDir>/tests/integrationSetup.js'],
-      resetModules: true,
+      resetModules: false,  // Don't reset modules to preserve Prisma client singleton
       clearMocks: true,
       maxWorkers: 1  // Run integration tests serially to avoid DB race conditions
     },
