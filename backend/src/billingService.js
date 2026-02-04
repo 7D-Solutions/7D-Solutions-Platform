@@ -29,6 +29,7 @@ const InvoiceService = require('./services/InvoiceService');
  * - DiscountService: Discount and promotion engine (Phase 2)
  * - ProrationService: Mid-cycle billing change calculations (Phase 3)
  * - UsageService: Metered usage billing and reporting (Phase 4)
+ * - InvoiceService: Invoice customization and detailed line items (Phase 5)
  */
 class BillingService {
   constructor() {
@@ -50,6 +51,7 @@ class BillingService {
     this.discountService = new DiscountService();
     this.prorationService = new ProrationService(this.getTilledClient);
     this.usageService = new UsageService(this.getTilledClient);
+    this.invoiceService = new InvoiceService(this.getTilledClient);
   }
 
   getTilledClient(appId) {
@@ -271,6 +273,26 @@ class BillingService {
   }
 
   // ===========================================================
+  // USAGE SERVICE DELEGATION (PHASE 4)
+  // ===========================================================
+
+  async recordUsage(params) {
+    return this.usageService.recordUsage(params);
+  }
+
+  async calculateUsageCharges(params) {
+    return this.usageService.calculateUsageCharges(params);
+  }
+
+  async getUsageReport(params) {
+    return this.usageService.getUsageReport(params);
+  }
+
+  async markAsBilled(appId, usageRecordIds) {
+    return this.usageService.markAsBilled(appId, usageRecordIds);
+  }
+
+  // ===========================================================
   // PRORATION SERVICE DELEGATION (PHASE 3)
   // ===========================================================
 
@@ -284,6 +306,34 @@ class BillingService {
 
   async calculateCancellationRefund(subscriptionId, cancellationDate, refundBehavior = 'partial_refund') {
     return this.prorationService.calculateCancellationRefund(subscriptionId, cancellationDate, refundBehavior);
+  }
+
+  // ===========================================================
+  // INVOICE SERVICE DELEGATION (PHASE 5)
+  // ===========================================================
+
+  async createInvoice(params) {
+    return this.invoiceService.createInvoice(params);
+  }
+
+  async getInvoice(appId, invoiceId, includeLineItems = false) {
+    return this.invoiceService.getInvoice(appId, invoiceId, includeLineItems);
+  }
+
+  async addInvoiceLineItem(params) {
+    return this.invoiceService.addInvoiceLineItem(params);
+  }
+
+  async generateInvoiceFromSubscription(params) {
+    return this.invoiceService.generateInvoiceFromSubscription(params);
+  }
+
+  async updateInvoiceStatus(appId, invoiceId, status, options = {}) {
+    return this.invoiceService.updateInvoiceStatus(appId, invoiceId, status, options);
+  }
+
+  async listInvoices(filters = {}) {
+    return this.invoiceService.listInvoices(filters);
   }
 }
 
