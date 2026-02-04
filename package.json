@@ -1,0 +1,57 @@
+{
+  "name": "@fireproof/ar",
+  "version": "1.0.0",
+  "description": "Accounts Receivable module - Customer billing, subscriptions, payments with Tilled integration",
+  "main": "backend/src/index.js",
+  "exports": {
+    ".": "./backend/src/index.js",
+    "./backend": "./backend/src/index.js"
+  },
+  "scripts": {
+    "test": "npm run test:unit && npm run test:integration",
+    "test:unit": "jest --selectProjects=unit",
+    "test:integration": "jest --selectProjects=integration --runInBand",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "verify": "node verify-setup.js",
+    "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
+    "prisma:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
+    "prisma:status": "prisma migrate status --schema=./prisma/schema.prisma",
+    "prisma:studio": "prisma studio --schema=./prisma/schema.prisma"
+  },
+  "keywords": [
+    "fireproof",
+    "accounts-receivable",
+    "ar",
+    "billing",
+    "payments",
+    "tilled",
+    "subscriptions",
+    "invoicing"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/7D-Solutions/7D-Solutions-Modules.git",
+    "directory": "packages/ar"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com/@fireproof"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.19.2",
+    "express-validator": "^7.3.1",
+    "tilled-node": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0",
+    "prisma": "^6.19.2",
+    "supertest": "^6.3.3"
+  },
+  "peerDependencies": {
+    "@fireproof/infrastructure": "*",
+    "express": "^4.0.0"
+  }
+}

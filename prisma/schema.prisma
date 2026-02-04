@@ -1,0 +1,620 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/ar"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL_BILLING")
+}
+
+/// Billing customers - Generic for any app
+model billing_customers {
+  id                        Int                       @id @default(autoincrement())
+  app_id                    String                    @db.VarChar(50)
+  external_customer_id      String?                   @db.VarChar(255)
+  tilled_customer_id        String                    @unique @db.VarChar(255)
+  email                     String                    @db.VarChar(255)
+  name                      String?                   @db.VarChar(255)
+  default_payment_method_id String?                   @db.VarChar(255)
+  payment_method_type       String?                   @db.VarChar(20)
+  metadata                  Json?
+  update_source             String?                   @db.VarChar(50)
+  updated_by                String?                   @db.VarChar(255)
+  delinquent_since          DateTime?                 @db.Timestamp(0)
+  grace_period_end          DateTime?                 @db.Timestamp(0)
+  created_at                DateTime                  @default(now()) @db.Timestamp(0)
+  updated_at                DateTime                  @default(now()) @db.Timestamp(0)
+  billing_subscriptions     billing_subscriptions[]
+  billing_payment_methods   billing_payment_methods[]
+  billing_invoices          billing_invoices[]
+  billing_charges           billing_charges[]
+  billing_refunds           billing_refunds[]
+  billing_discount_applications billing_discount_applications[]
+  billing_metered_usage     billing_metered_usage[]
+
+  @@unique([app_id, external_customer_id], map: "unique_app_external_customer")
+  @@index([app_id], map: "idx_app_id")
+  @@index([email], map: "idx_email")
+  @@index([delinquent_since], map: "idx_delinquent_since")
+}
+
+model billing_subscriptions {
+  id                        Int                              @id @default(autoincrement())
+  app_id                    String                           @db.VarChar(50)
+  billing_customer_id       Int
+  tilled_subscription_id    String                           @unique @db.VarChar(255)
+  plan_id                   String                           @db.VarChar(100)
+  plan_name                 String                           @db.VarChar(255)
+  price_cents               Int
+  status                    billing_subscriptions_status
+  interval_unit             billing_subscriptions_interval
+  interval_count            Int                              @default(1)
+  billing_cycle_anchor      DateTime?                        @db.Timestamp(0)
+  current_period_start      DateTime                         @db.Timestamp(0)
+  current_period_end        DateTime                         @db.Timestamp(0)
+  cancel_at_period_end      Boolean                          @default(false)
+  cancel_at                 DateTime?                        @db.Timestamp(0)
+  canceled_at               DateTime?                        @db.Timestamp(0)
+  ended_at                  DateTime?                        @db.Timestamp(0)
+  payment_method_id         String                           @db.VarChar(255)
+  payment_method_type       String                           @db.VarChar(20)
+  metadata                  Json?
+  update_source             String?                          @db.VarChar(50)
+  updated_by                String?                          @db.VarChar(255)
+  created_at                DateTime                         @default(now()) @db.Timestamp(0)
+  updated_at                DateTime                         @default(now()) @db.Timestamp(0)
+  billing_customers         billing_customers                @relation(fields: [billing_customer_id], references: [id], onDelete: Cascade)
+  billing_subscription_addons billing_subscription_addons[]
+  billing_invoices          billing_invoices[]
+  billing_charges           billing_charges[]
+  billing_metered_usage     billing_metered_usage[]
+
+  @@index([app_id], map: "idx_app_id")
+  @@index([billing_customer_id], map: "idx_billing_customer_id")
+  @@index([status], map: "idx_status")
+  @@index([plan_id], map: "idx_plan_id")
+  @@index([current_period_end], map: "idx_current_period_end")
+}
+
+enum billing_subscriptions_status {
+  incomplete
+  incomplete_expired
+  trialing
+  active
+  past_due
+  canceled
+  unpaid
+  paused
+}
+
+enum billing_subscriptions_interval {
+  day
+  week
+  month
+  year
+}
+
+/// Payment methods - PCI-compliant masked storage
+model billing_payment_methods {
+  id                       Int               @id @default(autoincrement())
+  app_id                   String            @db.VarChar(50)
+  billing_customer_id      Int
+  tilled_payment_method_id String            @unique @db.VarChar(255)
+  type                     String            @db.VarChar(20)
+  brand                    String?           @db.VarChar(50)
+  last4                    String?           @db.VarChar(4)
+  exp_month                Int?
+  exp_year                 Int?
+  bank_name                String?           @db.VarChar(255)
+  bank_last4               String?           @db.VarChar(4)
+  is_default               Boolean           @default(false)
+  metadata                 Json?
+  deleted_at               DateTime?         @db.Timestamp(0)
+  created_at               DateTime          @default(now()) @db.Timestamp(0)
+  updated_at               DateTime          @default(now()) @db.Timestamp(0)
+  billing_customer         billing_customers @relation(fields: [billing_customer_id], references: [id], onDelete: Cascade)
+
+  @@index([app_id], map: "idx_app_id")
+  @@index([billing_customer_id], map: "idx_billing_customer_id")
+  @@index([billing_customer_id, is_default], map: "idx_customer_default")
+}
+
+model billing_webhooks {
+  id              Int                     @id @default(autoincrement())
+  app_id          String                  @db.VarChar(50)
+  event_id        String                  @db.VarChar(255)
+  event_type      String                  @db.VarChar(100)
+  status          billing_webhooks_status @default(received)
+  error           String?                 @db.Text
+  attempt_count   Int                     @default(1)
+  last_attempt_at DateTime?               @db.Timestamp(0)
+  next_attempt_at DateTime?               @db.Timestamp(0)
+  dead_at         DateTime?               @db.Timestamp(0)
+  error_code      String?                 @db.VarChar(50)
+  received_at     DateTime                @default(now()) @db.Timestamp(0)
+  processed_at    DateTime?               @db.Timestamp(0)
+
+  @@unique([event_id, app_id], map: "event_id_app_id")
+  @@index([app_id, status], map: "idx_app_status")
+  @@index([event_type], map: "idx_event_type")
+  @@index([next_attempt_at], map: "idx_next_attempt_at")
+}
+
+enum billing_webhooks_status {
+  received
+  processing
+  processed
+  failed
+}
+
+// ===========================================================
+// PHASE 2: RELIABILITY & SAFETY TABLES
+// ===========================================================
+
+/// Idempotency key storage for write operations
+model billing_idempotency_keys {
+  id              Int      @id @default(autoincrement())
+  app_id          String   @db.VarChar(50)
+  idempotency_key String   @db.VarChar(255)
+  request_hash    String   @db.VarChar(64)
+  response_body   Json
+  status_code     Int
+  created_at      DateTime @default(now()) @db.Timestamp(0)
+  expires_at      DateTime @db.Timestamp(0)
+
+  @@unique([app_id, idempotency_key], map: "unique_app_idempotency_key")
+  @@index([app_id], map: "idx_app_id")
+  @@index([expires_at], map: "idx_expires_at")
+}
+
+/// Forensics event log for API, webhook, and system events
+model billing_events {
+  id          Int      @id @default(autoincrement())
+  app_id      String   @db.VarChar(50)
+  event_type  String   @db.VarChar(100)
+  source      String   @db.VarChar(20)
+  entity_type String?  @db.VarChar(50)
+  entity_id   String?  @db.VarChar(255)
+  payload     Json?
+  created_at  DateTime @default(now()) @db.Timestamp(0)
+
+  @@index([app_id], map: "idx_app_id")
+  @@index([event_type], map: "idx_event_type")
+  @@index([source], map: "idx_source")
+  @@index([created_at], map: "idx_created_at")
+}
+
+/// Webhook retry tracking with backoff
+model billing_webhook_attempts {
+  id              Int       @id @default(autoincrement())
+  app_id          String    @db.VarChar(50)
+  event_id        String    @db.VarChar(255)
+  attempt_number  Int       @default(1)
+  status          String    @db.VarChar(20)
+  next_attempt_at DateTime? @db.Timestamp(0)
+  error_code      String?   @db.VarChar(50)
+  error_message   String?   @db.Text
+  created_at      DateTime  @default(now()) @db.Timestamp(0)
+  updated_at      DateTime  @updatedAt @db.Timestamp(0)
+
+  @@index([app_id], map: "idx_app_id")
+  @@index([event_id], map: "idx_event_id")
+  @@index([status], map: "idx_status")
+  @@index([next_attempt_at], map: "idx_next_attempt_at")
+}
+
+/// Reconciliation runs for drift detection
+model billing_reconciliation_runs {
+  id                  Int                     @id @default(autoincrement())
+  app_id              String                  @db.VarChar(50)
+  status              String                  @db.VarChar(20)
+  started_at          DateTime                @default(now()) @db.Timestamp(0)
+  finished_at         DateTime?               @db.Timestamp(0)
+  stats               Json?
+  error_message       String?                 @db.Text
+  billing_divergences billing_divergences[]
+
+  @@index([app_id], map: "idx_app_id")
+  @@index([status], map: "idx_status")
+  @@index([started_at], map: "idx_started_at")
+}
+
+/// Drift/divergence records from reconciliation
+model billing_divergences {
+  id              Int                         @id @default(autoincrement())
+  app_id          String                      @db.VarChar(50)
+  run_id          Int
+  entity_type     String                      @db.VarChar(50)
+  entity_key      String                      @db.VarChar(255)
+  divergence_type String                      @db.VarChar(50)
+  local_snapshot  Json?
+  remote_snapshot Json?
+  status          String                      @default("open") @db.VarChar(20)
+  created_at      DateTime                    @default(now()) @db.Timestamp(0)
+  resolved_at     DateTime?                   @db.Timestamp(0)
+  run             billing_reconciliation_runs @relation(fields: [run_id], references: [id], onDelete: Cascade)
+
+  @@index([app_id], map: "idx_app_id")
+  @@index([run_id], map: "idx_run_id")
+  @@index([entity_type], map: "idx_entity_type")
+  @@index([status], map: "idx_status")
+}
+
+// ===========================================================
+// PHASE 3: PRICING AGILITY TABLES
+// ===========================================================
+
+/// Plan definitions stored in database
+model billing_plans {
+  id             Int      @id @default(autoincrement())
+  app_id         String   @db.VarChar(50)
+  plan_id        String   @db.VarChar(100)
+  name           String   @db.VarChar(255)
+  interval_unit  String   @db.VarChar(20)
+  interval_count Int      @default(1)
+  price_cents    Int
+  currency       String   @default("usd") @db.VarChar(3)
+  features       Json?
+  active         Boolean  @default(true)
+  version_tag    String?  @db.VarChar(50)
+  created_at     DateTime @default(now()) @db.Timestamp(0)
+  updated_at     DateTime @updatedAt @db.Timestamp(0)
+
+  @@unique([app_id, plan_id], map: "unique_app_plan_id")
+  @@index([app_id], map: "idx_app_id")
+  @@index([active], map: "idx_active")
+}
+
+/// Coupon/discount codes
+model billing_coupons {
+  id              Int       @id @default(autoincrement())
+  app_id          String    @db.VarChar(50)
+  code            String    @db.VarChar(100)
+  coupon_type     String    @db.VarChar(20)
+  value           Int
+  currency        String?   @db.VarChar(3)
+  duration        String    @db.VarChar(20)
+  duration_months Int?
+  max_redemptions Int?
+  redeem_by       DateTime? @db.Timestamp(0)
+  active          Boolean   @default(true)
+  metadata        Json?
+  created_at      DateTime  @default(now()) @db.Timestamp(0)
+  updated_at      DateTime  @updatedAt @db.Timestamp(0)
+
+  // Generic discount fields:
+  product_categories Json?      // Generic product/service categories
+  customer_segments     Json?      // Customer segmentation categories
+  min_quantity                  Int?       // Minimum quantity for volume discounts
+  max_discount_amount_cents     Int?       // Cap on discount amount
+  seasonal_start_date        DateTime?  @db.Timestamp(0) // Seasonal promotion start
+  seasonal_end_date          DateTime?  @db.Timestamp(0) // Seasonal promotion end
+
+  // Additional discount fields
+  volume_tiers           Json?      // [{min, max, discount}] - Volume discount tiers
+  referral_tier          String?    @db.VarChar(50)  // Referral program tier
+  contract_term_months   Int?       // Contract term in months for contract discounts
+  stackable              Boolean?   @default(false)  // Whether discount can be stacked
+  priority               Int?       @default(0)      // Application priority order
+  billing_discount_applications billing_discount_applications[]
+
+  @@unique([app_id, code], map: "unique_app_code")
+  @@index([app_id], map: "idx_app_id")
+  @@index([active], map: "idx_active")
+  @@index([redeem_by], map: "idx_redeem_by")
+}
+
+/// Add-ons that can be attached to subscriptions
+model billing_addons {
+  id                          Int                           @id @default(autoincrement())
+  app_id                      String                        @db.VarChar(50)
+  addon_id                    String                        @db.VarChar(100)
+  name                        String                        @db.VarChar(255)
+  price_cents                 Int
+  currency                    String                        @default("usd") @db.VarChar(3)
+  features                    Json?
+  active                      Boolean                       @default(true)
+  metadata                    Json?
+  created_at                  DateTime                      @default(now()) @db.Timestamp(0)
+  updated_at                  DateTime                      @updatedAt @db.Timestamp(0)
+  billing_subscription_addons billing_subscription_addons[]
+
+  @@unique([app_id, addon_id], map: "unique_app_addon_id")
+  @@index([app_id], map: "idx_app_id")
+  @@index([active], map: "idx_active")
+}
+
+/// Join table for subscription add-ons
+model billing_subscription_addons {
+  id              Int                   @id @default(autoincrement())
+  app_id          String                @db.VarChar(50)
+  subscription_id Int
+  addon_id        Int
+  quantity        Int                   @default(1)
+  created_at      DateTime              @default(now()) @db.Timestamp(0)
+  updated_at      DateTime              @updatedAt @db.Timestamp(0)
+  subscription    billing_subscriptions @relation(fields: [subscription_id], references: [id], onDelete: Cascade)
+  addon           billing_addons        @relation(fields: [addon_id], references: [id], onDelete: Cascade)
+
+  @@unique([subscription_id, addon_id], map: "unique_subscription_addon")
+  @@index([app_id], map: "idx_app_id")
+  @@index([subscription_id], map: "idx_subscription_id")
+}
+
+// ===========================================================
+// PHASE 4: MONEY RECORDS TABLES
+// ===========================================================
+
+/// Invoice records from Tilled
+model billing_invoices {
+  id                  Int                    @id @default(autoincrement())
+  app_id              String                 @db.VarChar(50)
+  tilled_invoice_id   String                 @unique @db.VarChar(255)
+  billing_customer_id Int
+  subscription_id     Int?
+  status              String                 @db.VarChar(20)
+  amount_cents        Int
+  currency            String                 @default("usd") @db.VarChar(3)
+  due_at              DateTime?              @db.Timestamp(0)
+  paid_at             DateTime?              @db.Timestamp(0)
+  hosted_url          String?                @db.VarChar(500)
+  metadata            Json?
+  created_at          DateTime               @default(now()) @db.Timestamp(0)
+  updated_at          DateTime               @updatedAt @db.Timestamp(0)
+  customer            billing_customers      @relation(fields: [billing_customer_id], references: [id], onDelete: Cascade)
+  subscription        billing_subscriptions? @relation(fields: [subscription_id], references: [id], onDelete: SetNull)
+  billing_charges     billing_charges[]
+  billing_tax_calculations billing_tax_calculations[]
+  billing_discount_applications billing_discount_applications[]
+  billing_invoice_line_items billing_invoice_line_items[]
+
+  // Generic invoice fields:
+  billing_period_start DateTime? @db.Timestamp(0)
+  billing_period_end   DateTime? @db.Timestamp(0)
+  line_item_details    Json?     // Details about line items (products/services)
+  compliance_codes     Json?     // Generic compliance/regulation codes
+
+  @@index([app_id], map: "idx_app_id")
+  @@index([billing_customer_id], map: "idx_billing_customer_id")
+  @@index([subscription_id], map: "idx_subscription_id")
+  @@index([status], map: "idx_status")
+  @@index([due_at], map: "idx_due_at")
+}
+
+/// Charge/payment records from Tilled
+model billing_charges {
+  id                  Int                    @id @default(autoincrement())
+  app_id              String                 @db.VarChar(50)
+  tilled_charge_id    String?                @unique @db.VarChar(255)
+  invoice_id          Int?
+  billing_customer_id Int
+  subscription_id     Int?
+  status              String                 @db.VarChar(20)
+  amount_cents        Int
+  currency            String                 @default("usd") @db.VarChar(3)
+  // One-time charge semantics
+  charge_type         String                 @default("one_time") @db.VarChar(50)
+  reason              String?                @db.VarChar(100)
+  reference_id        String?                @db.VarChar(255)
+  service_date        DateTime?              @db.Timestamp(0)
+  note                String?                @db.Text
+  metadata            Json?
+  failure_code        String?                @db.VarChar(50)
+  failure_message     String?                @db.Text
+  created_at          DateTime               @default(now()) @db.Timestamp(0)
+  updated_at          DateTime               @updatedAt @db.Timestamp(0)
+
+  // Generic charge fields:
+  product_type      String?   @db.VarChar(50)   // Generic product/service type
+  quantity          Int?      @default(1)       // Quantity of product/service
+  service_frequency String?   @db.VarChar(20)   // Frequency of service delivery
+  weight_amount     Decimal?  @db.Decimal(10, 2) // Weight measurement (unit in metadata)
+  location_reference String?  @db.VarChar(500)  // Reference to service location
+  // service_date already exists and can be used for service date
+
+  invoice             billing_invoices?      @relation(fields: [invoice_id], references: [id], onDelete: SetNull)
+  customer            billing_customers      @relation(fields: [billing_customer_id], references: [id], onDelete: Cascade)
+  subscription        billing_subscriptions? @relation(fields: [subscription_id], references: [id], onDelete: SetNull)
+  billing_refunds     billing_refunds[]
+  billing_disputes    billing_disputes[]
+  billing_tax_calculations billing_tax_calculations[]
+  billing_discount_applications billing_discount_applications[]
+
+  @@unique([app_id, reference_id], map: "unique_app_reference_id")
+  @@index([app_id], map: "idx_app_id")
+  @@index([billing_customer_id], map: "idx_billing_customer_id")
+  @@index([subscription_id], map: "idx_subscription_id")
+  @@index([status], map: "idx_status")
+  @@index([charge_type], map: "idx_charge_type")
+  @@index([reason], map: "idx_reason")
+  @@index([service_date], map: "idx_service_date")
+}
+
+/// Refund records from Tilled
+model billing_refunds {
+  id                  Int             @id @default(autoincrement())
+  app_id              String          @db.VarChar(50)
+  billing_customer_id Int
+  charge_id           Int
+  tilled_refund_id    String?         @db.VarChar(255)
+  tilled_charge_id    String?         @db.VarChar(255)
+  status              String          @db.VarChar(20)
+  amount_cents        Int
+  currency            String          @default("usd") @db.VarChar(3)
+  reason              String?         @db.VarChar(100)
+  reference_id        String          @db.VarChar(255)
+  note                String?         @db.Text
+  metadata            Json?
+  failure_code        String?         @db.VarChar(50)
+  failure_message     String?         @db.Text
+  created_at          DateTime        @default(now()) @db.Timestamp(0)
+  updated_at          DateTime        @default(now()) @updatedAt @db.Timestamp(0)
+  charge              billing_charges @relation(fields: [charge_id], references: [id], onDelete: Cascade)
+  customer            billing_customers @relation(fields: [billing_customer_id], references: [id], onDelete: Cascade)
+
+  @@unique([app_id, reference_id], map: "unique_refund_app_reference_id")
+  @@unique([tilled_refund_id, app_id], map: "tilled_refund_id_app_id")
+  @@index([app_id], map: "idx_app_id")
+  @@index([billing_customer_id], map: "idx_billing_customer_id")
+  @@index([charge_id], map: "idx_charge_id")
+  @@index([status], map: "idx_status")
+}
+
+/// Dispute/chargeback records from Tilled
+model billing_disputes {
+  id                Int             @id @default(autoincrement())
+  app_id            String          @db.VarChar(50)
+  tilled_dispute_id String          @db.VarChar(255)
+  tilled_charge_id  String?         @db.VarChar(255)
+  charge_id         Int?
+  status            String          @db.VarChar(30)
+  amount_cents      Int?
+  currency          String?         @db.VarChar(3)
+  reason            String?         @db.VarChar(255)
+  reason_code       String?         @db.VarChar(50)
+  evidence_due_by   DateTime?       @db.Timestamp(0)
+  opened_at         DateTime?       @db.Timestamp(0)
+  closed_at         DateTime?       @db.Timestamp(0)
+  created_at        DateTime        @default(now()) @db.Timestamp(0)
+  updated_at        DateTime        @default(now()) @updatedAt @db.Timestamp(0)
+  charge            billing_charges? @relation(fields: [charge_id], references: [id], onDelete: SetNull)
+
+  @@unique([tilled_dispute_id, app_id], map: "tilled_dispute_id_app_id")
+  @@index([app_id], map: "idx_app_id")
+  @@index([app_id, status], map: "idx_app_status")
+  @@index([charge_id], map: "idx_charge_id")
+  @@index([status], map: "idx_status")
+}
+
+// ===========================================================
+// PHASE 1: TAX ENGINE (TRASHTECH EXTENSION)
+// ===========================================================
+
+/// Tax rates by jurisdiction for sales tax, waste fees, and environmental taxes
+model billing_tax_rates {
+  id                Int      @id @default(autoincrement())
+  app_id            String   @db.VarChar(50)
+  jurisdiction_code String   @db.VarChar(20)  // e.g., "CA", "NY-NYC", "TX-DAL"
+  tax_type          String   @db.VarChar(50)  // "sales_tax", "waste_fee", "environmental"
+  rate              Decimal  @db.Decimal(5, 4)  // 0.0825 = 8.25%
+  effective_date    DateTime @db.Timestamp(0)
+  expiration_date   DateTime? @db.Timestamp(0)
+  description       String?  @db.VarChar(255)
+  metadata          Json?
+  created_at        DateTime @default(now()) @db.Timestamp(0)
+  updated_at        DateTime @updatedAt @db.Timestamp(0)
+  billing_tax_calculations billing_tax_calculations[]
+
+  @@unique([app_id, jurisdiction_code, tax_type, effective_date], map: "unique_tax_rate")
+  @@index([app_id, jurisdiction_code], map: "idx_app_jurisdiction")
+  @@index([effective_date], map: "idx_effective_date")
+}
+
+/// Tax calculation records linking to invoices and charges
+model billing_tax_calculations {
+  id                Int      @id @default(autoincrement())
+  app_id            String   @db.VarChar(50)
+  invoice_id        Int?
+  charge_id         Int?
+  tax_rate_id       Int
+  taxable_amount    Decimal  @db.Decimal(10, 2)
+  tax_amount        Decimal  @db.Decimal(10, 2)
+  jurisdiction_code String   @db.VarChar(20)
+  tax_type          String   @db.VarChar(50)
+  rate_applied      Decimal  @db.Decimal(5, 4)
+  created_at        DateTime @default(now()) @db.Timestamp(0)
+
+  invoice           billing_invoices? @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+  charge            billing_charges?  @relation(fields: [charge_id], references: [id], onDelete: Cascade)
+  tax_rate          billing_tax_rates @relation(fields: [tax_rate_id], references: [id])
+
+  @@index([app_id, invoice_id], map: "idx_app_invoice")
+  @@index([app_id, charge_id], map: "idx_app_charge")
+  @@index([tax_rate_id], map: "idx_tax_rate")
+}
+
+// ===========================================================
+// PHASE 2: DISCOUNT APPLICATIONS (GENERIC)
+// ===========================================================
+
+/// Applied discount tracking for invoices and charges
+model billing_discount_applications {
+  id                Int      @id @default(autoincrement())
+  app_id            String   @db.VarChar(50)
+  invoice_id        Int?
+  charge_id         Int?
+  coupon_id         Int?
+  customer_id       Int?
+  discount_type     String   @db.VarChar(50)  // "coupon", "volume", "referral", "contract"
+  discount_amount_cents Int      // Discount amount in cents
+  description       String   @db.VarChar(255)
+  quantity          Int?     // Quantity when discount applied
+  category          String?  @db.VarChar(50)  // Product/service category
+  product_types     Json?    // Product types affected
+  metadata          Json?    // Additional discount context
+  applied_at        DateTime @default(now()) @db.Timestamp(0)
+  created_by        String?  @db.VarChar(255) // User/system that applied discount
+  created_at        DateTime @default(now()) @db.Timestamp(0)
+
+  invoice           billing_invoices? @relation(fields: [invoice_id], references: [id])
+  charge            billing_charges?  @relation(fields: [charge_id], references: [id])
+  coupon            billing_coupons?  @relation(fields: [coupon_id], references: [id])
+  customer          billing_customers? @relation(fields: [customer_id], references: [id])
+
+  @@index([app_id, invoice_id])
+  @@index([app_id, charge_id])
+  @@index([app_id, coupon_id])
+  @@index([app_id, customer_id])
+  @@index([applied_at])
+}
+
+// ===========================================================
+// PHASE 4: METERED USAGE (GENERIC)
+// ===========================================================
+
+/// Metered usage tracking for usage-based billing
+model billing_metered_usage {
+  id                Int      @id @default(autoincrement())
+  app_id            String   @db.VarChar(50)
+  customer_id       Int
+  subscription_id   Int?
+  metric_name       String   @db.VarChar(100)  // Generic metric name
+  quantity          Decimal  @db.Decimal(10, 2)
+  unit_price_cents  Int
+  period_start      DateTime @db.Timestamp(0)
+  period_end        DateTime @db.Timestamp(0)
+  recorded_at       DateTime @default(now()) @db.Timestamp(0)
+  billed_at         DateTime? @db.Timestamp(0)
+
+  customer          billing_customers      @relation(fields: [customer_id], references: [id])
+  subscription      billing_subscriptions? @relation(fields: [subscription_id], references: [id])
+
+  @@index([app_id, customer_id])
+  @@index([app_id, subscription_id])
+  @@index([period_start, period_end])
+  @@index([billed_at])
+}
+
+// ===========================================================
+// PHASE 5: INVOICE LINE ITEMS (GENERIC)
+// ===========================================================
+
+/// Detailed invoice line items for better breakdown
+model billing_invoice_line_items {
+  id                Int      @id @default(autoincrement())
+  app_id            String   @db.VarChar(50)
+  invoice_id        Int
+  line_item_type    String   @db.VarChar(50)  // "subscription", "usage", "tax", "discount", "fee"
+  description       String   @db.VarChar(500)
+  quantity          Decimal  @db.Decimal(10, 2)
+  unit_price_cents  Int
+  amount_cents      Int
+  metadata          Json?    // Product/service details
+  created_at        DateTime @default(now()) @db.Timestamp(0)
+
+  invoice           billing_invoices @relation(fields: [invoice_id], references: [id])
+
+  @@index([app_id, invoice_id])
+  @@index([line_item_type])
+}
