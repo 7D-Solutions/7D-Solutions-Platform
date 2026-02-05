@@ -302,34 +302,6 @@ class DiscountService {
     return availableDiscounts;
   }
 
-  // Backward-compatible instance method delegates
-  validateCouponEligibility(appId, coupon, context) {
-    return CouponValidator.validateEligibility(appId, coupon, context);
-  }
-
-  _calculateDiscountAmount(coupon, context) {
-    return DiscountCalculator.calculateAmount(coupon, context);
-  }
-
-  _calculateVolumeDiscount(quantity, volumeTiers, subtotalCents) {
-    return DiscountCalculator.calculateVolumeDiscount(quantity, volumeTiers, subtotalCents);
-  }
-
-  _applyStackingRules(discounts, subtotalCents) {
-    return DiscountCalculator.applyStackingRules(discounts, subtotalCents);
-  }
-
-  _findApplicableTier(quantity, volumeTiers) {
-    return DiscountCalculator.findApplicableTier(quantity, volumeTiers);
-  }
-
-  _getDiscountDescription(coupon) {
-    return DiscountCalculator.getDescription(coupon);
-  }
-
-  async _findAutomaticVolumeDiscount(appId, context) {
-    return CouponValidator.findAutomaticVolumeDiscount(appId, context);
-  }
 }
 
 module.exports = DiscountService;

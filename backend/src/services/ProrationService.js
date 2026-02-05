@@ -264,18 +264,6 @@ class ProrationService {
     };
   }
 
-  // Delegate to static calculator methods for backward compatibility
-  calculateTimeProration(changeDate, periodEnd, periodStart) {
-    return ProrationCalculator.calculateTimeProration(changeDate, periodEnd, periodStart);
-  }
-
-  roundToFinancialStandard(amountCents) {
-    return ProrationCalculator.roundToFinancialStandard(amountCents);
-  }
-
-  normalizeToUTCMidnight(date) {
-    return ProrationCalculator.normalizeToUTCMidnight(date);
-  }
 }
 
 module.exports = ProrationService;
