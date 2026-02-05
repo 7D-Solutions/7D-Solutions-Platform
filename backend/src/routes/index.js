@@ -11,6 +11,8 @@ const taxRoutes = require('./taxRoutes');
 const prorationRoutes = require('./prorationRoutes');
 const usageRoutes = require('./usageRoutes');
 const invoiceRoutes = require('./invoiceRoutes');
+const webhookAdminRoutes = require('./webhookAdminRoutes');
+const jobAdminRoutes = require('./jobAdminRoutes');
 
 const router = express.Router();
 
@@ -29,5 +31,7 @@ router.use('/tax', taxRoutes);
 router.use('/proration', prorationRoutes);
 router.use('/usage', usageRoutes);
 router.use('/invoices', invoiceRoutes);
+router.use('/webhook-admin', webhookAdminRoutes);
+router.use('/job-admin', jobAdminRoutes);
 
 module.exports = router;
