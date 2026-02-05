@@ -1,11 +1,8 @@
 const express = require('express');
-const BillingService = require('../billingService');
-const logger = require('@fireproof/infrastructure/utils/logger');
 const { billingPrisma } = require('../prisma');
 const { requireAppId } = require('../middleware');
 
 const router = express.Router();
-const billingService = new BillingService();
 
 // GET /api/billing/health (admin-only health check)
 router.get('/', requireAppId(), async (req, res) => {

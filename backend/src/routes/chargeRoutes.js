@@ -1,11 +1,12 @@
 const express = require('express');
-const BillingService = require('../billingService');
+const { getTilledClient } = require('../tilledClientFactory');
+const ChargeService = require('../services/ChargeService');
 const { requireAppId, rejectSensitiveData } = require('../middleware');
 const { createOneTimeChargeValidator } = require('../validators/chargeValidators');
 const createIdempotencyMiddleware = require('../middleware/idempotency');
 
 const router = express.Router();
-const billingService = new BillingService();
+const chargeService = new ChargeService(getTilledClient);
 const idempotencyMiddleware = createIdempotencyMiddleware('/charges/one-time');
 
 // Apply requireAppId middleware to all routes in this file
@@ -53,7 +54,7 @@ router.post('/one-time', rejectSensitiveData, createOneTimeChargeValidator, idem
     } = req.body;
 
     // Create one-time charge using idempotency data from middleware
-    const charge = await billingService.createOneTimeCharge(
+    const charge = await chargeService.createOneTimeCharge(
       appId,
       {
         externalCustomerId: external_customer_id,

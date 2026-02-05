@@ -1,11 +1,12 @@
 const express = require('express');
-const BillingService = require('../billingService');
+const { getTilledClient } = require('../tilledClientFactory');
+const RefundService = require('../services/RefundService');
 const { requireAppId, rejectSensitiveData } = require('../middleware');
 const { createRefundValidator } = require('../validators/refundValidators');
 const createIdempotencyMiddleware = require('../middleware/idempotency');
 
 const router = express.Router();
-const billingService = new BillingService();
+const refundService = new RefundService(getTilledClient);
 const idempotencyMiddleware = createIdempotencyMiddleware('/refunds');
 
 // Apply requireAppId middleware to all routes in this file
@@ -51,7 +52,7 @@ router.post('/', rejectSensitiveData, createRefundValidator, idempotencyMiddlewa
     } = req.body;
 
     // Create refund using idempotency data from middleware
-    const refund = await billingService.createRefund(
+    const refund = await refundService.createRefund(
       appId,
       {
         chargeId: charge_id,

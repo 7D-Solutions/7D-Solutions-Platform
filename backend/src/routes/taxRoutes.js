@@ -1,5 +1,5 @@
 const express = require('express');
-const BillingService = require('../billingService');
+const TaxService = require('../services/TaxService');
 const { requireAppId } = require('../middleware');
 const {
   getTaxRatesByJurisdictionValidator,
@@ -9,7 +9,7 @@ const {
 } = require('../validators/taxValidators');
 
 const router = express.Router();
-const billingService = new BillingService();
+const taxService = new TaxService();
 
 // Apply requireAppId middleware to all routes in this file
 router.use(requireAppId());
@@ -20,7 +20,7 @@ router.get('/rates/:jurisdictionCode', getTaxRatesByJurisdictionValidator, async
     const { jurisdictionCode } = req.params;
     const appId = req.verifiedAppId;
 
-    const taxRates = await billingService.getTaxRatesByJurisdiction(appId, jurisdictionCode);
+    const taxRates = await taxService.getTaxRatesByJurisdiction(appId, jurisdictionCode);
     res.json({ tax_rates: taxRates });
   } catch (error) {
     next(error);
@@ -39,7 +39,7 @@ router.post('/rates', createTaxRateValidator, async (req, res, next) => {
     if (description) options.description = description;
     if (metadata) options.metadata = metadata;
 
-    const taxRate = await billingService.createTaxRate(
+    const taxRate = await taxService.createTaxRate(
       appId,
       jurisdiction_code,
       tax_type,
@@ -59,7 +59,7 @@ router.post('/exemptions', createTaxExemptionValidator, async (req, res, next) =
     const appId = req.verifiedAppId;
     const { customer_id, tax_type, certificate_number } = req.body;
 
-    const exemption = await billingService.createTaxExemption(
+    const exemption = await taxService.createTaxExemption(
       appId,
       Number(customer_id),
       tax_type,
@@ -78,7 +78,7 @@ router.get('/calculations/invoice/:invoiceId', getTaxCalculationsForInvoiceValid
     const { invoiceId } = req.params;
     const appId = req.verifiedAppId;
 
-    const taxCalculations = await billingService.getTaxCalculationsForInvoice(appId, Number(invoiceId));
+    const taxCalculations = await taxService.getTaxCalculationsForInvoice(appId, Number(invoiceId));
     res.json({ tax_calculations: taxCalculations });
   } catch (error) {
     next(error);

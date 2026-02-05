@@ -1,5 +1,7 @@
 const express = require('express');
-const BillingService = require('../billingService');
+const { getTilledClient } = require('../tilledClientFactory');
+const SubscriptionService = require('../services/SubscriptionService');
+const ProrationService = require('../services/ProrationService');
 const { requireAppId, rejectSensitiveData } = require('../middleware');
 const {
   getSubscriptionByIdValidator,
@@ -14,7 +16,8 @@ const {
 } = require('../validators/prorationValidators');
 
 const router = express.Router();
-const billingService = new BillingService();
+const subscriptionService = new SubscriptionService(getTilledClient);
+const prorationService = new ProrationService(getTilledClient);
 
 // Apply requireAppId middleware to all routes in this file
 router.use(requireAppId());
@@ -25,7 +28,7 @@ router.get('/:id', getSubscriptionByIdValidator, async (req, res, next) => {
     const { id } = req.params;
     const appId = req.verifiedAppId;
 
-    const subscription = await billingService.getSubscriptionById(appId, Number(id));
+    const subscription = await subscriptionService.getSubscriptionById(appId, Number(id));
     res.json(subscription);
   } catch (error) {
     next(error);
@@ -42,7 +45,7 @@ router.get('/', listSubscriptionsValidator, async (req, res, next) => {
     if (billing_customer_id) filters.billingCustomerId = Number(billing_customer_id);
     if (status) filters.status = status;
 
-    const subscriptions = await billingService.listSubscriptions(filters);
+    const subscriptions = await subscriptionService.listSubscriptions(filters);
     res.json(subscriptions);
   } catch (error) {
     next(error);
@@ -67,7 +70,7 @@ router.post('/', rejectSensitiveData, createSubscriptionValidator, async (req, r
     } = req.body;
     const appId = req.verifiedAppId;
 
-    const subscription = await billingService.createSubscription(
+    const subscription = await subscriptionService.createSubscription(
       appId,
       billing_customer_id,
       payment_method_id,
@@ -97,7 +100,7 @@ router.delete('/:id', cancelSubscriptionValidator, async (req, res, next) => {
     const { at_period_end } = req.query;
     const appId = req.verifiedAppId;
 
-    const subscription = await billingService.cancelSubscriptionEx(
+    const subscription = await subscriptionService.cancelSubscriptionEx(
       appId,
       Number(id),
       { atPeriodEnd: at_period_end === 'true' }
@@ -114,7 +117,7 @@ router.post('/change-cycle', rejectSensitiveData, async (req, res, next) => {
     const { ...payload } = req.body;
     const appId = req.verifiedAppId;
 
-    const result = await billingService.changeCycle(appId, payload);
+    const result = await subscriptionService.changeCycle(appId, payload);
     res.status(201).json(result);
   } catch (error) {
     next(error);
@@ -131,7 +134,7 @@ router.put('/:id', rejectSensitiveData, updateSubscriptionValidator, async (req,
     const { app_id, ...updates } = req.body; // Exclude app_id from updates
     const appId = req.verifiedAppId;
 
-    const subscription = await billingService.updateSubscription(appId, Number(id), updates);
+    const subscription = await subscriptionService.updateSubscription(appId, Number(id), updates);
     res.json(subscription);
   } catch (error) {
     next(error);
@@ -191,7 +194,7 @@ router.post('/:subscription_id/proration/apply', rejectSensitiveData, applySubsc
     if (effective_date) options.effectiveDate = new Date(effective_date);
     if (invoice_immediately !== undefined) options.invoiceImmediately = invoice_immediately;
 
-    const result = await billingService.applySubscriptionChange(
+    const result = await prorationService.applySubscriptionChange(
       Number(subscription_id),
       changeDetails,
       options
@@ -227,7 +230,7 @@ router.post('/:subscription_id/proration/cancellation-refund', rejectSensitiveDa
     const { subscription_id } = req.params;
     const { cancellation_date, refund_behavior = 'partial_refund' } = req.body;
 
-    const cancellationRefund = await billingService.calculateCancellationRefund(
+    const cancellationRefund = await prorationService.calculateCancellationRefund(
       Number(subscription_id),
       new Date(cancellation_date),
       refund_behavior

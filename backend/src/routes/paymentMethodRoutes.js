@@ -1,5 +1,7 @@
 const express = require('express');
-const BillingService = require('../billingService');
+const { getTilledClient } = require('../tilledClientFactory');
+const CustomerService = require('../services/CustomerService');
+const PaymentMethodService = require('../services/PaymentMethodService');
 const { requireAppId, rejectSensitiveData } = require('../middleware');
 const {
   listPaymentMethodsValidator,
@@ -9,7 +11,8 @@ const {
 } = require('../validators/paymentMethodValidators');
 
 const router = express.Router();
-const billingService = new BillingService();
+const customerService = new CustomerService(getTilledClient);
+const paymentMethodService = new PaymentMethodService(getTilledClient, customerService);
 
 // Apply requireAppId middleware to all routes in this file
 router.use(requireAppId());
@@ -20,7 +23,7 @@ router.get('/', listPaymentMethodsValidator, async (req, res, next) => {
     const { billing_customer_id } = req.query;
     const appId = req.verifiedAppId;
 
-    const result = await billingService.listPaymentMethods(appId, Number(billing_customer_id));
+    const result = await paymentMethodService.listPaymentMethods(appId, Number(billing_customer_id));
     res.json(result);
   } catch (error) {
     next(error);
@@ -33,7 +36,7 @@ router.post('/', rejectSensitiveData, addPaymentMethodValidator, async (req, res
     const { billing_customer_id, payment_method_id } = req.body;
     const appId = req.verifiedAppId;
 
-    const paymentMethod = await billingService.addPaymentMethod(
+    const paymentMethod = await paymentMethodService.addPaymentMethod(
       appId,
       Number(billing_customer_id),
       payment_method_id
@@ -51,7 +54,7 @@ router.put('/:id/default', rejectSensitiveData, setDefaultPaymentMethodByIdValid
     const { billing_customer_id } = req.body;
     const appId = req.verifiedAppId;
 
-    const paymentMethod = await billingService.setDefaultPaymentMethodById(
+    const paymentMethod = await paymentMethodService.setDefaultPaymentMethodById(
       appId,
       Number(billing_customer_id),
       tilledPaymentMethodId
@@ -69,7 +72,7 @@ router.delete('/:id', deletePaymentMethodValidator, async (req, res, next) => {
     const { billing_customer_id } = req.query;
     const appId = req.verifiedAppId;
 
-    const result = await billingService.deletePaymentMethod(
+    const result = await paymentMethodService.deletePaymentMethod(
       appId,
       Number(billing_customer_id),
       tilledPaymentMethodId

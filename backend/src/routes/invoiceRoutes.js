@@ -1,5 +1,6 @@
 const express = require('express');
-const BillingService = require('../billingService');
+const { getTilledClient } = require('../tilledClientFactory');
+const InvoiceService = require('../services/InvoiceService');
 const { requireAppId, rejectSensitiveData } = require('../middleware');
 const {
   createInvoiceValidator,
@@ -11,7 +12,7 @@ const {
 } = require('../validators/invoiceValidators');
 
 const router = express.Router();
-const billingService = new BillingService();
+const invoiceService = new InvoiceService(getTilledClient);
 
 // Apply requireAppId middleware to all routes in this file
 router.use(requireAppId());
@@ -57,7 +58,7 @@ router.post('/', rejectSensitiveData, createInvoiceValidator, async (req, res, n
       compliance_codes = null
     } = req.body;
 
-    const invoice = await billingService.createInvoice({
+    const invoice = await invoiceService.createInvoice({
       appId,
       customerId: customer_id,
       subscriptionId: subscription_id,
@@ -96,7 +97,7 @@ router.get('/:id', rejectSensitiveData, getInvoiceValidator, async (req, res, ne
     const { id } = req.params;
     const includeLineItems = req.query.include_line_items === 'true' || req.query.include_line_items === true;
 
-    const invoice = await billingService.getInvoice(
+    const invoice = await invoiceService.getInvoice(
       appId,
       Number(id),
       includeLineItems
@@ -138,7 +139,7 @@ router.post('/:id/line-items', rejectSensitiveData, addInvoiceLineItemValidator,
       metadata = {}
     } = req.body;
 
-    const lineItem = await billingService.addInvoiceLineItem({
+    const lineItem = await invoiceService.addInvoiceLineItem({
       appId,
       invoiceId: Number(id),
       lineItemType: line_item_type,
@@ -185,7 +186,7 @@ router.post('/generate-from-subscription', rejectSensitiveData, generateInvoiceF
       include_discounts = true
     } = req.body;
 
-    const invoice = await billingService.generateInvoiceFromSubscription({
+    const invoice = await invoiceService.generateInvoiceFromSubscription({
       appId,
       subscriptionId: Number(subscription_id),
       billingPeriodStart: new Date(billing_period_start),
@@ -222,7 +223,7 @@ router.patch('/:id/status', rejectSensitiveData, updateInvoiceStatusValidator, a
     const { id } = req.params;
     const { status, paid_at = null } = req.body;
 
-    const invoice = await billingService.updateInvoiceStatus(
+    const invoice = await invoiceService.updateInvoiceStatus(
       appId,
       Number(id),
       status,
@@ -278,7 +279,7 @@ router.get('/', rejectSensitiveData, listInvoicesValidator, async (req, res, nex
       offset: Number(offset)
     };
 
-    const result = await billingService.listInvoices(filters);
+    const result = await invoiceService.listInvoices(filters);
 
     res.json({
       invoices: result.invoices,

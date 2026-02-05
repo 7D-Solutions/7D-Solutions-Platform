@@ -1,5 +1,6 @@
 const express = require('express');
-const BillingService = require('../billingService');
+const { getTilledClient } = require('../tilledClientFactory');
+const ProrationService = require('../services/ProrationService');
 const { requireAppId, rejectSensitiveData } = require('../middleware');
 const {
   calculateProrationValidator,
@@ -8,7 +9,7 @@ const {
 } = require('../validators/prorationValidators');
 
 const router = express.Router();
-const billingService = new BillingService();
+const prorationService = new ProrationService(getTilledClient);
 
 // Apply requireAppId middleware to all routes in this file
 router.use(requireAppId());
@@ -45,7 +46,7 @@ router.post('/calculate', rejectSensitiveData, calculateProrationValidator, asyn
       proration_behavior = 'create_prorations'
     } = req.body;
 
-    const proration = await billingService.calculateProration({
+    const proration = await prorationService.calculateProration({
       subscriptionId: subscription_id,
       changeDate: new Date(change_date),
       newPriceCents: new_price_cents,

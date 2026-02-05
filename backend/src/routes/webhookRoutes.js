@@ -1,9 +1,10 @@
 const express = require('express');
-const BillingService = require('../billingService');
+const { getTilledClient } = require('../tilledClientFactory');
+const WebhookService = require('../services/WebhookService');
 const logger = require('@fireproof/infrastructure/utils/logger');
 
 const router = express.Router();
-const billingService = new BillingService();
+const webhookService = new WebhookService(getTilledClient);
 
 // POST /api/billing/webhooks/:app_id (NO auth middleware - signature verification only)
 router.post('/:app_id', async (req, res, next) => {
@@ -22,7 +23,7 @@ router.post('/:app_id', async (req, res, next) => {
       return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    const result = await billingService.processWebhook(app_id, event, rawBody, signature);
+    const result = await webhookService.processWebhook(app_id, event, rawBody, signature);
 
     if (!result.success) {
       return res.status(401).json({ error: result.error || 'Invalid webhook signature' });

@@ -1,4 +1,4 @@
-const BillingService = require('../../backend/src/billingService');
+const BillingStateService = require('../../backend/src/services/BillingStateService');
 const { billingPrisma } = require('../../backend/src/prisma');
 const TilledClient = require('../../backend/src/tilledClient');
 
@@ -20,12 +20,12 @@ jest.mock('../../backend/src/prisma', () => ({
   }
 }));
 
-describe('BillingService.getBillingState', () => {
+describe('BillingStateService.getBillingState', () => {
   let service;
   let mockTilledClient;
 
   beforeEach(() => {
-    service = new BillingService();
+    service = new BillingStateService();
     mockTilledClient = {
       getPaymentMethod: jest.fn()
     };
@@ -379,11 +379,11 @@ describe('BillingService.getBillingState', () => {
   });
 });
 
-describe('BillingService.getEntitlements', () => {
+describe('BillingStateService.getEntitlements', () => {
   let service;
 
   beforeEach(() => {
-    service = new BillingService();
+    service = new BillingStateService();
     jest.clearAllMocks();
   });
 

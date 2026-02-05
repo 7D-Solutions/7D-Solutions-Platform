@@ -1,10 +1,10 @@
 const express = require('express');
-const BillingService = require('../billingService');
+const BillingStateService = require('../services/BillingStateService');
 const { requireAppId } = require('../middleware');
 const { getBillingStateValidator } = require('../validators/billingStateValidators');
 
 const router = express.Router();
-const billingService = new BillingService();
+const billingStateService = new BillingStateService();
 
 // GET /api/billing/state (billing snapshot + entitlements)
 router.get('/', requireAppId(), getBillingStateValidator, async (req, res, next) => {
@@ -12,7 +12,7 @@ router.get('/', requireAppId(), getBillingStateValidator, async (req, res, next)
     const { external_customer_id } = req.query;
     const appId = req.verifiedAppId;
 
-    const state = await billingService.getBillingState(appId, external_customer_id);
+    const state = await billingStateService.getBillingState(appId, external_customer_id);
     res.json(state);
   } catch (error) {
     next(error);

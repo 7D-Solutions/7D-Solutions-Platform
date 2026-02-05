@@ -1,5 +1,6 @@
 const express = require('express');
-const BillingService = require('../billingService');
+const { getTilledClient } = require('../tilledClientFactory');
+const UsageService = require('../services/UsageService');
 const { requireAppId, rejectSensitiveData } = require('../middleware');
 const {
   recordUsageValidator,
@@ -8,7 +9,7 @@ const {
 } = require('../validators/usageValidators');
 
 const router = express.Router();
-const billingService = new BillingService();
+const usageService = new UsageService(getTilledClient);
 
 // Apply requireAppId middleware to all routes in this file
 router.use(requireAppId());
@@ -48,7 +49,7 @@ router.post('/record', rejectSensitiveData, recordUsageValidator, async (req, re
       metadata = {}
     } = req.body;
 
-    const usageRecord = await billingService.usageService.recordUsage({
+    const usageRecord = await usageService.recordUsage({
       appId,
       customerId: customer_id,
       subscriptionId: subscription_id,
@@ -95,7 +96,7 @@ router.post('/calculate-charges', rejectSensitiveData, calculateUsageChargesVali
       create_charges = false
     } = req.body;
 
-    const usageCalculation = await billingService.usageService.calculateUsageCharges({
+    const usageCalculation = await usageService.calculateUsageCharges({
       appId,
       customerId: customer_id,
       subscriptionId: subscription_id,
@@ -139,7 +140,7 @@ router.get('/report', rejectSensitiveData, getUsageReportValidator, async (req, 
       include_unbilled = true
     } = req.query;
 
-    const usageReport = await billingService.usageService.getUsageReport({
+    const usageReport = await usageService.getUsageReport({
       appId,
       customerId: parseInt(customer_id, 10),
       subscriptionId: subscription_id ? parseInt(subscription_id, 10) : null,
