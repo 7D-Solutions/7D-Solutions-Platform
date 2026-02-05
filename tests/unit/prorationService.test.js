@@ -1,4 +1,5 @@
 const ProrationService = require('../../backend/src/services/ProrationService');
+const ProrationCalculator = require('../../backend/src/services/helpers/ProrationCalculator');
 const { billingPrisma } = require('../../backend/src/prisma');
 const { NotFoundError, ValidationError } = require('../../backend/src/utils/errors');
 
@@ -265,7 +266,7 @@ describe('ProrationService', () => {
       const periodEnd = new Date('2026-01-31');
       const changeDate = new Date('2026-01-15');
 
-      const result = prorationService.calculateTimeProration(changeDate, periodEnd, periodStart);
+      const result = ProrationCalculator.calculateTimeProration(changeDate, periodEnd, periodStart);
 
       expect(result.daysUsed).toBe(14);
       expect(result.daysRemaining).toBe(16);
@@ -278,7 +279,7 @@ describe('ProrationService', () => {
       const periodEnd = new Date('2026-01-31');
       const changeDate = new Date('2026-01-01');
 
-      const result = prorationService.calculateTimeProration(changeDate, periodEnd, periodStart);
+      const result = ProrationCalculator.calculateTimeProration(changeDate, periodEnd, periodStart);
 
       expect(result.daysUsed).toBe(0);
       expect(result.daysRemaining).toBe(30);
@@ -292,7 +293,7 @@ describe('ProrationService', () => {
       const periodEnd = new Date('2026-01-31');
       const changeDate = new Date('2026-01-31');
 
-      const result = prorationService.calculateTimeProration(changeDate, periodEnd, periodStart);
+      const result = ProrationCalculator.calculateTimeProration(changeDate, periodEnd, periodStart);
 
       expect(result.daysUsed).toBe(30);
       expect(result.daysRemaining).toBe(0);
@@ -306,7 +307,7 @@ describe('ProrationService', () => {
       const periodEnd = new Date('2026-01-31');
       const changeDate = new Date('2026-02-01');
 
-      const result = prorationService.calculateTimeProration(changeDate, periodEnd, periodStart);
+      const result = ProrationCalculator.calculateTimeProration(changeDate, periodEnd, periodStart);
 
       expect(result.daysUsed).toBe(30);
       expect(result.daysRemaining).toBe(0);
@@ -318,7 +319,7 @@ describe('ProrationService', () => {
       const periodEnd = new Date('2026-01-31T14:45:00Z');
       const changeDate = new Date('2026-01-15T08:15:00Z');
 
-      const result = prorationService.calculateTimeProration(changeDate, periodEnd, periodStart);
+      const result = ProrationCalculator.calculateTimeProration(changeDate, periodEnd, periodStart);
 
       // Should treat all dates as midnight UTC, so change at Jan 15 00:00 UTC
       // Days used: Jan 1-15 = 14 days (Jan 1-14 inclusive = 14 days)
@@ -338,7 +339,7 @@ describe('ProrationService', () => {
       const periodEnd = new Date('2026-01-31T23:59:59+05:30'); // IST
       const changeDate = new Date('2026-01-15T12:00:00+00:00'); // UTC
 
-      const result = prorationService.calculateTimeProration(changeDate, periodEnd, periodStart);
+      const result = ProrationCalculator.calculateTimeProration(changeDate, periodEnd, periodStart);
 
       // All dates normalized to UTC midnight
       expect(result.daysUsed).toBe(14);
@@ -350,7 +351,7 @@ describe('ProrationService', () => {
       const periodEnd = new Date('2026-01-01T23:59:59');
       const changeDate = new Date('2026-01-01T12:00:00');
 
-      const result = prorationService.calculateTimeProration(changeDate, periodEnd, periodStart);
+      const result = ProrationCalculator.calculateTimeProration(changeDate, periodEnd, periodStart);
 
       // All dates normalize to same UTC midnight
       expect(result.daysUsed).toBe(0);
