@@ -130,6 +130,7 @@ model billing_webhooks {
   event_type      String                  @db.VarChar(100)
   status          billing_webhooks_status @default(received)
   error           String?                 @db.Text
+  payload         Json?
   attempt_count   Int                     @default(1)
   last_attempt_at DateTime?               @db.Timestamp(0)
   next_attempt_at DateTime?               @db.Timestamp(0)
