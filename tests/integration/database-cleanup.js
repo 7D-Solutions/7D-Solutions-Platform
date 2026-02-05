@@ -94,7 +94,10 @@ async function setupIntegrationTests() {
  * Teardown hook for integration tests
  */
 async function teardownIntegrationTests() {
-  await billingPrisma.$disconnect();
+  // Disconnect skipped — Jest creates fresh module registries per test file,
+  // so each file gets its own Prisma client. Disconnecting mid-process can
+  // interfere with the shared native Prisma engine.
+  // Connection pools are cleaned up automatically when the process exits.
 }
 
 module.exports = {

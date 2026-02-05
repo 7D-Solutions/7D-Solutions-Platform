@@ -41,9 +41,9 @@ function getBillingPrisma() {
   return cachedPrismaClient;
 }
 
-function resetPrismaClient() {
+async function resetPrismaClient() {
   if (cachedPrismaClient) {
-    cachedPrismaClient.$disconnect();
+    await cachedPrismaClient.$disconnect();
     cachedPrismaClient = null;
   }
 }
