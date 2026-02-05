@@ -13,6 +13,7 @@ const usageRoutes = require('./usageRoutes');
 const invoiceRoutes = require('./invoiceRoutes');
 const webhookAdminRoutes = require('./webhookAdminRoutes');
 const jobAdminRoutes = require('./jobAdminRoutes');
+const reportingRoutes = require('./reportingRoutes');
 
 const router = express.Router();
 
@@ -33,5 +34,6 @@ router.use('/usage', usageRoutes);
 router.use('/invoices', invoiceRoutes);
 router.use('/webhook-admin', webhookAdminRoutes);
 router.use('/job-admin', jobAdminRoutes);
+router.use('/reports', reportingRoutes);
 
 module.exports = router;
