@@ -9,7 +9,7 @@ const taxValidators = require('./taxValidators');
 const prorationValidators = require('./prorationValidators');
 const usageValidators = require('./usageValidators');
 const invoiceValidators = require('./invoiceValidators');
-const { handleValidationErrors } = require('./shared/validationUtils');
+const { handleValidationErrors } = require('./shared/validationErrorHandler');
 
 module.exports = {
   // Customer validators

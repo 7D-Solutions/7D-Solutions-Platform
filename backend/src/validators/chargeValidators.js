@@ -1,5 +1,5 @@
 const { body, header } = require('express-validator');
-const { handleValidationErrors } = require('./shared/validationUtils');
+const { handleValidationErrors } = require('./shared/validationErrorHandler');
 
 /**
  * Validator for POST /charges/one-time

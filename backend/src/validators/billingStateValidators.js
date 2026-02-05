@@ -1,5 +1,5 @@
 const { query } = require('express-validator');
-const { handleValidationErrors } = require('./shared/validationUtils');
+const { handleValidationErrors } = require('./shared/validationErrorHandler');
 
 /**
  * Validator for GET /state

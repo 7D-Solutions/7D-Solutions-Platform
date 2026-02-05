@@ -1,6 +1,6 @@
 const { body, param, query } = require('express-validator');
+const { handleValidationErrors } = require('./shared/validationErrorHandler');
 const {
-  handleValidationErrors,
   positiveIntParam,
   enumField
 } = require('./shared/validationUtils');

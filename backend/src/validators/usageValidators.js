@@ -1,6 +1,6 @@
 const { body, query } = require('express-validator');
+const { handleValidationErrors } = require('./shared/validationErrorHandler');
 const {
-  handleValidationErrors,
   positiveIntBody,
   positiveIntQuery,
   isoDateField,
