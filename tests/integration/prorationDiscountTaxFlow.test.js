@@ -29,6 +29,7 @@
 const BillingService = require('../../backend/src/billingService');
 const ProrationService = require('../../backend/src/services/ProrationService');
 const { billingPrisma } = require('../../backend/src/prisma');
+const { setupIntegrationTests, teardownIntegrationTests } = require('./database-cleanup');
 
 describe('Proration + Discount + Tax Flow Integration', () => {
   let billingService;
@@ -40,6 +41,7 @@ describe('Proration + Discount + Tax Flow Integration', () => {
   let testCoupon;
 
   beforeAll(async () => {
+    await setupIntegrationTests();
     billingService = new BillingService();
     prorationService = new ProrationService();
 
@@ -105,29 +107,8 @@ describe('Proration + Discount + Tax Flow Integration', () => {
     });
   });
 
-  afterAll(async () => {
-    // Clean up test data
-    if (testSubscription) {
-      await billingPrisma.billing_subscriptions.delete({
-        where: { id: testSubscription.id }
-      });
-    }
-    if (testCustomer) {
-      await billingPrisma.billing_customers.delete({
-        where: { id: testCustomer.id }
-      });
-    }
-    if (testTaxRate) {
-      await billingPrisma.billing_tax_rates.delete({
-        where: { id: testTaxRate.id }
-      });
-    }
-    if (testCoupon) {
-      await billingPrisma.billing_coupons.delete({
-        where: { id: testCoupon.id }
-      });
-    }
-  });
+  // No afterAll cleanup needed — integrationSetup.js beforeAll(cleanDatabase)
+  // handles TRUNCATE between test files.
 
   describe('Mid-Cycle Upgrade: Proration → Discount → Tax', () => {
     it('should calculate proration, apply discount, then calculate tax', async () => {

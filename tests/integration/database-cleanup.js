@@ -1,20 +1,19 @@
 /**
  * Database cleanup strategy for integration tests
  *
- * Approach: Dedicated test database + TRUNCATE between tests
- * - Each test worker gets a clean slate
- * - Uses DATABASE_URL_BILLING pointing to test database
- * - TRUNCATE all tables (with FK checks disabled) via direct mysql2 connection
- * - TRUNCATE atomically deletes all rows AND resets auto-increment
+ * Uses a SEPARATE raw mysql2 connection for DDL operations (TRUNCATE, SET
+ * FOREIGN_KEY_CHECKS). This is intentional — TRUNCATE is DDL that causes
+ * implicit commits and can corrupt Prisma's internal connection/transaction
+ * state when run through $executeRawUnsafe. A dedicated mysql2 connection
+ * avoids polluting the Prisma connection pool.
  *
- * IMPORTANT: We use a raw mysql2 connection instead of Prisma for TRUNCATE.
- * TRUNCATE is DDL (not DML) — it performs an implicit COMMIT and rebuilds the
- * table internally. Running DDL through Prisma's native query engine corrupts
- * its internal connection/transaction state, causing nondeterministic FK
- * constraint violations in subsequent DML operations.
+ * The mysql2 connection is created once and reused across test files.
+ * A ping-based health check ensures the connection is alive before use.
  */
 
 const mysql = require('mysql2/promise');
+
+let cleanupConnection = null;
 
 const TABLES = [
   'billing_divergences',
@@ -42,51 +41,67 @@ const TABLES = [
 ];
 
 /**
- * Parse DATABASE_URL_BILLING into mysql2 connection config.
- * Format: mysql://user:pass@host:port/database?params
+ * Parse DATABASE_URL_BILLING into mysql2 connection options.
  */
-function parseDatabaseUrl(url) {
+function parseDbUrl(url) {
   const parsed = new URL(url);
   return {
     host: parsed.hostname,
     port: parseInt(parsed.port, 10) || 3306,
-    user: parsed.username,
-    password: parsed.password,
-    database: parsed.pathname.slice(1), // remove leading /
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: parsed.pathname.slice(1).split('?')[0],
   };
 }
 
-/** Lazily-created connection, reused for the lifetime of the test process. */
-let _conn = null;
+/**
+ * Get or create the mysql2 cleanup connection.
+ * Uses ping to verify liveness; reconnects if stale.
+ */
+async function getCleanupConnection() {
+  if (cleanupConnection) {
+    try {
+      await cleanupConnection.ping();
+      return cleanupConnection;
+    } catch {
+      // Connection went stale — recreate
+      cleanupConnection = null;
+    }
+  }
 
-async function getConnection() {
-  if (_conn) return _conn;
-  const config = parseDatabaseUrl(process.env.DATABASE_URL_BILLING);
-  _conn = await mysql.createConnection(config);
-  return _conn;
+  const dbUrl = process.env.DATABASE_URL_BILLING;
+  if (!dbUrl) {
+    throw new Error('DATABASE_URL_BILLING is not set');
+  }
+
+  cleanupConnection = await mysql.createConnection(parseDbUrl(dbUrl));
+  return cleanupConnection;
 }
 
 /**
  * Clean all billing tables using TRUNCATE with FK checks disabled.
  *
- * Uses a direct mysql2 connection to avoid corrupting Prisma's query engine
- * with DDL operations.
+ * TRUNCATE resets auto-increment counters for deterministic IDs.
+ * FK checks are disabled to avoid constraint errors during cleanup.
+ * Uses a raw mysql2 connection to avoid corrupting Prisma's connection state.
  */
 async function cleanDatabase() {
-  const conn = await getConnection();
+  const conn = await getCleanupConnection();
 
-  await conn.query('SET FOREIGN_KEY_CHECKS = 0');
+  await conn.execute('SET FOREIGN_KEY_CHECKS = 0');
+
   for (const table of TABLES) {
-    await conn.query(`TRUNCATE TABLE ${table}`);
+    await conn.execute(`TRUNCATE TABLE ${table}`);
   }
-  await conn.query('SET FOREIGN_KEY_CHECKS = 1');
+
+  await conn.execute('SET FOREIGN_KEY_CHECKS = 1');
 }
 
 /**
- * Setup hook for integration tests
+ * Setup hook for integration tests.
+ * Verifies the test database and cleans all tables.
  */
 async function setupIntegrationTests() {
-  // Verify we're using test database
   const dbUrl = process.env.DATABASE_URL_BILLING;
   if (!dbUrl || !dbUrl.includes('_test')) {
     throw new Error(
@@ -99,11 +114,14 @@ async function setupIntegrationTests() {
 }
 
 /**
- * Teardown hook for integration tests
+ * Teardown hook for integration tests.
+ * Closes the cleanup connection if open.
  */
 async function teardownIntegrationTests() {
-  // No-op: Prisma client persists for the entire test run.
-  // The client disconnects automatically when the process exits.
+  if (cleanupConnection) {
+    await cleanupConnection.end();
+    cleanupConnection = null;
+  }
 }
 
 module.exports = {

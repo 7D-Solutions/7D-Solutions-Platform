@@ -1,18 +1,15 @@
 module.exports = {
-  testEnvironment: 'node',
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
     'backend/src/**/*.js',
     '!backend/src/**/*.test.js'
   ],
-  testMatch: [
-    '**/__tests__/**/*.js',
-    '**/*.test.js'
-  ],
-  setupFiles: ['<rootDir>/tests/setup.js'],
   verbose: true,
 
-  // Test categorization using test path patterns
+  // When using `projects`, root-level testMatch/setupFiles must be removed.
+  // Otherwise Jest creates an implicit 4th project that duplicates every test
+  // without the project-specific config (resetModules, setupFilesAfterEnv, etc.),
+  // causing cross-suite contamination in integration tests.
   projects: [
     {
       displayName: 'unit',
@@ -28,7 +25,10 @@ module.exports = {
       setupFilesAfterEnv: ['<rootDir>/tests/integrationSetup.js'],
       resetModules: false,  // Shared module cache — keeps single Prisma client across files
       clearMocks: true,
-      maxWorkers: 1  // Run integration tests serially to avoid DB race conditions
+      // IMPORTANT: Integration tests MUST run with --runInBand (see npm test:integration).
+      // maxWorkers:1 alone is insufficient — Jest still batches setupFilesAfterEnv
+      // beforeAll hooks across files, causing cross-suite DB contamination.
+      maxWorkers: 1
     },
     {
       displayName: 'real',

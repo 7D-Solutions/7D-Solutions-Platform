@@ -103,6 +103,7 @@ model billing_payment_methods {
   app_id                   String            @db.VarChar(50)
   billing_customer_id      Int
   tilled_payment_method_id String            @unique @db.VarChar(255)
+  status                   String            @default("active") @db.VarChar(20)
   type                     String            @db.VarChar(20)
   brand                    String?           @db.VarChar(50)
   last4                    String?           @db.VarChar(4)

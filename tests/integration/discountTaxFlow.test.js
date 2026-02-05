@@ -7,6 +7,7 @@
 
 const BillingService = require('../../backend/src/billingService');
 const { billingPrisma } = require('../../backend/src/prisma');
+const { setupIntegrationTests, teardownIntegrationTests } = require('./database-cleanup');
 
 describe('Discount + Tax Flow Integration', () => {
   let billingService;
@@ -16,6 +17,7 @@ describe('Discount + Tax Flow Integration', () => {
   let testCoupon;
 
   beforeAll(async () => {
+    await setupIntegrationTests();
     billingService = new BillingService();
 
     // Create test customer with CA jurisdiction
@@ -59,24 +61,8 @@ describe('Discount + Tax Flow Integration', () => {
     });
   });
 
-  afterAll(async () => {
-    // Clean up test data
-    if (testCustomer) {
-      await billingPrisma.billing_customers.delete({
-        where: { id: testCustomer.id }
-      });
-    }
-    if (testTaxRate) {
-      await billingPrisma.billing_tax_rates.delete({
-        where: { id: testTaxRate.id }
-      });
-    }
-    if (testCoupon) {
-      await billingPrisma.billing_coupons.delete({
-        where: { id: testCoupon.id }
-      });
-    }
-  });
+  // No afterAll cleanup needed — integrationSetup.js beforeAll(cleanDatabase)
+  // handles TRUNCATE between test files.
 
   describe('Standard Flow: Discount Before Tax', () => {
     it('should apply 15% discount then calculate 8.25% tax on discounted amount', async () => {
@@ -268,13 +254,7 @@ describe('Discount + Tax Flow Integration', () => {
       });
     });
 
-    afterAll(async () => {
-      if (secondCoupon) {
-        await billingPrisma.billing_coupons.delete({
-          where: { id: secondCoupon.id }
-        });
-      }
-    });
+    // No nested afterAll cleanup needed — TRUNCATE handles it between files.
 
     it('should apply multiple coupons then calculate tax', async () => {
       const subtotalCents = 10000; // $100.00

@@ -1,23 +1,19 @@
 /**
- * Prisma Client Factory - Creates fresh Prisma instances
+ * Prisma Client Factory
  *
- * This factory pattern ensures tests get fresh Prisma clients
- * without singleton caching issues.
+ * Module-level singleton caching. With `resetModules: false` in Jest's
+ * integration project config, the module registry persists across test files,
+ * so all files share the same PrismaClient and connection pool. This prevents
+ * connection pool exhaustion and ensures consistent database state visibility.
+ *
+ * IMPORTANT: Do NOT use globalThis for caching — Jest creates separate
+ * vm sandboxes per test file, so globalThis is NOT shared. Module-level
+ * variables ARE shared when resetModules is false.
  */
 
 let cachedPrismaClient = null;
 
 function createPrismaClient() {
-  // Force require fresh in test environment
-  if (process.env.NODE_ENV === 'test') {
-    // Delete ALL cached Prisma modules
-    Object.keys(require.cache).forEach((key) => {
-      if (key.includes('.prisma/ar')) {
-        delete require.cache[key];
-      }
-    });
-  }
-
   const { PrismaClient } = require('../../node_modules/.prisma/ar');
 
   const opts = {
@@ -28,7 +24,6 @@ function createPrismaClient() {
     }
   };
 
-  // Enable query logging in test to diagnose cross-suite failures
   if (process.env.PRISMA_LOG_QUERIES === '1') {
     opts.log = [
       { level: 'query', emit: 'event' },
@@ -48,9 +43,6 @@ function createPrismaClient() {
 }
 
 function getBillingPrisma() {
-  // Use singleton pattern in both test and production to prevent connection pool exhaustion
-  // In test mode, share the same Prisma client across all test files to avoid creating
-  // multiple connection pools that compete for database connections
   if (!cachedPrismaClient) {
     cachedPrismaClient = createPrismaClient();
   }

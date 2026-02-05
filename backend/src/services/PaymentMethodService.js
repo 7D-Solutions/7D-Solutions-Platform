@@ -30,7 +30,8 @@ class PaymentMethodService {
       where: {
         app_id: appId,
         billing_customer_id: billingCustomerId,
-        deleted_at: null
+        deleted_at: null,
+        status: 'active'
       },
       orderBy: [
         { is_default: 'desc' },
@@ -57,6 +58,7 @@ class PaymentMethodService {
         billing_customer_id: billingCustomerId,
         tilled_payment_method_id: paymentMethodId,
         type: 'card',
+        status: 'pending',
         deleted_at: null,
         updated_at: new Date()
       },
@@ -65,6 +67,7 @@ class PaymentMethodService {
         billing_customer_id: billingCustomerId,
         tilled_payment_method_id: paymentMethodId,
         type: 'card',
+        status: 'pending',
         is_default: false,
         metadata: {},
         created_at: new Date(),
@@ -78,10 +81,10 @@ class PaymentMethodService {
     try {
       await tilledClient.attachPaymentMethod(paymentMethodId, customer.tilled_customer_id);
     } catch (error) {
-      // Tilled attach failed — soft-delete the local record
+      // Tilled attach failed — mark as failed and soft-delete the local record
       await billingPrisma.billing_payment_methods.update({
         where: { id: pmRecord.id },
-        data: { deleted_at: new Date() }
+        data: { status: 'failed', deleted_at: new Date() }
       });
 
       logger.error('Failed to attach payment method in Tilled', {
@@ -112,6 +115,7 @@ class PaymentMethodService {
 
     // Step 4: Update local record with full details from Tilled
     const pmData = {
+      status: 'active',
       type: tilledPM.type,
       brand: tilledPM.card?.brand || null,
       last4: tilledPM.card?.last4 || tilledPM.ach_debit?.last4 || tilledPM.eft_debit?.last4 || null,
@@ -139,7 +143,8 @@ class PaymentMethodService {
         tilled_payment_method_id: tilledPaymentMethodId,
         billing_customer_id: billingCustomerId,
         app_id: appId,
-        deleted_at: null
+        deleted_at: null,
+        status: 'active'
       }
     });
 

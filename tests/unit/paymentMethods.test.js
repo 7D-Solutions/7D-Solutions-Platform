@@ -80,7 +80,8 @@ describe('BillingService payment methods', () => {
         where: {
           app_id: 'trashtech',
           billing_customer_id: 1,
-          deleted_at: null
+          deleted_at: null,
+          status: 'active'
         },
         orderBy: [
           { is_default: 'desc' },
@@ -117,7 +118,8 @@ describe('BillingService payment methods', () => {
         where: {
           app_id: 'trashtech',
           billing_customer_id: 1,
-          deleted_at: null  // Critical: excludes deleted
+          deleted_at: null,  // Critical: excludes deleted
+          status: 'active'
         },
         orderBy: [
           { is_default: 'desc' },
@@ -327,10 +329,10 @@ describe('BillingService payment methods', () => {
         service.addPaymentMethod('trashtech', 1, 'pm_fail')
       ).rejects.toThrow('Tilled attach failed');
 
-      // Local record should be soft-deleted
+      // Local record should be marked as failed and soft-deleted
       expect(billingPrisma.billing_payment_methods.update).toHaveBeenCalledWith({
         where: { id: 13 },
-        data: { deleted_at: expect.any(Date) }
+        data: { status: 'failed', deleted_at: expect.any(Date) }
       });
     });
 
