@@ -16,14 +16,14 @@ class ProrationExecutor {
    * @param {Object} options - { effectiveDate, prorationBehavior }
    * @returns {Promise<Array>} Created charge records
    */
-  static async applyCharges(subscription, proration, changeDetails, options) {
+  static async applyCharges(subscription, proration, changeDetails, options, tx = billingPrisma) {
     const { oldPlanId, newPlanId, oldPriceCents, newPriceCents } = changeDetails;
     const { effectiveDate, prorationBehavior } = options;
     const charges = [];
 
     // Create credit for old plan (if any)
     if (proration.old_plan.credit_cents > 0) {
-      const creditCharge = await billingPrisma.billing_charges.create({
+      const creditCharge = await tx.billing_charges.create({
         data: {
           app_id: subscription.billing_customers.app_id,
           billing_customer_id: subscription.billing_customer_id,
@@ -55,7 +55,7 @@ class ProrationExecutor {
 
     // Create charge for new plan (if any)
     if (proration.new_plan.charge_cents > 0) {
-      const chargeCharge = await billingPrisma.billing_charges.create({
+      const chargeCharge = await tx.billing_charges.create({
         data: {
           app_id: subscription.billing_customers.app_id,
           billing_customer_id: subscription.billing_customer_id,
@@ -96,12 +96,12 @@ class ProrationExecutor {
    * @param {Object} options - { effectiveDate }
    * @returns {Promise<Object>} Updated subscription record
    */
-  static async updateSubscription(subscription, changeDetails, proration, options) {
+  static async updateSubscription(subscription, changeDetails, proration, options, tx = billingPrisma) {
     const { newPlanId, newPriceCents } = changeDetails;
     const { effectiveDate } = options;
     const prorationApplied = proration !== null;
 
-    return billingPrisma.billing_subscriptions.update({
+    return tx.billing_subscriptions.update({
       where: { id: subscription.id },
       data: {
         plan_id: newPlanId || undefined,
@@ -129,11 +129,11 @@ class ProrationExecutor {
    * @param {Object} options - { effectiveDate }
    * @returns {Promise<Object>} Created event record
    */
-  static async recordAuditEvent(subscription, proration, changeDetails, charges, options) {
+  static async recordAuditEvent(subscription, proration, changeDetails, charges, options, tx = billingPrisma) {
     const { oldPlanId, newPlanId, oldPriceCents, newPriceCents, oldQuantity, newQuantity } = changeDetails;
     const { effectiveDate } = options;
 
-    return billingPrisma.billing_events.create({
+    return tx.billing_events.create({
       data: {
         app_id: subscription.billing_customers.app_id,
         event_type: 'proration_applied',

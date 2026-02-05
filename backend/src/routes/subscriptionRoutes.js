@@ -8,7 +8,8 @@ const {
   listSubscriptionsValidator,
   createSubscriptionValidator,
   cancelSubscriptionValidator,
-  updateSubscriptionValidator
+  updateSubscriptionValidator,
+  changeCycleValidator
 } = require('../validators/subscriptionValidators');
 const {
   applySubscriptionChangeValidator,
@@ -112,7 +113,7 @@ router.delete('/:id', cancelSubscriptionValidator, async (req, res, next) => {
 });
 
 // POST /api/billing/subscriptions/change-cycle
-router.post('/change-cycle', rejectSensitiveData, async (req, res, next) => {
+router.post('/change-cycle', rejectSensitiveData, changeCycleValidator, async (req, res, next) => {
   try {
     const { ...payload } = req.body;
     const appId = req.verifiedAppId;
@@ -197,7 +198,8 @@ router.post('/:subscription_id/proration/apply', rejectSensitiveData, applySubsc
     const result = await prorationService.applySubscriptionChange(
       Number(subscription_id),
       changeDetails,
-      options
+      options,
+      req.verifiedAppId
     );
 
     res.status(200).json({
@@ -233,7 +235,8 @@ router.post('/:subscription_id/proration/cancellation-refund', rejectSensitiveDa
     const cancellationRefund = await prorationService.calculateCancellationRefund(
       Number(subscription_id),
       new Date(cancellation_date),
-      refund_behavior
+      refund_behavior,
+      req.verifiedAppId
     );
 
     res.json({ cancellation_refund: cancellationRefund });

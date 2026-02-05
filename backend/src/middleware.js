@@ -19,7 +19,7 @@ function requireAppId(options = {}) {
       return res.status(400).json({ error: 'Missing app_id' });
     }
 
-    // Extract authorized app_id from JWT/session
+    // Extract authorized app_id from JWT/session (only if auth check is configured)
     if (options.getAppIdFromAuth) {
       const authorizedAppId = options.getAppIdFromAuth(req);
 

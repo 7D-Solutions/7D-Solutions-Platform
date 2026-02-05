@@ -150,6 +150,26 @@ class ChargeService {
         reason,
       });
 
+      // Audit trail (fire-and-forget)
+      billingPrisma.billing_events?.create({
+        data: {
+          app_id: appId,
+          event_type: 'charge.succeeded',
+          source: 'charge_service',
+          entity_type: 'charge',
+          entity_id: String(updatedCharge.id),
+          payload: {
+            charge_id: updatedCharge.id,
+            tilled_charge_id: tilledCharge.id,
+            billing_customer_id: customer.id,
+            amount_cents: amountCents,
+            currency,
+            reason,
+            reference_id: referenceId,
+          },
+        },
+      })?.catch(err => logger.warn('Failed to record charge audit event', { error: err.message }));
+
       return updatedCharge;
     } catch (error) {
       // Update charge record with failure
@@ -170,6 +190,27 @@ class ChargeService {
         amount_cents: amountCents,
         reason,
       });
+
+      // Audit trail (fire-and-forget)
+      billingPrisma.billing_events?.create({
+        data: {
+          app_id: appId,
+          event_type: 'charge.failed',
+          source: 'charge_service',
+          entity_type: 'charge',
+          entity_id: String(chargeRecord.id),
+          payload: {
+            charge_id: chargeRecord.id,
+            billing_customer_id: customer.id,
+            amount_cents: amountCents,
+            currency,
+            reason,
+            reference_id: referenceId,
+            failure_code: error.code || 'unknown',
+            failure_message: error.message,
+          },
+        },
+      })?.catch(err => logger.warn('Failed to record charge audit event', { error: err.message }));
 
       throw error;
     }

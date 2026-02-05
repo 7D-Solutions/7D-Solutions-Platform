@@ -4,8 +4,8 @@ const { billingPrisma } = require('../../backend/src/prisma');
 const { NotFoundError, ValidationError } = require('../../backend/src/utils/errors');
 
 // Mock Prisma client
-jest.mock('../../backend/src/prisma', () => ({
-  billingPrisma: {
+jest.mock('../../backend/src/prisma', () => {
+  const mockPrisma = {
     billing_subscriptions: {
       findUnique: jest.fn(),
       update: jest.fn()
@@ -18,9 +18,11 @@ jest.mock('../../backend/src/prisma', () => ({
     },
     billing_events: {
       create: jest.fn()
-    }
-  }
-}));
+    },
+    $transaction: jest.fn(async (callback) => callback(mockPrisma))
+  };
+  return { billingPrisma: mockPrisma };
+});
 
 // Mock logger
 jest.mock('@fireproof/infrastructure/utils/logger', () => ({

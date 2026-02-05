@@ -169,7 +169,7 @@ class TilledClient {
 
       // Fail-fast: Check timestamp tolerance BEFORE HMAC (prevent replay attacks)
       const currentTime = Math.floor(Date.now() / 1000);
-      const webhookTime = Math.floor(parseInt(timestamp, 10) / 1000);
+      const webhookTime = parseInt(timestamp, 10);
       if (Math.abs(currentTime - webhookTime) > tolerance) return false;
 
       // Calculate expected signature

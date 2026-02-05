@@ -37,6 +37,7 @@ class ProrationService {
    * @param {number} params.newQuantity - New quantity (optional)
    * @param {number} params.oldQuantity - Current quantity (optional)
    * @param {string} params.prorationBehavior - 'create_prorations' | 'none' | 'always_invoice'
+   * @param {string} params.appId - App ID for multi-tenant scoping
    * @returns {Promise<Object>} Proration breakdown
    */
   async calculateProration(params) {
@@ -47,7 +48,8 @@ class ProrationService {
       oldPriceCents,
       newQuantity = 1,
       oldQuantity = 1,
-      prorationBehavior = 'create_prorations'
+      prorationBehavior = 'create_prorations',
+      appId
     } = params;
 
     // Validate inputs
@@ -66,6 +68,10 @@ class ProrationService {
     });
 
     if (!subscription) {
+      throw new NotFoundError(`Subscription ${subscriptionId} not found`);
+    }
+
+    if (appId && subscription.billing_customers?.app_id !== appId) {
       throw new NotFoundError(`Subscription ${subscriptionId} not found`);
     }
 
@@ -120,9 +126,10 @@ class ProrationService {
    * @param {number} subscriptionId
    * @param {Object} changeDetails - New plan, price, quantity
    * @param {Object} options - Proration behavior, effective date
+   * @param {string} appId - App ID for multi-tenant scoping
    * @returns {Promise<Object>} Updated subscription and proration charges
    */
-  async applySubscriptionChange(subscriptionId, changeDetails, options = {}) {
+  async applySubscriptionChange(subscriptionId, changeDetails, options = {}, appId) {
     // Validate inputs
     if (!subscriptionId || !changeDetails) {
       throw new ValidationError('subscriptionId and changeDetails are required');
@@ -153,6 +160,10 @@ class ProrationService {
       throw new NotFoundError(`Subscription ${subscriptionId} not found`);
     }
 
+    if (appId && subscription.billing_customers?.app_id !== appId) {
+      throw new NotFoundError(`Subscription ${subscriptionId} not found`);
+    }
+
     // 2. Calculate proration
     const proration = await this.calculateProration({
       subscriptionId,
@@ -161,7 +172,8 @@ class ProrationService {
       oldPriceCents,
       newQuantity,
       oldQuantity,
-      prorationBehavior
+      prorationBehavior,
+      appId
     });
 
     // 3. If proration behavior is 'none', just update subscription without proration
@@ -182,22 +194,24 @@ class ProrationService {
       };
     }
 
-    // 4. Create proration charge/credit records
-    const charges = await ProrationExecutor.applyCharges(
-      subscription, proration, changeDetails, { effectiveDate, prorationBehavior }
-    );
+    // 4-6. Apply charges, update subscription, and record audit event atomically
+    const { charges, updatedSubscription } = await billingPrisma.$transaction(async (tx) => {
+      const charges = await ProrationExecutor.applyCharges(
+        subscription, proration, changeDetails, { effectiveDate, prorationBehavior }, tx
+      );
 
-    // 5. Update subscription
-    const updatedSubscription = await ProrationExecutor.updateSubscription(
-      subscription, changeDetails, proration, { effectiveDate }
-    );
+      const updatedSubscription = await ProrationExecutor.updateSubscription(
+        subscription, changeDetails, proration, { effectiveDate }, tx
+      );
 
-    // 6. Create audit event
-    await ProrationExecutor.recordAuditEvent(
-      subscription, proration,
-      { oldPlanId, newPlanId, oldPriceCents, newPriceCents, oldQuantity, newQuantity },
-      charges, { effectiveDate }
-    );
+      await ProrationExecutor.recordAuditEvent(
+        subscription, proration,
+        { oldPlanId, newPlanId, oldPriceCents, newPriceCents, oldQuantity, newQuantity },
+        charges, { effectiveDate }, tx
+      );
+
+      return { charges, updatedSubscription };
+    });
 
     return {
       subscription: updatedSubscription,
@@ -211,9 +225,10 @@ class ProrationService {
    * @param {number} subscriptionId
    * @param {Date} cancellationDate
    * @param {string} refundBehavior - 'partial_refund' | 'account_credit' | 'none'
+   * @param {string} appId - App ID for multi-tenant scoping
    * @returns {Promise<Object>} Refund or credit details
    */
-  async calculateCancellationRefund(subscriptionId, cancellationDate, refundBehavior = 'partial_refund') {
+  async calculateCancellationRefund(subscriptionId, cancellationDate, refundBehavior = 'partial_refund', appId) {
     // Validate inputs
     if (!subscriptionId || !cancellationDate) {
       throw new ValidationError('subscriptionId and cancellationDate are required');
@@ -226,6 +241,10 @@ class ProrationService {
     });
 
     if (!subscription) {
+      throw new NotFoundError(`Subscription ${subscriptionId} not found`);
+    }
+
+    if (appId && subscription.billing_customers?.app_id !== appId) {
       throw new NotFoundError(`Subscription ${subscriptionId} not found`);
     }
 

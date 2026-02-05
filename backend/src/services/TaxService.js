@@ -317,8 +317,8 @@ class TaxService {
         invoice_id: options.invoiceId || null,
         charge_id: options.chargeId || null,
         tax_rate_id: taxRateId,
-        taxable_amount: taxableAmountCents / 100,
-        tax_amount: taxAmountCents / 100,
+        taxable_amount_cents: taxableAmountCents,
+        tax_amount_cents: taxAmountCents,
         jurisdiction_code: taxRate.jurisdiction_code,
         tax_type: taxRate.tax_type,
         rate_applied: taxRate.rate

@@ -13,6 +13,7 @@ const createMockPrisma = () => ({
     create: jest.fn(),
     update: jest.fn(),
     findFirst: jest.fn(),
+    aggregate: jest.fn(),
   },
   billing_idempotency_keys: {
     findFirst: jest.fn(),
@@ -86,6 +87,62 @@ describe('RefundService.createRefund', () => {
         { idempotencyKey: 'test-key-3', requestHash: 'hash3' }
       )
     ).rejects.toThrow('amountCents must be greater than 0');
+  });
+
+  it('throws ValidationError if refund amount exceeds charge amount', async () => {
+    billingPrisma.billing_charges.findFirst.mockResolvedValue({
+      id: 1,
+      app_id: 'trashtech',
+      billing_customer_id: 10,
+      tilled_charge_id: 'ch_123',
+      status: 'succeeded',
+      amount_cents: 1000,
+    });
+
+    // Mock aggregate for total refunded amount (zero)
+    billingPrisma.billing_refunds.aggregate.mockResolvedValue({
+      _sum: { amount_cents: 0 }
+    });
+
+    await expect(
+      billingService.createRefund(
+        'trashtech',
+        {
+          chargeId: 1,
+          amountCents: 1500,
+          referenceId: 'refund_exceed',
+        },
+        { idempotencyKey: 'test-key-exceed', requestHash: 'hash-exceed' }
+      )
+    ).rejects.toThrow('Refund amount (1500 cents) exceeds charge amount (1000 cents)');
+  });
+
+  it('throws ValidationError if refund amount exceeds remaining refundable amount due to existing refunds', async () => {
+    billingPrisma.billing_charges.findFirst.mockResolvedValue({
+      id: 1,
+      app_id: 'trashtech',
+      billing_customer_id: 10,
+      tilled_charge_id: 'ch_123',
+      status: 'succeeded',
+      amount_cents: 1000,
+    });
+
+    // Mock aggregate for total refunded amount (already refunded 600 cents)
+    billingPrisma.billing_refunds.aggregate.mockResolvedValue({
+      _sum: { amount_cents: 600 }
+    });
+
+    await expect(
+      billingService.createRefund(
+        'trashtech',
+        {
+          chargeId: 1,
+          amountCents: 500, // 600 already refunded + 500 = 1100 > 1000
+          referenceId: 'refund_partial',
+        },
+        { idempotencyKey: 'test-key-partial', requestHash: 'hash-partial' }
+      )
+    ).rejects.toThrow('Refund amount (500 cents) exceeds remaining refundable amount (400 cents)');
   });
 
   it('throws error if referenceId is missing', async () => {
@@ -259,6 +316,11 @@ describe('RefundService.createRefund', () => {
       amount_cents: 5000,
     });
 
+    // Mock aggregate for total refunded amount (zero)
+    billingPrisma.billing_refunds.aggregate.mockResolvedValue({
+      _sum: { amount_cents: 0 }
+    });
+
     // Domain idempotency check returns null (no existing)
     billingPrisma.billing_refunds.findFirst.mockResolvedValueOnce(null);
 
@@ -313,6 +375,11 @@ describe('RefundService.createRefund', () => {
       tilled_charge_id: 'ch_123',
       status: 'succeeded',
       amount_cents: 5000,
+    });
+
+    // Mock aggregate for total refunded amount (zero)
+    billingPrisma.billing_refunds.aggregate.mockResolvedValue({
+      _sum: { amount_cents: 0 }
     });
 
     // No existing refund
@@ -424,6 +491,11 @@ describe('RefundService.createRefund', () => {
       amount_cents: 5000,
     });
 
+    // Mock aggregate for total refunded amount (zero)
+    billingPrisma.billing_refunds.aggregate.mockResolvedValue({
+      _sum: { amount_cents: 0 }
+    });
+
     billingPrisma.billing_refunds.findFirst.mockResolvedValue(null);
 
     const mockRefundRecord = {
@@ -483,6 +555,11 @@ describe('RefundService.createRefund', () => {
       tilled_charge_id: 'ch_123',
       status: 'succeeded',
       amount_cents: 5000,
+    });
+
+    // Mock aggregate for total refunded amount (zero)
+    billingPrisma.billing_refunds.aggregate.mockResolvedValue({
+      _sum: { amount_cents: 0 }
     });
 
     billingPrisma.billing_refunds.findFirst.mockResolvedValue(null);

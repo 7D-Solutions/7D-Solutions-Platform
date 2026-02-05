@@ -135,12 +135,20 @@ describe('BillingService payment methods', () => {
     });
   });
 
-  describe('addPaymentMethod', () => {
-    it('attaches to Tilled and upserts local masked record', async () => {
+  describe('addPaymentMethod (local-first pattern)', () => {
+    it('creates local record first, then attaches in Tilled, then updates with details', async () => {
       const mockCustomer = {
         id: 1,
         app_id: 'trashtech',
         tilled_customer_id: 'cus_test'
+      };
+
+      const mockPendingPM = {
+        id: 10,
+        tilled_payment_method_id: 'pm_new',
+        type: 'card',
+        billing_customer_id: 1,
+        app_id: 'trashtech'
       };
 
       const mockTilledPM = {
@@ -154,8 +162,8 @@ describe('BillingService payment methods', () => {
         }
       };
 
-      const mockUpsertedPM = {
-        id: 1,
+      const mockUpdatedPM = {
+        id: 10,
         tilled_payment_method_id: 'pm_new',
         type: 'card',
         brand: 'visa',
@@ -167,19 +175,14 @@ describe('BillingService payment methods', () => {
       };
 
       billingPrisma.billing_customers.findFirst.mockResolvedValue(mockCustomer);
+      billingPrisma.billing_payment_methods.upsert.mockResolvedValue(mockPendingPM);
       mockTilledClient.attachPaymentMethod.mockResolvedValue({ id: 'pm_new' });
       mockTilledClient.getPaymentMethod.mockResolvedValue(mockTilledPM);
-      billingPrisma.billing_payment_methods.upsert.mockResolvedValue(mockUpsertedPM);
+      billingPrisma.billing_payment_methods.update.mockResolvedValue(mockUpdatedPM);
 
-      const result = await service.addPaymentMethod('trashtech', 1, 'pm_new', 'card', {});
+      const result = await service.addPaymentMethod('trashtech', 1, 'pm_new');
 
-      expect(mockTilledClient.attachPaymentMethod).toHaveBeenCalledWith(
-        'pm_new',
-        'cus_test'
-      );
-
-      expect(mockTilledClient.getPaymentMethod).toHaveBeenCalledWith('pm_new');
-
+      // Step 1: Local record created first
       expect(billingPrisma.billing_payment_methods.upsert).toHaveBeenCalledWith({
         where: { tilled_payment_method_id: 'pm_new' },
         create: expect.objectContaining({
@@ -187,15 +190,29 @@ describe('BillingService payment methods', () => {
           billing_customer_id: 1,
           tilled_payment_method_id: 'pm_new',
           type: 'card',
+        }),
+        update: expect.objectContaining({
+          app_id: 'trashtech',
+          billing_customer_id: 1,
+          deleted_at: null,
+        })
+      });
+
+      // Step 2: Tilled attach called
+      expect(mockTilledClient.attachPaymentMethod).toHaveBeenCalledWith('pm_new', 'cus_test');
+
+      // Step 3: Details fetched
+      expect(mockTilledClient.getPaymentMethod).toHaveBeenCalledWith('pm_new');
+
+      // Step 4: Local record updated with full details
+      expect(billingPrisma.billing_payment_methods.update).toHaveBeenCalledWith({
+        where: { id: 10 },
+        data: expect.objectContaining({
+          type: 'card',
           brand: 'visa',
           last4: '4242',
           exp_month: 12,
-          exp_year: 2028
-        }),
-        update: expect.objectContaining({
-          brand: 'visa',
-          last4: '4242',
-          deleted_at: null
+          exp_year: 2028,
         })
       });
 
@@ -209,6 +226,13 @@ describe('BillingService payment methods', () => {
         tilled_customer_id: 'cus_test'
       };
 
+      const mockPendingPM = {
+        id: 11,
+        tilled_payment_method_id: 'pm_ach',
+        type: 'card',
+        app_id: 'trashtech'
+      };
+
       const mockTilledPM = {
         id: 'pm_ach',
         type: 'ach_debit',
@@ -219,57 +243,102 @@ describe('BillingService payment methods', () => {
       };
 
       billingPrisma.billing_customers.findFirst.mockResolvedValue(mockCustomer);
+      billingPrisma.billing_payment_methods.upsert.mockResolvedValue(mockPendingPM);
       mockTilledClient.attachPaymentMethod.mockResolvedValue({ id: 'pm_ach' });
       mockTilledClient.getPaymentMethod.mockResolvedValue(mockTilledPM);
-      billingPrisma.billing_payment_methods.upsert.mockResolvedValue({
+      billingPrisma.billing_payment_methods.update.mockResolvedValue({
+        id: 11,
         tilled_payment_method_id: 'pm_ach',
         type: 'ach_debit',
         bank_name: 'Chase',
         bank_last4: '6789'
       });
 
-      const result = await service.addPaymentMethod('trashtech', 1, 'pm_ach', 'ach_debit', {});
+      const result = await service.addPaymentMethod('trashtech', 1, 'pm_ach');
 
-      expect(billingPrisma.billing_payment_methods.upsert).toHaveBeenCalledWith({
-        where: { tilled_payment_method_id: 'pm_ach' },
-        create: expect.objectContaining({
+      expect(billingPrisma.billing_payment_methods.update).toHaveBeenCalledWith({
+        where: { id: 11 },
+        data: expect.objectContaining({
           type: 'ach_debit',
           bank_name: 'Chase',
           bank_last4: '6789'
-        }),
-        update: expect.anything()
+        })
       });
 
       expect(result.type).toBe('ach_debit');
     });
 
-    it('continues if getPaymentMethod fails (stores minimal)', async () => {
+    it('continues if getPaymentMethod fails (stores minimal data)', async () => {
       const mockCustomer = {
         id: 1,
         app_id: 'trashtech',
         tilled_customer_id: 'cus_test'
       };
 
+      const mockPendingPM = {
+        id: 12,
+        tilled_payment_method_id: 'pm_new',
+        type: 'card'
+      };
+
       billingPrisma.billing_customers.findFirst.mockResolvedValue(mockCustomer);
+      billingPrisma.billing_payment_methods.upsert.mockResolvedValue(mockPendingPM);
       mockTilledClient.attachPaymentMethod.mockResolvedValue({ id: 'pm_new' });
       mockTilledClient.getPaymentMethod.mockRejectedValue(new Error('Tilled API error'));
-      billingPrisma.billing_payment_methods.upsert.mockResolvedValue({
+      billingPrisma.billing_payment_methods.update.mockResolvedValue({
+        id: 12,
         tilled_payment_method_id: 'pm_new',
         type: 'card'
       });
 
-      const result = await service.addPaymentMethod('trashtech', 1, 'pm_new', 'card', {});
+      const result = await service.addPaymentMethod('trashtech', 1, 'pm_new');
 
       // Should still complete despite getPaymentMethod failure
       expect(result.tilled_payment_method_id).toBe('pm_new');
-      expect(billingPrisma.billing_payment_methods.upsert).toHaveBeenCalled();
+      // Update should use fallback minimal data
+      expect(billingPrisma.billing_payment_methods.update).toHaveBeenCalledWith({
+        where: { id: 12 },
+        data: expect.objectContaining({ type: 'card' })
+      });
+    });
+
+    it('soft-deletes local record when Tilled attach fails', async () => {
+      const mockCustomer = {
+        id: 1,
+        app_id: 'trashtech',
+        tilled_customer_id: 'cus_test'
+      };
+
+      const mockPendingPM = {
+        id: 13,
+        tilled_payment_method_id: 'pm_fail',
+        type: 'card'
+      };
+
+      billingPrisma.billing_customers.findFirst.mockResolvedValue(mockCustomer);
+      billingPrisma.billing_payment_methods.upsert.mockResolvedValue(mockPendingPM);
+      mockTilledClient.attachPaymentMethod.mockRejectedValue(new Error('Tilled attach failed'));
+      billingPrisma.billing_payment_methods.update.mockResolvedValue({
+        ...mockPendingPM,
+        deleted_at: new Date()
+      });
+
+      await expect(
+        service.addPaymentMethod('trashtech', 1, 'pm_fail')
+      ).rejects.toThrow('Tilled attach failed');
+
+      // Local record should be soft-deleted
+      expect(billingPrisma.billing_payment_methods.update).toHaveBeenCalledWith({
+        where: { id: 13 },
+        data: { deleted_at: expect.any(Date) }
+      });
     });
 
     it('throws 404 when customer not in app scope', async () => {
       billingPrisma.billing_customers.findFirst.mockResolvedValue(null);
 
       await expect(
-        service.addPaymentMethod('trashtech', 999, 'pm_new', 'card', {})
+        service.addPaymentMethod('trashtech', 999, 'pm_new')
       ).rejects.toThrow('Customer 999 not found for app trashtech');
     });
   });

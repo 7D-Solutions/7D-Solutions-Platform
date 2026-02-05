@@ -148,7 +148,7 @@ const WEBHOOK_EVENTS = {
 };
 
 // Helper to generate webhook signature
-function generateWebhookSignature(payload, secret, timestamp = Math.floor(Date.now() / 1000) * 1000) {
+function generateWebhookSignature(payload, secret, timestamp = Math.floor(Date.now() / 1000)) {
   const crypto = require('crypto');
   const signedPayload = `${timestamp}.${JSON.stringify(payload)}`;
   const signature = crypto

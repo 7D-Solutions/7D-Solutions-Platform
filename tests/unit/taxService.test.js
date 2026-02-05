@@ -428,8 +428,8 @@ describe('TaxService', () => {
       invoice_id: null,
       charge_id: null,
       tax_rate_id: taxRateId,
-      taxable_amount: 100.00,
-      tax_amount: 8.25,
+      taxable_amount_cents: 10000,
+      tax_amount_cents: 825,
       jurisdiction_code: 'CA',
       tax_type: 'sales_tax',
       rate_applied: 0.0825
@@ -448,7 +448,7 @@ describe('TaxService', () => {
 
       expect(result.id).toBe(1);
       expect(result.tax_rate_id).toBe(taxRateId);
-      expect(result.tax_amount).toBe(8.25);
+      expect(result.tax_amount_cents).toBe(825);
     });
 
     it('should link to invoice when provided', async () => {
@@ -528,8 +528,8 @@ describe('TaxService', () => {
         invoice_id: invoiceId,
         charge_id: null,
         tax_rate_id: 1,
-        taxable_amount: 100.00,
-        tax_amount: 8.25,
+        taxable_amount_cents: 10000,
+        tax_amount_cents: 825,
         tax_rate: {
           id: 1,
           jurisdiction_code: 'CA',
@@ -586,8 +586,8 @@ describe('TaxService', () => {
         invoice_id: null,
         charge_id: chargeId,
         tax_rate_id: 1,
-        taxable_amount: 50.00,
-        tax_amount: 4.13,
+        taxable_amount_cents: 5000,
+        tax_amount_cents: 413,
         tax_rate: {
           id: 1,
           jurisdiction_code: 'CA',

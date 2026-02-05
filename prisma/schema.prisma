@@ -13,7 +13,8 @@ model billing_customers {
   id                        Int                       @id @default(autoincrement())
   app_id                    String                    @db.VarChar(50)
   external_customer_id      String?                   @db.VarChar(255)
-  tilled_customer_id        String                    @unique @db.VarChar(255)
+  tilled_customer_id        String?                   @unique @db.VarChar(255)
+  status                    String                    @default("active") @db.VarChar(20)
   email                     String                    @db.VarChar(255)
   name                      String?                   @db.VarChar(255)
   default_payment_method_id String?                   @db.VarChar(255)
@@ -64,7 +65,7 @@ model billing_subscriptions {
   updated_by                String?                          @db.VarChar(255)
   created_at                DateTime                         @default(now()) @db.Timestamp(0)
   updated_at                DateTime                         @default(now()) @db.Timestamp(0)
-  billing_customers         billing_customers                @relation(fields: [billing_customer_id], references: [id], onDelete: Cascade)
+  billing_customers         billing_customers                @relation(fields: [billing_customer_id], references: [id], onDelete: Restrict)
   billing_subscription_addons billing_subscription_addons[]
   billing_invoices          billing_invoices[]
   billing_charges           billing_charges[]
@@ -75,6 +76,7 @@ model billing_subscriptions {
   @@index([status], map: "idx_status")
   @@index([plan_id], map: "idx_plan_id")
   @@index([current_period_end], map: "idx_current_period_end")
+  @@index([app_id, status, current_period_end], map: "idx_app_status_period_end")
 }
 
 enum billing_subscriptions_status {
@@ -113,7 +115,7 @@ model billing_payment_methods {
   deleted_at               DateTime?         @db.Timestamp(0)
   created_at               DateTime          @default(now()) @db.Timestamp(0)
   updated_at               DateTime          @default(now()) @db.Timestamp(0)
-  billing_customer         billing_customers @relation(fields: [billing_customer_id], references: [id], onDelete: Cascade)
+  billing_customer         billing_customers @relation(fields: [billing_customer_id], references: [id], onDelete: Restrict)
 
   @@index([app_id], map: "idx_app_id")
   @@index([billing_customer_id], map: "idx_billing_customer_id")
@@ -334,8 +336,8 @@ model billing_subscription_addons {
   quantity        Int                   @default(1)
   created_at      DateTime              @default(now()) @db.Timestamp(0)
   updated_at      DateTime              @updatedAt @db.Timestamp(0)
-  subscription    billing_subscriptions @relation(fields: [subscription_id], references: [id], onDelete: Cascade)
-  addon           billing_addons        @relation(fields: [addon_id], references: [id], onDelete: Cascade)
+  subscription    billing_subscriptions @relation(fields: [subscription_id], references: [id], onDelete: Restrict)
+  addon           billing_addons        @relation(fields: [addon_id], references: [id], onDelete: Restrict)
 
   @@unique([subscription_id, addon_id], map: "unique_subscription_addon")
   @@index([app_id], map: "idx_app_id")
@@ -362,7 +364,7 @@ model billing_invoices {
   metadata            Json?
   created_at          DateTime               @default(now()) @db.Timestamp(0)
   updated_at          DateTime               @updatedAt @db.Timestamp(0)
-  customer            billing_customers      @relation(fields: [billing_customer_id], references: [id], onDelete: Cascade)
+  customer            billing_customers      @relation(fields: [billing_customer_id], references: [id], onDelete: Restrict)
   subscription        billing_subscriptions? @relation(fields: [subscription_id], references: [id], onDelete: SetNull)
   billing_charges     billing_charges[]
   billing_tax_calculations billing_tax_calculations[]
@@ -380,6 +382,7 @@ model billing_invoices {
   @@index([subscription_id], map: "idx_subscription_id")
   @@index([status], map: "idx_status")
   @@index([due_at], map: "idx_due_at")
+  @@index([app_id, status, due_at], map: "idx_app_status_due_at")
 }
 
 /// Charge/payment records from Tilled
@@ -414,7 +417,7 @@ model billing_charges {
   // service_date already exists and can be used for service date
 
   invoice             billing_invoices?      @relation(fields: [invoice_id], references: [id], onDelete: SetNull)
-  customer            billing_customers      @relation(fields: [billing_customer_id], references: [id], onDelete: Cascade)
+  customer            billing_customers      @relation(fields: [billing_customer_id], references: [id], onDelete: Restrict)
   subscription        billing_subscriptions? @relation(fields: [subscription_id], references: [id], onDelete: SetNull)
   billing_refunds     billing_refunds[]
   billing_disputes    billing_disputes[]
@@ -429,6 +432,7 @@ model billing_charges {
   @@index([charge_type], map: "idx_charge_type")
   @@index([reason], map: "idx_reason")
   @@index([service_date], map: "idx_service_date")
+  @@index([app_id, created_at], map: "idx_app_created_at")
 }
 
 /// Refund records from Tilled
@@ -450,8 +454,8 @@ model billing_refunds {
   failure_message     String?         @db.Text
   created_at          DateTime        @default(now()) @db.Timestamp(0)
   updated_at          DateTime        @default(now()) @updatedAt @db.Timestamp(0)
-  charge              billing_charges @relation(fields: [charge_id], references: [id], onDelete: Cascade)
-  customer            billing_customers @relation(fields: [billing_customer_id], references: [id], onDelete: Cascade)
+  charge              billing_charges @relation(fields: [charge_id], references: [id], onDelete: Restrict)
+  customer            billing_customers @relation(fields: [billing_customer_id], references: [id], onDelete: Restrict)
 
   @@unique([app_id, reference_id], map: "unique_refund_app_reference_id")
   @@unique([tilled_refund_id, app_id], map: "tilled_refund_id_app_id")
@@ -518,15 +522,15 @@ model billing_tax_calculations {
   invoice_id        Int?
   charge_id         Int?
   tax_rate_id       Int
-  taxable_amount    Decimal  @db.Decimal(10, 2)
-  tax_amount        Decimal  @db.Decimal(10, 2)
+  taxable_amount_cents Int
+  tax_amount_cents     Int
   jurisdiction_code String   @db.VarChar(20)
   tax_type          String   @db.VarChar(50)
   rate_applied      Decimal  @db.Decimal(5, 4)
   created_at        DateTime @default(now()) @db.Timestamp(0)
 
-  invoice           billing_invoices? @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
-  charge            billing_charges?  @relation(fields: [charge_id], references: [id], onDelete: Cascade)
+  invoice           billing_invoices? @relation(fields: [invoice_id], references: [id], onDelete: Restrict)
+  charge            billing_charges?  @relation(fields: [charge_id], references: [id], onDelete: Restrict)
   tax_rate          billing_tax_rates @relation(fields: [tax_rate_id], references: [id])
 
   @@index([app_id, invoice_id], map: "idx_app_invoice")
@@ -557,10 +561,10 @@ model billing_discount_applications {
   created_by        String?  @db.VarChar(255) // User/system that applied discount
   created_at        DateTime @default(now()) @db.Timestamp(0)
 
-  invoice           billing_invoices? @relation(fields: [invoice_id], references: [id])
-  charge            billing_charges?  @relation(fields: [charge_id], references: [id])
-  coupon            billing_coupons?  @relation(fields: [coupon_id], references: [id])
-  customer          billing_customers? @relation(fields: [customer_id], references: [id])
+  invoice           billing_invoices? @relation(fields: [invoice_id], references: [id], onDelete: Restrict)
+  charge            billing_charges?  @relation(fields: [charge_id], references: [id], onDelete: Restrict)
+  coupon            billing_coupons?  @relation(fields: [coupon_id], references: [id], onDelete: Restrict)
+  customer          billing_customers? @relation(fields: [customer_id], references: [id], onDelete: Restrict)
 
   @@index([app_id, invoice_id])
   @@index([app_id, charge_id])
@@ -587,8 +591,8 @@ model billing_metered_usage {
   recorded_at       DateTime @default(now()) @db.Timestamp(0)
   billed_at         DateTime? @db.Timestamp(0)
 
-  customer          billing_customers      @relation(fields: [customer_id], references: [id])
-  subscription      billing_subscriptions? @relation(fields: [subscription_id], references: [id])
+  customer          billing_customers      @relation(fields: [customer_id], references: [id], onDelete: Restrict)
+  subscription      billing_subscriptions? @relation(fields: [subscription_id], references: [id], onDelete: Restrict)
 
   @@index([app_id, customer_id])
   @@index([app_id, subscription_id])
@@ -613,7 +617,7 @@ model billing_invoice_line_items {
   metadata          Json?    // Product/service details
   created_at        DateTime @default(now()) @db.Timestamp(0)
 
-  invoice           billing_invoices @relation(fields: [invoice_id], references: [id])
+  invoice           billing_invoices @relation(fields: [invoice_id], references: [id], onDelete: Restrict)
 
   @@index([app_id, invoice_id])
   @@index([line_item_type])

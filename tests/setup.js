@@ -10,7 +10,7 @@ require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.e
 
 // FORCE test environment variables (override .env values)
 // Use port 3309 for trashtech-mysql container (maps to internal 3306)
-process.env.DATABASE_URL_BILLING = 'mysql://billing_test:testpass@localhost:3309/billing_test';
+process.env.DATABASE_URL_BILLING = 'mysql://billing_test:testpass@localhost:3309/billing_test?connection_limit=1';
 
 // Always set mock Tilled credentials for tests
 process.env.TILLED_SECRET_KEY_TRASHTECH = 'sk_test_mock';

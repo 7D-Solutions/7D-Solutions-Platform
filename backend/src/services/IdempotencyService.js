@@ -75,6 +75,15 @@ class IdempotencyService {
       throw error;
     }
   }
+
+  async purgeExpiredKeys() {
+    const result = await billingPrisma.billing_idempotency_keys.deleteMany({
+      where: {
+        expires_at: { lt: new Date() },
+      },
+    });
+    return result.count;
+  }
 }
 
 module.exports = IdempotencyService;

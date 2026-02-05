@@ -20,13 +20,29 @@ function createPrismaClient() {
 
   const { PrismaClient } = require('../../node_modules/.prisma/ar');
 
-  const client = new PrismaClient({
+  const opts = {
     datasources: {
       db: {
         url: process.env.DATABASE_URL_BILLING
       }
     }
-  });
+  };
+
+  // Enable query logging in test to diagnose cross-suite failures
+  if (process.env.PRISMA_LOG_QUERIES === '1') {
+    opts.log = [
+      { level: 'query', emit: 'event' },
+      { level: 'error', emit: 'stdout' }
+    ];
+  }
+
+  const client = new PrismaClient(opts);
+
+  if (process.env.PRISMA_LOG_QUERIES === '1') {
+    client.$on('query', (e) => {
+      console.log(`[PRISMA] ${e.query} -- params: ${e.params} (${e.duration}ms)`);
+    });
+  }
 
   return client;
 }

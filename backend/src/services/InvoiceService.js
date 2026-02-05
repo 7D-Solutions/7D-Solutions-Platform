@@ -130,6 +130,25 @@ class InvoiceService {
       status
     });
 
+    // Audit trail (fire-and-forget)
+    billingPrisma.billing_events?.create({
+      data: {
+        app_id: appId,
+        event_type: 'invoice.created',
+        source: 'invoice_service',
+        entity_type: 'invoice',
+        entity_id: String(invoice.id),
+        payload: {
+          invoice_id: invoice.id,
+          billing_customer_id: customerId,
+          subscription_id: subscriptionId,
+          amount_cents: amountCents,
+          currency,
+          status,
+        },
+      },
+    })?.catch(err => logger.warn('Failed to record invoice audit event', { error: err.message }));
+
     return {
       id: invoice.id,
       tilled_invoice_id: invoice.tilled_invoice_id,
@@ -249,31 +268,41 @@ class InvoiceService {
       throw new NotFoundError(`Invoice ${invoiceId} not found for app ${appId}`);
     }
 
+    // Block line item additions to finalized invoices
+    const finalizedStatuses = ['open', 'paid', 'void', 'uncollectible'];
+    if (finalizedStatuses.includes(invoice.status)) {
+      throw new ValidationError(`Cannot add line items to invoice with status ${invoice.status}`);
+    }
+
     // Calculate amount
     const amountCents = Math.round(Number(quantity) * unitPriceCents);
 
-    // Create line item
-    const lineItem = await billingPrisma.billing_invoice_line_items.create({
-      data: {
-        app_id: appId,
-        invoice_id: invoiceId,
-        line_item_type: lineItemType,
-        description,
-        quantity,
-        unit_price_cents: unitPriceCents,
-        amount_cents: amountCents,
-        metadata
-      }
-    });
+    // Create line item and update invoice total in a transaction
+    const lineItem = await billingPrisma.$transaction(async (tx) => {
+      const createdLineItem = await tx.billing_invoice_line_items.create({
+        data: {
+          app_id: appId,
+          invoice_id: invoiceId,
+          line_item_type: lineItemType,
+          description,
+          quantity,
+          unit_price_cents: unitPriceCents,
+          amount_cents: amountCents,
+          metadata
+        }
+      });
 
-    // Update invoice total with sum of all line items
-    const lineItemsSum = await billingPrisma.billing_invoice_line_items.aggregate({
-      where: { invoice_id: invoiceId },
-      _sum: { amount_cents: true }
-    });
-    await billingPrisma.billing_invoices.update({
-      where: { id: invoiceId },
-      data: { amount_cents: lineItemsSum._sum.amount_cents || 0 }
+      // Update invoice total with sum of all line items
+      const lineItemsSum = await tx.billing_invoice_line_items.aggregate({
+        where: { invoice_id: invoiceId },
+        _sum: { amount_cents: true }
+      });
+      await tx.billing_invoices.update({
+        where: { id: invoiceId },
+        data: { amount_cents: lineItemsSum._sum.amount_cents || 0 }
+      });
+
+      return createdLineItem;
     });
 
     logger.info({
@@ -460,6 +489,23 @@ class InvoiceService {
       throw new NotFoundError(`Invoice ${invoiceId} not found for app ${appId}`);
     }
 
+    // Enforce valid status transitions
+    const ALLOWED_TRANSITIONS = {
+      draft: ['open', 'paid', 'void'],
+      open: ['paid', 'void', 'uncollectible'],
+      paid: ['void'],
+      void: [],
+      uncollectible: ['paid', 'void']
+    };
+
+    const allowed = ALLOWED_TRANSITIONS[invoice.status];
+    if (allowed && !allowed.includes(status)) {
+      throw new ValidationError(
+        `Cannot transition invoice from '${invoice.status}' to '${status}'. ` +
+        `Allowed transitions from '${invoice.status}': ${allowed.length > 0 ? allowed.join(', ') : 'none (terminal state)'}`
+      );
+    }
+
     // Prepare update data
     const updateData = {
       status,
@@ -486,6 +532,25 @@ class InvoiceService {
       newStatus: status,
       paidAt: updatedInvoice.paid_at
     });
+
+    // Audit trail (fire-and-forget)
+    billingPrisma.billing_events?.create({
+      data: {
+        app_id: appId,
+        event_type: 'invoice.status_changed',
+        source: 'invoice_service',
+        entity_type: 'invoice',
+        entity_id: String(invoiceId),
+        payload: {
+          invoice_id: invoiceId,
+          billing_customer_id: invoice.billing_customer_id,
+          old_status: invoice.status,
+          new_status: status,
+          amount_cents: invoice.amount_cents,
+          paid_at: updatedInvoice.paid_at,
+        },
+      },
+    })?.catch(err => logger.warn('Failed to record invoice audit event', { error: err.message }));
 
     return updatedInvoice;
   }

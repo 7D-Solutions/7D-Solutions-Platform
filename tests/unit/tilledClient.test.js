@@ -74,7 +74,7 @@ describe('TilledClient', () => {
     });
 
     it('should reject signature with timestamp outside tolerance', () => {
-      const oldTimestamp = (Date.now() - 10 * 60 * 1000).toString(); // 10 minutes ago
+      const oldTimestamp = (Math.floor(Date.now() / 1000) - 10 * 60).toString(); // 10 minutes ago
       const signature = generateWebhookSignature(JSON.parse(rawBody), secret, oldTimestamp);
 
       const result = client.verifyWebhookSignature(rawBody, signature, 300); // 5 min tolerance
@@ -83,7 +83,7 @@ describe('TilledClient', () => {
     });
 
     it('should accept signature within tolerance', () => {
-      const recentTimestamp = Date.now().toString();
+      const recentTimestamp = Math.floor(Date.now() / 1000).toString();
       const signature = generateWebhookSignature(JSON.parse(rawBody), secret, recentTimestamp);
 
       const result = client.verifyWebhookSignature(rawBody, signature, 300);

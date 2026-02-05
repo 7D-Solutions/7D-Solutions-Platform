@@ -36,7 +36,7 @@ class SubscriptionService {
     );
 
     // Step 3: Save to database
-    return billingPrisma.billing_subscriptions.create({
+    const subscription = await billingPrisma.billing_subscriptions.create({
       data: {
         app_id: billingCustomer.app_id,
         billing_customer_id: billingCustomerId,
@@ -58,6 +58,29 @@ class SubscriptionService {
         metadata: options.metadata || {}
       }
     });
+
+    // Audit trail (fire-and-forget)
+    billingPrisma.billing_events?.create({
+      data: {
+        app_id: appId,
+        event_type: 'subscription.created',
+        source: 'subscription_service',
+        entity_type: 'subscription',
+        entity_id: String(subscription.id),
+        payload: {
+          subscription_id: subscription.id,
+          tilled_subscription_id: tilledSubscription.id,
+          billing_customer_id: billingCustomerId,
+          plan_id: planId,
+          plan_name: planName,
+          price_cents: priceCents,
+          interval_unit: options.intervalUnit || 'month',
+          interval_count: options.intervalCount || 1,
+        },
+      },
+    })?.catch(err => logger.warn('Failed to record subscription audit event', { error: err.message }));
+
+    return subscription;
   }
 
   async cancelSubscription(subscriptionId) {
@@ -112,18 +135,37 @@ class SubscriptionService {
         });
       }
 
-      return billingPrisma.billing_subscriptions.update({
+      const updated = await billingPrisma.billing_subscriptions.update({
         where: { id: subscriptionId },
         data: {
           cancel_at_period_end: true,
           updated_at: new Date()
         }
       });
+
+      // Audit trail (fire-and-forget)
+      billingPrisma.billing_events?.create({
+        data: {
+          app_id: appId,
+          event_type: 'subscription.cancel_scheduled',
+          source: 'subscription_service',
+          entity_type: 'subscription',
+          entity_id: String(subscriptionId),
+          payload: {
+            subscription_id: subscriptionId,
+            billing_customer_id: subscription.billing_customer_id,
+            plan_id: subscription.plan_id,
+            cancel_at_period_end: true,
+          },
+        },
+      })?.catch(err => logger.warn('Failed to record subscription audit event', { error: err.message }));
+
+      return updated;
     } else {
       // Immediate cancellation
       const tilledSubscription = await tilledClient.cancelSubscription(subscription.tilled_subscription_id);
 
-      return billingPrisma.billing_subscriptions.update({
+      const updated = await billingPrisma.billing_subscriptions.update({
         where: { id: subscriptionId },
         data: {
           status: 'canceled',
@@ -133,6 +175,26 @@ class SubscriptionService {
           updated_at: new Date()
         }
       });
+
+      // Audit trail (fire-and-forget)
+      billingPrisma.billing_events?.create({
+        data: {
+          app_id: appId,
+          event_type: 'subscription.canceled',
+          source: 'subscription_service',
+          entity_type: 'subscription',
+          entity_id: String(subscriptionId),
+          payload: {
+            subscription_id: subscriptionId,
+            billing_customer_id: subscription.billing_customer_id,
+            plan_id: subscription.plan_id,
+            old_status: subscription.status,
+            new_status: 'canceled',
+          },
+        },
+      })?.catch(err => logger.warn('Failed to record subscription audit event', { error: err.message }));
+
+      return updated;
     }
   }
 

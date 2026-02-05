@@ -53,7 +53,8 @@ router.post('/calculate', rejectSensitiveData, calculateProrationValidator, asyn
       oldPriceCents: old_price_cents,
       newQuantity: new_quantity,
       oldQuantity: old_quantity,
-      prorationBehavior: proration_behavior
+      prorationBehavior: proration_behavior,
+      appId: req.verifiedAppId
     });
 
     res.json({ proration });

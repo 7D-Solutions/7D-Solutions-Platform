@@ -74,6 +74,32 @@ class RefundService {
       throw new ConflictError('Charge not settled in processor');
     }
 
+    // Validate refund amount does not exceed charge amount
+    if (amountCents > charge.amount_cents) {
+      throw new ValidationError(`Refund amount (${amountCents} cents) exceeds charge amount (${charge.amount_cents} cents)`);
+    }
+
+    // Calculate total already refunded for this charge (including pending refunds)
+    const totalRefundedResult = await getBillingPrisma().billing_refunds.aggregate({
+      where: {
+        charge_id: chargeId,
+        app_id: appId,
+        status: { in: ['pending', 'succeeded'] }
+      },
+      _sum: {
+        amount_cents: true
+      }
+    });
+    const totalRefunded = totalRefundedResult._sum.amount_cents || 0;
+    const remainingRefundable = charge.amount_cents - totalRefunded;
+
+    if (amountCents > remainingRefundable) {
+      throw new ValidationError(
+        `Refund amount (${amountCents} cents) exceeds remaining refundable amount (${remainingRefundable} cents). ` +
+        `Total already refunded: ${totalRefunded} cents`
+      );
+    }
+
     // Create pending refund record (with race-safe duplicate detection)
     let refundRecord;
     try {
@@ -152,6 +178,28 @@ class RefundService {
         reason,
       });
 
+      // Audit trail (fire-and-forget)
+      getBillingPrisma().billing_events?.create({
+        data: {
+          app_id: appId,
+          event_type: 'refund.succeeded',
+          source: 'refund_service',
+          entity_type: 'refund',
+          entity_id: String(updatedRefund.id),
+          payload: {
+            refund_id: updatedRefund.id,
+            tilled_refund_id: tilledRefund.id,
+            charge_id: charge.id,
+            tilled_charge_id: charge.tilled_charge_id,
+            billing_customer_id: charge.billing_customer_id,
+            amount_cents: amountCents,
+            currency,
+            reason,
+            reference_id: referenceId,
+          },
+        },
+      })?.catch(err => logger.warn('Failed to record refund audit event', { error: err.message }));
+
       return updatedRefund;
     } catch (error) {
       // Update refund record with failure
@@ -174,6 +222,29 @@ class RefundService {
         amount_cents: amountCents,
         reason,
       });
+
+      // Audit trail (fire-and-forget)
+      getBillingPrisma().billing_events?.create({
+        data: {
+          app_id: appId,
+          event_type: 'refund.failed',
+          source: 'refund_service',
+          entity_type: 'refund',
+          entity_id: String(refundRecord.id),
+          payload: {
+            refund_id: refundRecord.id,
+            charge_id: charge.id,
+            tilled_charge_id: charge.tilled_charge_id,
+            billing_customer_id: charge.billing_customer_id,
+            amount_cents: amountCents,
+            currency,
+            reason,
+            reference_id: referenceId,
+            failure_code: error.code || 'unknown',
+            failure_message: error.message,
+          },
+        },
+      })?.catch(err => logger.warn('Failed to record refund audit event', { error: err.message }));
 
       throw error;
     }

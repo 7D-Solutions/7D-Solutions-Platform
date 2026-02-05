@@ -48,12 +48,54 @@ class PaymentMethodService {
     // Verify customer belongs to app
     const customer = await this.customerService.getCustomerById(appId, billingCustomerId);
 
+    // Step 1: Create local pending record first (local-first pattern)
+    // We already have the tilled_payment_method_id from client-side tokenization
+    const pmRecord = await billingPrisma.billing_payment_methods.upsert({
+      where: { tilled_payment_method_id: paymentMethodId },
+      update: {
+        app_id: appId,
+        billing_customer_id: billingCustomerId,
+        tilled_payment_method_id: paymentMethodId,
+        type: 'card',
+        deleted_at: null,
+        updated_at: new Date()
+      },
+      create: {
+        app_id: appId,
+        billing_customer_id: billingCustomerId,
+        tilled_payment_method_id: paymentMethodId,
+        type: 'card',
+        is_default: false,
+        metadata: {},
+        created_at: new Date(),
+        updated_at: new Date()
+      }
+    });
+
+    // Step 2: Attach to Tilled customer
     const tilledClient = this.getTilledClient(appId);
 
-    // Step 1: Attach to Tilled customer
-    await tilledClient.attachPaymentMethod(paymentMethodId, customer.tilled_customer_id);
+    try {
+      await tilledClient.attachPaymentMethod(paymentMethodId, customer.tilled_customer_id);
+    } catch (error) {
+      // Tilled attach failed — soft-delete the local record
+      await billingPrisma.billing_payment_methods.update({
+        where: { id: pmRecord.id },
+        data: { deleted_at: new Date() }
+      });
 
-    // Step 2: Fetch full payment method details from Tilled (best effort)
+      logger.error('Failed to attach payment method in Tilled', {
+        app_id: appId,
+        billing_customer_id: billingCustomerId,
+        tilled_payment_method_id: paymentMethodId,
+        error_code: error.code,
+        error_message: error.message,
+      });
+
+      throw error;
+    }
+
+    // Step 3: Fetch full payment method details from Tilled (best effort)
     let tilledPM;
     try {
       tilledPM = await tilledClient.getPaymentMethod(paymentMethodId);
@@ -68,11 +110,8 @@ class PaymentMethodService {
       tilledPM = { id: paymentMethodId, type: 'card' };
     }
 
-    // Step 3: Upsert local record with masked details
+    // Step 4: Update local record with full details from Tilled
     const pmData = {
-      app_id: appId,
-      billing_customer_id: billingCustomerId,
-      tilled_payment_method_id: paymentMethodId,
       type: tilledPM.type,
       brand: tilledPM.card?.brand || null,
       last4: tilledPM.card?.last4 || tilledPM.ach_debit?.last4 || tilledPM.eft_debit?.last4 || null,
@@ -80,22 +119,13 @@ class PaymentMethodService {
       exp_year: tilledPM.card?.exp_year || null,
       bank_name: tilledPM.ach_debit?.bank_name || tilledPM.eft_debit?.bank_name || null,
       bank_last4: tilledPM.ach_debit?.last4 || tilledPM.eft_debit?.last4 || null,
-      is_default: false,
-      metadata: tilledPM.metadata || {}
+      metadata: tilledPM.metadata || {},
+      updated_at: new Date()
     };
 
-    return billingPrisma.billing_payment_methods.upsert({
-      where: { tilled_payment_method_id: paymentMethodId },
-      update: {
-        ...pmData,
-        deleted_at: null,
-        updated_at: new Date()
-      },
-      create: {
-        ...pmData,
-        created_at: new Date(),
-        updated_at: new Date()
-      }
+    return billingPrisma.billing_payment_methods.update({
+      where: { id: pmRecord.id },
+      data: pmData
     });
   }
 

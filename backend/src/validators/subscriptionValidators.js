@@ -114,10 +114,57 @@ const updateSubscriptionValidator = [
   handleValidationErrors
 ];
 
+/**
+ * Validator for POST /subscriptions/change-cycle
+ */
+const changeCycleValidator = [
+  positiveIntBody('billing_customer_id'),
+  positiveIntBody('from_subscription_id', 'from_subscription_id'),
+  body('new_plan_id')
+    .notEmpty()
+    .withMessage('new_plan_id is required')
+    .trim()
+    .escape()
+    .isLength({ min: 1, max: 100 })
+    .withMessage('new_plan_id must be between 1 and 100 characters'),
+  body('new_plan_name')
+    .notEmpty()
+    .withMessage('new_plan_name is required')
+    .trim()
+    .escape()
+    .isLength({ min: 1, max: 255 })
+    .withMessage('new_plan_name must be between 1 and 255 characters'),
+  amountCentsField('body', 'price_cents'),
+  body('payment_method_id')
+    .notEmpty()
+    .withMessage('payment_method_id is required')
+    .trim(),
+  enumField('body', 'payment_method_type', ['card', 'ach_debit', 'eft_debit']),
+  body('options')
+    .optional()
+    .isObject()
+    .withMessage('options must be an object'),
+  body('options.intervalUnit')
+    .optional()
+    .isIn(['day', 'week', 'month', 'year'])
+    .withMessage('options.intervalUnit must be one of: day, week, month, year'),
+  body('options.intervalCount')
+    .optional()
+    .isInt({ min: 1 })
+    .withMessage('options.intervalCount must be a positive integer')
+    .toInt(),
+  body('options.metadata')
+    .optional()
+    .isObject()
+    .withMessage('options.metadata must be an object'),
+  handleValidationErrors
+];
+
 module.exports = {
   getSubscriptionByIdValidator,
   listSubscriptionsValidator,
   createSubscriptionValidator,
   cancelSubscriptionValidator,
-  updateSubscriptionValidator
+  updateSubscriptionValidator,
+  changeCycleValidator
 };

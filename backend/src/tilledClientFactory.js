@@ -7,6 +7,10 @@ const TilledClient = require('./tilledClient');
 const tilledClients = new Map();
 
 function getTilledClient(appId) {
+  // In test mode, always create fresh instances so mocks stay current
+  if (process.env.NODE_ENV === 'test') {
+    return new TilledClient(appId);
+  }
   if (!tilledClients.has(appId)) {
     tilledClients.set(appId, new TilledClient(appId));
   }

@@ -1,4 +1,4 @@
-const { billingPrisma } = require('../prisma');
+const { billingPrisma } = require('../prisma'); // Local-first pattern pending
 const logger = require('@fireproof/infrastructure/utils/logger');
 const { NotFoundError, ValidationError } = require('../utils/errors');
 
@@ -8,19 +8,72 @@ class CustomerService {
   }
 
   async createCustomer(appId, email, name, externalCustomerId = null, metadata = {}) {
-    const tilledClient = this.getTilledClient(appId);
-    const tilledCustomer = await tilledClient.createCustomer(email, name, metadata);
-
-    return billingPrisma.billing_customers.create({
+    // Step 1: Create local pending record first (local-first pattern)
+    const customerRecord = await billingPrisma.billing_customers.create({
       data: {
         app_id: appId,
         external_customer_id: externalCustomerId ? String(externalCustomerId) : null,
-        tilled_customer_id: tilledCustomer.id,
+        tilled_customer_id: null,
+        status: 'pending',
         email,
         name,
         metadata: metadata || {}
       }
     });
+
+    // Step 2: Create customer in Tilled
+    const tilledClient = this.getTilledClient(appId);
+
+    try {
+      const tilledCustomer = await tilledClient.createCustomer(email, name, metadata);
+
+      // Step 3: Update local record with Tilled ID and active status
+      const updatedCustomer = await billingPrisma.billing_customers.update({
+        where: { id: customerRecord.id },
+        data: {
+          tilled_customer_id: tilledCustomer.id,
+          status: 'active',
+          updated_at: new Date()
+        }
+      });
+
+      // Audit trail (fire-and-forget)
+      billingPrisma.billing_events?.create({
+        data: {
+          app_id: appId,
+          event_type: 'customer.created',
+          source: 'customer_service',
+          entity_type: 'customer',
+          entity_id: String(updatedCustomer.id),
+          payload: {
+            customer_id: updatedCustomer.id,
+            tilled_customer_id: tilledCustomer.id,
+            external_customer_id: externalCustomerId,
+            email,
+          },
+        },
+      })?.catch(err => logger.warn('Failed to record customer audit event', { error: err.message }));
+
+      return updatedCustomer;
+    } catch (error) {
+      // Step 3 (failure): Mark local record as failed
+      await billingPrisma.billing_customers.update({
+        where: { id: customerRecord.id },
+        data: {
+          status: 'failed',
+          updated_at: new Date()
+        }
+      });
+
+      logger.error('Customer creation failed in Tilled', {
+        app_id: appId,
+        customer_id: customerRecord.id,
+        error_code: error.code,
+        error_message: error.message,
+      });
+
+      throw error;
+    }
   }
 
   async getCustomerById(appId, billingCustomerId) {

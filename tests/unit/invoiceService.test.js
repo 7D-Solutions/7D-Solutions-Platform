@@ -3,8 +3,8 @@ const { billingPrisma } = require('../../backend/src/prisma');
 const { NotFoundError, ValidationError } = require('../../backend/src/utils/errors');
 
 // Mock Prisma client
-jest.mock('../../backend/src/prisma', () => ({
-  billingPrisma: {
+jest.mock('../../backend/src/prisma', () => {
+  const prismaMock = {
     billing_invoices: {
       create: jest.fn(),
       findFirst: jest.fn(),
@@ -21,9 +21,17 @@ jest.mock('../../backend/src/prisma', () => ({
     },
     billing_subscriptions: {
       findFirst: jest.fn()
-    }
-  }
-}));
+    },
+    $transaction: jest.fn()
+  };
+
+  // Implement $transaction to call callback with the mock itself
+  prismaMock.$transaction.mockImplementation((callback) => {
+    return callback(prismaMock);
+  });
+
+  return { billingPrisma: prismaMock };
+});
 
 // Mock logger
 jest.mock('@fireproof/infrastructure/utils/logger', () => ({
@@ -402,6 +410,16 @@ describe('InvoiceService', () => {
       await expect(invoiceService.addInvoiceLineItem(validParams))
         .rejects.toThrow(NotFoundError);
     });
+
+    it('should throw ValidationError if invoice status is finalized', async () => {
+      billingPrisma.billing_invoices.findFirst.mockResolvedValue({
+        id: 789,
+        app_id: 'testapp',
+        status: 'paid'
+      });
+      await expect(invoiceService.addInvoiceLineItem(validParams))
+        .rejects.toThrow(ValidationError);
+    });
   });
 
   describe('generateInvoiceFromSubscription', () => {
@@ -623,6 +641,48 @@ describe('InvoiceService', () => {
       billingPrisma.billing_invoices.findFirst.mockResolvedValue(null);
       await expect(invoiceService.updateInvoiceStatus('testapp', 789, 'paid', {}))
         .rejects.toThrow(NotFoundError);
+    });
+
+    it('should reject invalid status transitions', async () => {
+      // void is terminal — cannot transition to anything
+      const voidInvoice = { ...mockInvoice, status: 'void' };
+      billingPrisma.billing_invoices.findFirst.mockResolvedValue(voidInvoice);
+      await expect(invoiceService.updateInvoiceStatus('testapp', 789, 'paid', {}))
+        .rejects.toThrow(ValidationError);
+      await expect(invoiceService.updateInvoiceStatus('testapp', 789, 'draft', {}))
+        .rejects.toThrow(ValidationError);
+
+      // paid can only go to void
+      const paidInvoice = { ...mockInvoice, status: 'paid', paid_at: new Date() };
+      billingPrisma.billing_invoices.findFirst.mockResolvedValue(paidInvoice);
+      await expect(invoiceService.updateInvoiceStatus('testapp', 789, 'draft', {}))
+        .rejects.toThrow(ValidationError);
+      await expect(invoiceService.updateInvoiceStatus('testapp', 789, 'open', {}))
+        .rejects.toThrow(ValidationError);
+    });
+
+    it('should allow valid status transitions', async () => {
+      billingPrisma.billing_invoices.update.mockResolvedValue({ ...mockInvoice, status: 'open' });
+
+      // draft → open (valid)
+      billingPrisma.billing_invoices.findFirst.mockResolvedValue({ ...mockInvoice, status: 'draft' });
+      await invoiceService.updateInvoiceStatus('testapp', 789, 'open', {});
+      expect(billingPrisma.billing_invoices.update).toHaveBeenCalled();
+
+      // open → paid (valid)
+      billingPrisma.billing_invoices.findFirst.mockResolvedValue({ ...mockInvoice, status: 'open' });
+      billingPrisma.billing_invoices.update.mockResolvedValue({ ...mockInvoice, status: 'paid', paid_at: new Date() });
+      await invoiceService.updateInvoiceStatus('testapp', 789, 'paid', {});
+
+      // paid → void (valid)
+      billingPrisma.billing_invoices.findFirst.mockResolvedValue({ ...mockInvoice, status: 'paid', paid_at: new Date() });
+      billingPrisma.billing_invoices.update.mockResolvedValue({ ...mockInvoice, status: 'void' });
+      await invoiceService.updateInvoiceStatus('testapp', 789, 'void', {});
+
+      // uncollectible → paid (valid)
+      billingPrisma.billing_invoices.findFirst.mockResolvedValue({ ...mockInvoice, status: 'uncollectible' });
+      billingPrisma.billing_invoices.update.mockResolvedValue({ ...mockInvoice, status: 'paid', paid_at: new Date() });
+      await invoiceService.updateInvoiceStatus('testapp', 789, 'paid', {});
     });
   });
 
