@@ -2,6 +2,7 @@ const { billingPrisma } = require('../prisma');
 const logger = require('@fireproof/infrastructure/utils/logger');
 const { NotFoundError, ValidationError, ConflictError, UnauthorizedError } = require('../utils/errors');
 const handlers = require('./helpers/webhookHandlers');
+const { calculateNextRetry } = require('./WebhookRetryService');
 
 /**
  * WebhookService - Webhook lifecycle management
@@ -38,7 +39,8 @@ class WebhookService {
           app_id: appId,
           event_id: event.id,
           event_type: event.type,
-          status: 'received'
+          status: 'received',
+          payload: event
         }
       });
     } catch (error) {
@@ -86,6 +88,12 @@ class WebhookService {
 
       return { success: true, duplicate: false };
     } catch (error) {
+      const maxAttempts = 5;
+      const attemptCount = 1;
+      const nextAttempt = attemptCount < maxAttempts
+        ? calculateNextRetry(attemptCount)
+        : null;
+
       logger.error('Webhook processing error', { app_id: appId, event_id: event.id, error: error.message });
 
       await billingPrisma.billing_webhooks.update({
@@ -95,7 +103,27 @@ class WebhookService {
             app_id: appId
           }
         },
-        data: { status: 'failed', error: error.message, processed_at: new Date() }
+        data: {
+          status: 'failed',
+          error: error.message,
+          error_code: error.code || error.constructor.name,
+          last_attempt_at: new Date(),
+          next_attempt_at: nextAttempt,
+          dead_at: attemptCount >= maxAttempts ? new Date() : null,
+          processed_at: new Date()
+        }
+      });
+
+      await billingPrisma.billing_webhook_attempts.create({
+        data: {
+          app_id: appId,
+          event_id: event.id,
+          attempt_number: 1,
+          status: 'failed',
+          next_attempt_at: nextAttempt,
+          error_code: error.code || error.constructor.name,
+          error_message: error.message
+        }
       });
 
       throw error;
