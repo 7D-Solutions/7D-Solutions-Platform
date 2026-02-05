@@ -1,6 +1,8 @@
 const { billingPrisma } = require('../prisma');
 const logger = require('@fireproof/infrastructure/utils/logger');
 const { NotFoundError, ValidationError } = require('../utils/errors');
+const ProrationCalculator = require('./helpers/ProrationCalculator');
+const ProrationExecutor = require('./helpers/ProrationExecutor');
 
 /**
  * ProrationService - Phase 3: Proration Engine
@@ -13,6 +15,9 @@ const { NotFoundError, ValidationError } = require('../utils/errors');
  *
  * Uses existing billing_charges table with charge_type 'proration_credit' or 'proration_charge'
  * Stores proration details in metadata JSON field
+ *
+ * Calculation logic delegated to ProrationCalculator (pure math, static methods).
+ * Execution logic delegated to ProrationExecutor (DB writes, static methods).
  *
  * @author PearlLynx (plan), LavenderDog (implementation)
  * @phase 3
@@ -65,7 +70,7 @@ class ProrationService {
     }
 
     // 2. Calculate time-based proration
-    const timeProration = this.calculateTimeProration(
+    const timeProration = ProrationCalculator.calculateTimeProration(
       changeDate,
       subscription.current_period_end,
       subscription.current_period_start
@@ -73,11 +78,11 @@ class ProrationService {
 
     // 3. Calculate old plan credit (unused portion)
     const oldAmount = oldPriceCents * oldQuantity;
-    const creditAmountCents = this.roundToFinancialStandard(oldAmount * timeProration.prorationFactor);
+    const creditAmountCents = ProrationCalculator.roundToFinancialStandard(oldAmount * timeProration.prorationFactor);
 
     // 4. Calculate new plan charge (remaining period)
     const newAmount = newPriceCents * newQuantity;
-    const chargeAmountCents = this.roundToFinancialStandard(newAmount * timeProration.prorationFactor);
+    const chargeAmountCents = ProrationCalculator.roundToFinancialStandard(newAmount * timeProration.prorationFactor);
 
     // 5. Calculate net change
     const netAmountCents = chargeAmountCents - creditAmountCents;
@@ -166,23 +171,9 @@ class ProrationService {
         changeDetails
       });
 
-      // Update subscription in database
-      const updatedSubscription = await billingPrisma.billing_subscriptions.update({
-        where: { id: subscriptionId },
-        data: {
-          plan_id: newPlanId || undefined,
-          price_cents: newPriceCents,
-          metadata: {
-            ...(subscription.metadata || {}),
-            last_change: {
-              date: effectiveDate,
-              type: 'plan_change',
-              proration_applied: false
-            }
-          },
-          updated_at: new Date()
-        }
-      });
+      const updatedSubscription = await ProrationExecutor.updateSubscription(
+        subscription, changeDetails, null, { effectiveDate }
+      );
 
       return {
         subscription: updatedSubscription,
@@ -192,115 +183,21 @@ class ProrationService {
     }
 
     // 4. Create proration charge/credit records
-    const charges = [];
-
-    // Create credit for old plan (if any)
-    if (proration.old_plan.credit_cents > 0) {
-      const creditCharge = await billingPrisma.billing_charges.create({
-        data: {
-          app_id: subscription.billing_customers.app_id,
-          billing_customer_id: subscription.billing_customer_id,
-          charge_type: 'proration_credit',
-          amount_cents: -proration.old_plan.credit_cents, // Negative for credit
-          status: 'pending',
-          reason: 'mid_cycle_downgrade',
-          reference_id: `proration_sub_${subscriptionId}_${effectiveDate.toISOString().split('T')[0]}_credit`,
-          metadata: {
-            proration: {
-              subscription_id: subscriptionId,
-              change_date: effectiveDate,
-              old_plan_id: oldPlanId,
-              new_plan_id: newPlanId,
-              old_price_cents: oldPriceCents,
-              new_price_cents: newPriceCents,
-              days_used: proration.time_proration.daysUsed,
-              days_remaining: proration.time_proration.daysRemaining,
-              days_total: proration.time_proration.daysTotal,
-              proration_factor: proration.time_proration.prorationFactor,
-              behavior: prorationBehavior
-            }
-          },
-          created_at: new Date()
-        }
-      });
-      charges.push(creditCharge);
-    }
-
-    // Create charge for new plan (if any)
-    if (proration.new_plan.charge_cents > 0) {
-      const chargeCharge = await billingPrisma.billing_charges.create({
-        data: {
-          app_id: subscription.billing_customers.app_id,
-          billing_customer_id: subscription.billing_customer_id,
-          charge_type: 'proration_charge',
-          amount_cents: proration.new_plan.charge_cents, // Positive for charge
-          status: 'pending',
-          reason: 'mid_cycle_upgrade',
-          reference_id: `proration_sub_${subscriptionId}_${effectiveDate.toISOString().split('T')[0]}_charge`,
-          metadata: {
-            proration: {
-              subscription_id: subscriptionId,
-              change_date: effectiveDate,
-              old_plan_id: oldPlanId,
-              new_plan_id: newPlanId,
-              old_price_cents: oldPriceCents,
-              new_price_cents: newPriceCents,
-              days_used: proration.time_proration.daysUsed,
-              days_remaining: proration.time_proration.daysRemaining,
-              days_total: proration.time_proration.daysTotal,
-              proration_factor: proration.time_proration.prorationFactor,
-              behavior: prorationBehavior
-            }
-          },
-          created_at: new Date()
-        }
-      });
-      charges.push(chargeCharge);
-    }
+    const charges = await ProrationExecutor.applyCharges(
+      subscription, proration, changeDetails, { effectiveDate, prorationBehavior }
+    );
 
     // 5. Update subscription
-    const updatedSubscription = await billingPrisma.billing_subscriptions.update({
-      where: { id: subscriptionId },
-      data: {
-        plan_id: newPlanId || undefined,
-        price_cents: newPriceCents,
-        metadata: {
-          ...(subscription.metadata || {}),
-          last_change: {
-            date: effectiveDate,
-            type: 'plan_change',
-            proration_applied: true,
-            proration_net_amount_cents: proration.net_change.amount_cents
-          }
-        },
-        updated_at: new Date()
-      }
-    });
+    const updatedSubscription = await ProrationExecutor.updateSubscription(
+      subscription, changeDetails, proration, { effectiveDate }
+    );
 
     // 6. Create audit event
-    await billingPrisma.billing_events.create({
-      data: {
-        app_id: subscription.billing_customers.app_id,
-        event_type: 'proration_applied',
-        source: 'proration_service',
-        entity_type: 'subscription',
-        entity_id: subscriptionId.toString(),
-        payload: {
-          subscription_id: subscriptionId,
-          change_type: proration.net_change.amount_cents >= 0 ? 'plan_upgrade' : 'plan_downgrade',
-          old_plan: { plan_id: oldPlanId, price_cents: oldPriceCents, quantity: oldQuantity },
-          new_plan: { plan_id: newPlanId, price_cents: newPriceCents, quantity: newQuantity },
-          proration_breakdown: {
-            credit_amount_cents: proration.old_plan.credit_cents,
-            charge_amount_cents: proration.new_plan.charge_cents,
-            net_amount_cents: proration.net_change.amount_cents
-          },
-          effective_date: effectiveDate,
-          charges_created: charges.map(c => ({ id: c.id, type: c.charge_type, amount_cents: c.amount_cents }))
-        },
-        created_at: new Date()
-      }
-    });
+    await ProrationExecutor.recordAuditEvent(
+      subscription, proration,
+      { oldPlanId, newPlanId, oldPriceCents, newPriceCents, oldQuantity, newQuantity },
+      charges, { effectiveDate }
+    );
 
     return {
       subscription: updatedSubscription,
@@ -333,7 +230,7 @@ class ProrationService {
     }
 
     // 2. Calculate time-based proration
-    const timeProration = this.calculateTimeProration(
+    const timeProration = ProrationCalculator.calculateTimeProration(
       cancellationDate,
       subscription.current_period_end,
       subscription.current_period_start
@@ -341,7 +238,7 @@ class ProrationService {
 
     // 3. Calculate refund amount
     const totalPaid = subscription.price_cents;
-    const refundAmountCents = this.roundToFinancialStandard(totalPaid * timeProration.prorationFactor);
+    const refundAmountCents = ProrationCalculator.roundToFinancialStandard(totalPaid * timeProration.prorationFactor);
 
     // 4. Handle different refund behaviors
     let action = 'none';
@@ -367,87 +264,17 @@ class ProrationService {
     };
   }
 
-  /**
-   * Calculate days remaining in billing period
-   * @param {Date} changeDate
-   * @param {Date} periodEnd
-   * @param {Date} periodStart
-   * @returns {Object} { daysUsed, daysRemaining, daysTotal, prorationFactor }
-   */
+  // Delegate to static calculator methods for backward compatibility
   calculateTimeProration(changeDate, periodEnd, periodStart) {
-    // Normalize all dates to midnight UTC for consistency
-    const change = new Date(changeDate);
-    change.setUTCHours(0, 0, 0, 0);
-
-    const start = new Date(periodStart);
-    start.setUTCHours(0, 0, 0, 0);
-
-    const end = new Date(periodEnd);
-    end.setUTCHours(0, 0, 0, 0);
-
-    // Edge case: change at period start
-    if (change.getTime() === start.getTime()) {
-      return {
-        daysUsed: 0,
-        daysRemaining: Math.round((end - start) / (24 * 60 * 60 * 1000)),
-        daysTotal: Math.round((end - start) / (24 * 60 * 60 * 1000)),
-        prorationFactor: 1.0,
-        note: 'change_at_period_start'
-      };
-    }
-
-    // Edge case: change at or after period end
-    if (change.getTime() >= end.getTime()) {
-      return {
-        daysUsed: Math.round((end - start) / (24 * 60 * 60 * 1000)),
-        daysRemaining: 0,
-        daysTotal: Math.round((end - start) / (24 * 60 * 60 * 1000)),
-        prorationFactor: 0.0,
-        note: 'change_at_period_end'
-      };
-    }
-
-    // Calculate milliseconds
-    const totalMs = end - start;
-    const usedMs = change - start;
-    const remainingMs = end - change;
-
-    // Convert to days
-    const msPerDay = 24 * 60 * 60 * 1000;
-    const daysTotal = totalMs / msPerDay;
-    const daysUsed = usedMs / msPerDay;
-    const daysRemaining = remainingMs / msPerDay;
-
-    // Calculate proration factor (4 decimal places)
-    const prorationFactor = daysRemaining / daysTotal;
-
-    return {
-      daysUsed: Math.floor(daysUsed),
-      daysRemaining: Math.ceil(daysRemaining),
-      daysTotal: Math.round(daysTotal),
-      prorationFactor: Math.round(prorationFactor * 10000) / 10000
-    };
+    return ProrationCalculator.calculateTimeProration(changeDate, periodEnd, periodStart);
   }
 
-  /**
-   * Apply financial rounding to proration amounts
-   * @param {number} amountCents
-   * @returns {number} Rounded amount
-   */
   roundToFinancialStandard(amountCents) {
-    // Round half-up to nearest cent
-    return Math.round(amountCents);
+    return ProrationCalculator.roundToFinancialStandard(amountCents);
   }
 
-  /**
-   * Helper: Normalize date to UTC midnight
-   * @param {Date} date
-   * @returns {Date} Normalized date
-   */
   normalizeToUTCMidnight(date) {
-    const d = new Date(date);
-    d.setUTCHours(0, 0, 0, 0);
-    return d;
+    return ProrationCalculator.normalizeToUTCMidnight(date);
   }
 }
 

@@ -1,17 +1,17 @@
 const { billingPrisma } = require('../prisma');
 const logger = require('@fireproof/infrastructure/utils/logger');
 const { NotFoundError, ValidationError } = require('../utils/errors');
+const DiscountCalculator = require('./helpers/DiscountCalculator');
+const CouponValidator = require('./helpers/CouponValidator');
 
 /**
  * DiscountService - Phase 2: Discount & Promotion Engine
  *
- * Generic discount service supporting:
- * - Product-specific discounts (via product_categories)
- * - Category-based discounts (via customer_segments)
- * - Volume discounts (tiered pricing)
- * - Seasonal promotions (date-based)
- * - Referral programs
- * - Contract term discounts
+ * Orchestrates discount calculation workflow:
+ * - Fetches coupons, validates eligibility (via CouponValidator)
+ * - Calculates amounts (via DiscountCalculator)
+ * - Applies stacking rules (via DiscountCalculator)
+ * - Records discount applications (CRUD)
  *
  * @author CloudyCastle
  * @phase 2
@@ -82,20 +82,20 @@ class DiscountService {
         continue;
       }
 
-      const validation = await this.validateCouponEligibility(appId, coupon, context);
+      const validation = await CouponValidator.validateEligibility(appId, coupon, context);
 
       if (!validation.eligible) {
         rejectedCoupons.push({ code, reason: validation.reason });
         continue;
       }
 
-      const discountAmount = this._calculateDiscountAmount(coupon, context);
+      const discountAmount = DiscountCalculator.calculateAmount(coupon, context);
       applicableDiscounts.push({
         couponId: coupon.id,
         code: coupon.code,
         type: coupon.coupon_type,
         amountCents: discountAmount,
-        description: this._getDiscountDescription(coupon),
+        description: DiscountCalculator.getDescription(coupon),
         stackable: coupon.stackable || false,
         priority: coupon.priority || 0,
         metadata: {
@@ -106,13 +106,13 @@ class DiscountService {
     }
 
     // Check for automatic volume discounts
-    const volumeDiscount = await this._findAutomaticVolumeDiscount(appId, context);
+    const volumeDiscount = await CouponValidator.findAutomaticVolumeDiscount(appId, context);
     if (volumeDiscount) {
       applicableDiscounts.push(volumeDiscount);
     }
 
     // Apply stacking and priority rules
-    const finalDiscounts = this._applyStackingRules(applicableDiscounts, subtotalCents);
+    const finalDiscounts = DiscountCalculator.applyStackingRules(applicableDiscounts, subtotalCents);
 
     // Calculate totals
     const totalDiscountCents = finalDiscounts.reduce((sum, d) => sum + d.amountCents, 0);
@@ -126,86 +126,6 @@ class DiscountService {
       appliedInOrder: finalDiscounts.map(d => d.code),
       rejectedCoupons
     };
-  }
-
-  /**
-   * Validate if a coupon is eligible for the given context
-   * @param {string} appId - Application identifier
-   * @param {Object} coupon - Coupon record
-   * @param {Object} context - Discount context
-   * @returns {Promise<Object>} Validation result {eligible, reason}
-   */
-  async validateCouponEligibility(appId, coupon, context) {
-    // Check active status
-    if (!coupon.active) {
-      return { eligible: false, reason: 'Coupon is not active' };
-    }
-
-    // Check expiration date
-    if (coupon.redeem_by && new Date() > new Date(coupon.redeem_by)) {
-      return { eligible: false, reason: 'Coupon has expired' };
-    }
-
-    // Check max redemptions
-    if (coupon.max_redemptions) {
-      const redemptionCount = await billingPrisma.billing_discount_applications.count({
-        where: {
-          app_id: appId,
-          coupon_id: coupon.id
-        }
-      });
-
-      if (redemptionCount >= coupon.max_redemptions) {
-        return { eligible: false, reason: 'Coupon redemption limit reached' };
-      }
-    }
-
-    // Check seasonal dates
-    const now = new Date();
-    if (coupon.seasonal_start_date && now < new Date(coupon.seasonal_start_date)) {
-      return {
-        eligible: false,
-        reason: `Promotion starts ${new Date(coupon.seasonal_start_date).toLocaleDateString()}`
-      };
-    }
-
-    if (coupon.seasonal_end_date && now > new Date(coupon.seasonal_end_date)) {
-      return { eligible: false, reason: 'Promotion has ended' };
-    }
-
-    // Check product categories eligibility
-    if (coupon.product_categories && Array.isArray(coupon.product_categories)) {
-      const hasEligibleProduct = context.productTypes.some(
-        type => coupon.product_categories.includes(type)
-      );
-
-      if (!hasEligibleProduct && context.productTypes.length > 0) {
-        return {
-          eligible: false,
-          reason: `Discount only applies to: ${coupon.product_categories.join(', ')}`
-        };
-      }
-    }
-
-    // Check customer segment eligibility
-    if (coupon.customer_segments && Array.isArray(coupon.customer_segments)) {
-      if (!coupon.customer_segments.includes(context.category)) {
-        return {
-          eligible: false,
-          reason: `Discount only for ${coupon.customer_segments.join(' or ')} customers`
-        };
-      }
-    }
-
-    // Check minimum quantity
-    if (coupon.min_quantity && context.totalQuantity < coupon.min_quantity) {
-      return {
-        eligible: false,
-        reason: `Minimum ${coupon.min_quantity} items required`
-      };
-    }
-
-    return { eligible: true };
   }
 
   /**
@@ -231,7 +151,7 @@ class DiscountService {
       return { valid: false, reason: 'Coupon not found' };
     }
 
-    const validation = await this.validateCouponEligibility(appId, coupon, context);
+    const validation = await CouponValidator.validateEligibility(appId, coupon, context);
 
     if (!validation.eligible) {
       return { valid: false, reason: validation.reason };
@@ -244,7 +164,7 @@ class DiscountService {
         code: coupon.code,
         type: coupon.coupon_type,
         value: coupon.value,
-        description: this._getDiscountDescription(coupon)
+        description: DiscountCalculator.getDescription(coupon)
       }
     };
   }
@@ -253,14 +173,6 @@ class DiscountService {
    * Record a discount application for audit trail
    * @param {string} appId - Application identifier
    * @param {Object} discountDetails - Discount details
-   * @param {number} discountDetails.invoiceId - Invoice ID (optional)
-   * @param {number} discountDetails.chargeId - Charge ID (optional)
-   * @param {number} discountDetails.couponId - Coupon ID (optional)
-   * @param {number} discountDetails.customerId - Customer ID
-   * @param {string} discountDetails.discountType - Type of discount
-   * @param {number} discountDetails.discountAmountCents - Discount amount
-   * @param {string} discountDetails.description - Description
-   * @param {Object} discountDetails.metadata - Additional metadata
    * @returns {Promise<Object>} Created discount application record
    */
   async recordDiscount(appId, discountDetails) {
@@ -377,7 +289,7 @@ class DiscountService {
         code: coupon.code,
         type: coupon.coupon_type,
         value: coupon.value,
-        description: this._getDiscountDescription(coupon),
+        description: DiscountCalculator.getDescription(coupon),
         stackable: coupon.stackable,
         seasonalStart: coupon.seasonal_start_date,
         seasonalEnd: coupon.seasonal_end_date,
@@ -390,201 +302,33 @@ class DiscountService {
     return availableDiscounts;
   }
 
-  /**
-   * Calculate discount amount for a coupon
-   * @private
-   */
+  // Backward-compatible instance method delegates
+  validateCouponEligibility(appId, coupon, context) {
+    return CouponValidator.validateEligibility(appId, coupon, context);
+  }
+
   _calculateDiscountAmount(coupon, context) {
-    const { subtotalCents, totalQuantity } = context;
-    let discountCents = 0;
-
-    switch (coupon.coupon_type) {
-      case 'percentage':
-        discountCents = Math.round(subtotalCents * (coupon.value / 100));
-        break;
-
-      case 'fixed':
-        discountCents = coupon.value;
-        break;
-
-      case 'volume':
-        discountCents = this._calculateVolumeDiscount(totalQuantity, coupon.volume_tiers, subtotalCents);
-        break;
-
-      default:
-        discountCents = coupon.value;
-    }
-
-    // Apply maximum discount cap
-    if (coupon.max_discount_amount_cents && discountCents > coupon.max_discount_amount_cents) {
-      discountCents = coupon.max_discount_amount_cents;
-    }
-
-    // Don't exceed subtotal
-    return Math.min(discountCents, subtotalCents);
+    return DiscountCalculator.calculateAmount(coupon, context);
   }
 
-  /**
-   * Calculate volume-based discount
-   * @private
-   */
   _calculateVolumeDiscount(quantity, volumeTiers, subtotalCents) {
-    if (!volumeTiers || !Array.isArray(volumeTiers) || volumeTiers.length === 0) {
-      return 0;
-    }
-
-    // Sort tiers by minimum (ascending)
-    const sortedTiers = [...volumeTiers].sort((a, b) => a.min - b.min);
-
-    // Find applicable tier (highest tier customer qualifies for)
-    let applicableTier = null;
-    for (const tier of sortedTiers) {
-      if (quantity >= tier.min) {
-        if (!tier.max || quantity <= tier.max) {
-          applicableTier = tier;
-        }
-      }
-    }
-
-    if (!applicableTier) {
-      return 0;
-    }
-
-    // Calculate discount (percentage-based)
-    return Math.round(subtotalCents * (applicableTier.discount / 100));
+    return DiscountCalculator.calculateVolumeDiscount(quantity, volumeTiers, subtotalCents);
   }
 
-  /**
-   * Find automatic volume discount (not requiring coupon code)
-   * @private
-   */
-  async _findAutomaticVolumeDiscount(appId, context) {
-    const volumeCoupons = await billingPrisma.billing_coupons.findMany({
-      where: {
-        app_id: appId,
-        active: true,
-        coupon_type: 'volume',
-        volume_tiers: { not: null }
-      }
-    });
-
-    for (const coupon of volumeCoupons) {
-      const validation = await this.validateCouponEligibility(appId, coupon, context);
-      if (validation.eligible) {
-        const discountAmount = this._calculateVolumeDiscount(
-          context.totalQuantity,
-          coupon.volume_tiers,
-          context.subtotalCents
-        );
-
-        if (discountAmount > 0) {
-          return {
-            couponId: coupon.id,
-            code: coupon.code || 'VOLUME_AUTO',
-            type: 'volume',
-            amountCents: discountAmount,
-            description: `Volume discount: ${context.totalQuantity}+ items`,
-            stackable: coupon.stackable || true, // Volume discounts typically stack
-            priority: coupon.priority || -1, // Apply after explicit discounts
-            metadata: {
-              quantity: context.totalQuantity,
-              tier: this._findApplicableTier(context.totalQuantity, coupon.volume_tiers)
-            }
-          };
-        }
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * Find applicable volume tier
-   * @private
-   */
-  _findApplicableTier(quantity, volumeTiers) {
-    if (!volumeTiers) return null;
-
-    const sortedTiers = [...volumeTiers].sort((a, b) => a.min - b.min);
-    for (const tier of sortedTiers) {
-      if (quantity >= tier.min && (!tier.max || quantity <= tier.max)) {
-        return tier;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Apply stacking and priority rules to discounts
-   * @private
-   */
   _applyStackingRules(discounts, subtotalCents) {
-    if (discounts.length === 0) return [];
-
-    // Sort by priority (higher first)
-    const sorted = [...discounts].sort((a, b) => b.priority - a.priority);
-
-    // Separate stackable and non-stackable
-    const stackable = sorted.filter(d => d.stackable);
-    const nonStackable = sorted.filter(d => !d.stackable);
-
-    // For non-stackable, pick the best one
-    let bestNonStackable = null;
-    if (nonStackable.length > 0) {
-      // Among same priority, pick highest discount
-      const highestPriority = nonStackable[0].priority;
-      const samePriority = nonStackable.filter(d => d.priority === highestPriority);
-      bestNonStackable = samePriority.reduce(
-        (best, current) => current.amountCents > best.amountCents ? current : best,
-        samePriority[0]
-      );
-    }
-
-    // Combine: best non-stackable + all stackable
-    const finalDiscounts = [];
-
-    if (bestNonStackable) {
-      finalDiscounts.push(bestNonStackable);
-    }
-
-    // Add stackable discounts, recalculating amounts on reduced subtotal
-    let remainingSubtotal = subtotalCents - (bestNonStackable?.amountCents || 0);
-
-    for (const discount of stackable) {
-      // For stackable discounts, recalculate on remaining amount if percentage
-      if (discount.metadata?.couponType === 'percentage') {
-        const recalculatedAmount = Math.round(
-          remainingSubtotal * (discount.metadata.originalValue / 100)
-        );
-        discount.amountCents = Math.min(recalculatedAmount, remainingSubtotal);
-      }
-
-      finalDiscounts.push(discount);
-      remainingSubtotal -= discount.amountCents;
-    }
-
-    return finalDiscounts;
+    return DiscountCalculator.applyStackingRules(discounts, subtotalCents);
   }
 
-  /**
-   * Get human-readable discount description
-   * @private
-   */
+  _findApplicableTier(quantity, volumeTiers) {
+    return DiscountCalculator.findApplicableTier(quantity, volumeTiers);
+  }
+
   _getDiscountDescription(coupon) {
-    switch (coupon.coupon_type) {
-      case 'percentage':
-        return `${coupon.value}% off`;
-      case 'fixed':
-        return `$${(coupon.value / 100).toFixed(2)} off`;
-      case 'volume':
-        return 'Volume discount';
-      case 'referral':
-        return 'Referral discount';
-      case 'contract':
-        return `Contract term discount (${coupon.contract_term_months} months)`;
-      default:
-        return 'Discount';
-    }
+    return DiscountCalculator.getDescription(coupon);
+  }
+
+  async _findAutomaticVolumeDiscount(appId, context) {
+    return CouponValidator.findAutomaticVolumeDiscount(appId, context);
   }
 }
 
