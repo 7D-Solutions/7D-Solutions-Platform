@@ -1,13 +1,15 @@
 const { body, param, query } = require('express-validator');
-const { handleValidationErrors } = require('./shared/validationUtils');
+const {
+  handleValidationErrors,
+  positiveIntParam,
+  enumField
+} = require('./shared/validationUtils');
 
 /**
  * Validator for GET /customers/:id
  */
 const getCustomerByIdValidator = [
-  param('id')
-    .isInt({ min: 1 })
-    .withMessage('Customer ID must be a positive integer'),
+  positiveIntParam('id', 'Customer ID'),
   handleValidationErrors
 ];
 
@@ -57,18 +59,12 @@ const createCustomerValidator = [
  * Validator for POST /customers/:id/default-payment-method
  */
 const setDefaultPaymentMethodValidator = [
-  param('id')
-    .isInt({ min: 1 })
-    .withMessage('Customer ID must be a positive integer'),
+  positiveIntParam('id', 'Customer ID'),
   body('payment_method_id')
     .notEmpty()
     .withMessage('payment_method_id is required')
     .trim(),
-  body('payment_method_type')
-    .notEmpty()
-    .withMessage('payment_method_type is required')
-    .isIn(['card', 'ach_debit', 'eft_debit'])
-    .withMessage('payment_method_type must be one of: card, ach_debit, eft_debit'),
+  enumField('body', 'payment_method_type', ['card', 'ach_debit', 'eft_debit'], { required: true }),
   handleValidationErrors
 ];
 
@@ -76,9 +72,7 @@ const setDefaultPaymentMethodValidator = [
  * Validator for PUT /customers/:id
  */
 const updateCustomerValidator = [
-  param('id')
-    .isInt({ min: 1 })
-    .withMessage('Customer ID must be a positive integer'),
+  positiveIntParam('id', 'Customer ID'),
   body('email')
     .optional()
     .isEmail()

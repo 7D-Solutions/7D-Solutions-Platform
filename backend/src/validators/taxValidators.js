@@ -1,5 +1,10 @@
 const { body, param } = require('express-validator');
-const { handleValidationErrors } = require('./shared/validationUtils');
+const {
+  handleValidationErrors,
+  positiveIntParam,
+  positiveIntBody,
+  isoDateField
+} = require('./shared/validationUtils');
 
 /**
  * Validator for GET /tax-rates/:jurisdictionCode
@@ -41,14 +46,8 @@ const createTaxRateValidator = [
     .withMessage('rate is required')
     .isFloat({ min: 0, max: 1 })
     .withMessage('rate must be a decimal between 0 and 1'),
-  body('effective_date')
-    .optional()
-    .isISO8601()
-    .withMessage('effective_date must be a valid ISO 8601 date'),
-  body('expiration_date')
-    .optional()
-    .isISO8601()
-    .withMessage('expiration_date must be a valid ISO 8601 date'),
+  isoDateField('body', 'effective_date'),
+  isoDateField('body', 'expiration_date'),
   body('description')
     .optional()
     .trim()
@@ -65,11 +64,7 @@ const createTaxRateValidator = [
  * Validator for POST /tax-exemptions
  */
 const createTaxExemptionValidator = [
-  body('customer_id')
-    .notEmpty()
-    .withMessage('customer_id is required')
-    .isInt({ min: 1 })
-    .withMessage('customer_id must be a positive integer'),
+  positiveIntBody('customer_id'),
   body('tax_type')
     .notEmpty()
     .withMessage('tax_type is required')
@@ -89,9 +84,7 @@ const createTaxExemptionValidator = [
  * Validator for GET /tax-calculations/invoice/:invoiceId
  */
 const getTaxCalculationsForInvoiceValidator = [
-  param('invoiceId')
-    .isInt({ min: 1 })
-    .withMessage('Invoice ID must be a positive integer'),
+  positiveIntParam('invoiceId', 'Invoice ID'),
   handleValidationErrors
 ];
 
