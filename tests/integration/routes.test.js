@@ -1069,4 +1069,211 @@ describe('Billing Routes Integration', () => {
       expect(dbCharge.charge_type).toBe('one_time');
     });
   });
+
+  // =========================================================
+  // Webhook Retry & Admin Endpoints
+  // =========================================================
+
+  describe('Webhook Retry Flow', () => {
+    it('should store payload on webhook create', async () => {
+      const event = {
+        id: 'evt_payload_test_' + Date.now(),
+        type: 'subscription.created',
+        data: { object: TILLED_SUBSCRIPTION_RESPONSE }
+      };
+      const signature = generateWebhookSignature(event, 'whsec_123');
+      mockTilledClient.verifyWebhookSignature.mockReturnValue(true);
+
+      await request(app)
+        .post('/api/billing/webhooks/trashtech')
+        .set('payments-signature', signature)
+        .send(event)
+        .expect(200);
+
+      const webhook = await billingPrisma.billing_webhooks.findFirst({
+        where: { event_id: event.id, app_id: 'trashtech' }
+      });
+      expect(webhook.payload).toBeTruthy();
+      expect(webhook.payload.id).toBe(event.id);
+      expect(webhook.payload.type).toBe(event.type);
+    });
+
+    it('should set retry fields on handler failure', async () => {
+      // Use dispute.created which will throw on upsert if given malformed data
+      // (missing required 'status' field causes a Prisma error)
+      const event = {
+        id: 'evt_fail_retry_' + Date.now(),
+        type: 'dispute.created',
+        data: {
+          object: {
+            id: 'dsp_test_fail',
+            // Omit 'status' to trigger a Prisma validation error on create
+            payment_intent_id: null,
+            charge_id: null
+          }
+        }
+      };
+      const signature = generateWebhookSignature(event, 'whsec_123');
+      mockTilledClient.verifyWebhookSignature.mockReturnValue(true);
+
+      // This should fail because dispute upsert requires status
+      await request(app)
+        .post('/api/billing/webhooks/trashtech')
+        .set('payments-signature', signature)
+        .send(event)
+        .expect(500);
+
+      const webhook = await billingPrisma.billing_webhooks.findFirst({
+        where: { event_id: event.id, app_id: 'trashtech' }
+      });
+      expect(webhook.status).toBe('failed');
+      expect(webhook.next_attempt_at).toBeTruthy();
+      expect(webhook.last_attempt_at).toBeTruthy();
+      expect(webhook.error).toBeTruthy();
+      expect(webhook.error_code).toBeTruthy();
+      expect(webhook.dead_at).toBeNull();
+
+      // Check attempt was recorded
+      const attempts = await billingPrisma.billing_webhook_attempts.findMany({
+        where: { event_id: event.id, app_id: 'trashtech' }
+      });
+      expect(attempts).toHaveLength(1);
+      expect(attempts[0].attempt_number).toBe(1);
+      expect(attempts[0].status).toBe('failed');
+    });
+  });
+
+  describe('POST /api/billing/webhook-admin/retry', () => {
+    it('should process retryable webhooks', async () => {
+      // Seed a failed webhook with next_attempt_at in the past
+      await billingPrisma.billing_webhooks.create({
+        data: {
+          app_id: 'trashtech',
+          event_id: 'evt_retry_admin_' + Date.now(),
+          event_type: 'subscription.created',
+          status: 'failed',
+          payload: {
+            id: 'evt_retry_admin_' + Date.now(),
+            type: 'subscription.created',
+            data: { object: TILLED_SUBSCRIPTION_RESPONSE }
+          },
+          attempt_count: 1,
+          next_attempt_at: new Date(Date.now() - 60000),
+          last_attempt_at: new Date(Date.now() - 120000),
+          error: 'Temporary error'
+        }
+      });
+
+      const response = await request(app)
+        .post('/api/billing/webhook-admin/retry?app_id=trashtech')
+        .send({})
+        .expect(200);
+
+      expect(response.body.processed).toBeGreaterThanOrEqual(1);
+      expect(response.body.results).toBeInstanceOf(Array);
+    });
+
+    it('should return empty results when no retryable webhooks', async () => {
+      const response = await request(app)
+        .post('/api/billing/webhook-admin/retry?app_id=trashtech')
+        .send({})
+        .expect(200);
+
+      expect(response.body.processed).toBe(0);
+      expect(response.body.results).toEqual([]);
+    });
+  });
+
+  describe('GET /api/billing/webhook-admin/stats', () => {
+    it('should return retry queue stats', async () => {
+      const response = await request(app)
+        .get('/api/billing/webhook-admin/stats?app_id=trashtech')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('failed');
+      expect(response.body).toHaveProperty('processing');
+      expect(response.body).toHaveProperty('deadLettered');
+      expect(response.body).toHaveProperty('pendingRetries');
+      expect(response.body).toHaveProperty('totalProcessed');
+      expect(typeof response.body.failed).toBe('number');
+    });
+
+    it('should reflect correct counts after webhook processing', async () => {
+      // Seed some data
+      const now = new Date();
+      await billingPrisma.billing_webhooks.create({
+        data: {
+          app_id: 'trashtech',
+          event_id: 'evt_stats_processed_' + Date.now(),
+          event_type: 'subscription.created',
+          status: 'processed',
+          processed_at: now
+        }
+      });
+      await billingPrisma.billing_webhooks.create({
+        data: {
+          app_id: 'trashtech',
+          event_id: 'evt_stats_dead_' + Date.now(),
+          event_type: 'subscription.updated',
+          status: 'failed',
+          dead_at: now,
+          error: 'Max retries exceeded'
+        }
+      });
+
+      const response = await request(app)
+        .get('/api/billing/webhook-admin/stats?app_id=trashtech')
+        .expect(200);
+
+      expect(response.body.totalProcessed).toBeGreaterThanOrEqual(1);
+      expect(response.body.deadLettered).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('POST /api/billing/webhook-admin/retry/:event_id', () => {
+    it('should retry a dead-lettered webhook', async () => {
+      // Use an unhandled event type so handleWebhookEvent does a no-op (logs and returns)
+      const eventId = 'evt_dead_admin_' + Date.now();
+      await billingPrisma.billing_webhooks.create({
+        data: {
+          app_id: 'trashtech',
+          event_id: eventId,
+          event_type: 'custom.unhandled_event',
+          status: 'failed',
+          payload: {
+            id: eventId,
+            type: 'custom.unhandled_event',
+            data: { object: { foo: 'bar' } }
+          },
+          attempt_count: 5,
+          dead_at: new Date(),
+          error: 'Persistent failure'
+        }
+      });
+
+      const response = await request(app)
+        .post(`/api/billing/webhook-admin/retry/${eventId}?app_id=trashtech`)
+        .send({});
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('eventId', eventId);
+      expect(response.body).toHaveProperty('status');
+      expect(response.body.status).toBe('processed');
+      expect(response.body).toHaveProperty('attempt', 6);
+
+      // Verify webhook is now processed in DB
+      const webhook = await billingPrisma.billing_webhooks.findFirst({
+        where: { event_id: eventId, app_id: 'trashtech' }
+      });
+      expect(webhook.status).toBe('processed');
+      expect(webhook.dead_at).toBeNull();
+    });
+
+    it('should return error for non-existent webhook', async () => {
+      await request(app)
+        .post('/api/billing/webhook-admin/retry/evt_nonexistent?app_id=trashtech')
+        .send({})
+        .expect(500);
+    });
+  });
 });
