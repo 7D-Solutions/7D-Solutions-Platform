@@ -172,6 +172,45 @@ class DunningAdvancementJob {
   }
 
   /**
+   * Schedule first retry after grace period expires
+   * @param {Object} customer - Customer record
+   * @param {Object} stageInfo - Stage information with nextRetryAt
+   * @returns {Promise<void>}
+   */
+  async scheduleFirstRetry(customer, stageInfo) {
+    if (!stageInfo.nextRetryAt) {
+      logger.warn('Cannot schedule first retry without nextRetryAt', {
+        app_id: customer.app_id,
+        customer_id: customer.id
+      });
+      return;
+    }
+
+    try {
+      await billingPrisma.billing_customers.update({
+        where: { id: customer.id },
+        data: {
+          next_retry_at: stageInfo.nextRetryAt,
+          updated_at: new Date()
+        }
+      });
+
+      logger.info('First retry scheduled after grace period', {
+        app_id: customer.app_id,
+        customer_id: customer.id,
+        next_retry_at: stageInfo.nextRetryAt,
+        scheduled_retry_day: stageInfo.scheduledRetryDay
+      });
+    } catch (error) {
+      logger.error('Failed to schedule first retry', {
+        app_id: customer.app_id,
+        customer_id: customer.id,
+        error: error.message
+      });
+    }
+  }
+
+  /**
    * Send reminder (placeholder - integrate with notification system)
    * @param {Object} customer - Customer record
    * @param {string} stage - Current stage
@@ -247,6 +286,18 @@ class DunningAdvancementJob {
         stageInfo
       };
     } else if (stage === 'retry_scheduled') {
+      // If scheduledRetryDay is present, this is first time scheduling - persist it
+      if (stageInfo.scheduledRetryDay !== undefined && !customer.next_retry_at) {
+        await this.scheduleFirstRetry(customer, stageInfo);
+        return {
+          customerId: customer.id,
+          stage,
+          action: 'first_retry_scheduled',
+          stageInfo,
+          nextRetryAt: stageInfo.nextRetryAt
+        };
+      }
+
       // Retry is scheduled but not due yet - do nothing
       return {
         customerId: customer.id,
@@ -329,6 +380,13 @@ class DunningAdvancementJob {
       retryDue: 0,
       expired: 0,
       errors: 0,
+      actions: {
+        reminder_sent: 0,
+        first_retry_scheduled: 0,
+        waiting_for_retry: 0,
+        retry_attempted: 0,
+        advanced_to_expired: 0
+      },
       details: []
     };
 
@@ -337,10 +395,17 @@ class DunningAdvancementJob {
         const result = await this.processDelinquentCustomer(customer, config);
         results.details.push(result);
         results.processed++;
+
+        // Track stages
         if (result.stage === 'grace_period') results.gracePeriod++;
         if (result.stage === 'retry_scheduled') results.retryScheduled++;
         if (result.stage === 'retry_due') results.retryDue++;
         if (result.stage === 'expired') results.expired++;
+
+        // Track actions
+        if (result.action && results.actions[result.action] !== undefined) {
+          results.actions[result.action]++;
+        }
       } catch (error) {
         logger.error('Error processing delinquent customer', {
           app_id: customer.app_id,
