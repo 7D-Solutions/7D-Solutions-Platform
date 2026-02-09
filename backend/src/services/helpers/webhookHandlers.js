@@ -1,5 +1,6 @@
 const { billingPrisma } = require('../../prisma');
 const logger = require('@fireproof/infrastructure/utils/logger');
+const DunningConfigService = require('../DunningConfigService');
 
 /**
  * Webhook event handlers - Domain-specific logic for each webhook event type.
@@ -100,6 +101,40 @@ async function handlePaymentFailure(appId, paymentObject, eventType) {
     failure_code: paymentObject.failure_code,
     failure_message: paymentObject.failure_message
   });
+
+  // Update customer delinquent status and grace period
+  try {
+    const dunningConfigService = new DunningConfigService();
+    const config = await dunningConfigService.getConfig(appId);
+
+    const now = new Date();
+    const gracePeriodEnd = new Date(now);
+    gracePeriodEnd.setDate(gracePeriodEnd.getDate() + config.gracePeriodDays);
+
+    await billingPrisma.billing_customers.update({
+      where: { id: subscription.billing_customer_id },
+      data: {
+        delinquent_since: now,
+        grace_period_end: gracePeriodEnd,
+        next_retry_at: null,
+        retry_attempt_count: 0,
+        status: 'delinquent'
+      }
+    });
+
+    logger.info('Customer marked as delinquent with grace period', {
+      app_id: appId,
+      customer_id: subscription.billing_customer_id,
+      grace_period_days: config.gracePeriodDays,
+      grace_period_end: gracePeriodEnd
+    });
+  } catch (error) {
+    logger.error('Failed to update customer delinquent status', {
+      app_id: appId,
+      billing_subscription_id: subscription.id,
+      error: error.message
+    });
+  }
 
   // Note: Status will be updated via subscription.updated webhook
   // We log here for operational awareness but don't update status directly
