@@ -154,28 +154,32 @@ class PaymentRetryService {
         customer_id: customer.id,
         retry_attempt: retryAttempt
       });
-    } else if (retryAttempt < config.maxRetryAttempts) {
+    } else if (retryAttempt < config.maxRetryAttempts && retrySchedule.length > retryAttempt) {
       // Schedule next retry based on schedule
-      const scheduleIndex = Math.min(retryAttempt - 1, retrySchedule.length - 1);
-      if (scheduleIndex >= 0) {
-        const retryDay = retrySchedule[scheduleIndex];
-        nextRetryAt = new Date(now);
+      // retryAttempt is the number of attempts completed, so use it as index for next retry
+      // e.g., after 1st retry (retryAttempt=1), schedule 2nd retry using retrySchedule[1]
+      const scheduleIndex = retryAttempt;
+      const retryDay = retrySchedule[scheduleIndex];
+
+      // Calculate from grace_period_end, not from now
+      // Retry schedule days are absolute days from grace period end
+      if (customer.grace_period_end) {
+        nextRetryAt = new Date(customer.grace_period_end);
         nextRetryAt.setDate(nextRetryAt.getDate() + retryDay);
 
         logger.info('Scheduling next retry attempt', {
           app_id: appId,
           customer_id: customer.id,
           retry_attempt: retryAttempt,
-          next_retry_in_days: retryDay,
+          schedule_index: scheduleIndex,
+          retry_day: retryDay,
           next_retry_at: nextRetryAt
         });
       } else {
-        // No more retry days in schedule
-        logger.info('No more retry days in schedule', {
+        logger.warn('Cannot schedule next retry: no grace_period_end', {
           app_id: appId,
           customer_id: customer.id,
-          retry_attempt: retryAttempt,
-          max_retry_attempts: config.maxRetryAttempts
+          retry_attempt: retryAttempt
         });
       }
     } else {
