@@ -40,7 +40,9 @@ class DunningAdvancementJob {
       where,
       include: {
         billing_subscriptions: {
-          where: { status: 'active' } // Only active subscriptions
+          where: {
+            status: { in: ['active', 'past_due'] } // Include both active and past_due
+          }
         }
       }
     });
