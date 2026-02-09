@@ -11,6 +11,8 @@
  * variables ARE shared when resetModules is false.
  */
 
+const logger = require('@fireproof/infrastructure/utils/logger');
+
 let cachedPrismaClient = null;
 
 function createPrismaClient() {
@@ -35,7 +37,11 @@ function createPrismaClient() {
 
   if (process.env.PRISMA_LOG_QUERIES === '1') {
     client.$on('query', (e) => {
-      console.log(`[PRISMA] ${e.query} -- params: ${e.params} (${e.duration}ms)`);
+      logger.debug('[PRISMA] Query executed', {
+        query: e.query,
+        params: e.params,
+        duration: `${e.duration}ms`
+      });
     });
   }
 

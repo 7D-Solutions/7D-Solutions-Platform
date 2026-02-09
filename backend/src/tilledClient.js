@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const logger = require('@fireproof/infrastructure/utils/logger');
 
 class TilledClient {
   constructor(appId) {
@@ -187,7 +188,7 @@ class TilledClient {
         Buffer.from(receivedSignature)
       );
     } catch (error) {
-      console.error('Webhook signature verification error:', error);
+      logger.error('Webhook signature verification error', { error: error.message, stack: error.stack });
       return false;
     }
   }
