@@ -338,6 +338,53 @@ pub async fn cleanup_webhooks(pool: &PgPool, webhook_ids: &[i32]) {
     }
 }
 
+/// Create a test event for audit logging.
+/// Returns event_id.
+pub async fn seed_event(
+    pool: &PgPool,
+    app_id: &str,
+    event_type: &str,
+    source: &str,
+    entity_type: Option<&str>,
+    entity_id: Option<&str>,
+) -> i32 {
+    let payload = serde_json::json!({
+        "test": true,
+        "timestamp": chrono::Utc::now().to_rfc3339()
+    });
+
+    let event_id: i32 = sqlx::query_scalar(
+        r#"INSERT INTO ar_events (
+            app_id, event_type, source, entity_type, entity_id, payload, created_at
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, NOW()
+        )
+        RETURNING id"#,
+    )
+    .bind(app_id)
+    .bind(event_type)
+    .bind(source)
+    .bind(entity_type)
+    .bind(entity_id)
+    .bind(payload)
+    .fetch_one(pool)
+    .await
+    .expect("Failed to seed test event");
+
+    event_id
+}
+
+/// Clean up test events by ID.
+pub async fn cleanup_events(pool: &PgPool, event_ids: &[i32]) {
+    for &event_id in event_ids {
+        sqlx::query("DELETE FROM ar_events WHERE id = $1")
+            .bind(event_id)
+            .execute(pool)
+            .await
+            .ok();
+    }
+}
+
 /// Close the pool and release all connections.
 /// Call this after tests to ensure proper cleanup.
 pub async fn teardown_pool(pool: PgPool) {
