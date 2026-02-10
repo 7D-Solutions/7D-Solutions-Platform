@@ -560,8 +560,8 @@ async fn create_subscription(
     .bind(SubscriptionStatus::Active) // Default to active for now
     .bind(&interval_unit)
     .bind(interval_count)
-    .bind(&now)
-    .bind(&current_period_end)
+    .bind(now)
+    .bind(current_period_end)
     .bind(false) // cancel_at_period_end
     .bind(&req.payment_method_id)
     .bind("card") // Default payment method type
@@ -969,7 +969,7 @@ async fn cancel_subscription(
                 update_source, updated_by, created_at, updated_at
             "#,
         )
-        .bind(&now)
+        .bind(now)
         .bind(id)
         .fetch_one(&db)
         .await

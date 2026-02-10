@@ -39,25 +39,8 @@ impl TilledClient {
     /// Create a payment intent
     pub async fn create_payment_intent(
         &self,
-        amount: i64,
-        currency: String,
-        customer_id: Option<String>,
-        payment_method_id: Option<String>,
-        description: Option<String>,
-        metadata: Option<Metadata>,
-        confirm: bool,
+        request: CreatePaymentIntentRequest,
     ) -> Result<PaymentIntent, TilledError> {
-        let request = CreatePaymentIntentRequest {
-            amount,
-            currency,
-            customer_id,
-            payment_method_id,
-            description,
-            metadata,
-            confirm: Some(confirm),
-            capture_method: Some("automatic".to_string()),
-        };
-
         self.post("/v1/payment-intents", &request).await
     }
 
@@ -99,15 +82,18 @@ impl TilledClient {
         description: Option<String>,
         metadata: Option<Metadata>,
     ) -> Result<ChargeResponse, TilledError> {
-        let payment_intent = self.create_payment_intent(
-            amount_cents,
-            currency.unwrap_or_else(|| "usd".to_string()),
-            Some(customer_id),
-            Some(payment_method_id),
+        let request = CreatePaymentIntentRequest {
+            amount: amount_cents,
+            currency: currency.unwrap_or_else(|| "usd".to_string()),
+            customer_id: Some(customer_id),
+            payment_method_id: Some(payment_method_id),
             description,
             metadata,
-            true, // Auto-confirm
-        ).await?;
+            confirm: Some(true),
+            capture_method: Some("automatic".to_string()),
+        };
+
+        let payment_intent = self.create_payment_intent(request).await?;
 
         Ok(ChargeResponse {
             id: payment_intent.id,
