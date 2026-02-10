@@ -4,8 +4,8 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
-  url      = env("DATABASE_URL_BILLING")
+  provider = "postgresql"
+  url      = env("DATABASE_URL_AR")
 }
 
 /// Billing customers - Generic for any app
@@ -37,10 +37,10 @@ model billing_customers {
   billing_metered_usage     billing_metered_usage[]
 
   @@unique([app_id, external_customer_id], map: "unique_app_external_customer")
-  @@index([app_id], map: "idx_app_id")
-  @@index([email], map: "idx_email")
-  @@index([delinquent_since], map: "idx_delinquent_since")
-  @@index([next_retry_at], map: "idx_next_retry_at")
+  @@index([app_id], map: "ar_customers_app_id")
+  @@index([email], map: "ar_customers_email")
+  @@index([delinquent_since], map: "ar_customers_delinquent_since")
+  @@index([next_retry_at], map: "ar_customers_next_retry_at")
 }
 
 model billing_subscriptions {
@@ -74,12 +74,12 @@ model billing_subscriptions {
   billing_charges           billing_charges[]
   billing_metered_usage     billing_metered_usage[]
 
-  @@index([app_id], map: "idx_app_id")
-  @@index([billing_customer_id], map: "idx_billing_customer_id")
-  @@index([status], map: "idx_status")
-  @@index([plan_id], map: "idx_plan_id")
-  @@index([current_period_end], map: "idx_current_period_end")
-  @@index([app_id, status, current_period_end], map: "idx_app_status_period_end")
+  @@index([app_id], map: "ar_subscriptions_app_id")
+  @@index([billing_customer_id], map: "ar_subscriptions_customer_id")
+  @@index([status], map: "ar_subscriptions_status")
+  @@index([plan_id], map: "ar_subscriptions_plan_id")
+  @@index([current_period_end], map: "ar_subscriptions_current_period_end")
+  @@index([app_id, status, current_period_end], map: "ar_subscriptions_app_status_period_end")
 }
 
 enum billing_subscriptions_status {
@@ -121,9 +121,9 @@ model billing_payment_methods {
   updated_at               DateTime          @default(now()) @db.Timestamp(0)
   billing_customer         billing_customers @relation(fields: [billing_customer_id], references: [id], onDelete: Restrict)
 
-  @@index([app_id], map: "idx_app_id")
-  @@index([billing_customer_id], map: "idx_billing_customer_id")
-  @@index([billing_customer_id, is_default], map: "idx_customer_default")
+  @@index([app_id], map: "ar_payment_methods_app_id")
+  @@index([billing_customer_id], map: "ar_payment_methods_customer_id")
+  @@index([billing_customer_id, is_default], map: "ar_payment_methods_customer_default")
 }
 
 model billing_webhooks {
