@@ -28,13 +28,13 @@ model ar_customers {
   retry_attempt_count           Int                             @default(0)
   created_at                    DateTime                        @default(now()) @db.Timestamp(6)
   updated_at                    DateTime                        @default(now()) @db.Timestamp(6)
-  ar_charges               ar_charges[]
-  ar_discount_applications ar_discount_applications[]
-  ar_invoices              ar_invoices[]
-  ar_metered_usage         ar_metered_usage[]
-  ar_payment_methods       ar_payment_methods[]
-  ar_refunds               ar_refunds[]
-  ar_subscriptions         ar_subscriptions[]
+  billing_charges               billing_charges[]
+  billing_discount_applications billing_discount_applications[]
+  billing_invoices              billing_invoices[]
+  billing_metered_usage         billing_metered_usage[]
+  billing_payment_methods       billing_payment_methods[]
+  billing_refunds               billing_refunds[]
+  billing_subscriptions         billing_subscriptions[]
 
   @@unique([app_id, external_customer_id], map: "unique_app_external_customer")
   @@index([app_id], map: "ar_customers_app_id")
@@ -46,13 +46,13 @@ model ar_customers {
 model ar_subscriptions {
   id                          Int                            @id @default(autoincrement())
   app_id                      String                         @db.VarChar(50)
-  ar_customer_id         Int
+  billing_customer_id         Int
   tilled_subscription_id      String                         @unique @db.VarChar(255)
   plan_id                     String                         @db.VarChar(100)
   plan_name                   String                         @db.VarChar(255)
   price_cents                 Int
-  status                      ar_subscriptions_status
-  interval_unit               ar_subscriptions_interval
+  status                      billing_subscriptions_status
+  interval_unit               billing_subscriptions_interval
   interval_count              Int                            @default(1)
   billing_cycle_anchor        DateTime?                      @db.Timestamp(6)
   current_period_start        DateTime                       @db.Timestamp(6)
@@ -68,14 +68,14 @@ model ar_subscriptions {
   updated_by                  String?                        @db.VarChar(255)
   created_at                  DateTime                       @default(now()) @db.Timestamp(6)
   updated_at                  DateTime                       @default(now()) @db.Timestamp(6)
-  ar_charges             ar_charges[]
-  ar_invoices            ar_invoices[]
-  ar_metered_usage       ar_metered_usage[]
-  ar_subscription_addons ar_subscription_addons[]
-  ar_customers           ar_customers              @relation(fields: [ar_customer_id], references: [id], onUpdate: NoAction)
+  billing_charges             billing_charges[]
+  billing_invoices            billing_invoices[]
+  billing_metered_usage       billing_metered_usage[]
+  billing_subscription_addons billing_subscription_addons[]
+  billing_customers           billing_customers              @relation(fields: [billing_customer_id], references: [id], onUpdate: NoAction)
 
   @@index([app_id], map: "ar_subscriptions_app_id")
-  @@index([ar_customer_id], map: "ar_subscriptions_customer_id")
+  @@index([billing_customer_id], map: "ar_subscriptions_customer_id")
   @@index([status], map: "ar_subscriptions_status")
   @@index([plan_id], map: "ar_subscriptions_plan_id")
   @@index([current_period_end], map: "ar_subscriptions_current_period_end")
@@ -86,7 +86,7 @@ model ar_subscriptions {
 model ar_payment_methods {
   id                       Int               @id @default(autoincrement())
   app_id                   String            @db.VarChar(50)
-  ar_customer_id      Int
+  billing_customer_id      Int
   tilled_payment_method_id String            @unique @db.VarChar(255)
   status                   String            @default("active") @db.VarChar(20)
   type                     String            @db.VarChar(20)
@@ -101,11 +101,11 @@ model ar_payment_methods {
   deleted_at               DateTime?         @db.Timestamp(6)
   created_at               DateTime          @default(now()) @db.Timestamp(6)
   updated_at               DateTime          @default(now()) @db.Timestamp(6)
-  billing_customer         ar_customers @relation(fields: [ar_customer_id], references: [id], onUpdate: NoAction)
+  billing_customer         billing_customers @relation(fields: [billing_customer_id], references: [id], onUpdate: NoAction)
 
   @@index([app_id], map: "ar_payment_methods_app_id")
-  @@index([ar_customer_id], map: "ar_payment_methods_customer_id")
-  @@index([ar_customer_id, is_default], map: "ar_payment_methods_customer_default")
+  @@index([billing_customer_id], map: "ar_payment_methods_customer_id")
+  @@index([billing_customer_id, is_default], map: "ar_payment_methods_customer_default")
 }
 
 model ar_webhooks {
@@ -113,7 +113,7 @@ model ar_webhooks {
   app_id          String                  @db.VarChar(50)
   event_id        String                  @db.VarChar(255)
   event_type      String                  @db.VarChar(100)
-  status          ar_webhooks_status @default(received)
+  status          billing_webhooks_status @default(received)
   error           String?
   payload         Json?
   attempt_count   Int                     @default(1)
@@ -191,7 +191,7 @@ model ar_reconciliation_runs {
   finished_at         DateTime?             @db.Timestamp(6)
   stats               Json?
   error_message       String?
-  ar_divergences ar_divergences[]
+  billing_divergences billing_divergences[]
 
   @@index([app_id], map: "ar_reconciliation_runs_app_id")
   @@index([status], map: "ar_reconciliation_runs_status")
@@ -211,7 +211,7 @@ model ar_divergences {
   status          String                      @default("open") @db.VarChar(20)
   created_at      DateTime                    @default(now()) @db.Timestamp(6)
   resolved_at     DateTime?                   @db.Timestamp(6)
-  run             ar_reconciliation_runs @relation(fields: [run_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  run             billing_reconciliation_runs @relation(fields: [run_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([app_id], map: "ar_divergences_app_id")
   @@index([run_id], map: "ar_divergences_run_id")
@@ -267,7 +267,7 @@ model ar_coupons {
   contract_term_months          Int?
   stackable                     Boolean?                        @default(false)
   priority                      Int?                            @default(0)
-  ar_discount_applications ar_discount_applications[]
+  billing_discount_applications billing_discount_applications[]
 
   @@unique([app_id, code], map: "unique_app_code")
   @@index([app_id], map: "ar_coupons_app_id")
@@ -288,7 +288,7 @@ model ar_addons {
   metadata                    Json?
   created_at                  DateTime                      @default(now()) @db.Timestamp(6)
   updated_at                  DateTime                      @updatedAt @db.Timestamp(6)
-  ar_subscription_addons ar_subscription_addons[]
+  billing_subscription_addons billing_subscription_addons[]
 
   @@unique([app_id, addon_id], map: "unique_app_addon_id")
   @@index([app_id], map: "ar_addons_app_id")
@@ -304,8 +304,8 @@ model ar_subscription_addons {
   quantity        Int                   @default(1)
   created_at      DateTime              @default(now()) @db.Timestamp(6)
   updated_at      DateTime              @updatedAt @db.Timestamp(6)
-  addon           ar_addons        @relation(fields: [addon_id], references: [id], onUpdate: NoAction)
-  subscription    ar_subscriptions @relation(fields: [subscription_id], references: [id], onUpdate: NoAction)
+  addon           billing_addons        @relation(fields: [addon_id], references: [id], onUpdate: NoAction)
+  subscription    billing_subscriptions @relation(fields: [subscription_id], references: [id], onUpdate: NoAction)
 
   @@unique([subscription_id, addon_id], map: "unique_subscription_addon")
   @@index([app_id], map: "ar_subscription_addons_app_id")
@@ -317,7 +317,7 @@ model ar_invoices {
   id                            Int                             @id @default(autoincrement())
   app_id                        String                          @db.VarChar(50)
   tilled_invoice_id             String                          @unique @db.VarChar(255)
-  ar_customer_id           Int
+  billing_customer_id           Int
   subscription_id               Int?
   status                        String                          @db.VarChar(20)
   amount_cents                  Int
@@ -332,15 +332,15 @@ model ar_invoices {
   billing_period_end            DateTime?                       @db.Timestamp(6)
   line_item_details             Json?
   compliance_codes              Json?
-  ar_charges               ar_charges[]
-  ar_discount_applications ar_discount_applications[]
-  ar_invoice_line_items    ar_invoice_line_items[]
-  customer                      ar_customers               @relation(fields: [ar_customer_id], references: [id], onUpdate: NoAction)
-  subscription                  ar_subscriptions?          @relation(fields: [subscription_id], references: [id], onUpdate: NoAction)
-  ar_tax_calculations      ar_tax_calculations[]
+  billing_charges               billing_charges[]
+  billing_discount_applications billing_discount_applications[]
+  billing_invoice_line_items    billing_invoice_line_items[]
+  customer                      billing_customers               @relation(fields: [billing_customer_id], references: [id], onUpdate: NoAction)
+  subscription                  billing_subscriptions?          @relation(fields: [subscription_id], references: [id], onUpdate: NoAction)
+  billing_tax_calculations      billing_tax_calculations[]
 
   @@index([app_id], map: "ar_invoices_app_id")
-  @@index([ar_customer_id], map: "ar_invoices_customer_id")
+  @@index([billing_customer_id], map: "ar_invoices_customer_id")
   @@index([subscription_id], map: "ar_invoices_subscription_id")
   @@index([status], map: "ar_invoices_status")
   @@index([due_at], map: "ar_invoices_due_at")
@@ -353,7 +353,7 @@ model ar_charges {
   app_id                        String                          @db.VarChar(50)
   tilled_charge_id              String?                         @unique @db.VarChar(255)
   invoice_id                    Int?
-  ar_customer_id           Int
+  billing_customer_id           Int
   subscription_id               Int?
   status                        String                          @db.VarChar(20)
   amount_cents                  Int
@@ -373,17 +373,17 @@ model ar_charges {
   service_frequency             String?                         @db.VarChar(20)
   weight_amount                 Decimal?                        @db.Decimal(10, 2)
   location_reference            String?                         @db.VarChar(500)
-  customer                      ar_customers               @relation(fields: [ar_customer_id], references: [id], onUpdate: NoAction)
-  invoice                       ar_invoices?               @relation(fields: [invoice_id], references: [id], onUpdate: NoAction)
-  subscription                  ar_subscriptions?          @relation(fields: [subscription_id], references: [id], onUpdate: NoAction)
-  ar_discount_applications ar_discount_applications[]
-  ar_disputes              ar_disputes[]
-  ar_refunds               ar_refunds[]
-  ar_tax_calculations      ar_tax_calculations[]
+  customer                      billing_customers               @relation(fields: [billing_customer_id], references: [id], onUpdate: NoAction)
+  invoice                       billing_invoices?               @relation(fields: [invoice_id], references: [id], onUpdate: NoAction)
+  subscription                  billing_subscriptions?          @relation(fields: [subscription_id], references: [id], onUpdate: NoAction)
+  billing_discount_applications billing_discount_applications[]
+  billing_disputes              billing_disputes[]
+  billing_refunds               billing_refunds[]
+  billing_tax_calculations      billing_tax_calculations[]
 
   @@unique([app_id, reference_id], map: "unique_app_reference_id")
   @@index([app_id], map: "ar_charges_app_id")
-  @@index([ar_customer_id], map: "ar_charges_customer_id")
+  @@index([billing_customer_id], map: "ar_charges_customer_id")
   @@index([subscription_id], map: "ar_charges_subscription_id")
   @@index([status], map: "ar_charges_status")
   @@index([charge_type], map: "ar_charges_charge_type")
@@ -396,7 +396,7 @@ model ar_charges {
 model ar_refunds {
   id                  Int               @id @default(autoincrement())
   app_id              String            @db.VarChar(50)
-  ar_customer_id Int
+  billing_customer_id Int
   charge_id           Int
   tilled_refund_id    String?           @db.VarChar(255)
   tilled_charge_id    String?           @db.VarChar(255)
@@ -411,13 +411,13 @@ model ar_refunds {
   failure_message     String?
   created_at          DateTime          @default(now()) @db.Timestamp(6)
   updated_at          DateTime          @default(now()) @updatedAt @db.Timestamp(6)
-  customer            ar_customers @relation(fields: [ar_customer_id], references: [id], onUpdate: NoAction)
-  charge              ar_charges   @relation(fields: [charge_id], references: [id], onUpdate: NoAction)
+  customer            billing_customers @relation(fields: [billing_customer_id], references: [id], onUpdate: NoAction)
+  charge              billing_charges   @relation(fields: [charge_id], references: [id], onUpdate: NoAction)
 
   @@unique([app_id, reference_id], map: "unique_refund_app_reference_id")
   @@unique([tilled_refund_id, app_id], map: "tilled_refund_id_app_id")
   @@index([app_id], map: "ar_refunds_app_id")
-  @@index([ar_customer_id], map: "ar_refunds_customer_id")
+  @@index([billing_customer_id], map: "ar_refunds_customer_id")
   @@index([charge_id], map: "ar_refunds_charge_id")
   @@index([status], map: "ar_refunds_status")
 }
@@ -439,7 +439,7 @@ model ar_disputes {
   closed_at         DateTime?        @db.Timestamp(6)
   created_at        DateTime         @default(now()) @db.Timestamp(6)
   updated_at        DateTime         @default(now()) @updatedAt @db.Timestamp(6)
-  charge            ar_charges? @relation(fields: [charge_id], references: [id], onUpdate: NoAction)
+  charge            billing_charges? @relation(fields: [charge_id], references: [id], onUpdate: NoAction)
 
   @@unique([tilled_dispute_id, app_id], map: "tilled_dispute_id_app_id")
   @@index([app_id], map: "ar_disputes_app_id")
@@ -461,7 +461,7 @@ model ar_tax_rates {
   metadata                 Json?
   created_at               DateTime                   @default(now()) @db.Timestamp(6)
   updated_at               DateTime                   @updatedAt @db.Timestamp(6)
-  ar_tax_calculations ar_tax_calculations[]
+  billing_tax_calculations billing_tax_calculations[]
 
   @@unique([app_id, jurisdiction_code, tax_type, effective_date], map: "unique_tax_rate")
   @@index([app_id, jurisdiction_code], map: "ar_tax_rates_app_jurisdiction")
@@ -481,9 +481,9 @@ model ar_tax_calculations {
   tax_type             String            @db.VarChar(50)
   rate_applied         Decimal           @db.Decimal(5, 4)
   created_at           DateTime          @default(now()) @db.Timestamp(6)
-  charge               ar_charges?  @relation(fields: [charge_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  invoice              ar_invoices? @relation(fields: [invoice_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  tax_rate             ar_tax_rates @relation(fields: [tax_rate_id], references: [id], onUpdate: NoAction)
+  charge               billing_charges?  @relation(fields: [charge_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  invoice              billing_invoices? @relation(fields: [invoice_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  tax_rate             billing_tax_rates @relation(fields: [tax_rate_id], references: [id], onUpdate: NoAction)
 
   @@index([app_id, invoice_id], map: "ar_tax_calculations_app_invoice")
   @@index([app_id, charge_id], map: "ar_tax_calculations_app_charge")
@@ -508,10 +508,10 @@ model ar_discount_applications {
   applied_at            DateTime           @default(now()) @db.Timestamp(6)
   created_by            String?            @db.VarChar(255)
   created_at            DateTime           @default(now()) @db.Timestamp(6)
-  charge                ar_charges?   @relation(fields: [charge_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  coupon                ar_coupons?   @relation(fields: [coupon_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  customer              ar_customers? @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  invoice               ar_invoices?  @relation(fields: [invoice_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  charge                billing_charges?   @relation(fields: [charge_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  coupon                billing_coupons?   @relation(fields: [coupon_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  customer              billing_customers? @relation(fields: [customer_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  invoice               billing_invoices?  @relation(fields: [invoice_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([app_id, invoice_id], map: "ar_discount_applications_app_invoice")
   @@index([app_id, charge_id], map: "ar_discount_applications_app_charge")
@@ -533,8 +533,8 @@ model ar_metered_usage {
   period_end       DateTime               @db.Timestamp(6)
   recorded_at      DateTime               @default(now()) @db.Timestamp(6)
   billed_at        DateTime?              @db.Timestamp(6)
-  customer         ar_customers      @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
-  subscription     ar_subscriptions? @relation(fields: [subscription_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  customer         billing_customers      @relation(fields: [customer_id], references: [id], onUpdate: NoAction)
+  subscription     billing_subscriptions? @relation(fields: [subscription_id], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
   @@index([app_id, customer_id], map: "ar_metered_usage_app_customer")
   @@index([app_id, subscription_id], map: "ar_metered_usage_app_subscription")
@@ -567,7 +567,7 @@ model ar_invoice_line_items {
   amount_cents     Int
   metadata         Json?
   created_at       DateTime         @default(now()) @db.Timestamp(6)
-  invoice          ar_invoices @relation(fields: [invoice_id], references: [id], onUpdate: NoAction)
+  invoice          billing_invoices @relation(fields: [invoice_id], references: [id], onUpdate: NoAction)
 
   @@index([app_id, invoice_id], map: "ar_invoice_line_items_app_invoice")
   @@index([line_item_type], map: "ar_invoice_line_items_line_item_type")
@@ -584,7 +584,7 @@ model sqlx_migrations {
   @@map("_sqlx_migrations")
 }
 
-enum ar_subscriptions_status {
+enum billing_subscriptions_status {
   incomplete
   incomplete_expired
   trialing
@@ -595,14 +595,14 @@ enum ar_subscriptions_status {
   paused
 }
 
-enum ar_subscriptions_interval {
+enum billing_subscriptions_interval {
   day
   week
   month
   year
 }
 
-enum ar_webhooks_status {
+enum billing_webhooks_status {
   received
   processing
   processed
