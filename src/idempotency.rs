@@ -60,7 +60,7 @@ pub async fn check_idempotency(
     let existing = sqlx::query_as::<_, IdempotencyKey>(
         r#"
         SELECT id, app_id, idempotency_key, request_hash, response_body, status_code, created_at, expires_at
-        FROM billing_idempotency_keys
+        FROM ar_idempotency_keys
         WHERE app_id = $1 AND idempotency_key = $2 AND expires_at > NOW()
         "#,
     )
@@ -107,7 +107,7 @@ pub async fn check_idempotency(
         // Store idempotency record
         let _ = sqlx::query(
             r#"
-            INSERT INTO billing_idempotency_keys
+            INSERT INTO ar_idempotency_keys
                 (app_id, idempotency_key, request_hash, response_body, status_code, expires_at)
             VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (app_id, idempotency_key) DO NOTHING
