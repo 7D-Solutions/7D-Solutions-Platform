@@ -28,7 +28,7 @@ pub struct Customer {
 /// Request body for creating a customer
 #[derive(Debug, Deserialize)]
 pub struct CreateCustomerRequest {
-    pub email: String,
+    pub email: Option<String>,
     pub name: Option<String>,
     pub external_customer_id: Option<String>,
     pub metadata: Option<JsonValue>,

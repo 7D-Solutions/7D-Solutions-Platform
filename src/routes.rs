@@ -154,7 +154,7 @@ async fn create_customer(
     )
     .bind(app_id)
     .bind(req.external_customer_id)
-    .bind(&req.email)
+    .bind(email)
     .bind(req.name)
     .bind(req.metadata)
     .fetch_one(&db)
