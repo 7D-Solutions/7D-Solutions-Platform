@@ -124,8 +124,8 @@ async fn test_create_customer_missing_email() {
         .await
         .unwrap();
 
-    // Should return validation error (422 for missing required field)
-    assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+    // Should return validation error (400 for validation in handler)
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 
     let json = common::body_json(response).await;
     assert!(json["error"].is_string(), "Should have error message");
