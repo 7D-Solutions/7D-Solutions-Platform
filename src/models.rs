@@ -533,3 +533,50 @@ pub struct ListWebhooksQuery {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
 }
+
+// ============================================================================
+// IDEMPOTENCY MODELS
+// ============================================================================
+
+/// Idempotency key record from billing_idempotency_keys table
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct IdempotencyKey {
+    pub id: i32,
+    pub app_id: String,
+    pub idempotency_key: String,
+    pub request_hash: String,
+    pub response_body: JsonValue,
+    pub status_code: i32,
+    pub created_at: NaiveDateTime,
+    pub expires_at: NaiveDateTime,
+}
+
+// ============================================================================
+// EVENT LOG MODELS
+// ============================================================================
+
+/// Event record from billing_events table
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Event {
+    pub id: i32,
+    pub app_id: String,
+    pub event_type: String,
+    pub source: String,
+    pub entity_type: Option<String>,
+    pub entity_id: Option<String>,
+    pub payload: Option<JsonValue>,
+    pub created_at: NaiveDateTime,
+}
+
+/// Query parameters for listing events
+#[derive(Debug, Deserialize)]
+pub struct ListEventsQuery {
+    pub entity_id: Option<String>,
+    pub entity_type: Option<String>,
+    pub event_type: Option<String>,
+    pub source: Option<String>,
+    pub start: Option<NaiveDateTime>,
+    pub end: Option<NaiveDateTime>,
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+}
