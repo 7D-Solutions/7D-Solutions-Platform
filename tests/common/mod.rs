@@ -209,6 +209,38 @@ pub async fn seed_webhook(
     webhook_id
 }
 
+/// Create a test payment method for a customer.
+/// Returns payment_method_id.
+pub async fn seed_payment_method(
+    pool: &PgPool,
+    app_id: &str,
+    customer_id: i32,
+    is_default: bool,
+) -> i32 {
+    let tilled_pm_id = format!("pm_{}", Uuid::new_v4());
+
+    let payment_method_id: i32 = sqlx::query_scalar(
+        r#"INSERT INTO ar_payment_methods (
+            app_id, ar_customer_id, tilled_payment_method_id,
+            status, type, brand, last4, exp_month, exp_year,
+            is_default, metadata, created_at, updated_at
+        ) VALUES (
+            $1, $2, $3, 'active', 'card', 'visa', '4242', 12, 2025,
+            $4, '{}', NOW(), NOW()
+        )
+        RETURNING id"#,
+    )
+    .bind(app_id)
+    .bind(customer_id)
+    .bind(&tilled_pm_id)
+    .bind(is_default)
+    .fetch_one(pool)
+    .await
+    .expect("Failed to seed test payment method");
+
+    payment_method_id
+}
+
 /// Clean up test customers by ID.
 pub async fn cleanup_customers(pool: &PgPool, customer_ids: &[i32]) {
     for &customer_id in customer_ids {
@@ -246,6 +278,49 @@ pub async fn cleanup_customers(pool: &PgPool, customer_ids: &[i32]) {
         // Delete customer
         sqlx::query("DELETE FROM ar_customers WHERE id = $1")
             .bind(customer_id)
+            .execute(pool)
+            .await
+            .ok();
+    }
+}
+
+/// Create a test dispute for a charge.
+/// Returns dispute_id.
+pub async fn seed_dispute(
+    pool: &PgPool,
+    app_id: &str,
+    charge_id: i32,
+    status: &str,
+) -> i32 {
+    let tilled_dispute_id = format!("dp_{}", Uuid::new_v4());
+
+    let dispute_id: i32 = sqlx::query_scalar(
+        r#"INSERT INTO ar_disputes (
+            app_id, tilled_dispute_id, charge_id,
+            status, amount_cents, currency, reason, reason_code,
+            evidence_due_by, opened_at, created_at, updated_at
+        ) VALUES (
+            $1, $2, $3, $4, 5000, 'usd', 'fraudulent', 'fraud',
+            NOW() + INTERVAL '7 days', NOW(), NOW(), NOW()
+        )
+        RETURNING id"#,
+    )
+    .bind(app_id)
+    .bind(&tilled_dispute_id)
+    .bind(charge_id)
+    .bind(status)
+    .fetch_one(pool)
+    .await
+    .expect("Failed to seed test dispute");
+
+    dispute_id
+}
+
+/// Clean up test disputes by ID.
+pub async fn cleanup_disputes(pool: &PgPool, dispute_ids: &[i32]) {
+    for &dispute_id in dispute_ids {
+        sqlx::query("DELETE FROM ar_disputes WHERE id = $1")
+            .bind(dispute_id)
             .execute(pool)
             .await
             .ok();
