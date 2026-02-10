@@ -225,7 +225,7 @@ pub async fn seed_payment_method(
             status, type, brand, last4, exp_month, exp_year,
             is_default, metadata, created_at, updated_at
         ) VALUES (
-            $1, $2, $3, 'active', 'card', 'visa', '4242', 12, 2025,
+            $1, $2, $3, 'active', 'card', 'visa', '4242', 12, 2027,
             $4, '{}', NOW(), NOW()
         )
         RETURNING id"#,

@@ -417,6 +417,7 @@ pub struct PaymentMethod {
     pub tilled_payment_method_id: String,
     pub status: String, // active, pending, failed
     #[serde(rename = "type")]
+    #[sqlx(rename = "type")]
     pub payment_type: String, // card, ach_debit, etc.
     pub brand: Option<String>,       // visa, mastercard, amex
     pub last4: Option<String>,       // last 4 digits
