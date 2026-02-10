@@ -225,8 +225,7 @@ async fn test_payment_workflow() {
         "currency": "usd",
         "charge_type": "one_time",
         "reason": "Test purchase",
-        "capture": false,
-        "payment_method_id": "pm_test123"
+        "reference_id": common::unique_reference_id()
     });
 
     let response = app
@@ -374,8 +373,7 @@ async fn test_invoice_workflow() {
         "currency": "usd",
         "charge_type": "one_time",
         "reason": format!("Payment for invoice {}", invoice_id),
-        "reference_id": format!("invoice_{}", invoice_id),
-        "payment_method_id": "pm_test123"
+        "reference_id": format!("invoice_{}", invoice_id)
     });
 
     let response = app
@@ -537,7 +535,7 @@ async fn test_error_recovery_workflow() {
         .await
         .unwrap();
 
-    assert_eq!(response2.status(), StatusCode::OK); // Returns cached response
+    assert_eq!(response2.status(), StatusCode::CREATED); // Returns cached response with original status
     let customer2 = common::body_json(response2).await;
     assert_eq!(customer2["id"], customer1["id"]);
     assert_eq!(customer2["email"], customer1["email"]);

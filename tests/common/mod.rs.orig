@@ -70,8 +70,9 @@ pub async fn seed_customer(pool: &PgPool, app_id: &str) -> (i32, String, String)
     let customer_id: i32 = sqlx::query_scalar(
         r#"INSERT INTO ar_customers (
             app_id, email, external_customer_id, status, name,
+            default_payment_method_id, payment_method_type,
             retry_attempt_count, created_at, updated_at
-        ) VALUES ($1, $2, $3, 'active', 'Test Customer', 0, NOW(), NOW())
+        ) VALUES ($1, $2, $3, 'active', 'Test Customer', 'pm_test', 'card', 0, NOW(), NOW())
         RETURNING id"#,
     )
     .bind(app_id)
@@ -171,14 +172,14 @@ pub async fn seed_webhook(
     status: &str,
 ) -> i32 {
     // Create a valid TilledWebhookEvent payload
-    // data field contains the object directly (not nested in "object")
+    // Note: The webhook processor expects data.id, not data.object.id
     let payload = serde_json::json!({
         "id": event_id,
         "type": event_type,
         "data": {
-            "id": format!("obj_{}", Uuid::new_v4()),
+            "id": format!("pi_{}", Uuid::new_v4()),
             "amount": 1000,
-            "customer_id": "cus_test",
+            "currency": "usd",
             "status": "succeeded"
         },
         "created_at": chrono::Utc::now().timestamp(),

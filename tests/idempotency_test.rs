@@ -1,16 +1,10 @@
-use sqlx::postgres::PgPoolOptions;
+mod common;
+
 use sqlx::PgPool;
 
 /// Test helper to create a test database pool
 async fn setup_test_db() -> PgPool {
-    let database_url = std::env::var("DATABASE_URL_AR")
-        .expect("DATABASE_URL_AR must be set for integration tests");
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await
-        .expect("Failed to connect to test database")
+    common::setup_pool().await
 }
 
 #[tokio::test]

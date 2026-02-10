@@ -23,9 +23,9 @@ hmac = "0.12"
 sha2 = "0.10"
 hex = "0.4"
 base64 = "0.22"
+http-body-util = "0.1"
 
 [dev-dependencies]
-http-body-util = "0.1"
 serial_test = "3.3.1"
 uuid = { version = "1", features = ["v4"] }
 futures = "0.3"
