@@ -472,3 +472,174 @@ async fn test_list_refunds_by_charge() {
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
 }
+
+// ============================================================================
+// CHARGE CAPTURE TESTS
+// ============================================================================
+
+/// TEST 12: Capture charge successfully
+#[tokio::test]
+#[serial]
+async fn test_capture_charge_success() {
+    let pool = common::setup_pool().await;
+    let app = common::app(&pool);
+
+    let (customer_id, _, _) = common::seed_customer(&pool, APP_ID).await;
+    let charge_id = common::seed_charge(&pool, APP_ID, customer_id, 5000, "authorized").await;
+
+    let body = serde_json::json!({
+        "amount_cents": 5000
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/api/ar/charges/{}/capture", charge_id))
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Assert 200 status
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Assert response body
+    let json = common::body_json(response).await;
+    assert_eq!(json["id"], charge_id);
+    assert_eq!(json["status"], "succeeded");
+    assert_eq!(json["amount_cents"], 5000);
+
+    // Verify charge status updated in database
+    let status: String = sqlx::query_scalar(
+        "SELECT status FROM ar_charges WHERE id = $1"
+    )
+    .bind(charge_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(status, "succeeded", "Charge should be marked as succeeded");
+
+    common::cleanup_customers(&pool, &[customer_id]).await;
+    common::teardown_pool(pool).await;
+}
+
+/// TEST 13: Capture already captured charge
+#[tokio::test]
+#[serial]
+async fn test_capture_charge_already_captured() {
+    let pool = common::setup_pool().await;
+    let app = common::app(&pool);
+
+    let (customer_id, _, _) = common::seed_customer(&pool, APP_ID).await;
+    let charge_id = common::seed_charge(&pool, APP_ID, customer_id, 5000, "succeeded").await;
+
+    let body = serde_json::json!({
+        "amount_cents": 5000
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/api/ar/charges/{}/capture", charge_id))
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Should return error (already captured)
+    assert!(
+        response.status() == StatusCode::BAD_REQUEST || response.status() == StatusCode::CONFLICT,
+        "Should return error for already captured charge"
+    );
+
+    let json = common::body_json(response).await;
+    assert!(json["error"].is_string(), "Should have error message");
+
+    common::cleanup_customers(&pool, &[customer_id]).await;
+    common::teardown_pool(pool).await;
+}
+
+/// TEST 14: Capture non-existent charge
+#[tokio::test]
+#[serial]
+async fn test_capture_charge_not_found() {
+    let pool = common::setup_pool().await;
+    let app = common::app(&pool);
+
+    let body = serde_json::json!({
+        "amount_cents": 5000
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/ar/charges/999999/capture")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Should return 404
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    common::teardown_pool(pool).await;
+}
+
+/// TEST 15: Capture charge with partial amount (supports partial capture)
+#[tokio::test]
+#[serial]
+async fn test_capture_charge_partial_amount() {
+    let pool = common::setup_pool().await;
+    let app = common::app(&pool);
+
+    let (customer_id, _, _) = common::seed_customer(&pool, APP_ID).await;
+    let charge_id = common::seed_charge(&pool, APP_ID, customer_id, 5000, "authorized").await;
+
+    // Capture partial amount (3000 out of 5000 authorized)
+    let body = serde_json::json!({
+        "amount_cents": 3000
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/api/ar/charges/{}/capture", charge_id))
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Partial capture succeeds
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let json = common::body_json(response).await;
+    assert_eq!(json["id"], charge_id);
+    assert_eq!(json["status"], "succeeded");
+    // Verify partial amount was captured as requested
+    assert_eq!(json["amount_cents"], 3000);
+
+    // Verify in database
+    let amount: i32 = sqlx::query_scalar(
+        "SELECT amount_cents FROM ar_charges WHERE id = $1"
+    )
+    .bind(charge_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(amount, 3000, "Database should reflect partial captured amount");
+
+    common::cleanup_customers(&pool, &[customer_id]).await;
+    common::teardown_pool(pool).await;
+}
