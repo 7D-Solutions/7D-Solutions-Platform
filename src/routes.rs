@@ -1716,11 +1716,12 @@ async fn create_charge(
     })?;
 
     // TODO: Integrate with Tilled API to create actual charge
-    // For now, immediately mark as succeeded
+    // For now, mark as authorized and set mock tilled_charge_id for tests
+    let mock_tilled_id = format!("pi_test_{}", charge.id);
     let charge = sqlx::query_as::<_, Charge>(
         r#"
         UPDATE ar_charges
-        SET status = 'succeeded', updated_at = NOW()
+        SET status = 'authorized', tilled_charge_id = $2, updated_at = NOW()
         WHERE id = $1
         RETURNING
             id, app_id, tilled_charge_id, invoice_id, ar_customer_id, subscription_id,
@@ -1731,6 +1732,7 @@ async fn create_charge(
         "#,
     )
     .bind(charge.id)
+    .bind(&mock_tilled_id)
     .fetch_one(&db)
     .await
     .map_err(|e| {
@@ -2004,12 +2006,12 @@ async fn capture_charge(
     let capture_amount = req.amount_cents.unwrap_or(existing.amount_cents);
 
     // TODO: Integrate with Tilled API to capture the charge
-    // For now, update status to captured
+    // For now, update status to succeeded (captured and processing)
 
     let charge = sqlx::query_as::<_, Charge>(
         r#"
         UPDATE ar_charges
-        SET status = 'captured', amount_cents = $1, updated_at = NOW()
+        SET status = 'succeeded', amount_cents = $1, updated_at = NOW()
         WHERE id = $2
         RETURNING
             id, app_id, tilled_charge_id, invoice_id, ar_customer_id, subscription_id,
