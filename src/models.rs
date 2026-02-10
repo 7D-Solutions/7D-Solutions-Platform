@@ -316,3 +316,58 @@ pub struct ListChargesQuery {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
 }
+
+// ============================================================================
+// PAYMENT METHOD MODELS
+// ============================================================================
+
+/// Payment method record from billing_payment_methods table
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct PaymentMethod {
+    pub id: i32,
+    pub app_id: String,
+    pub billing_customer_id: i32,
+    pub tilled_payment_method_id: String,
+    pub status: String, // active, pending, failed
+    #[serde(rename = "type")]
+    pub payment_type: String, // card, ach_debit, etc.
+    pub brand: Option<String>,       // visa, mastercard, amex
+    pub last4: Option<String>,       // last 4 digits
+    pub exp_month: Option<i32>,
+    pub exp_year: Option<i32>,
+    pub bank_name: Option<String>,   // for ACH
+    pub bank_last4: Option<String>,  // for ACH
+    pub is_default: bool,
+    pub metadata: Option<JsonValue>,
+    pub deleted_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+/// Request body for adding a payment method
+#[derive(Debug, Deserialize)]
+pub struct AddPaymentMethodRequest {
+    pub billing_customer_id: i32,
+    pub tilled_payment_method_id: String,
+}
+
+/// Request body for updating a payment method
+#[derive(Debug, Deserialize)]
+pub struct UpdatePaymentMethodRequest {
+    pub metadata: Option<JsonValue>,
+}
+
+/// Request body for setting default payment method
+#[derive(Debug, Deserialize)]
+pub struct SetDefaultPaymentMethodRequest {
+    pub tilled_payment_method_id: String,
+}
+
+/// Query parameters for listing payment methods
+#[derive(Debug, Deserialize)]
+pub struct ListPaymentMethodsQuery {
+    pub customer_id: Option<i32>,
+    pub status: Option<String>,
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+}
