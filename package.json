@@ -1,19 +1,8 @@
 {
   "name": "@fireproof/ar",
-  "version": "1.0.0",
-  "description": "Accounts Receivable module - Customer billing, subscriptions, payments with Tilled integration",
-  "main": "backend/src/index.js",
-  "exports": {
-    ".": "./backend/src/index.js",
-    "./backend": "./backend/src/index.js"
-  },
+  "version": "2.0.0",
+  "description": "Accounts Receivable module - Prisma schema and documentation (Backend implemented in Rust - see ../ar-rs)",
   "scripts": {
-    "test": "npm run test:unit && npm run test:integration",
-    "test:unit": "jest --selectProjects=unit",
-    "test:integration": "jest --selectProjects=integration --runInBand --forceExit",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage --runInBand",
-    "verify": "node verify-setup.js",
     "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
     "prisma:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
     "prisma:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
