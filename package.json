@@ -29,18 +29,9 @@
     "registry": "https://npm.pkg.github.com/@fireproof"
   },
   "dependencies": {
-    "@prisma/client": "^6.19.2",
-    "express-validator": "^7.3.1",
-    "tilled-node": "^1.0.0"
+    "@prisma/client": "^6.19.2"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.12",
-    "jest": "^29.7.0",
-    "prisma": "^6.19.2",
-    "supertest": "^6.3.3"
-  },
-  "peerDependencies": {
-    "@fireproof/infrastructure": "*",
-    "express": "^4.0.0"
+    "prisma": "^6.19.2"
   }
 }

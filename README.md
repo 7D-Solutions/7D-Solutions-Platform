@@ -1,5 +1,15 @@
 # @fireproof/ar (Accounts Receivable)
 
+> **⚠️ MIGRATION COMPLETE**: This module has been migrated from Node.js/MySQL to Rust/PostgreSQL (February 2026).
+>
+> - **Active Implementation**: See `../ar-rs/` for the Rust backend service
+> - **Node.js Backend**: Removed and archived in `/review-for-delete/ar-nodejs-backend/`
+> - **This Directory**: Now contains Prisma schema reference and historical documentation
+> - **Integration**: Main backend proxies AR requests to Rust service (see `apps/backend/src/middleware/ar-proxy.js`)
+> - **For current usage**: Refer to `packages/ar-rs/README.md`
+
+---
+
 **Accounts Receivable module with separate database.** Customer billing, subscriptions, payments with Tilled integration.
 
 ## Features
