@@ -318,6 +318,93 @@ pub struct ListChargesQuery {
 }
 
 // ============================================================================
+// REFUND MODELS
+// ============================================================================
+
+/// Refund record from billing_refunds table
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Refund {
+    pub id: i32,
+    pub app_id: String,
+    pub billing_customer_id: i32,
+    pub charge_id: i32,
+    pub tilled_refund_id: Option<String>,
+    pub tilled_charge_id: Option<String>,
+    pub status: String,
+    pub amount_cents: i32,
+    pub currency: String,
+    pub reason: Option<String>,
+    pub reference_id: String,
+    pub note: Option<String>,
+    pub metadata: Option<JsonValue>,
+    pub failure_code: Option<String>,
+    pub failure_message: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+/// Request body for creating a refund
+#[derive(Debug, Deserialize)]
+pub struct CreateRefundRequest {
+    pub charge_id: i32,
+    pub amount_cents: i32,
+    pub currency: Option<String>,
+    pub reason: Option<String>,
+    pub reference_id: String,
+    pub note: Option<String>,
+    pub metadata: Option<JsonValue>,
+}
+
+/// Query parameters for listing refunds
+#[derive(Debug, Deserialize)]
+pub struct ListRefundsQuery {
+    pub charge_id: Option<i32>,
+    pub customer_id: Option<i32>,
+    pub status: Option<String>,
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+}
+
+// ============================================================================
+// DISPUTE MODELS
+// ============================================================================
+
+/// Dispute record from billing_disputes table
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Dispute {
+    pub id: i32,
+    pub app_id: String,
+    pub tilled_dispute_id: String,
+    pub tilled_charge_id: Option<String>,
+    pub charge_id: Option<i32>,
+    pub status: String,
+    pub amount_cents: Option<i32>,
+    pub currency: Option<String>,
+    pub reason: Option<String>,
+    pub reason_code: Option<String>,
+    pub evidence_due_by: Option<NaiveDateTime>,
+    pub opened_at: Option<NaiveDateTime>,
+    pub closed_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+}
+
+/// Request body for submitting dispute evidence
+#[derive(Debug, Deserialize)]
+pub struct SubmitDisputeEvidenceRequest {
+    pub evidence: JsonValue,
+}
+
+/// Query parameters for listing disputes
+#[derive(Debug, Deserialize)]
+pub struct ListDisputesQuery {
+    pub charge_id: Option<i32>,
+    pub status: Option<String>,
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+}
+
+// ============================================================================
 // PAYMENT METHOD MODELS
 // ============================================================================
 
