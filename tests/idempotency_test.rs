@@ -1,5 +1,6 @@
 mod common;
 
+use serial_test::serial;
 use sqlx::PgPool;
 
 /// Test helper to create a test database pool
@@ -8,6 +9,7 @@ async fn setup_test_db() -> PgPool {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_idempotency_key_storage() {
     let db = setup_test_db().await;
 
@@ -71,6 +73,7 @@ async fn test_idempotency_key_storage() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_event_logging() {
     let db = setup_test_db().await;
 
@@ -156,6 +159,7 @@ async fn test_event_logging() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_duplicate_idempotency_key() {
     let db = setup_test_db().await;
 
