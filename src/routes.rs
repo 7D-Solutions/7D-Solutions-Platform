@@ -94,15 +94,47 @@ async fn create_customer(
     Json(req): Json<CreateCustomerRequest>,
 ) -> Result<(StatusCode, Json<Customer>), (StatusCode, Json<ErrorResponse>)> {
     // Validate email
-    if req.email.is_empty() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorResponse::new("validation_error", "Email is required")),
-        ));
-    }
+    let email = match &req.email {
+        Some(e) if !e.trim().is_empty() => e.trim(),
+        _ => {
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("validation_error", "Email is required")),
+            ));
+        }
+    };
 
     // TODO: Extract app_id from auth middleware
     let app_id = "test-app"; // Placeholder
+
+    // Check for duplicate email
+    let existing: Option<(i32,)> = sqlx::query_as(
+        "SELECT id FROM ar_customers WHERE app_id = $1 AND email = $2 LIMIT 1",
+    )
+    .bind(app_id)
+    .bind(email)
+    .fetch_optional(&db)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to check duplicate email: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new(
+                "database_error",
+                "Failed to validate email",
+            )),
+        )
+    })?;
+
+    if existing.is_some() {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(ErrorResponse::new(
+                "duplicate_email",
+                "A customer with this email already exists",
+            )),
+        ));
+    }
 
     // Create customer in database (local-first pattern)
     let customer = sqlx::query_as::<_, Customer>(
@@ -129,6 +161,20 @@ async fn create_customer(
     .await
     .map_err(|e| {
         tracing::error!("Failed to create customer: {:?}", e);
+
+        // Check for unique constraint violation (duplicate email)
+        if let sqlx::Error::Database(db_err) = &e {
+            if db_err.code() == Some(std::borrow::Cow::Borrowed("23505")) {
+                return (
+                    StatusCode::CONFLICT,
+                    Json(ErrorResponse::new(
+                        "duplicate_email",
+                        "A customer with this email already exists",
+                    )),
+                );
+            }
+        }
+
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse::new(
