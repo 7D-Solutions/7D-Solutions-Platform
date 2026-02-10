@@ -143,9 +143,9 @@ model billing_webhooks {
   processed_at    DateTime?               @db.Timestamp(0)
 
   @@unique([event_id, app_id], map: "event_id_app_id")
-  @@index([app_id, status], map: "idx_app_status")
-  @@index([event_type], map: "idx_event_type")
-  @@index([next_attempt_at], map: "idx_next_attempt_at")
+  @@index([app_id, status], map: "ar_webhooks_app_status")
+  @@index([event_type], map: "ar_webhooks_event_type")
+  @@index([next_attempt_at], map: "ar_webhooks_next_attempt_at")
 }
 
 enum billing_webhooks_status {
@@ -171,8 +171,8 @@ model billing_idempotency_keys {
   expires_at      DateTime @db.Timestamp(0)
 
   @@unique([app_id, idempotency_key], map: "unique_app_idempotency_key")
-  @@index([app_id], map: "idx_app_id")
-  @@index([expires_at], map: "idx_expires_at")
+  @@index([app_id], map: "ar_idempotency_keys_app_id")
+  @@index([expires_at], map: "ar_idempotency_keys_expires_at")
 }
 
 /// Forensics event log for API, webhook, and system events
@@ -186,10 +186,10 @@ model billing_events {
   payload     Json?
   created_at  DateTime @default(now()) @db.Timestamp(0)
 
-  @@index([app_id], map: "idx_app_id")
-  @@index([event_type], map: "idx_event_type")
-  @@index([source], map: "idx_source")
-  @@index([created_at], map: "idx_created_at")
+  @@index([app_id], map: "ar_events_app_id")
+  @@index([event_type], map: "ar_events_event_type")
+  @@index([source], map: "ar_events_source")
+  @@index([created_at], map: "ar_events_created_at")
 }
 
 /// Webhook retry tracking with backoff
@@ -205,10 +205,10 @@ model billing_webhook_attempts {
   created_at      DateTime  @default(now()) @db.Timestamp(0)
   updated_at      DateTime  @updatedAt @db.Timestamp(0)
 
-  @@index([app_id], map: "idx_app_id")
-  @@index([event_id], map: "idx_event_id")
-  @@index([status], map: "idx_status")
-  @@index([next_attempt_at], map: "idx_next_attempt_at")
+  @@index([app_id], map: "ar_webhook_attempts_app_id")
+  @@index([event_id], map: "ar_webhook_attempts_event_id")
+  @@index([status], map: "ar_webhook_attempts_status")
+  @@index([next_attempt_at], map: "ar_webhook_attempts_next_attempt_at")
 }
 
 /// Reconciliation runs for drift detection
@@ -222,9 +222,9 @@ model billing_reconciliation_runs {
   error_message       String?                 @db.Text
   billing_divergences billing_divergences[]
 
-  @@index([app_id], map: "idx_app_id")
-  @@index([status], map: "idx_status")
-  @@index([started_at], map: "idx_started_at")
+  @@index([app_id], map: "ar_reconciliation_runs_app_id")
+  @@index([status], map: "ar_reconciliation_runs_status")
+  @@index([started_at], map: "ar_reconciliation_runs_started_at")
 }
 
 /// Drift/divergence records from reconciliation
@@ -242,10 +242,10 @@ model billing_divergences {
   resolved_at     DateTime?                   @db.Timestamp(0)
   run             billing_reconciliation_runs @relation(fields: [run_id], references: [id], onDelete: Cascade)
 
-  @@index([app_id], map: "idx_app_id")
-  @@index([run_id], map: "idx_run_id")
-  @@index([entity_type], map: "idx_entity_type")
-  @@index([status], map: "idx_status")
+  @@index([app_id], map: "ar_divergences_app_id")
+  @@index([run_id], map: "ar_divergences_run_id")
+  @@index([entity_type], map: "ar_divergences_entity_type")
+  @@index([status], map: "ar_divergences_status")
 }
 
 // ===========================================================
