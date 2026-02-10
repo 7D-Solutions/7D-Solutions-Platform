@@ -136,16 +136,16 @@ echo "## Table Record Counts" >> "$REPORT_FILE"
 echo "" >> "$REPORT_FILE"
 
 # Compare table counts
-compare_counts "Customers" "billing_customers" "billing_customers" "Billing Customers"
-compare_counts "Subscriptions" "billing_subscriptions" "billing_subscriptions" "Billing Subscriptions"
-compare_counts "Charges" "billing_charges" "billing_charges" "Billing Charges"
-compare_counts "Refunds" "billing_refunds" "billing_refunds" "Billing Refunds"
-compare_counts "Invoices" "billing_invoices" "billing_invoices" "Billing Invoices"
-compare_counts "Payment Methods" "billing_payment_methods" "billing_payment_methods" "Payment Methods"
-compare_counts "Disputes" "billing_disputes" "billing_disputes" "Billing Disputes"
-compare_counts "Webhooks" "billing_webhooks" "billing_webhooks" "Billing Webhooks"
-compare_counts "Events" "billing_events" "billing_events" "Billing Events"
-compare_counts "Idempotency Keys" "billing_idempotency_keys" "billing_idempotency_keys" "Idempotency Keys"
+compare_counts "Customers" "billing_customers" "ar_customers" "AR Customers"
+compare_counts "Subscriptions" "billing_subscriptions" "ar_subscriptions" "AR Subscriptions"
+compare_counts "Charges" "billing_charges" "ar_charges" "AR Charges"
+compare_counts "Refunds" "billing_refunds" "ar_refunds" "AR Refunds"
+compare_counts "Invoices" "billing_invoices" "ar_invoices" "AR Invoices"
+compare_counts "Payment Methods" "billing_payment_methods" "ar_payment_methods" "Payment Methods"
+compare_counts "Disputes" "billing_disputes" "ar_disputes" "AR Disputes"
+compare_counts "Webhooks" "billing_webhooks" "ar_webhooks" "AR Webhooks"
+compare_counts "Events" "billing_events" "ar_events" "AR Events"
+compare_counts "Idempotency Keys" "billing_idempotency_keys" "ar_idempotency_keys" "Idempotency Keys"
 
 echo "" >> "$REPORT_FILE"
 echo "## Data Integrity Checks" >> "$REPORT_FILE"
@@ -155,25 +155,25 @@ echo "" >> "$REPORT_FILE"
 compare_data_integrity \
     "Customer Email Uniqueness" \
     "SELECT COUNT(DISTINCT email) FROM billing_customers" \
-    "SELECT COUNT(DISTINCT email) FROM billing_customers"
+    "SELECT COUNT(DISTINCT email) FROM ar_customers"
 
 # Check active subscriptions
 compare_data_integrity \
     "Active Subscriptions Count" \
     "SELECT COUNT(*) FROM billing_subscriptions WHERE status = 'active'" \
-    "SELECT COUNT(*) FROM billing_subscriptions WHERE status = 'active'"
+    "SELECT COUNT(*) FROM ar_subscriptions WHERE status = 'active'"
 
 # Check total charge amount
 compare_data_integrity \
     "Total Charges Amount" \
     "SELECT COALESCE(SUM(amount_cents), 0) FROM billing_charges WHERE status = 'succeeded'" \
-    "SELECT COALESCE(SUM(amount_cents), 0) FROM billing_charges WHERE status = 'succeeded'"
+    "SELECT COALESCE(SUM(amount_cents), 0) FROM ar_charges WHERE status = 'succeeded'"
 
 # Check total refund amount
 compare_data_integrity \
     "Total Refunds Amount" \
     "SELECT COALESCE(SUM(amount_cents), 0) FROM billing_refunds WHERE status = 'succeeded'" \
-    "SELECT COALESCE(SUM(amount_cents), 0) FROM billing_refunds WHERE status = 'succeeded'"
+    "SELECT COALESCE(SUM(amount_cents), 0) FROM ar_refunds WHERE status = 'succeeded'"
 
 # Check foreign key relationships
 echo "" >> "$REPORT_FILE"
@@ -184,7 +184,7 @@ echo "" >> "$REPORT_FILE"
 TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
 echo ""
 echo -e "${BLUE}Checking:${NC} Orphaned Subscriptions"
-orphaned_subs=$(pg_query "SELECT COUNT(*) FROM billing_subscriptions s LEFT JOIN billing_customers c ON s.billing_customer_id = c.id WHERE c.id IS NULL")
+orphaned_subs=$(pg_query "SELECT COUNT(*) FROM ar_subscriptions s LEFT JOIN ar_customers c ON s.ar_customer_id = c.id WHERE c.id IS NULL")
 if [ "$orphaned_subs" -eq 0 ]; then
     echo -e "  ${GREEN}✓ PASS${NC}: No orphaned subscriptions"
     PASSED_CHECKS=$((PASSED_CHECKS + 1))
@@ -199,7 +199,7 @@ fi
 TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
 echo ""
 echo -e "${BLUE}Checking:${NC} Orphaned Charges"
-orphaned_charges=$(pg_query "SELECT COUNT(*) FROM billing_charges ch LEFT JOIN billing_customers c ON ch.billing_customer_id = c.id WHERE c.id IS NULL")
+orphaned_charges=$(pg_query "SELECT COUNT(*) FROM ar_charges ch LEFT JOIN ar_customers c ON ch.ar_customer_id = c.id WHERE c.id IS NULL")
 if [ "$orphaned_charges" -eq 0 ]; then
     echo -e "  ${GREEN}✓ PASS${NC}: No orphaned charges"
     PASSED_CHECKS=$((PASSED_CHECKS + 1))
@@ -214,7 +214,7 @@ fi
 TOTAL_CHECKS=$((TOTAL_CHECKS + 1))
 echo ""
 echo -e "${BLUE}Checking:${NC} Orphaned Refunds"
-orphaned_refunds=$(pg_query "SELECT COUNT(*) FROM billing_refunds r LEFT JOIN billing_customers c ON r.billing_customer_id = c.id WHERE c.id IS NULL")
+orphaned_refunds=$(pg_query "SELECT COUNT(*) FROM ar_refunds r LEFT JOIN ar_customers c ON r.ar_customer_id = c.id WHERE c.id IS NULL")
 if [ "$orphaned_refunds" -eq 0 ]; then
     echo -e "  ${GREEN}✓ PASS${NC}: No orphaned refunds"
     PASSED_CHECKS=$((PASSED_CHECKS + 1))
