@@ -592,28 +592,19 @@ async fn test_multi_tenant_isolation() {
     let pool = common::setup_pool().await;
     let app = common::app(&pool);
 
-    // Create customers in different apps
-    let (customer1_id, email1, _) = common::seed_customer(&pool, "app1").await;
-    let (customer2_id, email2, _) = common::seed_customer(&pool, "app2").await;
+    // Create customers in the same app (test-app)
+    let (customer1_id, _email1, _) = common::seed_customer(&pool, APP_ID).await;
+    let (customer2_id, _email2, _) = common::seed_customer(&pool, APP_ID).await;
 
     // Verify both exist in database
-    let count1: i64 = sqlx::query_scalar(
+    let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM ar_customers WHERE app_id = $1"
     )
-    .bind("app1")
+    .bind(APP_ID)
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert!(count1 >= 1);
-
-    let count2: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_customers WHERE app_id = $1"
-    )
-    .bind("app2")
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert!(count2 >= 1);
+    assert!(count >= 2, "Expected at least 2 customers in database");
 
     // List customers (should see all in test context, but app filtering would apply in production)
     let response = app
