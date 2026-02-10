@@ -3,8 +3,8 @@ use sqlx::PgPool;
 
 /// Test helper to create a test database pool
 async fn setup_test_db() -> PgPool {
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5433/ar_test".to_string());
+    let database_url = std::env::var("DATABASE_URL_AR")
+        .expect("DATABASE_URL_AR must be set for integration tests");
 
     PgPoolOptions::new()
         .max_connections(5)
@@ -18,7 +18,7 @@ async fn test_idempotency_key_storage() {
     let db = setup_test_db().await;
 
     // Clean up previous test data
-    sqlx::query("DELETE FROM billing_idempotency_keys WHERE app_id = 'test_app'")
+    sqlx::query("DELETE FROM ar_idempotency_keys WHERE app_id = 'test_app'")
         .execute(&db)
         .await
         .ok();
@@ -33,7 +33,7 @@ async fn test_idempotency_key_storage() {
 
     let result = sqlx::query(
         r#"
-        INSERT INTO billing_idempotency_keys
+        INSERT INTO ar_idempotency_keys
             (app_id, idempotency_key, request_hash, response_body, status_code, expires_at)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
@@ -54,7 +54,7 @@ async fn test_idempotency_key_storage() {
     let retrieved: Option<(String, i32)> = sqlx::query_as(
         r#"
         SELECT idempotency_key, status_code
-        FROM billing_idempotency_keys
+        FROM ar_idempotency_keys
         WHERE app_id = $1 AND idempotency_key = $2
         "#,
     )
@@ -70,7 +70,7 @@ async fn test_idempotency_key_storage() {
     assert_eq!(code, status_code);
 
     // Clean up
-    sqlx::query("DELETE FROM billing_idempotency_keys WHERE app_id = 'test_app'")
+    sqlx::query("DELETE FROM ar_idempotency_keys WHERE app_id = 'test_app'")
         .execute(&db)
         .await
         .ok();
@@ -81,7 +81,7 @@ async fn test_event_logging() {
     let db = setup_test_db().await;
 
     // Clean up previous test data
-    sqlx::query("DELETE FROM billing_events WHERE app_id = 'test_app'")
+    sqlx::query("DELETE FROM ar_events WHERE app_id = 'test_app'")
         .execute(&db)
         .await
         .ok();
@@ -99,7 +99,7 @@ async fn test_event_logging() {
 
     let result = sqlx::query(
         r#"
-        INSERT INTO billing_events
+        INSERT INTO ar_events
             (app_id, event_type, source, entity_type, entity_id, payload)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
@@ -120,7 +120,7 @@ async fn test_event_logging() {
     let retrieved: Option<(String, String, String)> = sqlx::query_as(
         r#"
         SELECT event_type, source, entity_id
-        FROM billing_events
+        FROM ar_events
         WHERE app_id = $1 AND event_type = $2
         ORDER BY created_at DESC
         LIMIT 1
@@ -142,7 +142,7 @@ async fn test_event_logging() {
     let count: (i64,) = sqlx::query_as(
         r#"
         SELECT COUNT(*)
-        FROM billing_events
+        FROM ar_events
         WHERE app_id = $1 AND entity_id = $2
         "#,
     )
@@ -155,7 +155,7 @@ async fn test_event_logging() {
     assert_eq!(count.0, 1);
 
     // Clean up
-    sqlx::query("DELETE FROM billing_events WHERE app_id = 'test_app'")
+    sqlx::query("DELETE FROM ar_events WHERE app_id = 'test_app'")
         .execute(&db)
         .await
         .ok();
@@ -166,7 +166,7 @@ async fn test_duplicate_idempotency_key() {
     let db = setup_test_db().await;
 
     // Clean up previous test data
-    sqlx::query("DELETE FROM billing_idempotency_keys WHERE app_id = 'test_app'")
+    sqlx::query("DELETE FROM ar_idempotency_keys WHERE app_id = 'test_app'")
         .execute(&db)
         .await
         .ok();
@@ -181,7 +181,7 @@ async fn test_duplicate_idempotency_key() {
     // Insert first time
     let result1 = sqlx::query(
         r#"
-        INSERT INTO billing_idempotency_keys
+        INSERT INTO ar_idempotency_keys
             (app_id, idempotency_key, request_hash, response_body, status_code, expires_at)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
@@ -201,7 +201,7 @@ async fn test_duplicate_idempotency_key() {
     // Try to insert duplicate (should fail due to unique constraint)
     let result2 = sqlx::query(
         r#"
-        INSERT INTO billing_idempotency_keys
+        INSERT INTO ar_idempotency_keys
             (app_id, idempotency_key, request_hash, response_body, status_code, expires_at)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
@@ -219,7 +219,7 @@ async fn test_duplicate_idempotency_key() {
     assert!(result2.is_err(), "Duplicate insert should fail");
 
     // Clean up
-    sqlx::query("DELETE FROM billing_idempotency_keys WHERE app_id = 'test_app'")
+    sqlx::query("DELETE FROM ar_idempotency_keys WHERE app_id = 'test_app'")
         .execute(&db)
         .await
         .ok();

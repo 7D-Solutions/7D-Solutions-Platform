@@ -69,7 +69,7 @@ pub async fn seed_customer(pool: &PgPool, app_id: &str) -> (i32, String, String)
     let external_id = unique_external_id();
 
     let customer_id: i32 = sqlx::query_scalar(
-        r#"INSERT INTO billing_customers (
+        r#"INSERT INTO ar_customers (
             app_id, email, external_customer_id, status, name,
             retry_attempt_count, created_at, updated_at
         ) VALUES ($1, $2, $3, 'active', 'Test Customer', 0, NOW(), NOW())
@@ -97,15 +97,15 @@ pub async fn seed_subscription(
     let tilled_sub_id = format!("sub_{}", Uuid::new_v4());
 
     let subscription_id: i32 = sqlx::query_scalar(
-        r#"INSERT INTO billing_subscriptions (
-            app_id, billing_customer_id, tilled_subscription_id,
+        r#"INSERT INTO ar_subscriptions (
+            app_id, ar_customer_id, tilled_subscription_id,
             plan_id, plan_name, price_cents, status, interval_unit, interval_count,
             current_period_start, current_period_end,
             payment_method_id, payment_method_type,
             cancel_at_period_end, created_at, updated_at
         ) VALUES (
-            $1, $2, $3, $4, 'Test Plan', 1000, $5::billing_subscriptions_status,
-            'month'::billing_subscriptions_interval, 1,
+            $1, $2, $3, $4, 'Test Plan', 1000, $5::ar_subscriptions_status,
+            'month'::ar_subscriptions_interval, 1,
             NOW(), NOW() + INTERVAL '1 month',
             'pm_test123', 'card',
             false, NOW(), NOW()
@@ -137,8 +137,8 @@ pub async fn seed_charge(
     let tilled_charge_id = format!("ch_{}", Uuid::new_v4());
 
     let charge_id: i32 = sqlx::query_scalar(
-        r#"INSERT INTO billing_charges (
-            app_id, billing_customer_id, tilled_charge_id,
+        r#"INSERT INTO ar_charges (
+            app_id, ar_customer_id, tilled_charge_id,
             status, amount_cents, currency, charge_type,
             reason, reference_id,
             created_at, updated_at
@@ -172,11 +172,11 @@ pub async fn seed_webhook(
     status: &str,
 ) -> i32 {
     let webhook_id: i32 = sqlx::query_scalar(
-        r#"INSERT INTO billing_webhooks (
+        r#"INSERT INTO ar_webhooks (
             app_id, event_id, event_type, status,
             payload, attempt_count, received_at
         ) VALUES (
-            $1, $2, $3, $4::billing_webhooks_status,
+            $1, $2, $3, $4::ar_webhooks_status,
             '{}'::json, 1, NOW()
         )
         RETURNING id"#,
@@ -196,38 +196,38 @@ pub async fn seed_webhook(
 pub async fn cleanup_customers(pool: &PgPool, customer_ids: &[i32]) {
     for &customer_id in customer_ids {
         // Delete related records first (foreign keys)
-        sqlx::query("DELETE FROM billing_refunds WHERE billing_customer_id = $1")
+        sqlx::query("DELETE FROM ar_refunds WHERE ar_customer_id = $1")
             .bind(customer_id)
             .execute(pool)
             .await
             .ok();
 
-        sqlx::query("DELETE FROM billing_charges WHERE billing_customer_id = $1")
+        sqlx::query("DELETE FROM ar_charges WHERE ar_customer_id = $1")
             .bind(customer_id)
             .execute(pool)
             .await
             .ok();
 
-        sqlx::query("DELETE FROM billing_subscriptions WHERE billing_customer_id = $1")
+        sqlx::query("DELETE FROM ar_subscriptions WHERE ar_customer_id = $1")
             .bind(customer_id)
             .execute(pool)
             .await
             .ok();
 
-        sqlx::query("DELETE FROM billing_payment_methods WHERE billing_customer_id = $1")
+        sqlx::query("DELETE FROM ar_payment_methods WHERE ar_customer_id = $1")
             .bind(customer_id)
             .execute(pool)
             .await
             .ok();
 
-        sqlx::query("DELETE FROM billing_invoices WHERE billing_customer_id = $1")
+        sqlx::query("DELETE FROM ar_invoices WHERE ar_customer_id = $1")
             .bind(customer_id)
             .execute(pool)
             .await
             .ok();
 
         // Delete customer
-        sqlx::query("DELETE FROM billing_customers WHERE id = $1")
+        sqlx::query("DELETE FROM ar_customers WHERE id = $1")
             .bind(customer_id)
             .execute(pool)
             .await
@@ -238,7 +238,7 @@ pub async fn cleanup_customers(pool: &PgPool, customer_ids: &[i32]) {
 /// Clean up test webhooks by ID.
 pub async fn cleanup_webhooks(pool: &PgPool, webhook_ids: &[i32]) {
     for &webhook_id in webhook_ids {
-        sqlx::query("DELETE FROM billing_webhooks WHERE id = $1")
+        sqlx::query("DELETE FROM ar_webhooks WHERE id = $1")
             .bind(webhook_id)
             .execute(pool)
             .await

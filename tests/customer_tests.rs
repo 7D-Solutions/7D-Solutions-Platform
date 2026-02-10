@@ -49,7 +49,7 @@ async fn test_create_customer_success() {
     // Verify customer was created in database
     let customer_id = json["id"].as_i64().unwrap() as i32;
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM billing_customers WHERE id = $1 AND email = $2"
+        "SELECT COUNT(*) FROM ar_customers WHERE id = $1 AND email = $2"
     )
     .bind(customer_id)
     .bind(&email)
@@ -262,7 +262,7 @@ async fn test_update_customer_success() {
 
     // Verify update in database
     let updated_name: String = sqlx::query_scalar(
-        "SELECT name FROM billing_customers WHERE id = $1"
+        "SELECT name FROM ar_customers WHERE id = $1"
     )
     .bind(customer_id)
     .fetch_one(&pool)

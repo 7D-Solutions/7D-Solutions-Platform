@@ -129,7 +129,7 @@ async fn test_subscription_workflow() {
     // Step 2: Create subscription
     let plan_id = common::unique_plan_id();
     let create_sub_body = serde_json::json!({
-        "billing_customer_id": customer_id,
+        "ar_customer_id": customer_id,
         "plan_id": plan_id,
         "plan_name": "Pro Plan",
         "price_cents": 2999,
@@ -220,7 +220,7 @@ async fn test_payment_workflow() {
 
     // Step 2: Create charge (authorized, not captured)
     let create_charge_body = serde_json::json!({
-        "billing_customer_id": customer_id,
+        "ar_customer_id": customer_id,
         "amount_cents": 5000,
         "currency": "usd",
         "charge_type": "one_time",
@@ -313,7 +313,7 @@ async fn test_invoice_workflow() {
 
     // Step 2: Create draft invoice
     let create_invoice_body = serde_json::json!({
-        "billing_customer_id": customer_id,
+        "ar_customer_id": customer_id,
         "due_date": "2026-03-01",
         "line_items": [
             {
@@ -369,7 +369,7 @@ async fn test_invoice_workflow() {
 
     // Step 4: Pay invoice (create charge)
     let pay_body = serde_json::json!({
-        "billing_customer_id": customer_id,
+        "ar_customer_id": customer_id,
         "amount_cents": 40000,
         "currency": "usd",
         "charge_type": "one_time",
@@ -544,7 +544,7 @@ async fn test_error_recovery_workflow() {
 
     // Step 3: Verify only one customer was created
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM billing_customers WHERE email = $1"
+        "SELECT COUNT(*) FROM ar_customers WHERE email = $1"
     )
     .bind(&email)
     .fetch_one(&pool)
@@ -570,7 +570,7 @@ async fn test_multi_tenant_isolation() {
 
     // Verify both exist in database
     let count1: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM billing_customers WHERE app_id = $1"
+        "SELECT COUNT(*) FROM ar_customers WHERE app_id = $1"
     )
     .bind("app1")
     .fetch_one(&pool)
@@ -579,7 +579,7 @@ async fn test_multi_tenant_isolation() {
     assert!(count1 >= 1);
 
     let count2: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM billing_customers WHERE app_id = $1"
+        "SELECT COUNT(*) FROM ar_customers WHERE app_id = $1"
     )
     .bind("app2")
     .fetch_one(&pool)

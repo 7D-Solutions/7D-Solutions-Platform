@@ -17,7 +17,7 @@ async fn test_create_subscription_success() {
     let (customer_id, _, _) = common::seed_customer(&pool, APP_ID).await;
 
     let body = serde_json::json!({
-        "billing_customer_id": customer_id,
+        "ar_customer_id": customer_id,
         "payment_method_id": "pm_test123",
         "plan_id": common::unique_plan_id(),
         "plan_name": "Pro Plan",
@@ -45,7 +45,7 @@ async fn test_create_subscription_success() {
     // Assert response body
     let json = common::body_json(response).await;
     assert!(json["id"].is_number(), "Response should contain subscription id");
-    assert_eq!(json["billing_customer_id"], customer_id);
+    assert_eq!(json["ar_customer_id"], customer_id);
     assert_eq!(json["plan_name"], "Pro Plan");
     assert_eq!(json["price_cents"], 2999);
     assert_eq!(json["status"], "active");
@@ -62,7 +62,7 @@ async fn test_create_subscription_invalid_customer() {
     let app = common::app(&pool);
 
     let body = serde_json::json!({
-        "billing_customer_id": 999999,
+        "ar_customer_id": 999999,
         "payment_method_id": "pm_test123",
         "plan_id": common::unique_plan_id(),
         "plan_name": "Pro Plan",
@@ -117,7 +117,7 @@ async fn test_get_subscription_success() {
     // Assert response body
     let json = common::body_json(response).await;
     assert_eq!(json["id"], subscription_id);
-    assert_eq!(json["billing_customer_id"], customer_id);
+    assert_eq!(json["ar_customer_id"], customer_id);
     assert_eq!(json["status"], "active");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
@@ -158,7 +158,7 @@ async fn test_cancel_subscription_at_period_end() {
 
     // Verify in database
     let cancel_at_period_end: bool = sqlx::query_scalar(
-        "SELECT cancel_at_period_end FROM billing_subscriptions WHERE id = $1"
+        "SELECT cancel_at_period_end FROM ar_subscriptions WHERE id = $1"
     )
     .bind(subscription_id)
     .fetch_one(&pool)
@@ -204,7 +204,7 @@ async fn test_cancel_subscription_immediately() {
 
     // Verify in database
     let status: String = sqlx::query_scalar(
-        "SELECT status::text FROM billing_subscriptions WHERE id = $1"
+        "SELECT status::text FROM ar_subscriptions WHERE id = $1"
     )
     .bind(subscription_id)
     .fetch_one(&pool)
@@ -319,7 +319,7 @@ async fn test_update_subscription_price() {
 
     // Verify in database
     let price: i32 = sqlx::query_scalar(
-        "SELECT price_cents FROM billing_subscriptions WHERE id = $1"
+        "SELECT price_cents FROM ar_subscriptions WHERE id = $1"
     )
     .bind(subscription_id)
     .fetch_one(&pool)

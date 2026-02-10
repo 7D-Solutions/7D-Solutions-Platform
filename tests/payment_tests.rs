@@ -21,7 +21,7 @@ async fn test_create_charge_success() {
     let (customer_id, _, _) = common::seed_customer(&pool, APP_ID).await;
 
     let body = serde_json::json!({
-        "billing_customer_id": customer_id,
+        "ar_customer_id": customer_id,
         "amount_cents": 5000,
         "currency": "usd",
         "charge_type": "one_time",
@@ -48,7 +48,7 @@ async fn test_create_charge_success() {
     // Assert response body
     let json = common::body_json(response).await;
     assert!(json["id"].is_number(), "Response should contain charge id");
-    assert_eq!(json["billing_customer_id"], customer_id);
+    assert_eq!(json["ar_customer_id"], customer_id);
     assert_eq!(json["amount_cents"], 5000);
     assert_eq!(json["currency"], "usd");
     assert_eq!(json["charge_type"], "one_time");
@@ -67,7 +67,7 @@ async fn test_create_charge_invalid_amount() {
     let (customer_id, _, _) = common::seed_customer(&pool, APP_ID).await;
 
     let body = serde_json::json!({
-        "billing_customer_id": customer_id,
+        "ar_customer_id": customer_id,
         "amount_cents": -100,
         "currency": "usd",
         "reason": "Invalid charge",
@@ -106,7 +106,7 @@ async fn test_create_charge_zero_amount() {
     let (customer_id, _, _) = common::seed_customer(&pool, APP_ID).await;
 
     let body = serde_json::json!({
-        "billing_customer_id": customer_id,
+        "ar_customer_id": customer_id,
         "amount_cents": 0,
         "currency": "usd",
         "reason": "Zero charge",
@@ -159,7 +159,7 @@ async fn test_get_charge_success() {
     // Assert response body
     let json = common::body_json(response).await;
     assert_eq!(json["id"], charge_id);
-    assert_eq!(json["billing_customer_id"], customer_id);
+    assert_eq!(json["ar_customer_id"], customer_id);
     assert_eq!(json["amount_cents"], 2500);
     assert_eq!(json["status"], "succeeded");
 
@@ -342,8 +342,8 @@ async fn test_get_refund_success() {
 
     // Create refund in database
     let refund_id: i32 = sqlx::query_scalar(
-        r#"INSERT INTO billing_refunds (
-            app_id, billing_customer_id, charge_id, status, amount_cents, currency,
+        r#"INSERT INTO ar_refunds (
+            app_id, ar_customer_id, charge_id, status, amount_cents, currency,
             reference_id, created_at, updated_at
         ) VALUES ($1, $2, $3, 'succeeded', 2500, 'usd', $4, NOW(), NOW())
         RETURNING id"#,
@@ -391,8 +391,8 @@ async fn test_list_refunds_by_customer() {
     // Create multiple refunds
     for _ in 0..3 {
         sqlx::query(
-            r#"INSERT INTO billing_refunds (
-                app_id, billing_customer_id, charge_id, status, amount_cents, currency,
+            r#"INSERT INTO ar_refunds (
+                app_id, ar_customer_id, charge_id, status, amount_cents, currency,
                 reference_id, created_at, updated_at
             ) VALUES ($1, $2, $3, 'succeeded', 1000, 'usd', $4, NOW(), NOW())"#,
         )
@@ -438,8 +438,8 @@ async fn test_list_refunds_by_charge() {
 
     // Create refund
     sqlx::query(
-        r#"INSERT INTO billing_refunds (
-            app_id, billing_customer_id, charge_id, status, amount_cents, currency,
+        r#"INSERT INTO ar_refunds (
+            app_id, ar_customer_id, charge_id, status, amount_cents, currency,
             reference_id, created_at, updated_at
         ) VALUES ($1, $2, $3, 'succeeded', 2500, 'usd', $4, NOW(), NOW())"#,
     )

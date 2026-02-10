@@ -102,7 +102,7 @@ async fn create_customer(
     }
 
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Create customer in database (local-first pattern)
     let customer = sqlx::query_as::<_, Customer>(
@@ -187,7 +187,7 @@ async fn get_customer(
     Path(id): Path<i32>,
 ) -> Result<Json<Customer>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let customer = sqlx::query_as::<_, Customer>(
         r#"
@@ -234,7 +234,7 @@ async fn list_customers(
     Query(query): Query<ListCustomersQuery>,
 ) -> Result<Json<Vec<Customer>>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let limit = query.limit.unwrap_or(50).min(100); // Max 100 per page
     let offset = query.offset.unwrap_or(0).max(0);
@@ -304,7 +304,7 @@ async fn update_customer(
     Json(req): Json<UpdateCustomerRequest>,
 ) -> Result<Json<Customer>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Verify customer exists and belongs to app
     let existing = sqlx::query_as::<_, Customer>(
@@ -404,7 +404,7 @@ async fn create_subscription(
     Json(req): Json<CreateSubscriptionRequest>,
 ) -> Result<(StatusCode, Json<Subscription>), (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Validate required fields
     if req.plan_id.is_empty() || req.plan_name.is_empty() {
@@ -546,7 +546,7 @@ async fn get_subscription(
     Path(id): Path<i32>,
 ) -> Result<Json<Subscription>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let subscription = sqlx::query_as::<_, Subscription>(
         r#"
@@ -595,7 +595,7 @@ async fn list_subscriptions(
     Query(query): Query<ListSubscriptionsQuery>,
 ) -> Result<Json<Vec<Subscription>>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let limit = query.limit.unwrap_or(50).min(100); // Max 100 per page
     let offset = query.offset.unwrap_or(0).max(0);
@@ -724,7 +724,7 @@ async fn update_subscription(
     Json(req): Json<UpdateSubscriptionRequest>,
 ) -> Result<Json<Subscription>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Verify subscription exists and belongs to app
     let existing = sqlx::query_as::<_, Subscription>(
@@ -832,7 +832,7 @@ async fn cancel_subscription(
     Json(req): Json<CancelSubscriptionRequest>,
 ) -> Result<Json<Subscription>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Verify subscription exists and belongs to app
     let _existing = sqlx::query_as::<_, Subscription>(
@@ -958,7 +958,7 @@ async fn create_invoice(
     Json(req): Json<CreateInvoiceRequest>,
 ) -> Result<(StatusCode, Json<Invoice>), (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Validate required fields
     if req.amount_cents < 0 {
@@ -1127,7 +1127,7 @@ async fn get_invoice(
     Path(id): Path<i32>,
 ) -> Result<Json<Invoice>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"
@@ -1174,7 +1174,7 @@ async fn list_invoices(
     Query(query): Query<ListInvoicesQuery>,
 ) -> Result<Json<Vec<Invoice>>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0).max(0);
@@ -1313,7 +1313,7 @@ async fn update_invoice(
     Json(req): Json<UpdateInvoiceRequest>,
 ) -> Result<Json<Invoice>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Verify invoice exists and belongs to app
     let existing = sqlx::query_as::<_, Invoice>(
@@ -1415,7 +1415,7 @@ async fn finalize_invoice(
     Json(req): Json<FinalizeInvoiceRequest>,
 ) -> Result<Json<Invoice>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Verify invoice exists and belongs to app
     let existing = sqlx::query_as::<_, Invoice>(
@@ -1509,7 +1509,7 @@ async fn create_charge(
     Json(req): Json<CreateChargeRequest>,
 ) -> Result<(StatusCode, Json<Charge>), (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Validate required fields
     if req.amount_cents <= 0 {
@@ -1712,7 +1712,7 @@ async fn get_charge(
     Path(id): Path<i32>,
 ) -> Result<Json<Charge>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let charge = sqlx::query_as::<_, Charge>(
         r#"
@@ -1760,7 +1760,7 @@ async fn list_charges(
     Query(query): Query<ListChargesQuery>,
 ) -> Result<Json<Vec<Charge>>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0).max(0);
@@ -1904,7 +1904,7 @@ async fn capture_charge(
     Json(req): Json<CaptureChargeRequest>,
 ) -> Result<Json<Charge>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Verify charge exists and belongs to app
     let existing = sqlx::query_as::<_, Charge>(
@@ -2001,7 +2001,7 @@ async fn create_refund(
     Json(req): Json<CreateRefundRequest>,
 ) -> Result<(StatusCode, Json<Refund>), (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Validate required fields
     if req.amount_cents <= 0 {
@@ -2239,7 +2239,7 @@ async fn get_refund(
     Path(id): Path<i32>,
 ) -> Result<Json<Refund>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let refund = sqlx::query_as::<_, Refund>(
         r#"
@@ -2281,7 +2281,7 @@ async fn list_refunds(
     Query(query): Query<ListRefundsQuery>,
 ) -> Result<Json<Vec<Refund>>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let limit = query.limit.unwrap_or(100).min(500);
     let offset = query.offset.unwrap_or(0);
@@ -2359,7 +2359,7 @@ async fn list_disputes(
     Query(query): Query<ListDisputesQuery>,
 ) -> Result<Json<Vec<Dispute>>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let limit = query.limit.unwrap_or(100).min(500);
     let offset = query.offset.unwrap_or(0);
@@ -2426,7 +2426,7 @@ async fn get_dispute(
     Path(id): Path<i32>,
 ) -> Result<Json<Dispute>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let dispute = sqlx::query_as::<_, Dispute>(
         r#"
@@ -2469,7 +2469,7 @@ async fn submit_dispute_evidence(
     Json(_req): Json<SubmitDisputeEvidenceRequest>,
 ) -> Result<Json<Dispute>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Verify dispute exists and belongs to app
     let dispute = sqlx::query_as::<_, Dispute>(
@@ -2538,7 +2538,7 @@ async fn add_payment_method(
     Json(req): Json<AddPaymentMethodRequest>,
 ) -> Result<(StatusCode, Json<PaymentMethod>), (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Validate required fields
     if req.tilled_payment_method_id.is_empty() {
@@ -2722,7 +2722,7 @@ async fn get_payment_method(
     Path(id): Path<i32>,
 ) -> Result<Json<PaymentMethod>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
         r#"
@@ -2769,7 +2769,7 @@ async fn list_payment_methods(
     Query(query): Query<ListPaymentMethodsQuery>,
 ) -> Result<Json<Vec<PaymentMethod>>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0).max(0);
@@ -2891,7 +2891,7 @@ async fn update_payment_method(
     Json(req): Json<UpdatePaymentMethodRequest>,
 ) -> Result<Json<PaymentMethod>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Verify payment method exists and belongs to app
     let existing = sqlx::query_as::<_, PaymentMethod>(
@@ -2982,7 +2982,7 @@ async fn delete_payment_method(
     Path(id): Path<i32>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Verify payment method exists and belongs to app
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
@@ -3082,7 +3082,7 @@ async fn set_default_payment_method(
     Path(id): Path<i32>,
 ) -> Result<Json<PaymentMethod>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app"; // Placeholder
+    let app_id = "test-app"; // Placeholder
 
     // Verify payment method exists, belongs to app, and is active
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
@@ -3592,7 +3592,7 @@ async fn receive_tilled_webhook(
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
     // Extract app_id from headers or use default
     // TODO: Extract from auth middleware when available
-    let app_id = "default_app";
+    let app_id = "test-app";
 
     // Get webhook secret from environment
     let webhook_secret = std::env::var("TILLED_WEBHOOK_SECRET_TRASHTECH")
@@ -3766,7 +3766,7 @@ async fn list_webhooks(
     Query(query): Query<ListWebhooksQuery>,
 ) -> Result<Json<Vec<Webhook>>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Add auth middleware to verify admin access
-    let app_id = "default_app";
+    let app_id = "test-app";
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0);
@@ -3833,7 +3833,7 @@ async fn get_webhook(
     Path(id): Path<i32>,
 ) -> Result<Json<Webhook>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Add auth middleware to verify admin access
-    let app_id = "default_app";
+    let app_id = "test-app";
 
     let webhook = sqlx::query_as::<_, Webhook>(
         r#"
@@ -3876,7 +3876,7 @@ async fn replay_webhook(
     Json(req): Json<ReplayWebhookRequest>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Add auth middleware to verify admin access
-    let app_id = "default_app";
+    let app_id = "test-app";
 
     // Fetch webhook
     let webhook = sqlx::query_as::<_, Webhook>(
@@ -4015,7 +4015,7 @@ async fn list_events(
     Query(query): Query<ListEventsQuery>,
 ) -> Result<Json<Vec<Event>>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app";
+    let app_id = "test-app";
 
     let limit = query.limit.unwrap_or(100).min(1000);
     let offset = query.offset.unwrap_or(0);
@@ -4105,7 +4105,7 @@ async fn get_event(
     Path(id): Path<i32>,
 ) -> Result<Json<Event>, (StatusCode, Json<ErrorResponse>)> {
     // TODO: Extract app_id from auth middleware
-    let app_id = "default_app";
+    let app_id = "test-app";
 
     let event = sqlx::query_as::<_, Event>(
         r#"

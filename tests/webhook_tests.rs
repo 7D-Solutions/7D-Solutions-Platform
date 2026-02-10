@@ -65,7 +65,7 @@ async fn test_receive_webhook_valid_signature() {
 
     // Verify webhook was stored in database
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM billing_webhooks WHERE event_id = $1"
+        "SELECT COUNT(*) FROM ar_webhooks WHERE event_id = $1"
     )
     .bind(&event_id)
     .fetch_one(&pool)
@@ -74,7 +74,7 @@ async fn test_receive_webhook_valid_signature() {
     assert_eq!(count, 1, "Webhook should be stored");
 
     // Cleanup
-    sqlx::query("DELETE FROM billing_webhooks WHERE event_id = $1")
+    sqlx::query("DELETE FROM ar_webhooks WHERE event_id = $1")
         .bind(&event_id)
         .execute(&pool)
         .await
@@ -124,7 +124,7 @@ async fn test_receive_webhook_invalid_signature() {
 
     // Verify webhook was NOT stored
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM billing_webhooks WHERE event_id = $1"
+        "SELECT COUNT(*) FROM ar_webhooks WHERE event_id = $1"
     )
     .bind(&event_id)
     .fetch_one(&pool)
@@ -177,7 +177,7 @@ async fn test_receive_webhook_duplicate_event_id() {
 
     // Verify only 1 webhook exists
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM billing_webhooks WHERE event_id = $1"
+        "SELECT COUNT(*) FROM ar_webhooks WHERE event_id = $1"
     )
     .bind(&event_id)
     .fetch_one(&pool)
@@ -457,7 +457,7 @@ async fn test_receive_webhooks_out_of_order() {
 
     // Verify both webhooks were stored
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM billing_webhooks WHERE event_id IN ($1, $2)"
+        "SELECT COUNT(*) FROM ar_webhooks WHERE event_id IN ($1, $2)"
     )
     .bind(&event_id_1)
     .bind(&event_id_2)
@@ -467,7 +467,7 @@ async fn test_receive_webhooks_out_of_order() {
     assert_eq!(count, 2, "Both webhooks should be stored");
 
     // Cleanup
-    sqlx::query("DELETE FROM billing_webhooks WHERE event_id IN ($1, $2)")
+    sqlx::query("DELETE FROM ar_webhooks WHERE event_id IN ($1, $2)")
         .bind(&event_id_1)
         .bind(&event_id_2)
         .execute(&pool)
