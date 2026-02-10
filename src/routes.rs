@@ -107,7 +107,7 @@ async fn create_customer(
     // Create customer in database (local-first pattern)
     let customer = sqlx::query_as::<_, Customer>(
         r#"
-        INSERT INTO billing_customers (
+        INSERT INTO ar_customers (
             app_id, external_customer_id, email, name, metadata,
             status, tilled_customer_id, retry_attempt_count, created_at, updated_at
         )
@@ -142,7 +142,7 @@ async fn create_customer(
     // For now, we'll update status to 'active' immediately
     let customer = sqlx::query_as::<_, Customer>(
         r#"
-        UPDATE billing_customers
+        UPDATE ar_customers
         SET status = 'active', updated_at = NOW()
         WHERE id = $1
         RETURNING
@@ -197,7 +197,7 @@ async fn get_customer(
             metadata, update_source, updated_by, delinquent_since,
             grace_period_end, next_retry_at, retry_attempt_count,
             created_at, updated_at
-        FROM billing_customers
+        FROM ar_customers
         WHERE id = $1 AND app_id = $2
         "#,
     )
@@ -249,7 +249,7 @@ async fn list_customers(
                 metadata, update_source, updated_by, delinquent_since,
                 grace_period_end, next_retry_at, retry_attempt_count,
                 created_at, updated_at
-            FROM billing_customers
+            FROM ar_customers
             WHERE app_id = $1 AND external_customer_id = $2
             ORDER BY created_at DESC
             LIMIT $3 OFFSET $4
@@ -271,7 +271,7 @@ async fn list_customers(
                 metadata, update_source, updated_by, delinquent_since,
                 grace_period_end, next_retry_at, retry_attempt_count,
                 created_at, updated_at
-            FROM billing_customers
+            FROM ar_customers
             WHERE app_id = $1
             ORDER BY created_at DESC
             LIMIT $2 OFFSET $3
@@ -315,7 +315,7 @@ async fn update_customer(
             metadata, update_source, updated_by, delinquent_since,
             grace_period_end, next_retry_at, retry_attempt_count,
             created_at, updated_at
-        FROM billing_customers
+        FROM ar_customers
         WHERE id = $1 AND app_id = $2
         "#,
     )
@@ -361,7 +361,7 @@ async fn update_customer(
 
     let customer = sqlx::query_as::<_, Customer>(
         r#"
-        UPDATE billing_customers
+        UPDATE ar_customers
         SET email = $1, name = $2, metadata = $3, updated_at = NOW()
         WHERE id = $4
         RETURNING
@@ -436,11 +436,11 @@ async fn create_subscription(
             metadata, update_source, updated_by, delinquent_since,
             grace_period_end, next_retry_at, retry_attempt_count,
             created_at, updated_at
-        FROM billing_customers
+        FROM ar_customers
         WHERE id = $1 AND app_id = $2
         "#,
     )
-    .bind(req.billing_customer_id)
+    .bind(req.ar_customer_id)
     .bind(app_id)
     .fetch_optional(&db)
     .await
@@ -459,7 +459,7 @@ async fn create_subscription(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                format!("Customer {} not found", req.billing_customer_id),
+                format!("Customer {} not found", req.ar_customer_id),
             )),
         )
     })?;
@@ -486,8 +486,8 @@ async fn create_subscription(
     // Create subscription in database
     let subscription = sqlx::query_as::<_, Subscription>(
         r#"
-        INSERT INTO billing_subscriptions (
-            app_id, billing_customer_id, tilled_subscription_id,
+        INSERT INTO ar_subscriptions (
+            app_id, ar_customer_id, tilled_subscription_id,
             plan_id, plan_name, price_cents, status, interval_unit, interval_count,
             current_period_start, current_period_end, cancel_at_period_end,
             payment_method_id, payment_method_type, metadata,
@@ -495,7 +495,7 @@ async fn create_subscription(
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
         RETURNING
-            id, app_id, billing_customer_id, tilled_subscription_id,
+            id, app_id, ar_customer_id, tilled_subscription_id,
             plan_id, plan_name, price_cents, status, interval_unit, interval_count,
             billing_cycle_anchor, current_period_start, current_period_end,
             cancel_at_period_end, cancel_at, canceled_at, ended_at,
@@ -504,7 +504,7 @@ async fn create_subscription(
         "#,
     )
     .bind(app_id)
-    .bind(req.billing_customer_id)
+    .bind(req.ar_customer_id)
     .bind(&tilled_subscription_id)
     .bind(&req.plan_id)
     .bind(&req.plan_name)
@@ -534,7 +534,7 @@ async fn create_subscription(
     tracing::info!(
         "Created subscription {} for customer {}",
         subscription.id,
-        req.billing_customer_id
+        req.ar_customer_id
     );
 
     Ok((StatusCode::CREATED, Json(subscription)))
@@ -551,14 +551,14 @@ async fn get_subscription(
     let subscription = sqlx::query_as::<_, Subscription>(
         r#"
         SELECT
-            s.id, s.app_id, s.billing_customer_id, s.tilled_subscription_id,
+            s.id, s.app_id, s.ar_customer_id, s.tilled_subscription_id,
             s.plan_id, s.plan_name, s.price_cents, s.status, s.interval_unit, s.interval_count,
             s.billing_cycle_anchor, s.current_period_start, s.current_period_end,
             s.cancel_at_period_end, s.cancel_at, s.canceled_at, s.ended_at,
             s.payment_method_id, s.payment_method_type, s.metadata,
             s.update_source, s.updated_by, s.created_at, s.updated_at
-        FROM billing_subscriptions s
-        INNER JOIN billing_customers c ON s.billing_customer_id = c.id
+        FROM ar_subscriptions s
+        INNER JOIN ar_customers c ON s.ar_customer_id = c.id
         WHERE s.id = $1 AND c.app_id = $2
         "#,
     )
@@ -607,15 +607,15 @@ async fn list_subscriptions(
             sqlx::query_as::<_, Subscription>(
                 r#"
                 SELECT
-                    s.id, s.app_id, s.billing_customer_id, s.tilled_subscription_id,
+                    s.id, s.app_id, s.ar_customer_id, s.tilled_subscription_id,
                     s.plan_id, s.plan_name, s.price_cents, s.status, s.interval_unit, s.interval_count,
                     s.billing_cycle_anchor, s.current_period_start, s.current_period_end,
                     s.cancel_at_period_end, s.cancel_at, s.canceled_at, s.ended_at,
                     s.payment_method_id, s.payment_method_type, s.metadata,
                     s.update_source, s.updated_by, s.created_at, s.updated_at
-                FROM billing_subscriptions s
-                INNER JOIN billing_customers c ON s.billing_customer_id = c.id
-                WHERE c.app_id = $1 AND s.billing_customer_id = $2 AND s.status = $3
+                FROM ar_subscriptions s
+                INNER JOIN ar_customers c ON s.ar_customer_id = c.id
+                WHERE c.app_id = $1 AND s.ar_customer_id = $2 AND s.status = $3
                 ORDER BY s.created_at DESC
                 LIMIT $4 OFFSET $5
                 "#,
@@ -633,15 +633,15 @@ async fn list_subscriptions(
             sqlx::query_as::<_, Subscription>(
                 r#"
                 SELECT
-                    s.id, s.app_id, s.billing_customer_id, s.tilled_subscription_id,
+                    s.id, s.app_id, s.ar_customer_id, s.tilled_subscription_id,
                     s.plan_id, s.plan_name, s.price_cents, s.status, s.interval_unit, s.interval_count,
                     s.billing_cycle_anchor, s.current_period_start, s.current_period_end,
                     s.cancel_at_period_end, s.cancel_at, s.canceled_at, s.ended_at,
                     s.payment_method_id, s.payment_method_type, s.metadata,
                     s.update_source, s.updated_by, s.created_at, s.updated_at
-                FROM billing_subscriptions s
-                INNER JOIN billing_customers c ON s.billing_customer_id = c.id
-                WHERE c.app_id = $1 AND s.billing_customer_id = $2
+                FROM ar_subscriptions s
+                INNER JOIN ar_customers c ON s.ar_customer_id = c.id
+                WHERE c.app_id = $1 AND s.ar_customer_id = $2
                 ORDER BY s.created_at DESC
                 LIMIT $3 OFFSET $4
                 "#,
@@ -658,14 +658,14 @@ async fn list_subscriptions(
             sqlx::query_as::<_, Subscription>(
                 r#"
                 SELECT
-                    s.id, s.app_id, s.billing_customer_id, s.tilled_subscription_id,
+                    s.id, s.app_id, s.ar_customer_id, s.tilled_subscription_id,
                     s.plan_id, s.plan_name, s.price_cents, s.status, s.interval_unit, s.interval_count,
                     s.billing_cycle_anchor, s.current_period_start, s.current_period_end,
                     s.cancel_at_period_end, s.cancel_at, s.canceled_at, s.ended_at,
                     s.payment_method_id, s.payment_method_type, s.metadata,
                     s.update_source, s.updated_by, s.created_at, s.updated_at
-                FROM billing_subscriptions s
-                INNER JOIN billing_customers c ON s.billing_customer_id = c.id
+                FROM ar_subscriptions s
+                INNER JOIN ar_customers c ON s.ar_customer_id = c.id
                 WHERE c.app_id = $1 AND s.status = $2
                 ORDER BY s.created_at DESC
                 LIMIT $3 OFFSET $4
@@ -683,14 +683,14 @@ async fn list_subscriptions(
             sqlx::query_as::<_, Subscription>(
                 r#"
                 SELECT
-                    s.id, s.app_id, s.billing_customer_id, s.tilled_subscription_id,
+                    s.id, s.app_id, s.ar_customer_id, s.tilled_subscription_id,
                     s.plan_id, s.plan_name, s.price_cents, s.status, s.interval_unit, s.interval_count,
                     s.billing_cycle_anchor, s.current_period_start, s.current_period_end,
                     s.cancel_at_period_end, s.cancel_at, s.canceled_at, s.ended_at,
                     s.payment_method_id, s.payment_method_type, s.metadata,
                     s.update_source, s.updated_by, s.created_at, s.updated_at
-                FROM billing_subscriptions s
-                INNER JOIN billing_customers c ON s.billing_customer_id = c.id
+                FROM ar_subscriptions s
+                INNER JOIN ar_customers c ON s.ar_customer_id = c.id
                 WHERE c.app_id = $1
                 ORDER BY s.created_at DESC
                 LIMIT $2 OFFSET $3
@@ -730,14 +730,14 @@ async fn update_subscription(
     let existing = sqlx::query_as::<_, Subscription>(
         r#"
         SELECT
-            s.id, s.app_id, s.billing_customer_id, s.tilled_subscription_id,
+            s.id, s.app_id, s.ar_customer_id, s.tilled_subscription_id,
             s.plan_id, s.plan_name, s.price_cents, s.status, s.interval_unit, s.interval_count,
             s.billing_cycle_anchor, s.current_period_start, s.current_period_end,
             s.cancel_at_period_end, s.cancel_at, s.canceled_at, s.ended_at,
             s.payment_method_id, s.payment_method_type, s.metadata,
             s.update_source, s.updated_by, s.created_at, s.updated_at
-        FROM billing_subscriptions s
-        INNER JOIN billing_customers c ON s.billing_customer_id = c.id
+        FROM ar_subscriptions s
+        INNER JOIN ar_customers c ON s.ar_customer_id = c.id
         WHERE s.id = $1 AND c.app_id = $2
         "#,
     )
@@ -788,11 +788,11 @@ async fn update_subscription(
 
     let subscription = sqlx::query_as::<_, Subscription>(
         r#"
-        UPDATE billing_subscriptions
+        UPDATE ar_subscriptions
         SET plan_id = $1, plan_name = $2, price_cents = $3, metadata = $4, updated_at = NOW()
         WHERE id = $5
         RETURNING
-            id, app_id, billing_customer_id, tilled_subscription_id,
+            id, app_id, ar_customer_id, tilled_subscription_id,
             plan_id, plan_name, price_cents, status, interval_unit, interval_count,
             billing_cycle_anchor, current_period_start, current_period_end,
             cancel_at_period_end, cancel_at, canceled_at, ended_at,
@@ -838,14 +838,14 @@ async fn cancel_subscription(
     let _existing = sqlx::query_as::<_, Subscription>(
         r#"
         SELECT
-            s.id, s.app_id, s.billing_customer_id, s.tilled_subscription_id,
+            s.id, s.app_id, s.ar_customer_id, s.tilled_subscription_id,
             s.plan_id, s.plan_name, s.price_cents, s.status, s.interval_unit, s.interval_count,
             s.billing_cycle_anchor, s.current_period_start, s.current_period_end,
             s.cancel_at_period_end, s.cancel_at, s.canceled_at, s.ended_at,
             s.payment_method_id, s.payment_method_type, s.metadata,
             s.update_source, s.updated_by, s.created_at, s.updated_at
-        FROM billing_subscriptions s
-        INNER JOIN billing_customers c ON s.billing_customer_id = c.id
+        FROM ar_subscriptions s
+        INNER JOIN ar_customers c ON s.ar_customer_id = c.id
         WHERE s.id = $1 AND c.app_id = $2
         "#,
     )
@@ -879,11 +879,11 @@ async fn cancel_subscription(
         // Schedule cancellation at period end
         sqlx::query_as::<_, Subscription>(
             r#"
-            UPDATE billing_subscriptions
+            UPDATE ar_subscriptions
             SET cancel_at_period_end = TRUE, updated_at = NOW()
             WHERE id = $1
             RETURNING
-                id, app_id, billing_customer_id, tilled_subscription_id,
+                id, app_id, ar_customer_id, tilled_subscription_id,
                 plan_id, plan_name, price_cents, status, interval_unit, interval_count,
                 billing_cycle_anchor, current_period_start, current_period_end,
                 cancel_at_period_end, cancel_at, canceled_at, ended_at,
@@ -909,11 +909,11 @@ async fn cancel_subscription(
         let now = chrono::Utc::now().naive_utc();
         sqlx::query_as::<_, Subscription>(
             r#"
-            UPDATE billing_subscriptions
+            UPDATE ar_subscriptions
             SET status = 'canceled', canceled_at = $1, ended_at = $1, updated_at = NOW()
             WHERE id = $2
             RETURNING
-                id, app_id, billing_customer_id, tilled_subscription_id,
+                id, app_id, ar_customer_id, tilled_subscription_id,
                 plan_id, plan_name, price_cents, status, interval_unit, interval_count,
                 billing_cycle_anchor, current_period_start, current_period_end,
                 cancel_at_period_end, cancel_at, canceled_at, ended_at,
@@ -992,11 +992,11 @@ async fn create_invoice(
             metadata, update_source, updated_by, delinquent_since,
             grace_period_end, next_retry_at, retry_attempt_count,
             created_at, updated_at
-        FROM billing_customers
+        FROM ar_customers
         WHERE id = $1 AND app_id = $2
         "#,
     )
-    .bind(req.billing_customer_id)
+    .bind(req.ar_customer_id)
     .bind(app_id)
     .fetch_optional(&db)
     .await
@@ -1015,7 +1015,7 @@ async fn create_invoice(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                format!("Customer {} not found", req.billing_customer_id),
+                format!("Customer {} not found", req.ar_customer_id),
             )),
         )
     })?;
@@ -1025,19 +1025,19 @@ async fn create_invoice(
         let _subscription = sqlx::query_as::<_, Subscription>(
             r#"
             SELECT
-                s.id, s.app_id, s.billing_customer_id, s.tilled_subscription_id,
+                s.id, s.app_id, s.ar_customer_id, s.tilled_subscription_id,
                 s.plan_id, s.plan_name, s.price_cents, s.status, s.interval_unit, s.interval_count,
                 s.billing_cycle_anchor, s.current_period_start, s.current_period_end,
                 s.cancel_at_period_end, s.cancel_at, s.canceled_at, s.ended_at,
                 s.payment_method_id, s.payment_method_type, s.metadata,
                 s.update_source, s.updated_by, s.created_at, s.updated_at
-            FROM billing_subscriptions s
-            WHERE s.id = $1 AND s.app_id = $2 AND s.billing_customer_id = $3
+            FROM ar_subscriptions s
+            WHERE s.id = $1 AND s.app_id = $2 AND s.ar_customer_id = $3
             "#,
         )
         .bind(subscription_id)
         .bind(app_id)
-        .bind(req.billing_customer_id)
+        .bind(req.ar_customer_id)
         .fetch_optional(&db)
         .await
         .map_err(|e| {
@@ -1057,7 +1057,7 @@ async fn create_invoice(
                     "not_found",
                     format!(
                         "Subscription {} not found for customer {}",
-                        subscription_id, req.billing_customer_id
+                        subscription_id, req.ar_customer_id
                     ),
                 )),
             )
@@ -1071,15 +1071,15 @@ async fn create_invoice(
     // Create invoice
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"
-        INSERT INTO billing_invoices (
-            app_id, tilled_invoice_id, billing_customer_id, subscription_id,
+        INSERT INTO ar_invoices (
+            app_id, tilled_invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, due_at, metadata,
             billing_period_start, billing_period_end, line_item_details, compliance_codes,
             created_at, updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
         RETURNING
-            id, app_id, tilled_invoice_id, billing_customer_id, subscription_id,
+            id, app_id, tilled_invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, due_at, paid_at, hosted_url, metadata,
             billing_period_start, billing_period_end, line_item_details, compliance_codes,
             created_at, updated_at
@@ -1087,7 +1087,7 @@ async fn create_invoice(
     )
     .bind(app_id)
     .bind(&tilled_invoice_id)
-    .bind(req.billing_customer_id)
+    .bind(req.ar_customer_id)
     .bind(req.subscription_id)
     .bind(&status)
     .bind(req.amount_cents)
@@ -1114,7 +1114,7 @@ async fn create_invoice(
     tracing::info!(
         "Created invoice {} for customer {} (amount: {})",
         invoice.id,
-        req.billing_customer_id,
+        req.ar_customer_id,
         req.amount_cents
     );
 
@@ -1132,12 +1132,12 @@ async fn get_invoice(
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"
         SELECT
-            i.id, i.app_id, i.tilled_invoice_id, i.billing_customer_id, i.subscription_id,
+            i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
             i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
             i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
             i.created_at, i.updated_at
-        FROM billing_invoices i
-        INNER JOIN billing_customers c ON i.billing_customer_id = c.id
+        FROM ar_invoices i
+        INNER JOIN ar_customers c ON i.ar_customer_id = c.id
         WHERE i.id = $1 AND c.app_id = $2
         "#,
     )
@@ -1185,13 +1185,13 @@ async fn list_invoices(
             sqlx::query_as::<_, Invoice>(
                 r#"
                 SELECT
-                    i.id, i.app_id, i.tilled_invoice_id, i.billing_customer_id, i.subscription_id,
+                    i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
                     i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
                     i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
                     i.created_at, i.updated_at
-                FROM billing_invoices i
-                INNER JOIN billing_customers c ON i.billing_customer_id = c.id
-                WHERE c.app_id = $1 AND i.billing_customer_id = $2 AND i.status = $3
+                FROM ar_invoices i
+                INNER JOIN ar_customers c ON i.ar_customer_id = c.id
+                WHERE c.app_id = $1 AND i.ar_customer_id = $2 AND i.status = $3
                 ORDER BY i.created_at DESC
                 LIMIT $4 OFFSET $5
                 "#,
@@ -1208,13 +1208,13 @@ async fn list_invoices(
             sqlx::query_as::<_, Invoice>(
                 r#"
                 SELECT
-                    i.id, i.app_id, i.tilled_invoice_id, i.billing_customer_id, i.subscription_id,
+                    i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
                     i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
                     i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
                     i.created_at, i.updated_at
-                FROM billing_invoices i
-                INNER JOIN billing_customers c ON i.billing_customer_id = c.id
-                WHERE c.app_id = $1 AND i.billing_customer_id = $2
+                FROM ar_invoices i
+                INNER JOIN ar_customers c ON i.ar_customer_id = c.id
+                WHERE c.app_id = $1 AND i.ar_customer_id = $2
                 ORDER BY i.created_at DESC
                 LIMIT $3 OFFSET $4
                 "#,
@@ -1230,12 +1230,12 @@ async fn list_invoices(
             sqlx::query_as::<_, Invoice>(
                 r#"
                 SELECT
-                    i.id, i.app_id, i.tilled_invoice_id, i.billing_customer_id, i.subscription_id,
+                    i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
                     i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
                     i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
                     i.created_at, i.updated_at
-                FROM billing_invoices i
-                INNER JOIN billing_customers c ON i.billing_customer_id = c.id
+                FROM ar_invoices i
+                INNER JOIN ar_customers c ON i.ar_customer_id = c.id
                 WHERE c.app_id = $1 AND i.subscription_id = $2
                 ORDER BY i.created_at DESC
                 LIMIT $3 OFFSET $4
@@ -1252,12 +1252,12 @@ async fn list_invoices(
             sqlx::query_as::<_, Invoice>(
                 r#"
                 SELECT
-                    i.id, i.app_id, i.tilled_invoice_id, i.billing_customer_id, i.subscription_id,
+                    i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
                     i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
                     i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
                     i.created_at, i.updated_at
-                FROM billing_invoices i
-                INNER JOIN billing_customers c ON i.billing_customer_id = c.id
+                FROM ar_invoices i
+                INNER JOIN ar_customers c ON i.ar_customer_id = c.id
                 WHERE c.app_id = $1 AND i.status = $2
                 ORDER BY i.created_at DESC
                 LIMIT $3 OFFSET $4
@@ -1274,12 +1274,12 @@ async fn list_invoices(
             sqlx::query_as::<_, Invoice>(
                 r#"
                 SELECT
-                    i.id, i.app_id, i.tilled_invoice_id, i.billing_customer_id, i.subscription_id,
+                    i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
                     i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
                     i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
                     i.created_at, i.updated_at
-                FROM billing_invoices i
-                INNER JOIN billing_customers c ON i.billing_customer_id = c.id
+                FROM ar_invoices i
+                INNER JOIN ar_customers c ON i.ar_customer_id = c.id
                 WHERE c.app_id = $1
                 ORDER BY i.created_at DESC
                 LIMIT $2 OFFSET $3
@@ -1319,12 +1319,12 @@ async fn update_invoice(
     let existing = sqlx::query_as::<_, Invoice>(
         r#"
         SELECT
-            i.id, i.app_id, i.tilled_invoice_id, i.billing_customer_id, i.subscription_id,
+            i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
             i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
             i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
             i.created_at, i.updated_at
-        FROM billing_invoices i
-        INNER JOIN billing_customers c ON i.billing_customer_id = c.id
+        FROM ar_invoices i
+        INNER JOIN ar_customers c ON i.ar_customer_id = c.id
         WHERE i.id = $1 AND c.app_id = $2
         "#,
     )
@@ -1375,11 +1375,11 @@ async fn update_invoice(
 
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"
-        UPDATE billing_invoices
+        UPDATE ar_invoices
         SET status = $1, amount_cents = $2, due_at = $3, metadata = $4, updated_at = NOW()
         WHERE id = $5
         RETURNING
-            id, app_id, tilled_invoice_id, billing_customer_id, subscription_id,
+            id, app_id, tilled_invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, due_at, paid_at, hosted_url, metadata,
             billing_period_start, billing_period_end, line_item_details, compliance_codes,
             created_at, updated_at
@@ -1421,12 +1421,12 @@ async fn finalize_invoice(
     let existing = sqlx::query_as::<_, Invoice>(
         r#"
         SELECT
-            i.id, i.app_id, i.tilled_invoice_id, i.billing_customer_id, i.subscription_id,
+            i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
             i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
             i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
             i.created_at, i.updated_at
-        FROM billing_invoices i
-        INNER JOIN billing_customers c ON i.billing_customer_id = c.id
+        FROM ar_invoices i
+        INNER JOIN ar_customers c ON i.ar_customer_id = c.id
         WHERE i.id = $1 AND c.app_id = $2
         "#,
     )
@@ -1469,11 +1469,11 @@ async fn finalize_invoice(
 
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"
-        UPDATE billing_invoices
+        UPDATE ar_invoices
         SET status = 'open', paid_at = $1, updated_at = NOW()
         WHERE id = $2
         RETURNING
-            id, app_id, tilled_invoice_id, billing_customer_id, subscription_id,
+            id, app_id, tilled_invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, due_at, paid_at, hosted_url, metadata,
             billing_period_start, billing_period_end, line_item_details, compliance_codes,
             created_at, updated_at
@@ -1548,11 +1548,11 @@ async fn create_charge(
             metadata, update_source, updated_by, delinquent_since,
             grace_period_end, next_retry_at, retry_attempt_count,
             created_at, updated_at
-        FROM billing_customers
+        FROM ar_customers
         WHERE id = $1 AND app_id = $2
         "#,
     )
-    .bind(req.billing_customer_id)
+    .bind(req.ar_customer_id)
     .bind(app_id)
     .fetch_optional(&db)
     .await
@@ -1571,7 +1571,7 @@ async fn create_charge(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                format!("Customer {} not found", req.billing_customer_id),
+                format!("Customer {} not found", req.ar_customer_id),
             )),
         )
     })?;
@@ -1591,12 +1591,12 @@ async fn create_charge(
     let existing_charge = sqlx::query_as::<_, Charge>(
         r#"
         SELECT
-            id, app_id, tilled_charge_id, invoice_id, billing_customer_id, subscription_id,
+            id, app_id, tilled_charge_id, invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, charge_type, reason, reference_id,
             service_date, note, metadata, failure_code, failure_message,
             product_type, quantity, service_frequency, weight_amount, location_reference,
             created_at, updated_at
-        FROM billing_charges
+        FROM ar_charges
         WHERE app_id = $1 AND reference_id = $2
         "#,
     )
@@ -1629,15 +1629,15 @@ async fn create_charge(
     // Create pending charge record
     let charge = sqlx::query_as::<_, Charge>(
         r#"
-        INSERT INTO billing_charges (
-            app_id, billing_customer_id, subscription_id, invoice_id,
+        INSERT INTO ar_charges (
+            app_id, ar_customer_id, subscription_id, invoice_id,
             status, amount_cents, currency, charge_type, reason, reference_id,
             service_date, note, metadata, tilled_charge_id,
             created_at, updated_at
         )
         VALUES ($1, $2, NULL, NULL, 'pending', $3, $4, $5, $6, $7, $8, $9, $10, NULL, NOW(), NOW())
         RETURNING
-            id, app_id, tilled_charge_id, invoice_id, billing_customer_id, subscription_id,
+            id, app_id, tilled_charge_id, invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, charge_type, reason, reference_id,
             service_date, note, metadata, failure_code, failure_message,
             product_type, quantity, service_frequency, weight_amount, location_reference,
@@ -1645,7 +1645,7 @@ async fn create_charge(
         "#,
     )
     .bind(app_id)
-    .bind(req.billing_customer_id)
+    .bind(req.ar_customer_id)
     .bind(req.amount_cents)
     .bind(&currency)
     .bind(&charge_type)
@@ -1671,11 +1671,11 @@ async fn create_charge(
     // For now, immediately mark as succeeded
     let charge = sqlx::query_as::<_, Charge>(
         r#"
-        UPDATE billing_charges
+        UPDATE ar_charges
         SET status = 'succeeded', updated_at = NOW()
         WHERE id = $1
         RETURNING
-            id, app_id, tilled_charge_id, invoice_id, billing_customer_id, subscription_id,
+            id, app_id, tilled_charge_id, invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, charge_type, reason, reference_id,
             service_date, note, metadata, failure_code, failure_message,
             product_type, quantity, service_frequency, weight_amount, location_reference,
@@ -1699,7 +1699,7 @@ async fn create_charge(
     tracing::info!(
         "Created charge {} for customer {} (amount: {})",
         charge.id,
-        req.billing_customer_id,
+        req.ar_customer_id,
         req.amount_cents
     );
 
@@ -1717,13 +1717,13 @@ async fn get_charge(
     let charge = sqlx::query_as::<_, Charge>(
         r#"
         SELECT
-            ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.billing_customer_id, ch.subscription_id,
+            ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
             ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
             ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
             ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
             ch.created_at, ch.updated_at
-        FROM billing_charges ch
-        INNER JOIN billing_customers c ON ch.billing_customer_id = c.id
+        FROM ar_charges ch
+        INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
         WHERE ch.id = $1 AND c.app_id = $2
         "#,
     )
@@ -1771,14 +1771,14 @@ async fn list_charges(
             sqlx::query_as::<_, Charge>(
                 r#"
                 SELECT
-                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.billing_customer_id, ch.subscription_id,
+                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
                     ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
                     ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
                     ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
                     ch.created_at, ch.updated_at
-                FROM billing_charges ch
-                INNER JOIN billing_customers c ON ch.billing_customer_id = c.id
-                WHERE c.app_id = $1 AND ch.billing_customer_id = $2 AND ch.status = $3
+                FROM ar_charges ch
+                INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
+                WHERE c.app_id = $1 AND ch.ar_customer_id = $2 AND ch.status = $3
                 ORDER BY ch.created_at DESC
                 LIMIT $4 OFFSET $5
                 "#,
@@ -1795,14 +1795,14 @@ async fn list_charges(
             sqlx::query_as::<_, Charge>(
                 r#"
                 SELECT
-                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.billing_customer_id, ch.subscription_id,
+                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
                     ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
                     ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
                     ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
                     ch.created_at, ch.updated_at
-                FROM billing_charges ch
-                INNER JOIN billing_customers c ON ch.billing_customer_id = c.id
-                WHERE c.app_id = $1 AND ch.billing_customer_id = $2
+                FROM ar_charges ch
+                INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
+                WHERE c.app_id = $1 AND ch.ar_customer_id = $2
                 ORDER BY ch.created_at DESC
                 LIMIT $3 OFFSET $4
                 "#,
@@ -1818,13 +1818,13 @@ async fn list_charges(
             sqlx::query_as::<_, Charge>(
                 r#"
                 SELECT
-                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.billing_customer_id, ch.subscription_id,
+                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
                     ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
                     ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
                     ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
                     ch.created_at, ch.updated_at
-                FROM billing_charges ch
-                INNER JOIN billing_customers c ON ch.billing_customer_id = c.id
+                FROM ar_charges ch
+                INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
                 WHERE c.app_id = $1 AND ch.invoice_id = $2
                 ORDER BY ch.created_at DESC
                 LIMIT $3 OFFSET $4
@@ -1841,13 +1841,13 @@ async fn list_charges(
             sqlx::query_as::<_, Charge>(
                 r#"
                 SELECT
-                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.billing_customer_id, ch.subscription_id,
+                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
                     ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
                     ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
                     ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
                     ch.created_at, ch.updated_at
-                FROM billing_charges ch
-                INNER JOIN billing_customers c ON ch.billing_customer_id = c.id
+                FROM ar_charges ch
+                INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
                 WHERE c.app_id = $1 AND ch.status = $2
                 ORDER BY ch.created_at DESC
                 LIMIT $3 OFFSET $4
@@ -1864,13 +1864,13 @@ async fn list_charges(
             sqlx::query_as::<_, Charge>(
                 r#"
                 SELECT
-                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.billing_customer_id, ch.subscription_id,
+                    ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
                     ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
                     ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
                     ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
                     ch.created_at, ch.updated_at
-                FROM billing_charges ch
-                INNER JOIN billing_customers c ON ch.billing_customer_id = c.id
+                FROM ar_charges ch
+                INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
                 WHERE c.app_id = $1
                 ORDER BY ch.created_at DESC
                 LIMIT $2 OFFSET $3
@@ -1910,13 +1910,13 @@ async fn capture_charge(
     let existing = sqlx::query_as::<_, Charge>(
         r#"
         SELECT
-            ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.billing_customer_id, ch.subscription_id,
+            ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
             ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
             ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
             ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
             ch.created_at, ch.updated_at
-        FROM billing_charges ch
-        INNER JOIN billing_customers c ON ch.billing_customer_id = c.id
+        FROM ar_charges ch
+        INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
         WHERE ch.id = $1 AND c.app_id = $2
         "#,
     )
@@ -1960,11 +1960,11 @@ async fn capture_charge(
 
     let charge = sqlx::query_as::<_, Charge>(
         r#"
-        UPDATE billing_charges
+        UPDATE ar_charges
         SET status = 'captured', amount_cents = $1, updated_at = NOW()
         WHERE id = $2
         RETURNING
-            id, app_id, tilled_charge_id, invoice_id, billing_customer_id, subscription_id,
+            id, app_id, tilled_charge_id, invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, charge_type, reason, reference_id,
             service_date, note, metadata, failure_code, failure_message,
             product_type, quantity, service_frequency, weight_amount, location_reference,
@@ -2028,10 +2028,10 @@ async fn create_refund(
     let existing_refund = sqlx::query_as::<_, Refund>(
         r#"
         SELECT
-            id, app_id, billing_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
+            id, app_id, ar_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
             status, amount_cents, currency, reason, reference_id, note, metadata,
             failure_code, failure_message, created_at, updated_at
-        FROM billing_refunds
+        FROM ar_refunds
         WHERE app_id = $1 AND reference_id = $2
         "#,
     )
@@ -2062,13 +2062,13 @@ async fn create_refund(
     let charge = sqlx::query_as::<_, Charge>(
         r#"
         SELECT
-            ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.billing_customer_id, ch.subscription_id,
+            ch.id, ch.app_id, ch.tilled_charge_id, ch.invoice_id, ch.ar_customer_id, ch.subscription_id,
             ch.status, ch.amount_cents, ch.currency, ch.charge_type, ch.reason, ch.reference_id,
             ch.service_date, ch.note, ch.metadata, ch.failure_code, ch.failure_message,
             ch.product_type, ch.quantity, ch.service_frequency, ch.weight_amount, ch.location_reference,
             ch.created_at, ch.updated_at
-        FROM billing_charges ch
-        INNER JOIN billing_customers c ON ch.billing_customer_id = c.id
+        FROM ar_charges ch
+        INNER JOIN ar_customers c ON ch.ar_customer_id = c.id
         WHERE ch.id = $1 AND c.app_id = $2
         "#,
     )
@@ -2122,7 +2122,7 @@ async fn create_refund(
     let total_refunded: Option<i64> = sqlx::query_scalar(
         r#"
         SELECT COALESCE(SUM(amount_cents), 0)
-        FROM billing_refunds
+        FROM ar_refunds
         WHERE charge_id = $1 AND app_id = $2 AND status IN ('pending', 'succeeded')
         "#,
     )
@@ -2160,20 +2160,20 @@ async fn create_refund(
     // Create pending refund record
     let refund = sqlx::query_as::<_, Refund>(
         r#"
-        INSERT INTO billing_refunds (
-            app_id, billing_customer_id, charge_id, tilled_charge_id,
+        INSERT INTO ar_refunds (
+            app_id, ar_customer_id, charge_id, tilled_charge_id,
             status, amount_cents, currency, reason, reference_id, note, metadata,
             created_at, updated_at
         )
         VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, NOW(), NOW())
         RETURNING
-            id, app_id, billing_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
+            id, app_id, ar_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
             status, amount_cents, currency, reason, reference_id, note, metadata,
             failure_code, failure_message, created_at, updated_at
         "#,
     )
     .bind(app_id)
-    .bind(charge.billing_customer_id)
+    .bind(charge.ar_customer_id)
     .bind(req.charge_id)
     .bind(&charge.tilled_charge_id)
     .bind(req.amount_cents)
@@ -2199,11 +2199,11 @@ async fn create_refund(
     // For now, we'll update status to succeeded
     let refund = sqlx::query_as::<_, Refund>(
         r#"
-        UPDATE billing_refunds
+        UPDATE ar_refunds
         SET status = 'succeeded', tilled_refund_id = $1, updated_at = NOW()
         WHERE id = $2
         RETURNING
-            id, app_id, billing_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
+            id, app_id, ar_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
             status, amount_cents, currency, reason, reference_id, note, metadata,
             failure_code, failure_message, created_at, updated_at
         "#,
@@ -2244,10 +2244,10 @@ async fn get_refund(
     let refund = sqlx::query_as::<_, Refund>(
         r#"
         SELECT
-            id, app_id, billing_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
+            id, app_id, ar_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
             status, amount_cents, currency, reason, reference_id, note, metadata,
             failure_code, failure_message, created_at, updated_at
-        FROM billing_refunds
+        FROM ar_refunds
         WHERE id = $1 AND app_id = $2
         "#,
     )
@@ -2290,10 +2290,10 @@ async fn list_refunds(
     let mut sql = String::from(
         r#"
         SELECT
-            id, app_id, billing_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
+            id, app_id, ar_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
             status, amount_cents, currency, reason, reference_id, note, metadata,
             failure_code, failure_message, created_at, updated_at
-        FROM billing_refunds
+        FROM ar_refunds
         WHERE app_id = $1
         "#,
     );
@@ -2304,7 +2304,7 @@ async fn list_refunds(
         bind_index += 1;
     }
     if query.customer_id.is_some() {
-        sql.push_str(&format!(" AND billing_customer_id = ${}", bind_index));
+        sql.push_str(&format!(" AND ar_customer_id = ${}", bind_index));
         bind_index += 1;
     }
     if query.status.is_some() {
@@ -2371,7 +2371,7 @@ async fn list_disputes(
             id, app_id, tilled_dispute_id, tilled_charge_id, charge_id,
             status, amount_cents, currency, reason, reason_code,
             evidence_due_by, opened_at, closed_at, created_at, updated_at
-        FROM billing_disputes
+        FROM ar_disputes
         WHERE app_id = $1
         "#,
     );
@@ -2434,7 +2434,7 @@ async fn get_dispute(
             id, app_id, tilled_dispute_id, tilled_charge_id, charge_id,
             status, amount_cents, currency, reason, reason_code,
             evidence_due_by, opened_at, closed_at, created_at, updated_at
-        FROM billing_disputes
+        FROM ar_disputes
         WHERE id = $1 AND app_id = $2
         "#,
     )
@@ -2478,7 +2478,7 @@ async fn submit_dispute_evidence(
             id, app_id, tilled_dispute_id, tilled_charge_id, charge_id,
             status, amount_cents, currency, reason, reason_code,
             evidence_due_by, opened_at, closed_at, created_at, updated_at
-        FROM billing_disputes
+        FROM ar_disputes
         WHERE id = $1 AND app_id = $2
         "#,
     )
@@ -2560,11 +2560,11 @@ async fn add_payment_method(
             metadata, update_source, updated_by, delinquent_since,
             grace_period_end, next_retry_at, retry_attempt_count,
             created_at, updated_at
-        FROM billing_customers
+        FROM ar_customers
         WHERE id = $1 AND app_id = $2
         "#,
     )
-    .bind(req.billing_customer_id)
+    .bind(req.ar_customer_id)
     .bind(app_id)
     .fetch_optional(&db)
     .await
@@ -2583,7 +2583,7 @@ async fn add_payment_method(
             StatusCode::NOT_FOUND,
             Json(ErrorResponse::new(
                 "not_found",
-                format!("Customer {} not found", req.billing_customer_id),
+                format!("Customer {} not found", req.ar_customer_id),
             )),
         )
     })?;
@@ -2592,11 +2592,11 @@ async fn add_payment_method(
     let existing = sqlx::query_as::<_, PaymentMethod>(
         r#"
         SELECT
-            id, app_id, billing_customer_id, tilled_payment_method_id,
+            id, app_id, ar_customer_id, tilled_payment_method_id,
             status, type, brand, last4, exp_month, exp_year,
             bank_name, bank_last4, is_default, metadata,
             deleted_at, created_at, updated_at
-        FROM billing_payment_methods
+        FROM ar_payment_methods
         WHERE tilled_payment_method_id = $1
         "#,
     )
@@ -2618,19 +2618,19 @@ async fn add_payment_method(
         // Update existing record (reactivate if deleted)
         sqlx::query_as::<_, PaymentMethod>(
             r#"
-            UPDATE billing_payment_methods
-            SET app_id = $1, billing_customer_id = $2, status = 'pending',
+            UPDATE ar_payment_methods
+            SET app_id = $1, ar_customer_id = $2, status = 'pending',
                 deleted_at = NULL, updated_at = NOW()
             WHERE tilled_payment_method_id = $3
             RETURNING
-                id, app_id, billing_customer_id, tilled_payment_method_id,
+                id, app_id, ar_customer_id, tilled_payment_method_id,
                 status, type, brand, last4, exp_month, exp_year,
                 bank_name, bank_last4, is_default, metadata,
                 deleted_at, created_at, updated_at
             "#,
         )
         .bind(app_id)
-        .bind(req.billing_customer_id)
+        .bind(req.ar_customer_id)
         .bind(&req.tilled_payment_method_id)
         .fetch_one(&db)
         .await
@@ -2648,20 +2648,20 @@ async fn add_payment_method(
         // Create new payment method record (local-first pattern)
         sqlx::query_as::<_, PaymentMethod>(
             r#"
-            INSERT INTO billing_payment_methods (
-                app_id, billing_customer_id, tilled_payment_method_id,
+            INSERT INTO ar_payment_methods (
+                app_id, ar_customer_id, tilled_payment_method_id,
                 type, status, is_default, metadata, created_at, updated_at
             )
             VALUES ($1, $2, $3, 'card', 'pending', FALSE, '{}', NOW(), NOW())
             RETURNING
-                id, app_id, billing_customer_id, tilled_payment_method_id,
+                id, app_id, ar_customer_id, tilled_payment_method_id,
                 status, type, brand, last4, exp_month, exp_year,
                 bank_name, bank_last4, is_default, metadata,
                 deleted_at, created_at, updated_at
             "#,
         )
         .bind(app_id)
-        .bind(req.billing_customer_id)
+        .bind(req.ar_customer_id)
         .bind(&req.tilled_payment_method_id)
         .fetch_one(&db)
         .await
@@ -2683,11 +2683,11 @@ async fn add_payment_method(
     // For now, mark as active immediately
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
         r#"
-        UPDATE billing_payment_methods
+        UPDATE ar_payment_methods
         SET status = 'active', updated_at = NOW()
         WHERE id = $1
         RETURNING
-            id, app_id, billing_customer_id, tilled_payment_method_id,
+            id, app_id, ar_customer_id, tilled_payment_method_id,
             status, type, brand, last4, exp_month, exp_year,
             bank_name, bank_last4, is_default, metadata,
             deleted_at, created_at, updated_at
@@ -2710,7 +2710,7 @@ async fn add_payment_method(
     tracing::info!(
         "Added payment method {} for customer {}",
         payment_method.id,
-        req.billing_customer_id
+        req.ar_customer_id
     );
 
     Ok((StatusCode::CREATED, Json(payment_method)))
@@ -2727,12 +2727,12 @@ async fn get_payment_method(
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
         r#"
         SELECT
-            pm.id, pm.app_id, pm.billing_customer_id, pm.tilled_payment_method_id,
+            pm.id, pm.app_id, pm.ar_customer_id, pm.tilled_payment_method_id,
             pm.status, pm.type, pm.brand, pm.last4, pm.exp_month, pm.exp_year,
             pm.bank_name, pm.bank_last4, pm.is_default, pm.metadata,
             pm.deleted_at, pm.created_at, pm.updated_at
-        FROM billing_payment_methods pm
-        INNER JOIN billing_customers c ON pm.billing_customer_id = c.id
+        FROM ar_payment_methods pm
+        INNER JOIN ar_customers c ON pm.ar_customer_id = c.id
         WHERE pm.id = $1 AND c.app_id = $2 AND pm.deleted_at IS NULL
         "#,
     )
@@ -2781,13 +2781,13 @@ async fn list_payment_methods(
             sqlx::query_as::<_, PaymentMethod>(
                 r#"
                 SELECT
-                    pm.id, pm.app_id, pm.billing_customer_id, pm.tilled_payment_method_id,
+                    pm.id, pm.app_id, pm.ar_customer_id, pm.tilled_payment_method_id,
                     pm.status, pm.type, pm.brand, pm.last4, pm.exp_month, pm.exp_year,
                     pm.bank_name, pm.bank_last4, pm.is_default, pm.metadata,
                     pm.deleted_at, pm.created_at, pm.updated_at
-                FROM billing_payment_methods pm
-                INNER JOIN billing_customers c ON pm.billing_customer_id = c.id
-                WHERE c.app_id = $1 AND pm.billing_customer_id = $2 AND pm.status = $3
+                FROM ar_payment_methods pm
+                INNER JOIN ar_customers c ON pm.ar_customer_id = c.id
+                WHERE c.app_id = $1 AND pm.ar_customer_id = $2 AND pm.status = $3
                     AND pm.deleted_at IS NULL
                 ORDER BY pm.is_default DESC, pm.created_at DESC
                 LIMIT $4 OFFSET $5
@@ -2806,13 +2806,13 @@ async fn list_payment_methods(
             sqlx::query_as::<_, PaymentMethod>(
                 r#"
                 SELECT
-                    pm.id, pm.app_id, pm.billing_customer_id, pm.tilled_payment_method_id,
+                    pm.id, pm.app_id, pm.ar_customer_id, pm.tilled_payment_method_id,
                     pm.status, pm.type, pm.brand, pm.last4, pm.exp_month, pm.exp_year,
                     pm.bank_name, pm.bank_last4, pm.is_default, pm.metadata,
                     pm.deleted_at, pm.created_at, pm.updated_at
-                FROM billing_payment_methods pm
-                INNER JOIN billing_customers c ON pm.billing_customer_id = c.id
-                WHERE c.app_id = $1 AND pm.billing_customer_id = $2 AND pm.deleted_at IS NULL
+                FROM ar_payment_methods pm
+                INNER JOIN ar_customers c ON pm.ar_customer_id = c.id
+                WHERE c.app_id = $1 AND pm.ar_customer_id = $2 AND pm.deleted_at IS NULL
                 ORDER BY pm.is_default DESC, pm.created_at DESC
                 LIMIT $3 OFFSET $4
                 "#,
@@ -2829,12 +2829,12 @@ async fn list_payment_methods(
             sqlx::query_as::<_, PaymentMethod>(
                 r#"
                 SELECT
-                    pm.id, pm.app_id, pm.billing_customer_id, pm.tilled_payment_method_id,
+                    pm.id, pm.app_id, pm.ar_customer_id, pm.tilled_payment_method_id,
                     pm.status, pm.type, pm.brand, pm.last4, pm.exp_month, pm.exp_year,
                     pm.bank_name, pm.bank_last4, pm.is_default, pm.metadata,
                     pm.deleted_at, pm.created_at, pm.updated_at
-                FROM billing_payment_methods pm
-                INNER JOIN billing_customers c ON pm.billing_customer_id = c.id
+                FROM ar_payment_methods pm
+                INNER JOIN ar_customers c ON pm.ar_customer_id = c.id
                 WHERE c.app_id = $1 AND pm.status = $2 AND pm.deleted_at IS NULL
                 ORDER BY pm.is_default DESC, pm.created_at DESC
                 LIMIT $3 OFFSET $4
@@ -2852,12 +2852,12 @@ async fn list_payment_methods(
             sqlx::query_as::<_, PaymentMethod>(
                 r#"
                 SELECT
-                    pm.id, pm.app_id, pm.billing_customer_id, pm.tilled_payment_method_id,
+                    pm.id, pm.app_id, pm.ar_customer_id, pm.tilled_payment_method_id,
                     pm.status, pm.type, pm.brand, pm.last4, pm.exp_month, pm.exp_year,
                     pm.bank_name, pm.bank_last4, pm.is_default, pm.metadata,
                     pm.deleted_at, pm.created_at, pm.updated_at
-                FROM billing_payment_methods pm
-                INNER JOIN billing_customers c ON pm.billing_customer_id = c.id
+                FROM ar_payment_methods pm
+                INNER JOIN ar_customers c ON pm.ar_customer_id = c.id
                 WHERE c.app_id = $1 AND pm.deleted_at IS NULL
                 ORDER BY pm.is_default DESC, pm.created_at DESC
                 LIMIT $2 OFFSET $3
@@ -2897,12 +2897,12 @@ async fn update_payment_method(
     let existing = sqlx::query_as::<_, PaymentMethod>(
         r#"
         SELECT
-            pm.id, pm.app_id, pm.billing_customer_id, pm.tilled_payment_method_id,
+            pm.id, pm.app_id, pm.ar_customer_id, pm.tilled_payment_method_id,
             pm.status, pm.type, pm.brand, pm.last4, pm.exp_month, pm.exp_year,
             pm.bank_name, pm.bank_last4, pm.is_default, pm.metadata,
             pm.deleted_at, pm.created_at, pm.updated_at
-        FROM billing_payment_methods pm
-        INNER JOIN billing_customers c ON pm.billing_customer_id = c.id
+        FROM ar_payment_methods pm
+        INNER JOIN ar_customers c ON pm.ar_customer_id = c.id
         WHERE pm.id = $1 AND c.app_id = $2 AND pm.deleted_at IS NULL
         "#,
     )
@@ -2946,11 +2946,11 @@ async fn update_payment_method(
 
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
         r#"
-        UPDATE billing_payment_methods
+        UPDATE ar_payment_methods
         SET metadata = $1, updated_at = NOW()
         WHERE id = $2
         RETURNING
-            id, app_id, billing_customer_id, tilled_payment_method_id,
+            id, app_id, ar_customer_id, tilled_payment_method_id,
             status, type, brand, last4, exp_month, exp_year,
             bank_name, bank_last4, is_default, metadata,
             deleted_at, created_at, updated_at
@@ -2988,12 +2988,12 @@ async fn delete_payment_method(
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
         r#"
         SELECT
-            pm.id, pm.app_id, pm.billing_customer_id, pm.tilled_payment_method_id,
+            pm.id, pm.app_id, pm.ar_customer_id, pm.tilled_payment_method_id,
             pm.status, pm.type, pm.brand, pm.last4, pm.exp_month, pm.exp_year,
             pm.bank_name, pm.bank_last4, pm.is_default, pm.metadata,
             pm.deleted_at, pm.created_at, pm.updated_at
-        FROM billing_payment_methods pm
-        INNER JOIN billing_customers c ON pm.billing_customer_id = c.id
+        FROM ar_payment_methods pm
+        INNER JOIN ar_customers c ON pm.ar_customer_id = c.id
         WHERE pm.id = $1 AND c.app_id = $2 AND pm.deleted_at IS NULL
         "#,
     )
@@ -3028,7 +3028,7 @@ async fn delete_payment_method(
     // Soft delete the payment method
     sqlx::query(
         r#"
-        UPDATE billing_payment_methods
+        UPDATE ar_payment_methods
         SET deleted_at = NOW(), is_default = FALSE, updated_at = NOW()
         WHERE id = $1
         "#,
@@ -3051,12 +3051,12 @@ async fn delete_payment_method(
     if payment_method.is_default {
         sqlx::query(
             r#"
-            UPDATE billing_customers
+            UPDATE ar_customers
             SET default_payment_method_id = NULL, payment_method_type = NULL, updated_at = NOW()
             WHERE id = $1
             "#,
         )
-        .bind(payment_method.billing_customer_id)
+        .bind(payment_method.ar_customer_id)
         .execute(&db)
         .await
         .map_err(|e| {
@@ -3088,12 +3088,12 @@ async fn set_default_payment_method(
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
         r#"
         SELECT
-            pm.id, pm.app_id, pm.billing_customer_id, pm.tilled_payment_method_id,
+            pm.id, pm.app_id, pm.ar_customer_id, pm.tilled_payment_method_id,
             pm.status, pm.type, pm.brand, pm.last4, pm.exp_month, pm.exp_year,
             pm.bank_name, pm.bank_last4, pm.is_default, pm.metadata,
             pm.deleted_at, pm.created_at, pm.updated_at
-        FROM billing_payment_methods pm
-        INNER JOIN billing_customers c ON pm.billing_customer_id = c.id
+        FROM ar_payment_methods pm
+        INNER JOIN ar_customers c ON pm.ar_customer_id = c.id
         WHERE pm.id = $1 AND c.app_id = $2 AND pm.deleted_at IS NULL
         "#,
     )
@@ -3171,12 +3171,12 @@ async fn set_default_payment_method(
     // Clear all other defaults for this customer
     sqlx::query(
         r#"
-        UPDATE billing_payment_methods
+        UPDATE ar_payment_methods
         SET is_default = FALSE, updated_at = NOW()
-        WHERE billing_customer_id = $1 AND app_id = $2
+        WHERE ar_customer_id = $1 AND app_id = $2
         "#,
     )
-    .bind(payment_method.billing_customer_id)
+    .bind(payment_method.ar_customer_id)
     .bind(app_id)
     .execute(&mut *tx)
     .await
@@ -3194,11 +3194,11 @@ async fn set_default_payment_method(
     // Set this payment method as default
     let updated_pm = sqlx::query_as::<_, PaymentMethod>(
         r#"
-        UPDATE billing_payment_methods
+        UPDATE ar_payment_methods
         SET is_default = TRUE, updated_at = NOW()
         WHERE id = $1
         RETURNING
-            id, app_id, billing_customer_id, tilled_payment_method_id,
+            id, app_id, ar_customer_id, tilled_payment_method_id,
             status, type, brand, last4, exp_month, exp_year,
             bank_name, bank_last4, is_default, metadata,
             deleted_at, created_at, updated_at
@@ -3221,14 +3221,14 @@ async fn set_default_payment_method(
     // Update customer fast-path
     sqlx::query(
         r#"
-        UPDATE billing_customers
+        UPDATE ar_customers
         SET default_payment_method_id = $1, payment_method_type = $2, updated_at = NOW()
         WHERE id = $3
         "#,
     )
     .bind(&payment_method.tilled_payment_method_id)
     .bind(&payment_method.payment_type)
-    .bind(payment_method.billing_customer_id)
+    .bind(payment_method.ar_customer_id)
     .execute(&mut *tx)
     .await
     .map_err(|e| {
@@ -3257,7 +3257,7 @@ async fn set_default_payment_method(
     tracing::info!(
         "Set payment method {} as default for customer {}",
         id,
-        payment_method.billing_customer_id
+        payment_method.ar_customer_id
     );
 
     Ok(Json(updated_pm))
@@ -3373,7 +3373,7 @@ async fn process_customer_event(
 
     sqlx::query(
         r#"
-        INSERT INTO billing_customers (
+        INSERT INTO ar_customers (
             app_id, tilled_customer_id, email, name, status, metadata,
             retry_attempt_count, created_at, updated_at
         )
@@ -3420,7 +3420,7 @@ async fn process_payment_intent_event(
     // Update charge status
     sqlx::query(
         r#"
-        UPDATE billing_charges
+        UPDATE ar_charges
         SET status = $1, metadata = $2, updated_at = NOW()
         WHERE tilled_charge_id = $3 AND app_id = $4
         "#,
@@ -3453,7 +3453,7 @@ async fn process_payment_method_event(
         // Soft delete payment method
         sqlx::query(
             r#"
-            UPDATE billing_payment_methods
+            UPDATE ar_payment_methods
             SET status = 'inactive', deleted_at = NOW(), updated_at = NOW()
             WHERE tilled_payment_method_id = $1 AND app_id = $2
             "#,
@@ -3491,7 +3491,7 @@ async fn process_subscription_event(
     // Update subscription status
     sqlx::query(
         r#"
-        UPDATE billing_subscriptions
+        UPDATE ar_subscriptions
         SET status = $1, metadata = $2, updated_at = NOW()
         WHERE tilled_subscription_id = $3 AND app_id = $4
         "#,
@@ -3529,7 +3529,7 @@ async fn process_charge_event(
 
     sqlx::query(
         r#"
-        UPDATE billing_charges
+        UPDATE ar_charges
         SET status = $1, metadata = $2, updated_at = NOW()
         WHERE tilled_charge_id = $3 AND app_id = $4
         "#,
@@ -3567,7 +3567,7 @@ async fn process_invoice_event(
 
     sqlx::query(
         r#"
-        UPDATE billing_invoices
+        UPDATE ar_invoices
         SET status = $1, metadata = $2, updated_at = NOW()
         WHERE tilled_invoice_id = $3 AND app_id = $4
         "#,
@@ -3643,7 +3643,7 @@ async fn receive_tilled_webhook(
     // Check for duplicate event (idempotency)
     let existing = sqlx::query_scalar::<_, i32>(
         r#"
-        SELECT id FROM billing_webhooks
+        SELECT id FROM ar_webhooks
         WHERE event_id = $1 AND app_id = $2
         "#,
     )
@@ -3671,7 +3671,7 @@ async fn receive_tilled_webhook(
     // Store webhook in database (status: received)
     let webhook_id = sqlx::query_scalar::<_, i32>(
         r#"
-        INSERT INTO billing_webhooks (
+        INSERT INTO ar_webhooks (
             app_id, event_id, event_type, status, payload, attempt_count, received_at
         )
         VALUES ($1, $2, $3, 'received', $4, 1, NOW())
@@ -3699,7 +3699,7 @@ async fn receive_tilled_webhook(
     // Update status to processing
     sqlx::query(
         r#"
-        UPDATE billing_webhooks
+        UPDATE ar_webhooks
         SET status = 'processing', last_attempt_at = NOW()
         WHERE id = $1
         "#,
@@ -3724,7 +3724,7 @@ async fn receive_tilled_webhook(
             // Mark as processed
             sqlx::query(
                 r#"
-                UPDATE billing_webhooks
+                UPDATE ar_webhooks
                 SET status = 'processed', processed_at = NOW()
                 WHERE id = $1
                 "#,
@@ -3740,7 +3740,7 @@ async fn receive_tilled_webhook(
             // Mark as failed
             sqlx::query(
                 r#"
-                UPDATE billing_webhooks
+                UPDATE ar_webhooks
                 SET status = 'failed', error = $1, error_code = 'processing_error'
                 WHERE id = $2
                 "#,
@@ -3777,7 +3777,7 @@ async fn list_webhooks(
             id, app_id, event_id, event_type, status, error, payload,
             attempt_count, last_attempt_at, next_attempt_at, dead_at,
             error_code, received_at, processed_at
-        FROM billing_webhooks
+        FROM ar_webhooks
         WHERE app_id = $1
         "#,
     );
@@ -3841,7 +3841,7 @@ async fn get_webhook(
             id, app_id, event_id, event_type, status, error, payload,
             attempt_count, last_attempt_at, next_attempt_at, dead_at,
             error_code, received_at, processed_at
-        FROM billing_webhooks
+        FROM ar_webhooks
         WHERE id = $1 AND app_id = $2
         "#,
     )
@@ -3885,7 +3885,7 @@ async fn replay_webhook(
             id, app_id, event_id, event_type, status, error, payload,
             attempt_count, last_attempt_at, next_attempt_at, dead_at,
             error_code, received_at, processed_at
-        FROM billing_webhooks
+        FROM ar_webhooks
         WHERE id = $1 AND app_id = $2
         "#,
     )
@@ -3945,7 +3945,7 @@ async fn replay_webhook(
     // Update status to processing
     sqlx::query(
         r#"
-        UPDATE billing_webhooks
+        UPDATE ar_webhooks
         SET status = 'processing', last_attempt_at = NOW(), attempt_count = attempt_count + 1
         WHERE id = $1
         "#,
@@ -3969,7 +3969,7 @@ async fn replay_webhook(
         Ok(_) => {
             sqlx::query(
                 r#"
-                UPDATE billing_webhooks
+                UPDATE ar_webhooks
                 SET status = 'processed', processed_at = NOW(), error = NULL, error_code = NULL
                 WHERE id = $1
                 "#,
@@ -3985,7 +3985,7 @@ async fn replay_webhook(
         Err(e) => {
             sqlx::query(
                 r#"
-                UPDATE billing_webhooks
+                UPDATE ar_webhooks
                 SET status = 'failed', error = $1, error_code = 'processing_error'
                 WHERE id = $2
                 "#,
@@ -4022,7 +4022,7 @@ async fn list_events(
 
     // Build dynamic query based on filters
     let mut sql = String::from(
-        "SELECT id, app_id, event_type, source, entity_type, entity_id, payload, created_at FROM billing_events WHERE app_id = $1",
+        "SELECT id, app_id, event_type, source, entity_type, entity_id, payload, created_at FROM ar_events WHERE app_id = $1",
     );
     let mut param_count = 1;
     let mut conditions = Vec::new();
@@ -4110,7 +4110,7 @@ async fn get_event(
     let event = sqlx::query_as::<_, Event>(
         r#"
         SELECT id, app_id, event_type, source, entity_type, entity_id, payload, created_at
-        FROM billing_events
+        FROM ar_events
         WHERE id = $1 AND app_id = $2
         "#,
     )

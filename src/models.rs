@@ -2,7 +2,7 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
-/// Customer record from billing_customers table
+/// Customer record from ar_customers table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Customer {
     pub id: i32,
@@ -68,7 +68,7 @@ impl ErrorResponse {
 
 /// Subscription status enum
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(type_name = "billing_subscriptions_status", rename_all = "snake_case")]
+#[sqlx(type_name = "ar_subscriptions_status", rename_all = "snake_case")]
 #[serde(rename_all = "snake_case")]
 pub enum SubscriptionStatus {
     Incomplete,
@@ -83,7 +83,7 @@ pub enum SubscriptionStatus {
 
 /// Subscription interval enum
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
-#[sqlx(type_name = "billing_subscriptions_interval", rename_all = "lowercase")]
+#[sqlx(type_name = "ar_subscriptions_interval", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum SubscriptionInterval {
     Day,
@@ -92,12 +92,12 @@ pub enum SubscriptionInterval {
     Year,
 }
 
-/// Subscription record from billing_subscriptions table
+/// Subscription record from ar_subscriptions table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Subscription {
     pub id: i32,
     pub app_id: String,
-    pub billing_customer_id: i32,
+    pub ar_customer_id: i32,
     pub tilled_subscription_id: String,
     pub plan_id: String,
     pub plan_name: String,
@@ -124,7 +124,7 @@ pub struct Subscription {
 /// Request body for creating a subscription
 #[derive(Debug, Deserialize)]
 pub struct CreateSubscriptionRequest {
-    pub billing_customer_id: i32,
+    pub ar_customer_id: i32,
     pub payment_method_id: String,
     pub plan_id: String,
     pub plan_name: String,
@@ -176,13 +176,13 @@ impl InvoiceStatus {
     pub const UNCOLLECTIBLE: &'static str = "uncollectible";
 }
 
-/// Invoice record from billing_invoices table
+/// Invoice record from ar_invoices table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Invoice {
     pub id: i32,
     pub app_id: String,
     pub tilled_invoice_id: String,
-    pub billing_customer_id: i32,
+    pub ar_customer_id: i32,
     pub subscription_id: Option<i32>,
     pub status: String,
     pub amount_cents: i32,
@@ -202,7 +202,7 @@ pub struct Invoice {
 /// Request body for creating an invoice
 #[derive(Debug, Deserialize)]
 pub struct CreateInvoiceRequest {
-    pub billing_customer_id: i32,
+    pub ar_customer_id: i32,
     pub subscription_id: Option<i32>,
     pub status: Option<String>,
     pub amount_cents: i32,
@@ -258,14 +258,14 @@ impl ChargeStatus {
     pub const CAPTURED: &'static str = "captured";
 }
 
-/// Charge record from billing_charges table
+/// Charge record from ar_charges table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Charge {
     pub id: i32,
     pub app_id: String,
     pub tilled_charge_id: Option<String>,
     pub invoice_id: Option<i32>,
-    pub billing_customer_id: i32,
+    pub ar_customer_id: i32,
     pub subscription_id: Option<i32>,
     pub status: String,
     pub amount_cents: i32,
@@ -290,7 +290,7 @@ pub struct Charge {
 /// Request body for creating a charge
 #[derive(Debug, Deserialize)]
 pub struct CreateChargeRequest {
-    pub billing_customer_id: i32,
+    pub ar_customer_id: i32,
     pub amount_cents: i32,
     pub currency: Option<String>,
     pub charge_type: Option<String>,
@@ -321,12 +321,12 @@ pub struct ListChargesQuery {
 // REFUND MODELS
 // ============================================================================
 
-/// Refund record from billing_refunds table
+/// Refund record from ar_refunds table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Refund {
     pub id: i32,
     pub app_id: String,
-    pub billing_customer_id: i32,
+    pub ar_customer_id: i32,
     pub charge_id: i32,
     pub tilled_refund_id: Option<String>,
     pub tilled_charge_id: Option<String>,
@@ -369,7 +369,7 @@ pub struct ListRefundsQuery {
 // DISPUTE MODELS
 // ============================================================================
 
-/// Dispute record from billing_disputes table
+/// Dispute record from ar_disputes table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Dispute {
     pub id: i32,
@@ -408,12 +408,12 @@ pub struct ListDisputesQuery {
 // PAYMENT METHOD MODELS
 // ============================================================================
 
-/// Payment method record from billing_payment_methods table
+/// Payment method record from ar_payment_methods table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PaymentMethod {
     pub id: i32,
     pub app_id: String,
-    pub billing_customer_id: i32,
+    pub ar_customer_id: i32,
     pub tilled_payment_method_id: String,
     pub status: String, // active, pending, failed
     #[serde(rename = "type")]
@@ -434,7 +434,7 @@ pub struct PaymentMethod {
 /// Request body for adding a payment method
 #[derive(Debug, Deserialize)]
 pub struct AddPaymentMethodRequest {
-    pub billing_customer_id: i32,
+    pub ar_customer_id: i32,
     pub tilled_payment_method_id: String,
 }
 
@@ -463,9 +463,9 @@ pub struct ListPaymentMethodsQuery {
 // WEBHOOK MODELS
 // ============================================================================
 
-/// Webhook status enum (matches billing_webhooks_status in schema)
+/// Webhook status enum (matches ar_webhooks_status in schema)
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq)]
-#[sqlx(type_name = "billing_webhooks_status", rename_all = "lowercase")]
+#[sqlx(type_name = "ar_webhooks_status", rename_all = "lowercase")]
 #[serde(rename_all = "lowercase")]
 pub enum WebhookStatus {
     Received,
@@ -474,7 +474,7 @@ pub enum WebhookStatus {
     Failed,
 }
 
-/// Webhook record from billing_webhooks table
+/// Webhook record from ar_webhooks table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Webhook {
     pub id: i32,
@@ -493,7 +493,7 @@ pub struct Webhook {
     pub processed_at: Option<NaiveDateTime>,
 }
 
-/// Webhook attempt record from billing_webhook_attempts table
+/// Webhook attempt record from ar_webhook_attempts table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct WebhookAttempt {
     pub id: i32,
@@ -538,7 +538,7 @@ pub struct ListWebhooksQuery {
 // IDEMPOTENCY MODELS
 // ============================================================================
 
-/// Idempotency key record from billing_idempotency_keys table
+/// Idempotency key record from ar_idempotency_keys table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct IdempotencyKey {
     pub id: i32,
@@ -555,7 +555,7 @@ pub struct IdempotencyKey {
 // EVENT LOG MODELS
 // ============================================================================
 
-/// Event record from billing_events table
+/// Event record from ar_events table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Event {
     pub id: i32,
