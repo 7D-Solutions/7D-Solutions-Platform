@@ -643,3 +643,69 @@ async fn test_capture_charge_partial_amount() {
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
 }
+
+/// TEST 16: Capture charge with invalid amount (negative)
+#[tokio::test]
+#[serial]
+async fn test_capture_charge_invalid_amount() {
+    let pool = common::setup_pool().await;
+    let app = common::app(&pool);
+
+    let (customer_id, _, _) = common::seed_customer(&pool, APP_ID).await;
+    let charge_id = common::seed_charge(&pool, APP_ID, customer_id, 5000, "authorized").await;
+
+    // Try to capture with negative amount
+    let body = serde_json::json!({
+        "amount_cents": -100
+    });
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/api/ar/charges/{}/capture", charge_id))
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Should return validation error
+    assert_eq!(
+        response.status(),
+        StatusCode::BAD_REQUEST,
+        "Should return BAD_REQUEST for negative amount"
+    );
+
+    let json = common::body_json(response).await;
+    assert!(json["error"].is_string(), "Should have error message");
+
+    // Also test zero amount (create new app since oneshot consumes it)
+    let app2 = common::app(&pool);
+    let body_zero = serde_json::json!({
+        "amount_cents": 0
+    });
+
+    let response_zero = app2
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/api/ar/charges/{}/capture", charge_id))
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&body_zero).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Zero should also be invalid
+    assert_eq!(
+        response_zero.status(),
+        StatusCode::BAD_REQUEST,
+        "Should return BAD_REQUEST for zero amount"
+    );
+
+    common::cleanup_customers(&pool, &[customer_id]).await;
+    common::teardown_pool(pool).await;
+}

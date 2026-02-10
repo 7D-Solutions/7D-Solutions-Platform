@@ -2005,6 +2005,17 @@ async fn capture_charge(
     // Use provided amount or existing amount
     let capture_amount = req.amount_cents.unwrap_or(existing.amount_cents);
 
+    // Validate capture amount is positive
+    if capture_amount <= 0 {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::new(
+                "validation_error",
+                "Capture amount must be positive",
+            )),
+        ));
+    }
+
     // TODO: Integrate with Tilled API to capture the charge
     // For now, update status to succeeded (captured and processing)
 
