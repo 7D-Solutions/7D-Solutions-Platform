@@ -127,7 +127,7 @@ pub async fn check_idempotency(
     Ok(response)
 }
 
-/// Log an event to the billing_events table
+/// Log an event to the ar_events table
 pub async fn log_event(
     db: &PgPool,
     app_id: &str,
@@ -139,7 +139,7 @@ pub async fn log_event(
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
-        INSERT INTO billing_events
+        INSERT INTO ar_events
             (app_id, event_type, source, entity_type, entity_id, payload)
         VALUES ($1, $2, $3, $4, $5, $6)
         "#,
