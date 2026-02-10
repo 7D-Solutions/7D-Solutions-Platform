@@ -382,12 +382,12 @@ model billing_invoices {
   line_item_details    Json?     // Details about line items (products/services)
   compliance_codes     Json?     // Generic compliance/regulation codes
 
-  @@index([app_id], map: "idx_app_id")
-  @@index([billing_customer_id], map: "idx_billing_customer_id")
-  @@index([subscription_id], map: "idx_subscription_id")
-  @@index([status], map: "idx_status")
-  @@index([due_at], map: "idx_due_at")
-  @@index([app_id, status, due_at], map: "idx_app_status_due_at")
+  @@index([app_id], map: "ar_invoices_app_id")
+  @@index([billing_customer_id], map: "ar_invoices_customer_id")
+  @@index([subscription_id], map: "ar_invoices_subscription_id")
+  @@index([status], map: "ar_invoices_status")
+  @@index([due_at], map: "ar_invoices_due_at")
+  @@index([app_id, status, due_at], map: "ar_invoices_app_status_due_at")
 }
 
 /// Charge/payment records from Tilled
@@ -430,14 +430,14 @@ model billing_charges {
   billing_discount_applications billing_discount_applications[]
 
   @@unique([app_id, reference_id], map: "unique_app_reference_id")
-  @@index([app_id], map: "idx_app_id")
-  @@index([billing_customer_id], map: "idx_billing_customer_id")
-  @@index([subscription_id], map: "idx_subscription_id")
-  @@index([status], map: "idx_status")
-  @@index([charge_type], map: "idx_charge_type")
-  @@index([reason], map: "idx_reason")
-  @@index([service_date], map: "idx_service_date")
-  @@index([app_id, created_at], map: "idx_app_created_at")
+  @@index([app_id], map: "ar_charges_app_id")
+  @@index([billing_customer_id], map: "ar_charges_customer_id")
+  @@index([subscription_id], map: "ar_charges_subscription_id")
+  @@index([status], map: "ar_charges_status")
+  @@index([charge_type], map: "ar_charges_charge_type")
+  @@index([reason], map: "ar_charges_reason")
+  @@index([service_date], map: "ar_charges_service_date")
+  @@index([app_id, created_at], map: "ar_charges_app_created_at")
 }
 
 /// Refund records from Tilled
@@ -464,10 +464,10 @@ model billing_refunds {
 
   @@unique([app_id, reference_id], map: "unique_refund_app_reference_id")
   @@unique([tilled_refund_id, app_id], map: "tilled_refund_id_app_id")
-  @@index([app_id], map: "idx_app_id")
-  @@index([billing_customer_id], map: "idx_billing_customer_id")
-  @@index([charge_id], map: "idx_charge_id")
-  @@index([status], map: "idx_status")
+  @@index([app_id], map: "ar_refunds_app_id")
+  @@index([billing_customer_id], map: "ar_refunds_customer_id")
+  @@index([charge_id], map: "ar_refunds_charge_id")
+  @@index([status], map: "ar_refunds_status")
 }
 
 /// Dispute/chargeback records from Tilled
@@ -490,10 +490,10 @@ model billing_disputes {
   charge            billing_charges? @relation(fields: [charge_id], references: [id], onDelete: SetNull)
 
   @@unique([tilled_dispute_id, app_id], map: "tilled_dispute_id_app_id")
-  @@index([app_id], map: "idx_app_id")
-  @@index([app_id, status], map: "idx_app_status")
-  @@index([charge_id], map: "idx_charge_id")
-  @@index([status], map: "idx_status")
+  @@index([app_id], map: "ar_disputes_app_id")
+  @@index([app_id, status], map: "ar_disputes_app_status")
+  @@index([charge_id], map: "ar_disputes_charge_id")
+  @@index([status], map: "ar_disputes_status")
 }
 
 // ===========================================================
