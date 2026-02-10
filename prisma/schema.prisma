@@ -269,8 +269,8 @@ model billing_plans {
   updated_at     DateTime @updatedAt @db.Timestamp(0)
 
   @@unique([app_id, plan_id], map: "unique_app_plan_id")
-  @@index([app_id], map: "idx_app_id")
-  @@index([active], map: "idx_active")
+  @@index([app_id], map: "ar_plans_app_id")
+  @@index([active], map: "ar_plans_active")
 }
 
 /// Coupon/discount codes
@@ -307,9 +307,9 @@ model billing_coupons {
   billing_discount_applications billing_discount_applications[]
 
   @@unique([app_id, code], map: "unique_app_code")
-  @@index([app_id], map: "idx_app_id")
-  @@index([active], map: "idx_active")
-  @@index([redeem_by], map: "idx_redeem_by")
+  @@index([app_id], map: "ar_coupons_app_id")
+  @@index([active], map: "ar_coupons_active")
+  @@index([redeem_by], map: "ar_coupons_redeem_by")
 }
 
 /// Add-ons that can be attached to subscriptions
@@ -328,8 +328,8 @@ model billing_addons {
   billing_subscription_addons billing_subscription_addons[]
 
   @@unique([app_id, addon_id], map: "unique_app_addon_id")
-  @@index([app_id], map: "idx_app_id")
-  @@index([active], map: "idx_active")
+  @@index([app_id], map: "ar_addons_app_id")
+  @@index([active], map: "ar_addons_active")
 }
 
 /// Join table for subscription add-ons
@@ -345,8 +345,8 @@ model billing_subscription_addons {
   addon           billing_addons        @relation(fields: [addon_id], references: [id], onDelete: Restrict)
 
   @@unique([subscription_id, addon_id], map: "unique_subscription_addon")
-  @@index([app_id], map: "idx_app_id")
-  @@index([subscription_id], map: "idx_subscription_id")
+  @@index([app_id], map: "ar_subscription_addons_app_id")
+  @@index([subscription_id], map: "ar_subscription_addons_subscription_id")
 }
 
 // ===========================================================
@@ -516,8 +516,8 @@ model billing_tax_rates {
   billing_tax_calculations billing_tax_calculations[]
 
   @@unique([app_id, jurisdiction_code, tax_type, effective_date], map: "unique_tax_rate")
-  @@index([app_id, jurisdiction_code], map: "idx_app_jurisdiction")
-  @@index([effective_date], map: "idx_effective_date")
+  @@index([app_id, jurisdiction_code], map: "ar_tax_rates_app_jurisdiction")
+  @@index([effective_date], map: "ar_tax_rates_effective_date")
 }
 
 /// Tax calculation records linking to invoices and charges
@@ -538,9 +538,9 @@ model billing_tax_calculations {
   charge            billing_charges?  @relation(fields: [charge_id], references: [id], onDelete: Restrict)
   tax_rate          billing_tax_rates @relation(fields: [tax_rate_id], references: [id])
 
-  @@index([app_id, invoice_id], map: "idx_app_invoice")
-  @@index([app_id, charge_id], map: "idx_app_charge")
-  @@index([tax_rate_id], map: "idx_tax_rate")
+  @@index([app_id, invoice_id], map: "ar_tax_calculations_app_invoice")
+  @@index([app_id, charge_id], map: "ar_tax_calculations_app_charge")
+  @@index([tax_rate_id], map: "ar_tax_calculations_tax_rate")
 }
 
 // ===========================================================
@@ -571,11 +571,11 @@ model billing_discount_applications {
   coupon            billing_coupons?  @relation(fields: [coupon_id], references: [id], onDelete: Restrict)
   customer          billing_customers? @relation(fields: [customer_id], references: [id], onDelete: Restrict)
 
-  @@index([app_id, invoice_id])
-  @@index([app_id, charge_id])
-  @@index([app_id, coupon_id])
-  @@index([app_id, customer_id])
-  @@index([applied_at])
+  @@index([app_id, invoice_id], map: "ar_discount_applications_app_invoice")
+  @@index([app_id, charge_id], map: "ar_discount_applications_app_charge")
+  @@index([app_id, coupon_id], map: "ar_discount_applications_app_coupon")
+  @@index([app_id, customer_id], map: "ar_discount_applications_app_customer")
+  @@index([applied_at], map: "ar_discount_applications_applied_at")
 }
 
 // ===========================================================
@@ -599,10 +599,10 @@ model billing_metered_usage {
   customer          billing_customers      @relation(fields: [customer_id], references: [id], onDelete: Restrict)
   subscription      billing_subscriptions? @relation(fields: [subscription_id], references: [id], onDelete: Restrict)
 
-  @@index([app_id, customer_id])
-  @@index([app_id, subscription_id])
-  @@index([period_start, period_end])
-  @@index([billed_at])
+  @@index([app_id, customer_id], map: "ar_metered_usage_app_customer")
+  @@index([app_id, subscription_id], map: "ar_metered_usage_app_subscription")
+  @@index([period_start, period_end], map: "ar_metered_usage_period")
+  @@index([billed_at], map: "ar_metered_usage_billed_at")
 }
 
 // ===========================================================
@@ -620,7 +620,7 @@ model billing_dunning_config {
   updated_at           DateTime @updatedAt @db.Timestamp(0)
 
   @@unique([app_id], map: "unique_app_dunning_config")
-  @@index([app_id], map: "idx_app_id")
+  @@index([app_id], map: "ar_dunning_config_app_id")
 }
 
 // ===========================================================
@@ -642,6 +642,6 @@ model billing_invoice_line_items {
 
   invoice           billing_invoices @relation(fields: [invoice_id], references: [id], onDelete: Restrict)
 
-  @@index([app_id, invoice_id])
-  @@index([line_item_type])
+  @@index([app_id, invoice_id], map: "ar_invoice_line_items_app_invoice")
+  @@index([line_item_type], map: "ar_invoice_line_items_line_item_type")
 }
