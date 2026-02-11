@@ -36,3 +36,11 @@ pids/
 
 # bv (beads viewer) local config and caches
 .bv/
+
+# AgentCore runtime data
+.beads/
+archive/
+review-for-delete/
+panes/*.identity
+panes/*.lock
+panes/.*.lock
