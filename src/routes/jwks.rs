@@ -1,4 +1,4 @@
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine as _;
 use rsa::pkcs8::DecodePublicKey;
@@ -30,7 +30,7 @@ struct Jwk {
     e: String,
 }
 
-pub async fn jwks(State(state): State<Arc<JwksState>>) -> Result<Json<Jwks>, (StatusCode, String)> {
+pub async fn jwks(State(state): State<Arc<JwksState>>) -> Result<impl IntoResponse, (StatusCode, String)> {
     let public_pem = state.jwt.public_key_pem();
 
     let pubkey = RsaPublicKey::from_public_key_pem(&public_pem)
