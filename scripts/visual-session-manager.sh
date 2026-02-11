@@ -21,6 +21,41 @@ BOLD='\033[1m'
 # Create state directory for session resurrection
 mkdir -p "$STATE_DIR"
 
+# Ensure mail server is running
+ensure_mail_server() {
+    local MCP_AGENT_MAIL_DIR="${MCP_AGENT_MAIL_DIR:-$HOME/mcp_agent_mail}"
+    local PIDS_DIR="$PROJECT_ROOT/pids"
+    local PID_FILE="$PIDS_DIR/mail-server.pid"
+
+    # Check if mail server directory exists
+    if [ ! -d "$MCP_AGENT_MAIL_DIR" ]; then
+        echo -e "${YELLOW}⚠️  Mail server not installed at: $MCP_AGENT_MAIL_DIR${NC}" >&2
+        echo -e "${YELLOW}   Agents will not be able to register automatically${NC}" >&2
+        return 1
+    fi
+
+    # Check if already running
+    if [ -f "$PID_FILE" ]; then
+        local PID=$(cat "$PID_FILE")
+        if ps -p "$PID" > /dev/null 2>&1; then
+            return 0  # Already running
+        else
+            rm -f "$PID_FILE"
+        fi
+    fi
+
+    # Start mail server if available
+    if [ -f "$SCRIPT_DIR/start-mail-server.sh" ]; then
+        echo -e "${CYAN}Starting agent mail server...${NC}"
+        "$SCRIPT_DIR/start-mail-server.sh" >/dev/null 2>&1 || true
+    elif [ -f "$PROJECT_ROOT/../AgentCore/flywheel_tools/scripts/adapters/start-mail-server.sh" ]; then
+        echo -e "${CYAN}Starting agent mail server...${NC}"
+        "$PROJECT_ROOT/../AgentCore/flywheel_tools/scripts/adapters/start-mail-server.sh" >/dev/null 2>&1 || true
+    fi
+
+    return 0
+}
+
 # Check if fzf is installed
 check_fzf() {
     if ! command -v fzf &> /dev/null; then
@@ -129,6 +164,8 @@ resurrect_session() {
 
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}✓ Resurrected: $session_name${NC}"
+        # Ensure mail server is running for agent registration
+        ensure_mail_server
         # Sync beads workflow to the project
         if [ -n "$project_path" ] && [ -d "$project_path" ]; then
             "$SCRIPT_DIR/sync-beads-to-project.sh" "$project_path" 2>/dev/null || true
@@ -676,6 +713,9 @@ attach_sessions() {
         return
     fi
 
+    # Ensure mail server is running for agent registration
+    ensure_mail_server
+
     # Sync beads workflow to each session's project
     echo ""
     echo -e "${CYAN}Syncing beads workflow to projects...${NC}"
@@ -905,6 +945,9 @@ smart_start() {
     echo -e "${CYAN}Syncing beads workflow...${NC}"
     "$SCRIPT_DIR/sync-beads-to-project.sh" "$project_path" 2>/dev/null || true
     echo ""
+
+    # Ensure mail server is running for agent registration
+    ensure_mail_server
 
     # Step 2: Analyze bead queue for the selected project
     echo -e "${CYAN}Analyzing bead queue...${NC}"

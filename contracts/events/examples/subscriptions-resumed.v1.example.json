@@ -1,0 +1,17 @@
+{
+  "event_id": "01HPQZP8F3N6TXYW5Q2K9VB4D7P",
+  "occurred_at": "2024-02-20T14:20:15.000Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "subscriptions",
+  "source_version": "0.1.0",
+  "correlation_id": "cor_01HPQZP7M2P9KY3W6V5R8XJ4N2T",
+  "causation_id": "cmd_01HPQZP7K8X3VT2N9M6P5Q4R7W8",
+  "payload": {
+    "subscription_id": "sub_01HPQZL8F2M5N7P9Q1R3T4V6W9D",
+    "ar_customer_id": "cus_01HPQW8Z5N7P9Q2R4T6V8W1X3Y",
+    "resumed_at": "2024-02-20T14:20:15.000Z",
+    "next_bill_date": "2024-03-20",
+    "status": "active",
+    "previous_status": "paused"
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "event_id": "01HPQZR8F3N6TXYW5Q2K9VB4D7Q",
+  "occurred_at": "2024-03-11T02:00:00.000Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "subscriptions",
+  "source_version": "0.1.0",
+  "correlation_id": "cor_01HPQZR7M2P9KY3W6V5R8XJ4N2T",
+  "causation_id": "cmd_01HPQZR7K8X3VT2N9M6P5Q4R7W8",
+  "payload": {
+    "bill_run_id": "br_01HPQZR8F2M5N7P9Q1R3T4V6W9E",
+    "execution_date": "2024-03-11",
+    "subscriptions_processed": 150,
+    "invoices_created": 148,
+    "failures": 2,
+    "execution_time": "2024-03-11T02:05:32.456Z",
+    "subscription_ids": [
+      "sub_01HPQZL8F2M5N7P9Q1R3T4V6W9D",
+      "sub_02HPQZL8F2M5N7P9Q1R3T4V6W9E"
+    ],
+    "failed_subscription_ids": [
+      "sub_99HPQZL8F2M5N7P9Q1R3T4V6W9F"
+    ]
+  }
+}

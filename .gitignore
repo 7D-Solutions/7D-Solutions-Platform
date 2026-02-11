@@ -44,3 +44,4 @@ review-for-delete/
 panes/*.identity
 panes/*.lock
 panes/.*.lock
+.no-clear

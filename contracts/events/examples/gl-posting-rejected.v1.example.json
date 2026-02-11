@@ -1,0 +1,12 @@
+{
+  "event_id": "01HPQZX8F3N6TXYW5Q2K9VB4D7T",
+  "occurred_at": "2024-02-11T16:05:12.567Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "correlation_id": "01HPQZX7K8X3VT2N9M6P5Q4R7W9",
+  "causation_id": "01HPQZX7K8X3VT2N9M6P5Q4R7W9",
+  "payload": {
+    "original_event_id": "01HPQZX7K8X3VT2N9M6P5Q4R7W9",
+    "reason_code": "UNBALANCED_ENTRY",
+    "reason_message": "Debit total (1000.00) does not equal credit total (999.00). Entry rejected."
+  }
+}

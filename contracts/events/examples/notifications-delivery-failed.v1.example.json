@@ -1,0 +1,18 @@
+{
+  "event_id": "01HPQZJ8F3N6TXYW5Q2K9VB4D7K",
+  "occurred_at": "2024-02-11T20:10:45.789Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "notifications",
+  "source_version": "0.1.0",
+  "correlation_id": "cor_01HPQZJ7M2P9KY3W6V5R8XJ4N2T",
+  "causation_id": "cmd_01HPQZJ7K8X3VT2N9M6P5Q4R7W8",
+  "payload": {
+    "notification_id": "ntf_01HPQZJ8F2M5N7P9Q1R3T4V6W9C",
+    "channel": "sms",
+    "status": "failed",
+    "to": "+15555551234",
+    "failure_code": "invalid_phone_number",
+    "failure_message": "The phone number is not valid.",
+    "attempts": 3
+  }
+}

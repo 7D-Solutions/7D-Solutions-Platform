@@ -1,0 +1,20 @@
+{
+  "event_id": "01HPQZB8F3N6TXYW5Q2K9VB4D7F",
+  "occurred_at": "2024-02-11T18:32:10.456Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "payments",
+  "source_version": "0.1.0",
+  "correlation_id": "cor_01HPQZB7M2P9KY3W6V5R8XJ4N2T",
+  "causation_id": "cmd_01HPQZB7K8X3VT2N9M6P5Q4R7W8",
+  "payload": {
+    "payment_id": "pay_01HPQZB8F2M5N7P9Q1R3T4V6W8Y",
+    "invoice_id": "inv_01HPQW9K7J4M6N8P2R5T7V9W1Z",
+    "ar_customer_id": "cus_01HPQW8Z5N7P9Q2R4T6V8W1X3Z",
+    "amount_minor": 4999,
+    "currency": "USD",
+    "processor_payment_id": "pi_3MqKv4Fx8kD1vY2Q0K9VzB4E",
+    "failure_code": "insufficient_funds",
+    "failure_message": "Your card has insufficient funds.",
+    "attempts": 1
+  }
+}

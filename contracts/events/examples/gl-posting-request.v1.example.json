@@ -1,0 +1,36 @@
+{
+  "event_id": "01HPQZT8F3N6TXYW5Q2K9VB4D7R",
+  "occurred_at": "2024-02-11T16:00:00.000Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "ar",
+  "source_version": "0.1.0",
+  "correlation_id": "cor_01HPQZT7M2P9KY3W6V5R8XJ4N2T",
+  "causation_id": "inv_01HPQW9K7J4M6N8P2R5T7V9W1X",
+  "payload": {
+    "posting_date": "2024-02-11",
+    "currency": "USD",
+    "source_doc_type": "AR_INVOICE",
+    "source_doc_id": "inv_01HPQW9K7J4M6N8P2R5T7V9W1X",
+    "description": "Invoice for customer services - February 2024",
+    "lines": [
+      {
+        "account_ref": "1100",
+        "debit": 2599.00,
+        "credit": 0,
+        "memo": "Accounts Receivable - Customer invoice",
+        "dimensions": {
+          "customer_id": "cus_01HPQW8Z5N7P9Q2R4T6V8W1X3Y"
+        }
+      },
+      {
+        "account_ref": "4000",
+        "debit": 0,
+        "credit": 2599.00,
+        "memo": "Revenue - Professional services",
+        "dimensions": {
+          "customer_id": "cus_01HPQW8Z5N7P9Q2R4T6V8W1X3Y"
+        }
+      }
+    ]
+  }
+}

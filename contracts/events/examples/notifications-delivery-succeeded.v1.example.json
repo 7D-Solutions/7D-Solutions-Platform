@@ -1,0 +1,17 @@
+{
+  "event_id": "01HPQZH8F3N6TXYW5Q2K9VB4D7J",
+  "occurred_at": "2024-02-11T20:05:12.456Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "notifications",
+  "source_version": "0.1.0",
+  "correlation_id": "cor_01HPQZH7M2P9KY3W6V5R8XJ4N2T",
+  "causation_id": "cmd_01HPQZH7K8X3VT2N9M6P5Q4R7W8",
+  "payload": {
+    "notification_id": "ntf_01HPQZH8F2M5N7P9Q1R3T4V6W9B",
+    "channel": "email",
+    "status": "succeeded",
+    "to": "customer@example.com",
+    "provider_message_id": "msg_3MqLNxFx8kD1vY2Q0K9VzB4H",
+    "attempts": 1
+  }
+}

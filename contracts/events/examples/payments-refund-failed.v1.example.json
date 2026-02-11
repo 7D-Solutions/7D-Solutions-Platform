@@ -1,0 +1,18 @@
+{
+  "event_id": "01HPQZF8F3N6TXYW5Q2K9VB4D7H",
+  "occurred_at": "2024-02-11T19:20:35.123Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "payments",
+  "source_version": "0.1.0",
+  "correlation_id": "cor_01HPQZF7M2P9KY3W6V5R8XJ4N2T",
+  "causation_id": "cmd_01HPQZF7K8X3VT2N9M6P5Q4R7W8",
+  "payload": {
+    "refund_id": "ref_01HPQZF8F2M5N7P9Q1R3T4V6W9A",
+    "payment_id": "pay_01HPQZB8F2M5N7P9Q1R3T4V6W8Y",
+    "invoice_id": "inv_01HPQW9K7J4M6N8P2R5T7V9W1Z",
+    "amount_minor": 4999,
+    "currency": "USD",
+    "failure_code": "refund_failed",
+    "failure_message": "Refund could not be processed; original charge not found."
+  }
+}

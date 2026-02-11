@@ -4,7 +4,8 @@ members = [
   "modules/ar",
   "modules/subscriptions",
   "modules/payments",
-  "modules/notifications"
+  "modules/notifications",
+  "tools/contract-tests"
 ]
 
 # Workspace-level settings

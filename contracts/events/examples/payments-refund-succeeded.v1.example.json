@@ -1,0 +1,18 @@
+{
+  "event_id": "01HPQZD8F3N6TXYW5Q2K9VB4D7G",
+  "occurred_at": "2024-02-11T19:15:22.789Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "payments",
+  "source_version": "0.1.0",
+  "correlation_id": "cor_01HPQZD7M2P9KY3W6V5R8XJ4N2T",
+  "causation_id": "cmd_01HPQZD7K8X3VT2N9M6P5Q4R7W8",
+  "payload": {
+    "refund_id": "ref_01HPQZD8F2M5N7P9Q1R3T4V6W8Z",
+    "payment_id": "pay_01HPQZ8F2M5N7P9Q1R3T4V6W8X",
+    "invoice_id": "inv_01HPQW9K7J4M6N8P2R5T7V9W1X",
+    "amount_minor": 2599,
+    "currency": "USD",
+    "processor_refund_id": "re_3MqL5tFx8kD1vY2Q0K9VzB4F",
+    "reason": "customer_request"
+  }
+}

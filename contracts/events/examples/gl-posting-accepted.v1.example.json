@@ -1,0 +1,12 @@
+{
+  "event_id": "01HPQZV8F3N6TXYW5Q2K9VB4D7S",
+  "occurred_at": "2024-02-11T16:00:01.234Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "correlation_id": "01HPQZT8F3N6TXYW5Q2K9VB4D7R",
+  "causation_id": "01HPQZT8F3N6TXYW5Q2K9VB4D7R",
+  "payload": {
+    "original_event_id": "01HPQZT8F3N6TXYW5Q2K9VB4D7R",
+    "journal_entry_id": "je_01HPQZV8F2M5N7P9Q1R3T4V6W9F",
+    "posted_at": "2024-02-11T16:00:01.234Z"
+  }
+}
