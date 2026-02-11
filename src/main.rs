@@ -129,7 +129,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(metrics_state);
 
     let jwks_router = Router::new()
-        .route("/.well-known/jwks.json", get(routes::jwks::jwks))
+        .route("/.well-known/jwks.json", get(routes::jwks::jwks_handler))
         .with_state(jwks_state);
 
     let auth_router = routes::auth::router(auth_state);
