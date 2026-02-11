@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/payments-refund-failed.v1.json",
+  "title": "payments.refund.failed",
+  "description": "Event emitted when a refund fails",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "payments",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "refund_id",
+        "payment_id",
+        "invoice_id",
+        "amount_minor",
+        "currency",
+        "failure_code"
+      ],
+      "properties": {
+        "refund_id": {
+          "type": "string",
+          "description": "Internal refund identifier"
+        },
+        "payment_id": {
+          "type": "string",
+          "description": "Original payment identifier"
+        },
+        "invoice_id": {
+          "type": "string",
+          "description": "AR invoice reference"
+        },
+        "ar_customer_id": {
+          "type": "string",
+          "description": "AR customer reference"
+        },
+        "amount_minor": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Attempted refund amount in minor currency units"
+        },
+        "currency": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 3,
+          "pattern": "^[A-Z]{3}$",
+          "description": "ISO 4217 currency code"
+        },
+        "failure_code": {
+          "type": "string",
+          "description": "Processor-specific failure code"
+        },
+        "failure_message": {
+          "type": "string",
+          "description": "Human-readable failure reason"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

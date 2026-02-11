@@ -64,8 +64,8 @@ jobs:
       - name: Check VERSION and CHANGELOG exist
         run: |
           missing=()
-          
-          for module in platform/identity-auth modules/ar; do
+
+          for module in platform/identity-auth modules/ar modules/subscriptions modules/payments modules/notifications; do
             if [ ! -f "$module/VERSION" ]; then
               missing+=("$module/VERSION")
             fi
@@ -73,13 +73,13 @@ jobs:
               missing+=("$module/CHANGELOG.md")
             fi
           done
-          
+
           if [ ${#missing[@]} -gt 0 ]; then
             echo "ERROR: Missing required files:" >&2
             printf '%s\n' "${missing[@]}" >&2
             exit 1
           fi
-          
+
           echo "✓ All modules have VERSION and CHANGELOG.md"
 
   cross-module-boundary-guard:
@@ -178,22 +178,97 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Cache cargo registry
         uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-      
+
       - name: Cache cargo build
         uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-ar-${{ hashFiles('modules/ar/Cargo.lock') }}
-      
+
       - name: Run cargo check
         working-directory: modules/ar
+        run: cargo check --all-targets
+
+  build-subscriptions:
+    name: Build Subscriptions Module
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-subscriptions-${{ hashFiles('modules/subscriptions/Cargo.lock') }}
+
+      - name: Run cargo check
+        working-directory: modules/subscriptions
+        run: cargo check --all-targets
+
+  build-payments:
+    name: Build Payments Module
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-payments-${{ hashFiles('modules/payments/Cargo.lock') }}
+
+      - name: Run cargo check
+        working-directory: modules/payments
+        run: cargo check --all-targets
+
+  build-notifications:
+    name: Build Notifications Module
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-notifications-${{ hashFiles('modules/notifications/Cargo.lock') }}
+
+      - name: Run cargo check
+        working-directory: modules/notifications
         run: cargo check --all-targets

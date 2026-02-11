@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/notifications-delivery-failed.v1.json",
+  "title": "notifications.delivery.failed",
+  "description": "Event emitted when a notification delivery fails",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "notifications",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "notification_id",
+        "channel",
+        "status",
+        "failure_code"
+      ],
+      "properties": {
+        "notification_id": {
+          "type": "string",
+          "description": "Unique notification identifier"
+        },
+        "channel": {
+          "type": "string",
+          "enum": ["email", "sms", "webhook"],
+          "description": "Delivery channel attempted"
+        },
+        "to": {
+          "type": "string",
+          "description": "Recipient identifier (email, phone, or webhook URL)"
+        },
+        "template_id": {
+          "type": "string",
+          "description": "Template identifier (if used)"
+        },
+        "status": {
+          "type": "string",
+          "const": "failed",
+          "description": "Delivery status"
+        },
+        "failure_code": {
+          "type": "string",
+          "description": "Provider-specific failure code"
+        },
+        "failure_message": {
+          "type": "string",
+          "description": "Human-readable failure reason"
+        },
+        "attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Number of delivery attempts made before failure"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

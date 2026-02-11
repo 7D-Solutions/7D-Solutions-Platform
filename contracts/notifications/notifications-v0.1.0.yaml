@@ -1,0 +1,384 @@
+openapi: 3.0.3
+info:
+  title: Notifications API
+  version: 0.1.0
+  description: |
+    Notifications module delivers outbound communications via email, SMS, and webhooks.
+
+    **Ownership Boundaries:**
+    - Owns: templates, notification_preferences, outbox, delivery_attempts, provider_configs
+    - Does NOT own: financial logic, customer master data, invoice state
+
+    **Key Principles:**
+    - Never drives financial decisions
+    - No cross-module DB access
+    - Idempotent delivery on retry
+    - Event-driven consumption from AR, Payments, Subscriptions
+
+servers:
+  - url: https://notifications.7dsolutions.io
+    description: Production
+  - url: http://localhost:8089
+    description: Local development
+
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  module:
+                    type: string
+                    example: notifications
+                  version:
+                    type: string
+                    example: 0.1.0
+
+  /api/notifications/send:
+    post:
+      summary: Send notification
+      operationId: sendNotification
+      description: |
+        Request delivery of a notification via email, SMS, or webhook.
+        Delivery is asynchronous. Use GET /api/notifications/{id} to check status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendNotificationRequest'
+      responses:
+        '200':
+          description: Notification queued for delivery
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/notifications/{notification_id}:
+    get:
+      summary: Get notification status
+      operationId: getNotification
+      parameters:
+        - name: notification_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Notification identifier
+      responses:
+        '200':
+          description: Notification details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notification'
+        '404':
+          description: Notification not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/preferences:
+    get:
+      summary: Get notification preferences
+      operationId: getPreferences
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: user_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+        '404':
+          description: Preferences not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Update notification preferences
+      operationId: updatePreferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePreferencesRequest'
+      responses:
+        '200':
+          description: Preferences updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/templates:
+    get:
+      summary: List notification templates
+      operationId: listTemplates
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Template'
+
+    post:
+      summary: Create notification template
+      operationId: createTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTemplateRequest'
+      responses:
+        '200':
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Template'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    SendNotificationRequest:
+      type: object
+      required:
+        - tenant_id
+        - channel
+        - to
+      properties:
+        tenant_id:
+          type: string
+        channel:
+          type: string
+          enum: [email, sms, webhook]
+        to:
+          type: string
+          description: Recipient (email address, phone number, or webhook URL)
+        template_id:
+          type: string
+          description: Template identifier (optional)
+        subject:
+          type: string
+          description: Message subject (for email)
+        body:
+          type: string
+          description: Message body (plain text or template variables)
+        variables:
+          type: object
+          description: Template variable substitutions
+          additionalProperties:
+            type: string
+
+    NotificationResponse:
+      type: object
+      properties:
+        notification_id:
+          type: string
+        tenant_id:
+          type: string
+        channel:
+          type: string
+        status:
+          type: string
+          enum: [queued, sending, succeeded, failed]
+        created_at:
+          type: string
+          format: date-time
+
+    Notification:
+      type: object
+      properties:
+        notification_id:
+          type: string
+        tenant_id:
+          type: string
+        channel:
+          type: string
+          enum: [email, sms, webhook]
+        to:
+          type: string
+        status:
+          type: string
+          enum: [queued, sending, succeeded, failed]
+        failure_code:
+          type: string
+          description: Error code if failed
+        failure_message:
+          type: string
+          description: Error details if failed
+        attempts:
+          type: integer
+          description: Number of delivery attempts
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    NotificationPreferences:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+        email_enabled:
+          type: boolean
+          default: true
+        sms_enabled:
+          type: boolean
+          default: false
+        webhook_enabled:
+          type: boolean
+          default: false
+        email_address:
+          type: string
+        phone_number:
+          type: string
+
+    UpdatePreferencesRequest:
+      type: object
+      required:
+        - tenant_id
+        - user_id
+      properties:
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+        email_enabled:
+          type: boolean
+        sms_enabled:
+          type: boolean
+        webhook_enabled:
+          type: boolean
+        email_address:
+          type: string
+        phone_number:
+          type: string
+
+    Template:
+      type: object
+      properties:
+        template_id:
+          type: string
+        tenant_id:
+          type: string
+        name:
+          type: string
+        channel:
+          type: string
+          enum: [email, sms, webhook]
+        subject:
+          type: string
+        body:
+          type: string
+        variables:
+          type: array
+          items:
+            type: string
+          description: List of variable names used in template
+        created_at:
+          type: string
+          format: date-time
+
+    CreateTemplateRequest:
+      type: object
+      required:
+        - tenant_id
+        - name
+        - channel
+        - body
+      properties:
+        tenant_id:
+          type: string
+        name:
+          type: string
+        channel:
+          type: string
+          enum: [email, sms, webhook]
+        subject:
+          type: string
+        body:
+          type: string
+        variables:
+          type: array
+          items:
+            type: string
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error context (optional)

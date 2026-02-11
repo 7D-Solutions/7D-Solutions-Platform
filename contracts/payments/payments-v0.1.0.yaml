@@ -1,0 +1,271 @@
+openapi: 3.0.3
+info:
+  title: Payments API
+  version: 0.1.0
+  description: |
+    Payments module owns processor integrations and payment execution.
+
+    **Ownership Boundaries:**
+    - Owns: payment_intents, captures, refunds, payment_method_refs, processor webhooks
+    - Does NOT own: invoices, ledger entries, customer master data
+
+    **Key Principles:**
+    - Never mutates AR database
+    - Never stores raw card data (PCI-DSS scope minimization)
+    - All processor secrets encrypted at rest
+    - Idempotent webhook processing
+
+servers:
+  - url: https://payments.7dsolutions.io
+    description: Production
+  - url: http://localhost:8088
+    description: Local development
+
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  module:
+                    type: string
+                    example: payments
+                  version:
+                    type: string
+                    example: 0.1.0
+
+  /api/payment-methods:
+    post:
+      summary: Attach payment method
+      operationId: attachPaymentMethod
+      description: |
+        Attach a payment method to a customer in the payment processor.
+        Returns a processor-specific payment_method_ref (no raw card data stored).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AttachPaymentMethodRequest'
+      responses:
+        '200':
+          description: Payment method attached successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethodResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/payments/{payment_id}:
+    get:
+      summary: Get payment status
+      operationId: getPayment
+      parameters:
+        - name: payment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Internal payment identifier
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '404':
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/refunds:
+    post:
+      summary: Request refund
+      operationId: createRefund
+      description: |
+        Request a refund by invoice_id or payment_id.
+        Refund will be processed asynchronously.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRefundRequest'
+      responses:
+        '200':
+          description: Refund request accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Payment not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    AttachPaymentMethodRequest:
+      type: object
+      required:
+        - tenant_id
+        - ar_customer_id
+        - processor_token
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        ar_customer_id:
+          type: string
+          description: AR customer ID reference
+        processor_token:
+          type: string
+          description: Token from processor SDK (e.g., Stripe token, Tilled payment_method_id)
+
+    PaymentMethodResponse:
+      type: object
+      properties:
+        payment_method_ref:
+          type: string
+          description: Processor-specific payment method reference
+        tenant_id:
+          type: string
+        ar_customer_id:
+          type: string
+        last4:
+          type: string
+          description: Last 4 digits of card (if applicable)
+        brand:
+          type: string
+          description: Card brand (visa, mastercard, etc.)
+        exp_month:
+          type: integer
+        exp_year:
+          type: integer
+
+    Payment:
+      type: object
+      properties:
+        payment_id:
+          type: string
+        tenant_id:
+          type: string
+        invoice_id:
+          type: string
+        ar_customer_id:
+          type: string
+        amount_minor:
+          type: integer
+          description: Amount in minor currency units (e.g., cents)
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code
+        status:
+          type: string
+          enum: [pending, succeeded, failed, refunded_partial, refunded_full]
+        processor_payment_id:
+          type: string
+          description: External processor reference
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateRefundRequest:
+      type: object
+      required:
+        - tenant_id
+        - amount_minor
+        - currency
+      properties:
+        tenant_id:
+          type: string
+        payment_id:
+          type: string
+          description: Internal payment ID (if known)
+        invoice_id:
+          type: string
+          description: Invoice ID (if payment_id not known)
+        amount_minor:
+          type: integer
+          minimum: 1
+          description: Refund amount in minor currency units
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          pattern: '^[A-Z]{3}$'
+        reason:
+          type: string
+          description: Refund reason (optional)
+
+    RefundResponse:
+      type: object
+      properties:
+        refund_id:
+          type: string
+        payment_id:
+          type: string
+        amount_minor:
+          type: integer
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [pending, succeeded, failed]
+        created_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error context (optional)

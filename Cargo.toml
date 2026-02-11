@@ -1,7 +1,10 @@
 [workspace]
 members = [
   "platform/identity-auth",
-  "modules/ar"
+  "modules/ar",
+  "modules/subscriptions",
+  "modules/payments",
+  "modules/notifications"
 ]
 
 # Workspace-level settings
