@@ -1,0 +1,162 @@
+# ============================================================================
+# AGENTCORE TMUX CONFIGURATION
+# ============================================================================
+#
+# Merged configuration combining:
+#   - Cross-platform session management features
+#   - Integration-specific expiry monitoring (bd-r27)
+#
+# Sources:
+#   - Cross-platform repository tmux config
+#   - Previous integration config with expiry monitoring
+#
+# Merge date: 2026-02-02
+# Organized into 7 sections for maintainability
+#
+# Usage: tmux source-file .tmux.conf.agentcore
+#
+# ============================================================================
+
+# ============================================================================
+# 1. BASIC TMUX SETTINGS
+# ============================================================================
+
+# Start pane and window numbering at 1 (not 0)
+# Makes it easier to jump to panes with prefix + number
+set -g base-index 1
+set -g pane-base-index 1
+
+# Disable annoying copy-mode jump/goto prompts
+# These can be triggered accidentally when automation sends keys to panes
+unbind-key -T copy-mode f
+unbind-key -T copy-mode F
+unbind-key -T copy-mode g
+unbind-key -T copy-mode t
+unbind-key -T copy-mode T
+unbind-key -T copy-mode-vi f
+unbind-key -T copy-mode-vi F
+unbind-key -T copy-mode-vi g
+unbind-key -T copy-mode-vi t
+unbind-key -T copy-mode-vi T
+
+# Enable mouse support for easier pane selection and resizing
+set -g mouse on
+
+# Increase scrollback buffer to 50,000 lines
+# Useful for reviewing long command outputs and logs
+set -g history-limit 50000
+
+# Set iTerm/terminal tab title to show project name
+# Displays the current working directory's basename in the terminal title bar
+set -g set-titles on
+set -g set-titles-string '#S'
+
+# ============================================================================
+# 2. PANE BORDER CONFIGURATION
+# ============================================================================
+
+# Display pane titles in borders (top position)
+set -g pane-border-status top
+
+# Show agent names and bypass detection in pane borders
+# - #{@llm_name}: LLM model name (set by scripts)
+# - #{@agent_name}: Agent identifier (set by scripts)
+# - Right-aligned bypass warning if .claude-hooks-bypass file exists
+set -g pane-border-format '#[fg=cyan]#{@llm_name}#[fg=default] #[fg=green]#{@agent_name}#[align=right]#[fg=yellow]#([ -f "#{pane_current_path}/.claude-hooks-bypass" ] && echo "⚠️ Bypass: $(basename "#{pane_current_path}")" || echo "")'
+
+# Alternative pane border formats (commented out):
+# set -g pane-border-format "#{?pane_title,#[fg=green]#{pane_title},#[fg=yellow]#{pane_index}}"
+# set -g pane-border-format "#[fg=green]#{pane_title} #[fg=cyan]#{pane_current_command}"
+
+# Border colors: green for active pane, grey for inactive
+set -g pane-active-border-style "fg=green,bg=default"
+set -g pane-border-style "fg=colour240,bg=default"
+
+# ============================================================================
+# 3. HOOKS FRAMEWORK
+# ============================================================================
+
+# Auto-rearrange panes in tiled layout when a pane is killed
+# Note: This hook can be overridden by start-multi-agent-session.sh for
+# dynamic cleanup behavior (e.g., renumbering panes, removing state files)
+set-hook -g after-kill-pane 'run-shell "tmux select-layout -t #{session_name}:#{window_index} tiled 2>/dev/null || true"'
+
+# Placeholder hook for after-new-session
+# Note: This hook can be overridden by start-multi-agent-session.sh to start
+# monitoring scripts or perform other initialization tasks
+set-hook -g after-new-session 'run-shell -b "true"'
+
+# ============================================================================
+# 4. STATUS BAR CONFIGURATION
+# ============================================================================
+
+# Update status bar every 5 seconds
+set -g status-interval 5
+set -g status-right-length 80
+
+# Status bar right side: "AgentCore | HH:MM DD-Mon"
+# Note: Bypass status display removed - now shown in pane border format instead
+set -g status-right '#[fg=cyan]AgentCore#[default] | %H:%M %d-%b'
+
+# ============================================================================
+# 5. PROJECT-SPECIFIC AUTO-START (INTEGRATION)
+# ============================================================================
+
+# Auto-start expiry monitor for agentcore sessions (bd-r27)
+# This is CRITICAL for file reservation system - monitors reservation expiry
+# and sends notifications when reservations are about to expire.
+#
+# Configuration:
+#   --warn 120      : Warn when reservation has <120s remaining
+#   --interval 10   : Check every 10 seconds
+#   --sender        : Use SystemNotify sender for notifications
+#   --monitor-all   : Monitor all agents' reservations (not just self)
+#
+# The monitor script handles idempotency (won't start duplicate instances).
+# Configuration is persisted to scripts/pids/expiry-monitor.conf for status.
+#
+# Conditional execution: Only runs when current path is in integration project
+# to avoid starting monitor in other projects or tmux sessions.
+
+if-shell \
+    "[ -f \"#{pane_current_path}/.agentcore\" ]" \
+    'run-shell " \
+        cd \"#{pane_current_path}\" && \
+        ./scripts/expiry-notify-monitor.sh start \
+            --warn 120 \
+            --interval 10 \
+            --sender SystemNotify \
+            --project \"#{pane_current_path}\" \
+            --monitor-all \
+        >/dev/null 2>&1 || true \
+    "'
+
+# Auto-start bead stale monitor for agentcore sessions
+# Sends SystemNotify reminders for beads inactive for 15+ minutes
+if-shell \
+    "[ -f \"#{pane_current_path}/.agentcore\" ]" \
+    'run-shell " \
+        cd \"#{pane_current_path}\" && \
+        ./scripts/bead-stale-monitor.sh start \
+        >/dev/null 2>&1 || true \
+    "'
+
+# ============================================================================
+# 6. PLUGINS (tmux-resurrect)
+# ============================================================================
+
+# tmux-resurrect: Session save/restore functionality
+# Save session: prefix + Ctrl-s
+# Restore session: prefix + Ctrl-r
+# Allows persisting tmux sessions across reboots/crashes
+run-shell ~/.tmux/plugins/tmux-resurrect/resurrect.tmux
+
+# tmux-resurrect settings
+set -g @resurrect-strategy-vim 'session'
+set -g @resurrect-strategy-nvim 'session'
+set -g @resurrect-capture-pane-contents 'on'
+set -g @resurrect-save-shell-history 'on'
+
+# ============================================================================
+# END OF CONFIGURATION
+# ============================================================================

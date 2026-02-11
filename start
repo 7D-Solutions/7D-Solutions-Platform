@@ -1,0 +1,59 @@
+#!/bin/bash
+# Quick launcher for agent-flywheel multi-agent sessions
+
+# Detect which terminal app we're running in
+TERM_PROGRAM="${TERM_PROGRAM:-Terminal}"
+
+# Check if iTerm2 is installed
+ITERM_INSTALLED=false
+if [ -d "/Applications/iTerm.app" ]; then
+    ITERM_INSTALLED=true
+fi
+
+# If we're not in iTerm and iTerm is installed, offer to switch
+if [ "$TERM_PROGRAM" != "iTerm.app" ] && [ "$ITERM_INSTALLED" = true ]; then
+    echo "════════════════════════════════════════════════"
+    echo "  Agent Flywheel - Terminal Selection"
+    echo "════════════════════════════════════════════════"
+    echo ""
+    echo "Which terminal app would you like to use?"
+    echo ""
+    echo "  1) iTerm2 (recommended for this workflow)"
+    echo "  2) Terminal.app (current)"
+    echo ""
+    read -p "Your choice [1-2]: " TERM_CHOICE
+
+    if [ "$TERM_CHOICE" = "1" ]; then
+        # Get the full path to this script's directory
+        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+        # Launch in iTerm2
+        echo ""
+        echo "✓ Opening in iTerm2 and starting session..."
+        osascript <<EOF
+tell application "iTerm"
+    activate
+    if (count of windows) = 0 then
+        set newWindow to (create window with default profile)
+        tell current session of newWindow
+            write text "cd '$SCRIPT_DIR' && ./start"
+        end tell
+    else
+        tell current window
+            set newTab to (create tab with default profile)
+            tell current session of newTab
+                write text "cd '$SCRIPT_DIR' && ./start"
+            end tell
+        end tell
+    end if
+end tell
+EOF
+        # Close the Terminal window we came from
+        osascript -e 'tell application "Terminal" to close first window' &>/dev/null || true
+        exit 0
+    fi
+fi
+
+# Continue in current terminal
+# Always try visual interface first - it will handle fzf installation
+./scripts/visual-session-manager.sh "$@"
