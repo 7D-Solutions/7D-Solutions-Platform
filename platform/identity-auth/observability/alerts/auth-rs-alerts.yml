@@ -1,0 +1,42 @@
+groups:
+  - name: auth-rs
+    rules:
+      - alert: AuthRsReadyDown
+        expr: auth_dependency_up{dep="ready"} == 0
+        for: 2m
+        labels: { severity: "sev1" }
+        annotations:
+          summary: "auth-rs readiness down"
+          description: "auth-rs reports not ready for >2m"
+
+      - alert: AuthRsReplayDetected
+        expr: increase(auth_refresh_replay_total[5m]) > 0
+        for: 0m
+        labels: { severity: "sev2" }
+        annotations:
+          summary: "Refresh replay detected"
+          description: "One or more refresh replays detected in last 5m"
+
+      - alert: AuthRsHashBusySpike
+        expr: increase(auth_login_total{reason="hash_busy"}[5m]) + increase(auth_register_total{reason="hash_busy"}[5m]) > 5
+        for: 5m
+        labels: { severity: "sev2" }
+        annotations:
+          summary: "Hash busy sustained"
+          description: "Semaphore/hash concurrency protection is triggering"
+
+      - alert: AuthRs5xxRate
+        expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) > 0.01
+        for: 5m
+        labels: { severity: "sev2" }
+        annotations:
+          summary: "5xx rate > 1%"
+          description: "auth-rs error rate above threshold"
+
+      - alert: AuthRsLatencyP95High
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 0.5
+        for: 5m
+        labels: { severity: "sev3" }
+        annotations:
+          summary: "p95 latency high"
+          description: "p95 > 500ms for 5m"

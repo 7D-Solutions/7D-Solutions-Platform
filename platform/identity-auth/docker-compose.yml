@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js", "-sd", "/data"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+
+  auth-rs:
+    build: .
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/auth_db
+      NATS_URL: nats://nats:4222
+      HOST: 0.0.0.0
+      PORT: 8080
+      SCHEMA_DIR: /app/schemas
+
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      JWT_PUBLIC_KEY_PEM: ${JWT_PUBLIC_KEY_PEM}
+      JWT_KID: auth-key-1
+
+      ACCESS_TOKEN_TTL_MINUTES: 15
+      REFRESH_TOKEN_TTL_DAYS: 14
+
+      ARGON_MEMORY_KB: 65536
+      ARGON_ITERATIONS: 3
+      ARGON_PARALLELISM: 1
+
+      RUST_LOG: info,auth_rs=debug
+    ports:
+      - "8081:8080"
+    depends_on:
+      - postgres
+      - nats
+
+volumes:
+  postgres_data:
+  nats_data:

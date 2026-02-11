@@ -1,0 +1,33 @@
+{
+  "title": "auth-rs v1.4.x",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Readiness (dep_up)",
+      "targets": [{"expr": "auth_dependency_up", "legendFormat": "{{dep}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Login totals by reason",
+      "targets": [{"expr": "sum by (reason) (rate(auth_login_total[5m]))", "legendFormat": "{{reason}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Register totals by reason",
+      "targets": [{"expr": "sum by (reason) (rate(auth_register_total[5m]))", "legendFormat": "{{reason}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Refresh replay count",
+      "targets": [{"expr": "increase(auth_refresh_replay_total[5m])", "legendFormat": "replay"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP p95 latency",
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))", "legendFormat": "p95"}]
+    }
+  ]
+}

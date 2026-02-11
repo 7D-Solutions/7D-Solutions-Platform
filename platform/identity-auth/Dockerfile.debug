@@ -1,0 +1,39 @@
+FROM rust:latest as builder
+WORKDIR /app
+
+COPY Cargo.toml Cargo.lock ./
+RUN mkdir -p src && echo "fn main() {}" > src/main.rs
+RUN cargo build --release
+RUN rm -rf src
+
+COPY . .
+RUN cargo build --release
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates libssl3 curl file && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+
+COPY --from=builder /app/target/release/auth-rs /app/auth-rs
+COPY --from=builder /app/migrations /app/migrations
+COPY --from=builder /app/src/events/schemas /app/schemas
+
+# Debug: Check binary
+RUN ls -lh /app/auth-rs && file /app/auth-rs && ldd /app/auth-rs
+
+EXPOSE 8080
+
+# Debug: Print environment and try to run
+CMD set -x && \
+    echo "=== ENV CHECK ===" && \
+    echo "DATABASE_URL length: $(echo -n "$DATABASE_URL" | wc -c)" && \
+    echo "NATS_URL length: $(echo -n "$NATS_URL" | wc -c)" && \
+    echo "JWT_PRIVATE_KEY_PEM length: $(echo -n "$JWT_PRIVATE_KEY_PEM" | wc -c)" && \
+    echo "JWT_PUBLIC_KEY_PEM length: $(echo -n "$JWT_PUBLIC_KEY_PEM" | wc -c)" && \
+    echo "=== BINARY CHECK ===" && \
+    ls -lh /app/auth-rs && \
+    file /app/auth-rs && \
+    ldd /app/auth-rs && \
+    echo "=== ATTEMPTING TO RUN BINARY ===" && \
+    /app/auth-rs 2>&1; \
+    EXIT_CODE=$?; \
+    echo "=== BINARY EXITED WITH CODE: $EXIT_CODE ==="

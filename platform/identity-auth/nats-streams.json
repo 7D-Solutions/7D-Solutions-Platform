@@ -1,0 +1,28 @@
+{
+  "streams": [
+    {
+      "name": "AUTH_EVENTS",
+      "subjects": ["auth.events.>"],
+      "retention": "limits",
+      "max_age": 604800000000000,
+      "max_msgs": 1000000,
+      "storage": "file"
+    },
+    {
+      "name": "AUTH_COMMANDS",
+      "subjects": ["auth.commands.>"],
+      "retention": "limits",
+      "max_age": 86400000000000,
+      "max_msgs": 100000,
+      "storage": "file"
+    },
+    {
+      "name": "AUTH_DLQ",
+      "subjects": ["auth.dlq.>"],
+      "retention": "limits",
+      "max_age": 2592000000000000,
+      "max_msgs": 2000000,
+      "storage": "file"
+    }
+  ]
+}
