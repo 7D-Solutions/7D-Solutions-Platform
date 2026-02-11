@@ -84,9 +84,10 @@ The 7D Solutions Platform is a multi-product software factory built on a three-t
 │   ├── events/         # AsyncAPI event schemas
 │   └── schemas/        # JSON schemas, Protobuf
 │
-├── packages/           # Strict shared libraries
-│   ├── types/          # TypeScript type definitions
-│   └── utils/          # ONLY if used by 2+ modules
+├── packages/           # The ONLY sanctioned shared library area (strictly controlled)
+│   ├── types/          # Contract-generated or infra-neutral types (2+ modules rule)
+│   └── utils/          # Infrastructure-neutral helpers ONLY if used by 2+ modules
+│                       # (never domain logic; never a dumping ground)
 │
 ├── infra/              # Infrastructure as code
 │   ├── docker/         # Compose files, Dockerfiles
@@ -106,7 +107,7 @@ The 7D Solutions Platform is a multi-product software factory built on a three-t
 3. **No Business Logic in Products** - Products are assembly layers only
 4. **Contract-Driven Integration** - No source imports between modules
 5. **Composed Capabilities** - End-to-end features (like billing) are assembled in products from primitive modules; no "god modules"
-6. **No Junk Folders** - Eliminate `utils/`, `common/`, `shared/` directories
+6. **No Junk Folders** - Eliminate ad-hoc `utils/`, `common/`, `shared/` directories inside modules or products; shared code is allowed ONLY under `packages/` and must follow the 2+ modules rule
 7. **Strict Layering** - Within modules: domain → repos → services → routes
 8. **Reusability Test** - If a module can't be reused in a different product, it's not a proper module
 
