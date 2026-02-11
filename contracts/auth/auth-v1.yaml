@@ -5,6 +5,7 @@ info:
   version: 1.0.0
   description: >
     Public authentication and token issuance API for 7D Solutions Platform.
+    Standalone identity service using JWKS-based token validation.
 
 servers:
   - url: https://auth.7dsolutions.io
@@ -14,14 +15,44 @@ servers:
 
 paths:
 
-  /health:
+  /health/live:
     get:
-      summary: Health check
+      summary: Liveness probe
+      description: Returns 200 if service is running
       responses:
         "200":
-          description: Service healthy
+          description: Service is alive
 
-  /login:
+  /health/ready:
+    get:
+      summary: Readiness probe
+      description: Returns 200 if service is ready to accept traffic
+      responses:
+        "200":
+          description: Service is ready
+
+  /api/auth/register:
+    post:
+      summary: Register new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "200":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+        "400":
+          description: Invalid registration data
+        "409":
+          description: User already exists
+
+  /api/auth/login:
     post:
       summary: Authenticate user and issue access token
       requestBody:
@@ -40,7 +71,7 @@ paths:
         "401":
           description: Invalid credentials
 
-  /refresh:
+  /api/auth/refresh:
     post:
       summary: Refresh access token
       requestBody:
@@ -59,9 +90,25 @@ paths:
         "401":
           description: Invalid refresh token
 
+  /api/auth/logout:
+    post:
+      summary: Logout and invalidate refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: Logout successful
+        "401":
+          description: Invalid refresh token
+
   /.well-known/jwks.json:
     get:
       summary: Retrieve JSON Web Key Set
+      description: Public keys for JWT signature verification
       responses:
         "200":
           description: JWKS document
@@ -73,6 +120,18 @@ paths:
 components:
 
   schemas:
+
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
 
     LoginRequest:
       type: object
