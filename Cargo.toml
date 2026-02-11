@@ -1,5 +1,6 @@
 [workspace]
 members = [
+  "platform/event-bus",
   "platform/identity-auth",
   "modules/ar",
   "modules/subscriptions",
