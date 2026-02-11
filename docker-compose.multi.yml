@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: auth_user
+      POSTGRES_PASSWORD: auth_pass
+      POSTGRES_DB: auth_db
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U auth_user -d auth_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  nats:
+    image: nats:2.10-alpine
+    command: ["-js"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+  auth1:
+    build: .
+    environment:
+      DATABASE_URL: postgres://auth_user:auth_pass@postgres:5432/auth_db
+      NATS_URL: nats://nats:4222
+      HOST: 0.0.0.0
+      PORT: 8080
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      JWT_PUBLIC_KEY_PEM: ${JWT_PUBLIC_KEY_PEM}
+      JWT_KID: ${JWT_KID:-auth-key-1}
+      ACCESS_TOKEN_TTL_MINUTES: "15"
+      REFRESH_TOKEN_TTL_DAYS: "14"
+      MAX_CONCURRENT_HASHES: "50"
+      HASH_ACQUIRE_TIMEOUT_MS: "5000"
+      LOCKOUT_THRESHOLD: "10"
+      LOCKOUT_MINUTES: "15"
+      LOGIN_PER_MIN_PER_EMAIL: "5"
+      REGISTER_PER_MIN_PER_EMAIL: "5"
+      REFRESH_PER_MIN_PER_TOKEN: "20"
+      RUST_LOG: info,auth_rs=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+
+  auth2:
+    build: .
+    environment:
+      DATABASE_URL: postgres://auth_user:auth_pass@postgres:5432/auth_db
+      NATS_URL: nats://nats:4222
+      HOST: 0.0.0.0
+      PORT: 8080
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      JWT_PUBLIC_KEY_PEM: ${JWT_PUBLIC_KEY_PEM}
+      JWT_KID: ${JWT_KID:-auth-key-1}
+      ACCESS_TOKEN_TTL_MINUTES: "15"
+      REFRESH_TOKEN_TTL_DAYS: "14"
+      MAX_CONCURRENT_HASHES: "50"
+      HASH_ACQUIRE_TIMEOUT_MS: "5000"
+      LOCKOUT_THRESHOLD: "10"
+      LOCKOUT_MINUTES: "15"
+      LOGIN_PER_MIN_PER_EMAIL: "5"
+      REGISTER_PER_MIN_PER_EMAIL: "5"
+      REFRESH_PER_MIN_PER_TOKEN: "20"
+      RUST_LOG: info,auth_rs=debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_started
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - auth1
+      - auth2
