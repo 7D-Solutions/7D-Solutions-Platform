@@ -57,3 +57,27 @@ This ensures:
 - Auditability: All postings are traced through events
 - Validation: GL enforces balanced entries and account validity
 - Decoupling: Modules don't depend on GL database schema
+
+---
+
+## Available Event Schemas
+
+### GL Events
+
+- **gl-posting-request.v1.json** - Request a GL posting
+- **gl-posting-accepted.v1.json** - GL posting was accepted and processed
+- **gl-posting-rejected.v1.json** - GL posting was rejected (validation failed)
+
+### Subscriptions Events
+
+- **subscriptions-created.v1.json** - New subscription created
+- **subscriptions-paused.v1.json** - Subscription paused
+- **subscriptions-resumed.v1.json** - Paused subscription resumed
+- **subscriptions-billrun-executed.v1.json** - Billing cycle executed
+
+**Subscriptions State Machine:**
+```
+active → paused → resumed → cancelled
+```
+
+Note: Cancelled subscriptions cannot be resumed.

@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/subscriptions-created.v1.json",
+  "title": "subscriptions.created",
+  "description": "Event emitted when a new subscription is created",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "subscriptions",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "subscription_id",
+        "ar_customer_id",
+        "plan_id",
+        "schedule",
+        "price_minor",
+        "currency",
+        "start_date",
+        "next_bill_date",
+        "status"
+      ],
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "description": "Unique subscription identifier"
+        },
+        "ar_customer_id": {
+          "type": "string",
+          "description": "AR customer reference"
+        },
+        "plan_id": {
+          "type": "string",
+          "description": "Subscription plan identifier"
+        },
+        "schedule": {
+          "type": "string",
+          "enum": ["weekly", "monthly", "custom"],
+          "description": "Billing frequency"
+        },
+        "price_minor": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Price in minor currency units (e.g., cents)"
+        },
+        "currency": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 3,
+          "pattern": "^[A-Z]{3}$",
+          "description": "ISO 4217 currency code"
+        },
+        "start_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Subscription start date"
+        },
+        "next_bill_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Next scheduled billing date"
+        },
+        "status": {
+          "type": "string",
+          "const": "active",
+          "description": "Initial status is always 'active'"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

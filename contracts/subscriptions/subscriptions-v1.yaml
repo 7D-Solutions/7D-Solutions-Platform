@@ -1,0 +1,500 @@
+openapi: 3.0.3
+info:
+  title: Subscriptions API
+  version: 0.1.0
+  description: |
+    Subscriptions module manages recurring billing logic and service agreements.
+
+    **Ownership Boundaries:**
+    - Owns: Subscriptions, billing schedules, bill runs, proration flags
+    - Does NOT own: Invoices (calls AR API), payment state, ledger entries
+
+    **Key Principles:**
+    - Never stores invoice data
+    - Never stores payment references
+    - Must not emit financial truth events
+    - Must not call Payments module directly
+
+servers:
+  - url: https://subscriptions.7dsolutions.io
+    description: Production
+  - url: http://localhost:8087
+    description: Local development
+
+paths:
+  /api/subscriptions:
+    post:
+      summary: Create subscription
+      operationId: createSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+      responses:
+        '200':
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List subscriptions
+      operationId: listSubscriptions
+      parameters:
+        - name: customer_id
+          in: query
+          description: Filter by AR customer ID
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by subscription status
+          schema:
+            type: string
+            enum: [active, paused, cancelled]
+      responses:
+        '200':
+          description: Subscriptions list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Subscription'
+
+  /api/subscriptions/{id}:
+    get:
+      summary: Get subscription
+      operationId: getSubscription
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Subscription found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          description: Subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/subscriptions/{id}/pause:
+    post:
+      summary: Pause subscription
+      operationId: pauseSubscription
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PauseSubscriptionRequest'
+      responses:
+        '200':
+          description: Subscription paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          description: Subscription not found
+        '409':
+          description: Cannot pause subscription in current state
+
+  /api/subscriptions/{id}/resume:
+    post:
+      summary: Resume subscription
+      operationId: resumeSubscription
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Subscription resumed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          description: Subscription not found
+        '409':
+          description: Cannot resume subscription in current state
+
+  /api/subscriptions/{id}/cancel:
+    post:
+      summary: Cancel subscription
+      operationId: cancelSubscription
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelSubscriptionRequest'
+      responses:
+        '200':
+          description: Subscription cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          description: Subscription not found
+        '409':
+          description: Cannot cancel subscription in current state
+
+  /api/bill-runs/execute:
+    post:
+      summary: Execute billing cycle
+      operationId: executeBillRun
+      description: |
+        Triggers billing cycle for subscriptions due.
+
+        **Process:**
+        1. Find subscriptions due for billing
+        2. Generate invoice payload
+        3. Call AR OpenAPI: POST /invoices
+        4. Update bill run state
+
+        **Idempotency:** Uses bill_run_id to prevent duplicate invoice creation
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteBillRunRequest'
+      responses:
+        '200':
+          description: Bill run executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillRunResult'
+        '400':
+          description: Invalid request
+
+  /api/subscription-plans:
+    post:
+      summary: Create subscription plan
+      operationId: createSubscriptionPlan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionPlanRequest'
+      responses:
+        '200':
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+    get:
+      summary: List subscription plans
+      operationId: listSubscriptionPlans
+      responses:
+        '200':
+          description: Plans list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubscriptionPlan'
+
+  /api/subscription-plans/{id}:
+    get:
+      summary: Get subscription plan
+      operationId: getSubscriptionPlan
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Plan found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionPlan'
+        '404':
+          description: Plan not found
+
+components:
+  schemas:
+    Subscription:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - ar_customer_id
+        - plan_id
+        - status
+        - schedule
+        - price_minor
+        - currency
+        - start_date
+        - next_bill_date
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          description: Subscription ID
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        ar_customer_id:
+          type: string
+          description: AR customer reference
+        plan_id:
+          type: string
+          description: Subscription plan ID
+        status:
+          type: string
+          enum: [active, paused, cancelled]
+          description: Current subscription status
+        schedule:
+          type: string
+          enum: [weekly, monthly, custom]
+          description: Billing frequency
+        price_minor:
+          type: integer
+          format: int64
+          description: Price in minor currency units (e.g., cents)
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: ISO 4217 currency code
+        start_date:
+          type: string
+          format: date
+          description: Subscription start date
+        next_bill_date:
+          type: string
+          format: date
+          description: Next scheduled billing date
+        paused_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when subscription was paused
+        cancelled_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when subscription was cancelled
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateSubscriptionRequest:
+      type: object
+      required:
+        - tenant_id
+        - ar_customer_id
+        - plan_id
+        - schedule
+        - start_date
+        - price_minor
+        - currency
+      properties:
+        tenant_id:
+          type: string
+        ar_customer_id:
+          type: string
+          description: AR customer reference
+        plan_id:
+          type: string
+        schedule:
+          type: string
+          enum: [weekly, monthly, custom]
+        start_date:
+          type: string
+          format: date
+        price_minor:
+          type: integer
+          format: int64
+          description: Price in minor currency units
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          description: ISO 4217 currency code
+
+    PauseSubscriptionRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Optional reason for pausing
+
+    CancelSubscriptionRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          description: Optional reason for cancellation
+        immediate:
+          type: boolean
+          default: false
+          description: If true, cancel immediately; otherwise cancel at end of period
+
+    ExecuteBillRunRequest:
+      type: object
+      properties:
+        bill_run_id:
+          type: string
+          description: Idempotency key for bill run
+        execution_date:
+          type: string
+          format: date
+          description: Optional execution date (defaults to today)
+
+    BillRunResult:
+      type: object
+      required:
+        - bill_run_id
+        - subscriptions_processed
+        - invoices_created
+        - execution_time
+      properties:
+        bill_run_id:
+          type: string
+        subscriptions_processed:
+          type: integer
+          description: Number of subscriptions processed
+        invoices_created:
+          type: integer
+          description: Number of invoices created in AR
+        failures:
+          type: integer
+          description: Number of failures
+        execution_time:
+          type: string
+          format: date-time
+
+    SubscriptionPlan:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - name
+        - schedule
+        - price_minor
+        - currency
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        name:
+          type: string
+          description: Plan display name
+        description:
+          type: string
+          nullable: true
+        schedule:
+          type: string
+          enum: [weekly, monthly, custom]
+        price_minor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        proration_enabled:
+          type: boolean
+          default: false
+          description: Proration disabled in MVP
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateSubscriptionPlanRequest:
+      type: object
+      required:
+        - tenant_id
+        - name
+        - schedule
+        - price_minor
+        - currency
+      properties:
+        tenant_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        schedule:
+          type: string
+          enum: [weekly, monthly, custom]
+        price_minor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+        proration_enabled:
+          type: boolean
+          default: false
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          nullable: true
+          description: Additional error context

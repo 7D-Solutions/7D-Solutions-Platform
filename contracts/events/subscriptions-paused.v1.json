@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/subscriptions-paused.v1.json",
+  "title": "subscriptions.paused",
+  "description": "Event emitted when a subscription is paused",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "subscriptions",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "subscription_id",
+        "ar_customer_id",
+        "paused_at",
+        "status",
+        "previous_status"
+      ],
+      "properties": {
+        "subscription_id": {
+          "type": "string",
+          "description": "Unique subscription identifier"
+        },
+        "ar_customer_id": {
+          "type": "string",
+          "description": "AR customer reference"
+        },
+        "paused_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when subscription was paused"
+        },
+        "status": {
+          "type": "string",
+          "const": "paused",
+          "description": "New status is 'paused'"
+        },
+        "previous_status": {
+          "type": "string",
+          "enum": ["active", "resumed"],
+          "description": "Status before pausing"
+        },
+        "reason": {
+          "type": "string",
+          "description": "Optional reason for pausing"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
