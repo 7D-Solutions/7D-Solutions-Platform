@@ -26,10 +26,16 @@ The 7D Solutions Platform is a multi-product software factory built on a three-t
                         ↓ depends on
 ┌─────────────────────────────────────────────────────┐
 │ TIER 2: MODULES (Business Components)               │
-│ modules/{billing, qms, inventory, audit, ...}       │
+│ modules/{ar, subscriptions, payments,               │
+│          notifications, qms, inventory, audit, ...} │
 │ - Independently versioned (SemVer)                  │
 │ - No cross-module imports                           │
 │ - Contract-driven integration                       │
+│ - Product-agnostic primitives                       │
+│                                                      │
+│ Note: End-to-end capabilities (like billing) are    │
+│ composed in products from primitive modules.        │
+│ No "god modules" - keep primitives separate.        │
 └─────────────────────────────────────────────────────┘
                         ↓ depends on
 ┌─────────────────────────────────────────────────────┐
@@ -54,7 +60,10 @@ The 7D Solutions Platform is a multi-product software factory built on a three-t
 │   └── observability/  # Metrics, logging, tracing
 │
 ├── modules/            # TIER 2: Reusable business components
-│   ├── billing/        # Invoicing, payments, subscriptions
+│   ├── ar/             # Accounts receivable (invoicing, aging)
+│   ├── subscriptions/  # Recurring billing, plan management
+│   ├── payments/       # Payment processing, gateway integration
+│   ├── notifications/  # Email, SMS, webhooks
 │   ├── qms/            # Quality management system
 │   ├── inventory/      # Stock tracking, warehousing
 │   ├── document-control/ # Document management
@@ -91,15 +100,17 @@ The 7D Solutions Platform is a multi-product software factory built on a three-t
 2. **Independent Versioning** - Modules follow SemVer: `component/vX.Y.Z`
 3. **No Business Logic in Products** - Products are assembly layers only
 4. **Contract-Driven Integration** - No source imports between modules
-5. **No Junk Folders** - Eliminate `utils/`, `common/`, `shared/` directories
-6. **Strict Layering** - Within modules: domain → repos → services → routes
-7. **Reusability Test** - If a module can't be reused in a different product, it's not a proper module
+5. **Composed Capabilities** - End-to-end features (like billing) are assembled in products from primitive modules; no "god modules"
+6. **No Junk Folders** - Eliminate `utils/`, `common/`, `shared/` directories
+7. **Strict Layering** - Within modules: domain → repos → services → routes
+8. **Reusability Test** - If a module can't be reused in a different product, it's not a proper module
 
 ## Prohibited Patterns
 
 - ❌ Cross-module source imports (use contracts instead)
 - ❌ Business logic in `products/` (assembly only)
 - ❌ Product-specific logic in modules (keep generic)
+- ❌ "God modules" that combine AR + Payments + Subscriptions; keep primitives separate and compose at the product layer
 - ❌ Global utility folders (use packages/ with 2+ users rule)
 - ❌ Breaking API changes without MAJOR version bump
 - ❌ Single version for entire repository (each module independent)
@@ -133,13 +144,13 @@ pnpm dev
 
 1. **Create a module:**
    ```bash
-   tools/scripts/create-module.sh billing v1.0.0
+   tools/scripts/create-module.sh payments v1.0.0
    ```
 
 2. **Define contracts:**
    ```bash
    # Create OpenAPI spec
-   contracts/api/billing-v1.yaml
+   contracts/api/payments-v1.yaml
 
    # Generate types
    pnpm generate:contracts
@@ -149,8 +160,10 @@ pnpm dev
    ```bash
    # Edit product composition
    products/fireproof-erp/compose/modules.yml
+   
+   # Example: TrashTech billing = compose ar + subscriptions + payments + notifications
 
-   # Wire module
+   # Wire modules
    products/fireproof-erp/config/module-config.yml
    ```
 
