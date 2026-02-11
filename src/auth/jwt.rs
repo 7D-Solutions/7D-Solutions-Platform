@@ -17,13 +17,27 @@ pub struct JwtKeys {
     pub encoding: EncodingKey,
     pub decoding: DecodingKey,
     pub kid: String,
+    pub public_key_pem: String,
 }
 
 impl JwtKeys {
     pub fn from_pem(private_pem: &str, public_pem: &str, kid: String) -> Result<Self, String> {
         let encoding = EncodingKey::from_rsa_pem(private_pem.as_bytes()).map_err(|e| e.to_string())?;
         let decoding = DecodingKey::from_rsa_pem(public_pem.as_bytes()).map_err(|e| e.to_string())?;
-        Ok(Self { encoding, decoding, kid })
+        Ok(Self {
+            encoding,
+            decoding,
+            kid,
+            public_key_pem: public_pem.to_string(),
+        })
+    }
+
+    pub fn kid(&self) -> &str {
+        &self.kid
+    }
+
+    pub fn public_key_pem(&self) -> String {
+        self.public_key_pem.clone()
     }
 
     pub fn sign_access_token(

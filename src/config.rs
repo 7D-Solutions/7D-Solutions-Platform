@@ -18,6 +18,23 @@ pub struct Config {
     pub argon_memory_kb: u32,
     pub argon_iterations: u32,
     pub argon_parallelism: u32,
+
+    // Lockout
+    pub lockout_threshold: i32,
+    pub lockout_minutes: i64,
+
+    // Keyed limits
+    pub login_per_min_per_email: u32,
+    pub register_per_min_per_email: u32,
+    pub refresh_per_min_per_token: u32,
+
+    // Per-IP governor
+    pub ip_rl_per_second: u32,
+    pub ip_rl_burst: u32,
+
+    // Hash concurrency limiting
+    pub max_concurrent_hashes: usize,
+    pub hash_acquire_timeout_ms: u64,
 }
 
 impl Config {
@@ -45,6 +62,19 @@ impl Config {
             argon_memory_kb: env::var("ARGON_MEMORY_KB").unwrap_or_else(|_| "65536".to_string()).parse()?,
             argon_iterations: env::var("ARGON_ITERATIONS").unwrap_or_else(|_| "3".to_string()).parse()?,
             argon_parallelism: env::var("ARGON_PARALLELISM").unwrap_or_else(|_| "1".to_string()).parse()?,
+
+            lockout_threshold: env::var("LOCKOUT_THRESHOLD").unwrap_or_else(|_| "10".to_string()).parse()?,
+            lockout_minutes: env::var("LOCKOUT_MINUTES").unwrap_or_else(|_| "15".to_string()).parse()?,
+
+            login_per_min_per_email: env::var("LOGIN_PER_MIN_PER_EMAIL").unwrap_or_else(|_| "5".to_string()).parse()?,
+            register_per_min_per_email: env::var("REGISTER_PER_MIN_PER_EMAIL").unwrap_or_else(|_| "5".to_string()).parse()?,
+            refresh_per_min_per_token: env::var("REFRESH_PER_MIN_PER_TOKEN").unwrap_or_else(|_| "20".to_string()).parse()?,
+
+            ip_rl_per_second: env::var("IP_RL_PER_SECOND").unwrap_or_else(|_| "10".to_string()).parse()?,
+            ip_rl_burst: env::var("IP_RL_BURST").unwrap_or_else(|_| "20".to_string()).parse()?,
+
+            max_concurrent_hashes: env::var("MAX_CONCURRENT_HASHES").unwrap_or_else(|_| "50".to_string()).parse()?,
+            hash_acquire_timeout_ms: env::var("HASH_ACQUIRE_TIMEOUT_MS").unwrap_or_else(|_| "5000".to_string()).parse()?,
         })
     }
 }
