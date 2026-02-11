@@ -88,7 +88,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Check for illegal cross-module imports
+      - name: Check for illegal cross-module source imports
         run: |
           violations=()
           
@@ -109,6 +109,44 @@ jobs:
           fi
           
           echo "✓ No cross-module source code dependencies"
+      
+      - name: Check for illegal cross-module Cargo path dependencies
+        run: |
+          violations=()
+          
+          # Check AUTH Cargo.toml for path deps to other modules
+          if grep -n 'path = .*\.\./\.\./\(modules\|platform\)' platform/identity-auth/Cargo.toml; then
+            violations+=("AUTH has cross-module path dependency")
+          fi
+          
+          if grep -n 'path = .*\.\./modules' platform/identity-auth/Cargo.toml; then
+            violations+=("AUTH has cross-module path dependency")
+          fi
+          
+          # Check AR Cargo.toml for path deps to other modules
+          if grep -n 'path = .*\.\./\.\./\(modules\|platform\)' modules/ar/Cargo.toml; then
+            violations+=("AR has cross-module path dependency")
+          fi
+          
+          if grep -n 'path = .*\.\./platform' modules/ar/Cargo.toml; then
+            violations+=("AR has cross-module path dependency")
+          fi
+          
+          if [ ${#violations[@]} -gt 0 ]; then
+            echo "ERROR: Cross-module Cargo path dependencies detected:" >&2
+            printf '%s\n' "${violations[@]}" >&2
+            echo "" >&2
+            echo "Modules must not use 'path' dependencies to other modules." >&2
+            echo "Use versioned crates or duplicate code instead." >&2
+            exit 1
+          fi
+          
+          echo "✓ No cross-module Cargo path dependencies"
+      
+      - name: Check migration boundaries
+        run: |
+          chmod +x tools/check_migration_boundaries.sh
+          ./tools/check_migration_boundaries.sh
 
   build-auth:
     name: Build AUTH Module
