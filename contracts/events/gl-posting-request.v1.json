@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/gl-posting-request.v1.json",
+  "title": "GL Posting Request Event",
+  "description": "Cross-module event contract for requesting general ledger journal entries. This event is idempotent on event_id. The GL module consuming this event MUST reject postings where total debits do not equal total credits. This is the ONLY approved method for AR and other modules to post to the general ledger. Modules must NOT write directly to GL tables.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this event. Used for idempotency - duplicate event_id must be ignored by consumer."
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the event was generated."
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation."
+    },
+    "source_module": {
+      "type": "string",
+      "description": "Source module identifier (e.g., 'ar', 'ap', 'inventory').",
+      "examples": ["ar", "ap", "inventory", "payroll"]
+    },
+    "source_version": {
+      "type": "string",
+      "description": "Semantic version of the source module that generated this event.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.-]+)?$",
+      "examples": ["0.1.0", "1.2.3", "2.0.0-rc1"]
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Optional correlation identifier for tracing related events across modules."
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Optional causation identifier linking this event to the command or event that triggered it."
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "posting_date",
+        "currency",
+        "source_doc_type",
+        "source_doc_id",
+        "description",
+        "lines"
+      ],
+      "properties": {
+        "posting_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Accounting date for the journal entry (YYYY-MM-DD)."
+        },
+        "currency": {
+          "type": "string",
+          "description": "ISO 4217 currency code.",
+          "pattern": "^[A-Z]{3}$",
+          "examples": ["USD", "EUR", "GBP", "CAD"]
+        },
+        "source_doc_type": {
+          "type": "string",
+          "description": "Document type that originated this posting.",
+          "enum": [
+            "AR_INVOICE",
+            "AR_PAYMENT",
+            "AR_CREDIT_MEMO",
+            "AR_ADJUSTMENT",
+            "AP_BILL",
+            "AP_PAYMENT",
+            "INVENTORY_RECEIPT",
+            "INVENTORY_ISSUE",
+            "PAYROLL_RUN"
+          ]
+        },
+        "source_doc_id": {
+          "type": "string",
+          "description": "Unique identifier of the source document in the originating module."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description for the journal entry.",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "lines": {
+          "type": "array",
+          "description": "Journal entry lines. Total debits MUST equal total credits. Consumer must validate this constraint.",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": [
+              "account_ref",
+              "debit",
+              "credit"
+            ],
+            "properties": {
+              "account_ref": {
+                "type": "string",
+                "description": "Reference to account in the GL chart of accounts (account code or identifier)."
+              },
+              "debit": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Debit amount. Must be 0 if credit is non-zero."
+              },
+              "credit": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Credit amount. Must be 0 if debit is non-zero."
+              },
+              "memo": {
+                "type": "string",
+                "description": "Optional line-level memo.",
+                "maxLength": 500
+              },
+              "dimensions": {
+                "type": "object",
+                "description": "Optional analytical dimensions for reporting and analysis.",
+                "properties": {
+                  "customer_id": {
+                    "type": "string",
+                    "description": "Customer identifier for AR-related postings."
+                  },
+                  "vendor_id": {
+                    "type": "string",
+                    "description": "Vendor identifier for AP-related postings."
+                  },
+                  "location_id": {
+                    "type": "string",
+                    "description": "Location or branch identifier."
+                  },
+                  "job_id": {
+                    "type": "string",
+                    "description": "Job or project work order identifier."
+                  },
+                  "department": {
+                    "type": "string",
+                    "description": "Department code."
+                  },
+                  "class": {
+                    "type": "string",
+                    "description": "Classification dimension."
+                  },
+                  "project": {
+                    "type": "string",
+                    "description": "Project identifier for project accounting."
+                  }
+                },
+                "additionalProperties": false
+              }
+            },
+            "oneOf": [
+              {
+                "properties": {
+                  "debit": {
+                    "exclusiveMinimum": 0
+                  },
+                  "credit": {
+                    "const": 0
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "debit": {
+                    "const": 0
+                  },
+                  "credit": {
+                    "exclusiveMinimum": 0
+                  }
+                }
+              }
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
