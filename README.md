@@ -55,26 +55,31 @@ The 7D Solutions Platform is a multi-product software factory built on a three-t
 
 ### Directory Structure
 
+> **Note:** The structure below represents the target three-tier architecture.
+> As of the current baseline, only `platform/identity-auth` and `modules/ar`
+> are implemented. Other directories (such as `products/`, `packages/`, and `infra/`)
+> will be introduced incrementally as additional modules and products are added.
+
 ```
 7D-Solutions-Platform/
 ├── platform/           # TIER 1: Core runtime capabilities
-│   ├── identity/       # Auth, RBAC, multi-tenancy
-│   ├── orchestration/  # Scheduler + job dispatch (runtime only; no cross-module business workflows)
-│   ├── events/         # Event bus, message broker
-│   ├── bootstrap/      # System initialization
-│   └── observability/  # Metrics, logging, tracing
+│   ├── identity-auth/  # Auth, RBAC, multi-tenancy (current: platform/identity-auth)
+│   ├── orchestration/  # Scheduler + job dispatch (runtime only; no cross-module business workflows) (planned)
+│   ├── events/         # Event bus, message broker (planned)
+│   ├── bootstrap/      # System initialization (planned)
+│   └── observability/  # Metrics, logging, tracing (planned)
 │
 ├── modules/            # TIER 2: Reusable business components
-│   ├── ar/             # Accounts receivable (invoicing, aging)
-│   ├── subscriptions/  # Recurring billing, plan management
-│   ├── payments/       # Payment processing, gateway integration
-│   ├── notifications/  # Email, SMS, webhooks
-│   ├── qms/            # Quality management system
-│   ├── inventory/      # Stock tracking, warehousing
-│   ├── document-control/ # Document management
-│   └── audit/          # Audit trails, compliance
+│   ├── ar/             # Accounts receivable (invoicing, aging) (current: modules/ar)
+│   ├── subscriptions/  # Recurring billing, plan management (planned)
+│   ├── payments/       # Payment processing, gateway integration (planned)
+│   ├── notifications/  # Email, SMS, webhooks (planned)
+│   ├── qms/            # Quality management system (planned)
+│   ├── inventory/      # Stock tracking, warehousing (planned)
+│   ├── document-control/ # Document management (planned)
+│   └── audit/          # Audit trails, compliance (planned)
 │
-├── products/           # TIER 3: Composed applications
+├── products/           # TIER 3: Composed applications (planned - not yet present in baseline)
 │   └── fireproof-erp/  # Manufacturing ERP product
 │       ├── config/     # Product-specific configuration
 │       └── compose/    # Module assembly definitions
@@ -84,13 +89,13 @@ The 7D Solutions Platform is a multi-product software factory built on a three-t
 │   ├── events/         # AsyncAPI event schemas
 │   └── schemas/        # JSON schemas, Protobuf
 │
-├── packages/           # The ONLY sanctioned shared library area (strictly controlled)
+├── packages/           # The ONLY sanctioned shared library area (strictly controlled) (planned - not yet present in baseline)
 │   ├── types/          # MUST be contract-generated (from contracts/) or infra-neutral primitives only
 │   │                   # NO domain models, NO business enums, NO cross-module coupling
 │   └── utils/          # Infrastructure-neutral helpers ONLY if used by 2+ modules
 │                       # (never domain logic; never a dumping ground)
 │
-├── infra/              # Infrastructure as code
+├── infra/              # Infrastructure as code (planned - not yet present in baseline)
 │   ├── docker/         # Compose files, Dockerfiles
 │   ├── k8s/            # Kubernetes manifests
 │   └── terraform/      # Cloud provisioning
