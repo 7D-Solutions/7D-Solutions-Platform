@@ -1,4 +1,4 @@
-# Subscriptions Module Specification
+# Subscriptions Module Specification (v0.1.x)
 
 ## Mission
 Own recurring billing logic and service agreements.
