@@ -1,0 +1,15 @@
+@@ -177,10 +177,10 @@
+         "id": event_id,
+         "type": event_type,
+         "data": {
+-            "object": {
+-                "id": format!("obj_{}", Uuid::new_v4()),
+-                "amount": 1000
+-            }
++            "id": format!("obj_{}", Uuid::new_v4()),
++            "amount": 1000,
++            "customer_id": "cus_test",
++            "status": "succeeded"
+         },
+         "created_at": chrono::Utc::now().timestamp(),
+         "livemode": false

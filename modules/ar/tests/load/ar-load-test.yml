@@ -1,0 +1,252 @@
+config:
+  target: "http://localhost:8086"
+  phases:
+    # Warm-up phase: Gradually increase load
+    - duration: 60
+      arrivalRate: 5
+      name: "Warm-up"
+
+    # Ramp-up phase: Increase to moderate load
+    - duration: 120
+      arrivalRate: 5
+      rampTo: 25
+      name: "Ramp-up"
+
+    # Sustained load: Maintain consistent traffic
+    - duration: 300
+      arrivalRate: 25
+      name: "Sustained load"
+
+    # Peak load: Test maximum capacity
+    - duration: 120
+      arrivalRate: 25
+      rampTo: 50
+      name: "Peak load"
+
+    # Cool-down: Reduce load gradually
+    - duration: 60
+      arrivalRate: 50
+      rampTo: 5
+      name: "Cool-down"
+
+  # Performance thresholds
+  ensure:
+    maxErrorRate: 1  # Max 1% error rate
+    p95: 500         # 95th percentile response time < 500ms
+    p99: 1000        # 99th percentile response time < 1000ms
+
+  # Metrics and monitoring
+  plugins:
+    expect: {}
+    metrics-by-endpoint: {}
+
+  # Load test variables
+  variables:
+    baseUrl: "http://localhost:8086"
+    apiPrefix: "/api/ar"
+
+  # Request defaults
+  defaults:
+    headers:
+      Content-Type: "application/json"
+
+scenarios:
+  # Scenario 1: Customer operations (40% of traffic)
+  - name: "Customer Operations"
+    weight: 40
+    flow:
+      - post:
+          url: "{{ apiPrefix }}/customers"
+          json:
+            email: "load-test-{{ $randomString() }}@example.com"
+            name: "Load Test Customer {{ $randomNumber(1, 10000) }}"
+            external_customer_id: "ext-{{ $randomString() }}"
+            metadata:
+              source: "load_test"
+          capture:
+            - json: "$.id"
+              as: "customerId"
+          expect:
+            - statusCode: 201
+            - contentType: json
+            - hasProperty: id
+
+      - get:
+          url: "{{ apiPrefix }}/customers/{{ customerId }}"
+          expect:
+            - statusCode: 200
+            - contentType: json
+
+      - get:
+          url: "{{ apiPrefix }}/customers?limit=10"
+          expect:
+            - statusCode: 200
+            - contentType: json
+
+  # Scenario 2: Subscription lifecycle (30% of traffic)
+  - name: "Subscription Lifecycle"
+    weight: 30
+    flow:
+      # Create customer first
+      - post:
+          url: "{{ apiPrefix }}/customers"
+          json:
+            email: "sub-test-{{ $randomString() }}@example.com"
+            name: "Subscription Customer"
+            external_customer_id: "ext-sub-{{ $randomString() }}"
+          capture:
+            - json: "$.id"
+              as: "customerId"
+          expect:
+            - statusCode: 201
+
+      # Create subscription
+      - post:
+          url: "{{ apiPrefix }}/subscriptions"
+          json:
+            billing_customer_id: "{{ customerId }}"
+            plan_id: "plan-{{ $randomString() }}"
+            plan_name: "Load Test Plan"
+            price_cents: "{{ $randomNumber(1000, 9999) }}"
+            interval_unit: "month"
+            interval_count: 1
+            payment_method_id: "pm_test_{{ $randomString() }}"
+            payment_method_type: "card"
+          capture:
+            - json: "$.id"
+              as: "subscriptionId"
+          expect:
+            - statusCode: 201
+            - hasProperty: id
+
+      # Get subscription
+      - get:
+          url: "{{ apiPrefix }}/subscriptions/{{ subscriptionId }}"
+          expect:
+            - statusCode: 200
+
+      # List subscriptions
+      - get:
+          url: "{{ apiPrefix }}/subscriptions?limit=10"
+          expect:
+            - statusCode: 200
+
+  # Scenario 3: Payment processing (20% of traffic)
+  - name: "Payment Processing"
+    weight: 20
+    flow:
+      # Create customer
+      - post:
+          url: "{{ apiPrefix }}/customers"
+          json:
+            email: "payment-{{ $randomString() }}@example.com"
+            name: "Payment Customer"
+            external_customer_id: "ext-pay-{{ $randomString() }}"
+          capture:
+            - json: "$.id"
+              as: "customerId"
+          expect:
+            - statusCode: 201
+
+      # Create charge
+      - post:
+          url: "{{ apiPrefix }}/charges"
+          json:
+            billing_customer_id: "{{ customerId }}"
+            amount_cents: "{{ $randomNumber(100, 10000) }}"
+            currency: "usd"
+            charge_type: "one_time"
+            reason: "Load test charge"
+            payment_method_id: "pm_test_{{ $randomString() }}"
+          capture:
+            - json: "$.id"
+              as: "chargeId"
+          expect:
+            - statusCode: 201
+
+      # Get charge
+      - get:
+          url: "{{ apiPrefix }}/charges/{{ chargeId }}"
+          expect:
+            - statusCode: 200
+
+      # List charges
+      - get:
+          url: "{{ apiPrefix }}/charges?limit=10"
+          expect:
+            - statusCode: 200
+
+  # Scenario 4: Invoice operations (10% of traffic)
+  - name: "Invoice Operations"
+    weight: 10
+    flow:
+      # Create customer
+      - post:
+          url: "{{ apiPrefix }}/customers"
+          json:
+            email: "invoice-{{ $randomString() }}@example.com"
+            name: "Invoice Customer"
+            external_customer_id: "ext-inv-{{ $randomString() }}"
+          capture:
+            - json: "$.id"
+              as: "customerId"
+          expect:
+            - statusCode: 201
+
+      # Create invoice
+      - post:
+          url: "{{ apiPrefix }}/invoices"
+          json:
+            billing_customer_id: "{{ customerId }}"
+            due_date: "2026-03-31"
+            line_items:
+              - description: "Load test item"
+                amount_cents: "{{ $randomNumber(1000, 5000) }}"
+                quantity: 1
+          capture:
+            - json: "$.id"
+              as: "invoiceId"
+          expect:
+            - statusCode: 201
+
+      # Get invoice
+      - get:
+          url: "{{ apiPrefix }}/invoices/{{ invoiceId }}"
+          expect:
+            - statusCode: 200
+
+      # List invoices
+      - get:
+          url: "{{ apiPrefix }}/invoices?limit=10"
+          expect:
+            - statusCode: 200
+
+  # Scenario 5: Read-heavy operations (Health checks, lists)
+  - name: "Read Operations"
+    weight: 50
+    flow:
+      - get:
+          url: "/api/health"
+          expect:
+            - statusCode: 200
+            - contentType: json
+
+      - get:
+          url: "{{ apiPrefix }}/customers?limit=20"
+          expect:
+            - statusCode: 200
+
+      - get:
+          url: "{{ apiPrefix }}/subscriptions?limit=20"
+          expect:
+            - statusCode: 200
+
+      - get:
+          url: "{{ apiPrefix }}/charges?limit=20"
+          expect:
+            - statusCode: 200
+
+      - get:
+          url: "{{ apiPrefix }}/events?limit=20"
+          expect:
+            - statusCode: 200
