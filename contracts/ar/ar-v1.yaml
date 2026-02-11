@@ -1,20 +1,24 @@
 openapi: 3.0.3
-
 info:
   title: Accounts Receivable API
   version: 0.1.0
-  description: >
-    Accounts receivable and payment processing API for 7D Solutions Platform.
-    Integrates with Tilled payment gateway for charge processing.
+  description: 'This Accounts Receivable API manages billing records and payment method references only.
 
+
+    The `payment-methods` endpoints store and manage processor-issued payment method identifiers and non-sensitive metadata
+    (e.g., last4, brand, expiration).
+
+
+    No raw card data, API keys, gateway credentials, or sensitive secrets are accepted or stored by this module.
+
+
+    Sensitive payment processing is delegated to the external payment processor.'
 servers:
-  - url: https://ar.7dsolutions.io
-    description: Production
-  - url: http://localhost:8086
-    description: Local development
-
+- url: https://ar.7dsolutions.io
+  description: Production
+- url: http://localhost:8086
+  description: Local development
 paths:
-
   /api/ar/customers:
     post:
       summary: Create customer
@@ -24,67 +28,65 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateCustomerRequest"
+              $ref: '#/components/schemas/CreateCustomerRequest'
       responses:
-        "200":
+        '200':
           description: Customer created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Customer"
+                $ref: '#/components/schemas/Customer'
     get:
       summary: List customers
       operationId: listCustomers
       responses:
-        "200":
+        '200':
           description: Customers list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Customer"
-
+                  $ref: '#/components/schemas/Customer'
   /api/ar/customers/{id}:
     get:
       summary: Get customer
       operationId: getCustomer
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Customer found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Customer"
+                $ref: '#/components/schemas/Customer'
     put:
       summary: Update customer
       operationId: updateCustomer
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateCustomerRequest"
+              $ref: '#/components/schemas/UpdateCustomerRequest'
       responses:
-        "200":
+        '200':
           description: Customer updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Customer"
-
+                $ref: '#/components/schemas/Customer'
   /api/ar/subscriptions:
     post:
       summary: Create subscription
@@ -94,91 +96,88 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateSubscriptionRequest"
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
       responses:
-        "200":
+        '200':
           description: Subscription created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Subscription"
+                $ref: '#/components/schemas/Subscription'
     get:
       summary: List subscriptions
       operationId: listSubscriptions
       responses:
-        "200":
+        '200':
           description: Subscriptions list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Subscription"
-
+                  $ref: '#/components/schemas/Subscription'
   /api/ar/subscriptions/{id}:
     get:
       summary: Get subscription
       operationId: getSubscription
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Subscription found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Subscription"
+                $ref: '#/components/schemas/Subscription'
     put:
       summary: Update subscription
       operationId: updateSubscription
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateSubscriptionRequest"
+              $ref: '#/components/schemas/UpdateSubscriptionRequest'
       responses:
-        "200":
+        '200':
           description: Subscription updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Subscription"
-
+                $ref: '#/components/schemas/Subscription'
   /api/ar/subscriptions/{id}/cancel:
     post:
       summary: Cancel subscription
       operationId: cancelSubscription
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CancelSubscriptionRequest"
+              $ref: '#/components/schemas/CancelSubscriptionRequest'
       responses:
-        "200":
+        '200':
           description: Subscription canceled
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Subscription"
-
+                $ref: '#/components/schemas/Subscription'
   /api/ar/invoices:
     post:
       summary: Create invoice
@@ -188,91 +187,88 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateInvoiceRequest"
+              $ref: '#/components/schemas/CreateInvoiceRequest'
       responses:
-        "200":
+        '200':
           description: Invoice created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Invoice"
+                $ref: '#/components/schemas/Invoice'
     get:
       summary: List invoices
       operationId: listInvoices
       responses:
-        "200":
+        '200':
           description: Invoices list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Invoice"
-
+                  $ref: '#/components/schemas/Invoice'
   /api/ar/invoices/{id}:
     get:
       summary: Get invoice
       operationId: getInvoice
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Invoice found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Invoice"
+                $ref: '#/components/schemas/Invoice'
     put:
       summary: Update invoice
       operationId: updateInvoice
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdateInvoiceRequest"
+              $ref: '#/components/schemas/UpdateInvoiceRequest'
       responses:
-        "200":
+        '200':
           description: Invoice updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Invoice"
-
+                $ref: '#/components/schemas/Invoice'
   /api/ar/invoices/{id}/finalize:
     post:
       summary: Finalize invoice
       operationId: finalizeInvoice
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/FinalizeInvoiceRequest"
+              $ref: '#/components/schemas/FinalizeInvoiceRequest'
       responses:
-        "200":
+        '200':
           description: Invoice finalized
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Invoice"
-
+                $ref: '#/components/schemas/Invoice'
   /api/ar/charges:
     post:
       summary: Create charge
@@ -282,69 +278,66 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateChargeRequest"
+              $ref: '#/components/schemas/CreateChargeRequest'
       responses:
-        "200":
+        '200':
           description: Charge created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Charge"
+                $ref: '#/components/schemas/Charge'
     get:
       summary: List charges
       operationId: listCharges
       responses:
-        "200":
+        '200':
           description: Charges list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Charge"
-
+                  $ref: '#/components/schemas/Charge'
   /api/ar/charges/{id}:
     get:
       summary: Get charge
       operationId: getCharge
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Charge found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Charge"
-
+                $ref: '#/components/schemas/Charge'
   /api/ar/charges/{id}/capture:
     post:
       summary: Capture charge
       operationId: captureCharge
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CaptureChargeRequest"
+              $ref: '#/components/schemas/CaptureChargeRequest'
       responses:
-        "200":
+        '200':
           description: Charge captured
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Charge"
-
+                $ref: '#/components/schemas/Charge'
   /api/ar/refunds:
     post:
       summary: Create refund
@@ -354,101 +347,96 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CreateRefundRequest"
+              $ref: '#/components/schemas/CreateRefundRequest'
       responses:
-        "200":
+        '200':
           description: Refund created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Refund"
+                $ref: '#/components/schemas/Refund'
     get:
       summary: List refunds
       operationId: listRefunds
       responses:
-        "200":
+        '200':
           description: Refunds list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Refund"
-
+                  $ref: '#/components/schemas/Refund'
   /api/ar/refunds/{id}:
     get:
       summary: Get refund
       operationId: getRefund
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Refund found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Refund"
-
+                $ref: '#/components/schemas/Refund'
   /api/ar/disputes:
     get:
       summary: List disputes
       operationId: listDisputes
       responses:
-        "200":
+        '200':
           description: Disputes list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Dispute"
-
+                  $ref: '#/components/schemas/Dispute'
   /api/ar/disputes/{id}:
     get:
       summary: Get dispute
       operationId: getDispute
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Dispute found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Dispute"
-
+                $ref: '#/components/schemas/Dispute'
   /api/ar/disputes/{id}/evidence:
     post:
       summary: Submit dispute evidence
       operationId: submitDisputeEvidence
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/SubmitDisputeEvidenceRequest"
+              $ref: '#/components/schemas/SubmitDisputeEvidenceRequest'
       responses:
-        "200":
+        '200':
           description: Evidence submitted
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Dispute"
-
+                $ref: '#/components/schemas/Dispute'
   /api/ar/payment-methods:
     post:
       summary: Add payment method
@@ -458,97 +446,94 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/AddPaymentMethodRequest"
+              $ref: '#/components/schemas/AddPaymentMethodRequest'
       responses:
-        "200":
+        '200':
           description: Payment method added
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PaymentMethod"
+                $ref: '#/components/schemas/PaymentMethod'
     get:
       summary: List payment methods
       operationId: listPaymentMethods
       responses:
-        "200":
+        '200':
           description: Payment methods list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/PaymentMethod"
-
+                  $ref: '#/components/schemas/PaymentMethod'
   /api/ar/payment-methods/{id}:
     get:
       summary: Get payment method
       operationId: getPaymentMethod
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Payment method found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PaymentMethod"
+                $ref: '#/components/schemas/PaymentMethod'
     put:
       summary: Update payment method
       operationId: updatePaymentMethod
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UpdatePaymentMethodRequest"
+              $ref: '#/components/schemas/UpdatePaymentMethodRequest'
       responses:
-        "200":
+        '200':
           description: Payment method updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PaymentMethod"
+                $ref: '#/components/schemas/PaymentMethod'
     delete:
       summary: Delete payment method
       operationId: deletePaymentMethod
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Payment method deleted
-
   /api/ar/payment-methods/{id}/set-default:
     post:
       summary: Set default payment method
       operationId: setDefaultPaymentMethod
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Default payment method set
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/PaymentMethod"
-
+                $ref: '#/components/schemas/PaymentMethod'
   /api/ar/webhooks/tilled:
     post:
       summary: Receive Tilled webhook
@@ -560,101 +545,94 @@ paths:
             schema:
               type: object
       responses:
-        "200":
+        '200':
           description: Webhook received
-
   /api/ar/webhooks:
     get:
       summary: List webhooks
       operationId: listWebhooks
       responses:
-        "200":
+        '200':
           description: Webhooks list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Webhook"
-
+                  $ref: '#/components/schemas/Webhook'
   /api/ar/webhooks/{id}:
     get:
       summary: Get webhook
       operationId: getWebhook
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Webhook found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Webhook"
-
+                $ref: '#/components/schemas/Webhook'
   /api/ar/webhooks/{id}/replay:
     post:
       summary: Replay webhook
       operationId: replayWebhook
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/ReplayWebhookRequest"
+              $ref: '#/components/schemas/ReplayWebhookRequest'
       responses:
-        "200":
+        '200':
           description: Webhook replayed
-
   /api/ar/events:
     get:
       summary: List events
       operationId: listEvents
       responses:
-        "200":
+        '200':
           description: Events list
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Event"
-
+                  $ref: '#/components/schemas/Event'
   /api/ar/events/{id}:
     get:
       summary: Get event
       operationId: getEvent
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
       responses:
-        "200":
+        '200':
           description: Event found
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Event"
-
+                $ref: '#/components/schemas/Event'
 components:
   schemas:
-
     Customer:
       type: object
       required:
-        - id
-        - email
+      - id
+      - email
       properties:
         id:
           type: string
@@ -663,18 +641,16 @@ components:
           format: email
         name:
           type: string
-
     CreateCustomerRequest:
       type: object
       required:
-        - email
+      - email
       properties:
         email:
           type: string
           format: email
         name:
           type: string
-
     UpdateCustomerRequest:
       type: object
       properties:
@@ -683,13 +659,12 @@ components:
           format: email
         name:
           type: string
-
     Subscription:
       type: object
       required:
-        - id
-        - customer_id
-        - status
+      - id
+      - customer_id
+      - status
       properties:
         id:
           type: string
@@ -701,11 +676,10 @@ components:
           type: string
         amount:
           type: integer
-
     CreateSubscriptionRequest:
       type: object
       required:
-        - customer_id
+      - customer_id
       properties:
         customer_id:
           type: string
@@ -713,7 +687,6 @@ components:
           type: string
         amount:
           type: integer
-
     UpdateSubscriptionRequest:
       type: object
       properties:
@@ -721,19 +694,17 @@ components:
           type: string
         amount:
           type: integer
-
     CancelSubscriptionRequest:
       type: object
       properties:
         reason:
           type: string
-
     Invoice:
       type: object
       required:
-        - id
-        - customer_id
-        - status
+      - id
+      - customer_id
+      - status
       properties:
         id:
           type: string
@@ -743,35 +714,31 @@ components:
           type: string
         amount_due:
           type: integer
-
     CreateInvoiceRequest:
       type: object
       required:
-        - customer_id
+      - customer_id
       properties:
         customer_id:
           type: string
         amount_due:
           type: integer
-
     UpdateInvoiceRequest:
       type: object
       properties:
         amount_due:
           type: integer
-
     FinalizeInvoiceRequest:
       type: object
       properties:
         auto_advance:
           type: boolean
-
     Charge:
       type: object
       required:
-        - id
-        - amount
-        - status
+      - id
+      - amount
+      - status
       properties:
         id:
           type: string
@@ -781,11 +748,10 @@ components:
           type: string
         customer_id:
           type: string
-
     CreateChargeRequest:
       type: object
       required:
-        - amount
+      - amount
       properties:
         amount:
           type: integer
@@ -793,19 +759,17 @@ components:
           type: string
         payment_method_id:
           type: string
-
     CaptureChargeRequest:
       type: object
       properties:
         amount:
           type: integer
-
     Refund:
       type: object
       required:
-        - id
-        - charge_id
-        - amount
+      - id
+      - charge_id
+      - amount
       properties:
         id:
           type: string
@@ -815,11 +779,10 @@ components:
           type: integer
         status:
           type: string
-
     CreateRefundRequest:
       type: object
       required:
-        - charge_id
+      - charge_id
       properties:
         charge_id:
           type: string
@@ -827,13 +790,12 @@ components:
           type: integer
         reason:
           type: string
-
     Dispute:
       type: object
       required:
-        - id
-        - charge_id
-        - status
+      - id
+      - charge_id
+      - status
       properties:
         id:
           type: string
@@ -843,21 +805,19 @@ components:
           type: string
         reason:
           type: string
-
     SubmitDisputeEvidenceRequest:
       type: object
       required:
-        - evidence
+      - evidence
       properties:
         evidence:
           type: string
-
     PaymentMethod:
       type: object
       required:
-        - id
-        - customer_id
-        - type
+      - id
+      - customer_id
+      - type
       properties:
         id:
           type: string
@@ -867,12 +827,11 @@ components:
           type: string
         is_default:
           type: boolean
-
     AddPaymentMethodRequest:
       type: object
       required:
-        - customer_id
-        - type
+      - customer_id
+      - type
       properties:
         customer_id:
           type: string
@@ -880,19 +839,17 @@ components:
           type: string
         token:
           type: string
-
     UpdatePaymentMethodRequest:
       type: object
       properties:
         is_default:
           type: boolean
-
     Webhook:
       type: object
       required:
-        - id
-        - event_type
-        - status
+      - id
+      - event_type
+      - status
       properties:
         id:
           type: string
@@ -902,18 +859,16 @@ components:
           type: string
         payload:
           type: object
-
     ReplayWebhookRequest:
       type: object
       properties:
         force:
           type: boolean
-
     Event:
       type: object
       required:
-        - id
-        - event_type
+      - id
+      - event_type
       properties:
         id:
           type: string
