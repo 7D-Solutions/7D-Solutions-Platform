@@ -1,0 +1,17 @@
+[workspace]
+members = [
+  "platform/identity-auth",
+  "modules/ar"
+]
+
+# Workspace-level settings
+resolver = "2"
+
+# Future: shared dependencies can be defined here
+# [workspace.dependencies]
+
+# Note: Full workspace build requires dependency version alignment.
+# Currently AUTH uses sqlx 0.7, AR uses sqlx 0.8.
+# Modules can still be built independently:
+#   cd platform/identity-auth && cargo build
+#   cd modules/ar && cargo build
