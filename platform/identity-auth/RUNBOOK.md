@@ -2,7 +2,7 @@
 
 Production operations guide for the 7D Solutions authentication service.
 
-Service: auth-rs-v1_4
+Service: platform/identity-auth
 Language: Rust (Axum)
 Database: PostgreSQL
 Event Bus: NATS JetStream

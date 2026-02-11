@@ -8,7 +8,7 @@ This guide provides quick commands to validate the AR migration. For complete de
 
 ```bash
 # Ensure you're in the ar-rs directory
-cd packages/ar-rs
+cd modules/ar
 
 # Install dependencies
 cargo build
@@ -67,15 +67,15 @@ cargo test --test e2e_workflows -- --test-threads=1
 **Node.js vs Rust Comparison:**
 ```bash
 # Terminal 1: Start Node.js service
-cd packages/ar/backend
+cd modules/ar/backend
 npm start  # Port 3001
 
 # Terminal 2: Start Rust service
-cd packages/ar-rs
+cd modules/ar
 cargo run --release  # Port 8086
 
 # Terminal 3: Run comparison
-cd packages/ar-rs
+cd modules/ar
 ./tests/compare-implementations.sh
 ```
 
@@ -117,7 +117,7 @@ curl -X POST http://localhost:8086/api/ar/customers \
 
 All test results are saved to:
 ```
-packages/ar-rs/tests/load/validation-results/
+modules/ar/tests/load/validation-results/
 ```
 
 Files include:

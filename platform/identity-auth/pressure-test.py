@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Pressure test for auth-rs-v1_4 production hardening features.
+Pressure test for platform/identity-auth production hardening features.
 
 Tests:
 1. JWKS endpoint under high concurrency
@@ -197,7 +197,7 @@ class LoadTester:
         duration = time.time() - start
 
         # Check logs for IP and user-agent
-        with open('/tmp/auth-rs-v1_4.log', 'r') as f:
+        with open('/tmp/platform/identity-auth.log', 'r') as f:
             logs = f.read()
             has_replay_log = 'refresh_replay_detected' in logs
             has_client_ip = '198.51.100.99' in logs or 'client_ip' in logs

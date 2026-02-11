@@ -9,8 +9,8 @@ This document outlines the comprehensive end-to-end validation strategy for the 
 ### What Was Migrated
 
 1. **Backend Implementation**
-   - **From:** Node.js/Express (`packages/ar/backend/`)
-   - **To:** Rust/Axum (`packages/ar-rs/`)
+   - **From:** Node.js/Express (`modules/ar/backend/`)
+   - **To:** Rust/Axum (`modules/ar/`)
    - **Lines of Code:** ~5,000 LOC migrated
 
 2. **Database**
@@ -86,7 +86,7 @@ This document outlines the comprehensive end-to-end validation strategy for the 
 
 ### 1. Unit Tests
 
-**Location:** `packages/ar-rs/tests/`
+**Location:** `modules/ar/tests/`
 
 **Coverage:**
 - ✅ Customer operations (`customer_tests.rs`)
@@ -97,7 +97,7 @@ This document outlines the comprehensive end-to-end validation strategy for the 
 
 **Run Unit Tests:**
 ```bash
-cd packages/ar-rs
+cd modules/ar
 cargo test --lib
 ```
 
@@ -108,7 +108,7 @@ cargo test --lib
 
 ### 2. Integration Tests
 
-**Location:** `packages/ar-rs/tests/`
+**Location:** `modules/ar/tests/`
 
 **What's Tested:**
 - Real database connections
@@ -118,7 +118,7 @@ cargo test --lib
 
 **Run Integration Tests:**
 ```bash
-cd packages/ar-rs
+cd modules/ar
 DATABASE_URL_AR="postgresql://postgres:postgres@localhost:5434/ar_service" \
 cargo test --test '*'
 ```
@@ -130,7 +130,7 @@ cargo test --test '*'
 
 ### 3. End-to-End Workflow Tests
 
-**Location:** `packages/ar-rs/tests/e2e_workflows.rs`
+**Location:** `modules/ar/tests/e2e_workflows.rs`
 
 **Scenarios Tested:**
 1. **Customer Lifecycle**: Create → Update → List → Get
@@ -143,7 +143,7 @@ cargo test --test '*'
 
 **Run E2E Tests:**
 ```bash
-cd packages/ar-rs
+cd modules/ar
 cargo test --test e2e_workflows -- --test-threads=1
 ```
 
@@ -154,7 +154,7 @@ cargo test --test e2e_workflows -- --test-threads=1
 
 ### 4. Load Testing
 
-**Location:** `packages/ar-rs/tests/load/ar-load-test.yml`
+**Location:** `modules/ar/tests/load/ar-load-test.yml`
 
 **Test Configuration:**
 - **Warm-up:** 5 req/sec for 60s
@@ -176,13 +176,13 @@ cargo test --test e2e_workflows -- --test-threads=1
 npm install -g artillery
 
 # Start Rust AR service
-cd packages/ar-rs
+cd modules/ar
 cargo run --release
 ```
 
 **Run Load Test:**
 ```bash
-cd packages/ar-rs
+cd modules/ar
 artillery run tests/load/ar-load-test.yml
 ```
 
@@ -194,22 +194,22 @@ artillery run tests/load/ar-load-test.yml
 
 ### 5. Comparison Testing (Node.js vs Rust)
 
-**Location:** `packages/ar-rs/tests/compare-implementations.sh`
+**Location:** `modules/ar/tests/compare-implementations.sh`
 
 **Prerequisites:**
 ```bash
 # Start Node.js AR service
-cd packages/ar/backend
+cd modules/ar/backend
 npm start  # Runs on port 3001
 
 # Start Rust AR service (in another terminal)
-cd packages/ar-rs
+cd modules/ar
 cargo run --release  # Runs on port 8086
 ```
 
 **Run Comparison Test:**
 ```bash
-cd packages/ar-rs
+cd modules/ar
 ./tests/compare-implementations.sh
 ```
 
@@ -225,16 +225,16 @@ cd packages/ar-rs
 
 ### 6. Data Migration Validation
 
-**Location:** `packages/ar-rs/tests/validate-data-migration.sh`
+**Location:** `modules/ar/tests/validate-data-migration.sh`
 
 **Prerequisites:**
 - MySQL database accessible (`fireproof-db:3307`)
 - PostgreSQL database accessible (`localhost:5434`)
-- Data migration completed (`packages/ar-rs/migrations/`)
+- Data migration completed (`modules/ar/migrations/`)
 
 **Run Data Validation:**
 ```bash
-cd packages/ar-rs
+cd modules/ar
 ./tests/validate-data-migration.sh
 ```
 
@@ -339,7 +339,7 @@ If critical issues are discovered:
    pkill ar-rs
 
    # Restart Node.js service
-   cd packages/ar/backend
+   cd modules/ar/backend
    npm start
    ```
 

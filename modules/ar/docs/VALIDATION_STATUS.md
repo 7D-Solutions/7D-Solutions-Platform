@@ -225,7 +225,7 @@ The current test failures are **expected and valuable** in a TDD approach. Each 
 1. **Load Testing** - Once functionally stable
    ```bash
    npm install -g artillery
-   artillery run packages/ar-rs/tests/load/ar-load-test.yml
+   artillery run modules/ar/tests/load/ar-load-test.yml
    ```
 
 2. **Comparison Testing** - If API compatibility needed

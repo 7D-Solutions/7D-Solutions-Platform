@@ -60,7 +60,7 @@ The AR (Accounts Receivable) migration from Node.js/MySQL to Rust/PostgreSQL has
 
 ### Unit Tests (3/3 passing - 100%)
 
-**Location:** `packages/ar-rs/src/`
+**Location:** `modules/ar/src/`
 
 ✅ All unit tests passing
 - Model validation
@@ -69,7 +69,7 @@ The AR (Accounts Receivable) migration from Node.js/MySQL to Rust/PostgreSQL has
 
 ### Integration Tests (9/37 passing - 24%)
 
-**Location:** `packages/ar-rs/tests/`
+**Location:** `modules/ar/tests/`
 
 #### Customer Tests (3/8 passing - 37.5%)
 | Test | Status | Issue |
@@ -133,7 +133,7 @@ The AR (Accounts Receivable) migration from Node.js/MySQL to Rust/PostgreSQL has
 
 ### E2E Workflow Tests (2/7 passing - 29%)
 
-**Location:** `packages/ar-rs/tests/e2e_workflows.rs`
+**Location:** `modules/ar/tests/e2e_workflows.rs`
 
 | Workflow | Status | Issue |
 |----------|--------|-------|
@@ -211,7 +211,7 @@ The AR (Accounts Receivable) migration from Node.js/MySQL to Rust/PostgreSQL has
 ## Test Infrastructure
 
 ### Integration Tests ✅
-**Location:** `packages/ar-rs/tests/`
+**Location:** `modules/ar/tests/`
 
 Comprehensive test suite with:
 - ✅ Test utilities (`common/mod.rs`)
@@ -222,7 +222,7 @@ Comprehensive test suite with:
 - ✅ 37 integration tests across 4 domains
 
 ### Load Tests ✅
-**Location:** `packages/ar-rs/tests/load/ar-load-test.yml`
+**Location:** `modules/ar/tests/load/ar-load-test.yml`
 
 Artillery configuration with:
 - ✅ 5 load phases (warm-up → peak → cool-down)
@@ -232,7 +232,7 @@ Artillery configuration with:
 - ✅ Error rate monitoring (< 1%)
 
 ### Comparison Tests ✅
-**Location:** `packages/ar-rs/tests/compare-implementations.sh`
+**Location:** `modules/ar/tests/compare-implementations.sh`
 
 Bash script to:
 - ✅ Test Node.js vs Rust implementations
@@ -242,7 +242,7 @@ Bash script to:
 - ✅ Generate comparison report
 
 ### Data Validation ✅
-**Location:** `packages/ar-rs/tests/validate-data-migration.sh`
+**Location:** `modules/ar/tests/validate-data-migration.sh`
 
 Bash script to:
 - ✅ Compare MySQL vs PostgreSQL record counts
@@ -336,7 +336,7 @@ Bash script to:
 
 ### Load Test Configuration ✅
 **Tool:** Artillery
-**Location:** `packages/ar-rs/tests/load/ar-load-test.yml`
+**Location:** `modules/ar/tests/load/ar-load-test.yml`
 
 **Test Plan:**
 1. Warm-up: 60s @ 5 req/s
@@ -354,7 +354,7 @@ Bash script to:
 
 **To run:**
 ```bash
-cd packages/ar-rs
+cd modules/ar
 artillery run tests/load/ar-load-test.yml
 ```
 
@@ -363,7 +363,7 @@ artillery run tests/load/ar-load-test.yml
 ## Comparison Testing
 
 ### Implementation Comparison ✅
-**Script:** `packages/ar-rs/tests/compare-implementations.sh`
+**Script:** `modules/ar/tests/compare-implementations.sh`
 
 **Tests:**
 - Health check
@@ -383,7 +383,7 @@ artillery run tests/load/ar-load-test.yml
 
 **To run:**
 ```bash
-cd packages/ar-rs
+cd modules/ar
 ./tests/compare-implementations.sh
 ```
 

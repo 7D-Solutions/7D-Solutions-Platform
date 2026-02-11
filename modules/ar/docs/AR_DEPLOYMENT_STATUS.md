@@ -60,9 +60,9 @@ AR_PROXY_TIMEOUT=30000
 ```
 
 **Configuration Files:**
-- `packages/ar-rs/.env` - Rust backend config
+- `modules/ar/.env` - Rust backend config
 - `apps/backend/.env` - Node.js proxy config
-- `packages/ar-rs/Cargo.toml` - Rust dependencies
+- `modules/ar/Cargo.toml` - Rust dependencies
 - `docker-compose.yml` - Service orchestration
 
 ### 1.3 Database Schema
@@ -104,7 +104,7 @@ AR_PROXY_TIMEOUT=30000
 
 **Migrations:**
 ```bash
-cd packages/ar-rs
+cd modules/ar
 sqlx migrate run --database-url $DATABASE_URL_AR
 ```
 
@@ -135,7 +135,7 @@ sqlx migrate run --database-url $DATABASE_URL_AR
           ▼
 ┌─────────────────────────────┐
 │  Rust AR Backend            │
-│  packages/ar-rs/            │
+│  modules/ar/            │
 │  Port: 8086                 │
 │                             │
 │  ┌─────────────────────┐   │
@@ -278,7 +278,7 @@ curl -X POST http://localhost:3001/api/ar/customers \
 
 ### 3.2 Integration Test Details
 
-**Location:** `packages/ar-rs/tests/`
+**Location:** `modules/ar/tests/`
 
 #### Customer Tests (3/8 passing - 37.5%)
 | Test | Status | Issue |
@@ -353,7 +353,7 @@ curl -X POST http://localhost:3001/api/ar/customers \
 11. **Webhook replay not functional** - Cannot retry failed webhooks
 
 **Detailed Issue Tracking:**
-See `packages/ar-rs/docs/ar-migration-next-steps.md` for complete issue breakdown and resolution plan.
+See `modules/ar/docs/ar-migration-next-steps.md` for complete issue breakdown and resolution plan.
 
 ---
 
@@ -383,7 +383,7 @@ See `packages/ar-rs/docs/ar-migration-next-steps.md` for complete issue breakdow
 ### 4.3 Migration Tooling
 
 **Validation Script:** ✅ Created
-`packages/ar-rs/tests/validate-data-migration.sh`
+`modules/ar/tests/validate-data-migration.sh`
 
 **Migration Script:** ❌ Not created yet
 Needs to be created as part of bd-zm6.32
@@ -405,8 +405,8 @@ Needs to be created as part of bd-zm6.32
 **Decision:** DO NOT MIGRATE until integration test pass rate reaches 100% (currently 24%).
 
 **Related Documentation:**
-- `packages/ar-rs/docs/DATA_MIGRATION_REQUIREMENTS.md` - Migration requirements analysis
-- `packages/ar-rs/docs/ar-migration-next-steps.md` - Bug fix roadmap
+- `modules/ar/docs/DATA_MIGRATION_REQUIREMENTS.md` - Migration requirements analysis
+- `modules/ar/docs/ar-migration-next-steps.md` - Bug fix roadmap
 
 **Related Commit:** [bd-3dtl] (6b8884c)
 
@@ -567,26 +567,26 @@ Needs to be created as part of bd-zm6.32
 ### 7.1 Architecture & Design
 - `AR_MIGRATION_PLAN.md` - Overall migration plan
 - `AR_NAMING_MIGRATION_COMPLETE.md` - Naming convention migration
-- `packages/ar/ARCHITECTURE-CHANGE.md` - Legacy architecture notes
+- `modules/ar/ARCHITECTURE-CHANGE.md` - Legacy architecture notes
 
 ### 7.2 Testing & Validation
-- `packages/ar-rs/docs/AR_MIGRATION_VALIDATION.md` - Comprehensive validation guide
-- `packages/ar-rs/docs/ar-migration-validation-report.md` - Current test status
-- `packages/ar-rs/docs/ar-migration-next-steps.md` - Bug fix roadmap (detailed)
+- `modules/ar/docs/AR_MIGRATION_VALIDATION.md` - Comprehensive validation guide
+- `modules/ar/docs/ar-migration-validation-report.md` - Current test status
+- `modules/ar/docs/ar-migration-next-steps.md` - Bug fix roadmap (detailed)
 
 ### 7.3 Data Migration
-- `packages/ar-rs/docs/DATA_MIGRATION_REQUIREMENTS.md` - Migration requirements
-- `packages/ar-rs/tests/validate-data-migration.sh` - Validation script
+- `modules/ar/docs/DATA_MIGRATION_REQUIREMENTS.md` - Migration requirements
+- `modules/ar/tests/validate-data-migration.sh` - Validation script
 
 ### 7.4 Integration
 - `apps/backend/src/middleware/ar-proxy.js` - Proxy implementation
 - `apps/backend/tests/integration/ar/ar-proxy.test.js` - Proxy tests
 
 ### 7.5 Source Code
-- `packages/ar-rs/src/main.rs` - Rust backend entry point
-- `packages/ar-rs/src/routes.rs` - API endpoint implementations
-- `packages/ar-rs/src/models.rs` - Data models
-- `packages/ar-rs/migrations/` - Database migrations
+- `modules/ar/src/main.rs` - Rust backend entry point
+- `modules/ar/src/routes.rs` - API endpoint implementations
+- `modules/ar/src/models.rs` - Data models
+- `modules/ar/migrations/` - Database migrations
 
 ---
 
@@ -609,7 +609,7 @@ Needs to be created as part of bd-zm6.32
 **Development:**
 ```bash
 # Start AR backend locally
-cd packages/ar-rs
+cd modules/ar
 cargo run
 
 # Run integration tests
@@ -642,9 +642,9 @@ docker exec -it 7d-ar-postgres psql -U ar_user -d ar_db
 
 ### Key Files
 - Proxy: `apps/backend/src/middleware/ar-proxy.js`
-- Backend: `packages/ar-rs/src/main.rs`
-- Routes: `packages/ar-rs/src/routes.rs`
-- Tests: `packages/ar-rs/tests/*.rs`
+- Backend: `modules/ar/src/main.rs`
+- Routes: `modules/ar/src/routes.rs`
+- Tests: `modules/ar/tests/*.rs`
 
 ### Environment Variables
 ```bash

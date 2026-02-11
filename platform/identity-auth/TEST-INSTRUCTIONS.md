@@ -40,7 +40,7 @@ docker run -d --name auth-nats -p 4222:4222 -p 8222:8222 nats:2.10-alpine -js
 ### 4. Run auth-rs
 
 ```bash
-cd "/Users/james/Projects/7D-Solutions Modules/auth-rs-v1_4"
+cd "/Users/james/Projects/7D-Solutions Modules/platform/identity-auth"
 export SCHEMA_DIR=src/events/schemas
 cargo run --release
 ```

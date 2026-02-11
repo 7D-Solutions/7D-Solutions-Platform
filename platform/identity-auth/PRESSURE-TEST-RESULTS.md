@@ -1,7 +1,7 @@
 # Auth-RS v1.4 Pressure Test Results
 
 **Date:** 2026-02-11
-**Service:** auth-rs-v1_4 (localhost:8081)
+**Service:** platform/identity-auth (localhost:8081)
 **Configuration:**
 - MAX_CONCURRENT_HASHES: 50
 - ARGON_MEMORY_KB: 65536 (64MB)

@@ -131,7 +131,7 @@ Tests require `DATABASE_URL_AR` environment variable:
 DATABASE_URL_AR="postgresql://ar_user:ar_pass@localhost:5436/ar_db"
 ```
 
-Create `.env` file in `packages/ar-rs/` directory with this variable.
+Create `.env` file in `modules/ar/` directory with this variable.
 
 ## Test Patterns
 

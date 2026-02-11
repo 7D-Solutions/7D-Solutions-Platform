@@ -77,7 +77,7 @@
 ### Option 1: Docker Compose (Recommended)
 
 ```bash
-cd "/Users/james/Projects/7D-Solutions Modules/auth-rs-v1_4"
+cd "/Users/james/Projects/7D-Solutions Modules/platform/identity-auth"
 
 # Start all services
 docker-compose up -d
@@ -95,7 +95,7 @@ docker-compose down
 ### Option 2: Cargo (Development)
 
 ```bash
-cd "/Users/james/Projects/7D-Solutions Modules/auth-rs-v1_4"
+cd "/Users/james/Projects/7D-Solutions Modules/platform/identity-auth"
 
 # Start dependencies (use existing or start new)
 # Postgres on 5434, NATS on 4222
@@ -168,7 +168,7 @@ All events published to NATS with:
 ## 📁 File Structure
 
 ```
-auth-rs-v1_4/
+platform/identity-auth/
 ├── Cargo.toml                  # Dependencies
 ├── Dockerfile                  # Multi-stage build
 ├── docker-compose.yml          # Full stack

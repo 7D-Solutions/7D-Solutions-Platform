@@ -137,7 +137,7 @@ MySQL billing_charges       → PostgreSQL ar_charges
 #### 2. Validate Test Infrastructure ✅
 
 **Already Complete:**
-- ✅ Validation script: `packages/ar-rs/tests/validate-data-migration.sh`
+- ✅ Validation script: `modules/ar/tests/validate-data-migration.sh`
 - ✅ Test utilities and helpers
 - ✅ Database connection logic
 - ✅ Seeding and cleanup functions
@@ -146,7 +146,7 @@ MySQL billing_charges       → PostgreSQL ar_charges
 
 #### 3. Create Data Migration Script ⏳ NEEDED
 
-**Script Location:** `packages/ar-rs/scripts/migrate-data-mysql-to-postgres.sh`
+**Script Location:** `modules/ar/scripts/migrate-data-mysql-to-postgres.sh`
 
 **Required Features:**
 1. Connect to both MySQL and PostgreSQL
@@ -255,7 +255,7 @@ done
 3. **Validate Data Integrity**
    ```bash
    # Run validation suite
-   cd packages/ar-rs
+   cd modules/ar
    ./tests/validate-data-migration.sh
 
    # Expected: 100% pass rate, all records match
@@ -416,7 +416,7 @@ SELECT setval('ar_subscriptions_id_seq', (SELECT MAX(id) FROM ar_subscriptions))
 
 ### Post-Migration Validation ✅
 
-**Script exists:** `packages/ar-rs/tests/validate-data-migration.sh`
+**Script exists:** `modules/ar/tests/validate-data-migration.sh`
 
 **Validation checks:**
 1. ✅ Record count matching (all 23 tables)
@@ -652,17 +652,17 @@ bd-zm6.20 (GET fixes)
 
 ### Existing Documentation
 
-- **Migration Complete Notice:** `packages/ar/MIGRATION-COMPLETE.md`
-- **Validation Report:** `packages/ar-rs/docs/ar-migration-validation-report.md`
-- **Next Steps Guide:** `packages/ar-rs/docs/ar-migration-next-steps.md`
-- **Validation Script:** `packages/ar-rs/tests/validate-data-migration.sh`
-- **Schema Migrations:** `packages/ar-rs/migrations/*.sql`
+- **Migration Complete Notice:** `modules/ar/MIGRATION-COMPLETE.md`
+- **Validation Report:** `modules/ar/docs/ar-migration-validation-report.md`
+- **Next Steps Guide:** `modules/ar/docs/ar-migration-next-steps.md`
+- **Validation Script:** `modules/ar/tests/validate-data-migration.sh`
+- **Schema Migrations:** `modules/ar/migrations/*.sql`
 
 ### To Be Created
 
-- **Migration Script:** `packages/ar-rs/scripts/migrate-data-mysql-to-postgres.sh` ⏳
-- **Migration Playbook:** `packages/ar-rs/docs/MIGRATION_PLAYBOOK.md` ⏳
-- **Production Runbook:** `packages/ar-rs/docs/PRODUCTION_MIGRATION.md` ⏳
+- **Migration Script:** `modules/ar/scripts/migrate-data-mysql-to-postgres.sh` ⏳
+- **Migration Playbook:** `modules/ar/docs/MIGRATION_PLAYBOOK.md` ⏳
+- **Production Runbook:** `modules/ar/docs/PRODUCTION_MIGRATION.md` ⏳
 
 ---
 
