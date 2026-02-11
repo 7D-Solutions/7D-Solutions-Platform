@@ -1,0 +1,161 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate-contracts:
+    name: Validate Contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Validate YAML contracts
+        run: |
+          python3 -c "
+          import yaml
+          import sys
+          from pathlib import Path
+          
+          errors = []
+          for f in Path('contracts').rglob('*.yaml'):
+              try:
+                  yaml.safe_load(f.read_text())
+                  print(f'✓ {f}')
+              except Exception as e:
+                  errors.append(f'✗ {f}: {e}')
+          
+          if errors:
+              for e in errors:
+                  print(e, file=sys.stderr)
+              sys.exit(1)
+          "
+      
+      - name: Validate JSON contracts
+        run: |
+          python3 -c "
+          import json
+          import sys
+          from pathlib import Path
+          
+          errors = []
+          for f in Path('contracts').rglob('*.json'):
+              try:
+                  json.loads(f.read_text())
+                  print(f'✓ {f}')
+              except Exception as e:
+                  errors.append(f'✗ {f}: {e}')
+          
+          if errors:
+              for e in errors:
+                  print(e, file=sys.stderr)
+              sys.exit(1)
+          "
+
+  validate-module-structure:
+    name: Validate Module Structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check VERSION and CHANGELOG exist
+        run: |
+          missing=()
+          
+          for module in platform/identity-auth modules/ar; do
+            if [ ! -f "$module/VERSION" ]; then
+              missing+=("$module/VERSION")
+            fi
+            if [ ! -f "$module/CHANGELOG.md" ]; then
+              missing+=("$module/CHANGELOG.md")
+            fi
+          done
+          
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "ERROR: Missing required files:" >&2
+            printf '%s\n' "${missing[@]}" >&2
+            exit 1
+          fi
+          
+          echo "✓ All modules have VERSION and CHANGELOG.md"
+
+  cross-module-boundary-guard:
+    name: Cross-Module Boundary Guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Check for illegal cross-module imports
+        run: |
+          violations=()
+          
+          # AR must not reference AUTH source paths
+          if grep -r "platform/identity-auth/src" modules/ar/src/ 2>/dev/null; then
+            violations+=("AR references AUTH source code")
+          fi
+          
+          # AUTH must not reference AR source paths
+          if grep -r "modules/ar/src" platform/identity-auth/src/ 2>/dev/null; then
+            violations+=("AUTH references AR source code")
+          fi
+          
+          if [ ${#violations[@]} -gt 0 ]; then
+            echo "ERROR: Cross-module boundary violations detected:" >&2
+            printf '%s\n' "${violations[@]}" >&2
+            exit 1
+          fi
+          
+          echo "✓ No cross-module source code dependencies"
+
+  build-auth:
+    name: Build AUTH Module
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-auth-${{ hashFiles('platform/identity-auth/Cargo.lock') }}
+      
+      - name: Run cargo check
+        working-directory: platform/identity-auth
+        run: cargo check --all-targets
+
+  build-ar:
+    name: Build AR Module
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+      
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-ar-${{ hashFiles('modules/ar/Cargo.lock') }}
+      
+      - name: Run cargo check
+        working-directory: modules/ar
+        run: cargo check --all-targets
