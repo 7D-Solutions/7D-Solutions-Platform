@@ -123,17 +123,27 @@ CREATE TABLE auth_sessions (
 
 ## Workspace Note
 
-The repository includes a root `Cargo.toml` workspace for tooling convenience.
+The repository includes a root `Cargo.toml` workspace for unified builds and tooling.
 
-**Important:** Modules can be built independently even if workspace build fails due to dependency version mismatches. This is intentional - modules have independent release cycles.
+**Status:** Core dependencies are aligned across all modules (as of 2026-02-11):
+- axum 0.8
+- sqlx 0.8  
+- tower 0.5
+- tower-http 0.6
 
-To build a specific module:
+Workspace builds now succeed:
+```bash
+cargo check -p auth-rs
+cargo check -p ar-rs
+```
+
+Modules can also be built independently:
 ```bash
 cd platform/identity-auth && cargo build
 cd modules/ar && cargo build
 ```
 
-Workspace dependency alignment is recommended but not required for deployment.
+**Policy:** New modules must align with platform stack versions or document divergence rationale.
 
 ## Questions and Exceptions
 
