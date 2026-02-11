@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "auth.user.registered.v1",
+  "type": "object",
+  "required": ["event_id","event_type","schema_version","occurred_at","producer","tenant_id","aggregate_type","aggregate_id","trace_id","data"],
+  "properties": {
+    "event_id": {"type":"string"},
+    "event_type": {"const":"auth.user.registered"},
+    "schema_version": {"const":"auth.user.registered/v1"},
+    "occurred_at": {"type":"string"},
+    "producer": {"type":"string"},
+    "tenant_id": {"type":"string"},
+    "aggregate_type": {"const":"user"},
+    "aggregate_id": {"type":"string"},
+    "trace_id": {"type":"string"},
+    "causation_id": {"type":["string","null"]},
+    "data": {
+      "type":"object",
+      "required":["user_id","email"],
+      "properties":{
+        "user_id":{"type":"string"},
+        "email":{"type":"string"}
+      }
+    }
+  }
+}
