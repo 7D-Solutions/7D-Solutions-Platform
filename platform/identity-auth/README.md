@@ -120,10 +120,31 @@ All events validated against JSON schemas at publish time.
 auth-rs/
 ├── Cargo.toml                      # Dependencies
 ├── .env.example                    # Environment template
-├── docker-compose.yml              # Local dev stack
-├── migrations/
-│   └── V001__init.sql             # Database schema
-└── src/
+├── VERSION                         # Module version
+├── CHANGELOG.md                    # Change history
+├── README.md                       # This file
+├── api/                            # API contract reference
+│   └── README.md                  # Links to /contracts/auth/
+├── db/
+│   └── migrations/                # Database schema
+│       └── V001__init.sql
+├── deploy/                         # Deployment artifacts
+│   ├── Dockerfile                 # Container build
+│   ├── docker-compose.yml         # Local dev stack
+│   ├── docker-compose.multi.yml   # Multi-instance stack
+│   └── nginx/                     # Load balancer config
+├── docs/                           # Operational documentation
+│   ├── DEPLOYMENT.md
+│   ├── KEY-CUSTODY.md
+│   ├── RUNBOOK.md
+│   ├── SLO.md
+│   ├── THREAT-MODEL.md
+│   └── ...
+├── observability/                  # Metrics and alerts
+│   ├── alerts/
+│   └── dashboards/
+├── tests/                          # Test scripts
+└── src/                            # Rust implementation
     ├── main.rs                     # Entry point
     ├── config.rs                   # Environment config
     ├── db.rs                       # Database connection
@@ -146,11 +167,12 @@ auth-rs/
 
 ## Production Deployment
 
-1. Build Docker image: `docker build -t auth-rs:1.0.0 .`
+1. Build Docker image: `docker build -f deploy/Dockerfile -t auth-rs:1.4.0 .`
 2. Set environment variables via secrets
 3. Ensure PostgreSQL and NATS are accessible
 4. Monitor `/health/ready` for readiness
 5. Route traffic through API gateway (Traefik)
+
 
 ## Status
 

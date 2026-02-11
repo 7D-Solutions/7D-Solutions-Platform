@@ -110,8 +110,8 @@ Current .env settings:
 
 ## Next Steps for Full Docker Integration
 
-1. Manually create `docker-compose.yml` (hook bypass needed)
-2. Manually create `Dockerfile` (hook bypass needed)
+1. Manually create `deploy/docker-compose.yml` (hook bypass needed)
+2. Manually create `deploy/Dockerfile` (hook bypass needed)
 3. Or use existing docker-compose patterns from other services
 
 ## Bead ID

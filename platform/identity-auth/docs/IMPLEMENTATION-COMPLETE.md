@@ -35,9 +35,9 @@
 
 ### Infrastructure
 - ✅ `Cargo.toml` - Dependencies configured
-- ✅ `Dockerfile` - Multi-stage build
-- ✅ `docker-compose.yml` - Full stack (postgres + nats + auth-rs)
-- ✅ `migrations/001_init.sql` - Database schema
+- ✅ `deploy/Dockerfile` - Multi-stage build
+- ✅ `deploy/docker-compose.yml` - Full stack (postgres + nats + auth-rs)
+- ✅ `db/migrations/001_init.sql` - Database schema
 - ✅ `.env` - Configuration with generated RSA keys
 - ✅ `.env.example` - Template
 
@@ -80,16 +80,16 @@
 cd "/Users/james/Projects/7D-Solutions Modules/platform/identity-auth"
 
 # Start all services
-docker-compose up -d
+docker-compose -f deploy/docker-compose.yml up -d
 
 # Check logs
-docker-compose logs -f auth-rs
+docker-compose -f deploy/docker-compose.yml logs -f auth-rs
 
 # Run tests
 ./run-tests.sh
 
 # Stop services
-docker-compose down
+docker-compose -f deploy/docker-compose.yml down
 ```
 
 ### Option 2: Cargo (Development)
@@ -170,8 +170,9 @@ All events published to NATS with:
 ```
 platform/identity-auth/
 ├── Cargo.toml                  # Dependencies
-├── Dockerfile                  # Multi-stage build
-├── docker-compose.yml          # Full stack
+├── deploy/
+│   ├── Dockerfile                  # Multi-stage build
+│   └── docker-compose.yml          # Full stack
 ├── .env                        # Secrets (not in git)
 ├── .env.example                # Template
 ├── .gitignore                  # Git exclusions
@@ -182,7 +183,8 @@ platform/identity-auth/
 ├── run-tests.sh               # Test automation
 ├── jwt_private_key.pem         # RSA private (not in git)
 ├── jwt_public_key.pem          # RSA public (not in git)
-├── migrations/
+├── db/
+│   └── migrations/
 │   └── 001_init.sql           # Database schema
 ├── src/
 │   ├── main.rs                # Entry point

@@ -8,6 +8,6 @@ pub async fn create_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
 }
 
 pub async fn run_migrations(pool: &PgPool) -> Result<(), Box<dyn std::error::Error>> {
-    sqlx::migrate!("./migrations").run(pool).await?;
+    sqlx::migrate!("./db/migrations").run(pool).await?;
     Ok(())
 }
