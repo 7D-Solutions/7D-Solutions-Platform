@@ -26,3 +26,13 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.beads/mail-read.jsonl
+.beads/mail-read-temp.jsonl
+.beads/*.backup
+.beads/agent-activity.jsonl
+.beads/reserve-pending/
+.agent-mail-project-id
+pids/
+
+# bv (beads viewer) local config and caches
+.bv/
