@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/gl-posting-accepted.v1.json",
+  "title": "GL Posting Accepted Event",
+  "description": "Emitted by the GL module after successfully creating a journal entry from a posting request. The correlation_id should equal the original_event_id from the gl.posting.requested event. The journal_entry_id references the created GL record and can be used for audit and reconciliation.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "correlation_id",
+    "causation_id",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this acknowledgement event."
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the posting was accepted."
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation."
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Correlation identifier linking this response to the original posting request. Should equal the original event_id."
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Event ID of the gl.posting.requested event that caused this acceptance."
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "original_event_id",
+        "journal_entry_id",
+        "posted_at"
+      ],
+      "properties": {
+        "original_event_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Event ID of the original gl.posting.requested event."
+        },
+        "journal_entry_id": {
+          "type": "string",
+          "description": "GL module's internal identifier for the created journal entry."
+        },
+        "posted_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp when the journal entry was posted to the ledger."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

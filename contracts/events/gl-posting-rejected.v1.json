@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/gl-posting-rejected.v1.json",
+  "title": "GL Posting Rejected Event",
+  "description": "Emitted by the GL module when a posting request fails validation. Indicates the posting could not be processed due to invalid data, unbalanced entries, invalid accounts, or other business rule violations. The consuming module must NOT retry blindly without correcting the underlying issue. Manual intervention or data correction may be required.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "correlation_id",
+    "causation_id",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this rejection event."
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the posting was rejected."
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation."
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Correlation identifier linking this response to the original posting request. Should equal the original event_id."
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Event ID of the gl.posting.requested event that caused this rejection."
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "original_event_id",
+        "reason_code",
+        "reason_message"
+      ],
+      "properties": {
+        "original_event_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Event ID of the original gl.posting.requested event."
+        },
+        "reason_code": {
+          "type": "string",
+          "description": "Machine-readable error code indicating the rejection reason.",
+          "enum": [
+            "UNBALANCED_ENTRY",
+            "INVALID_ACCOUNT",
+            "INVALID_CURRENCY",
+            "DUPLICATE_EVENT_ID",
+            "MISSING_REQUIRED_FIELD",
+            "INVALID_DATE",
+            "ACCOUNT_CLOSED",
+            "PERIOD_CLOSED",
+            "VALIDATION_FAILED"
+          ]
+        },
+        "reason_message": {
+          "type": "string",
+          "description": "Human-readable error message with details about the rejection.",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
