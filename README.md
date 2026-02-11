@@ -42,9 +42,14 @@ The 7D Solutions Platform is a multi-product software factory built on a three-t
 │ TIER 1: PLATFORM (Core Runtime)                     │
 │ platform/{identity, orchestration, events, ...}     │
 │ - Identity & authentication                         │
-│ - Event bus & orchestration                         │
+│ - Event bus + scheduling/dispatch (runtime only)    │
 │ - Bootstrapping & observability                     │
 │ - NO product-specific logic                         │
+│                                                      │
+│ Note: Cross-module business workflows are composed  │
+│ at the product layer using contracts/events         │
+│ (choreography), not managed by a centralized        │
+│ platform engine.                                     │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -54,7 +59,7 @@ The 7D Solutions Platform is a multi-product software factory built on a three-t
 7D-Solutions-Platform/
 ├── platform/           # TIER 1: Core runtime capabilities
 │   ├── identity/       # Auth, RBAC, multi-tenancy
-│   ├── orchestration/  # Workflow engine, job scheduler
+│   ├── orchestration/  # Scheduler + job dispatch (runtime only; no cross-module business workflows)
 │   ├── events/         # Event bus, message broker
 │   ├── bootstrap/      # System initialization
 │   └── observability/  # Metrics, logging, tracing
