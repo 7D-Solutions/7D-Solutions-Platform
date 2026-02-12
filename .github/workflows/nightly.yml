@@ -1,0 +1,148 @@
+name: Nightly Tests
+
+on:
+  schedule:
+    # Run at 2 AM UTC every day
+    - cron: '0 2 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  e2e-sad-path:
+    name: E2E Test - Sad Path (Payment Failure)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create external Docker resources
+        run: |
+          docker network create 7d-platform || true
+          docker volume create 7d-nats-data || true
+          docker volume create 7d-ar-pgdata || true
+          docker volume create 7d-subscriptions-pgdata || true
+          docker volume create 7d-payments-pgdata || true
+          docker volume create 7d-notifications-pgdata || true
+
+      - name: Start infrastructure
+        run: |
+          docker compose -f docker-compose.infrastructure.yml up -d
+          sleep 10
+
+      - name: Build and start modules
+        run: |
+          docker compose -f docker-compose.modules.yml build
+          docker compose -f docker-compose.modules.yml up -d
+          sleep 30
+
+      - name: Wait for services to be healthy
+        run: |
+          timeout 120 bash -c '
+            until docker compose -f docker-compose.modules.yml ps | grep -q "(healthy)"; do
+              echo "Waiting for services to be healthy..."
+              sleep 5
+            done
+          '
+
+      - name: Run sad path E2E test
+        working-directory: e2e-tests
+        run: cargo test --test real_e2e_sad_path -- --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== AR Logs ==="
+          docker logs 7d-ar || true
+          echo "=== Payments Logs ==="
+          docker logs 7d-payments || true
+          echo "=== Subscriptions Logs ==="
+          docker logs 7d-subscriptions || true
+          echo "=== Notifications Logs ==="
+          docker logs 7d-notifications || true
+          echo "=== NATS Logs ==="
+          docker logs 7d-nats || true
+
+      - name: Check DLQ tables on failure
+        if: failure()
+        run: |
+          echo "=== Checking DLQ Tables ==="
+          docker exec -i 7d-ar-postgres psql -U ar_user -d ar_db -c "SELECT COUNT(*) as ar_dlq_count FROM failed_events;" || true
+          docker exec -i 7d-payments-postgres psql -U payments_user -d payments_db -c "SELECT COUNT(*) as payments_dlq_count FROM failed_events;" || true
+          docker exec -i 7d-notifications-postgres psql -U notifications_user -d notifications_db -c "SELECT COUNT(*) as notifications_dlq_count FROM failed_events;" || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.modules.yml down || true
+          docker compose -f docker-compose.infrastructure.yml down || true
+
+  e2e-full-suite:
+    name: E2E Test - Full Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create external Docker resources
+        run: |
+          docker network create 7d-platform || true
+          docker volume create 7d-nats-data || true
+          docker volume create 7d-ar-pgdata || true
+          docker volume create 7d-subscriptions-pgdata || true
+          docker volume create 7d-payments-pgdata || true
+          docker volume create 7d-notifications-pgdata || true
+
+      - name: Start infrastructure
+        run: |
+          docker compose -f docker-compose.infrastructure.yml up -d
+          sleep 10
+
+      - name: Build and start modules
+        run: |
+          docker compose -f docker-compose.modules.yml build
+          docker compose -f docker-compose.modules.yml up -d
+          sleep 30
+
+      - name: Wait for services to be healthy
+        run: |
+          timeout 120 bash -c '
+            until docker compose -f docker-compose.modules.yml ps | grep -q "(healthy)"; do
+              echo "Waiting for services to be healthy..."
+              sleep 5
+            done
+          '
+
+      - name: Run all E2E tests
+        working-directory: e2e-tests
+        run: cargo test -- --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== AR Logs ==="
+          docker logs 7d-ar || true
+          echo "=== Payments Logs ==="
+          docker logs 7d-payments || true
+          echo "=== Subscriptions Logs ==="
+          docker logs 7d-subscriptions || true
+          echo "=== Notifications Logs ==="
+          docker logs 7d-notifications || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.modules.yml down || true
+          docker compose -f docker-compose.infrastructure.yml down || true

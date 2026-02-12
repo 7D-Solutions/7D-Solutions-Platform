@@ -302,3 +302,132 @@ jobs:
       - name: Run cargo check
         working-directory: modules/notifications
         run: cargo check --all-targets
+
+  lint-no-panic:
+    name: Lint - No Unwrap/Expect in Critical Paths
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for .unwrap() and .expect() in critical files
+        run: |
+          violations=()
+
+          # Check consumer files
+          if grep -rn '\.unwrap()\|\.expect(' modules/*/src/consumer* 2>/dev/null; then
+            violations+=("Found .unwrap() or .expect() in consumer files")
+          fi
+
+          # Check events files
+          if grep -rn '\.unwrap()\|\.expect(' modules/*/src/events/ 2>/dev/null; then
+            violations+=("Found .unwrap() or .expect() in events files")
+          fi
+
+          # Check DLQ files
+          if grep -rn '\.unwrap()\|\.expect(' modules/*/src/dlq* 2>/dev/null; then
+            violations+=("Found .unwrap() or .expect() in DLQ files")
+          fi
+
+          if [ ${#violations[@]} -gt 0 ]; then
+            echo "ERROR: Panic-prone code detected in critical paths:" >&2
+            printf '%s\n' "${violations[@]}" >&2
+            echo "" >&2
+            echo "Critical paths (consumer, events, dlq) must handle errors gracefully." >&2
+            echo "Use Result types and proper error propagation instead of .unwrap()/.expect()." >&2
+            exit 1
+          fi
+
+          echo "✓ No .unwrap() or .expect() in critical paths"
+
+  check-dlq-migrations:
+    name: Check DLQ Migrations Exist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify all modules have DLQ migrations
+        run: |
+          missing=()
+
+          for module in modules/ar modules/subscriptions modules/payments modules/notifications; do
+            if ! find "$module/db/migrations" -name "*failed_events*" 2>/dev/null | grep -q .; then
+              missing+=("$module is missing DLQ (failed_events) migration")
+            fi
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "ERROR: Missing DLQ migrations:" >&2
+            printf '%s\n' "${missing[@]}" >&2
+            echo "" >&2
+            echo "All modules must have a DLQ migration (failed_events table)." >&2
+            echo "See docs/architecture/DEPLOYMENT-RUNBOOK.md for DLQ schema." >&2
+            exit 1
+          fi
+
+          echo "✓ All modules have DLQ migrations"
+
+  e2e-happy-path:
+    name: E2E Test - Happy Path
+    runs-on: ubuntu-latest
+    needs: [build-ar, build-subscriptions, build-payments, build-notifications]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create external Docker resources
+        run: |
+          docker network create 7d-platform || true
+          docker volume create 7d-nats-data || true
+          docker volume create 7d-ar-pgdata || true
+          docker volume create 7d-subscriptions-pgdata || true
+          docker volume create 7d-payments-pgdata || true
+          docker volume create 7d-notifications-pgdata || true
+
+      - name: Start infrastructure
+        run: |
+          docker compose -f docker-compose.infrastructure.yml up -d
+          sleep 10
+
+      - name: Build and start modules
+        run: |
+          docker compose -f docker-compose.modules.yml build
+          docker compose -f docker-compose.modules.yml up -d
+          sleep 30
+
+      - name: Wait for services to be healthy
+        run: |
+          timeout 120 bash -c '
+            until docker compose -f docker-compose.modules.yml ps | grep -q "(healthy)"; do
+              echo "Waiting for services to be healthy..."
+              sleep 5
+            done
+          '
+
+      - name: Run happy path E2E test
+        working-directory: e2e-tests
+        run: cargo test --test real_e2e -- --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== AR Logs ==="
+          docker logs 7d-ar || true
+          echo "=== Payments Logs ==="
+          docker logs 7d-payments || true
+          echo "=== Subscriptions Logs ==="
+          docker logs 7d-subscriptions || true
+          echo "=== Notifications Logs ==="
+          docker logs 7d-notifications || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.modules.yml down || true
+          docker compose -f docker-compose.infrastructure.yml down || true
