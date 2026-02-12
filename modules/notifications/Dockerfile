@@ -7,7 +7,6 @@ WORKDIR /app
 FROM chef AS planner
 COPY Cargo.toml Cargo.lock* ./
 COPY src ./src
-COPY db/migrations ./db/migrations
 RUN cargo chef prepare --recipe-path recipe.json
 
 # --- Stage 3: Builder (cache deps, then build) ---
@@ -19,7 +18,6 @@ RUN cargo chef cook --release --recipe-path recipe.json
 
 COPY Cargo.toml Cargo.lock* ./
 COPY src ./src
-COPY db/migrations ./db/migrations
 RUN cargo build --release
 
 # --- Stage 4: Runtime (minimal image) ---
@@ -29,15 +27,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libssl3 curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /app/target/release/ar-rs /usr/local/bin/ar-rs
-COPY --from=builder /app/db/migrations /app/migrations
+COPY --from=builder /app/target/release/notifications-rs /usr/local/bin/notifications-rs
 
 ENV HOST=0.0.0.0
-ENV PORT=8086
+ENV PORT=8089
 
-EXPOSE 8086
+EXPOSE 8089
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
     CMD curl -f http://localhost:${PORT}/api/health || exit 1
 
-CMD ["ar-rs"]
+CMD ["notifications-rs"]

@@ -1,0 +1,140 @@
+name: 7d-modules
+
+services:
+  # =========================
+  # AR MODULE
+  # =========================
+  ar:
+    container_name: 7d-ar
+    build:
+      context: ./modules/ar
+      dockerfile: deploy/Dockerfile
+    environment:
+      DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}
+      NATS_URL: nats://7d-nats:4222
+      HOST: 0.0.0.0
+      PORT: 8086
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8086:8086"
+    networks:
+      - 7d-platform
+    # Depends on ar-postgres and nats from 7d-infrastructure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8086/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "ar"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # SUBSCRIPTIONS MODULE
+  # =========================
+  subscriptions:
+    container_name: 7d-subscriptions
+    build:
+      context: ./modules/subscriptions
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgres://${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}:${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}@7d-subscriptions-postgres:5432/${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}
+      NATS_URL: nats://7d-nats:4222
+      HOST: 0.0.0.0
+      PORT: 8087
+      AR_BASE_URL: http://7d-ar:8086
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8087:8087"
+    networks:
+      - 7d-platform
+    # Depends on subscriptions-postgres from 7d-infrastructure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8087/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "subscriptions"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # PAYMENTS MODULE
+  # =========================
+  payments:
+    container_name: 7d-payments
+    build:
+      context: ./modules/payments
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgres://${PAYMENTS_POSTGRES_USER:-payments_user}:${PAYMENTS_POSTGRES_PASSWORD:-payments_pass}@7d-payments-postgres:5432/${PAYMENTS_POSTGRES_DB:-payments_db}
+      NATS_URL: nats://7d-nats:4222
+      HOST: 0.0.0.0
+      PORT: 8088
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8088:8088"
+    networks:
+      - 7d-platform
+    # Depends on payments-postgres and nats from 7d-infrastructure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8088/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "payments"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # NOTIFICATIONS MODULE
+  # =========================
+  notifications:
+    container_name: 7d-notifications
+    build:
+      context: ./modules/notifications
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgres://${NOTIFICATIONS_POSTGRES_USER:-notifications_user}:${NOTIFICATIONS_POSTGRES_PASSWORD:-notifications_pass}@7d-notifications-postgres:5432/${NOTIFICATIONS_POSTGRES_DB:-notifications_db}
+      NATS_URL: nats://7d-nats:4222
+      HOST: 0.0.0.0
+      PORT: 8089
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8089:8089"
+    networks:
+      - 7d-platform
+    # Depends on notifications-postgres and nats from 7d-infrastructure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8089/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "notifications"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+networks:
+  7d-platform:
+    name: 7d-platform
+    external: true

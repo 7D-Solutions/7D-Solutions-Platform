@@ -1,0 +1,10 @@
+name: 7d-solutions-platform
+
+# Main orchestration file
+# Use: docker compose up -d
+# Or selectively: docker compose -f docker-compose.infrastructure.yml up -d
+
+include:
+  - docker-compose.infrastructure.yml
+  - docker-compose.platform.yml
+  - docker-compose.modules.yml
