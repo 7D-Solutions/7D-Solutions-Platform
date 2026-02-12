@@ -72,9 +72,20 @@ pub async fn handle_processing_error(
 
             let tenant_id_opt = env.get("tenant_id").and_then(|v| v.as_str());
 
+            // Extract correlation fields for observability
+            let correlation_id = env
+                .get("correlation_id")
+                .and_then(|v| v.as_str())
+                .unwrap_or("none");
+
+            let source_module = env
+                .get("source_module")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown");
+
             match (event_id_opt, tenant_id_opt) {
                 (Some(event_id), Some(tenant_id)) => {
-                    // Write to DLQ
+                    // Write to DLQ with correlation fields
                     if let Err(dlq_err) =
                         insert_failed_event(pool, event_id, &msg.subject, tenant_id, &env, error, retry_count)
                             .await
@@ -83,9 +94,24 @@ pub async fn handle_processing_error(
                             event_id = %event_id,
                             subject = %msg.subject,
                             tenant_id = %tenant_id,
+                            correlation_id = %correlation_id,
+                            source_module = %source_module,
+                            retry_count = retry_count,
                             error = %error,
                             dlq_error = %dlq_err,
                             "Failed to write to DLQ - event may be lost!"
+                        );
+                    } else {
+                        // Log successful DLQ write with all correlation fields
+                        tracing::error!(
+                            event_id = %event_id,
+                            subject = %msg.subject,
+                            tenant_id = %tenant_id,
+                            correlation_id = %correlation_id,
+                            source_module = %source_module,
+                            retry_count = retry_count,
+                            error = %error,
+                            "Event moved to DLQ after retries exhausted"
                         );
                     }
                 }

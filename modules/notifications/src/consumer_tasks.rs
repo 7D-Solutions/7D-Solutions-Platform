@@ -3,6 +3,8 @@ use event_bus::{BusMessage, EventBus};
 use futures::StreamExt;
 use sqlx::PgPool;
 use std::sync::Arc;
+use tracing::Instrument;
+use uuid::Uuid;
 
 use crate::consumer::EventConsumer;
 use crate::envelope_validation::validate_envelope;
