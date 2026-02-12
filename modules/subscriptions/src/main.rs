@@ -1,5 +1,6 @@
 mod config;
 mod consumer;
+mod dlq;
 mod envelope;
 mod envelope_validation;
 mod models;

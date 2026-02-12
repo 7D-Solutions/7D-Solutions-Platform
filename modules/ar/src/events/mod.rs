@@ -1,4 +1,5 @@
 pub mod consumer;
+pub mod dlq;
 pub mod envelope;
 pub mod outbox;
 pub mod publisher;

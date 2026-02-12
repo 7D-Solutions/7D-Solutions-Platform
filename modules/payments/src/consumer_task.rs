@@ -45,31 +45,44 @@ pub async fn start_payment_collection_consumer(
                 let error_msg = format!("{:#}", e);
                 drop(e);
 
-                // Extract event_id and envelope for DLQ
+                // Extract event_id, tenant_id, and envelope for DLQ
                 let envelope: Result<serde_json::Value, _> = serde_json::from_slice(&msg.payload);
 
                 match envelope {
                     Ok(env) => {
-                        if let Some(event_id_str) = env.get("event_id").and_then(|v| v.as_str()) {
-                            if let Ok(event_id) = uuid::Uuid::parse_str(event_id_str) {
-                                // Write to DLQ
-                                if let Err(dlq_err) = crate::events::dlq::insert_failed_event(
-                                    &pool,
-                                    event_id,
-                                    &msg.subject,
-                                    &env,
-                                    &error_msg,
-                                    0,
-                                ).await {
-                                    tracing::error!(
-                                        event_id = %event_id,
-                                        subject = %msg.subject,
-                                        error = %error_msg,
-                                        dlq_error = %dlq_err,
-                                        "Failed to write to DLQ - event may be lost!"
-                                    );
-                                }
+                        let event_id_opt = env.get("event_id")
+                            .and_then(|v| v.as_str())
+                            .and_then(|s| uuid::Uuid::parse_str(s).ok());
+
+                        let tenant_id_opt = env.get("tenant_id")
+                            .and_then(|v| v.as_str());
+
+                        if let (Some(event_id), Some(tenant_id)) = (event_id_opt, tenant_id_opt) {
+                            // Write to DLQ
+                            if let Err(dlq_err) = crate::events::dlq::insert_failed_event(
+                                &pool,
+                                event_id,
+                                &msg.subject,
+                                tenant_id,
+                                &env,
+                                &error_msg,
+                                0,
+                            ).await {
+                                tracing::error!(
+                                    event_id = %event_id,
+                                    subject = %msg.subject,
+                                    tenant_id = %tenant_id,
+                                    error = %error_msg,
+                                    dlq_error = %dlq_err,
+                                    "Failed to write to DLQ - event may be lost!"
+                                );
                             }
+                        } else {
+                            tracing::error!(
+                                subject = %msg.subject,
+                                error = %error_msg,
+                                "Failed to extract event_id or tenant_id from envelope for DLQ"
+                            );
                         }
                     }
                     Err(parse_err) => {

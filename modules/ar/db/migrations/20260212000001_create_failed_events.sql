@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS failed_events (
     id BIGSERIAL PRIMARY KEY,
     event_id UUID NOT NULL,
     subject TEXT NOT NULL,
+    tenant_id TEXT NOT NULL,
     envelope_json JSONB NOT NULL,
     error TEXT NOT NULL,
     failed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
