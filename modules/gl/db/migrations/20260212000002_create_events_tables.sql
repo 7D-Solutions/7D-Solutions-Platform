@@ -56,3 +56,4 @@ CREATE TABLE IF NOT EXISTS failed_events (
 
 CREATE INDEX idx_failed_events_subject ON failed_events(subject);
 CREATE INDEX idx_failed_events_failed_at ON failed_events(failed_at);
+CREATE INDEX idx_failed_events_tenant_id ON failed_events(tenant_id);
