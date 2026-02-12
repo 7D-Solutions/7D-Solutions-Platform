@@ -6,7 +6,7 @@ mod outbox;
 mod publisher;
 mod routes;
 
-use axum::{routing::get, Json, Router};
+use axum::{extract::State, routing::get, Json, Router};
 use config::Config;
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use sqlx::postgres::PgPoolOptions;
@@ -77,6 +77,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/api/health", get(health))
+        .with_state(pool.clone())
         .merge(routes::subscriptions_router(pool.clone()))
         .layer(
             CorsLayer::new()
@@ -97,7 +98,7 @@ async fn main() {
         .expect("Server failed to start");
 }
 
-async fn health() -> Json<serde_json::Value> {
+async fn health(State(_pool): State<sqlx::PgPool>) -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
         "module": "subscriptions",
