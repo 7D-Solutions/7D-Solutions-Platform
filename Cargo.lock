@@ -1081,6 +1081,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "gl-rs"
+version = "0.1.0"
+dependencies = [
+ "async-nats",
+ "axum",
+ "chrono",
+ "dotenvy",
+ "event-bus",
+ "futures",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "glob"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

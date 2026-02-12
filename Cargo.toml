@@ -6,6 +6,7 @@ members = [
   "modules/subscriptions",
   "modules/payments",
   "modules/notifications",
+  "modules/gl",
   "tools/contract-tests",
   "e2e-tests"
 ]
