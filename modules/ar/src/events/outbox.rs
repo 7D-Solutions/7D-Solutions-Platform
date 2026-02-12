@@ -8,8 +8,18 @@ use uuid::Uuid;
 /// This function stores the event in the database as part of the same transaction
 /// as the business operation. A background publisher will pick it up and publish
 /// to the event bus asynchronously.
+///
+/// # Arguments
+/// * `db` - Database connection pool
+/// * `event_type` - Event type for NATS subject routing (e.g., "payment.collection.requested")
+/// * `aggregate_type` - Aggregate type for AR's DDD model (e.g., "invoice")
+/// * `aggregate_id` - Aggregate instance ID
+/// * `envelope` - Platform-standard event envelope
 pub async fn enqueue_event<T: Serialize>(
     db: &PgPool,
+    event_type: &str,
+    aggregate_type: &str,
+    aggregate_id: &str,
     envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
     let payload = serde_json::to_value(&envelope)
@@ -23,9 +33,9 @@ pub async fn enqueue_event<T: Serialize>(
         "#,
     )
     .bind(envelope.event_id)
-    .bind(&envelope.event_type)
-    .bind(&envelope.aggregate_type)
-    .bind(&envelope.aggregate_id)
+    .bind(event_type)
+    .bind(aggregate_type)
+    .bind(aggregate_id)
     .bind(payload)
     .bind(envelope.occurred_at)
     .execute(db)
@@ -33,7 +43,7 @@ pub async fn enqueue_event<T: Serialize>(
 
     tracing::debug!(
         event_id = %envelope.event_id,
-        event_type = %envelope.event_type,
+        event_type = %event_type,
         "Event enqueued to outbox"
     );
 

@@ -37,13 +37,16 @@ async fn publish_pending_events(
     let mut published_count = 0;
 
     for event in events {
-        let event_id = event.id.ok_or("Event missing ID")?;
+        let event_id = event.id;
 
-        // Serialize payload to bytes
+        // Construct NATS subject: subscriptions.events.<event_type>
+        let nats_subject = format!("subscriptions.events.{}", event.subject);
+
+        // Serialize envelope payload to bytes
         let payload_bytes = serde_json::to_vec(&event.payload)?;
 
         // Publish to event bus
-        match bus.publish(&event.subject, payload_bytes).await {
+        match bus.publish(&nats_subject, payload_bytes).await {
             Ok(_) => {
                 // Mark as published in database
                 mark_as_published(pool, event_id).await?;
@@ -51,14 +54,14 @@ async fn publish_pending_events(
                 tracing::trace!(
                     "Published event {} to subject {}",
                     event_id,
-                    event.subject
+                    nats_subject
                 );
             }
             Err(e) => {
                 tracing::error!(
                     "Failed to publish event {} to subject {}: {}",
                     event_id,
-                    event.subject,
+                    nats_subject,
                     e
                 );
                 // Don't mark as published, will retry on next iteration

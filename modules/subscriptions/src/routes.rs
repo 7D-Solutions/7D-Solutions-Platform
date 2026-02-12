@@ -12,6 +12,7 @@ use crate::models::{
     BillRunCompletedPayload, BillRunResult, CreateInvoiceRequest, ErrorResponse,
     ExecuteBillRunRequest, FinalizeInvoiceRequest, Invoice,
 };
+use crate::envelope::create_subscriptions_envelope;
 use crate::outbox::enqueue_event;
 
 pub fn subscriptions_router(db: PgPool) -> Router {
@@ -293,12 +294,17 @@ async fn execute_bill_run(
         execution_time,
     };
 
-    enqueue_event(
-        &db,
-        "billrun.completed",
-        serde_json::to_value(&payload).unwrap(),
-    )
-    .await
+    // Create envelope with platform-standard fields
+    // TODO: Extract actual tenant_id when Subscriptions implements multi-tenancy
+    let envelope = create_subscriptions_envelope(
+        uuid::Uuid::new_v4(),
+        "default".to_string(),
+        None, // No correlation_id for now
+        None, // No causation_id for now
+        payload,
+    );
+
+    enqueue_event(&db, "billrun.completed", &envelope).await
     .map_err(|e| {
         tracing::error!("Failed to enqueue event: {}", e);
         (

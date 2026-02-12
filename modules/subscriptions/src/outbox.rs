@@ -1,40 +1,34 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use sqlx::PgPool;
 
-/// Event envelope for storing events in the outbox
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventEnvelope {
-    pub id: Option<i64>,
+/// Outbox record for fetching unpublished events
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct OutboxRecord {
+    pub id: i64,
     pub subject: String,
     pub payload: serde_json::Value,
-    pub created_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
     pub published_at: Option<DateTime<Utc>>,
-}
-
-impl EventEnvelope {
-    /// Create a new event envelope
-    pub fn new(subject: impl Into<String>, payload: serde_json::Value) -> Self {
-        Self {
-            id: None,
-            subject: subject.into(),
-            payload,
-            created_at: None,
-            published_at: None,
-        }
-    }
 }
 
 /// Enqueue an event to be published later
 ///
 /// This function inserts an event into the events_outbox table for reliable delivery.
 /// The background publisher will pick up these events and publish them to the event bus.
-pub async fn enqueue_event(
+///
+/// # Arguments
+/// * `pool` - Database connection pool
+/// * `event_type` - Event type for NATS subject routing (e.g., "billrun.completed")
+/// * `envelope` - Platform-standard event envelope
+pub async fn enqueue_event<T: Serialize>(
     pool: &PgPool,
-    subject: impl Into<String>,
-    payload: serde_json::Value,
+    event_type: &str,
+    envelope: &event_bus::EventEnvelope<T>,
 ) -> Result<i64, sqlx::Error> {
-    let subject = subject.into();
+    // Serialize the entire envelope as payload
+    let payload = serde_json::to_value(envelope)
+        .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
 
     let record = sqlx::query!(
         r#"
@@ -42,13 +36,13 @@ pub async fn enqueue_event(
         VALUES ($1, $2)
         RETURNING id
         "#,
-        subject,
+        event_type,
         payload
     )
     .fetch_one(pool)
     .await?;
 
-    tracing::debug!("Enqueued event {} to subject {}", record.id, subject);
+    tracing::debug!("Enqueued event {} to subject {}", record.id, event_type);
 
     Ok(record.id)
 }
@@ -57,18 +51,17 @@ pub async fn enqueue_event(
 pub async fn fetch_unpublished_events(
     pool: &PgPool,
     limit: i64,
-) -> Result<Vec<EventEnvelope>, sqlx::Error> {
-    let records = sqlx::query_as!(
-        EventEnvelope,
+) -> Result<Vec<OutboxRecord>, sqlx::Error> {
+    let records = sqlx::query_as::<_, OutboxRecord>(
         r#"
         SELECT id, subject, payload, created_at, published_at
         FROM events_outbox
         WHERE published_at IS NULL
         ORDER BY created_at ASC
         LIMIT $1
-        "#,
-        limit
+        "#
     )
+    .bind(limit)
     .fetch_all(pool)
     .await?;
 

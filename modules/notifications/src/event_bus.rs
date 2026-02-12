@@ -1,4 +1,3 @@
-use chrono::{DateTime, Utc};
 use event_bus::{BusMessage, EventBus};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -7,57 +6,31 @@ use std::sync::Arc;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-/// EventEnvelope - Standard event wrapper following platform event contract
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EventEnvelope {
-    pub event_id: Uuid,
-    pub occurred_at: DateTime<Utc>,
-    pub tenant_id: String,
-    pub source_module: String,
-    pub source_version: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub correlation_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub causation_id: Option<String>,
-    pub payload: serde_json::Value,
-}
+/// Re-export the platform-wide event envelope
+pub use event_bus::EventEnvelope;
 
-impl EventEnvelope {
-    /// Create a new event envelope
-    pub fn new(tenant_id: String, payload: serde_json::Value) -> Self {
-        Self {
-            event_id: Uuid::new_v4(),
-            occurred_at: Utc::now(),
-            tenant_id,
-            source_module: "notifications".to_string(),
-            source_version: env!("CARGO_PKG_VERSION").to_string(),
-            correlation_id: None,
-            causation_id: None,
-            payload,
-        }
-    }
-
-    /// Set correlation ID for tracking related events
-    pub fn with_correlation_id(mut self, correlation_id: String) -> Self {
-        self.correlation_id = Some(correlation_id);
-        self
-    }
-
-    /// Set causation ID for event that triggered this one
-    pub fn with_causation_id(mut self, causation_id: String) -> Self {
-        self.causation_id = Some(causation_id);
-        self
-    }
+/// Helper function to create a notifications-specific envelope
+pub fn create_notifications_envelope<T>(
+    event_id: uuid::Uuid,
+    tenant_id: String,
+    correlation_id: Option<String>,
+    causation_id: Option<String>,
+    payload: T,
+) -> EventEnvelope<T> {
+    EventEnvelope::with_event_id(event_id, tenant_id, "notifications".to_string(), payload)
+        .with_source_version(env!("CARGO_PKG_VERSION").to_string())
+        .with_correlation_id(correlation_id)
+        .with_causation_id(causation_id)
 }
 
 /// Enqueue an event for reliable publishing via the transactional outbox pattern
 ///
 /// This function writes the event to the events_outbox table within the same
 /// database transaction, ensuring exactly-once delivery semantics.
-pub async fn enqueue_event(
+pub async fn enqueue_event<T: Serialize>(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     subject: &str,
-    envelope: &EventEnvelope,
+    envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
     let payload = serde_json::to_value(envelope)
         .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
@@ -232,17 +205,18 @@ pub async fn mark_event_processed(
 ///
 /// This function ensures that events are processed exactly once, even if they
 /// are delivered multiple times by the event bus.
-pub async fn consume_event_idempotent<F, Fut>(
+pub async fn consume_event_idempotent<T, F, Fut>(
     db: &PgPool,
     msg: &BusMessage,
     handler: F,
 ) -> Result<(), Box<dyn std::error::Error>>
 where
-    F: FnOnce(EventEnvelope) -> Fut,
+    T: for<'de> Deserialize<'de> + Clone,
+    F: FnOnce(EventEnvelope<T>) -> Fut,
     Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error>>>,
 {
     // Deserialize envelope
-    let envelope: EventEnvelope = serde_json::from_slice(&msg.payload)?;
+    let envelope: EventEnvelope<T> = serde_json::from_slice(&msg.payload)?;
 
     // Check if already processed
     if is_event_processed(db, envelope.event_id).await? {
@@ -272,13 +246,14 @@ where
 ///
 /// This spawns a background task that listens for events matching the subject
 /// pattern and processes them using the provided handler.
-pub async fn start_event_consumer<F, Fut>(
+pub async fn start_event_consumer<T, F, Fut>(
     bus: Arc<dyn EventBus>,
     db: PgPool,
     subject: &str,
     handler: F,
 ) where
-    F: Fn(EventEnvelope) -> Fut + Send + Sync + 'static,
+    T: for<'de> Deserialize<'de> + Clone + Send + 'static,
+    F: Fn(EventEnvelope<T>) -> Fut + Send + Sync + 'static,
     Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error>>> + Send,
 {
     let subject = subject.to_string();

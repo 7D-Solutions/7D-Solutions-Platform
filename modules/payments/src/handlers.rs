@@ -39,7 +39,7 @@ pub async fn handle_payment_collection_requested(
     };
 
     // Create event envelope
-    let envelope = EventEnvelope::new(
+    let envelope = crate::events::envelope::create_payments_envelope(
         Uuid::new_v4(),
         envelope_metadata.tenant_id,
         envelope_metadata.correlation_id,

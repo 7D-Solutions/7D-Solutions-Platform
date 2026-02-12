@@ -11,7 +11,7 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use sqlx::PgPool;
 
-use crate::events::{enqueue_event, EventEnvelope};
+use crate::events::enqueue_event;
 use crate::idempotency::{check_idempotency, log_event_async};
 use crate::models::{
     AddPaymentMethodRequest, CancelSubscriptionRequest, CaptureChargeRequest, Charge,
@@ -1554,17 +1554,23 @@ async fn finalize_invoice(
         payment_method_id: None, // Will be resolved by payment collection handler
     };
 
-    let event_envelope = EventEnvelope::new(
-        "payment.collection.requested".to_string(),
-        "1.0.0".to_string(),
+    let event_envelope = crate::events::envelope::create_ar_envelope(
+        uuid::Uuid::new_v4(),
         app_id.to_string(),
-        "invoice".to_string(),
-        invoice.id.to_string(),
         uuid::Uuid::new_v4().to_string(),
+        None,
         event_payload,
     );
 
-    if let Err(e) = enqueue_event(&db, &event_envelope).await {
+    if let Err(e) = enqueue_event(
+        &db,
+        "payment.collection.requested",
+        "invoice",
+        &invoice.id.to_string(),
+        &event_envelope,
+    )
+    .await
+    {
         tracing::error!(
             "Failed to enqueue payment.collection.requested event for invoice {}: {:?}",
             invoice.id,
