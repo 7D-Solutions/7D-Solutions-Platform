@@ -183,8 +183,10 @@ fn extract_metadata(
         .ok_or("Missing tenant_id")?
         .to_string();
 
+    // Accept both "correlation_id" (Payments envelope) and "trace_id" (AR envelope)
     let correlation_id = envelope
         .get("correlation_id")
+        .or_else(|| envelope.get("trace_id"))
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 

@@ -20,14 +20,9 @@ impl EventConsumer {
     ///
     /// Returns true if the event_id exists in processed_events table
     pub async fn is_processed(&self, event_id: Uuid) -> Result<bool, sqlx::Error> {
-        #[derive(sqlx::FromRow)]
-        struct ProcessedEvent {
-            id: i32,
-        }
-
-        let result: Option<ProcessedEvent> = sqlx::query_as(
+        let result: Option<(i32,)> = sqlx::query_as(
             r#"
-            SELECT id FROM processed_events
+            SELECT 1 FROM processed_events
             WHERE event_id = $1
             "#,
         )
@@ -44,18 +39,20 @@ impl EventConsumer {
     pub async fn mark_processed(
         &self,
         event_id: Uuid,
-        event_type: &str,
+        subject: &str,
+        tenant_id: &str,
         source_module: &str,
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
-            INSERT INTO processed_events (event_id, event_type, source_module)
-            VALUES ($1, $2, $3)
+            INSERT INTO processed_events (event_id, subject, tenant_id, source_module)
+            VALUES ($1, $2, $3, $4)
             ON CONFLICT (event_id) DO NOTHING
             "#,
         )
         .bind(event_id)
-        .bind(event_type)
+        .bind(subject)
+        .bind(tenant_id)
         .bind(source_module)
         .execute(&self.pool)
         .await?;
@@ -94,8 +91,15 @@ impl EventConsumer {
             .ok_or("Missing event_id")?;
         let event_id = Uuid::parse_str(event_id)?;
 
+        // Accept both "source_module" (Payments envelope) and "producer" (AR envelope)
         let source_module = envelope
             .get("source_module")
+            .or_else(|| envelope.get("producer"))
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
+
+        let tenant_id = envelope
+            .get("tenant_id")
             .and_then(|v| v.as_str())
             .unwrap_or("unknown");
 
@@ -109,14 +113,18 @@ impl EventConsumer {
             return Ok(());
         }
 
-        // Deserialize payload
-        let payload: T = serde_json::from_value(envelope.get("payload").unwrap().clone())?;
+        // Deserialize payload — accept both "payload" (Payments envelope) and "data" (AR envelope)
+        let data_value = envelope
+            .get("payload")
+            .or_else(|| envelope.get("data"))
+            .ok_or_else(|| format!("Missing 'payload' or 'data' field in event envelope for {}", msg.subject))?;
+        let payload: T = serde_json::from_value(data_value.clone())?;
 
         // Call handler
         handler(payload).await?;
 
         // Mark as processed
-        self.mark_processed(event_id, &msg.subject, source_module)
+        self.mark_processed(event_id, &msg.subject, tenant_id, source_module)
             .await?;
 
         tracing::info!(

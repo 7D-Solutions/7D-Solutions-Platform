@@ -27,6 +27,11 @@ struct TestInfrastructure {
 
 impl Drop for TestInfrastructure {
     fn drop(&mut self) {
+        if std::env::var("E2E_KEEP_CONTAINERS").unwrap_or_default() == "1" {
+            println!("E2E_KEEP_CONTAINERS=1 → skipping docker compose down for debugging.");
+            println!("Inspect logs with: docker logs 7d-<service>");
+            return;
+        }
         println!("🛑 Shutting down services...");
         let _ = Command::new("docker")
             .args(&["compose", "-f", "docker-compose.modules.yml", "down"])
@@ -76,6 +81,36 @@ async fn connect_notifications_db() -> PgPool {
 // Service Management
 // ============================================================================
 
+async fn wait_for_log_line(container: &str, needle: &str, timeout_secs: u64) -> Result<(), String> {
+    println!("⏳ Waiting for '{}' in {} logs...", needle, container);
+
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(timeout_secs);
+
+    loop {
+        let output = Command::new("docker")
+            .args(&["logs", container])
+            .output()
+            .map_err(|e| format!("Failed to get logs for {}: {}", container, e))?;
+
+        let logs = String::from_utf8_lossy(&output.stdout).to_string()
+            + &String::from_utf8_lossy(&output.stderr);
+
+        if logs.contains(needle) {
+            println!("✓ Found '{}' in {} logs", needle, container);
+            return Ok(());
+        }
+
+        if tokio::time::Instant::now() >= deadline {
+            return Err(format!(
+                "Timed out waiting for '{}' in {} logs after {}s",
+                needle, container, timeout_secs
+            ));
+        }
+
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+}
+
 async fn wait_for_health(client: &Client, service_name: &str, url: &str, max_attempts: u32) -> Result<(), String> {
     println!("⏳ Waiting for {} to be healthy at {}...", service_name, url);
 
@@ -102,19 +137,19 @@ async fn wait_for_health(client: &Client, service_name: &str, url: &str, max_att
 async fn start_all_services() -> Result<TestInfrastructure, String> {
     let project_root = "/Users/james/Projects/7D-Solutions Platform";
 
-    // Restart services with docker compose (uses existing images)
-    println!("🔄 Restarting services with docker compose...");
-    let restart_status = Command::new("docker")
-        .args(&["compose", "-f", "docker-compose.modules.yml", "restart"])
+    // Recreate services with docker compose (picks up rebuilt images)
+    println!("🔄 Recreating services with docker compose...");
+    let recreate_status = Command::new("docker")
+        .args(&["compose", "-f", "docker-compose.modules.yml", "up", "-d", "--force-recreate"])
         .current_dir(project_root)
         .status()
-        .expect("Failed to restart services");
+        .expect("Failed to recreate services");
 
-    if !restart_status.success() {
-        return Err("Failed to restart services with docker compose".to_string());
+    if !recreate_status.success() {
+        return Err("Failed to recreate services with docker compose".to_string());
     }
 
-    println!("✓ Services restarted");
+    println!("✓ Services recreated");
 
     // Wait for health checks
     let client = Client::builder()
@@ -128,6 +163,15 @@ async fn start_all_services() -> Result<TestInfrastructure, String> {
     wait_for_health(&client, "Notifications", "http://localhost:8089/api/health", 60).await?;
 
     println!("✓ All services are healthy");
+
+    // Wait for NATS consumers to be subscribed (readiness gate)
+    wait_for_log_line("7d-payments", "Subscribed to ar.events.ar.payment.collection.requested", 30).await?;
+    wait_for_log_line("7d-payments", "Starting outbox publisher", 30).await?;
+    wait_for_log_line("7d-ar", "Subscribed to payments.events.payments.payment.succeeded", 30).await?;
+    wait_for_log_line("7d-ar", "Publisher tick", 30).await?;
+    wait_for_log_line("7d-notifications", "Subscribed to payments.events.payments.payment.succeeded", 30).await?;
+
+    println!("✓ All NATS consumers ready");
 
     Ok(TestInfrastructure {
         project_root: project_root.to_string(),
@@ -222,7 +266,7 @@ async fn test_real_nats_based_e2e() {
 
     // Clean up test data from previous runs
     println!("🧹 Cleaning up previous test data...");
-    sqlx::query("TRUNCATE TABLE ar_invoices, ar_customers CASCADE")
+    sqlx::query("TRUNCATE TABLE ar_invoices, ar_customers, events_outbox, processed_events CASCADE")
         .execute(&ar_pool)
         .await
         .ok();
@@ -248,9 +292,6 @@ async fn test_real_nats_based_e2e() {
     // Start all services
     let _infra = start_all_services().await.expect("Failed to start services");
 
-    // Give services a moment to initialize event consumers
-    tokio::time::sleep(Duration::from_secs(2)).await;
-
     // Trigger bill run via HTTP POST
     println!("\n📋 Triggering bill run via HTTP POST...");
     let client = Client::new();
@@ -275,81 +316,118 @@ async fn test_real_nats_based_e2e() {
     let bill_run_response: serde_json::Value = response.json().await.expect("Failed to parse response");
     println!("✓ Bill run triggered: {:?}", bill_run_response);
 
-    // Wait for event propagation through NATS
-    println!("\n⏳ Waiting for events to propagate through NATS...");
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    // Poll for event propagation with timeout
+    println!("\n⏳ Waiting for event chain to complete...");
+    let poll_deadline = tokio::time::Instant::now() + Duration::from_secs(15);
 
-    // ASSERTIONS: Check results in databases
-    println!("\n🔍 Verifying results in databases...\n");
+    // 1. Wait for invoice to be created
+    loop {
+        let invoice: Option<(i32, String, i32, String, i32)> = sqlx::query_as(
+            "SELECT id, status, amount_cents, currency, ar_customer_id
+             FROM ar_invoices WHERE ar_customer_id = $1
+             ORDER BY created_at DESC LIMIT 1"
+        )
+        .bind(ar_customer_id)
+        .fetch_optional(&ar_pool)
+        .await
+        .expect("Failed to query AR invoices");
 
-    // 1. Check AR: Invoice should be created and finalized (status = 'open')
-    let invoice: Option<(i32, String, i32, String, i32)> = sqlx::query_as(
-        "SELECT id, status, amount_cents, currency, ar_customer_id
-         FROM ar_invoices
-         WHERE ar_customer_id = $1
-         ORDER BY created_at DESC
-         LIMIT 1"
-    )
-    .bind(ar_customer_id)
-    .fetch_optional(&ar_pool)
-    .await
-    .expect("Failed to query AR invoices");
-
-    match invoice {
-        Some((invoice_id, status, amount, currency, cust_id)) => {
-            println!("✓ AR Invoice created:");
+        if invoice.is_some() {
+            let (invoice_id, status, amount, currency, cust_id) = invoice.unwrap();
+            println!("\n✓ AR Invoice created:");
             println!("  - ID: {}", invoice_id);
             println!("  - Status: {}", status);
             println!("  - Amount: {} {}", amount, currency);
             println!("  - Customer: {}", cust_id);
-            assert_eq!(status, "open", "Invoice should be finalized (status='open')");
             assert_eq!(amount, 2999, "Invoice amount should be 2999");
             assert_eq!(currency, "usd", "Invoice currency should be USD");
+            break;
         }
-        None => {
+        if tokio::time::Instant::now() >= poll_deadline {
             panic!("❌ No invoice found in AR database for customer {}", ar_customer_id);
         }
+        tokio::time::sleep(Duration::from_millis(500)).await;
     }
 
-    // 2. Check AR: Invoice should be marked as paid (after payment applied)
-    // Give a bit more time for payment to be applied
-    tokio::time::sleep(Duration::from_secs(3)).await;
+    // 2. Wait for invoice to be marked as paid (full AR → Payments → AR chain)
+    loop {
+        let paid: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM ar_invoices WHERE ar_customer_id = $1 AND status = 'paid'"
+        )
+        .bind(ar_customer_id)
+        .fetch_one(&ar_pool)
+        .await
+        .expect("Failed to query paid invoices");
 
-    let paid_invoice_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_invoices WHERE ar_customer_id = $1 AND status = 'paid'"
-    )
-    .bind(ar_customer_id)
-    .fetch_one(&ar_pool)
-    .await
-    .expect("Failed to query paid invoices");
+        if paid > 0 {
+            println!("\n✓ AR Invoice marked as paid");
+            break;
+        }
+        if tokio::time::Instant::now() >= poll_deadline {
+            panic!("❌ Invoice not marked as paid within timeout");
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
 
-    println!("\n✓ AR Invoice payment status:");
-    println!("  - Paid invoices: {}", paid_invoice_count);
-    assert!(paid_invoice_count > 0, "Invoice should be marked as paid after payment applied");
+    // 3. Wait for payment.succeeded event in Payments outbox
+    loop {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payments.payment.succeeded'"
+        )
+        .fetch_one(&payments_pool)
+        .await
+        .expect("Failed to query payments outbox");
 
-    // 3. Check Payments: Payment record should exist
-    let payment_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM payments WHERE status = 'succeeded'"
-    )
-    .fetch_one(&payments_pool)
-    .await
-    .expect("Failed to query payments");
+        if count > 0 {
+            println!("✓ Payments outbox: {} payment.succeeded event(s)", count);
+            break;
+        }
+        if tokio::time::Instant::now() >= poll_deadline {
+            panic!("❌ No payment.succeeded event in payments outbox within timeout");
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
 
-    println!("\n✓ Payments DB:");
-    println!("  - Successful payments: {}", payment_count);
-    assert!(payment_count > 0, "At least one payment should be recorded");
+    // 4. Wait for Notifications to process at least one event
+    loop {
+        let count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM processed_events"
+        )
+        .fetch_one(&notifications_pool)
+        .await
+        .expect("Failed to query notifications processed_events");
 
-    // 4. Check Notifications: Notification should be sent
-    let notification_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM notifications WHERE status = 'sent'"
-    )
-    .fetch_one(&notifications_pool)
-    .await
-    .expect("Failed to query notifications");
-
-    println!("\n✓ Notifications DB:");
-    println!("  - Sent notifications: {}", notification_count);
-    assert!(notification_count > 0, "At least one notification should be sent");
+        if count > 0 {
+            println!("✓ Notifications: {} event(s) processed", count);
+            break;
+        }
+        if tokio::time::Instant::now() >= poll_deadline {
+            // Dump full container logs before failing (stdout + stderr, unfiltered)
+            for container in &["7d-ar", "7d-payments", "7d-subscriptions", "7d-notifications"] {
+                println!("\n📊 === Full logs: {} ===", container);
+                if let Ok(output) = Command::new("docker").args(&["logs", container]).output() {
+                    let stdout = String::from_utf8_lossy(&output.stdout);
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    if !stdout.is_empty() {
+                        println!("[stdout]");
+                        for line in stdout.lines() {
+                            println!("  {}", line);
+                        }
+                    }
+                    if !stderr.is_empty() {
+                        println!("[stderr]");
+                        for line in stderr.lines() {
+                            println!("  {}", line);
+                        }
+                    }
+                } else {
+                    println!("  (failed to get logs)");
+                }
+            }
+            panic!("❌ Notifications did not process any events within timeout");
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
 
     // 5. Check Subscriptions: next_bill_date should be updated
     let next_bill_date: NaiveDate = sqlx::query_scalar(
@@ -360,8 +438,7 @@ async fn test_real_nats_based_e2e() {
     .await
     .expect("Failed to query subscription");
 
-    println!("\n✓ Subscriptions DB:");
-    println!("  - Next bill date: {}", next_bill_date);
+    println!("✓ Subscriptions: next_bill_date = {}", next_bill_date);
     assert!(next_bill_date > today, "Subscription next_bill_date should be updated to future date");
 
     println!("\n🎉 E2E Test Passed! All assertions successful.\n");

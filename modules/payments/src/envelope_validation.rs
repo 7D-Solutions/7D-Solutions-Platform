@@ -43,30 +43,33 @@ pub fn validate_envelope(envelope: &Value) -> Result<(), String> {
         return Err("Invalid tenant_id: must be non-empty".to_string());
     }
 
-    // Validate source_module (required non-empty string)
+    // Validate source_module or producer (required non-empty string)
     let source_module = envelope
         .get("source_module")
+        .or_else(|| envelope.get("producer"))
         .and_then(|v| v.as_str())
-        .ok_or("Missing required field: source_module")?;
+        .ok_or("Missing required field: source_module (or producer)")?;
 
     if source_module.trim().is_empty() {
-        return Err("Invalid source_module: must be non-empty".to_string());
+        return Err("Invalid source_module/producer: must be non-empty".to_string());
     }
 
-    // Validate source_version (required non-empty string)
+    // Validate source_version or schema_version (required non-empty string)
     let source_version = envelope
         .get("source_version")
+        .or_else(|| envelope.get("schema_version"))
         .and_then(|v| v.as_str())
-        .ok_or("Missing required field: source_version")?;
+        .ok_or("Missing required field: source_version (or schema_version)")?;
 
     if source_version.trim().is_empty() {
-        return Err("Invalid source_version: must be non-empty".to_string());
+        return Err("Invalid source_version/schema_version: must be non-empty".to_string());
     }
 
-    // Validate correlation_id (optional string)
-    if let Some(correlation_id) = envelope.get("correlation_id") {
-        if !correlation_id.is_string() && !correlation_id.is_null() {
-            return Err("Invalid correlation_id: must be a string or null".to_string());
+    // Validate correlation_id or trace_id (optional string)
+    let corr_or_trace = envelope.get("correlation_id").or_else(|| envelope.get("trace_id"));
+    if let Some(val) = corr_or_trace {
+        if !val.is_string() && !val.is_null() {
+            return Err("Invalid correlation_id/trace_id: must be a string or null".to_string());
         }
     }
 
@@ -77,13 +80,14 @@ pub fn validate_envelope(envelope: &Value) -> Result<(), String> {
         }
     }
 
-    // Validate payload (required object)
+    // Validate payload or data (required object)
     let payload = envelope
         .get("payload")
-        .ok_or("Missing required field: payload")?;
+        .or_else(|| envelope.get("data"))
+        .ok_or("Missing required field: payload (or data)")?;
 
     if !payload.is_object() {
-        return Err("Invalid payload: must be an object".to_string());
+        return Err("Invalid payload/data: must be an object".to_string());
     }
 
     // Optional schema validation if enabled
@@ -213,7 +217,7 @@ mod tests {
         assert!(validate_envelope(&envelope).is_err());
         assert_eq!(
             validate_envelope(&envelope).unwrap_err(),
-            "Missing required field: payload"
+            "Missing required field: payload (or data)"
         );
     }
 
@@ -231,7 +235,24 @@ mod tests {
         assert!(validate_envelope(&envelope).is_err());
         assert_eq!(
             validate_envelope(&envelope).unwrap_err(),
-            "Invalid payload: must be an object"
+            "Invalid payload/data: must be an object"
         );
+    }
+
+    #[test]
+    fn test_valid_ar_envelope() {
+        let envelope = json!({
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "occurred_at": "2026-02-12T00:00:00Z",
+            "tenant_id": "tenant-123",
+            "producer": "ar-rs",
+            "schema_version": "1.0.0",
+            "trace_id": "trace-123",
+            "data": {
+                "invoice_id": "inv-123"
+            }
+        });
+
+        assert!(validate_envelope(&envelope).is_ok());
     }
 }

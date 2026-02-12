@@ -99,7 +99,7 @@ pub async fn start_outbox_publisher(
             // Construct full envelope for publishing
             let full_envelope = serde_json::json!({
                 "event_id": event.event_id,
-                "occurred_at": event.occurred_at,
+                "occurred_at": event.occurred_at.and_utc().to_rfc3339(),
                 "tenant_id": event.tenant_id,
                 "source_module": "payments",
                 "source_version": env!("CARGO_PKG_VERSION"),
