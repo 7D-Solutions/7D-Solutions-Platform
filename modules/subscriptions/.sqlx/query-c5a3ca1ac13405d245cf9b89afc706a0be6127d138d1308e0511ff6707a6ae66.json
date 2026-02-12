@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO processed_events (event_id, subject)\n        VALUES ($1, $2)\n        ON CONFLICT (event_id) DO NOTHING\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Varchar",
+        "Varchar"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c5a3ca1ac13405d245cf9b89afc706a0be6127d138d1308e0511ff6707a6ae66"
+}

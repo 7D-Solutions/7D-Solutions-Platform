@@ -100,11 +100,13 @@ checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 name = "ar-rs"
 version = "0.1.0"
 dependencies = [
+ "async-nats",
  "axum",
  "axum-extra",
  "base64 0.22.1",
  "chrono",
  "dotenvy",
+ "event-bus",
  "futures",
  "hex",
  "hmac",
@@ -1773,9 +1775,12 @@ checksum = "38bf9645c8b145698bb0b18a4637dcacbc421ea49bef2317e4fd8065a387cf21"
 name = "notifications-rs"
 version = "0.1.0"
 dependencies = [
+ "async-nats",
  "axum",
  "chrono",
  "dotenvy",
+ "event-bus",
+ "futures",
  "reqwest",
  "serde",
  "serde_json",
@@ -2010,9 +2015,12 @@ dependencies = [
 name = "payments-rs"
 version = "0.1.0"
 dependencies = [
+ "async-nats",
  "axum",
  "chrono",
  "dotenvy",
+ "event-bus",
+ "futures",
  "hmac",
  "reqwest",
  "serde",
@@ -3066,9 +3074,13 @@ checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
 name = "subscriptions-rs"
 version = "0.1.0"
 dependencies = [
+ "async-nats",
+ "async-trait",
  "axum",
  "chrono",
  "dotenvy",
+ "event-bus",
+ "futures",
  "reqwest",
  "serde",
  "serde_json",
