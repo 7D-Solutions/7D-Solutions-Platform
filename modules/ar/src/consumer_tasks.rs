@@ -25,62 +25,56 @@ pub async fn start_payment_succeeded_consumer(bus: Arc<dyn EventBus>, pool: PgPo
         tracing::info!("Subscribed to {}", subject);
 
         while let Some(msg) = stream.next().await {
-            let result = process_payment_succeeded(&pool, &msg).await;
+            // Process and capture error message immediately
+            let error_msg = match process_payment_succeeded(&pool, &msg).await {
+                Ok(_) => None,
+                Err(e) => Some(format!("{:#}", e)),
+            };
 
             // Handle errors by writing to DLQ
-            if let Err(e) = result {
-                // Convert error to string and drop e immediately
-                let error_msg = format!("{:#}", e);
-                drop(e);
-
+            if let Some(error_msg) = error_msg {
                 // Extract event_id, tenant_id, and envelope for DLQ
-                let envelope: Result<serde_json::Value, _> = serde_json::from_slice(&msg.payload);
+                if let Ok(env) = serde_json::from_slice::<serde_json::Value>(&msg.payload) {
+                    let event_id_opt = env.get("event_id")
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| uuid::Uuid::parse_str(s).ok());
 
-                match envelope {
-                    Ok(env) => {
-                        let event_id_opt = env.get("event_id")
-                            .and_then(|v| v.as_str())
-                            .and_then(|s| uuid::Uuid::parse_str(s).ok());
+                    let tenant_id_opt = env.get("tenant_id")
+                        .and_then(|v| v.as_str());
 
-                        let tenant_id_opt = env.get("tenant_id")
-                            .and_then(|v| v.as_str());
-
-                        if let (Some(event_id), Some(tenant_id)) = (event_id_opt, tenant_id_opt) {
-                            // Write to DLQ
-                            if let Err(dlq_err) = crate::events::dlq::insert_failed_event(
-                                &pool,
-                                event_id,
-                                &msg.subject,
-                                tenant_id,
-                                &env,
-                                &error_msg,
-                                0,
-                            ).await {
-                                tracing::error!(
-                                    event_id = %event_id,
-                                    subject = %msg.subject,
-                                    tenant_id = %tenant_id,
-                                    error = %error_msg,
-                                    dlq_error = %dlq_err,
-                                    "Failed to write to DLQ - event may be lost!"
-                                );
-                            }
-                        } else {
+                    if let (Some(event_id), Some(tenant_id)) = (event_id_opt, tenant_id_opt) {
+                        // Write to DLQ
+                        if let Err(dlq_err) = crate::events::dlq::insert_failed_event(
+                            &pool,
+                            event_id,
+                            &msg.subject,
+                            tenant_id,
+                            &env,
+                            &error_msg,
+                            0,
+                        ).await {
                             tracing::error!(
+                                event_id = %event_id,
                                 subject = %msg.subject,
+                                tenant_id = %tenant_id,
                                 error = %error_msg,
-                                "Failed to extract event_id or tenant_id from envelope for DLQ"
+                                dlq_error = %dlq_err,
+                                "Failed to write to DLQ - event may be lost!"
                             );
                         }
-                    }
-                    Err(parse_err) => {
+                    } else {
                         tracing::error!(
                             subject = %msg.subject,
                             error = %error_msg,
-                            parse_error = %parse_err,
-                            "Failed to process event and could not parse envelope for DLQ"
+                            "Failed to extract event_id or tenant_id from envelope for DLQ"
                         );
                     }
+                } else {
+                    tracing::error!(
+                        subject = %msg.subject,
+                        error = %error_msg,
+                        "Failed to process event and could not parse envelope for DLQ"
+                    );
                 }
             }
         }
