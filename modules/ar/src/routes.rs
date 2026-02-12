@@ -11,6 +11,7 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use sqlx::PgPool;
 
+use crate::events::{enqueue_event, EventEnvelope};
 use crate::idempotency::{check_idempotency, log_event_async};
 use crate::models::{
     AddPaymentMethodRequest, CancelSubscriptionRequest, CaptureChargeRequest, Charge,
@@ -18,10 +19,10 @@ use crate::models::{
     CreateSubscriptionRequest, Customer, Dispute, ErrorResponse, Event, FinalizeInvoiceRequest,
     Invoice, ListChargesQuery, ListCustomersQuery, ListDisputesQuery, ListEventsQuery,
     ListInvoicesQuery, ListPaymentMethodsQuery, ListRefundsQuery, ListSubscriptionsQuery,
-    ListWebhooksQuery, PaymentMethod, Refund, ReplayWebhookRequest, SubmitDisputeEvidenceRequest,
-    Subscription, SubscriptionInterval, SubscriptionStatus, TilledWebhookEvent,
-    UpdateCustomerRequest, UpdateInvoiceRequest, UpdatePaymentMethodRequest,
-    UpdateSubscriptionRequest, Webhook, WebhookStatus,
+    ListWebhooksQuery, PaymentCollectionRequestedPayload, PaymentMethod, Refund,
+    ReplayWebhookRequest, SubmitDisputeEvidenceRequest, Subscription, SubscriptionInterval,
+    SubscriptionStatus, TilledWebhookEvent, UpdateCustomerRequest, UpdateInvoiceRequest,
+    UpdatePaymentMethodRequest, UpdateSubscriptionRequest, Webhook, WebhookStatus,
 };
 
 pub fn ar_router(db: PgPool) -> Router {
@@ -1543,6 +1544,40 @@ async fn finalize_invoice(
     })?;
 
     tracing::info!("Finalized invoice {}", id);
+
+    // Emit ar.payment.collection.requested event to outbox
+    let event_payload = PaymentCollectionRequestedPayload {
+        invoice_id: invoice.id.to_string(),
+        customer_id: invoice.ar_customer_id.to_string(),
+        amount_minor: invoice.amount_cents,
+        currency: invoice.currency.to_uppercase(),
+        payment_method_id: None, // Will be resolved by payment collection handler
+    };
+
+    let event_envelope = EventEnvelope::new(
+        "ar.payment.collection.requested".to_string(),
+        "1.0.0".to_string(),
+        app_id.to_string(),
+        "invoice".to_string(),
+        invoice.id.to_string(),
+        uuid::Uuid::new_v4().to_string(),
+        event_payload,
+    );
+
+    if let Err(e) = enqueue_event(&db, &event_envelope).await {
+        tracing::error!(
+            "Failed to enqueue ar.payment.collection.requested event for invoice {}: {:?}",
+            invoice.id,
+            e
+        );
+        // Don't fail the finalization if event emission fails
+        // The invoice is already finalized in the database
+    } else {
+        tracing::info!(
+            "Enqueued ar.payment.collection.requested event for invoice {}",
+            invoice.id
+        );
+    }
 
     Ok(Json(invoice))
 }

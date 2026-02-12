@@ -581,3 +581,18 @@ pub struct ListEventsQuery {
     pub limit: Option<i32>,
     pub offset: Option<i32>,
 }
+
+// ============================================================================
+// EVENT PAYLOADS
+// ============================================================================
+
+/// Payload for ar.payment.collection.requested event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaymentCollectionRequestedPayload {
+    pub invoice_id: String,
+    pub customer_id: String,
+    pub amount_minor: i32,
+    pub currency: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payment_method_id: Option<String>,
+}

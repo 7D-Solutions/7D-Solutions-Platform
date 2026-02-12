@@ -335,6 +335,92 @@ async fn test_finalize_invoice_already_finalized() {
     common::teardown_pool(pool).await;
 }
 
+/// TEST 9: Finalize invoice emits payment collection event
+#[tokio::test]
+#[serial]
+async fn test_finalize_invoice_emits_event() {
+    let pool = common::setup_pool().await;
+    let app = common::app(&pool);
+
+    let (customer_id, _, _) = common::seed_customer(&pool, APP_ID).await;
+    let invoice_id = seed_invoice(&pool, APP_ID, customer_id, 25000, "draft").await;
+
+    // Clean up outbox before test
+    sqlx::query("DELETE FROM events_outbox")
+        .execute(&pool)
+        .await
+        .ok();
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(&format!("/api/ar/invoices/{}/finalize", invoice_id))
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&serde_json::json!({})).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Verify event was enqueued to outbox
+    let event_count: i64 = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)
+        FROM events_outbox
+        WHERE event_type = 'ar.payment.collection.requested'
+          AND aggregate_type = 'invoice'
+          AND aggregate_id = $1
+          AND published_at IS NULL
+        "#,
+    )
+    .bind(invoice_id.to_string())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(
+        event_count, 1,
+        "Should have one ar.payment.collection.requested event in outbox"
+    );
+
+    // Verify event payload contains correct data
+    let event_payload: serde_json::Value = sqlx::query_scalar(
+        r#"
+        SELECT payload
+        FROM events_outbox
+        WHERE event_type = 'ar.payment.collection.requested'
+          AND aggregate_id = $1
+        "#,
+    )
+    .bind(invoice_id.to_string())
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let data = &event_payload["data"];
+    assert_eq!(data["invoice_id"], invoice_id.to_string());
+    assert_eq!(data["customer_id"], customer_id.to_string());
+    assert_eq!(data["amount_minor"], 25000);
+    assert_eq!(data["currency"], "USD");
+
+    // Cleanup
+    sqlx::query("DELETE FROM events_outbox WHERE aggregate_id = $1")
+        .bind(invoice_id.to_string())
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query("DELETE FROM ar_invoices WHERE id = $1")
+        .bind(invoice_id)
+        .execute(&pool)
+        .await
+        .unwrap();
+    common::cleanup_customers(&pool, &[customer_id]).await;
+    common::teardown_pool(pool).await;
+}
+
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
