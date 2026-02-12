@@ -1,3 +1,4 @@
+pub mod consumer_tasks;
 pub mod envelope_validation;
 pub mod events;
 pub mod idempotency;

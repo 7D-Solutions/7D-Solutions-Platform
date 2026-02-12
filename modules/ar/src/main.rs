@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
-use ar_rs::{events::run_publisher_task, routes};
+use ar_rs::{consumer_tasks, events::run_publisher_task, routes};
 
 #[tokio::main]
 async fn main() {
@@ -76,6 +76,11 @@ async fn main() {
     });
 
     tracing::info!("Event publisher task started");
+
+    // Spawn event consumer tasks
+    consumer_tasks::start_payment_succeeded_consumer(event_bus.clone(), db.clone()).await;
+
+    tracing::info!("Event consumer tasks started");
 
     // CORS configuration
     let cors = CorsLayer::new()
