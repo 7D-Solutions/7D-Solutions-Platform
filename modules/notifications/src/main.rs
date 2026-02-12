@@ -1,4 +1,8 @@
+mod consumer;
+mod consumer_tasks;
 mod event_bus;
+mod handlers;
+mod models;
 
 use axum::{routing::get, Json, Router};
 use ::event_bus::{EventBus, InMemoryBus, NatsBus};
@@ -57,6 +61,11 @@ async fn main() {
 
     // Spawn outbox publisher task
     tokio::spawn(event_bus::start_outbox_publisher(db.clone(), bus.clone()));
+
+    // Spawn event consumer tasks
+    consumer_tasks::start_invoice_issued_consumer(bus.clone(), db.clone()).await;
+    consumer_tasks::start_payment_succeeded_consumer(bus.clone(), db.clone()).await;
+    consumer_tasks::start_payment_failed_consumer(bus.clone(), db.clone()).await;
 
     // HTTP server configuration
     let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
