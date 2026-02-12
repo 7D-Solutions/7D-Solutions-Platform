@@ -1,11 +1,13 @@
 use axum::{extract::State, http::Method, routing::get, Json, Router};
+use event_bus::{EventBus, InMemoryBus, NatsBus};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
-use ar_rs::routes;
+use ar_rs::{events::run_publisher_task, routes};
 
 #[tokio::main]
 async fn main() {
@@ -47,6 +49,33 @@ async fn main() {
         .expect("Failed to run database migrations");
 
     tracing::info!("Database migrations applied successfully");
+
+    // Initialize event bus based on BUS_TYPE environment variable
+    let bus_type = std::env::var("BUS_TYPE").unwrap_or_else(|_| "inmemory".to_string());
+    let event_bus: Arc<dyn EventBus> = match bus_type.to_lowercase().as_str() {
+        "nats" => {
+            let nats_url = std::env::var("NATS_URL")
+                .unwrap_or_else(|_| "nats://localhost:4222".to_string());
+            tracing::info!("Connecting to NATS at {}", nats_url);
+            let nats_client = async_nats::connect(&nats_url)
+                .await
+                .expect("Failed to connect to NATS");
+            Arc::new(NatsBus::new(nats_client))
+        }
+        "inmemory" | _ => {
+            tracing::info!("Using in-memory event bus");
+            Arc::new(InMemoryBus::new())
+        }
+    };
+
+    // Spawn background publisher task
+    let publisher_db = db.clone();
+    let publisher_bus = event_bus.clone();
+    tokio::spawn(async move {
+        run_publisher_task(publisher_db, publisher_bus).await;
+    });
+
+    tracing::info!("Event publisher task started");
 
     // CORS configuration
     let cors = CorsLayer::new()
