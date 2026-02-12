@@ -12,6 +12,7 @@ services:
     environment:
       DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}
       NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
       HOST: 0.0.0.0
       PORT: 8086
       RUST_LOG: ${RUST_LOG:-info}
@@ -45,6 +46,7 @@ services:
     environment:
       DATABASE_URL: postgres://${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}:${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}@7d-subscriptions-postgres:5432/${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}
       NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
       HOST: 0.0.0.0
       PORT: 8087
       AR_BASE_URL: http://7d-ar:8086
@@ -74,11 +76,12 @@ services:
   payments:
     container_name: 7d-payments
     build:
-      context: ./modules/payments
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: modules/payments/Dockerfile.workspace
     environment:
       DATABASE_URL: postgres://${PAYMENTS_POSTGRES_USER:-payments_user}:${PAYMENTS_POSTGRES_PASSWORD:-payments_pass}@7d-payments-postgres:5432/${PAYMENTS_POSTGRES_DB:-payments_db}
       NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
       HOST: 0.0.0.0
       PORT: 8088
       RUST_LOG: ${RUST_LOG:-info}
@@ -107,11 +110,12 @@ services:
   notifications:
     container_name: 7d-notifications
     build:
-      context: ./modules/notifications
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: modules/notifications/Dockerfile.workspace
     environment:
       DATABASE_URL: postgres://${NOTIFICATIONS_POSTGRES_USER:-notifications_user}:${NOTIFICATIONS_POSTGRES_PASSWORD:-notifications_pass}@7d-notifications-postgres:5432/${NOTIFICATIONS_POSTGRES_DB:-notifications_db}
       NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
       HOST: 0.0.0.0
       PORT: 8089
       RUST_LOG: ${RUST_LOG:-info}
