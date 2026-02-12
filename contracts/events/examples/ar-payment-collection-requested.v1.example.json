@@ -1,0 +1,16 @@
+{
+  "event_id": "01HPQZ9X8K4N7P2Q5R8T1V3W6Y",
+  "occurred_at": "2024-02-11T19:15:30.456Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "ar",
+  "source_version": "0.1.0",
+  "correlation_id": "cor_01HPQZ9W7M3N6P9Q2R5T8V1W4X",
+  "causation_id": "cmd_01HPQZ9V5J2M4N7P9Q3R6T8V1W",
+  "payload": {
+    "invoice_id": "inv_01HPQW9K7J4M6N8P2R5T7V9W1X",
+    "customer_id": "cus_01HPQW8Z5N7P9Q2R4T6V8W1X3Y",
+    "amount_minor": 2599,
+    "currency": "USD",
+    "payment_method_id": "pm_01HPQW9M8K5N7P1Q3R6T9V2W4X"
+  }
+}
