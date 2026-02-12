@@ -36,39 +36,70 @@ pub async fn start_invoice_issued_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
         let retry_config = RetryConfig::default();
 
         while let Some(msg) = stream.next().await {
-            // Clone necessary data for retry closure
-            let consumer_clone = consumer.clone();
-            let pool_clone = pool.clone();
-            let msg_clone = msg.clone();
-
-            // Retry processing with exponential backoff
-            // Wrap in a Send-safe error type (String)
-            let result = retry_with_backoff(
-                || {
-                    let consumer = consumer_clone.clone();
-                    let pool = pool_clone.clone();
-                    let msg = msg_clone.clone();
-                    async move {
-                        process_invoice_issued(&consumer, &pool, &msg)
-                            .await
-                            .map_err(|e| format!("{:#}", e))
+            // Extract correlation fields from envelope for observability
+            let (event_id, tenant_id, correlation_id, source_module) =
+                match extract_correlation_fields(&msg) {
+                    Ok(fields) => fields,
+                    Err(e) => {
+                        tracing::error!(
+                            subject = %msg.subject,
+                            error = %e,
+                            "Failed to extract correlation fields from envelope"
+                        );
+                        continue;
                     }
-                },
-                &retry_config,
-                "notifications_invoice_issued_consumer",
-            )
-            .await;
+                };
 
-            // If all retries failed, send to DLQ
-            if let Err(error_msg) = result {
-                crate::dlq::handle_processing_error(
-                    &pool,
-                    &msg,
-                    &error_msg,
-                    retry_config.max_attempts as i32,
+            // Create tracing span with correlation fields
+            let span = tracing::info_span!(
+                "process_event",
+                event_id = %event_id,
+                subject = %msg.subject,
+                tenant_id = %tenant_id,
+                correlation_id = %correlation_id.as_deref().unwrap_or("none"),
+                source_module = %source_module.as_deref().unwrap_or("unknown")
+            );
+
+            // Process message within the span
+            async {
+                let consumer_clone = consumer.clone();
+                let pool_clone = pool.clone();
+                let msg_clone = msg.clone();
+
+                let result = retry_with_backoff(
+                    || {
+                        let consumer = consumer_clone.clone();
+                        let pool = pool_clone.clone();
+                        let msg = msg_clone.clone();
+                        async move {
+                            process_invoice_issued(&consumer, &pool, &msg)
+                                .await
+                                .map_err(|e| format!("{:#}", e))
+                        }
+                    },
+                    &retry_config,
+                    "notifications_invoice_issued_consumer",
                 )
                 .await;
+
+                if let Err(error_msg) = result {
+                    tracing::error!(
+                        error = %error_msg,
+                        retry_count = retry_config.max_attempts,
+                        "Event processing failed after retries, sending to DLQ"
+                    );
+
+                    crate::dlq::handle_processing_error(
+                        &pool,
+                        &msg,
+                        &error_msg,
+                        retry_config.max_attempts as i32,
+                    )
+                    .await;
+                }
             }
+            .instrument(span)
+            .await;
         }
 
         tracing::warn!("Invoice issued consumer stopped");
@@ -115,39 +146,70 @@ pub async fn start_payment_succeeded_consumer(bus: Arc<dyn EventBus>, pool: PgPo
         let retry_config = RetryConfig::default();
 
         while let Some(msg) = stream.next().await {
-            // Clone necessary data for retry closure
-            let consumer_clone = consumer.clone();
-            let pool_clone = pool.clone();
-            let msg_clone = msg.clone();
-
-            // Retry processing with exponential backoff
-            // Wrap in a Send-safe error type (String)
-            let result = retry_with_backoff(
-                || {
-                    let consumer = consumer_clone.clone();
-                    let pool = pool_clone.clone();
-                    let msg = msg_clone.clone();
-                    async move {
-                        process_payment_succeeded(&consumer, &pool, &msg)
-                            .await
-                            .map_err(|e| format!("{:#}", e))
+            // Extract correlation fields from envelope for observability
+            let (event_id, tenant_id, correlation_id, source_module) =
+                match extract_correlation_fields(&msg) {
+                    Ok(fields) => fields,
+                    Err(e) => {
+                        tracing::error!(
+                            subject = %msg.subject,
+                            error = %e,
+                            "Failed to extract correlation fields from envelope"
+                        );
+                        continue;
                     }
-                },
-                &retry_config,
-                "notifications_payment_succeeded_consumer",
-            )
-            .await;
+                };
 
-            // If all retries failed, send to DLQ
-            if let Err(error_msg) = result {
-                crate::dlq::handle_processing_error(
-                    &pool,
-                    &msg,
-                    &error_msg,
-                    retry_config.max_attempts as i32,
+            // Create tracing span with correlation fields
+            let span = tracing::info_span!(
+                "process_event",
+                event_id = %event_id,
+                subject = %msg.subject,
+                tenant_id = %tenant_id,
+                correlation_id = %correlation_id.as_deref().unwrap_or("none"),
+                source_module = %source_module.as_deref().unwrap_or("unknown")
+            );
+
+            // Process message within the span
+            async {
+                let consumer_clone = consumer.clone();
+                let pool_clone = pool.clone();
+                let msg_clone = msg.clone();
+
+                let result = retry_with_backoff(
+                    || {
+                        let consumer = consumer_clone.clone();
+                        let pool = pool_clone.clone();
+                        let msg = msg_clone.clone();
+                        async move {
+                            process_payment_succeeded(&consumer, &pool, &msg)
+                                .await
+                                .map_err(|e| format!("{:#}", e))
+                        }
+                    },
+                    &retry_config,
+                    "notifications_payment_succeeded_consumer",
                 )
                 .await;
+
+                if let Err(error_msg) = result {
+                    tracing::error!(
+                        error = %error_msg,
+                        retry_count = retry_config.max_attempts,
+                        "Event processing failed after retries, sending to DLQ"
+                    );
+
+                    crate::dlq::handle_processing_error(
+                        &pool,
+                        &msg,
+                        &error_msg,
+                        retry_config.max_attempts as i32,
+                    )
+                    .await;
+                }
             }
+            .instrument(span)
+            .await;
         }
 
         tracing::warn!("Payment succeeded consumer stopped");
@@ -194,39 +256,70 @@ pub async fn start_payment_failed_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
         let retry_config = RetryConfig::default();
 
         while let Some(msg) = stream.next().await {
-            // Clone necessary data for retry closure
-            let consumer_clone = consumer.clone();
-            let pool_clone = pool.clone();
-            let msg_clone = msg.clone();
-
-            // Retry processing with exponential backoff
-            // Wrap in a Send-safe error type (String)
-            let result = retry_with_backoff(
-                || {
-                    let consumer = consumer_clone.clone();
-                    let pool = pool_clone.clone();
-                    let msg = msg_clone.clone();
-                    async move {
-                        process_payment_failed(&consumer, &pool, &msg)
-                            .await
-                            .map_err(|e| format!("{:#}", e))
+            // Extract correlation fields from envelope for observability
+            let (event_id, tenant_id, correlation_id, source_module) =
+                match extract_correlation_fields(&msg) {
+                    Ok(fields) => fields,
+                    Err(e) => {
+                        tracing::error!(
+                            subject = %msg.subject,
+                            error = %e,
+                            "Failed to extract correlation fields from envelope"
+                        );
+                        continue;
                     }
-                },
-                &retry_config,
-                "notifications_payment_failed_consumer",
-            )
-            .await;
+                };
 
-            // If all retries failed, send to DLQ
-            if let Err(error_msg) = result {
-                crate::dlq::handle_processing_error(
-                    &pool,
-                    &msg,
-                    &error_msg,
-                    retry_config.max_attempts as i32,
+            // Create tracing span with correlation fields
+            let span = tracing::info_span!(
+                "process_event",
+                event_id = %event_id,
+                subject = %msg.subject,
+                tenant_id = %tenant_id,
+                correlation_id = %correlation_id.as_deref().unwrap_or("none"),
+                source_module = %source_module.as_deref().unwrap_or("unknown")
+            );
+
+            // Process message within the span
+            async {
+                let consumer_clone = consumer.clone();
+                let pool_clone = pool.clone();
+                let msg_clone = msg.clone();
+
+                let result = retry_with_backoff(
+                    || {
+                        let consumer = consumer_clone.clone();
+                        let pool = pool_clone.clone();
+                        let msg = msg_clone.clone();
+                        async move {
+                            process_payment_failed(&consumer, &pool, &msg)
+                                .await
+                                .map_err(|e| format!("{:#}", e))
+                        }
+                    },
+                    &retry_config,
+                    "notifications_payment_failed_consumer",
                 )
                 .await;
+
+                if let Err(error_msg) = result {
+                    tracing::error!(
+                        error = %error_msg,
+                        retry_count = retry_config.max_attempts,
+                        "Event processing failed after retries, sending to DLQ"
+                    );
+
+                    crate::dlq::handle_processing_error(
+                        &pool,
+                        &msg,
+                        &error_msg,
+                        retry_config.max_attempts as i32,
+                    )
+                    .await;
+                }
             }
+            .instrument(span)
+            .await;
         }
 
         tracing::warn!("Payment failed consumer stopped");
@@ -285,4 +378,37 @@ fn extract_metadata(
         tenant_id,
         correlation_id,
     })
+}
+
+/// Extract correlation fields from event envelope for observability
+///
+/// Returns: (event_id, tenant_id, correlation_id, source_module)
+fn extract_correlation_fields(
+    msg: &BusMessage,
+) -> Result<(Uuid, String, Option<String>, Option<String>), Box<dyn std::error::Error>> {
+    let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
+
+    let event_id_str = envelope
+        .get("event_id")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing event_id")?;
+    let event_id = Uuid::parse_str(event_id_str)?;
+
+    let tenant_id = envelope
+        .get("tenant_id")
+        .and_then(|v| v.as_str())
+        .ok_or("Missing tenant_id")?
+        .to_string();
+
+    let correlation_id = envelope
+        .get("correlation_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    let source_module = envelope
+        .get("source_module")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    Ok((event_id, tenant_id, correlation_id, source_module))
 }
