@@ -3,6 +3,7 @@ use futures::StreamExt;
 use sqlx::PgPool;
 use std::sync::Arc;
 
+use crate::envelope_validation::validate_envelope;
 use crate::events::EventConsumer;
 use crate::handlers::{handle_payment_collection_requested, EnvelopeMetadata};
 use crate::models::PaymentCollectionRequestedPayload;
@@ -59,6 +60,11 @@ async fn process_payment_collection_request(
             // Extract envelope metadata from the message
             let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
 
+            // Validate envelope fields first
+            validate_envelope(&envelope)
+                .map_err(|e| format!("Envelope validation failed: {}", e))?;
+
+            // Extract metadata (validation ensures these fields exist and are valid)
             let event_id = envelope
                 .get("event_id")
                 .and_then(|v| v.as_str())

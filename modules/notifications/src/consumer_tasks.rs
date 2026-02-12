@@ -4,6 +4,7 @@ use sqlx::PgPool;
 use std::sync::Arc;
 
 use crate::consumer::EventConsumer;
+use crate::envelope_validation::validate_envelope;
 use crate::handlers::{handle_invoice_issued, handle_payment_failed, handle_payment_succeeded};
 use crate::models::{
     EnvelopeMetadata, InvoiceIssuedPayload, PaymentFailedPayload, PaymentSucceededPayload,
@@ -160,9 +161,16 @@ async fn process_payment_failed(
 }
 
 /// Extract envelope metadata from event payload
+///
+/// First validates the envelope fields according to platform event contract,
+/// then extracts metadata for event processing.
 fn extract_metadata(
     envelope: &serde_json::Value,
 ) -> Result<EnvelopeMetadata, Box<dyn std::error::Error>> {
+    // Validate envelope fields first
+    validate_envelope(envelope).map_err(|e| format!("Envelope validation failed: {}", e))?;
+
+    // Extract metadata (validation ensures these fields exist and are valid)
     let event_id = envelope
         .get("event_id")
         .and_then(|v| v.as_str())

@@ -1,4 +1,5 @@
 pub mod consumer_task;
+pub mod envelope_validation;
 pub mod events;
 pub mod handlers;
 pub mod models;

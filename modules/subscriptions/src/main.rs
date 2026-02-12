@@ -1,5 +1,6 @@
 mod config;
 mod consumer;
+mod envelope_validation;
 mod models;
 mod outbox;
 mod publisher;

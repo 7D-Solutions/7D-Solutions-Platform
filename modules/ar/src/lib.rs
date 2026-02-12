@@ -1,3 +1,4 @@
+pub mod envelope_validation;
 pub mod events;
 pub mod idempotency;
 pub mod models;

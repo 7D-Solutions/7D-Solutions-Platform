@@ -1,5 +1,6 @@
 mod consumer;
 mod consumer_tasks;
+mod envelope_validation;
 mod event_bus;
 mod handlers;
 mod models;
