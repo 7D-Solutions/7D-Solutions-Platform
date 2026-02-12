@@ -30,7 +30,7 @@ async fn main() {
 
     // Build the application router
     let app = Router::new()
-        .route("/health", get(health))
+        .route("/api/health", get(health))
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)
