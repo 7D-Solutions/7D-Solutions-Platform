@@ -56,12 +56,17 @@ else
     # Verify the claim succeeded
     verify_assignee=$(br show "$bead_id" --json 2>/dev/null | jq -r '.[0].assignee // empty' 2>/dev/null)
     if [ "$verify_assignee" != "$AGENT_NAME" ]; then
-        echo "⚠️  Warning: Bead $bead_id assignee verification failed" >&2
-        echo "   Expected: $AGENT_NAME, Got: ${verify_assignee:-<none>}" >&2
-        echo "   You may not own this bead - check manually" >&2
+        echo "❌ ERROR: Failed to claim bead $bead_id" >&2
+        echo "   Expected assignee: $AGENT_NAME" >&2
+        echo "   Actual assignee: ${verify_assignee:-<none>}" >&2
+        echo "   Another agent may have claimed it first." >&2
+        echo "   Clearing stale tracking file..." >&2
+        rm -f "/tmp/agent-bead-${AGENT_NAME}.txt"
+        rm -f "$LOCK_FILE"
+        exit 1
     fi
 
-    # Update tracking file
+    # Update tracking file (only if claim verified)
     echo "$bead_id" > "/tmp/agent-bead-${AGENT_NAME}.txt"
 
     # Get bead details for the prompt
@@ -129,7 +134,7 @@ wait_for_prompt() {
 # Ensures pending mail notifications are delivered before /clear
 # Prevents race condition where notifications arrive after /clear
 wait_for_mail_queue_empty() {
-    local pids_dir="$SCRIPT_DIR/../.pids"
+    local pids_dir="$SCRIPT_DIR/../pids"
     local agent_name_lower
     agent_name_lower=$(echo "$AGENT_NAME" | tr 'A-Z' 'a-z')
     local queue_file="$pids_dir/${agent_name_lower}.mail-queue"

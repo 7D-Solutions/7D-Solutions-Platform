@@ -22,7 +22,7 @@ pub async fn start_payment_collection_consumer(
         tracing::info!("Starting payment collection consumer");
 
         // Subscribe to AR payment collection events
-        let subject = "ar.events.ar.payment.collection.requested";
+        let subject = "ar.events.payment.collection.requested";
         let mut stream = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {

@@ -3,7 +3,7 @@
 /// This test verifies that:
 /// 1. Payments module can consume ar.payment.collection.requested events
 /// 2. Mock processor successfully processes payments
-/// 3. payments.payment.succeeded events are emitted to the outbox
+/// 3. payment.succeeded events are emitted to the outbox
 
 use payments_rs::{PaymentCollectionRequestedPayload, PaymentSucceededPayload};
 use serial_test::serial;
@@ -76,7 +76,7 @@ async fn test_payment_collection_handler() {
 
     assert!(result.is_ok(), "Handler should succeed: {:?}", result);
 
-    // Verify that a payments.payment.succeeded event was enqueued
+    // Verify that a payment.succeeded event was enqueued
     #[derive(sqlx::FromRow)]
     struct OutboxEvent {
         event_type: String,
@@ -87,7 +87,7 @@ async fn test_payment_collection_handler() {
         r#"
         SELECT event_type, payload
         FROM payments_events_outbox
-        WHERE event_type = 'payments.payment.succeeded'
+        WHERE event_type = 'payment.succeeded'
         "#,
     )
     .fetch_all(&pool)
@@ -101,7 +101,7 @@ async fn test_payment_collection_handler() {
     );
 
     let event = &outbox_events[0];
-    assert_eq!(event.event_type, "payments.payment.succeeded");
+    assert_eq!(event.event_type, "payment.succeeded");
 
     // Validate the payload
     let payload: PaymentSucceededPayload = serde_json::from_value(event.payload.clone())
@@ -186,7 +186,7 @@ async fn test_idempotent_event_processing() {
 
     // Count events in outbox before second processing
     let count_before: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payments.payment.succeeded'"
+        "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payment.succeeded'"
     )
     .fetch_one(&pool)
     .await
@@ -209,7 +209,7 @@ async fn test_idempotent_event_processing() {
 
     // We should now have two events since we used different event IDs
     let count_after: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payments.payment.succeeded'"
+        "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payment.succeeded'"
     )
     .fetch_one(&pool)
     .await

@@ -295,7 +295,7 @@ async fn execute_bill_run(
 
     enqueue_event(
         &db,
-        "subscriptions.billrun.completed",
+        "billrun.completed",
         serde_json::to_value(&payload).unwrap(),
     )
     .await

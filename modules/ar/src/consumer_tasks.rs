@@ -13,7 +13,7 @@ pub async fn start_payment_succeeded_consumer(bus: Arc<dyn EventBus>, pool: PgPo
         tracing::info!("Starting payment succeeded consumer");
 
         // Subscribe to Payments payment succeeded events
-        let subject = "payments.events.payments.payment.succeeded";
+        let subject = "payments.events.payment.succeeded";
         let mut stream = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {

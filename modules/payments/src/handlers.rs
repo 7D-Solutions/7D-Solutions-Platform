@@ -48,7 +48,7 @@ pub async fn handle_payment_collection_requested(
     );
 
     // Enqueue success event to outbox
-    enqueue_event(pool, "payments.payment.succeeded", &envelope).await?;
+    enqueue_event(pool, "payment.succeeded", &envelope).await?;
 
     tracing::info!(
         payment_id = %result.payment_id,

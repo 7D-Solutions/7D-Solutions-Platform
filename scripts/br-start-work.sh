@@ -177,12 +177,22 @@ if [ -n "$RESUME_BEAD" ]; then
         if [ "$BEAD_STATUS" != "in_progress" ]; then
             echo "📝 Updating status to in_progress..."
             if ! br update "$BEAD_ID" --status in_progress --assignee "$AGENT_NAME"; then
-                echo "⚠️  Warning: Failed to update bead status/assignee" >&2
-                echo "   Continuing anyway - check manually if needed" >&2
+                echo "❌ ERROR: Failed to update bead status/assignee" >&2
+                exit 1
             fi
         fi
 
-        # Set tracking file
+        # Verify assignee before creating tracking file
+        verify_assignee=$(br show "$BEAD_ID" --json 2>/dev/null | jq -r '.[0].assignee // empty' 2>/dev/null)
+        if [ "$verify_assignee" != "$AGENT_NAME" ]; then
+            echo "❌ ERROR: Claim verification failed for $BEAD_ID" >&2
+            echo "   Expected assignee: $AGENT_NAME" >&2
+            echo "   Actual assignee: ${verify_assignee:-<none>}" >&2
+            echo "   Another agent may have claimed it first." >&2
+            exit 1
+        fi
+
+        # Set tracking file (only if assignee verified)
         BEAD_TRACKING_FILE="/tmp/agent-bead-${AGENT_NAME}.txt"
         echo "$BEAD_ID" > "$BEAD_TRACKING_FILE"
         echo "📝 Bead tracking file: $BEAD_TRACKING_FILE" >&2
@@ -235,18 +245,28 @@ claim_existing_bead() {
 
     # Claim the task (set assignee and status)
     echo "📝 Claiming task $TASK_ID..."
-    if br update "$TASK_ID" --status in_progress --assignee "$AGENT_NAME"; then
-        echo "✅ Successfully claimed $TASK_ID (assignee: $AGENT_NAME)"
-        BEAD_ID="$TASK_ID"
-        # Log claim activity
-        if [ -f "$LOG_SCRIPT" ]; then
-            "$LOG_SCRIPT" "$BEAD_ID" "claim" "$AGENT_NAME"
-        fi
-        return 0
-    else
+    if ! br update "$TASK_ID" --status in_progress --assignee "$AGENT_NAME"; then
         echo "❌ Failed to claim $TASK_ID"
         return 1
     fi
+
+    # Verify the claim succeeded
+    verify_assignee=$(br show "$TASK_ID" --json 2>/dev/null | jq -r '.[0].assignee // empty' 2>/dev/null)
+    if [ "$verify_assignee" != "$AGENT_NAME" ]; then
+        echo "❌ Claim verification failed for $TASK_ID" >&2
+        echo "   Expected assignee: $AGENT_NAME" >&2
+        echo "   Actual assignee: ${verify_assignee:-<none>}" >&2
+        echo "   Another agent may have claimed it first." >&2
+        return 1
+    fi
+
+    echo "✅ Successfully claimed $TASK_ID (assignee: $AGENT_NAME)"
+    BEAD_ID="$TASK_ID"
+    # Log claim activity
+    if [ -f "$LOG_SCRIPT" ]; then
+        "$LOG_SCRIPT" "$BEAD_ID" "claim" "$AGENT_NAME"
+    fi
+    return 0
 }
 
 # Function to create new bead

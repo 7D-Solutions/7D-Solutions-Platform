@@ -16,7 +16,7 @@ pub async fn start_invoice_issued_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
         tracing::info!("Starting invoice issued consumer");
 
         // Subscribe to AR invoice issued events
-        let subject = "ar.events.ar.invoice.issued";
+        let subject = "ar.events.invoice.issued";
         let mut stream = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {
@@ -66,7 +66,7 @@ pub async fn start_payment_succeeded_consumer(bus: Arc<dyn EventBus>, pool: PgPo
         tracing::info!("Starting payment succeeded consumer");
 
         // Subscribe to Payments payment succeeded events
-        let subject = "payments.events.payments.payment.succeeded";
+        let subject = "payments.events.payment.succeeded";
         let mut stream = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {
@@ -116,7 +116,7 @@ pub async fn start_payment_failed_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
         tracing::info!("Starting payment failed consumer");
 
         // Subscribe to Payments payment failed events
-        let subject = "payments.events.payments.payment.failed";
+        let subject = "payments.events.payment.failed";
         let mut stream = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {

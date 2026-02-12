@@ -1555,7 +1555,7 @@ async fn finalize_invoice(
     };
 
     let event_envelope = EventEnvelope::new(
-        "ar.payment.collection.requested".to_string(),
+        "payment.collection.requested".to_string(),
         "1.0.0".to_string(),
         app_id.to_string(),
         "invoice".to_string(),
@@ -1566,7 +1566,7 @@ async fn finalize_invoice(
 
     if let Err(e) = enqueue_event(&db, &event_envelope).await {
         tracing::error!(
-            "Failed to enqueue ar.payment.collection.requested event for invoice {}: {:?}",
+            "Failed to enqueue payment.collection.requested event for invoice {}: {:?}",
             invoice.id,
             e
         );
@@ -1574,7 +1574,7 @@ async fn finalize_invoice(
         // The invoice is already finalized in the database
     } else {
         tracing::info!(
-            "Enqueued ar.payment.collection.requested event for invoice {}",
+            "Enqueued payment.collection.requested event for invoice {}",
             invoice.id
         );
     }

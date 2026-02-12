@@ -165,11 +165,11 @@ async fn start_all_services() -> Result<TestInfrastructure, String> {
     println!("✓ All services are healthy");
 
     // Wait for NATS consumers to be subscribed (readiness gate)
-    wait_for_log_line("7d-payments", "Subscribed to ar.events.ar.payment.collection.requested", 30).await?;
+    wait_for_log_line("7d-payments", "Subscribed to ar.events.payment.collection.requested", 30).await?;
     wait_for_log_line("7d-payments", "Starting outbox publisher", 30).await?;
-    wait_for_log_line("7d-ar", "Subscribed to payments.events.payments.payment.succeeded", 30).await?;
+    wait_for_log_line("7d-ar", "Subscribed to payments.events.payment.succeeded", 30).await?;
     wait_for_log_line("7d-ar", "Publisher tick", 30).await?;
-    wait_for_log_line("7d-notifications", "Subscribed to payments.events.payments.payment.succeeded", 30).await?;
+    wait_for_log_line("7d-notifications", "Subscribed to payments.events.payment.succeeded", 30).await?;
 
     println!("✓ All NATS consumers ready");
 
@@ -372,7 +372,7 @@ async fn test_real_nats_based_e2e() {
     // 3. Wait for payment.succeeded event in Payments outbox
     loop {
         let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payments.payment.succeeded'"
+            "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payment.succeeded'"
         )
         .fetch_one(&payments_pool)
         .await
