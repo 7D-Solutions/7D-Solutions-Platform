@@ -2,7 +2,79 @@
 
 This directory contains cross-module end-to-end tests that verify the complete flow across multiple services.
 
-## Prerequisites
+## Tests Overview
+
+- **`real_e2e.rs`** - Real NATS-based integration test with separate service processes ⭐ **RECOMMENDED**
+- **`bill_run_e2e.rs`** - Legacy in-memory test with mock consumers (deprecated)
+
+---
+
+## Real NATS-Based E2E Test (Recommended)
+
+The `real_e2e` test validates the complete bill run workflow using:
+- **Real NATS** for event messaging (not InMemoryBus)
+- **Real Postgres** databases (one per module, from docker-compose.infrastructure.yml)
+- **Separate OS processes** for each service (no shared in-memory mocks)
+
+### Quick Start
+
+**From repo root:**
+```bash
+make e2e
+```
+
+This will:
+1. Start infrastructure (NATS + Postgres via docker-compose)
+2. Build all services in release mode
+3. Run the E2E test with real services and real NATS
+4. Leave infrastructure running for inspection
+
+**To stop infrastructure:**
+```bash
+make e2e-infra-down
+```
+
+**To clean everything (including volumes):**
+```bash
+make e2e-clean
+```
+
+### Manual Run
+
+```bash
+# 1. Start infrastructure
+docker compose -f docker-compose.infrastructure.yml up -d
+
+# 2. Run the test
+cd e2e-tests
+cargo test --test real_e2e -- --ignored --test-threads=1 --nocapture
+
+# 3. Stop infrastructure
+docker compose -f docker-compose.infrastructure.yml down
+```
+
+### Test Flow
+
+1. Infrastructure startup (NATS + Postgres)
+2. Service builds and health checks (ar-rs, subscriptions-rs, payments-rs, notifications-rs)
+3. Test data setup (customer, subscription plan, active subscription)
+4. Trigger: `POST http://localhost:8087/api/bill-runs/execute`
+5. Event propagation through real NATS
+6. Database assertions across all modules
+
+### Requirements
+
+- Docker & Docker Compose
+- Rust toolchain
+- Available ports: 4222, 8222, 5434-5437, 8086-8089
+
+---
+
+## Legacy In-Memory Test (Deprecated)
+
+The old `bill_run_e2e` test uses InMemoryBus and mock consumers. It's kept for reference but **the real_e2e test should be used instead**.
+
+## Prerequisites (Legacy Test Only)
 
 1. **All module databases must be running** with test schemas:
    - AR: `postgresql://postgres:postgres@localhost:5433/ar_test`
