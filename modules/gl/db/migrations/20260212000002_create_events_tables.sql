@@ -4,14 +4,14 @@
 -- Events Outbox Table
 -- Transactional outbox pattern for reliable event publishing
 CREATE TABLE events_outbox (
-    id BIGSERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     event_id UUID NOT NULL UNIQUE,
     event_type VARCHAR(255) NOT NULL,
     aggregate_type VARCHAR(100) NOT NULL,
     aggregate_id VARCHAR(255) NOT NULL,
     payload JSONB NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    published_at TIMESTAMP WITH TIME ZONE
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    published_at TIMESTAMP
 );
 
 -- Index for unpublished events (used by background publisher)
@@ -25,10 +25,10 @@ WHERE published_at IS NOT NULL;
 -- Processed Events Table
 -- Idempotent consumer pattern to prevent duplicate event processing
 CREATE TABLE processed_events (
-    id BIGSERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     event_id UUID NOT NULL UNIQUE,
     event_type VARCHAR(255) NOT NULL,
-    processed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     processor VARCHAR(100) NOT NULL
 );
 
@@ -40,7 +40,7 @@ CREATE INDEX idx_processed_events_processed_at ON processed_events (processed_at
 
 -- Failed Events Table (Dead Letter Queue)
 -- Stores events that failed to process after all retries
-CREATE TABLE failed_events (
+CREATE TABLE IF NOT EXISTS failed_events (
     id BIGSERIAL PRIMARY KEY,
     event_id UUID NOT NULL,
     subject TEXT NOT NULL,
@@ -49,10 +49,10 @@ CREATE TABLE failed_events (
     error TEXT NOT NULL,
     failed_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     retry_count INT NOT NULL DEFAULT 0,
+
+    -- Indexes for common queries
     CONSTRAINT failed_events_event_id_unique UNIQUE (event_id)
 );
 
--- Indexes for DLQ queries
 CREATE INDEX idx_failed_events_subject ON failed_events(subject);
 CREATE INDEX idx_failed_events_failed_at ON failed_events(failed_at);
-CREATE INDEX idx_failed_events_tenant_id ON failed_events(tenant_id);

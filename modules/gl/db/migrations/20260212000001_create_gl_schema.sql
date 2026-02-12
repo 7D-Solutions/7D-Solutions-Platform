@@ -13,7 +13,7 @@ CREATE TABLE journal_entries (
     source_event_id UUID NOT NULL UNIQUE,
     source_subject TEXT NOT NULL,
     posted_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    currency VARCHAR(3) NOT NULL DEFAULT 'usd',
+    currency TEXT NOT NULL,
     description TEXT,
     reference_type VARCHAR(50),
     reference_id TEXT,
@@ -29,7 +29,7 @@ CREATE INDEX idx_journal_entries_tenant_posted ON journal_entries(tenant_id, pos
 -- Journal Lines (Detail)
 CREATE TABLE journal_lines (
     id UUID PRIMARY KEY,
-    journal_entry_id UUID NOT NULL REFERENCES journal_entries(id) ON DELETE CASCADE,
+    journal_entry_id UUID NOT NULL REFERENCES journal_entries(id),
     line_no INT NOT NULL,
     account_ref TEXT NOT NULL,
     debit_minor BIGINT NOT NULL DEFAULT 0 CHECK (debit_minor >= 0),
