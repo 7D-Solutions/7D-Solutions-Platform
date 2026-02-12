@@ -65,7 +65,7 @@ jobs:
         run: |
           missing=()
 
-          for module in platform/identity-auth modules/ar modules/subscriptions modules/payments modules/notifications; do
+          for module in platform/identity-auth modules/ar modules/subscriptions modules/payments modules/notifications modules/gl; do
             if [ ! -f "$module/VERSION" ]; then
               missing+=("$module/VERSION")
             fi
@@ -303,6 +303,32 @@ jobs:
         working-directory: modules/notifications
         run: cargo check --all-targets
 
+  build-gl:
+    name: Build GL Module
+    runs-on: ubuntu-latest
+    needs: [contract-tests]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-gl-${{ hashFiles('modules/gl/Cargo.lock') }}
+
+      - name: Run cargo check
+        working-directory: modules/gl
+        run: cargo check --all-targets
+
   lint-no-panic:
     name: Lint - No Unwrap/Expect in Critical Paths
     runs-on: ubuntu-latest
@@ -349,7 +375,7 @@ jobs:
         run: |
           missing=()
 
-          for module in modules/ar modules/subscriptions modules/payments modules/notifications; do
+          for module in modules/ar modules/subscriptions modules/payments modules/notifications modules/gl; do
             if ! find "$module/db/migrations" -name "*failed_events*" 2>/dev/null | grep -q .; then
               missing+=("$module is missing DLQ (failed_events) migration")
             fi
@@ -369,7 +395,7 @@ jobs:
   e2e-happy-path:
     name: E2E Test - Happy Path
     runs-on: ubuntu-latest
-    needs: [build-ar, build-subscriptions, build-payments, build-notifications]
+    needs: [build-ar, build-subscriptions, build-payments, build-notifications, build-gl]
     steps:
       - uses: actions/checkout@v4
 

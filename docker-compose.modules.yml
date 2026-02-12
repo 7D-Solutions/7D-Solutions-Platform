@@ -138,6 +138,40 @@ services:
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
 
+  # =========================
+  # GL MODULE
+  # =========================
+  gl:
+    container_name: 7d-gl
+    build:
+      context: .
+      dockerfile: modules/gl/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${GL_POSTGRES_USER:-gl_user}:${GL_POSTGRES_PASSWORD:-gl_pass}@7d-gl-postgres:5432/${GL_POSTGRES_DB:-gl_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8090
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8090:8090"
+    networks:
+      - 7d-platform
+    # Depends on gl-postgres and nats from 7d-infrastructure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8090/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "gl"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
