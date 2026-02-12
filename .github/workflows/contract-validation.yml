@@ -1,0 +1,143 @@
+name: Contract Validation
+
+on:
+  pull_request:
+    paths:
+      - 'contracts/**'
+      - 'tools/ci/check-contract-*.sh'
+      - 'tools/ci/validate-contract-*.sh'
+
+jobs:
+  validate-contracts:
+    name: Validate Contract Changes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need history for comparison with main
+
+      - name: Validate JSON syntax
+        run: |
+          echo "🔍 Validating JSON syntax..."
+          errors=()
+
+          for schema in contracts/events/*.json; do
+            [ ! -f "$schema" ] && continue
+
+            if ! jq empty "$schema" 2>/dev/null; then
+              errors+=("$schema: Invalid JSON syntax")
+            fi
+          done
+
+          if [ ${#errors[@]} -gt 0 ]; then
+            echo "❌ ERROR: JSON syntax errors detected:" >&2
+            printf '%s\n' "${errors[@]}" >&2
+            exit 1
+          fi
+
+          echo "✓ All JSON files are valid"
+
+      - name: Check contract version bumps
+        run: |
+          if [ -f tools/ci/check-contract-versions.sh ]; then
+            ./tools/ci/check-contract-versions.sh
+          else
+            echo "⚠️  Script not found, skipping version check"
+          fi
+
+      - name: Validate contract examples
+        run: |
+          if [ -f tools/ci/validate-contract-examples.sh ]; then
+            ./tools/ci/validate-contract-examples.sh
+          else
+            echo "⚠️  Script not found, skipping examples check"
+          fi
+
+      - name: Check CHANGELOG updated
+        run: |
+          if [ -f tools/ci/check-changelog-updated.sh ]; then
+            ./tools/ci/check-changelog-updated.sh
+          else
+            echo "⚠️  Script not found, skipping CHANGELOG check"
+          fi
+
+      - name: Validate JSON Schema definitions
+        run: |
+          echo "🔍 Validating JSON Schema definitions..."
+          errors=()
+
+          for schema in contracts/events/*.json; do
+            [ ! -f "$schema" ] && continue
+
+            # Check for required JSON Schema fields
+            if ! jq -e '."$schema"' "$schema" > /dev/null 2>&1; then
+              errors+=("$schema: Missing '\$schema' field")
+            fi
+
+            if ! jq -e '."$id"' "$schema" > /dev/null 2>&1; then
+              errors+=("$schema: Missing '\$id' field")
+            fi
+
+            if ! jq -e '.title' "$schema" > /dev/null 2>&1; then
+              errors+=("$schema: Missing 'title' field")
+            fi
+
+            if ! jq -e '.description' "$schema" > /dev/null 2>&1; then
+              errors+=("$schema: Missing 'description' field")
+            fi
+          done
+
+          if [ ${#errors[@]} -gt 0 ]; then
+            echo "❌ ERROR: Schema definition errors:" >&2
+            printf '%s\n' "${errors[@]}" >&2
+            exit 1
+          fi
+
+          echo "✓ All schemas have required fields"
+
+      - name: Check for breaking changes
+        run: |
+          echo "🔍 Checking for potential breaking changes..."
+
+          # Get changed schemas
+          changed_schemas=$(git diff --name-only origin/main...HEAD | grep 'contracts/events/.*\.json' || true)
+
+          if [ -z "$changed_schemas" ]; then
+            echo "✓ No schema changes detected"
+            exit 0
+          fi
+
+          warnings=()
+
+          for schema in $changed_schemas; do
+            # Skip if file is new
+            if ! git show origin/main:$schema &>/dev/null; then
+              continue
+            fi
+
+            # Check if required fields were removed
+            old_required=$(git show origin/main:$schema | jq -r '.properties.payload.required[]?' 2>/dev/null || true)
+            new_required=$(cat $schema | jq -r '.properties.payload.required[]?' 2>/dev/null || true)
+
+            for field in $old_required; do
+              if ! echo "$new_required" | grep -q "^$field$"; then
+                warnings+=("$schema: Removed required field '$field' (BREAKING CHANGE)")
+              fi
+            done
+          done
+
+          if [ ${#warnings[@]} -gt 0 ]; then
+            echo ""
+            echo "⚠️  WARNING: Potential breaking changes detected:" >&2
+            printf '%s\n' "${warnings[@]}" >&2
+            echo "" >&2
+            echo "Breaking changes require:" >&2
+            echo "  - MAJOR version bump (new .vX file)" >&2
+            echo "  - Deprecation window (90 days)" >&2
+            echo "  - Migration guide" >&2
+            echo "" >&2
+            echo "See docs/architecture/CONTRACT-VERSIONING-POLICY.md" >&2
+            # Don't fail, just warn
+          fi
+
+          echo "✓ Breaking change check complete"
