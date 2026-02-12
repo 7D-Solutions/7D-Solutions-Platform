@@ -33,6 +33,19 @@ pub struct PaymentSucceededPayload {
     pub payment_method_ref: Option<String>,
 }
 
+/// Payload for payments.payment.failed event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaymentFailedPayload {
+    pub payment_id: String,
+    pub invoice_id: String,
+    pub ar_customer_id: String,
+    pub amount_minor: i32,
+    pub currency: String,
+    pub failure_reason: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub payment_method_ref: Option<String>,
+}
+
 // ============================================================================
 // PAYMENT PROCESSOR MODELS
 // ============================================================================

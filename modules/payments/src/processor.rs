@@ -15,7 +15,10 @@ impl MockPaymentProcessor {
 
     /// Process a payment request
     ///
-    /// Mock implementation always succeeds and returns a synthetic payment ID.
+    /// Mock implementation that simulates payment processing.
+    /// - If payment_method_id starts with "fail_", the payment will fail
+    /// - Otherwise, the payment succeeds
+    ///
     /// In production, this would call external payment processor APIs.
     pub async fn process_payment(
         &self,
@@ -26,11 +29,26 @@ impl MockPaymentProcessor {
             customer_id = %request.customer_id,
             amount = request.amount_minor,
             currency = %request.currency,
+            payment_method_id = ?request.payment_method_id,
             "Processing mock payment"
         );
 
         // Simulate processing delay
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        // Check for failure simulation trigger
+        if let Some(ref payment_method_id) = request.payment_method_id {
+            if payment_method_id.starts_with("fail_") {
+                tracing::warn!(
+                    invoice_id = %request.invoice_id,
+                    payment_method_id = %payment_method_id,
+                    "Mock payment failed (triggered by payment_method_id)"
+                );
+                return Err(anyhow::anyhow!(
+                    "Payment declined by processor: insufficient funds"
+                ));
+            }
+        }
 
         // Generate mock payment IDs
         let payment_id = Uuid::new_v4().to_string();

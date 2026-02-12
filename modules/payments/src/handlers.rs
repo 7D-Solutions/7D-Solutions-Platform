@@ -2,7 +2,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::events::{enqueue_event, EventEnvelope};
-use crate::models::{PaymentCollectionRequestedPayload, PaymentSucceededPayload};
+use crate::models::{PaymentCollectionRequestedPayload, PaymentFailedPayload, PaymentSucceededPayload};
 use crate::processor::MockPaymentProcessor;
 
 /// Handle ar.payment.collection.requested event
@@ -10,7 +10,7 @@ use crate::processor::MockPaymentProcessor;
 /// This handler:
 /// 1. Receives payment collection request from AR
 /// 2. Processes payment using mock processor
-/// 3. Emits payments.payment.succeeded event
+/// 3. Emits payments.payment.succeeded or payments.payment.failed event
 pub async fn handle_payment_collection_requested(
     pool: &PgPool,
     payload: PaymentCollectionRequestedPayload,
@@ -25,37 +25,76 @@ pub async fn handle_payment_collection_requested(
 
     // Process payment using mock processor
     let processor = MockPaymentProcessor::new();
-    let result = processor.process_payment(&payload).await?;
+    let result = processor.process_payment(&payload).await;
 
-    // Construct success event payload
-    let success_payload = PaymentSucceededPayload {
-        payment_id: result.payment_id.clone(),
-        invoice_id: payload.invoice_id.clone(),
-        ar_customer_id: payload.customer_id.clone(),
-        amount_minor: payload.amount_minor,
-        currency: payload.currency.clone(),
-        processor_payment_id: Some(result.processor_payment_id.clone()),
-        payment_method_ref: result.payment_method_ref,
-    };
+    match result {
+        Ok(payment_result) => {
+            // Construct success event payload
+            let success_payload = PaymentSucceededPayload {
+                payment_id: payment_result.payment_id.clone(),
+                invoice_id: payload.invoice_id.clone(),
+                ar_customer_id: payload.customer_id.clone(),
+                amount_minor: payload.amount_minor,
+                currency: payload.currency.clone(),
+                processor_payment_id: Some(payment_result.processor_payment_id.clone()),
+                payment_method_ref: payment_result.payment_method_ref,
+            };
 
-    // Create event envelope
-    let envelope = crate::events::envelope::create_payments_envelope(
-        Uuid::new_v4(),
-        envelope_metadata.tenant_id,
-        envelope_metadata.correlation_id,
-        Some(envelope_metadata.event_id.to_string()),
-        success_payload,
-    );
+            // Create event envelope
+            let envelope = crate::events::envelope::create_payments_envelope(
+                Uuid::new_v4(),
+                envelope_metadata.tenant_id.clone(),
+                envelope_metadata.correlation_id.clone(),
+                Some(envelope_metadata.event_id.to_string()),
+                success_payload,
+            );
 
-    // Enqueue success event to outbox
-    enqueue_event(pool, "payment.succeeded", &envelope).await?;
+            // Enqueue success event to outbox
+            enqueue_event(pool, "payment.succeeded", &envelope).await?;
 
-    tracing::info!(
-        payment_id = %result.payment_id,
-        invoice_id = %payload.invoice_id,
-        event_id = %envelope.event_id,
-        "Payment succeeded event enqueued"
-    );
+            tracing::info!(
+                payment_id = %payment_result.payment_id,
+                invoice_id = %payload.invoice_id,
+                event_id = %envelope.event_id,
+                "Payment succeeded event enqueued"
+            );
+        }
+        Err(e) => {
+            // Payment failed - emit payment.failed event
+            let payment_id = Uuid::new_v4().to_string();
+            let failure_reason = e.to_string();
+
+            let failed_payload = PaymentFailedPayload {
+                payment_id: payment_id.clone(),
+                invoice_id: payload.invoice_id.clone(),
+                ar_customer_id: payload.customer_id.clone(),
+                amount_minor: payload.amount_minor,
+                currency: payload.currency.clone(),
+                failure_reason: failure_reason.clone(),
+                payment_method_ref: payload.payment_method_id.clone(),
+            };
+
+            // Create event envelope
+            let envelope = crate::events::envelope::create_payments_envelope(
+                Uuid::new_v4(),
+                envelope_metadata.tenant_id,
+                envelope_metadata.correlation_id,
+                Some(envelope_metadata.event_id.to_string()),
+                failed_payload,
+            );
+
+            // Enqueue failure event to outbox
+            enqueue_event(pool, "payment.failed", &envelope).await?;
+
+            tracing::warn!(
+                payment_id = %payment_id,
+                invoice_id = %payload.invoice_id,
+                event_id = %envelope.event_id,
+                failure_reason = %failure_reason,
+                "Payment failed event enqueued"
+            );
+        }
+    }
 
     Ok(())
 }

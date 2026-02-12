@@ -1545,13 +1545,32 @@ async fn finalize_invoice(
 
     tracing::info!("Finalized invoice {}", id);
 
+    // Fetch customer's default payment method
+    let customer_payment_method: Option<String> = sqlx::query_scalar(
+        "SELECT default_payment_method_id FROM ar_customers WHERE id = $1"
+    )
+    .bind(invoice.ar_customer_id)
+    .fetch_optional(&db)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to fetch customer payment method: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new(
+                "database_error",
+                format!("Failed to fetch customer payment method: {}", e),
+            )),
+        )
+    })?
+    .flatten();
+
     // Emit ar.payment.collection.requested event to outbox
     let event_payload = PaymentCollectionRequestedPayload {
         invoice_id: invoice.id.to_string(),
         customer_id: invoice.ar_customer_id.to_string(),
         amount_minor: invoice.amount_cents,
         currency: invoice.currency.to_uppercase(),
-        payment_method_id: None, // Will be resolved by payment collection handler
+        payment_method_id: customer_payment_method,
     };
 
     let event_envelope = crate::events::envelope::create_ar_envelope(
