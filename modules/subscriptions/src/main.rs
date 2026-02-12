@@ -1,7 +1,9 @@
 mod config;
 mod consumer;
+mod models;
 mod outbox;
 mod publisher;
+mod routes;
 
 use axum::{routing::get, Json, Router};
 use config::Config;
@@ -74,6 +76,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/api/health", get(health))
+        .merge(routes::subscriptions_router(pool.clone()))
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)
