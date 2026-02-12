@@ -62,7 +62,7 @@ pub async fn handle_payment_collection_requested(
         Err(e) => {
             // Payment failed - emit payment.failed event
             let payment_id = Uuid::new_v4().to_string();
-            let failure_reason = e.to_string();
+            let error_message = e.to_string();
 
             let failed_payload = PaymentFailedPayload {
                 payment_id: payment_id.clone(),
@@ -70,7 +70,9 @@ pub async fn handle_payment_collection_requested(
                 ar_customer_id: payload.customer_id.clone(),
                 amount_minor: payload.amount_minor,
                 currency: payload.currency.clone(),
-                failure_reason: failure_reason.clone(),
+                failure_code: "payment_declined".to_string(),
+                failure_message: Some(error_message.clone()),
+                processor_payment_id: None,
                 payment_method_ref: payload.payment_method_id.clone(),
             };
 
@@ -90,7 +92,8 @@ pub async fn handle_payment_collection_requested(
                 payment_id = %payment_id,
                 invoice_id = %payload.invoice_id,
                 event_id = %envelope.event_id,
-                failure_reason = %failure_reason,
+                failure_code = "payment_declined",
+                failure_message = %error_message,
                 "Payment failed event enqueued"
             );
         }

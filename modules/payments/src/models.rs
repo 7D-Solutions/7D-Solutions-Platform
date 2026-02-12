@@ -41,7 +41,11 @@ pub struct PaymentFailedPayload {
     pub ar_customer_id: String,
     pub amount_minor: i32,
     pub currency: String,
-    pub failure_reason: String,
+    pub failure_code: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failure_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub processor_payment_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payment_method_ref: Option<String>,
 }
