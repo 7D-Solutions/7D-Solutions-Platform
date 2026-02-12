@@ -1,3 +1,4 @@
+use event_bus::consumer_retry::{retry_with_backoff, RetryConfig};
 use event_bus::{BusMessage, EventBus};
 use futures::StreamExt;
 use sqlx::PgPool;
@@ -29,57 +30,42 @@ pub async fn start_invoice_issued_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
 
         let consumer = EventConsumer::new(pool.clone());
 
+        // Configure retry behavior: 3 attempts with exponential backoff
+        let retry_config = RetryConfig::default();
+
         while let Some(msg) = stream.next().await {
-            // Process and capture error message immediately
-            let error_msg = match process_invoice_issued(&consumer, &pool, &msg).await {
-                Ok(_) => None,
-                Err(e) => Some(format!("{:#}", e)),
-            };
+            // Clone necessary data for retry closure
+            let consumer_clone = consumer.clone();
+            let pool_clone = pool.clone();
+            let msg_clone = msg.clone();
 
-            // Handle errors by writing to DLQ
-            if let Some(error_msg) = error_msg {
-                // Extract event_id, tenant_id, and envelope for DLQ
-                if let Ok(env) = serde_json::from_slice::<serde_json::Value>(&msg.payload) {
-                    let event_id_opt = env.get("event_id")
-                        .and_then(|v| v.as_str())
-                        .and_then(|s| uuid::Uuid::parse_str(s).ok());
-
-                    let tenant_id_opt = env.get("tenant_id")
-                        .and_then(|v| v.as_str());
-
-                    if let (Some(event_id), Some(tenant_id)) = (event_id_opt, tenant_id_opt) {
-                        if let Err(dlq_err) = crate::dlq::insert_failed_event(
-                            &pool,
-                            event_id,
-                            &msg.subject,
-                            tenant_id,
-                            &env,
-                            &error_msg,
-                            0,
-                        ).await {
-                            tracing::error!(
-                                event_id = %event_id,
-                                subject = %msg.subject,
-                                tenant_id = %tenant_id,
-                                error = %error_msg,
-                                dlq_error = %dlq_err,
-                                "Failed to write to DLQ - event may be lost!"
-                            );
-                        }
-                    } else {
-                        tracing::error!(
-                            subject = %msg.subject,
-                            error = %error_msg,
-                            "Failed to extract event_id or tenant_id from envelope for DLQ"
-                        );
+            // Retry processing with exponential backoff
+            // Wrap in a Send-safe error type (String)
+            let result = retry_with_backoff(
+                || {
+                    let consumer = consumer_clone.clone();
+                    let pool = pool_clone.clone();
+                    let msg = msg_clone.clone();
+                    async move {
+                        process_invoice_issued(&consumer, &pool, &msg)
+                            .await
+                            .map_err(|e| format!("{:#}", e))
                     }
-                } else {
-                    tracing::error!(
-                        subject = %msg.subject,
-                        error = %error_msg,
-                        "Failed to process event and could not parse envelope for DLQ"
-                    );
-                }
+                },
+                &retry_config,
+                "notifications_invoice_issued_consumer",
+            )
+            .await;
+
+            // If all retries failed, send to DLQ
+            if let Err(error_msg) = result {
+                crate::dlq::handle_processing_error(
+                    &pool,
+                    &msg,
+                    &error_msg,
+                    retry_config.max_attempts as i32,
+                )
+                .await;
             }
         }
 
@@ -123,57 +109,42 @@ pub async fn start_payment_succeeded_consumer(bus: Arc<dyn EventBus>, pool: PgPo
 
         let consumer = EventConsumer::new(pool.clone());
 
+        // Configure retry behavior: 3 attempts with exponential backoff
+        let retry_config = RetryConfig::default();
+
         while let Some(msg) = stream.next().await {
-            // Process and capture error message immediately
-            let error_msg = match process_payment_succeeded(&consumer, &pool, &msg).await {
-                Ok(_) => None,
-                Err(e) => Some(format!("{:#}", e)),
-            };
+            // Clone necessary data for retry closure
+            let consumer_clone = consumer.clone();
+            let pool_clone = pool.clone();
+            let msg_clone = msg.clone();
 
-            // Handle errors by writing to DLQ
-            if let Some(error_msg) = error_msg {
-                // Extract event_id, tenant_id, and envelope for DLQ
-                if let Ok(env) = serde_json::from_slice::<serde_json::Value>(&msg.payload) {
-                    let event_id_opt = env.get("event_id")
-                        .and_then(|v| v.as_str())
-                        .and_then(|s| uuid::Uuid::parse_str(s).ok());
-
-                    let tenant_id_opt = env.get("tenant_id")
-                        .and_then(|v| v.as_str());
-
-                    if let (Some(event_id), Some(tenant_id)) = (event_id_opt, tenant_id_opt) {
-                        if let Err(dlq_err) = crate::dlq::insert_failed_event(
-                            &pool,
-                            event_id,
-                            &msg.subject,
-                            tenant_id,
-                            &env,
-                            &error_msg,
-                            0,
-                        ).await {
-                            tracing::error!(
-                                event_id = %event_id,
-                                subject = %msg.subject,
-                                tenant_id = %tenant_id,
-                                error = %error_msg,
-                                dlq_error = %dlq_err,
-                                "Failed to write to DLQ - event may be lost!"
-                            );
-                        }
-                    } else {
-                        tracing::error!(
-                            subject = %msg.subject,
-                            error = %error_msg,
-                            "Failed to extract event_id or tenant_id from envelope for DLQ"
-                        );
+            // Retry processing with exponential backoff
+            // Wrap in a Send-safe error type (String)
+            let result = retry_with_backoff(
+                || {
+                    let consumer = consumer_clone.clone();
+                    let pool = pool_clone.clone();
+                    let msg = msg_clone.clone();
+                    async move {
+                        process_payment_succeeded(&consumer, &pool, &msg)
+                            .await
+                            .map_err(|e| format!("{:#}", e))
                     }
-                } else {
-                    tracing::error!(
-                        subject = %msg.subject,
-                        error = %error_msg,
-                        "Failed to process event and could not parse envelope for DLQ"
-                    );
-                }
+                },
+                &retry_config,
+                "notifications_payment_succeeded_consumer",
+            )
+            .await;
+
+            // If all retries failed, send to DLQ
+            if let Err(error_msg) = result {
+                crate::dlq::handle_processing_error(
+                    &pool,
+                    &msg,
+                    &error_msg,
+                    retry_config.max_attempts as i32,
+                )
+                .await;
             }
         }
 
@@ -217,57 +188,42 @@ pub async fn start_payment_failed_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
 
         let consumer = EventConsumer::new(pool.clone());
 
+        // Configure retry behavior: 3 attempts with exponential backoff
+        let retry_config = RetryConfig::default();
+
         while let Some(msg) = stream.next().await {
-            // Process and capture error message immediately
-            let error_msg = match process_payment_failed(&consumer, &pool, &msg).await {
-                Ok(_) => None,
-                Err(e) => Some(format!("{:#}", e)),
-            };
+            // Clone necessary data for retry closure
+            let consumer_clone = consumer.clone();
+            let pool_clone = pool.clone();
+            let msg_clone = msg.clone();
 
-            // Handle errors by writing to DLQ
-            if let Some(error_msg) = error_msg {
-                // Extract event_id, tenant_id, and envelope for DLQ
-                if let Ok(env) = serde_json::from_slice::<serde_json::Value>(&msg.payload) {
-                    let event_id_opt = env.get("event_id")
-                        .and_then(|v| v.as_str())
-                        .and_then(|s| uuid::Uuid::parse_str(s).ok());
-
-                    let tenant_id_opt = env.get("tenant_id")
-                        .and_then(|v| v.as_str());
-
-                    if let (Some(event_id), Some(tenant_id)) = (event_id_opt, tenant_id_opt) {
-                        if let Err(dlq_err) = crate::dlq::insert_failed_event(
-                            &pool,
-                            event_id,
-                            &msg.subject,
-                            tenant_id,
-                            &env,
-                            &error_msg,
-                            0,
-                        ).await {
-                            tracing::error!(
-                                event_id = %event_id,
-                                subject = %msg.subject,
-                                tenant_id = %tenant_id,
-                                error = %error_msg,
-                                dlq_error = %dlq_err,
-                                "Failed to write to DLQ - event may be lost!"
-                            );
-                        }
-                    } else {
-                        tracing::error!(
-                            subject = %msg.subject,
-                            error = %error_msg,
-                            "Failed to extract event_id or tenant_id from envelope for DLQ"
-                        );
+            // Retry processing with exponential backoff
+            // Wrap in a Send-safe error type (String)
+            let result = retry_with_backoff(
+                || {
+                    let consumer = consumer_clone.clone();
+                    let pool = pool_clone.clone();
+                    let msg = msg_clone.clone();
+                    async move {
+                        process_payment_failed(&consumer, &pool, &msg)
+                            .await
+                            .map_err(|e| format!("{:#}", e))
                     }
-                } else {
-                    tracing::error!(
-                        subject = %msg.subject,
-                        error = %error_msg,
-                        "Failed to process event and could not parse envelope for DLQ"
-                    );
-                }
+                },
+                &retry_config,
+                "notifications_payment_failed_consumer",
+            )
+            .await;
+
+            // If all retries failed, send to DLQ
+            if let Err(error_msg) = result {
+                crate::dlq::handle_processing_error(
+                    &pool,
+                    &msg,
+                    &error_msg,
+                    retry_config.max_attempts as i32,
+                )
+                .await;
             }
         }
 

@@ -45,6 +45,7 @@
 //! # }
 //! ```
 
+pub mod consumer_retry;
 mod envelope;
 mod inmemory_bus;
 mod nats_bus;

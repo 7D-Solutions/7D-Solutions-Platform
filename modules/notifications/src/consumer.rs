@@ -7,6 +7,7 @@ use uuid::Uuid;
 ///
 /// Ensures events are processed exactly once by tracking processed event IDs
 /// in the processed_events table.
+#[derive(Clone)]
 pub struct EventConsumer {
     pool: PgPool,
 }
