@@ -372,7 +372,7 @@ async fn start_ar_payment_consumer(
     ar_pool: PgPool,
 ) {
     tokio::spawn(async move {
-        let mut stream = bus.subscribe("payments.events.payment.succeeded").await
+        let mut stream = bus.subscribe("payments.events.payments.payment.succeeded").await
             .expect("Failed to subscribe to payment succeeded events");
 
         while let Some(msg) = stream.next().await {
@@ -412,7 +412,7 @@ async fn start_notification_consumer(
     notifications_pool: PgPool,
 ) {
     tokio::spawn(async move {
-        let mut stream = bus.subscribe("payments.events.payment.succeeded").await
+        let mut stream = bus.subscribe("payments.events.payments.payment.succeeded").await
             .expect("Failed to subscribe to payment succeeded events");
 
         while let Some(msg) = stream.next().await {
@@ -459,7 +459,7 @@ async fn start_notification_consumer(
             });
 
             bus.publish(
-                "notifications.events.notification.delivery.succeeded",
+                "notifications.events.notifications.delivery.succeeded",
                 serde_json::to_vec(&notification_event).unwrap()
             ).await.ok();
 
@@ -506,7 +506,7 @@ async fn test_bill_run_to_notification_happy_path() {
         .expect("Failed to subscribe to subscriptions events");
     let mut ar_payment_stream = bus.subscribe("ar.events.ar.payment.collection.requested").await
         .expect("Failed to subscribe to AR payment collection events");
-    let mut payment_stream = bus.subscribe("payments.events.payment.succeeded").await
+    let mut payment_stream = bus.subscribe("payments.events.payments.payment.succeeded").await
         .expect("Failed to subscribe to payment events");
     let mut notification_stream = bus.subscribe("notifications.events.>").await
         .expect("Failed to subscribe to notification events");
