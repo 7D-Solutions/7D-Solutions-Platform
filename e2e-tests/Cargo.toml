@@ -1,0 +1,24 @@
+[package]
+name = "e2e-tests"
+version = "0.1.0"
+edition = "2021"
+
+[[test]]
+name = "bill_run_e2e"
+path = "tests/bill_run_e2e.rs"
+
+[dependencies]
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.12", features = ["json"] }
+event-bus = { path = "../platform/event-bus" }
+futures = "0.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+serial_test = "3.0"

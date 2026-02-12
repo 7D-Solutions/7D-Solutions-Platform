@@ -6,7 +6,8 @@ members = [
   "modules/subscriptions",
   "modules/payments",
   "modules/notifications",
-  "tools/contract-tests"
+  "tools/contract-tests",
+  "e2e-tests"
 ]
 
 # Workspace-level settings
