@@ -15,19 +15,23 @@ pub async fn run_publisher_task(
     tracing::info!("Starting event publisher task");
 
     let mut interval = tokio::time::interval(Duration::from_secs(1));
+    let mut tick_count: u64 = 0;
 
     loop {
         interval.tick().await;
+        tick_count += 1;
 
         match publish_batch(&db, &event_bus).await {
             Ok(count) if count > 0 => {
-                tracing::debug!("Published {} events from outbox", count);
+                tracing::info!("Publisher tick {}: published {} events from outbox", tick_count, count);
             }
             Ok(_) => {
-                // No events to publish
+                if tick_count <= 3 || tick_count % 60 == 0 {
+                    tracing::info!("Publisher tick {}: no unpublished events", tick_count);
+                }
             }
             Err(e) => {
-                tracing::error!("Error publishing events: {}", e);
+                tracing::error!("Publisher tick {}: error publishing events: {}", tick_count, e);
             }
         }
     }

@@ -97,17 +97,21 @@ async fn handle_payment_succeeded(
     pool: &PgPool,
     payload: &PaymentSucceededPayload,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Parse invoice_id from String to i32
+    let invoice_id: i32 = payload.invoice_id.parse()
+        .map_err(|e| format!("Failed to parse invoice_id '{}': {}", payload.invoice_id, e))?;
+
     // Update invoice status to 'paid'
     let result = sqlx::query(
         r#"
         UPDATE ar_invoices
         SET status = 'paid',
             updated_at = NOW()
-        WHERE id = $1::text::integer
+        WHERE id = $1
           AND status != 'paid'
         "#,
     )
-    .bind(&payload.invoice_id)
+    .bind(invoice_id)
     .execute(pool)
     .await?;
 
