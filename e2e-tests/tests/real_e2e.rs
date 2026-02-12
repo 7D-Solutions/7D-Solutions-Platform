@@ -134,10 +134,12 @@ async fn wait_for_health(client: &Client, service_name: &str, url: &str, max_att
 async fn start_all_services() -> Result<TestInfrastructure, String> {
     println!("🔧 Building all services...");
 
+    let project_root = "/Users/james/Projects/7D-Solutions Platform";
+
     // Build all services
     let build_status = Command::new("cargo")
         .args(&["build", "--release"])
-        .current_dir("/Users/james/Projects/7D-Solutions Platform")
+        .current_dir(project_root)
         .status()
         .expect("Failed to run cargo build");
 
@@ -147,30 +149,30 @@ async fn start_all_services() -> Result<TestInfrastructure, String> {
 
     println!("✓ All services built");
 
-    // Start services
+    // Start services with absolute paths
     let ar_process = start_service(
-        "target/release/ar-rs",
+        &format!("{}/target/release/ar-rs", project_root),
         "ar-rs",
         "postgresql://ar_user:ar_pass@localhost:5434/ar_db",
         8086,
     );
 
     let subscriptions_process = start_service(
-        "target/release/subscriptions-rs",
+        &format!("{}/target/release/subscriptions-rs", project_root),
         "subscriptions-rs",
         "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db",
         8087,
     );
 
     let payments_process = start_service(
-        "target/release/payments-rs",
+        &format!("{}/target/release/payments-rs", project_root),
         "payments-rs",
         "postgresql://payments_user:payments_pass@localhost:5436/payments_db",
         8088,
     );
 
     let notifications_process = start_service(
-        "target/release/notifications-rs",
+        &format!("{}/target/release/notifications-rs", project_root),
         "notifications-rs",
         "postgresql://notifications_user:notifications_pass@localhost:5437/notifications_db",
         8089,
