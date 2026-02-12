@@ -77,6 +77,14 @@ async fn connect_notifications_db() -> PgPool {
         .expect("Failed to connect to Notifications database")
 }
 
+async fn connect_gl_db() -> PgPool {
+    PgPoolOptions::new()
+        .max_connections(5)
+        .connect("postgresql://gl_user:gl_pass@localhost:5438/gl_db")
+        .await
+        .expect("Failed to connect to GL database")
+}
+
 // ============================================================================
 // Service Management
 // ============================================================================
@@ -161,6 +169,7 @@ async fn start_all_services() -> Result<TestInfrastructure, String> {
     wait_for_health(&client, "Subscriptions", "http://localhost:8087/api/health", 60).await?;
     wait_for_health(&client, "Payments", "http://localhost:8088/api/health", 60).await?;
     wait_for_health(&client, "Notifications", "http://localhost:8089/api/health", 60).await?;
+    wait_for_health(&client, "GL", "http://localhost:8090/api/health", 60).await?;
 
     println!("✓ All services are healthy");
 
@@ -170,6 +179,7 @@ async fn start_all_services() -> Result<TestInfrastructure, String> {
     wait_for_log_line("7d-ar", "Subscribed to payments.events.payment.succeeded", 30).await?;
     wait_for_log_line("7d-ar", "Publisher tick", 30).await?;
     wait_for_log_line("7d-notifications", "Subscribed to payments.events.payment.succeeded", 30).await?;
+    wait_for_log_line("7d-gl", "Subscribed to gl.events.posting.requested", 30).await?;
 
     println!("✓ All NATS consumers ready");
 
@@ -262,6 +272,7 @@ async fn test_real_nats_based_e2e() {
     let subscriptions_pool = connect_subscriptions_db().await;
     let payments_pool = connect_payments_db().await;
     let notifications_pool = connect_notifications_db().await;
+    let gl_pool = connect_gl_db().await;
     println!("✓ Connected to all databases");
 
     // Clean up test data from previous runs
@@ -280,6 +291,10 @@ async fn test_real_nats_based_e2e() {
         .ok();
     sqlx::query("TRUNCATE TABLE notifications, events_outbox, processed_events CASCADE")
         .execute(&notifications_pool)
+        .await
+        .ok();
+    sqlx::query("TRUNCATE TABLE journal_entries, journal_lines, events_outbox, processed_events, failed_events CASCADE")
+        .execute(&gl_pool)
         .await
         .ok();
     println!("✓ Databases cleaned");
@@ -441,7 +456,115 @@ async fn test_real_nats_based_e2e() {
     println!("✓ Subscriptions: next_bill_date = {}", next_bill_date);
     assert!(next_bill_date > today, "Subscription next_bill_date should be updated to future date");
 
-    println!("\n🎉 E2E Test Passed! All assertions successful.\n");
+    // 6. Wait for GL journal entry to be created
+    println!("\n⏳ Waiting for GL journal entry...");
+    let (journal_entry_id, source_event_id): (Uuid, Uuid) = loop {
+        let result: Option<(Uuid, Uuid)> = sqlx::query_as(
+            "SELECT id, source_event_id FROM journal_entries
+             WHERE tenant_id = $1
+             ORDER BY created_at DESC LIMIT 1"
+        )
+        .bind("test-app")
+        .fetch_optional(&gl_pool)
+        .await
+        .expect("Failed to query GL journal_entries");
+
+        if let Some((id, src_event_id)) = result {
+            println!("\n✓ GL Journal Entry created:");
+            println!("  - Journal Entry ID: {}", id);
+            println!("  - Source Event ID: {}", src_event_id);
+            break (id, src_event_id);
+        }
+        if tokio::time::Instant::now() >= poll_deadline {
+            panic!("❌ No GL journal entry found within timeout");
+        }
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    };
+
+    // 7. Verify journal lines exist and are balanced
+    #[derive(sqlx::FromRow)]
+    struct JournalLine {
+        debit_minor: i64,
+        credit_minor: i64,
+        account_ref: String,
+    }
+
+    let lines: Vec<JournalLine> = sqlx::query_as(
+        "SELECT debit_minor, credit_minor, account_ref
+         FROM journal_lines
+         WHERE journal_entry_id = $1"
+    )
+    .bind(journal_entry_id)
+    .fetch_all(&gl_pool)
+    .await
+    .expect("Failed to query journal_lines");
+
+    assert!(!lines.is_empty(), "Journal entry should have lines");
+    println!("✓ GL Journal Lines: {} lines found", lines.len());
+
+    let total_debits: i64 = lines.iter().map(|l| l.debit_minor).sum();
+    let total_credits: i64 = lines.iter().map(|l| l.credit_minor).sum();
+
+    println!("  - Total Debits: {}", total_debits);
+    println!("  - Total Credits: {}", total_credits);
+
+    for line in &lines {
+        println!("  - Account {}: Debit={}, Credit={}",
+                 line.account_ref, line.debit_minor, line.credit_minor);
+    }
+
+    assert_eq!(total_debits, total_credits, "Debits must equal credits");
+    println!("✓ GL Journal Entry is balanced (debits == credits)");
+
+    // 8. Test idempotency: republish the same event
+    println!("\n⏳ Testing GL idempotency...");
+
+    // Get the original GL posting event from AR's outbox
+    let original_event: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT payload FROM events_outbox
+         WHERE event_type = 'gl.posting.requested'
+         ORDER BY created_at DESC LIMIT 1"
+    )
+    .fetch_optional(&ar_pool)
+    .await
+    .expect("Failed to query AR outbox");
+
+    if let Some(event_payload) = original_event {
+        // Connect to NATS and republish the event
+        let nats_client = async_nats::connect("nats://localhost:4222")
+            .await
+            .expect("Failed to connect to NATS");
+
+        let payload_bytes = serde_json::to_vec(&event_payload)
+            .expect("Failed to serialize event");
+
+        nats_client
+            .publish("gl.events.posting.requested".to_string(), payload_bytes.into())
+            .await
+            .expect("Failed to republish event");
+
+        println!("✓ Republished GL posting event");
+
+        // Wait a bit for processing
+        tokio::time::sleep(Duration::from_secs(2)).await;
+
+        // Verify no duplicate journal entry was created
+        let entry_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM journal_entries
+             WHERE source_event_id = $1"
+        )
+        .bind(source_event_id)
+        .fetch_one(&gl_pool)
+        .await
+        .expect("Failed to count journal entries");
+
+        assert_eq!(entry_count, 1, "Should only have one journal entry despite republish");
+        println!("✓ GL Idempotency verified: no duplicate entry created");
+    } else {
+        println!("⚠️  Warning: No GL posting event found in AR outbox (idempotency test skipped)");
+    }
+
+    println!("\n🎉 E2E Test Passed! All assertions successful (including GL).\n");
 
     // Services will be stopped when _infra is dropped
 }

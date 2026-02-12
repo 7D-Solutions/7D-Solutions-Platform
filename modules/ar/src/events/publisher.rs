@@ -46,8 +46,15 @@ async fn publish_batch(
 
     for event in events {
         // Determine subject based on event type
-        // Format: ar.events.<event_type>
-        let subject = format!("ar.events.{}", event.event_type.replace('.', "."));
+        // For cross-module events (like GL posting), use the target module's namespace
+        // Otherwise use AR's namespace
+        let subject = if event.event_type.starts_with("gl.") {
+            // GL events go directly to gl.events.* namespace
+            format!("gl.events.{}", event.event_type.strip_prefix("gl.").unwrap_or(&event.event_type))
+        } else {
+            // AR events go to ar.events.* namespace
+            format!("ar.events.{}", event.event_type.replace('.', "."))
+        };
 
         // Serialize payload to bytes
         let payload = serde_json::to_vec(&event.payload)?;

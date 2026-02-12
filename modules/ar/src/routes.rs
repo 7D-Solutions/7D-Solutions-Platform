@@ -1604,6 +1604,62 @@ async fn finalize_invoice(
         );
     }
 
+    // Emit gl.posting.requested event to GL module
+    use crate::models::{GlPostingRequestPayload, GlPostingLine};
+
+    let gl_payload = GlPostingRequestPayload {
+        posting_date: chrono::Utc::now().format("%Y-%m-%d").to_string(),
+        currency: invoice.currency.to_uppercase(),
+        source_doc_type: "AR_INVOICE".to_string(),
+        source_doc_id: invoice.id.to_string(),
+        description: format!("Invoice {} for customer {}", invoice.id, invoice.ar_customer_id),
+        lines: vec![
+            // Debit: Accounts Receivable
+            GlPostingLine {
+                account_ref: "1100".to_string(),
+                debit: invoice.amount_cents,
+                credit: 0,
+                memo: Some(format!("AR Invoice {}", invoice.id)),
+            },
+            // Credit: Revenue
+            GlPostingLine {
+                account_ref: "4000".to_string(),
+                debit: 0,
+                credit: invoice.amount_cents,
+                memo: Some(format!("Revenue from Invoice {}", invoice.id)),
+            },
+        ],
+    };
+
+    let gl_envelope = crate::events::envelope::create_ar_envelope(
+        uuid::Uuid::new_v4(),
+        app_id.to_string(),
+        uuid::Uuid::new_v4().to_string(),
+        None,
+        gl_payload,
+    );
+
+    if let Err(e) = enqueue_event(
+        &db,
+        "gl.posting.requested",
+        "invoice",
+        &invoice.id.to_string(),
+        &gl_envelope,
+    )
+    .await
+    {
+        tracing::error!(
+            "Failed to enqueue gl.posting.requested event for invoice {}: {:?}",
+            invoice.id,
+            e
+        );
+    } else {
+        tracing::info!(
+            "Enqueued gl.posting.requested event for invoice {}",
+            invoice.id
+        );
+    }
+
     Ok(Json(invoice))
 }
 

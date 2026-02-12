@@ -610,3 +610,24 @@ pub struct PaymentSucceededPayload {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payment_method_ref: Option<String>,
 }
+
+/// Payload for gl.posting.requested event
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlPostingRequestPayload {
+    pub posting_date: String,
+    pub currency: String,
+    pub source_doc_type: String,
+    pub source_doc_id: String,
+    pub description: String,
+    pub lines: Vec<GlPostingLine>,
+}
+
+/// Individual line in a GL posting request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlPostingLine {
+    pub account_ref: String,
+    pub debit: i32,
+    pub credit: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub memo: Option<String>,
+}
