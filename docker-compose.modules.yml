@@ -40,8 +40,8 @@ services:
   subscriptions:
     container_name: 7d-subscriptions
     build:
-      context: ./modules/subscriptions
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: modules/subscriptions/Dockerfile.workspace
     environment:
       DATABASE_URL: postgres://${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}:${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}@7d-subscriptions-postgres:5432/${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}
       NATS_URL: nats://7d-nats:4222
