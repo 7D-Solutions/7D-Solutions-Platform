@@ -45,9 +45,11 @@
 //! # }
 //! ```
 
+mod envelope;
 mod inmemory_bus;
 mod nats_bus;
 
+pub use envelope::{validate_envelope_fields, EventEnvelope};
 pub use inmemory_bus::InMemoryBus;
 pub use nats_bus::NatsBus;
 
