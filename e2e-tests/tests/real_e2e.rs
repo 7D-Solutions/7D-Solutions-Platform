@@ -139,7 +139,7 @@ async fn start_all_services() -> Result<TestInfrastructure, String> {
 // ============================================================================
 
 async fn setup_test_data(ar_pool: &PgPool, subscriptions_pool: &PgPool) -> Result<(i32, Uuid), Box<dyn std::error::Error>> {
-    let tenant_id = "test-tenant";
+    let tenant_id = "test-app";
 
     // Create AR customer
     let email = format!("e2e-test-{}@example.com", Uuid::new_v4());
@@ -283,7 +283,7 @@ async fn test_real_nats_based_e2e() {
     println!("\n🔍 Verifying results in databases...\n");
 
     // 1. Check AR: Invoice should be created and finalized (status = 'open')
-    let invoice: Option<(i32, String, i64, String, i32)> = sqlx::query_as(
+    let invoice: Option<(i32, String, i32, String, i32)> = sqlx::query_as(
         "SELECT id, status, amount_cents, currency, ar_customer_id
          FROM ar_invoices
          WHERE ar_customer_id = $1

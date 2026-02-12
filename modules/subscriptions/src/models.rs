@@ -115,16 +115,16 @@ pub struct BillRunResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateInvoiceRequest {
-    pub customer_id: String,
-    pub amount_due: i64,
+    pub ar_customer_id: i32,
+    pub amount_cents: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Invoice {
-    pub id: String,
-    pub customer_id: String,
+    pub id: i32,
+    pub ar_customer_id: i32,
     pub status: String,
-    pub amount_due: i64,
+    pub amount_cents: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

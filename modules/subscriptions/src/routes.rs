@@ -152,9 +152,19 @@ async fn execute_bill_run(
         );
 
         // Call AR OpenAPI to create invoice
+        // Parse ar_customer_id from String to i32
+        let ar_customer_id: i32 = match subscription.ar_customer_id.parse() {
+            Ok(id) => id,
+            Err(e) => {
+                tracing::error!("Failed to parse ar_customer_id '{}': {}", subscription.ar_customer_id, e);
+                failures += 1;
+                continue;
+            }
+        };
+
         let create_invoice_req = CreateInvoiceRequest {
-            customer_id: subscription.ar_customer_id.clone(),
-            amount_due: subscription.price_minor,
+            ar_customer_id,
+            amount_cents: subscription.price_minor as i32,
         };
 
         let create_result = client
