@@ -1,8 +1,8 @@
 /// Real NATS-Based E2E Integration Test
 ///
 /// This test:
-/// 1. Starts NATS + Postgres via docker-compose
-/// 2. Builds and starts all services as separate processes (ar-rs, subscriptions-rs, payments-rs, notifications-rs)
+/// 1. Starts NATS + Postgres via docker-compose.infrastructure.yml
+/// 2. Builds and starts all services via docker-compose.modules.yml (Docker containers)
 /// 3. Triggers a bill run via HTTP POST
 /// 4. Asserts results in real databases
 ///
@@ -13,7 +13,7 @@ use reqwest::Client;
 use serde_json::json;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
-use std::process::{Child, Command, Stdio};
+use std::process::Command;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -22,26 +22,16 @@ use uuid::Uuid;
 // ============================================================================
 
 struct TestInfrastructure {
-    ar_process: Child,
-    subscriptions_process: Child,
-    payments_process: Child,
-    notifications_process: Child,
+    project_root: String,
 }
 
 impl Drop for TestInfrastructure {
     fn drop(&mut self) {
         println!("🛑 Shutting down services...");
-        let _ = self.ar_process.kill();
-        let _ = self.subscriptions_process.kill();
-        let _ = self.payments_process.kill();
-        let _ = self.notifications_process.kill();
-
-        // Wait for processes to exit
-        let _ = self.ar_process.wait();
-        let _ = self.subscriptions_process.wait();
-        let _ = self.payments_process.wait();
-        let _ = self.notifications_process.wait();
-
+        let _ = Command::new("docker")
+            .args(&["compose", "-f", "docker-compose.modules.yml", "down"])
+            .current_dir(&self.project_root)
+            .status();
         println!("✓ All services stopped");
     }
 }
@@ -86,28 +76,6 @@ async fn connect_notifications_db() -> PgPool {
 // Service Management
 // ============================================================================
 
-fn start_service(
-    binary_path: &str,
-    service_name: &str,
-    database_url: &str,
-    port: u16,
-) -> Child {
-    println!("🚀 Starting {} on port {}...", service_name, port);
-
-    Command::new(binary_path)
-        .env("DATABASE_URL", database_url)
-        .env("NATS_URL", "nats://localhost:4222")
-        .env("BUS_TYPE", "nats")
-        .env("HOST", "0.0.0.0")
-        .env("PORT", port.to_string())
-        .env("RUST_LOG", "info")
-        .env("AR_BASE_URL", "http://localhost:8086") // For subscriptions
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect(&format!("Failed to start {}", service_name))
-}
-
 async fn wait_for_health(client: &Client, service_name: &str, url: &str, max_attempts: u32) -> Result<(), String> {
     println!("⏳ Waiting for {} to be healthy at {}...", service_name, url);
 
@@ -132,51 +100,21 @@ async fn wait_for_health(client: &Client, service_name: &str, url: &str, max_att
 }
 
 async fn start_all_services() -> Result<TestInfrastructure, String> {
-    println!("🔧 Building all services...");
-
     let project_root = "/Users/james/Projects/7D-Solutions Platform";
 
-    // Build all services
-    let build_status = Command::new("cargo")
-        .args(&["build", "--release"])
+    // Restart services with docker compose (uses existing images)
+    println!("🔄 Restarting services with docker compose...");
+    let restart_status = Command::new("docker")
+        .args(&["compose", "-f", "docker-compose.modules.yml", "restart"])
         .current_dir(project_root)
         .status()
-        .expect("Failed to run cargo build");
+        .expect("Failed to restart services");
 
-    if !build_status.success() {
-        return Err("Failed to build services".to_string());
+    if !restart_status.success() {
+        return Err("Failed to restart services with docker compose".to_string());
     }
 
-    println!("✓ All services built");
-
-    // Start services with absolute paths
-    let ar_process = start_service(
-        &format!("{}/target/release/ar-rs", project_root),
-        "ar-rs",
-        "postgresql://ar_user:ar_pass@localhost:5434/ar_db",
-        8086,
-    );
-
-    let subscriptions_process = start_service(
-        &format!("{}/target/release/subscriptions-rs", project_root),
-        "subscriptions-rs",
-        "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db",
-        8087,
-    );
-
-    let payments_process = start_service(
-        &format!("{}/target/release/payments-rs", project_root),
-        "payments-rs",
-        "postgresql://payments_user:payments_pass@localhost:5436/payments_db",
-        8088,
-    );
-
-    let notifications_process = start_service(
-        &format!("{}/target/release/notifications-rs", project_root),
-        "notifications-rs",
-        "postgresql://notifications_user:notifications_pass@localhost:5437/notifications_db",
-        8089,
-    );
+    println!("✓ Services restarted");
 
     // Wait for health checks
     let client = Client::builder()
@@ -192,10 +130,7 @@ async fn start_all_services() -> Result<TestInfrastructure, String> {
     println!("✓ All services are healthy");
 
     Ok(TestInfrastructure {
-        ar_process,
-        subscriptions_process,
-        payments_process,
-        notifications_process,
+        project_root: project_root.to_string(),
     })
 }
 

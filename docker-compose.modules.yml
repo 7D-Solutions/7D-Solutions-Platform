@@ -7,8 +7,8 @@ services:
   ar:
     container_name: 7d-ar
     build:
-      context: ./modules/ar
-      dockerfile: deploy/Dockerfile
+      context: .
+      dockerfile: modules/ar/deploy/Dockerfile.workspace
     environment:
       DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}
       NATS_URL: nats://7d-nats:4222
