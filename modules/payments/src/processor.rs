@@ -20,7 +20,7 @@ impl MockPaymentProcessor {
     pub async fn process_payment(
         &self,
         request: &PaymentCollectionRequestedPayload,
-    ) -> Result<PaymentResult, Box<dyn std::error::Error>> {
+    ) -> anyhow::Result<PaymentResult> {
         tracing::info!(
             invoice_id = %request.invoice_id,
             customer_id = %request.customer_id,

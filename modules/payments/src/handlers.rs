@@ -15,7 +15,7 @@ pub async fn handle_payment_collection_requested(
     pool: &PgPool,
     payload: PaymentCollectionRequestedPayload,
     envelope_metadata: EnvelopeMetadata,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     tracing::info!(
         invoice_id = %payload.invoice_id,
         customer_id = %payload.customer_id,

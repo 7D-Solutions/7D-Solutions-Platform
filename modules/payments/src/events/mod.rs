@@ -1,6 +1,7 @@
 pub mod envelope;
 pub mod outbox;
 pub mod consumer;
+pub mod dlq;
 
 pub use envelope::EventEnvelope;
 pub use outbox::enqueue_event;

@@ -79,11 +79,11 @@ impl EventConsumer {
         &self,
         msg: &BusMessage,
         handler: F,
-    ) -> Result<(), Box<dyn std::error::Error>>
+    ) -> anyhow::Result<()>
     where
         T: DeserializeOwned,
         F: FnOnce(T) -> Fut,
-        Fut: std::future::Future<Output = Result<(), Box<dyn std::error::Error>>>,
+        Fut: std::future::Future<Output = anyhow::Result<()>>,
     {
         // Parse event envelope
         let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
@@ -91,7 +91,7 @@ impl EventConsumer {
         let event_id = envelope
             .get("event_id")
             .and_then(|v| v.as_str())
-            .ok_or("Missing event_id")?;
+            .ok_or_else(|| anyhow::anyhow!("Missing event_id"))?;
         let event_id = Uuid::parse_str(event_id)?;
 
         // Accept both "source_module" (Payments envelope) and "producer" (AR envelope)
@@ -115,7 +115,7 @@ impl EventConsumer {
         let data_value = envelope
             .get("payload")
             .or_else(|| envelope.get("data"))
-            .ok_or_else(|| format!("Missing 'payload' or 'data' field in event envelope for {}", msg.subject))?;
+            .ok_or_else(|| anyhow::anyhow!("Missing 'payload' or 'data' field in event envelope for {}", msg.subject))?;
         let payload: T = serde_json::from_value(data_value.clone())?;
 
         // Call handler

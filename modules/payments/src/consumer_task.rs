@@ -36,12 +36,51 @@ pub async fn start_payment_collection_consumer(
         let consumer = EventConsumer::new(pool.clone());
 
         while let Some(msg) = stream.next().await {
-            if let Err(e) = process_payment_collection_request(&consumer, &pool, &msg).await {
-                tracing::error!(
-                    subject = %msg.subject,
-                    error = %e,
-                    "Failed to process payment collection request"
-                );
+            // Process the request
+            let result = process_payment_collection_request(&consumer, &pool, &msg).await;
+
+            // Handle errors by writing to DLQ
+            if let Err(e) = result {
+                // Convert error to string and drop e immediately
+                let error_msg = format!("{:#}", e);
+                drop(e);
+
+                // Extract event_id and envelope for DLQ
+                let envelope: Result<serde_json::Value, _> = serde_json::from_slice(&msg.payload);
+
+                match envelope {
+                    Ok(env) => {
+                        if let Some(event_id_str) = env.get("event_id").and_then(|v| v.as_str()) {
+                            if let Ok(event_id) = uuid::Uuid::parse_str(event_id_str) {
+                                // Write to DLQ
+                                if let Err(dlq_err) = crate::events::dlq::insert_failed_event(
+                                    &pool,
+                                    event_id,
+                                    &msg.subject,
+                                    &env,
+                                    &error_msg,
+                                    0,
+                                ).await {
+                                    tracing::error!(
+                                        event_id = %event_id,
+                                        subject = %msg.subject,
+                                        error = %error_msg,
+                                        dlq_error = %dlq_err,
+                                        "Failed to write to DLQ - event may be lost!"
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    Err(parse_err) => {
+                        tracing::error!(
+                            subject = %msg.subject,
+                            error = %error_msg,
+                            parse_error = %parse_err,
+                            "Failed to process event and could not parse envelope for DLQ"
+                        );
+                    }
+                }
             }
         }
 
@@ -53,28 +92,28 @@ async fn process_payment_collection_request(
     consumer: &EventConsumer,
     pool: &PgPool,
     msg: &BusMessage,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> anyhow::Result<()> {
     // Use EventConsumer's idempotent processing
     consumer
-        .process_idempotent(msg, |payload: PaymentCollectionRequestedPayload| async {
+        .process_idempotent(msg, |payload: PaymentCollectionRequestedPayload| async move {
             // Extract envelope metadata from the message
             let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
 
             // Validate envelope fields first
             validate_envelope(&envelope)
-                .map_err(|e| format!("Envelope validation failed: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Envelope validation failed: {}", e))?;
 
             // Extract metadata (validation ensures these fields exist and are valid)
             let event_id = envelope
                 .get("event_id")
                 .and_then(|v| v.as_str())
-                .ok_or("Missing event_id")?;
+                .ok_or_else(|| anyhow::anyhow!("Missing event_id"))?;
             let event_id = uuid::Uuid::parse_str(event_id)?;
 
             let tenant_id = envelope
                 .get("tenant_id")
                 .and_then(|v| v.as_str())
-                .ok_or("Missing tenant_id")?
+                .ok_or_else(|| anyhow::anyhow!("Missing tenant_id"))?
                 .to_string();
 
             // Accept both "correlation_id" (Payments envelope) and "trace_id" (AR envelope)
