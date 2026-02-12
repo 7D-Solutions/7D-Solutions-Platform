@@ -143,17 +143,34 @@ async fn create_subscription(
     ar_customer_id: i32,
     next_bill_date: NaiveDate,
 ) -> Result<Uuid, sqlx::Error> {
+    // First, create a subscription plan
+    let plan_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO subscription_plans
+         (id, tenant_id, name, description, schedule, price_minor, currency, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, 'monthly', 2999, 'usd', NOW(), NOW())"
+    )
+    .bind(plan_id)
+    .bind(tenant_id)
+    .bind("Pro Monthly Plan")
+    .bind("Professional tier monthly subscription")
+    .execute(pool)
+    .await?;
+
+    // Then create the subscription
     let subscription_id = Uuid::new_v4();
+    let start_date = next_bill_date;
 
     sqlx::query(
         "INSERT INTO subscriptions
-         (id, tenant_id, ar_customer_id, plan_id, status, price_minor, currency, next_bill_date, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 'active', 2999, 'usd', $5, NOW(), NOW())"
+         (id, tenant_id, ar_customer_id, plan_id, status, schedule, price_minor, currency, start_date, next_bill_date, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, 'active', 'monthly', 2999, 'usd', $5, $6, NOW(), NOW())"
     )
     .bind(subscription_id)
     .bind(tenant_id)
     .bind(ar_customer_id.to_string())
-    .bind("plan_pro_monthly")
+    .bind(plan_id)
+    .bind(start_date)
     .bind(next_bill_date)
     .execute(pool)
     .await?;
@@ -190,13 +207,15 @@ async fn trigger_bill_run_inmemory(
     // Process each subscription
     for (subscription_id, price_minor, currency) in subscriptions {
         // Create invoice in AR
+        let tilled_invoice_id = format!("til_test_{}", Uuid::new_v4());
         let invoice_id: i32 = sqlx::query_scalar(
             "INSERT INTO ar_invoices
-             (app_id, ar_customer_id, amount_cents, currency, status, due_at, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, 'draft', NOW() + interval '30 days', NOW(), NOW())
+             (app_id, tilled_invoice_id, ar_customer_id, amount_cents, currency, status, due_at, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, 'draft', NOW() + interval '30 days', NOW(), NOW())
              RETURNING id"
         )
         .bind(tenant_id)
+        .bind(&tilled_invoice_id)
         .bind(ar_customer_id)
         .bind(price_minor)
         .bind(&currency)
@@ -325,7 +344,7 @@ async fn start_payment_consumer(
             // Create payment record
             let payment_id = format!("pay_{}", Uuid::new_v4());
             sqlx::query(
-                "INSERT INTO payments (payment_id, invoice_id, amount, currency, status, created_at)
+                "INSERT INTO payments (payment_id, invoice_id, amount_cents, currency, status, created_at)
                  VALUES ($1, $2, $3, $4, 'succeeded', NOW())
                  ON CONFLICT (payment_id) DO NOTHING"
             )
@@ -489,6 +508,12 @@ async fn test_bill_run_to_notification_happy_path() {
     let payments_pool = setup_payments_pool().await;
     let notifications_pool = setup_notifications_pool().await;
 
+    // Clean up test data from previous runs
+    sqlx::query("TRUNCATE TABLE ar_invoices, ar_customers CASCADE").execute(&ar_pool).await.ok();
+    sqlx::query("TRUNCATE TABLE subscriptions, subscription_plans, bill_runs CASCADE").execute(&subscriptions_pool).await.ok();
+    sqlx::query("TRUNCATE TABLE payments, payments_events_outbox, payments_processed_events CASCADE").execute(&payments_pool).await.ok();
+    sqlx::query("TRUNCATE TABLE notifications, events_outbox, processed_events CASCADE").execute(&notifications_pool).await.ok();
+
     // Create shared InMemoryBus
     let bus: Arc<dyn EventBus> = Arc::new(InMemoryBus::new());
 
@@ -568,7 +593,7 @@ async fn test_bill_run_to_notification_happy_path() {
     let payment_succeeded_event = wait_for_event(&mut payment_stream, 10).await
         .expect("Failed to receive payment succeeded event");
 
-    assert_eq!(payment_succeeded_event["event_type"], "payment.succeeded");
+    assert_eq!(payment_succeeded_event["event_type"], "payments.payment.succeeded");
     let payment_id = payment_succeeded_event["payload"]["payment_id"]
         .as_str()
         .expect("Missing payment_id");
