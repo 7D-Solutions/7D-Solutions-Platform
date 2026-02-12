@@ -1,9 +1,12 @@
 use axum::{routing::get, Router};
+use event_bus::{EventBus, InMemoryBus, NatsBus};
+use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
-use gl_rs::{config::Config, health::health};
+use gl_rs::{config::Config, health::health, start_gl_posting_consumer};
 
 #[tokio::main]
 async fn main() {
@@ -27,6 +30,42 @@ async fn main() {
         config.port,
         config.bus_type
     );
+
+    // Database connection
+    tracing::info!("Connecting to database...");
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&config.database_url)
+        .await
+        .expect("Failed to connect to database");
+
+    // Run migrations
+    tracing::info!("Running migrations...");
+    sqlx::migrate!("./db/migrations")
+        .run(&pool)
+        .await
+        .expect("Failed to run migrations");
+
+    // Create event bus
+    let bus: Arc<dyn EventBus> = match config.bus_type.to_lowercase().as_str() {
+        "inmemory" => {
+            tracing::info!("Using InMemory event bus");
+            Arc::new(InMemoryBus::new())
+        }
+        "nats" => {
+            tracing::info!("Connecting to NATS at {}", config.nats_url);
+            let client = async_nats::connect(&config.nats_url)
+                .await
+                .expect("Failed to connect to NATS");
+            Arc::new(NatsBus::new(client))
+        }
+        _ => panic!("Invalid BUS_TYPE: {}. Must be 'inmemory' or 'nats'", config.bus_type),
+    };
+
+    // Start GL posting consumer
+    let consumer_pool = pool.clone();
+    let consumer_bus = bus.clone();
+    start_gl_posting_consumer(consumer_bus, consumer_pool).await;
 
     // Build the application router
     let app = Router::new()
