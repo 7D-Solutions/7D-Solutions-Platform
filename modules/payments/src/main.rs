@@ -70,6 +70,11 @@ async fn main() {
         }
     });
 
+    // Spawn payment collection consumer task
+    let consumer_pool = pool.clone();
+    let consumer_bus = bus.clone();
+    payments_rs::start_payment_collection_consumer(consumer_bus, consumer_pool).await;
+
     let app = Router::new()
         .route("/api/health", get(health))
         .layer(
