@@ -159,6 +159,10 @@ async fn process_gl_posting_message(
             // Date parsing errors are not retriable
             Err(ProcessingError::Validation(format!("Invalid date: {}", e)))
         }
+        Err(JournalError::Period(e)) => {
+            // Period errors (closed period, missing period) are not retriable
+            Err(ProcessingError::Validation(format!("Period error: {}", e)))
+        }
         Err(JournalError::DuplicateEvent(event_id)) => {
             // Duplicate events are expected (idempotency) - not an error
             tracing::info!(
