@@ -8,7 +8,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::contracts::gl_posting_request_v1::GlPostingRequestV1;
-use crate::repos::{journal_repo, processed_repo};
+use crate::repos::{journal_repo, period_repo, processed_repo};
 use crate::validation::{validate_accounts_against_coa, validate_gl_posting_request, ValidationError};
 
 /// Errors that can occur during journal entry processing
@@ -25,6 +25,9 @@ pub enum JournalError {
 
     #[error("Event already processed (duplicate): {0}")]
     DuplicateEvent(Uuid),
+
+    #[error("Period validation failed: {0}")]
+    Period(#[from] period_repo::PeriodError),
 }
 
 /// Result type for journal operations
@@ -73,6 +76,10 @@ pub async fn process_gl_posting_request(
     // Validate account references against Chart of Accounts
     // This must be done within the transaction to ensure consistency
     validate_accounts_against_coa(&mut tx, tenant_id, payload).await?;
+
+    // Validate posting date against accounting periods
+    // Reject postings into closed periods or missing periods
+    period_repo::validate_posting_date_tx(&mut tx, tenant_id, posting_date).await?;
 
     // Generate journal entry ID
     let entry_id = Uuid::new_v4();

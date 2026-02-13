@@ -451,6 +451,70 @@ jobs:
           docker logs 7d-subscriptions || true
           echo "=== Notifications Logs ==="
           docker logs 7d-notifications || true
+          echo "=== GL Logs ==="
+          docker logs gl-rs || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.modules.yml down || true
+          docker compose -f docker-compose.infrastructure.yml down || true
+
+  e2e-phase10-governance:
+    name: E2E Test - Phase 10 Governance
+    runs-on: ubuntu-latest
+    needs: [build-gl]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create external Docker resources
+        run: |
+          docker network create 7d-platform || true
+          docker volume create 7d-nats-data || true
+          docker volume create 7d-gl-pgdata || true
+
+      - name: Start infrastructure
+        run: |
+          docker compose -f docker-compose.infrastructure.yml up -d
+          sleep 10
+
+      - name: Build and start GL module
+        run: |
+          docker compose -f docker-compose.modules.yml build gl-rs
+          docker compose -f docker-compose.modules.yml up -d gl-rs gl-postgres nats
+          sleep 15
+
+      - name: Wait for GL service to be healthy
+        run: |
+          timeout 60 bash -c '
+            until curl -f http://localhost:8090/api/health 2>/dev/null; do
+              echo "Waiting for GL service to be healthy..."
+              sleep 2
+            done
+          '
+          echo "✓ GL service is healthy"
+
+      - name: Run Phase 10 governance E2E tests
+        working-directory: e2e-tests
+        run: cargo test --test phase10_governance_e2e -- --ignored --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== GL Logs ==="
+          docker logs gl-rs || true
+          echo "=== GL Postgres Logs ==="
+          docker logs gl-postgres || true
+          echo "=== NATS Logs ==="
+          docker logs nats || true
 
       - name: Cleanup
         if: always()

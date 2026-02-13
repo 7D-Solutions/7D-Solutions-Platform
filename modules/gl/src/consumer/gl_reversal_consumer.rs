@@ -161,6 +161,13 @@ async fn process_gl_reversal_message(
                 entry_id
             )))
         }
+        Err(ReversalError::Period(e)) => {
+            // Period errors (closed period, missing period) are not retriable
+            Err(ProcessingError::Validation(format!(
+                "Period validation failed: {}",
+                e
+            )))
+        }
         Err(ReversalError::DuplicateEvent(event_id)) => {
             // Duplicate events are expected (idempotency) - not an error
             tracing::info!(

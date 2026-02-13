@@ -8,7 +8,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::contracts::gl_entry_reverse_request_v1::GlEntryReversedV1;
-use crate::repos::{journal_repo, outbox_repo, processed_repo};
+use crate::repos::{journal_repo, outbox_repo, period_repo, processed_repo};
 
 /// Errors that can occur during reversal operations
 #[derive(Debug, thiserror::Error)]
@@ -24,6 +24,9 @@ pub enum ReversalError {
 
     #[error("Event already processed (duplicate): {0}")]
     DuplicateEvent(Uuid),
+
+    #[error("Period validation failed: {0}")]
+    Period(#[from] period_repo::PeriodError),
 }
 
 /// Result type for reversal operations
@@ -69,6 +72,11 @@ pub async fn create_reversal_entry(
 
     // Start transaction
     let mut tx = pool.begin().await?;
+
+    // Validate that reversal can be posted to current period
+    let reversal_date = Utc::now().date_naive();
+    period_repo::validate_posting_date_tx(&mut tx, &original_entry.tenant_id, reversal_date)
+        .await?;
 
     // Generate new entry ID for reversal
     let reversal_entry_id = Uuid::new_v4();
