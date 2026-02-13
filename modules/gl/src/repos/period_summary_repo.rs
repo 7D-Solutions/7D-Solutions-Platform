@@ -166,6 +166,8 @@ async fn find_aggregated_snapshot(
 /// Compute summary from account_balances (fallback when no snapshot exists)
 ///
 /// This does NOT scan journal_lines - it aggregates account_balances instead.
+/// Note: journal_count and line_count will be 0 when computed from balances,
+/// as these metrics cannot be accurately determined without scanning journal_lines.
 async fn compute_from_balances(
     pool: &PgPool,
     tenant_id: &str,
@@ -173,6 +175,7 @@ async fn compute_from_balances(
     currency: Option<&str>,
 ) -> Result<PeriodSummary, PeriodSummaryError> {
     // Aggregate account balances for this period
+    // Note: We can only compute totals, not counts, from account_balances
     let computed = if let Some(cur) = currency {
         sqlx::query_as::<_, ComputedSummary>(
             r#"
@@ -180,10 +183,10 @@ async fn compute_from_balances(
                 $1::TEXT as tenant_id,
                 $2::UUID as period_id,
                 $3::TEXT as currency,
-                COUNT(DISTINCT ab.journal_entry_id)::INTEGER as journal_count,
-                0::INTEGER as line_count, -- Cannot determine line count from balances alone
-                COALESCE(SUM(ab.debit_total_minor), 0) as total_debits_minor,
-                COALESCE(SUM(ab.credit_total_minor), 0) as total_credits_minor
+                0::INTEGER as journal_count, -- Cannot determine from balances
+                0::INTEGER as line_count, -- Cannot determine from balances
+                COALESCE(SUM(ab.debit_total_minor), 0)::BIGINT as total_debits_minor,
+                COALESCE(SUM(ab.credit_total_minor), 0)::BIGINT as total_credits_minor
             FROM account_balances ab
             WHERE ab.tenant_id = $1
               AND ab.period_id = $2
@@ -202,10 +205,10 @@ async fn compute_from_balances(
                 $1::TEXT as tenant_id,
                 $2::UUID as period_id,
                 'MULTI'::TEXT as currency,
-                COUNT(DISTINCT ab.journal_entry_id)::INTEGER as journal_count,
-                0::INTEGER as line_count, -- Cannot determine line count from balances alone
-                COALESCE(SUM(ab.debit_total_minor), 0) as total_debits_minor,
-                COALESCE(SUM(ab.credit_total_minor), 0) as total_credits_minor
+                0::INTEGER as journal_count, -- Cannot determine from balances
+                0::INTEGER as line_count, -- Cannot determine from balances
+                COALESCE(SUM(ab.debit_total_minor), 0)::BIGINT as total_debits_minor,
+                COALESCE(SUM(ab.credit_total_minor), 0)::BIGINT as total_credits_minor
             FROM account_balances ab
             WHERE ab.tenant_id = $1
               AND ab.period_id = $2
