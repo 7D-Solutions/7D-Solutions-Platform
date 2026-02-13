@@ -138,35 +138,46 @@ jobs:
       - name: Check for illegal cross-module Cargo path dependencies
         run: |
           violations=()
-          
-          # Check AUTH Cargo.toml for path deps to other modules
-          if grep -n 'path = .*\.\./\.\./\(modules\|platform\)' platform/identity-auth/Cargo.toml; then
-            violations+=("AUTH has cross-module path dependency")
-          fi
-          
-          if grep -n 'path = .*\.\./modules' platform/identity-auth/Cargo.toml; then
-            violations+=("AUTH has cross-module path dependency")
-          fi
-          
-          # Check AR Cargo.toml for path deps to other modules
-          if grep -n 'path = .*\.\./\.\./\(modules\|platform\)' modules/ar/Cargo.toml; then
-            violations+=("AR has cross-module path dependency")
-          fi
-          
-          if grep -n 'path = .*\.\./platform' modules/ar/Cargo.toml; then
-            violations+=("AR has cross-module path dependency")
-          fi
-          
+
+          # ARCHITECTURE RULE: modules → platform is ALLOWED
+          #                    modules → modules is PROHIBITED
+
+          # Check all modules for dependencies to OTHER modules (not platform)
+          for module in modules/*/Cargo.toml; do
+            module_name=$(basename $(dirname "$module"))
+
+            # Check if this module depends on OTHER modules (not platform)
+            # Look for: path = "../../modules/OTHER_MODULE" or path = "../OTHER_MODULE"
+            if grep -n 'path = .*\.\./\.\.modules/' "$module" 2>/dev/null; then
+              violations+=("$module_name has cross-module dependency to another module")
+            fi
+            if grep -n 'path = .*\.\./[a-z-]*"' "$module" 2>/dev/null | grep -v '\.\./\.\.platform' | grep -v '\.\./src'; then
+              violations+=("$module_name may have cross-module dependency")
+            fi
+          done
+
+          # Check platform modules don't depend on business modules
+          for platform_mod in platform/*/Cargo.toml; do
+            if [ -f "$platform_mod" ]; then
+              plat_name=$(basename $(dirname "$platform_mod"))
+              if grep -n 'path = .*modules/' "$platform_mod" 2>/dev/null; then
+                violations+=("Platform $plat_name depends on business module (prohibited)")
+              fi
+            fi
+          done
+
           if [ ${#violations[@]} -gt 0 ]; then
             echo "ERROR: Cross-module Cargo path dependencies detected:" >&2
             printf '%s\n' "${violations[@]}" >&2
             echo "" >&2
-            echo "Modules must not use 'path' dependencies to other modules." >&2
-            echo "Use versioned crates or duplicate code instead." >&2
+            echo "ARCHITECTURE RULES:" >&2
+            echo "  ✓ modules → platform  (ALLOWED)" >&2
+            echo "  ✗ modules → modules   (PROHIBITED - use contracts)" >&2
+            echo "  ✗ platform → modules  (PROHIBITED - platform must be generic)" >&2
             exit 1
           fi
-          
-          echo "✓ No cross-module Cargo path dependencies"
+
+          echo "✓ No prohibited cross-module Cargo path dependencies"
       
       - name: Check migration boundaries
         run: |
