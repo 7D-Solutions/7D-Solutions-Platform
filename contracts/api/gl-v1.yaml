@@ -70,6 +70,80 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/gl/detail:
+    get:
+      summary: Get GL detail (journal entries with lines) for a tenant and period
+      operationId: getGLDetail
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Tenant identifier
+        - name: period_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Accounting period UUID
+        - name: account_code
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional account code filter (e.g., "1000")
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^[A-Z]{3}$'
+          description: Optional currency filter (ISO 4217, e.g., USD, EUR, GBP)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Page size (default 50)
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Pagination offset (default 0)
+      responses:
+        '200':
+          description: GL detail response with paginated entries
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GLDetailResponse'
+        '400':
+          description: Bad request (invalid parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Period not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/gl/periods/{period_id}/summary:
     get:
       summary: Get period summary for a tenant and period
@@ -248,6 +322,124 @@ components:
           format: date-time
           nullable: true
           description: Timestamp when snapshot was created (null if computed)
+
+    GLDetailResponse:
+      type: object
+      required:
+        - tenant_id
+        - period_start
+        - period_end
+        - entries
+        - pagination
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        period_start:
+          type: string
+          format: date-time
+          description: Start of accounting period (ISO 8601)
+        period_end:
+          type: string
+          format: date-time
+          description: End of accounting period (ISO 8601)
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/GLDetailEntry'
+          description: Journal entries with lines
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    GLDetailEntry:
+      type: object
+      required:
+        - id
+        - posted_at
+        - currency
+        - source_module
+        - lines
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Journal entry UUID
+        posted_at:
+          type: string
+          format: date-time
+          description: Posting timestamp (ISO 8601)
+        description:
+          type: string
+          nullable: true
+          description: Optional entry description
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: Currency code (ISO 4217)
+        source_module:
+          type: string
+          description: Source module (e.g., "ar", "ap", "payroll")
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/GLDetailEntryLine'
+          description: Journal entry lines
+
+    GLDetailEntryLine:
+      type: object
+      required:
+        - line_no
+        - account_code
+        - account_name
+        - debit_minor
+        - credit_minor
+      properties:
+        line_no:
+          type: integer
+          format: int32
+          description: Line number (ordering within entry)
+        account_code:
+          type: string
+          description: Chart of Accounts code
+        account_name:
+          type: string
+          description: Account name
+        debit_minor:
+          type: integer
+          format: int64
+          description: Debit amount in minor units (cents)
+        credit_minor:
+          type: integer
+          format: int64
+          description: Credit amount in minor units (cents)
+        memo:
+          type: string
+          nullable: true
+          description: Optional line-level memo
+
+    PaginationMetadata:
+      type: object
+      required:
+        - limit
+        - offset
+        - total_count
+        - has_more
+      properties:
+        limit:
+          type: integer
+          format: int64
+          description: Page size
+        offset:
+          type: integer
+          format: int64
+          description: Pagination offset
+        total_count:
+          type: integer
+          format: int64
+          description: Total number of entries matching the query
+        has_more:
+          type: boolean
+          description: Whether there are more entries beyond this page
 
     ErrorResponse:
       type: object

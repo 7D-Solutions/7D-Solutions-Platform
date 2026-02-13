@@ -35,6 +35,26 @@ pub enum PeriodError {
     Database(#[from] sqlx::Error),
 }
 
+/// Find an accounting period by its ID
+/// Returns the period if found, None if no period with the ID exists
+pub async fn find_by_id(
+    pool: &PgPool,
+    period_id: Uuid,
+) -> Result<Option<AccountingPeriod>, PeriodError> {
+    let period = sqlx::query_as::<_, AccountingPeriod>(
+        r#"
+        SELECT id, tenant_id, period_start, period_end, is_closed, created_at
+        FROM accounting_periods
+        WHERE id = $1
+        "#,
+    )
+    .bind(period_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(period)
+}
+
 /// Find the accounting period that contains the given date for a tenant
 /// Returns the period if found, None if no period contains the date
 pub async fn find_by_date(
