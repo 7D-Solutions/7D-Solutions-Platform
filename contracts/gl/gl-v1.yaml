@@ -1,0 +1,199 @@
+openapi: 3.0.3
+info:
+  title: General Ledger API
+  version: 1.0.0
+  description: |
+    General Ledger API for managing journal entries, account balances, and trial balance reporting.
+
+    The GL service provides:
+    - Trial balance reporting backed by materialized account balances
+    - Multi-currency support with strict tenant isolation
+    - Period-aware balance queries for audit-grade reporting
+servers:
+  - url: https://gl.7dsolutions.io
+    description: Production
+  - url: http://localhost:8090
+    description: Local development
+paths:
+  /api/gl/trial-balance:
+    get:
+      summary: Get trial balance
+      operationId: getTrialBalance
+      description: |
+        Returns trial balance for a specific tenant and accounting period.
+
+        The trial balance includes:
+        - Account metadata (code, name, type, normal balance)
+        - Debit/credit totals in minor units (e.g., cents)
+        - Net balance (debit_total - credit_total)
+
+        Query uses account_balances table (materialized rollups) for fast performance.
+        No journal table scans are performed.
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          description: Tenant identifier for isolation
+          schema:
+            type: string
+          example: "tenant_123"
+        - name: period_id
+          in: query
+          required: true
+          description: Accounting period UUID
+          schema:
+            type: string
+            format: uuid
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        - name: currency
+          in: query
+          required: false
+          description: Optional currency filter (ISO 4217 code). If omitted, returns all currencies.
+          schema:
+            type: string
+            pattern: ^[A-Z]{3}$
+          example: "USD"
+      responses:
+        '200':
+          description: Trial balance returned successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrialBalanceResponse'
+        '400':
+          description: Invalid request parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/health:
+    get:
+      summary: Health check
+      operationId: healthCheck
+      description: Returns service health status
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+components:
+  schemas:
+    TrialBalanceResponse:
+      type: object
+      required:
+        - tenant_id
+        - period_id
+        - rows
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+          example: "tenant_123"
+        period_id:
+          type: string
+          format: uuid
+          description: Accounting period UUID
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        currency:
+          type: string
+          nullable: true
+          description: Currency filter applied (null = all currencies)
+          example: "USD"
+        rows:
+          type: array
+          description: Trial balance rows ordered by account_code, currency
+          items:
+            $ref: '#/components/schemas/TrialBalanceRow'
+        totals:
+          $ref: '#/components/schemas/TrialBalanceTotals'
+    TrialBalanceRow:
+      type: object
+      required:
+        - account_code
+        - account_name
+        - account_type
+        - normal_balance
+        - currency
+        - debit_total_minor
+        - credit_total_minor
+        - net_balance_minor
+      properties:
+        account_code:
+          type: string
+          description: Chart of Accounts code
+          example: "1000"
+        account_name:
+          type: string
+          description: Account name
+          example: "Cash"
+        account_type:
+          type: string
+          enum: [asset, liability, equity, revenue, expense]
+          description: Account type
+          example: "asset"
+        normal_balance:
+          type: string
+          enum: [debit, credit]
+          description: Normal balance direction
+          example: "debit"
+        currency:
+          type: string
+          description: ISO 4217 currency code
+          example: "USD"
+        debit_total_minor:
+          type: integer
+          format: int64
+          description: Cumulative debit total in minor units (e.g., cents)
+          example: 100000
+        credit_total_minor:
+          type: integer
+          format: int64
+          description: Cumulative credit total in minor units (e.g., cents)
+          example: 0
+        net_balance_minor:
+          type: integer
+          format: int64
+          description: Net balance (debit_total - credit_total) in minor units
+          example: 100000
+    TrialBalanceTotals:
+      type: object
+      required:
+        - total_debits
+        - total_credits
+        - is_balanced
+      properties:
+        total_debits:
+          type: integer
+          format: int64
+          description: Sum of all debit totals in minor units
+          example: 500000
+        total_credits:
+          type: integer
+          format: int64
+          description: Sum of all credit totals in minor units
+          example: 500000
+        is_balanced:
+          type: boolean
+          description: Whether total debits equal total credits
+          example: true
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Invalid period_id format"
