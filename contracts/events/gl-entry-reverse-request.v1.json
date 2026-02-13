@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/gl-entry-reverse-request.v1.json",
+  "title": "GL Entry Reversal Request Event",
+  "description": "Request to reverse an existing journal entry by creating an inverse entry. This event is idempotent on event_id. The reversal entry will have all debit/credit amounts swapped and will link back to the original entry via reverses_entry_id.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this reversal request. Used for idempotency - duplicate event_id must be ignored by consumer."
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the reversal was requested."
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation."
+    },
+    "source_module": {
+      "type": "string",
+      "description": "Source module requesting the reversal (e.g., 'ar', 'ap', 'gl').",
+      "examples": ["ar", "ap", "gl", "inventory"]
+    },
+    "source_version": {
+      "type": "string",
+      "description": "Semantic version of the source module that generated this event.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.-]+)?$",
+      "examples": ["0.1.0", "1.2.3", "2.0.0-rc1"]
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Optional correlation identifier for tracing related events."
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Optional causation identifier linking this reversal to its trigger."
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "original_entry_id"
+      ],
+      "properties": {
+        "original_entry_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "ID of the journal entry to reverse."
+        },
+        "reason": {
+          "type": "string",
+          "description": "Optional reason for the reversal.",
+          "maxLength": 500
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

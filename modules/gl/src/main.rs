@@ -6,7 +6,12 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
-use gl_rs::{config::Config, health::health, start_gl_posting_consumer};
+use gl_rs::{
+    config::Config,
+    health::health,
+    start_gl_posting_consumer,
+    start_gl_reversal_consumer,
+};
 
 #[tokio::main]
 async fn main() {
@@ -66,6 +71,11 @@ async fn main() {
     let consumer_pool = pool.clone();
     let consumer_bus = bus.clone();
     start_gl_posting_consumer(consumer_bus, consumer_pool).await;
+
+    // Start GL reversal consumer
+    let reversal_pool = pool.clone();
+    let reversal_bus = bus.clone();
+    start_gl_reversal_consumer(reversal_bus, reversal_pool).await;
 
     // Build the application router
     let app = Router::new()

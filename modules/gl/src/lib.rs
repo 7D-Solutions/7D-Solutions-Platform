@@ -9,3 +9,4 @@ pub mod services;
 pub mod validation;
 
 pub use consumer::gl_posting_consumer::start_gl_posting_consumer;
+pub use consumer::gl_reversal_consumer::start_gl_reversal_consumer;

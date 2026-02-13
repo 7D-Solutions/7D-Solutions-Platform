@@ -7,7 +7,8 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::repos::{journal_repo, processed_repo};
+use crate::contracts::gl_entry_reverse_request_v1::GlEntryReversedV1;
+use crate::repos::{journal_repo, outbox_repo, processed_repo};
 
 /// Errors that can occur during reversal operations
 #[derive(Debug, thiserror::Error)]
@@ -114,6 +115,26 @@ pub async fn create_reversal_entry(
         reversal_event_id,
         "gl.events.entry.reverse.requested",
         "gl-reversal-service",
+    )
+    .await?;
+
+    // Emit gl.events.entry.reversed event
+    let reversed_event = GlEntryReversedV1 {
+        original_entry_id,
+        reversal_entry_id,
+        currency: original_entry.currency.clone(),
+        posted_at: Some(Utc::now().to_rfc3339()),
+    };
+
+    let reversed_event_id = Uuid::new_v4();
+    outbox_repo::insert_outbox_event(
+        &mut tx,
+        reversed_event_id,
+        "gl.events.entry.reversed",
+        "journal_entry",
+        &reversal_entry_id.to_string(),
+        serde_json::to_value(&reversed_event)
+            .map_err(|e| sqlx::Error::Protocol(format!("JSON serialization failed: {}", e)))?,
     )
     .await?;
 

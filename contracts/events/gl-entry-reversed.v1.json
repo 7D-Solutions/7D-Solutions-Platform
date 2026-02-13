@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/gl-entry-reversed.v1.json",
+  "title": "GL Entry Reversed Event",
+  "description": "Notification that a journal entry has been successfully reversed. The reversal entry is a new journal entry with swapped debit/credit amounts that links back to the original via reverses_entry_id.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for this event."
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the reversal was completed."
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation."
+    },
+    "source_module": {
+      "type": "string",
+      "description": "Always 'gl' for reversal completion events.",
+      "const": "gl"
+    },
+    "source_version": {
+      "type": "string",
+      "description": "Semantic version of the GL module.",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(-[a-zA-Z0-9.-]+)?$"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Optional correlation identifier for tracing."
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Optional causation identifier linking to the reversal request event."
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "original_entry_id",
+        "reversal_entry_id",
+        "currency"
+      ],
+      "properties": {
+        "original_entry_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "ID of the original journal entry that was reversed."
+        },
+        "reversal_entry_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "ID of the newly created reversal entry."
+        },
+        "currency": {
+          "type": "string",
+          "description": "Currency of the reversed entry.",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "posted_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the reversal entry was posted."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
