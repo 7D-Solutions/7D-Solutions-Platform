@@ -51,6 +51,33 @@ Creates the accounting periods table for period-aware governance:
 - Indexed on tenant_id, is_closed, and date ranges for query performance
 - Enables period-aware posting controls (reject posts to closed periods)
 
+### 20260213000004_create_account_balances.sql
+Creates the account balances materialization table:
+- `account_balances` - Materialized rollup store for fast trial balance queries
+- `debit_total_minor`, `credit_total_minor`, `net_balance_minor` - Cumulative balances in minor units
+- Multi-currency support via currency column
+
+**Key Features:**
+- UNIQUE constraint on (tenant_id, period_id, account_code, currency) - the materialization grain
+- Indexed for fast trial balance queries (tenant + period)
+- Account-centric queries supported (balance history across periods)
+- last_journal_entry_id provides audit trail
+- Enables fast reporting without scanning journal_lines
+
+### 20260213000005_create_period_summary_snapshots.sql
+Creates the period summary snapshots table for reporting stability:
+- `period_summary_snapshots` - Persists period summaries for fast close previews
+- `journal_count`, `line_count` - Activity counts
+- `total_debits_minor`, `total_credits_minor` - Monetary totals in minor units
+- `checksum` - Optional integrity validation
+
+**Key Features:**
+- UNIQUE constraint on (tenant_id, period_id, currency) - the snapshot grain
+- Indexed for fast tenant + period lookups
+- Supports reporting stability without building a full reporting engine
+- Immutable snapshots for period close previews
+- created_at timestamp for temporal queries
+
 ## Running Migrations
 
 Using sqlx-cli:
