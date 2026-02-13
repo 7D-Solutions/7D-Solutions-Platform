@@ -64,15 +64,16 @@ The `rebuild_balances` tool provides deterministic balance recomputation from jo
 
 **Usage:**
 ```bash
-# Run via Docker (recommended)
-docker compose run --rm gl-rs ./rebuild_balances \
+# Build and run locally (requires DATABASE_URL env var)
+cd modules/gl
+cargo run --bin rebuild_balances -- \
   --tenant TENANT_ID \
   --from 2026-01-01 \
   --to 2026-12-31
 
-# Or build and run locally
-cargo build --bin rebuild_balances
-./target/debug/rebuild_balances \
+# Or build release and run
+cargo build --release --bin rebuild_balances
+./target/release/rebuild_balances \
   --tenant tenant_123 \
   --from 2026-01-01 \
   --to 2026-12-31
