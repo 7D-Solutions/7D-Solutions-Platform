@@ -33,6 +33,24 @@ Creates the Chart of Accounts (COA) table:
 - Flat structure (no hierarchy) - simplifies Phase 10 implementation
 - Indexed on tenant_id, is_active, and (tenant_id, code) for query performance
 
+### 20260213000002_add_reverses_entry_id.sql
+Adds reversal tracking to journal entries:
+- `reverses_entry_id` UUID NULL - Links reversal entries to original entries
+- Enables audit trail for reversed transactions
+
+### 20260213000003_create_accounting_periods.sql
+Creates the accounting periods table for period-aware governance:
+- `accounting_periods` - Defines fiscal/accounting periods with closed-period controls
+- `period_start` and `period_end` DATE - Define period boundaries
+- `is_closed` BOOLEAN - Controls whether posting is allowed in the period
+
+**Key Features:**
+- EXCLUDE constraint with btree_gist enforces non-overlapping periods per tenant
+- CHECK constraint ensures period_end > period_start
+- Multi-tenant isolation - different tenants can have overlapping date ranges
+- Indexed on tenant_id, is_closed, and date ranges for query performance
+- Enables period-aware posting controls (reject posts to closed periods)
+
 ## Running Migrations
 
 Using sqlx-cli:
