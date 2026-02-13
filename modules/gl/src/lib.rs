@@ -5,6 +5,7 @@ pub mod db;
 pub mod dlq;
 pub mod health;
 pub mod repos;
+pub mod routes;
 pub mod services;
 pub mod validation;
 

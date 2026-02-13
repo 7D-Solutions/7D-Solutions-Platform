@@ -8,6 +8,8 @@ use sqlx::{FromRow, PgPool, Postgres, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::repos::account_repo::{AccountType, NormalBalance};
+
 /// Account balance model representing materialized rollup balances
 #[derive(Debug, Clone, FromRow)]
 pub struct AccountBalance {
@@ -22,6 +24,24 @@ pub struct AccountBalance {
     pub last_journal_entry_id: Option<Uuid>,
     pub updated_at: DateTime<Utc>,
     pub created_at: DateTime<Utc>,
+}
+
+/// Trial balance row with account metadata
+/// Joins account_balances with accounts to provide complete trial balance information
+#[derive(Debug, Clone, FromRow)]
+pub struct TrialBalanceRow {
+    // From account_balances
+    pub account_code: String,
+    pub currency: String,
+    pub debit_total_minor: i64,
+    pub credit_total_minor: i64,
+    pub net_balance_minor: i64,
+
+    // From accounts (metadata)
+    pub account_name: String,
+    #[sqlx(rename = "account_type")]
+    pub account_type: AccountType,
+    pub normal_balance: NormalBalance,
 }
 
 /// Errors that can occur during balance repository operations
@@ -289,6 +309,84 @@ pub async fn find_trial_balance(
     };
 
     Ok(balances)
+}
+
+/// Query trial balance with account metadata
+///
+/// Returns trial balance rows that join account_balances with accounts metadata.
+/// This provides complete information for trial balance reporting including
+/// account names, types, and normal balance directions.
+///
+/// # Arguments
+/// * `pool` - Database connection pool
+/// * `tenant_id` - Tenant identifier
+/// * `period_id` - Accounting period identifier
+/// * `currency` - Optional currency filter (None = all currencies)
+///
+/// # Returns
+/// Vector of trial balance rows ordered by account_code, currency
+pub async fn find_trial_balance_with_metadata(
+    pool: &PgPool,
+    tenant_id: &str,
+    period_id: Uuid,
+    currency: Option<&str>,
+) -> Result<Vec<TrialBalanceRow>, BalanceError> {
+    let rows = match currency {
+        Some(cur) => {
+            sqlx::query_as::<_, TrialBalanceRow>(
+                r#"
+                SELECT
+                    ab.account_code,
+                    ab.currency,
+                    ab.debit_total_minor,
+                    ab.credit_total_minor,
+                    ab.net_balance_minor,
+                    a.name as account_name,
+                    a.type as account_type,
+                    a.normal_balance
+                FROM account_balances ab
+                INNER JOIN accounts a ON a.tenant_id = ab.tenant_id AND a.code = ab.account_code
+                WHERE ab.tenant_id = $1
+                  AND ab.period_id = $2
+                  AND ab.currency = $3
+                  AND a.is_active = true
+                ORDER BY ab.account_code, ab.currency
+                "#,
+            )
+            .bind(tenant_id)
+            .bind(period_id)
+            .bind(cur)
+            .fetch_all(pool)
+            .await?
+        }
+        None => {
+            sqlx::query_as::<_, TrialBalanceRow>(
+                r#"
+                SELECT
+                    ab.account_code,
+                    ab.currency,
+                    ab.debit_total_minor,
+                    ab.credit_total_minor,
+                    ab.net_balance_minor,
+                    a.name as account_name,
+                    a.type as account_type,
+                    a.normal_balance
+                FROM account_balances ab
+                INNER JOIN accounts a ON a.tenant_id = ab.tenant_id AND a.code = ab.account_code
+                WHERE ab.tenant_id = $1
+                  AND ab.period_id = $2
+                  AND a.is_active = true
+                ORDER BY ab.account_code, ab.currency
+                "#,
+            )
+            .bind(tenant_id)
+            .bind(period_id)
+            .fetch_all(pool)
+            .await?
+        }
+    };
+
+    Ok(rows)
 }
 
 /// Find all balances for an account across periods
