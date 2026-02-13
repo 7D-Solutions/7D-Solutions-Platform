@@ -9,6 +9,7 @@ use tracing_subscriber::EnvFilter;
 use gl_rs::{
     config::Config,
     health::health,
+    routes::period_summary::get_period_summary,
     routes::trial_balance::get_trial_balance,
     start_gl_posting_consumer,
     start_gl_reversal_consumer,
@@ -82,6 +83,7 @@ async fn main() {
     let app = Router::new()
         .route("/api/health", get(health))
         .route("/api/gl/trial-balance", get(get_trial_balance))
+        .route("/api/gl/periods/:period_id/summary", get(get_period_summary))
         .with_state(Arc::new(pool.clone()))
         .layer(
             CorsLayer::new()

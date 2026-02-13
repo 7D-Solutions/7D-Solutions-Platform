@@ -1,0 +1,259 @@
+openapi: 3.0.0
+info:
+  title: GL Service API
+  version: 1.0.0
+  description: General Ledger Service HTTP API for reporting and querying financial data
+
+servers:
+  - url: http://localhost:8090
+    description: Local development server
+
+paths:
+  /api/health:
+    get:
+      summary: Health check endpoint
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /api/gl/trial-balance:
+    get:
+      summary: Get trial balance for a tenant and period
+      operationId: getTrialBalance
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Tenant identifier
+        - name: period_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Accounting period UUID
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^[A-Z]{3}$'
+          description: Optional currency filter (ISO 4217, e.g., USD, EUR, GBP)
+      responses:
+        '200':
+          description: Trial balance response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrialBalanceResponse'
+        '400':
+          description: Bad request (invalid parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/gl/periods/{period_id}/summary:
+    get:
+      summary: Get period summary for a tenant and period
+      operationId: getPeriodSummary
+      parameters:
+        - name: period_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Accounting period UUID
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Tenant identifier
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^[A-Z]{3}$'
+          description: Optional currency filter (ISO 4217, e.g., USD, EUR, GBP)
+      responses:
+        '200':
+          description: Period summary response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeriodSummaryResponse'
+        '400':
+          description: Bad request (invalid parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Period not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    TrialBalanceResponse:
+      type: object
+      required:
+        - tenant_id
+        - period_id
+        - rows
+        - totals
+      properties:
+        tenant_id:
+          type: string
+        period_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          nullable: true
+          pattern: '^[A-Z]{3}$'
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrialBalanceRow'
+        totals:
+          $ref: '#/components/schemas/TrialBalanceTotals'
+
+    TrialBalanceRow:
+      type: object
+      required:
+        - account_code
+        - account_name
+        - account_type
+        - normal_balance
+        - currency
+        - debit_total_minor
+        - credit_total_minor
+        - net_balance_minor
+      properties:
+        account_code:
+          type: string
+        account_name:
+          type: string
+        account_type:
+          type: string
+          enum: [asset, liability, equity, revenue, expense]
+        normal_balance:
+          type: string
+          enum: [debit, credit]
+        currency:
+          type: string
+        debit_total_minor:
+          type: integer
+          format: int64
+        credit_total_minor:
+          type: integer
+          format: int64
+        net_balance_minor:
+          type: integer
+          format: int64
+
+    TrialBalanceTotals:
+      type: object
+      required:
+        - total_debits
+        - total_credits
+        - is_balanced
+      properties:
+        total_debits:
+          type: integer
+          format: int64
+        total_credits:
+          type: integer
+          format: int64
+        is_balanced:
+          type: boolean
+
+    PeriodSummaryResponse:
+      type: object
+      required:
+        - tenant_id
+        - period_id
+        - currency
+        - journal_count
+        - line_count
+        - total_debits_minor
+        - total_credits_minor
+        - is_balanced
+        - data_source
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        period_id:
+          type: string
+          format: uuid
+          description: Accounting period UUID
+        currency:
+          type: string
+          description: Currency code (ISO 4217) or "MULTI" for multi-currency aggregate
+        journal_count:
+          type: integer
+          format: int32
+          description: Total number of journal entries
+        line_count:
+          type: integer
+          format: int32
+          description: Total number of journal lines
+        total_debits_minor:
+          type: integer
+          format: int64
+          description: Sum of all debit amounts in minor units (cents)
+        total_credits_minor:
+          type: integer
+          format: int64
+          description: Sum of all credit amounts in minor units (cents)
+        is_balanced:
+          type: boolean
+          description: Whether total debits equal total credits
+        data_source:
+          type: string
+          enum: [snapshot, computed]
+          description: Data source - "snapshot" if from precomputed snapshot, "computed" if calculated from balances
+        snapshot_created_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Timestamp when snapshot was created (null if computed)
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
