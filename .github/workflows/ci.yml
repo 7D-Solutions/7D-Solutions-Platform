@@ -532,3 +532,96 @@ jobs:
         run: |
           docker compose -f docker-compose.modules.yml down || true
           docker compose -f docker-compose.infrastructure.yml down || true
+
+  e2e-phase11-balances:
+    name: E2E Test - Phase 11 Balances
+    runs-on: ubuntu-latest
+    needs: [build-gl]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Create external Docker resources
+        run: |
+          docker network create 7d-platform || true
+          docker volume create 7d-nats-data || true
+          docker volume create 7d-gl-pgdata || true
+
+      - name: Start infrastructure
+        run: |
+          docker compose -f docker-compose.infrastructure.yml up -d
+          sleep 10
+
+      - name: Build and start GL module
+        run: |
+          docker compose -f docker-compose.modules.yml build gl-rs
+          docker compose -f docker-compose.modules.yml up -d gl-rs gl-postgres nats
+          sleep 15
+
+      - name: Wait for GL service to be healthy
+        run: |
+          timeout 60 bash -c '
+            until curl -f http://localhost:8090/api/health 2>/dev/null; do
+              echo "Waiting for GL service to be healthy..."
+              sleep 2
+            done
+          '
+          echo "✓ GL service is healthy"
+
+      - name: Run Phase 11 balance E2E tests
+        working-directory: e2e-tests
+        run: |
+          cargo test --test balance_posting_e2e -- --ignored --test-threads=1 --nocapture
+          cargo test --test balance_reversal_e2e -- --ignored --test-threads=1 --nocapture
+          cargo test --test trial_balance_api_e2e -- --ignored --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+
+      - name: Show logs on failure
+        if: failure()
+        run: |
+          echo "=== GL Logs ==="
+          docker logs gl-rs || true
+          echo "=== GL Postgres Logs ==="
+          docker logs gl-postgres || true
+          echo "=== NATS Logs ==="
+          docker logs nats || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose -f docker-compose.modules.yml down || true
+          docker compose -f docker-compose.infrastructure.yml down || true
+
+  gl-unit-tests:
+    name: GL Unit Tests
+    runs-on: ubuntu-latest
+    needs: [build-gl]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-gl-unit-${{ hashFiles('modules/gl/Cargo.lock') }}
+
+      - name: Run GL unit tests
+        working-directory: modules/gl
+        run: cargo test --lib --bins
+        env:
+          RUST_LOG: info

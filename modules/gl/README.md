@@ -26,7 +26,8 @@ The service is configured via environment variables:
 
 ## Endpoints
 
-- `GET /health` - Health check endpoint
+- `GET /api/health` - Health check endpoint
+- `GET /api/gl/trial-balance` - Trial balance API (query params: tenant_id, period_id, currency)
 
 ## Database Schema
 
@@ -50,6 +51,61 @@ Run locally:
 cargo run
 ```
 
+## Admin Tools
+
+### rebuild_balances - Audit Recovery Tool
+
+The `rebuild_balances` tool provides deterministic balance recomputation from journal entries. This is an admin-only tool for audit integrity and recovery scenarios.
+
+**Purpose:**
+- Rebuild account balances from journal entry source-of-truth
+- Recover from balance corruption or data migration
+- Verify balance integrity after system changes
+
+**Usage:**
+```bash
+# Run via Docker (recommended)
+docker compose run --rm gl-rs ./rebuild_balances \
+  --tenant TENANT_ID \
+  --from 2026-01-01 \
+  --to 2026-12-31
+
+# Or build and run locally
+cargo build --bin rebuild_balances
+./target/debug/rebuild_balances \
+  --tenant tenant_123 \
+  --from 2026-01-01 \
+  --to 2026-12-31
+```
+
+**Safety Features:**
+- **Tenant isolation**: Operates on one tenant at a time
+- **Transactional**: Each period is rebuilt in a single transaction
+- **Deterministic**: Same journal entries always produce same balances
+- **Batched**: Processes one period at a time to avoid long locks
+- **Idempotent**: Safe to run multiple times
+
+**How it works:**
+1. Finds all accounting periods that overlap with the date range
+2. For each period:
+   - Fetches all journal entries in the period
+   - Deletes existing balances for the period (in transaction)
+   - Recomputes balances by aggregating journal lines
+   - Inserts new balances (in transaction)
+3. All operations are logged for audit trail
+
+**When to use:**
+- After data migration or import
+- To recover from suspected balance corruption
+- To verify balance integrity after schema changes
+- For audit investigations
+
+**Production considerations:**
+- Run during maintenance windows (writes to account_balances)
+- Test on staging environment first
+- Backup database before running
+- Monitor database load during execution
+
 ## Docker
 
-The service runs in Docker Compose as `gl-rs` with a dedicated PostgreSQL instance `7d-gl-postgres`.
+The service runs in Docker Compose as `gl-rs` with a dedicated PostgreSQL instance `gl-postgres`.
