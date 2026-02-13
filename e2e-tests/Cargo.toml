@@ -11,6 +11,10 @@ path = "tests/bill_run_e2e.rs"
 name = "real_e2e"
 path = "tests/real_e2e.rs"
 
+[[test]]
+name = "phase10_governance_e2e"
+path = "tests/phase10_governance_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -20,6 +24,7 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", features = ["json"] }
 event-bus = { path = "../platform/event-bus" }
+async-nats = "0.33"
 futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
