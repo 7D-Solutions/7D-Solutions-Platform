@@ -1,0 +1,227 @@
+[
+  {
+    "id": "bd-p12-01",
+    "code": "p12-01",
+    "title": "Lock Phase 12 Reporting Foundation spec (no engine, no UI)",
+    "priority": "P0",
+    "depends_on": ["bd-p11-10"],
+    "how_to_think": "Phase 12 adds reporting primitives on top of Phase 11 balances and Phase 10 journals—without introducing a reporting engine, analytics layer, or UI. Preserve additive-only changes, tenant isolation, period governance, and boundary-first thinking (HTTP for reads, NATS for writes). Stop and escalate if any report requires full-table scans at normal usage scale or if requirements drift into financial statements.",
+    "acceptance_criteria": [
+      "Spec defines Phase 12 endpoints, inputs, outputs, pagination, and performance expectations",
+      "Spec explicitly states data sources per endpoint (balances vs journals) and forbids journal scans where balances suffice"
+    ],
+    "files_to_create": [
+      "modules/gl/docs/PHASE12-REPORTING-FOUNDATION.md"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "docker compose up -d",
+      "Spec clearly defines endpoints and data sources with explicit non-goals (no statements, no analytics, no UI)"
+    ]
+  },
+  {
+    "id": "bd-p12-02",
+    "code": "p12-02",
+    "title": "Add ReportQueryRepository (read-only, indexed access)",
+    "priority": "P0",
+    "depends_on": ["bd-p12-01"],
+    "how_to_think": "Create a read-only query repository for report primitives to prevent ad-hoc SQL spread and to enforce bounded, indexed queries. Preserve typed errors, strict tenant scoping, and no unwrap/expect in runtime paths. Stop and escalate if required query performance cannot be met without additional indexes or a small additive snapshot table.",
+    "acceptance_criteria": [
+      "Repository provides bounded queries for: account activity, journal detail, and period journal listing with pagination",
+      "All queries are tenant-scoped and use indexes (no sequential scans for normal parameters)"
+    ],
+    "files_to_create": [
+      "modules/gl/src/repos/report_query_repo.rs",
+      "modules/gl/tests/report_query_repo_tests.rs"
+    ],
+    "files_to_modify": [
+      "modules/gl/src/repos/mod.rs"
+    ],
+    "verification": [
+      "docker compose run --rm gl-test && cargo test -p gl report_query_repo",
+      "Tests pass and explain plans (where asserted) show index usage for core filters"
+    ]
+  },
+  {
+    "id": "bd-p12-03",
+    "code": "p12-03",
+    "title": "Implement Account Activity API (HTTP, paginated)",
+    "priority": "P0",
+    "depends_on": ["bd-p12-02"],
+    "how_to_think": "Expose an HTTP read endpoint for account activity that returns journal lines/entries for a given tenant+account_code within a period or date range, with pagination. Preserve boundary-first testing, auth enforcement, and response DTO alignment (no parallel structs). Stop and escalate if the endpoint requires unbounded scans or if response size cannot be controlled via pagination.",
+    "acceptance_criteria": [
+      "GET /accounts/{account_code}/activity returns paginated journal line activity filtered by tenant and (period_id OR date range)",
+      "Endpoint enforces auth and returns stable JSON DTOs with deterministic ordering"
+    ],
+    "files_to_create": [
+      "modules/gl/src/routes/account_activity.rs",
+      "modules/gl/src/services/account_activity_service.rs"
+    ],
+    "files_to_modify": [
+      "modules/gl/src/routes/mod.rs",
+      "contracts/api/gl-v1.yaml"
+    ],
+    "verification": [
+      "docker compose up -d && docker compose run --rm gl-http-e2e --filter account_activity",
+      "HTTP E2E proves auth enforced, pagination works, and results match seeded journals"
+    ]
+  },
+  {
+    "id": "bd-p12-04",
+    "code": "p12-04",
+    "title": "Implement GL Detail API (journal entries by period, paginated)",
+    "priority": "P0",
+    "depends_on": ["bd-p12-02"],
+    "how_to_think": "Expose an HTTP endpoint for General Ledger detail: journal entries/lines for a tenant and period, optionally filtered by account_code and currency, with pagination. Preserve strict tenant+period scoping, deterministic ordering, and DTO reuse. Stop and escalate if query patterns require new indexes to avoid scanning large journal tables.",
+    "acceptance_criteria": [
+      "GET /gl/detail returns paginated journal entries/lines for tenant+period (+ optional filters)",
+      "Endpoint is auth-protected and uses bounded queries with deterministic ordering"
+    ],
+    "files_to_create": [
+      "modules/gl/src/routes/gl_detail.rs",
+      "modules/gl/src/services/gl_detail_service.rs"
+    ],
+    "files_to_modify": [
+      "modules/gl/src/routes/mod.rs",
+      "contracts/api/gl-v1.yaml"
+    ],
+    "verification": [
+      "docker compose up -d && docker compose run --rm gl-http-e2e --filter gl_detail",
+      "HTTP E2E returns correct results for seeded postings and does not time out under seeded volume"
+    ]
+  },
+  {
+    "id": "bd-p12-05",
+    "code": "p12-05",
+    "title": "Implement Trial Balance enhancements (currency grouping + totals)",
+    "priority": "P1",
+    "depends_on": ["bd-p12-01"],
+    "how_to_think": "Extend the Phase 11 trial balance to support explicit currency grouping and optional grand totals without changing the underlying read model. Preserve 'balances-only' rule (no journal scans). Stop and escalate if new requirements imply statement formatting or analytics computations.",
+    "acceptance_criteria": [
+      "Trial balance supports currency filter and/or groups results by currency deterministically",
+      "Optional totals are computed from returned balance rows (still no journal scans)"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/gl/src/services/trial_balance_service.rs",
+      "modules/gl/src/routes/trial_balance.rs",
+      "contracts/api/gl-v1.yaml"
+    ],
+    "verification": [
+      "docker compose up -d && docker compose run --rm gl-http-e2e --filter trial_balance",
+      "HTTP E2E proves currency filtering/grouping works and uses account_balances only"
+    ]
+  },
+  {
+    "id": "bd-p12-06",
+    "code": "p12-06",
+    "title": "Add optional period_summary_snapshots table (additive, minimal)",
+    "priority": "P1",
+    "depends_on": ["bd-p12-01"],
+    "how_to_think": "Introduce a minimal snapshot table to persist a period summary (counts/totals) for fast close previews and reporting stability, without building a reporting engine. Keep it additive and GL-local. Stop and escalate if snapshots imply immutable statement artifacts (that belongs in a later phase) or if requirements are unclear.",
+    "acceptance_criteria": [
+      "period_summary_snapshots table exists keyed by tenant_id + period_id (+ currency optional) with created_at",
+      "Schema supports storing: journal_count, line_count, total_debits, total_credits, and optional hash/checksum"
+    ],
+    "files_to_create": [
+      "modules/gl/db/migrations/<timestamp>_create_period_summary_snapshots.sql"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "docker compose up -d && docker compose exec gl-db psql -U postgres -d gl -c \"\\d+ period_summary_snapshots\"",
+      "Migration applies cleanly and indexes support tenant+period lookup"
+    ]
+  },
+  {
+    "id": "bd-p12-07",
+    "code": "p12-07",
+    "title": "Implement Period Summary API (balances + snapshot fallback)",
+    "priority": "P1",
+    "depends_on": ["bd-p12-06"],
+    "how_to_think": "Expose a lightweight HTTP endpoint that returns a period summary for a tenant and period, preferring precomputed snapshot if present, otherwise computing from balances (not journals) where possible. Preserve performance and avoid journal scans. Stop and escalate if summary requires journal scanning for correctness under current schema.",
+    "acceptance_criteria": [
+      "GET /periods/{period_id}/summary returns stable summary data and is auth-protected",
+      "Endpoint does not scan journal_lines in normal operation (uses snapshot or balances)"
+    ],
+    "files_to_create": [
+      "modules/gl/src/routes/period_summary.rs",
+      "modules/gl/src/services/period_summary_service.rs",
+      "modules/gl/src/repos/period_summary_repo.rs"
+    ],
+    "files_to_modify": [
+      "modules/gl/src/routes/mod.rs",
+      "modules/gl/src/repos/mod.rs",
+      "contracts/api/gl-v1.yaml"
+    ],
+    "verification": [
+      "docker compose up -d && docker compose run --rm gl-http-e2e --filter period_summary",
+      "HTTP E2E returns correct summary for seeded data without journal scans"
+    ]
+  },
+  {
+    "id": "bd-p12-08",
+    "code": "p12-08",
+    "title": "Add HTTP boundary E2E suite for Phase 12 report endpoints",
+    "priority": "P0",
+    "depends_on": ["bd-p12-03", "bd-p12-04"],
+    "how_to_think": "Validate Phase 12 using boundary-first HTTP E2E tests to cover routing, auth, serialization, error mapping, and query correctness. Preserve DTO alignment and avoid test-only structs. Stop and escalate if tests become flaky due to non-deterministic ordering—enforce deterministic sorting in queries and responses.",
+    "acceptance_criteria": [
+      "HTTP E2E covers: account activity, GL detail, trial balance (existing), and period summary (if implemented)",
+      "E2E asserts 401/403 behavior for missing/invalid auth on each endpoint"
+    ],
+    "files_to_create": [
+      "modules/gl/tests/e2e/http_reports_account_activity.e2e.rs",
+      "modules/gl/tests/e2e/http_reports_gl_detail.e2e.rs",
+      "modules/gl/tests/e2e/http_reports_period_summary.e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/gl/tests/e2e/mod.rs"
+    ],
+    "verification": [
+      "docker compose up -d && docker compose run --rm gl-http-e2e",
+      "All HTTP report E2E tests pass reliably and validate auth + JSON + pagination"
+    ]
+  },
+  {
+    "id": "bd-p12-09",
+    "code": "p12-09",
+    "title": "Performance guardrails: required indexes + explain checks",
+    "priority": "P0",
+    "depends_on": ["bd-p12-02"],
+    "how_to_think": "Add the minimal indexes required to keep report queries bounded and responsive without introducing a reporting engine. Preserve additive migrations only. Add explain-plan assertions in integration tests where feasible to prevent regressions. Stop and escalate if performance requires materializing new read models beyond Phase 12 scope.",
+    "acceptance_criteria": [
+      "Required indexes exist for core report filters (tenant_id, period_id, account_code, posted_at) and are used by queries",
+      "At least one integration test asserts explain plan does not show sequential scan for normal parameters"
+    ],
+    "files_to_create": [
+      "modules/gl/db/migrations/<timestamp>_add_report_indexes.sql"
+    ],
+    "files_to_modify": [
+      "modules/gl/tests/report_query_repo_tests.rs"
+    ],
+    "verification": [
+      "docker compose up -d && docker compose run --rm gl-test && cargo test -p gl report_query_repo",
+      "Explain-plan assertions pass and migrations apply cleanly"
+    ]
+  },
+  {
+    "id": "bd-p12-10",
+    "code": "p12-10",
+    "title": "CI gating for Phase 12 reporting endpoints and E2E",
+    "priority": "P0",
+    "depends_on": ["bd-p12-08", "bd-p12-09"],
+    "how_to_think": "Close Phase 12 by ensuring migrations, unit/integration tests, and HTTP boundary E2E are enforced in CI under Docker parity. Preserve Phase 11 boundary E2E (NATS write + HTTP read) and do not weaken gates. Stop and escalate if CI environment drift breaks docker parity or increases flakiness—fix determinism instead of loosening gates.",
+    "acceptance_criteria": [
+      "CI is green with Phase 12 HTTP E2E enforced and Phase 11 E2E still green",
+      "Migrations are validated and report endpoints are covered by auth + serialization tests"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      ".github/workflows/ci.yml"
+    ],
+    "verification": [
+      "docker compose up -d && docker compose run --rm gl-ci",
+      "CI-equivalent workflow passes with all Phase 11+12 tests green"
+    ]
+  }
+]
