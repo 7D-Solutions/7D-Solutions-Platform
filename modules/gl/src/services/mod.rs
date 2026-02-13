@@ -1,3 +1,4 @@
 pub mod balance_deltas;
+pub mod balance_updater;
 pub mod journal_service;
 pub mod reversal_service;

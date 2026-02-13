@@ -8,7 +8,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::contracts::gl_posting_request_v1::GlPostingRequestV1;
-use crate::repos::{journal_repo, period_repo, processed_repo};
+use crate::repos::{balance_repo, journal_repo, period_repo, processed_repo};
+use crate::services::{balance_deltas::JournalLineInput, balance_updater};
 use crate::validation::{validate_accounts_against_coa, validate_gl_posting_request, ValidationError};
 
 /// Errors that can occur during journal entry processing
@@ -28,6 +29,9 @@ pub enum JournalError {
 
     #[error("Period validation failed: {0}")]
     Period(#[from] period_repo::PeriodError),
+
+    #[error("Balance update failed: {0}")]
+    Balance(#[from] balance_repo::BalanceError),
 }
 
 /// Result type for journal operations
@@ -77,9 +81,27 @@ pub async fn process_gl_posting_request(
     // This must be done within the transaction to ensure consistency
     validate_accounts_against_coa(&mut tx, tenant_id, payload).await?;
 
-    // Validate posting date against accounting periods
-    // Reject postings into closed periods or missing periods
-    period_repo::validate_posting_date_tx(&mut tx, tenant_id, posting_date).await?;
+    // Get the accounting period for the posting date
+    // This validates that the period exists and is open
+    let period = period_repo::find_by_date_tx(&mut tx, tenant_id, posting_date)
+        .await?
+        .ok_or_else(|| {
+            period_repo::PeriodError::NoPeriodForDate {
+                tenant_id: tenant_id.to_string(),
+                date: posting_date,
+            }
+        })?;
+
+    // Verify period is not closed
+    if period.is_closed {
+        return Err(JournalError::Period(period_repo::PeriodError::PeriodClosed {
+            tenant_id: tenant_id.to_string(),
+            date: posting_date,
+            period_id: period.id,
+        }));
+    }
+
+    let period_id = period.id;
 
     // Generate journal entry ID
     let entry_id = Uuid::new_v4();
@@ -116,7 +138,29 @@ pub async fn process_gl_posting_request(
         .collect();
 
     // Insert journal lines
-    journal_repo::bulk_insert_lines(&mut tx, entry_id, lines).await?;
+    journal_repo::bulk_insert_lines(&mut tx, entry_id, lines.clone()).await?;
+
+    // Update account balances from journal lines (exactly-once, within same transaction)
+    // Convert journal lines to balance delta input format
+    let balance_input: Vec<JournalLineInput> = lines
+        .iter()
+        .map(|line| JournalLineInput {
+            account_ref: line.account_ref.clone(),
+            debit_minor: line.debit_minor,
+            credit_minor: line.credit_minor,
+        })
+        .collect();
+
+    // Update balances atomically within the posting transaction
+    balance_updater::update_balances_from_journal(
+        &mut tx,
+        tenant_id,
+        period_id,
+        &payload.currency,
+        entry_id,
+        &balance_input,
+    )
+    .await?;
 
     // Mark event as processed
     processed_repo::insert(&mut tx, event_id, "gl.events.posting.requested", "gl-consumer")
