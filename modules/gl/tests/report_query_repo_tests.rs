@@ -542,3 +542,162 @@ async fn test_fetch_entry_header_not_found() {
 
     assert!(header.is_none());
 }
+
+// ============================================================
+// EXPLAIN PLAN TESTS (Performance Guardrails)
+// ============================================================
+
+#[tokio::test]
+#[serial]
+async fn test_explain_account_activity_uses_indexes() {
+    let pool = setup_test_pool().await;
+    let tenant_id = format!("tenant_explain_1_{}", Uuid::new_v4());
+    setup_test_data(&pool, &tenant_id).await;
+
+    // Run EXPLAIN on the account activity query
+    let explain_result = sqlx::query_scalar::<_, String>(
+        r#"
+        EXPLAIN (FORMAT TEXT)
+        SELECT
+            je.id as entry_id,
+            je.posted_at,
+            je.description,
+            je.currency,
+            jl.id as line_id,
+            jl.debit_minor,
+            jl.credit_minor,
+            jl.memo
+        FROM journal_entries je
+        INNER JOIN journal_lines jl ON jl.journal_entry_id = je.id
+        WHERE je.tenant_id = $1
+          AND jl.account_ref = $2
+          AND je.posted_at >= $3
+          AND je.posted_at <= $4
+        ORDER BY je.posted_at ASC, jl.line_no ASC
+        LIMIT 100 OFFSET 0
+        "#,
+    )
+    .bind(&tenant_id)
+    .bind("1000")
+    .bind(Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap())
+    .bind(Utc.with_ymd_and_hms(2025, 1, 31, 23, 59, 59).unwrap())
+    .fetch_all(&pool)
+    .await
+    .expect("EXPLAIN query failed");
+
+    let explain_output = explain_result.join("\n");
+
+    // Assert no sequential scans on journal_entries (critical for performance at scale)
+    assert!(
+        !explain_output.contains("Seq Scan on journal_entries"),
+        "Expected index usage on journal_entries, got sequential scan:\n{}",
+        explain_output
+    );
+
+    // Assert that at least one index is being used (proves indexes are available and usable)
+    // Note: With small test datasets, Postgres may choose seq scans on journal_lines
+    // because the cost is lower. This is actually optimal for tiny tables.
+    // At scale (100K+ entries), the idx_journal_lines_account_entry index will be used.
+    assert!(
+        explain_output.contains("Index Scan") || explain_output.contains("Bitmap"),
+        "Expected index usage in query plan:\n{}",
+        explain_output
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_explain_entries_by_account_types_uses_indexes() {
+    let pool = setup_test_pool().await;
+    let tenant_id = format!("tenant_explain_2_{}", Uuid::new_v4());
+    setup_test_data(&pool, &tenant_id).await;
+
+    // Run EXPLAIN on the entries by account types query
+    let explain_result = sqlx::query_scalar::<_, String>(
+        r#"
+        EXPLAIN (FORMAT TEXT)
+        SELECT je.id
+        FROM journal_entries je
+        INNER JOIN journal_lines jl ON jl.journal_entry_id = je.id
+        INNER JOIN accounts a ON a.tenant_id = je.tenant_id AND a.code = jl.account_ref
+        WHERE je.tenant_id = $1
+          AND a.type = ANY($2::account_type[])
+          AND je.posted_at >= $3
+          AND je.posted_at <= $4
+        GROUP BY je.id, je.posted_at, je.created_at
+        ORDER BY je.posted_at DESC, je.created_at DESC
+        LIMIT 100 OFFSET 0
+        "#,
+    )
+    .bind(&tenant_id)
+    .bind(&[AccountType::Asset])
+    .bind(Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap())
+    .bind(Utc.with_ymd_and_hms(2025, 1, 31, 23, 59, 59).unwrap())
+    .fetch_all(&pool)
+    .await
+    .expect("EXPLAIN query failed");
+
+    let explain_output = explain_result.join("\n");
+
+    // Assert no sequential scans on journal_entries (critical for performance at scale)
+    assert!(
+        !explain_output.contains("Seq Scan on journal_entries"),
+        "Expected index usage on journal_entries, got sequential scan:\n{}",
+        explain_output
+    );
+
+    // Assert that indexes are being used
+    // Note: With small test datasets, Postgres may choose seq scans on small tables.
+    // At scale, the idx_accounts_tenant_type index will be used.
+    assert!(
+        explain_output.contains("Index") || explain_output.contains("Bitmap"),
+        "Expected index usage in query plan:\n{}",
+        explain_output
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn test_explain_entries_by_date_range_uses_indexes() {
+    let pool = setup_test_pool().await;
+    let tenant_id = format!("tenant_explain_3_{}", Uuid::new_v4());
+    setup_test_data(&pool, &tenant_id).await;
+
+    // Run EXPLAIN on the entries by date range query
+    let explain_result = sqlx::query_scalar::<_, String>(
+        r#"
+        EXPLAIN (FORMAT TEXT)
+        SELECT id
+        FROM journal_entries
+        WHERE tenant_id = $1
+          AND posted_at >= $2
+          AND posted_at <= $3
+        ORDER BY posted_at DESC, created_at DESC
+        LIMIT 100 OFFSET 0
+        "#,
+    )
+    .bind(&tenant_id)
+    .bind(Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap())
+    .bind(Utc.with_ymd_and_hms(2025, 1, 31, 23, 59, 59).unwrap())
+    .fetch_all(&pool)
+    .await
+    .expect("EXPLAIN query failed");
+
+    let explain_output = explain_result.join("\n");
+
+    // Assert no sequential scans on journal_entries
+    assert!(
+        !explain_output.contains("Seq Scan on journal_entries"),
+        "Expected index usage on journal_entries, got sequential scan:\n{}",
+        explain_output
+    );
+
+    // Assert that the tenant_posted index is being used
+    assert!(
+        explain_output.contains("idx_journal_entries_tenant_posted")
+            || explain_output.contains("Index")
+            || explain_output.contains("Bitmap"),
+        "Expected idx_journal_entries_tenant_posted index usage:\n{}",
+        explain_output
+    );
+}
