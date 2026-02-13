@@ -21,6 +21,18 @@ Creates event infrastructure tables:
 - `processed_events` - Idempotent consumer tracking
 - `failed_events` - Dead Letter Queue for failed event processing
 
+### 20260213000001_create_accounts_table.sql
+Creates the Chart of Accounts (COA) table:
+- `accounts` - Defines accounts available for journal line posting
+- `account_type` ENUM - Categorizes accounts (asset, liability, equity, revenue, expense)
+- `normal_balance` ENUM - Defines normal balance direction (debit or credit)
+
+**Key Features:**
+- UNIQUE constraint on (tenant_id, code) prevents duplicate account codes per tenant
+- `is_active` flag allows soft-deletion of accounts
+- Flat structure (no hierarchy) - simplifies Phase 10 implementation
+- Indexed on tenant_id, is_active, and (tenant_id, code) for query performance
+
 ## Running Migrations
 
 Using sqlx-cli:
