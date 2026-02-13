@@ -18,7 +18,6 @@
 use chrono::{NaiveDate, Utc};
 use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
-use gl_rs::repos::balance_repo;
 use gl_rs::services::trial_balance_service::TrialBalanceResponse;
 use serial_test::serial;
 use sqlx::PgPool;
@@ -233,35 +232,35 @@ async fn test_boundary_http_trial_balance_returns_correct_json() {
     // Assert: Correct tenant_id and period_id in response
     assert_eq!(trial_balance.tenant_id, tenant_id);
     assert_eq!(trial_balance.period_id, period_id);
-    assert_eq!(trial_balance.currency_filter, Some("USD".to_string()));
+    assert_eq!(trial_balance.currency, Some("USD".to_string()));
 
-    // Assert: Accounts present and correct totals
-    assert_eq!(trial_balance.accounts.len(), 2, "Should have 2 accounts");
+    // Assert: Rows present and correct totals
+    assert_eq!(trial_balance.rows.len(), 2, "Should have 2 account rows");
 
-    let ar_account = trial_balance
-        .accounts
+    let ar_row = trial_balance
+        .rows
         .iter()
-        .find(|a| a.account_code == "1100")
+        .find(|r| r.account_code == "1100")
         .expect("AR account (1100) should be in trial balance");
 
-    assert_eq!(ar_account.debit_total, 2500.0);
-    assert_eq!(ar_account.credit_total, 0.0);
-    assert_eq!(ar_account.net_balance, 2500.0);
+    assert_eq!(ar_row.debit_total_minor, 250000, "AR debit should be 250000 minor units ($2500)");
+    assert_eq!(ar_row.credit_total_minor, 0, "AR credit should be 0");
+    assert_eq!(ar_row.net_balance_minor, 250000, "AR net balance should be 250000");
 
-    let revenue_account = trial_balance
-        .accounts
+    let revenue_row = trial_balance
+        .rows
         .iter()
-        .find(|a| a.account_code == "4000")
+        .find(|r| r.account_code == "4000")
         .expect("Revenue account (4000) should be in trial balance");
 
-    assert_eq!(revenue_account.debit_total, 0.0);
-    assert_eq!(revenue_account.credit_total, 2500.0);
-    assert_eq!(revenue_account.net_balance, -2500.0);
+    assert_eq!(revenue_row.debit_total_minor, 0, "Revenue debit should be 0");
+    assert_eq!(revenue_row.credit_total_minor, 250000, "Revenue credit should be 250000 minor units");
+    assert_eq!(revenue_row.net_balance_minor, -250000, "Revenue net should be -250000 (credit positive)");
 
-    // Assert: Totals balance
-    assert_eq!(trial_balance.total_debits, 2500.0);
-    assert_eq!(trial_balance.total_credits, 2500.0);
-    assert_eq!(trial_balance.net_balance, 0.0, "Trial balance should net to zero");
+    // Assert: Totals balance (in minor units)
+    assert_eq!(trial_balance.totals.total_debits, 250000, "Total debits should be 250000 minor units");
+    assert_eq!(trial_balance.totals.total_credits, 250000, "Total credits should be 250000 minor units");
+    assert!(trial_balance.totals.is_balanced, "Trial balance should be balanced");
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -314,9 +313,9 @@ async fn test_boundary_http_trial_balance_currency_filter() {
     assert_eq!(response_usd.status(), 200);
 
     let tb_usd: TrialBalanceResponse = response_usd.json().await.expect("Failed to parse JSON");
-    assert_eq!(tb_usd.accounts.len(), 1, "Should only have USD balances");
-    assert_eq!(tb_usd.accounts[0].currency, "USD");
-    assert_eq!(tb_usd.total_debits, 1000.0);
+    assert_eq!(tb_usd.rows.len(), 1, "Should only have USD balances");
+    assert_eq!(tb_usd.rows[0].currency, "USD");
+    assert_eq!(tb_usd.totals.total_debits, 100000, "USD debits should be 100000 minor units");
 
     // Test 2: No currency filter (should return all currencies)
     let url_all = format!(
@@ -328,7 +327,7 @@ async fn test_boundary_http_trial_balance_currency_filter() {
     assert_eq!(response_all.status(), 200);
 
     let tb_all: TrialBalanceResponse = response_all.json().await.expect("Failed to parse JSON");
-    assert_eq!(tb_all.accounts.len(), 3, "Should have all 3 currency balances");
+    assert_eq!(tb_all.rows.len(), 3, "Should have all 3 currency balances");
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
