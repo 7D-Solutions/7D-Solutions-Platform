@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::contracts::gl_posting_request_v1::GlPostingRequestV1;
 use crate::repos::{journal_repo, processed_repo};
-use crate::validation::{validate_gl_posting_request, ValidationError};
+use crate::validation::{validate_accounts_against_coa, validate_gl_posting_request, ValidationError};
 
 /// Errors that can occur during journal entry processing
 #[derive(Debug, thiserror::Error)]
@@ -69,6 +69,10 @@ pub async fn process_gl_posting_request(
 
     // Start transaction
     let mut tx = pool.begin().await?;
+
+    // Validate account references against Chart of Accounts
+    // This must be done within the transaction to ensure consistency
+    validate_accounts_against_coa(&mut tx, tenant_id, payload).await?;
 
     // Generate journal entry ID
     let entry_id = Uuid::new_v4();

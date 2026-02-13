@@ -32,6 +32,12 @@ pub enum ValidationError {
 
     #[error("Total debits ({0}) must equal total credits ({1})")]
     UnbalancedEntry(f64, f64),
+
+    #[error("Line {0}: account '{1}' not found in Chart of Accounts for tenant '{2}'")]
+    AccountNotFound(usize, String, String),
+
+    #[error("Line {0}: account '{1}' is inactive for tenant '{2}'")]
+    AccountInactive(usize, String, String),
 }
 
 /// Validate a GL posting request payload
@@ -118,6 +124,67 @@ fn validate_journal_line(line: &JournalLine, index: usize) -> Result<(), Validat
 /// Check if currency code is valid (3 uppercase letters)
 fn is_valid_currency(currency: &str) -> bool {
     currency.len() == 3 && currency.chars().all(|c| c.is_ascii_uppercase())
+}
+
+/// Validate account references against the Chart of Accounts
+///
+/// This function checks that each account_ref in the posting request:
+/// 1. Exists in the Chart of Accounts for the tenant
+/// 2. Is in an active state
+///
+/// This validation must be performed within a transaction to ensure consistency.
+///
+/// # Errors
+///
+/// Returns `ValidationError::AccountNotFound` if an account doesn't exist
+/// Returns `ValidationError::AccountInactive` if an account is inactive
+pub async fn validate_accounts_against_coa(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &str,
+    payload: &GlPostingRequestV1,
+) -> Result<(), ValidationError> {
+    use crate::repos::account_repo::{self, AccountError};
+
+    for (idx, line) in payload.lines.iter().enumerate() {
+        // Check if account exists and is active
+        match account_repo::find_active_by_code_tx(tx, tenant_id, &line.account_ref).await {
+            Ok(_account) => {
+                // Account exists and is active - validation passes
+                tracing::debug!(
+                    line_index = idx,
+                    account_code = %line.account_ref,
+                    tenant_id = %tenant_id,
+                    "Account validated against COA"
+                );
+            }
+            Err(AccountError::NotFound { code, .. }) => {
+                return Err(ValidationError::AccountNotFound(
+                    idx,
+                    code,
+                    tenant_id.to_string(),
+                ));
+            }
+            Err(AccountError::Inactive { code, .. }) => {
+                return Err(ValidationError::AccountInactive(
+                    idx,
+                    code,
+                    tenant_id.to_string(),
+                ));
+            }
+            Err(AccountError::Database(e)) => {
+                // Database errors should be propagated as-is, not wrapped in validation error
+                // This allows the caller to distinguish between validation failures
+                // (non-retriable) and database errors (retriable)
+                return Err(ValidationError::AccountNotFound(
+                    idx,
+                    line.account_ref.clone(),
+                    format!("Database error: {}", e),
+                ));
+            }
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
