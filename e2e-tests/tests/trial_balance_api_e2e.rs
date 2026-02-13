@@ -273,18 +273,19 @@ async fn test_trial_balance_api() {
 
     // Connect to database
     let gl_pool = connect_gl_db().await;
-    let tenant_id = "test_tenant_trial_balance";
+    // Use unique tenant ID to avoid balance accumulation from previous test runs
+    let tenant_id = format!("test_tenant_trial_balance_{}", Uuid::new_v4());
 
     // Create test data
-    let period_id = create_accounting_period(&gl_pool, tenant_id)
+    let period_id = create_accounting_period(&gl_pool, &tenant_id)
         .await
         .expect("Failed to create accounting period");
 
-    create_coa_accounts(&gl_pool, tenant_id)
+    create_coa_accounts(&gl_pool, &tenant_id)
         .await
         .expect("Failed to create COA accounts");
 
-    create_test_balances(&gl_pool, tenant_id, period_id)
+    create_test_balances(&gl_pool, &tenant_id, period_id)
         .await
         .expect("Failed to create test balances");
 
@@ -369,18 +370,19 @@ async fn test_trial_balance_api_with_currency_filter() {
         .expect("GL service not healthy");
 
     let gl_pool = connect_gl_db().await;
-    let tenant_id = "test_tenant_trial_balance_currency";
+    // Use unique tenant ID to avoid balance accumulation from previous test runs
+    let tenant_id = format!("test_tenant_trial_balance_currency_{}", Uuid::new_v4());
 
     // Create test data
-    let period_id = create_accounting_period(&gl_pool, tenant_id)
+    let period_id = create_accounting_period(&gl_pool, &tenant_id)
         .await
         .expect("Failed to create accounting period");
 
-    create_coa_accounts(&gl_pool, tenant_id)
+    create_coa_accounts(&gl_pool, &tenant_id)
         .await
         .expect("Failed to create COA accounts");
 
-    create_test_balances(&gl_pool, tenant_id, period_id)
+    create_test_balances(&gl_pool, &tenant_id, period_id)
         .await
         .expect("Failed to create test balances");
 
