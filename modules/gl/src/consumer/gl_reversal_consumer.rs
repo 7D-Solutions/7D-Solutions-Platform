@@ -176,6 +176,14 @@ async fn process_gl_reversal_message(
             );
             Ok(())
         }
+        Err(ReversalError::Balance(e)) => {
+            // Balance errors could be database or validation issues
+            // Most are likely database errors, so mark as retriable
+            Err(ProcessingError::Retriable(format!(
+                "Balance update error: {}",
+                e
+            )))
+        }
         Err(ReversalError::Database(e)) => {
             // Database errors are retriable
             Err(ProcessingError::Retriable(format!("Database error: {}", e)))

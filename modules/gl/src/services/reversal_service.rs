@@ -8,7 +8,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::contracts::gl_entry_reverse_request_v1::GlEntryReversedV1;
-use crate::repos::{journal_repo, outbox_repo, period_repo, processed_repo};
+use crate::repos::{balance_repo, journal_repo, outbox_repo, period_repo, processed_repo};
+use crate::services::{balance_deltas::JournalLineInput, balance_updater};
 
 /// Errors that can occur during reversal operations
 #[derive(Debug, thiserror::Error)]
@@ -27,6 +28,9 @@ pub enum ReversalError {
 
     #[error("Period validation failed: {0}")]
     Period(#[from] period_repo::PeriodError),
+
+    #[error("Balance update failed: {0}")]
+    Balance(#[from] balance_repo::BalanceError),
 }
 
 /// Result type for reversal operations
@@ -73,10 +77,27 @@ pub async fn create_reversal_entry(
     // Start transaction
     let mut tx = pool.begin().await?;
 
-    // Validate that reversal can be posted to current period
+    // Get the accounting period for the reversal date
     let reversal_date = Utc::now().date_naive();
-    period_repo::validate_posting_date_tx(&mut tx, &original_entry.tenant_id, reversal_date)
-        .await?;
+    let period = period_repo::find_by_date_tx(&mut tx, &original_entry.tenant_id, reversal_date)
+        .await?
+        .ok_or_else(|| {
+            period_repo::PeriodError::NoPeriodForDate {
+                tenant_id: original_entry.tenant_id.clone(),
+                date: reversal_date,
+            }
+        })?;
+
+    // Verify period is not closed
+    if period.is_closed {
+        return Err(ReversalError::Period(period_repo::PeriodError::PeriodClosed {
+            tenant_id: original_entry.tenant_id.clone(),
+            date: reversal_date,
+            period_id: period.id,
+        }));
+    }
+
+    let period_id = period.id;
 
     // Generate new entry ID for reversal
     let reversal_entry_id = Uuid::new_v4();
@@ -115,7 +136,29 @@ pub async fn create_reversal_entry(
         .collect();
 
     // Insert reversal lines
-    journal_repo::bulk_insert_lines(&mut tx, reversal_entry_id, reversal_lines).await?;
+    journal_repo::bulk_insert_lines(&mut tx, reversal_entry_id, reversal_lines.clone()).await?;
+
+    // Update account balances from reversal lines (exactly-once, within same transaction)
+    // Convert reversal lines to balance delta input format
+    let balance_input: Vec<JournalLineInput> = reversal_lines
+        .iter()
+        .map(|line| JournalLineInput {
+            account_ref: line.account_ref.clone(),
+            debit_minor: line.debit_minor,
+            credit_minor: line.credit_minor,
+        })
+        .collect();
+
+    // Update balances atomically within the reversal transaction
+    balance_updater::update_balances_from_journal(
+        &mut tx,
+        &original_entry.tenant_id,
+        period_id,
+        &original_entry.currency,
+        reversal_entry_id,
+        &balance_input,
+    )
+    .await?;
 
     // Mark reversal event as processed
     processed_repo::insert(
