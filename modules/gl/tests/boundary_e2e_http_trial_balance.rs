@@ -79,9 +79,6 @@ async fn insert_test_period(
         r#"
         INSERT INTO accounting_periods (id, tenant_id, period_start, period_end, is_closed, created_at)
         VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (tenant_id, period_start, period_end) DO UPDATE
-        SET id = EXCLUDED.id
-        RETURNING id
         "#,
     )
     .bind(period_id)
@@ -90,7 +87,7 @@ async fn insert_test_period(
     .bind(period_end)
     .bind(false) // open
     .bind(Utc::now())
-    .fetch_one(pool)
+    .execute(pool)
     .await
     .expect("Failed to insert test period");
 
