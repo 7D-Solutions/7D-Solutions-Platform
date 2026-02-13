@@ -9,6 +9,7 @@ services:
     build:
       context: ./platform/identity-auth
       dockerfile: deploy/Dockerfile
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}
       NATS_URL: nats://7d-nats:4222
@@ -46,6 +47,7 @@ services:
     build:
       context: ./platform/identity-auth
       dockerfile: deploy/Dockerfile
+    restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}
       NATS_URL: nats://7d-nats:4222
@@ -84,6 +86,7 @@ services:
   auth-lb:
     container_name: 7d-auth-lb
     image: nginx:alpine
+    restart: unless-stopped
     volumes:
       - ./nginx/auth-nginx.conf:/etc/nginx/nginx.conf:ro
     ports:

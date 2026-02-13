@@ -5,3 +5,4 @@ pub mod journal_repo;
 pub mod outbox_repo;
 pub mod period_repo;
 pub mod processed_repo;
+pub mod report_query_repo;
