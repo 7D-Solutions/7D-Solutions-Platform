@@ -9,7 +9,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
+use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -63,12 +63,12 @@ pub struct ErrorResponse {
 /// GET /api/gl/detail?tenant_id=tenant_123&period_id=uuid&account_code=1000&limit=20&offset=0
 /// ```
 pub async fn get_gl_detail(
-    State(pool): State<Arc<PgPool>>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<GLDetailQuery>,
 ) -> Result<Json<GLDetailResponse>, GLDetailErrorResponse> {
     // Call service layer
     let response = gl_detail_service::get_gl_detail(
-        &pool,
+        &app_state.pool,
         &params.tenant_id,
         params.period_id,
         params.account_code.as_deref(),

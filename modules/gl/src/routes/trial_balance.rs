@@ -9,7 +9,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
+use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -36,12 +36,12 @@ pub struct ErrorResponse {
 ///
 /// Returns trial balance for a tenant and period with optional currency filter.
 pub async fn get_trial_balance(
-    State(pool): State<Arc<PgPool>>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<TrialBalanceQuery>,
 ) -> Result<Json<TrialBalanceResponse>, TrialBalanceErrorResponse> {
     // Query trial balance (service layer handles all transformation and totals calculation)
     let response = trial_balance_service::get_trial_balance(
-        &pool,
+        &app_state.pool,
         &params.tenant_id,
         params.period_id,
         &params.currency,  // Changed from Option<&str> to &str (required)

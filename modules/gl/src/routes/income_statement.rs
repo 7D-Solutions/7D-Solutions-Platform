@@ -9,7 +9,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
+use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -36,12 +36,12 @@ pub struct ErrorResponse {
 ///
 /// Returns income statement (P&L) for a tenant and period with required currency.
 pub async fn get_income_statement(
-    State(pool): State<Arc<PgPool>>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<IncomeStatementQuery>,
 ) -> Result<Json<IncomeStatementResponse>, IncomeStatementErrorResponse> {
     // Query income statement (service layer handles all transformation and totals calculation)
     let response = income_statement_service::get_income_statement(
-        &pool,
+        &app_state.pool,
         &params.tenant_id,
         params.period_id,
         &params.currency,

@@ -9,7 +9,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
+use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -36,12 +36,12 @@ pub struct ErrorResponse {
 ///
 /// Returns balance sheet for a tenant and period with required currency.
 pub async fn get_balance_sheet(
-    State(pool): State<Arc<PgPool>>,
+    State(app_state): State<Arc<AppState>>,
     Query(params): Query<BalanceSheetQuery>,
 ) -> Result<Json<BalanceSheetResponse>, BalanceSheetErrorResponse> {
     // Query balance sheet (service layer handles all transformation and totals calculation)
     let response = balance_sheet_service::get_balance_sheet(
-        &pool,
+        &app_state.pool,
         &params.tenant_id,
         params.period_id,
         &params.currency,

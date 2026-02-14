@@ -9,7 +9,7 @@ use axum::{
     Json,
 };
 use serde::Deserialize;
-use sqlx::PgPool;
+use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -35,13 +35,13 @@ pub struct ErrorResponse {
 /// Returns period summary for a tenant and period with optional currency filter.
 /// Prefers precomputed snapshot if present, otherwise computes from account_balances.
 pub async fn get_period_summary(
-    State(pool): State<Arc<PgPool>>,
+    State(app_state): State<Arc<AppState>>,
     Path(period_id): Path<Uuid>,
     Query(params): Query<PeriodSummaryQuery>,
 ) -> Result<Json<PeriodSummaryResponse>, PeriodSummaryErrorResponse> {
     // Query period summary (service layer handles snapshot vs computed logic)
     let response = period_summary_service::get_period_summary(
-        &pool,
+        &app_state.pool,
         &params.tenant_id,
         period_id,
         params.currency.as_deref(),

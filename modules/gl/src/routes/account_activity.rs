@@ -10,7 +10,7 @@ use axum::{
 };
 use chrono::{DateTime, Utc};
 use serde::Deserialize;
-use sqlx::PgPool;
+use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -69,13 +69,13 @@ pub struct ErrorResponse {
 /// GET /api/gl/accounts/1000/activity?tenant_id=tenant_123&period_id=uuid&limit=20&offset=0
 /// ```
 pub async fn get_account_activity(
-    State(pool): State<Arc<PgPool>>,
+    State(app_state): State<Arc<AppState>>,
     Path(account_code): Path<String>,
     Query(params): Query<AccountActivityQuery>,
 ) -> Result<Json<AccountActivityResponse>, AccountActivityErrorResponse> {
     // Call service layer
     let response = account_activity_service::get_account_activity(
-        &pool,
+        &app_state.pool,
         &params.tenant_id,
         &account_code,
         params.period_id,
