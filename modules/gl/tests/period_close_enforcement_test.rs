@@ -20,6 +20,7 @@ use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::{journal_service, reversal_service};
 use serial_test::serial;
 use sqlx::PgPool;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 // TestCleanupGuard removed - Drop trait cannot safely block_on inside tokio runtime
@@ -27,6 +28,35 @@ use uuid::Uuid;
 
 // NOTE: Cross-binary advisory lock is acquired once in get_test_pool() (common/mod.rs)
 // and held for the lifetime of the test binary. This serializes test binaries.
+
+/// Assert that all connections have been returned to the pool (bounded wait).
+///
+/// SQLx can keep connections "checked out" for async scheduler bookkeeping until
+/// the next yield point. This helper waits up to 250ms for connections to drain
+/// back to idle state.
+///
+/// This is NOT a sleep hack - it's a deterministic drain check with a tight bound.
+async fn assert_pool_drained(pool: &PgPool) {
+    let deadline = Instant::now() + Duration::from_millis(250);
+    loop {
+        let size = pool.size();
+        let idle = pool.num_idle() as u32;
+        let checked_out = size.saturating_sub(idle);
+
+        if checked_out == 0 {
+            return; // Success!
+        }
+
+        if Instant::now() >= deadline {
+            panic!(
+                "Connection still checked out after test! checked_out={}, idle={}, size={}",
+                checked_out, idle, size
+            );
+        }
+
+        tokio::task::yield_now().await;
+    }
+}
 
 /// Helper to create a test period
 async fn create_test_period(
@@ -123,51 +153,55 @@ async fn create_test_account(
 ///
 /// NOTE: No transaction wrapper - each DELETE executes and releases connection immediately.
 /// This prevents connection leaks during cleanup.
-async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
+///
+/// **Error propagation:** Propagate errors instead of swallowing them to catch cleanup failures early.
+async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) -> Result<(), sqlx::Error> {
     // Delete in reverse FK dependency order (children → parents)
     // Each DELETE releases its connection immediately (no transaction)
 
     // 1. Journal lines (FK to journal_entries)
-    let _ = sqlx::query(
+    sqlx::query(
         "DELETE FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE tenant_id = $1)"
     )
     .bind(tenant_id)
     .execute(pool)
-    .await;
+    .await?;
 
     // 2. Journal entries
-    let _ = sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
+    sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(pool)
-        .await;
+        .await?;
 
     // 3. Account balances
-    let _ = sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
+    sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(pool)
-        .await;
+        .await?;
 
     // 4. Period summary snapshots
-    let _ = sqlx::query("DELETE FROM period_summary_snapshots WHERE tenant_id = $1")
+    sqlx::query("DELETE FROM period_summary_snapshots WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(pool)
-        .await;
+        .await?;
 
     // 5. Accounts
-    let _ = sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
+    sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(pool)
-        .await;
+        .await?;
 
     // 6. Accounting periods
-    let _ = sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
+    sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(pool)
-        .await;
+        .await?;
 
     // 7. Processed events - uses unique event_ids per test, no cleanup needed
 
     // 8. Outbox events - skip (complex join, not critical for test isolation)
+
+    Ok(())
 }
 
 // ============================================================
@@ -176,7 +210,7 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 
 #[tokio::test]
 #[serial]
-async fn test_posting_blocked_when_period_closed() {
+async fn test_posting_blocked_when_period_closed() -> Result<(), sqlx::Error> {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
@@ -271,17 +305,13 @@ async fn test_posting_blocked_when_period_closed() {
     assert_eq!(count, 0, "No journal entry should be created for failed posting");
 
     // Explicit cleanup to release DB connections
-    cleanup_test_data(&pool, &tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await?;
 
     // ChatGPT Phase 13 requirement: Verify all connections returned to pool
-    // Advisory lock is held on dedicated connection (not in pool), so strict check applies
-    assert_eq!(
-        pool.num_idle() as u32,
-        pool.size(),
-        "Connection still checked out after test! idle={}, size={}",
-        pool.num_idle(),
-        pool.size()
-    );
+    // Bounded wait for connections to drain (handles async scheduler bookkeeping)
+    assert_pool_drained(&pool).await;
+
+    Ok(())
 }
 
 // ============================================================
@@ -290,7 +320,7 @@ async fn test_posting_blocked_when_period_closed() {
 
 #[tokio::test]
 #[serial]
-async fn test_reversal_blocked_when_original_period_closed() {
+async fn test_reversal_blocked_when_original_period_closed() -> Result<(), sqlx::Error> {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
@@ -409,17 +439,13 @@ async fn test_reversal_blocked_when_original_period_closed() {
     assert_eq!(count, 0, "No reversal entry should be created");
 
     // Explicit cleanup to release DB connections
-    cleanup_test_data(&pool, &tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await?;
 
     // ChatGPT Phase 13 requirement: Verify all connections returned to pool
-    // Advisory lock is held on dedicated connection (not in pool), so strict check applies
-    assert_eq!(
-        pool.num_idle() as u32,
-        pool.size(),
-        "Connection still checked out after test! idle={}, size={}",
-        pool.num_idle(),
-        pool.size()
-    );
+    // Bounded wait for connections to drain (handles async scheduler bookkeeping)
+    assert_pool_drained(&pool).await;
+
+    Ok(())
 }
 
 // ============================================================
@@ -428,7 +454,7 @@ async fn test_reversal_blocked_when_original_period_closed() {
 
 #[tokio::test]
 #[serial]
-async fn test_reversal_succeeds_when_both_periods_open() {
+async fn test_reversal_succeeds_when_both_periods_open() -> Result<(), sqlx::Error> {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
@@ -533,17 +559,13 @@ async fn test_reversal_succeeds_when_both_periods_open() {
     );
 
     // Explicit cleanup to release DB connections
-    cleanup_test_data(&pool, &tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await?;
 
     // ChatGPT Phase 13 requirement: Verify all connections returned to pool
-    // Advisory lock is held on dedicated connection (not in pool), so strict check applies
-    assert_eq!(
-        pool.num_idle() as u32,
-        pool.size(),
-        "Connection still checked out after test! idle={}, size={}",
-        pool.num_idle(),
-        pool.size()
-    );
+    // Bounded wait for connections to drain (handles async scheduler bookkeeping)
+    assert_pool_drained(&pool).await;
+
+    Ok(())
 }
 
 // ============================================================
@@ -552,7 +574,7 @@ async fn test_reversal_succeeds_when_both_periods_open() {
 
 #[tokio::test]
 #[serial]
-async fn test_closed_at_semantics_override_is_closed_boolean() {
+async fn test_closed_at_semantics_override_is_closed_boolean() -> Result<(), sqlx::Error> {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
@@ -649,15 +671,11 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
     );
 
     // Explicit cleanup to release DB connections
-    cleanup_test_data(&pool, &tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await?;
 
     // ChatGPT Phase 13 requirement: Verify all connections returned to pool
-    // Advisory lock is held on dedicated connection (not in pool), so strict check applies
-    assert_eq!(
-        pool.num_idle() as u32,
-        pool.size(),
-        "Connection still checked out after test! idle={}, size={}",
-        pool.num_idle(),
-        pool.size()
-    );
+    // Bounded wait for connections to drain (handles async scheduler bookkeeping)
+    assert_pool_drained(&pool).await;
+
+    Ok(())
 }
