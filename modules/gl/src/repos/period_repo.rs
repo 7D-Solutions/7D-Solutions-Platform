@@ -14,8 +14,14 @@ pub struct AccountingPeriod {
     pub tenant_id: String,
     pub period_start: NaiveDate,
     pub period_end: NaiveDate,
-    pub is_closed: bool,
+    pub is_closed: bool,  // Deprecated - use closed_at.is_some() instead
     pub created_at: DateTime<Utc>,
+    // Phase 13: Period close lifecycle fields
+    pub close_requested_at: Option<DateTime<Utc>>,
+    pub closed_at: Option<DateTime<Utc>>,
+    pub closed_by: Option<String>,
+    pub close_reason: Option<String>,
+    pub close_hash: Option<String>,
 }
 
 /// Errors that can occur during period repository operations
@@ -43,7 +49,8 @@ pub async fn find_by_id(
 ) -> Result<Option<AccountingPeriod>, PeriodError> {
     let period = sqlx::query_as::<_, AccountingPeriod>(
         r#"
-        SELECT id, tenant_id, period_start, period_end, is_closed, created_at
+        SELECT id, tenant_id, period_start, period_end, is_closed, created_at,
+               close_requested_at, closed_at, closed_by, close_reason, close_hash
         FROM accounting_periods
         WHERE id = $1
         "#,
@@ -64,7 +71,8 @@ pub async fn find_by_date(
 ) -> Result<Option<AccountingPeriod>, PeriodError> {
     let period = sqlx::query_as::<_, AccountingPeriod>(
         r#"
-        SELECT id, tenant_id, period_start, period_end, is_closed, created_at
+        SELECT id, tenant_id, period_start, period_end, is_closed, created_at,
+               close_requested_at, closed_at, closed_by, close_reason, close_hash
         FROM accounting_periods
         WHERE tenant_id = $1
           AND period_start <= $2
@@ -89,7 +97,8 @@ pub async fn find_by_date_tx(
 ) -> Result<Option<AccountingPeriod>, PeriodError> {
     let period = sqlx::query_as::<_, AccountingPeriod>(
         r#"
-        SELECT id, tenant_id, period_start, period_end, is_closed, created_at
+        SELECT id, tenant_id, period_start, period_end, is_closed, created_at,
+               close_requested_at, closed_at, closed_by, close_reason, close_hash
         FROM accounting_periods
         WHERE tenant_id = $1
           AND period_start <= $2
@@ -119,7 +128,7 @@ pub async fn validate_posting_date(
             tenant_id: tenant_id.to_string(),
             date,
         }),
-        Some(p) if p.is_closed => Err(PeriodError::PeriodClosed {
+        Some(p) if p.closed_at.is_some() => Err(PeriodError::PeriodClosed {
             tenant_id: tenant_id.to_string(),
             date,
             period_id: p.id,
@@ -142,7 +151,7 @@ pub async fn validate_posting_date_tx(
             tenant_id: tenant_id.to_string(),
             date,
         }),
-        Some(p) if p.is_closed => Err(PeriodError::PeriodClosed {
+        Some(p) if p.closed_at.is_some() => Err(PeriodError::PeriodClosed {
             tenant_id: tenant_id.to_string(),
             date,
             period_id: p.id,

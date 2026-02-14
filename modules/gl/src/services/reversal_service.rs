@@ -23,6 +23,12 @@ pub enum ReversalError {
     #[error("Entry already reversed: {0}")]
     AlreadyReversed(Uuid),
 
+    #[error("Cannot reverse entry {original_entry_id} - original period {period_id} was closed")]
+    OriginalPeriodClosed {
+        original_entry_id: Uuid,
+        period_id: Uuid,
+    },
+
     #[error("Event already processed (duplicate): {0}")]
     DuplicateEvent(Uuid),
 
@@ -74,6 +80,30 @@ pub async fn create_reversal_entry(
         return Err(ReversalError::AlreadyReversed(original_entry_id));
     }
 
+    // Phase 13: Check if original entry's period is closed
+    // If the original transaction's period is closed, we cannot reverse it
+    let original_entry_date = original_entry.posted_at.date_naive();
+    let original_period = period_repo::find_by_date(pool, &original_entry.tenant_id, original_entry_date)
+        .await?
+        .ok_or_else(|| {
+            period_repo::PeriodError::NoPeriodForDate {
+                tenant_id: original_entry.tenant_id.clone(),
+                date: original_entry_date,
+            }
+        })?;
+
+    if original_period.closed_at.is_some() {
+        tracing::warn!(
+            original_entry_id = %original_entry_id,
+            original_period_id = %original_period.id,
+            "Cannot reverse entry - original period is closed"
+        );
+        return Err(ReversalError::OriginalPeriodClosed {
+            original_entry_id,
+            period_id: original_period.id,
+        });
+    }
+
     // Start transaction
     let mut tx = pool.begin().await?;
 
@@ -88,8 +118,8 @@ pub async fn create_reversal_entry(
             }
         })?;
 
-    // Verify period is not closed
-    if period.is_closed {
+    // Verify reversal period is not closed (Phase 13: use closed_at semantics)
+    if period.closed_at.is_some() {
         return Err(ReversalError::Period(period_repo::PeriodError::PeriodClosed {
             tenant_id: original_entry.tenant_id.clone(),
             date: reversal_date,

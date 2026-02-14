@@ -161,6 +161,13 @@ async fn process_gl_reversal_message(
                 entry_id
             )))
         }
+        Err(ReversalError::OriginalPeriodClosed { original_entry_id, period_id }) => {
+            // Original period closed is not retriable (Phase 13 hard lock enforcement)
+            Err(ProcessingError::Validation(format!(
+                "Cannot reverse entry {} - original period {} is closed",
+                original_entry_id, period_id
+            )))
+        }
         Err(ReversalError::Period(e)) => {
             // Period errors (closed period, missing period) are not retriable
             Err(ProcessingError::Validation(format!(

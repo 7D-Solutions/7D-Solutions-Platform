@@ -92,8 +92,8 @@ pub async fn process_gl_posting_request(
             }
         })?;
 
-    // Verify period is not closed
-    if period.is_closed {
+    // Verify period is not closed (Phase 13: use closed_at semantics)
+    if period.closed_at.is_some() {
         return Err(JournalError::Period(period_repo::PeriodError::PeriodClosed {
             tenant_id: tenant_id.to_string(),
             date: posting_date,
