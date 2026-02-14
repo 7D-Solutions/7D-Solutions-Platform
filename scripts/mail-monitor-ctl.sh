@@ -108,8 +108,37 @@ start_monitor() {
 
     # Acquire lock to prevent race conditions (atomic operation)
     local LOCK_FILE="$PIDS_DIR/${SAFE_PANE}.mail-monitor.lock"
+
+    # Clean up stale locks (older than 30 seconds with no active startup)
+    if [ -d "$LOCK_FILE" ]; then
+        local lock_age=0
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            # macOS
+            local lock_time=$(stat -f %m "$LOCK_FILE" 2>/dev/null || echo "0")
+            local now=$(date +%s)
+            lock_age=$((now - lock_time))
+        else
+            # Linux
+            local lock_time=$(stat -c %Y "$LOCK_FILE" 2>/dev/null || echo "0")
+            local now=$(date +%s)
+            lock_age=$((now - lock_time))
+        fi
+
+        if [ "$lock_age" -gt 30 ]; then
+            echo "⚠️  Detected stale lock (age: ${lock_age}s), cleaning up..."
+            rmdir "$LOCK_FILE" 2>/dev/null || {
+                echo "❌ Failed to remove stale lock at $LOCK_FILE"
+                echo "   Please remove manually: rmdir '$LOCK_FILE'"
+                return 1
+            }
+        else
+            echo "❌ Another monitor is starting, please wait..."
+            return 1
+        fi
+    fi
+
     if ! mkdir "$LOCK_FILE" 2>/dev/null; then
-        echo "❌ Another monitor is starting, please wait..."
+        echo "❌ Failed to acquire lock (race condition)"
         return 1
     fi
     # Ensure lock is released on exit (success or failure)

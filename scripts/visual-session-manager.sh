@@ -56,6 +56,29 @@ ensure_mail_server() {
     return 0
 }
 
+
+# Ensure disk space monitor is running
+ensure_disk_monitor() {
+    local PID_FILE="$PROJECT_ROOT/pids/disk-monitor.pid"
+
+    # Check if already running
+    if [ -f "$PID_FILE" ]; then
+        local PID=$(cat "$PID_FILE")
+        if ps -p "$PID" > /dev/null 2>&1; then
+            return 0  # Already running
+        else
+            rm -f "$PID_FILE"
+        fi
+    fi
+
+    # Start disk monitor if available
+    if [ -f "$SCRIPT_DIR/disk-space-monitor.sh" ]; then
+        echo -e "${CYAN}Starting disk space monitor...${NC}"
+        "$SCRIPT_DIR/disk-space-monitor.sh" start >/dev/null 2>&1 || true
+    fi
+
+    return 0
+}
 # Check if fzf is installed
 check_fzf() {
     if ! command -v fzf &> /dev/null; then
@@ -166,6 +189,7 @@ resurrect_session() {
         echo -e "${GREEN}✓ Resurrected: $session_name${NC}"
         # Ensure mail server is running for agent registration
         ensure_mail_server
+        ensure_disk_monitor
         # Sync beads workflow to the project
         if [ -n "$project_path" ] && [ -d "$project_path" ]; then
             "$SCRIPT_DIR/sync-beads-to-project.sh" "$project_path" 2>/dev/null || true
@@ -715,6 +739,7 @@ attach_sessions() {
 
     # Ensure mail server is running for agent registration
     ensure_mail_server
+        ensure_disk_monitor
 
     # Sync beads workflow to each session's project
     echo ""
@@ -948,6 +973,7 @@ smart_start() {
 
     # Ensure mail server is running for agent registration
     ensure_mail_server
+        ensure_disk_monitor
 
     # Step 2: Analyze bead queue for the selected project
     echo -e "${CYAN}Analyzing bead queue...${NC}"

@@ -55,5 +55,11 @@ EOF
 fi
 
 # Continue in current terminal
+
+# Start disk space monitor if not already running
+if [ -f "./scripts/disk-space-monitor.sh" ]; then
+    ./scripts/disk-space-monitor.sh start
+fi
+
 # Always try visual interface first - it will handle fzf installation
 ./scripts/visual-session-manager.sh "$@"

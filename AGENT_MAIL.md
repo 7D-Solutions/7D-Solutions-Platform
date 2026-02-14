@@ -4,31 +4,31 @@ This project has multi-agent communication enabled via MCP Agent Mail.
 
 ## Commands
 
-All commands use the agent-mail-helper.sh script in ./scripts/
+All commands use the canonical coordination tools in agentcore/tools/
 
 ### Check your agent identity
 ```bash
-./scripts/agent-mail-helper.sh whoami
+agentcore/tools/agent-mail-helper.sh whoami
 ```
 
 ### List all agents
 ```bash
-./scripts/agent-mail-helper.sh list
+agentcore/tools/agent-mail-helper.sh list
 ```
 
 ### Send a message
 ```bash
-./scripts/agent-mail-helper.sh send 'RecipientName' 'Subject' 'Message body'
+agentcore/tools/agent-mail-helper.sh send 'RecipientName' 'Subject' 'Message body'
 ```
 
 ### Check inbox
 ```bash
-./scripts/agent-mail-helper.sh inbox
+agentcore/tools/agent-mail-helper.sh inbox
 ```
 
 ### Notifications monitor (tmux banner)
 ```bash
-./scripts/mail-monitor-ctl.sh start
+agentcore/tools/mail-monitor-ctl.sh start
 ```
 
 ## Server check
@@ -50,11 +50,11 @@ cd "$MCP_AGENT_MAIL_DIR" && docker-compose up -d
 ### Not receiving notifications (but inbox has messages)
 1) Check monitor status:
 ```bash
-./scripts/mail-monitor-ctl.sh status
+agentcore/tools/mail-monitor-ctl.sh status
 ```
 2) Restart monitor (binds to current pane):
 ```bash
-./scripts/mail-monitor-ctl.sh restart
+agentcore/tools/mail-monitor-ctl.sh restart
 ```
 3) Verify this pane has an agent name:
 ```bash
@@ -63,7 +63,7 @@ cat ./pids/$(tmux display-message -p "#{session_name}:#{window_index}.#{pane_ind
 
 ### Not receiving messages at all
 ```bash
-./scripts/agent-mail-helper.sh inbox
+agentcore/tools/agent-mail-helper.sh inbox
 ```
 
 ## Hook Bypass Utility
@@ -91,14 +91,14 @@ When bypass is enabled, a warning indicator will appear in the tmux pane borders
 
 ```bash
 # See who you are
-./scripts/agent-mail-helper.sh whoami
+agentcore/tools/agent-mail-helper.sh whoami
 
 # See all agents in this project
-./scripts/agent-mail-helper.sh list
+agentcore/tools/agent-mail-helper.sh list
 
 # Send a message
-./scripts/agent-mail-helper.sh send 'CloudyBadger' 'Status' 'Feature X complete'
+agentcore/tools/agent-mail-helper.sh send 'CloudyBadger' 'Status' 'Feature X complete'
 
 # Check recent messages
-./scripts/agent-mail-helper.sh inbox 5
+agentcore/tools/agent-mail-helper.sh inbox 5
 ```

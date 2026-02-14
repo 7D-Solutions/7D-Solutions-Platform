@@ -2,9 +2,26 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use std::time::Duration;
 
 /// Initialize a connection pool to the PostgreSQL database
+///
+/// # Connection Limits
+/// - Production default: 10 connections
+/// - Test mode: Respects `DB_MAX_CONNECTIONS` env var (recommended: 1-2)
+/// - This prevents E2E test resource exhaustion (316+ tests × 10 connections = infrastructure collapse)
 pub async fn init_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
+    // Allow test mode to cap connections via env var to prevent OOM kills
+    let max_connections = std::env::var("DB_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(10); // Production default
+
+    let min_connections = std::env::var("DB_MIN_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(0);
+
     PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(max_connections)
+        .min_connections(min_connections)
         .acquire_timeout(Duration::from_secs(3))
         .connect(database_url)
         .await

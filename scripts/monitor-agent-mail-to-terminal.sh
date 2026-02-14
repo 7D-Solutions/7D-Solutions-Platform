@@ -160,9 +160,9 @@ echo ""
 # The prompt line moves depending on pane height and status bar, so we
 # don't rely on cursor position — just find ❯ wherever it is.
 has_pending_input() {
-    # Capture the last 10 lines of the pane (prompt is always near the bottom)
+    # Capture the last 10 lines of the pane with escape sequences to detect text attributes
     local bottom
-    bottom=$(tmux capture-pane -t "$MY_PANE" -p 2>/dev/null | tail -10)
+    bottom=$(tmux capture-pane -t "$MY_PANE" -p -e 2>/dev/null | tail -10)
 
     # Safety check
     if [[ -z "$bottom" ]]; then
@@ -180,9 +180,20 @@ has_pending_input() {
     fi
     local after_prompt
     after_prompt=$(echo "$prompt_line" | sed 's/^[[:space:]]*❯//')
+
+    # Check if text contains dim/grey color codes (autocomplete suggestions)
+    # Common dim/grey escape sequences:
+    # - \x1b[2m (dim)
+    # - \x1b[90m (bright black/grey)
+    # - \x1b[38;5;240-250m (256-color grey range)
+    if echo "$after_prompt" | grep -qE $'\x1b\\[2m|\x1b\\[90m|\x1b\\[38;5;24[0-9]m'; then
+        return 1  # It's autocomplete suggestion, not real typing
+    fi
+
     # Check for non-whitespace after prompt (ignore regular space AND non-breaking space \xc2\xa0)
+    # Strip escape sequences before checking for content
     local trimmed
-    trimmed=$(echo "$after_prompt" | sed $'s/[\t \xc2\xa0]//g')
+    trimmed=$(echo "$after_prompt" | sed $'s/[\t \xc2\xa0]//g' | sed 's/\x1b\[[0-9;]*m//g')
     if [ -n "$trimmed" ]; then
         return 0  # User is typing on the prompt line
     fi

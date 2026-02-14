@@ -15,12 +15,14 @@
 //! - NATS at localhost:4222
 //! - PostgreSQL at localhost:5438
 
+mod common;
+
 use chrono::{NaiveDate, Utc};
+use common::get_test_pool;
 use event_bus::{EventBus, EventEnvelope, NatsBus};
 use gl_rs::contracts::gl_posting_request_v1::{
     Dimensions, GlPostingRequestV1, JournalLine, SourceDocType,
 };
-use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::repos::balance_repo;
 use serial_test::serial;
@@ -28,16 +30,6 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio::time::{sleep, Duration};
 use uuid::Uuid;
-
-/// Setup test database pool
-async fn setup_test_pool() -> PgPool {
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string());
-
-    init_pool(&database_url)
-        .await
-        .expect("Failed to create test pool")
-}
 
 /// Setup NATS event bus (requires NATS running on localhost:4222)
 async fn setup_nats_bus() -> Arc<dyn EventBus> {
@@ -179,7 +171,7 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 #[serial]
 async fn test_boundary_nats_posting_creates_journal_and_balances() {
     // Setup
-    let pool = setup_test_pool().await;
+    let pool = get_test_pool().await;
     let bus = setup_nats_bus().await;
     let tenant_id = "tenant-boundary-nats-001";
 
@@ -338,7 +330,7 @@ async fn test_boundary_nats_posting_creates_journal_and_balances() {
 #[serial]
 async fn test_boundary_nats_posting_replay_safety() {
     // Setup
-    let pool = setup_test_pool().await;
+    let pool = get_test_pool().await;
     let bus = setup_nats_bus().await;
     let tenant_id = "tenant-boundary-nats-replay";
 
