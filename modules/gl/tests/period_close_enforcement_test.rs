@@ -13,44 +13,10 @@ use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::{journal_service, reversal_service};
 use serial_test::serial;
 use sqlx::PgPool;
-use std::panic::AssertUnwindSafe;
-use std::sync::Arc;
 use uuid::Uuid;
 
-/// Test cleanup guard - ensures cleanup runs even if test panics
-///
-/// This guard uses Drop to guarantee cleanup happens, preventing connection leaks
-/// across test runs when tests fail before reaching manual cleanup calls.
-struct TestCleanupGuard {
-    pool: Arc<PgPool>,
-    tenant_id: String,
-}
-
-impl TestCleanupGuard {
-    fn new(pool: Arc<PgPool>, tenant_id: String) -> Self {
-        Self { pool, tenant_id }
-    }
-}
-
-impl Drop for TestCleanupGuard {
-    fn drop(&mut self) {
-        // Run cleanup synchronously in a blocking context
-        // This ensures cleanup happens even if the test panics
-        let pool = Arc::clone(&self.pool);
-        let tenant_id = self.tenant_id.clone();
-
-        // Spawn cleanup as a blocking task to avoid panicking in Drop
-        // If cleanup fails, we silently ignore (better than aborting the test runner)
-        let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            let handle = tokio::runtime::Handle::try_current();
-            if let Ok(h) = handle {
-                h.block_on(async {
-                    cleanup_test_data(&pool, &tenant_id).await;
-                });
-            }
-        }));
-    }
-}
+// TestCleanupGuard removed - Drop trait cannot safely block_on inside tokio runtime
+// Instead, each test must call cleanup_test_data(&pool, &tenant_id).await explicitly
 
 /// Helper to create a test period
 async fn create_test_period(
@@ -185,9 +151,6 @@ async fn test_posting_blocked_when_period_closed() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
-    // Cleanup guard ensures connections are released even if test panics
-    let _cleanup = TestCleanupGuard::new(Arc::new(pool.clone()), tenant_id.clone());
-
     // Setup: Create a period
     let period_start = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();
     let period_end = NaiveDate::from_ymd_opt(2024, 2, 28).unwrap();
@@ -278,7 +241,8 @@ async fn test_posting_blocked_when_period_closed() {
 
     assert_eq!(count, 0, "No journal entry should be created for failed posting");
 
-    // Cleanup handled by TestCleanupGuard
+    // Explicit cleanup to release DB connections
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 // ============================================================
@@ -290,9 +254,6 @@ async fn test_posting_blocked_when_period_closed() {
 async fn test_reversal_blocked_when_original_period_closed() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
-
-    // Cleanup guard ensures connections are released even if test panics
-    let _cleanup = TestCleanupGuard::new(Arc::new(pool.clone()), tenant_id.clone());
 
     // Setup: Create two periods
     let period_a_start = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
@@ -408,7 +369,8 @@ async fn test_reversal_blocked_when_original_period_closed() {
 
     assert_eq!(count, 0, "No reversal entry should be created");
 
-    // Cleanup handled by TestCleanupGuard
+    // Explicit cleanup to release DB connections
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 // ============================================================
@@ -420,9 +382,6 @@ async fn test_reversal_blocked_when_original_period_closed() {
 async fn test_reversal_succeeds_when_both_periods_open() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
-
-    // Cleanup guard ensures connections are released even if test panics
-    let _cleanup = TestCleanupGuard::new(Arc::new(pool.clone()), tenant_id.clone());
 
     // Setup: Create two periods (both open)
     let period_a_start = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
@@ -522,7 +481,8 @@ async fn test_reversal_succeeds_when_both_periods_open() {
         "Reversal entry should link back to original"
     );
 
-    // Cleanup handled by TestCleanupGuard
+    // Explicit cleanup to release DB connections
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 // ============================================================
@@ -534,9 +494,6 @@ async fn test_reversal_succeeds_when_both_periods_open() {
 async fn test_closed_at_semantics_override_is_closed_boolean() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
-
-    // Cleanup guard ensures connections are released even if test panics
-    let _cleanup = TestCleanupGuard::new(Arc::new(pool.clone()), tenant_id.clone());
 
     // Setup: Create a period with is_closed=false
     let period_start = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();
@@ -630,5 +587,6 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
         error_msg
     );
 
-    // Cleanup handled by TestCleanupGuard
+    // Explicit cleanup to release DB connections
+    cleanup_test_data(&pool, &tenant_id).await;
 }
