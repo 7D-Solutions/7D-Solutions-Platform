@@ -14,7 +14,7 @@
 mod common;
 
 use chrono::{NaiveDate, Utc};
-use common::get_test_pool;
+use common::{get_test_pool, log_pool_state};
 use gl_rs::contracts::gl_posting_request_v1::{GlPostingRequestV1, JournalLine, SourceDocType};
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::{journal_service, reversal_service};
@@ -307,6 +307,8 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) -> sqlx::Result<()> {
 #[serial]
 async fn test_posting_blocked_when_period_closed() -> Result<(), sqlx::Error> {
     let pool = get_test_pool().await;
+    log_pool_state(&pool, "START").await;
+
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
     // Setup: Create a period
@@ -406,6 +408,11 @@ async fn test_posting_blocked_when_period_closed() -> Result<(), sqlx::Error> {
     // Bounded wait for connections to drain (handles async scheduler bookkeeping)
     assert_pool_drained(&pool).await;
 
+    // Grok fix: Explicit pool close for graceful shutdown
+    log_pool_state(&pool, "BEFORE_CLOSE").await;
+    pool.close().await;
+    log_pool_state(&pool, "AFTER_CLOSE").await;
+
     Ok(())
 }
 
@@ -417,6 +424,8 @@ async fn test_posting_blocked_when_period_closed() -> Result<(), sqlx::Error> {
 #[serial]
 async fn test_reversal_blocked_when_original_period_closed() -> Result<(), sqlx::Error> {
     let pool = get_test_pool().await;
+    log_pool_state(&pool, "START").await;
+
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
     // Setup: Create two periods using current year
@@ -540,6 +549,11 @@ async fn test_reversal_blocked_when_original_period_closed() -> Result<(), sqlx:
     // Bounded wait for connections to drain (handles async scheduler bookkeeping)
     assert_pool_drained(&pool).await;
 
+    // Grok fix: Explicit pool close for graceful shutdown
+    log_pool_state(&pool, "BEFORE_CLOSE").await;
+    pool.close().await;
+    log_pool_state(&pool, "AFTER_CLOSE").await;
+
     Ok(())
 }
 
@@ -551,6 +565,8 @@ async fn test_reversal_blocked_when_original_period_closed() -> Result<(), sqlx:
 #[serial]
 async fn test_reversal_succeeds_when_both_periods_open() -> Result<(), sqlx::Error> {
     let pool = get_test_pool().await;
+    log_pool_state(&pool, "START").await;
+
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
     // Setup: Create two periods (both open) using current year for reversal
@@ -660,6 +676,11 @@ async fn test_reversal_succeeds_when_both_periods_open() -> Result<(), sqlx::Err
     // Bounded wait for connections to drain (handles async scheduler bookkeeping)
     assert_pool_drained(&pool).await;
 
+    // Grok fix: Explicit pool close for graceful shutdown
+    log_pool_state(&pool, "BEFORE_CLOSE").await;
+    pool.close().await;
+    log_pool_state(&pool, "AFTER_CLOSE").await;
+
     Ok(())
 }
 
@@ -671,6 +692,8 @@ async fn test_reversal_succeeds_when_both_periods_open() -> Result<(), sqlx::Err
 #[serial]
 async fn test_closed_at_semantics_override_is_closed_boolean() -> Result<(), sqlx::Error> {
     let pool = get_test_pool().await;
+    log_pool_state(&pool, "START").await;
+
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
     // Setup: Create a period with is_closed=false
@@ -771,6 +794,11 @@ async fn test_closed_at_semantics_override_is_closed_boolean() -> Result<(), sql
     // ChatGPT Phase 13 requirement: Verify all connections returned to pool
     // Bounded wait for connections to drain (handles async scheduler bookkeeping)
     assert_pool_drained(&pool).await;
+
+    // Grok fix: Explicit pool close for graceful shutdown
+    log_pool_state(&pool, "BEFORE_CLOSE").await;
+    pool.close().await;
+    log_pool_state(&pool, "AFTER_CLOSE").await;
 
     Ok(())
 }

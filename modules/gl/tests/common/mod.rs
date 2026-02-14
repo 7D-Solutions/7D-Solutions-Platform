@@ -1,60 +1,60 @@
 //! Common test utilities for GL E2E tests
 //!
-//! ## Singleton Pool Pattern
-//! All E2E tests share a single database connection pool per test binary.
-//! This prevents resource exhaustion when running 316+ tests.
+//! ## Per-Test Pool Pattern (Grok Fix for Runtime Binding)
+//! Each test gets a fresh database connection pool to avoid Tokio runtime binding issues.
+//!
+//! **Root Cause:** Static OnceCell pools persist across #[tokio::test] boundaries.
+//! Each test runs in its own Tokio runtime, but the pool's internal async machinery
+//! (connection manager tasks, I/O drivers) is bound to the first test's runtime.
+//! When test 1 finishes, its runtime drops → connections become client-side zombies.
+//!
+//! **Solution:** Create fresh pool per test. Since tests are serial (#[serial] + --test-threads=1),
+//! this is cheap and eliminates runtime contamination.
 //!
 //! ## Usage
 //! ```rust
-//! use common::get_test_pool;
+//! use common::{get_test_pool, log_pool_state};
 //!
 //! #[tokio::test]
+//! #[serial]
 //! async fn my_test() {
 //!     let pool = get_test_pool().await;
-//!     // use pool...
+//!     log_pool_state(&pool, "START").await;
+//!
+//!     // ... test logic ...
+//!
+//!     log_pool_state(&pool, "BEFORE_CLOSE").await;
+//!     pool.close().await;  // ← REQUIRED for graceful cleanup
 //! }
 //! ```
 
 use chrono::NaiveDate;
 use gl_rs::db::init_pool;
-use sqlx::{Connection, PgConnection, PgPool};
-use tokio::sync::OnceCell;
+use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Singleton pool instance shared across all tests in this binary
-static TEST_POOL: OnceCell<PgPool> = OnceCell::const_new();
-
-/// Dedicated connection that holds the advisory lock for the entire test binary
-/// This connection is completely independent (NOT from the pool) to avoid contamination
-static LOCK_CONNECTION: OnceCell<PgConnection> = OnceCell::const_new();
-
-/// Get or initialize the shared test database pool
+/// Create a fresh test database pool (no caching, no OnceCell)
 ///
 /// ## Connection Limits
 /// Set via environment variables:
-/// - `DB_MAX_CONNECTIONS=2` (recommended for E2E)
-/// - `DB_MIN_CONNECTIONS=0`
+/// - `DB_MAX_CONNECTIONS=5` (default for period close tests)
+/// - `DB_ACQUIRE_TIMEOUT_SECS=10` (longer for nested service calls)
 ///
-/// ## Why Singleton?
-/// Without this, each test creates a new pool with 10 connections.
-/// With 316+ tests running in parallel (test-threads=4), this creates:
-/// - 4 tests × 10 connections = 40 concurrent connections
-/// - Multiple test binaries × 40 = 160-320 total connections
-/// - Result: Postgres OOM kills (exit code 137)
+/// ## Why Fresh Per Test?
+/// Avoids Tokio runtime binding bugs. Each #[tokio::test] creates its own runtime.
+/// Sharing a static pool causes the pool's async tasks to be bound to the first test's runtime.
+/// When that runtime drops, connections become unusable (PoolTimedOut errors).
 ///
-/// With singleton + DB_MAX_CONNECTIONS=2:
-/// - 1 test binary × 2 connections = 2 total connections
-/// - Even with 8 test binaries = 16 total connections (safe!)
+/// ## Cleanup
+/// **IMPORTANT:** Call `pool.close().await` at end of test for graceful shutdown.
 pub async fn get_test_pool() -> PgPool {
     // Set test-specific defaults BEFORE pool initialization
     // Phase 13 period close tests require 5+ connections for nested service calls
-    // with serial execution (#[serial] attribute)
     if std::env::var("DB_MAX_CONNECTIONS").is_err() {
         std::env::set_var("DB_MAX_CONNECTIONS", "5");
     }
 
     // Set longer acquire timeout for tests (10s vs 3s production default)
-    // Nested service calls + serial execution may need more time
     if std::env::var("DB_ACQUIRE_TIMEOUT_SECS").is_err() {
         std::env::set_var("DB_ACQUIRE_TIMEOUT_SECS", "10");
     }
@@ -64,45 +64,21 @@ pub async fn get_test_pool() -> PgPool {
         "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string()
     });
 
-    // Acquire dedicated lock connection once per test binary (independent, NOT from pool)
-    // ChatGPT: Lock connection must be completely separate to avoid pool contamination
-    LOCK_CONNECTION
-        .get_or_init(|| async {
-            // Create ONE dedicated connection (independent of pool)
-            let mut lock_conn = PgConnection::connect(&database_url)
-                .await
-                .expect("Failed to create dedicated lock connection");
-
-            // Acquire advisory lock on the dedicated connection
-            // This serializes test execution across ALL test binaries
-            sqlx::query("SELECT pg_advisory_lock(123456789)")
-                .execute(&mut lock_conn)
-                .await
-                .expect("Failed to acquire cross-binary advisory lock");
-
-            // Return the connection (stored in LOCK_CONNECTION, never released)
-            lock_conn
-        })
-        .await;
-
-    // Initialize pool once per test binary (after lock is acquired)
-    let pool = TEST_POOL
-        .get_or_init(|| async {
-            init_pool(&database_url)
-                .await
-                .expect("Failed to initialize test pool")
-        })
+    // Create fresh pool (no OnceCell, no advisory lock)
+    // Serial execution (#[serial] + --test-threads=1) already prevents races
+    init_pool(&database_url)
         .await
-        .clone();
+        .expect("Failed to create test pool")
+}
 
-    // ChatGPT diagnostic: Log pool config and state at runtime
-    eprintln!("[DIAGNOSTIC] test pool env: max={:?}, acquire={:?}",
-        std::env::var("DB_MAX_CONNECTIONS").ok(),
-        std::env::var("DB_ACQUIRE_TIMEOUT_SECS").ok()
+/// Log pool state for diagnostics (Grok verification strategy)
+pub async fn log_pool_state(pool: &PgPool, label: &str) {
+    eprintln!(
+        "[POOL_STATE:{}] size={}, idle={}",
+        label,
+        pool.size(),
+        pool.num_idle()
     );
-    eprintln!("[DIAGNOSTIC] pool after init: size={}, idle={}", pool.size(), pool.num_idle());
-
-    pool
 }
 
 /// Create a test accounting period
