@@ -171,13 +171,6 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
         .await;
     eprintln!("[cleanup] After processed_events, pool: size={} idle={}", pool.size(), pool.num_idle());
 
-    // Force PostgreSQL to reset connection state (clear temp tables, prepared statements, etc.)
-    eprintln!("[cleanup] Running DISCARD ALL...");
-    let _ = sqlx::query("DISCARD ALL")
-        .execute(pool)
-        .await;
-    eprintln!("[cleanup] After DISCARD ALL, pool: size={} idle={}", pool.size(), pool.num_idle());
-
     eprintln!("[cleanup] END, pool: size={} idle={}", pool.size(), pool.num_idle());
 }
 
@@ -290,8 +283,8 @@ async fn test_posting_blocked_when_period_closed() {
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
 
-    // Brief delay to ensure connections return to pool
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    // Delay to ensure connections return to pool and reset state
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 }
 
 // ============================================================
@@ -425,8 +418,8 @@ async fn test_reversal_blocked_when_original_period_closed() {
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
 
-    // Brief delay to ensure connections return to pool
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    // Delay to ensure connections return to pool and reset state
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 }
 
 // ============================================================
@@ -546,8 +539,8 @@ async fn test_reversal_succeeds_when_both_periods_open() {
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
 
-    // Brief delay to ensure connections return to pool
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    // Delay to ensure connections return to pool and reset state
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 }
 
 // ============================================================
@@ -657,6 +650,6 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
 
-    // Brief delay to ensure connections return to pool
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    // Delay to ensure connections return to pool and reset state
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 }

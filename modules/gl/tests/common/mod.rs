@@ -42,15 +42,31 @@ static TEST_POOL: OnceCell<PgPool> = OnceCell::const_new();
 /// - 1 test binary × 2 connections = 2 total connections
 /// - Even with 8 test binaries = 16 total connections (safe!)
 pub async fn get_test_pool() -> PgPool {
+    // Set test-specific defaults BEFORE pool initialization
+    // Phase 13 period close tests require 5+ connections for nested service calls
+    // with serial execution (#[serial] attribute)
+    if std::env::var("DB_MAX_CONNECTIONS").is_err() {
+        eprintln!("[get_test_pool] Setting DB_MAX_CONNECTIONS=5");
+        std::env::set_var("DB_MAX_CONNECTIONS", "5");
+    } else {
+        eprintln!("[get_test_pool] DB_MAX_CONNECTIONS already set to: {}", std::env::var("DB_MAX_CONNECTIONS").unwrap());
+    }
+
     TEST_POOL
         .get_or_init(|| async {
             let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
                 "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string()
             });
 
-            init_pool(&database_url)
+            eprintln!("[get_test_pool] Initializing pool with DB_MAX_CONNECTIONS={}",
+                std::env::var("DB_MAX_CONNECTIONS").unwrap_or_else(|_| "not set".to_string()));
+
+            let pool = init_pool(&database_url)
                 .await
-                .expect("Failed to initialize test pool")
+                .expect("Failed to initialize test pool");
+
+            eprintln!("[get_test_pool] Pool initialized with max_connections (will show as size once connections created)");
+            pool
         })
         .await
         .clone()
