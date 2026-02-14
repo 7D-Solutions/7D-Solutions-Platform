@@ -17,12 +17,16 @@
 
 use chrono::NaiveDate;
 use gl_rs::db::init_pool;
-use sqlx::PgPool;
+use sqlx::{Connection, PgConnection, PgPool};
 use tokio::sync::OnceCell;
 use uuid::Uuid;
 
 /// Singleton pool instance shared across all tests in this binary
 static TEST_POOL: OnceCell<PgPool> = OnceCell::const_new();
+
+/// Dedicated connection that holds the advisory lock for the entire test binary
+/// This connection is completely independent (NOT from the pool) to avoid contamination
+static LOCK_CONNECTION: OnceCell<PgConnection> = OnceCell::const_new();
 
 /// Get or initialize the shared test database pool
 ///
@@ -55,25 +59,38 @@ pub async fn get_test_pool() -> PgPool {
         std::env::set_var("DB_ACQUIRE_TIMEOUT_SECS", "10");
     }
 
+    // Get database URL
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string()
+    });
+
+    // Acquire dedicated lock connection once per test binary (independent, NOT from pool)
+    // ChatGPT: Lock connection must be completely separate to avoid pool contamination
+    LOCK_CONNECTION
+        .get_or_init(|| async {
+            // Create ONE dedicated connection (independent of pool)
+            let mut lock_conn = PgConnection::connect(&database_url)
+                .await
+                .expect("Failed to create dedicated lock connection");
+
+            // Acquire advisory lock on the dedicated connection
+            // This serializes test execution across ALL test binaries
+            sqlx::query("SELECT pg_advisory_lock(123456789)")
+                .execute(&mut lock_conn)
+                .await
+                .expect("Failed to acquire cross-binary advisory lock");
+
+            // Return the connection (stored in LOCK_CONNECTION, never released)
+            lock_conn
+        })
+        .await;
+
+    // Initialize pool once per test binary (after lock is acquired)
     TEST_POOL
         .get_or_init(|| async {
-            let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-                "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string()
-            });
-
-            let pool = init_pool(&database_url)
+            init_pool(&database_url)
                 .await
-                .expect("Failed to initialize test pool");
-
-            // Acquire advisory lock to serialize test execution across ALL test binaries
-            // ChatGPT: #[serial] only works within a binary, not across binaries
-            // Advisory lock ensures only ONE test binary runs at a time
-            sqlx::query("SELECT pg_advisory_lock(123456789)")
-                .execute(&pool)
-                .await
-                .expect("Failed to acquire cross-binary test lock");
-
-            pool
+                .expect("Failed to initialize test pool")
         })
         .await
         .clone()
