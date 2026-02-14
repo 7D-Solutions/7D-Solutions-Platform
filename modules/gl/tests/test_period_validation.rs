@@ -34,7 +34,7 @@ async fn test_validate_empty_period_success() {
 
     // Validate period
     let mut tx = pool.begin().await.unwrap();
-    let report = validate_period_can_close(&mut tx, tenant_id, period_id)
+    let report = validate_period_can_close(&mut tx, tenant_id, period_id, false)
         .await
         .unwrap();
     tx.commit().await.unwrap();
@@ -54,7 +54,7 @@ async fn test_validate_period_not_found() {
 
     // Try to validate non-existent period
     let mut tx = pool.begin().await.unwrap();
-    let report = validate_period_can_close(&mut tx, tenant_id, fake_period_id)
+    let report = validate_period_can_close(&mut tx, tenant_id, fake_period_id, false)
         .await
         .unwrap();
     tx.rollback().await.unwrap();
@@ -97,7 +97,7 @@ async fn test_validate_period_already_closed() {
 
     // Try to validate closed period
     let mut tx = pool.begin().await.unwrap();
-    let report = validate_period_can_close(&mut tx, tenant_id, period_id)
+    let report = validate_period_can_close(&mut tx, tenant_id, period_id, false)
         .await
         .unwrap();
     tx.commit().await.unwrap();
@@ -165,7 +165,7 @@ async fn test_validate_unbalanced_entries() {
 
     // Validate period
     let mut tx = pool.begin().await.unwrap();
-    let report = validate_period_can_close(&mut tx, tenant_id, period_id)
+    let report = validate_period_can_close(&mut tx, tenant_id, period_id, false)
         .await
         .unwrap();
     tx.commit().await.unwrap();
@@ -237,7 +237,7 @@ async fn test_validate_balanced_entries_success() {
 
     // Validate period
     let mut tx = pool.begin().await.unwrap();
-    let report = validate_period_can_close(&mut tx, tenant_id, period_id)
+    let report = validate_period_can_close(&mut tx, tenant_id, period_id, false)
         .await
         .unwrap();
     tx.commit().await.unwrap();
@@ -268,7 +268,7 @@ async fn test_validate_tenant_isolation() {
 
     // Try to validate tenant A's period as tenant B
     let mut tx = pool.begin().await.unwrap();
-    let report = validate_period_can_close(&mut tx, tenant_b, period_id)
+    let report = validate_period_can_close(&mut tx, tenant_b, period_id, false)
         .await
         .unwrap();
     tx.rollback().await.unwrap();
@@ -341,7 +341,7 @@ async fn test_validate_multiple_errors() {
 
     // Validate period
     let mut tx = pool.begin().await.unwrap();
-    let report = validate_period_can_close(&mut tx, tenant_id, period_id)
+    let report = validate_period_can_close(&mut tx, tenant_id, period_id, false)
         .await
         .unwrap();
     tx.commit().await.unwrap();
