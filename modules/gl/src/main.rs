@@ -1,4 +1,4 @@
-use axum::{routing::get, Router};
+use axum::{routing::{get, post}, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
@@ -11,6 +11,7 @@ use gl_rs::{
     health::health,
     routes::account_activity::get_account_activity,
     routes::gl_detail::get_gl_detail,
+    routes::period_close::{close_period_handler, get_close_status, validate_close},
     routes::period_summary::get_period_summary,
     routes::trial_balance::get_trial_balance,
     start_gl_posting_consumer,
@@ -86,6 +87,9 @@ async fn main() {
         .route("/api/health", get(health))
         .route("/api/gl/trial-balance", get(get_trial_balance))
         .route("/api/gl/periods/{period_id}/summary", get(get_period_summary))
+        .route("/api/gl/periods/{period_id}/validate-close", post(validate_close))
+        .route("/api/gl/periods/{period_id}/close", post(close_period_handler))
+        .route("/api/gl/periods/{period_id}/close-status", get(get_close_status))
         .route("/api/gl/detail", get(get_gl_detail))
         .route("/api/gl/accounts/{account_code}/activity", get(get_account_activity))
         .with_state(Arc::new(pool.clone()))
