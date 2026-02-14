@@ -85,9 +85,9 @@ async fn main() {
     let app = Router::new()
         .route("/api/health", get(health))
         .route("/api/gl/trial-balance", get(get_trial_balance))
-        .route("/api/gl/periods/:period_id/summary", get(get_period_summary))
+        .route("/api/gl/periods/{period_id}/summary", get(get_period_summary))
         .route("/api/gl/detail", get(get_gl_detail))
-        .route("/api/gl/accounts/:account_code/activity", get(get_account_activity))
+        .route("/api/gl/accounts/{account_code}/activity", get(get_account_activity))
         .with_state(Arc::new(pool.clone()))
         .layer(
             CorsLayer::new()

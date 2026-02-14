@@ -135,8 +135,8 @@ async fn find_aggregated_snapshot(
             period_id,
             SUM(journal_count)::INTEGER as journal_count,
             SUM(line_count)::INTEGER as line_count,
-            SUM(total_debits_minor) as total_debits_minor,
-            SUM(total_credits_minor) as total_credits_minor,
+            SUM(total_debits_minor)::BIGINT as total_debits_minor,
+            SUM(total_credits_minor)::BIGINT as total_credits_minor,
             MAX(created_at) as latest_created_at
         FROM period_summary_snapshots
         WHERE tenant_id = $1
