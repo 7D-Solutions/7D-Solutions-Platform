@@ -115,3 +115,47 @@ pub async fn setup_test_account(
 
     account_id
 }
+
+/// Cleanup test data for a tenant (delete all periods and related data)
+///
+/// Deletes in reverse FK order to avoid constraint violations.
+pub async fn cleanup_test_tenant(pool: &PgPool, tenant_id: &str) {
+    // Delete in reverse FK order
+    sqlx::query("DELETE FROM period_summary_snapshots WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+
+    sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+
+    sqlx::query(
+        "DELETE FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE tenant_id = $1)"
+    )
+    .bind(tenant_id)
+    .execute(pool)
+    .await
+    .ok();
+
+    sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+
+    sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+
+    sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+}

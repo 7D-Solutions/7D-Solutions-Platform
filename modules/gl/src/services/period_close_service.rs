@@ -2,7 +2,11 @@
 //!
 //! Provides period close operations with snapshot sealing and tamper detection.
 //! Implements deterministic hash computation for audit trail integrity.
+//!
+//! Also provides pre-close validation engine (bd-3sl).
 
+use crate::contracts::period_close_v1::{ValidationIssue, ValidationReport, ValidationSeverity};
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -47,6 +51,174 @@ pub enum PeriodCloseError {
     #[error("Hash verification failed - computed: {computed}, expected: {expected}")]
     HashMismatch { computed: String, expected: String },
 }
+
+// ============================================================
+// PRE-CLOSE VALIDATION ENGINE (bd-3sl)
+// ============================================================
+
+/// Accounting period data for validation
+#[derive(Debug, sqlx::FromRow)]
+struct PeriodData {
+    pub id: Uuid,
+    pub tenant_id: String,
+    pub period_start: chrono::NaiveDate,
+    pub period_end: chrono::NaiveDate,
+    pub closed_at: Option<DateTime<Utc>>,
+    pub close_requested_at: Option<DateTime<Utc>>,
+}
+
+/// Unbalanced journal check result
+#[derive(Debug, sqlx::FromRow)]
+struct UnbalancedJournalCheck {
+    pub unbalanced_count: i64,
+}
+
+/// Validate if a period can be closed (pre-close validation)
+///
+/// **Mandatory validations:**
+/// 1. Period exists (tenant-scoped)
+/// 2. Period not already closed (closed_at IS NULL)
+/// 3. No unbalanced journal entries in the period
+///
+/// **Optional validations** (feature-gated via config):
+/// - Balances exist for posted journals (TODO: implement when needed)
+/// - Tenant DLQ empty for posting-related subjects (TODO: implement when needed)
+///
+/// Returns a structured ValidationReport with errors/warnings.
+/// If any ERRORS exist, close should be blocked (can_close=false).
+///
+/// # Arguments
+/// * `tx` - Database transaction (for consistency with close operation)
+/// * `tenant_id` - Tenant identifier
+/// * `period_id` - Accounting period UUID
+///
+/// # Returns
+/// ValidationReport with issues (empty if validation passes)
+pub async fn validate_period_can_close(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: &str,
+    period_id: Uuid,
+) -> Result<ValidationReport, PeriodCloseError> {
+    let mut issues = Vec::new();
+
+    // ========================================
+    // MANDATORY VALIDATION 1: Period exists (tenant-scoped)
+    // ========================================
+    let period_data = sqlx::query_as::<_, PeriodData>(
+        r#"
+        SELECT id, tenant_id, period_start, period_end, closed_at, close_requested_at
+        FROM accounting_periods
+        WHERE id = $1 AND tenant_id = $2
+        "#,
+    )
+    .bind(period_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    let period = match period_data {
+        Some(p) => p,
+        None => {
+            // CRITICAL ERROR: Period not found
+            issues.push(ValidationIssue {
+                severity: ValidationSeverity::Error,
+                code: "PERIOD_NOT_FOUND".to_string(),
+                message: format!(
+                    "Period {} not found for tenant {}",
+                    period_id, tenant_id
+                ),
+                metadata: None,
+            });
+
+            // Return early - cannot perform further validations
+            return Ok(ValidationReport { issues });
+        }
+    };
+
+    // ========================================
+    // MANDATORY VALIDATION 2: Period not already closed
+    // ========================================
+    if period.closed_at.is_some() {
+        issues.push(ValidationIssue {
+            severity: ValidationSeverity::Error,
+            code: "PERIOD_ALREADY_CLOSED".to_string(),
+            message: format!(
+                "Period {} is already closed at {}",
+                period_id,
+                period
+                    .closed_at
+                    .unwrap()
+                    .to_rfc3339()
+            ),
+            metadata: Some(serde_json::json!({
+                "closed_at": period.closed_at.unwrap().to_rfc3339(),
+            })),
+        });
+    }
+
+    // ========================================
+    // MANDATORY VALIDATION 3: No unbalanced journal entries
+    // ========================================
+    // Query for journal entries in this period where total debits != total credits
+    // This is a DEFENSIVE check (should never happen due to posting validation)
+    let unbalanced = sqlx::query_as::<_, UnbalancedJournalCheck>(
+        r#"
+        SELECT COUNT(*) as unbalanced_count
+        FROM journal_entries je
+        WHERE je.tenant_id = $1
+          AND je.posted_at::DATE >= $2
+          AND je.posted_at::DATE <= $3
+          AND je.id IN (
+              SELECT jl.journal_entry_id
+              FROM journal_lines jl
+              WHERE jl.journal_entry_id = je.id
+              GROUP BY jl.journal_entry_id
+              HAVING COALESCE(SUM(jl.debit_minor), 0) != COALESCE(SUM(jl.credit_minor), 0)
+          )
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(period.period_start)
+    .bind(period.period_end)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    if unbalanced.unbalanced_count > 0 {
+        issues.push(ValidationIssue {
+            severity: ValidationSeverity::Error,
+            code: "UNBALANCED_ENTRIES".to_string(),
+            message: format!(
+                "Period has {} unbalanced journal entries - debits do not equal credits",
+                unbalanced.unbalanced_count
+            ),
+            metadata: Some(serde_json::json!({
+                "unbalanced_count": unbalanced.unbalanced_count,
+            })),
+        });
+    }
+
+    // ========================================
+    // OPTIONAL VALIDATIONS (TODO: Implement when needed)
+    // ========================================
+    // - Check if balances exist for all posted journals (feature-gated)
+    // - Check if tenant DLQ is empty for posting-related subjects (feature-gated)
+
+    Ok(ValidationReport { issues })
+}
+
+/// Helper: Check if validation report has blocking errors
+///
+/// Returns true if any issues have severity=Error (blocks close operation)
+pub fn has_blocking_errors(report: &ValidationReport) -> bool {
+    report
+        .issues
+        .iter()
+        .any(|issue| matches!(issue.severity, ValidationSeverity::Error))
+}
+
+// ============================================================
+// SNAPSHOT SEALING (bd-1hi)
+// ============================================================
 
 /// Compute period summary snapshots for all currencies in a period
 ///
@@ -437,5 +609,64 @@ mod tests {
         assert_eq!(snapshot.tenant_id, "tenant_123");
         assert_eq!(snapshot.total_journal_count, 10);
         assert_eq!(snapshot.currency_snapshots.len(), 1);
+    }
+
+    #[test]
+    fn test_has_blocking_errors_empty_report() {
+        let report = ValidationReport { issues: vec![] };
+        assert!(!has_blocking_errors(&report));
+    }
+
+    #[test]
+    fn test_has_blocking_errors_with_warnings_only() {
+        let report = ValidationReport {
+            issues: vec![ValidationIssue {
+                severity: ValidationSeverity::Warning,
+                code: "PENDING_TRANSACTIONS".to_string(),
+                message: "Period has pending transactions".to_string(),
+                metadata: None,
+            }],
+        };
+        assert!(!has_blocking_errors(&report));
+    }
+
+    #[test]
+    fn test_has_blocking_errors_with_error() {
+        let report = ValidationReport {
+            issues: vec![ValidationIssue {
+                severity: ValidationSeverity::Error,
+                code: "PERIOD_ALREADY_CLOSED".to_string(),
+                message: "Period is already closed".to_string(),
+                metadata: None,
+            }],
+        };
+        assert!(has_blocking_errors(&report));
+    }
+
+    #[test]
+    fn test_has_blocking_errors_mixed_severities() {
+        let report = ValidationReport {
+            issues: vec![
+                ValidationIssue {
+                    severity: ValidationSeverity::Info,
+                    code: "INFO_MESSAGE".to_string(),
+                    message: "Informational".to_string(),
+                    metadata: None,
+                },
+                ValidationIssue {
+                    severity: ValidationSeverity::Warning,
+                    code: "WARNING_MESSAGE".to_string(),
+                    message: "Warning".to_string(),
+                    metadata: None,
+                },
+                ValidationIssue {
+                    severity: ValidationSeverity::Error,
+                    code: "ERROR_MESSAGE".to_string(),
+                    message: "Error".to_string(),
+                    metadata: None,
+                },
+            ],
+        };
+        assert!(has_blocking_errors(&report));
     }
 }
