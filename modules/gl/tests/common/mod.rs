@@ -86,14 +86,23 @@ pub async fn get_test_pool() -> PgPool {
         .await;
 
     // Initialize pool once per test binary (after lock is acquired)
-    TEST_POOL
+    let pool = TEST_POOL
         .get_or_init(|| async {
             init_pool(&database_url)
                 .await
                 .expect("Failed to initialize test pool")
         })
         .await
-        .clone()
+        .clone();
+
+    // ChatGPT diagnostic: Log pool config and state at runtime
+    eprintln!("[DIAGNOSTIC] test pool env: max={:?}, acquire={:?}",
+        std::env::var("DB_MAX_CONNECTIONS").ok(),
+        std::env::var("DB_ACQUIRE_TIMEOUT_SECS").ok()
+    );
+    eprintln!("[DIAGNOSTIC] pool after init: size={}, idle={}", pool.size(), pool.num_idle());
+
+    pool
 }
 
 /// Create a test accounting period

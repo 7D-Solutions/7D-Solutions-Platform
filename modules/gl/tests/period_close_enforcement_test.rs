@@ -19,7 +19,7 @@ use gl_rs::contracts::gl_posting_request_v1::{GlPostingRequestV1, JournalLine, S
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::{journal_service, reversal_service};
 use serial_test::serial;
-use sqlx::PgPool;
+use sqlx::{Connection, PgPool, Row};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -28,6 +28,92 @@ use uuid::Uuid;
 
 // NOTE: Cross-binary advisory lock is acquired once in get_test_pool() (common/mod.rs)
 // and held for the lifetime of the test binary. This serializes test binaries.
+
+/// ChatGPT diagnostic: Dump Postgres activity and locks to identify smoking guns
+///
+/// Smoking guns to look for:
+/// 1. state='idle in transaction' → tx leak (real problem)
+/// 2. wait_event_type='Lock' → lock contention blocking INSERT
+/// 3. Long state_change age with locks → truly stuck session
+///
+/// Note: state='idle' + wait_event='ClientRead' is NORMAL for pooled connections
+async fn dump_pg_activity() {
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string());
+
+    match sqlx::PgConnection::connect(&database_url).await {
+        Ok(mut conn) => {
+            // Expanded activity with transaction and state change timestamps
+            let activity_result = sqlx::query(
+                r#"
+                SELECT pid, state, wait_event_type, wait_event, xact_start, state_change, query
+                FROM pg_stat_activity
+                WHERE datname = current_database()
+                ORDER BY state, pid
+                "#
+            )
+            .fetch_all(&mut conn)
+            .await;
+
+            match activity_result {
+                Ok(rows) => {
+                    eprintln!("[DIAGNOSTIC] pg_stat_activity dump ({} rows):", rows.len());
+                    for row in rows {
+                        let pid: i32 = row.try_get("pid").unwrap_or(0);
+                        let state: Option<String> = row.try_get("state").ok();
+                        let wait_event_type: Option<String> = row.try_get("wait_event_type").ok();
+                        let wait_event: Option<String> = row.try_get("wait_event").ok();
+                        let xact_start: Option<chrono::DateTime<chrono::Utc>> = row.try_get("xact_start").ok();
+                        let state_change: Option<chrono::DateTime<chrono::Utc>> = row.try_get("state_change").ok();
+                        let query: Option<String> = row.try_get("query").ok();
+
+                        eprintln!("[DIAGNOSTIC]   pid={}, state={:?}, wait_type={:?}, wait_event={:?}, xact_start={:?}, state_change={:?}, query={:?}",
+                            pid, state, wait_event_type, wait_event, xact_start, state_change, query
+                        );
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[DIAGNOSTIC] Failed to fetch pg_stat_activity: {}", e);
+                }
+            }
+
+            // Lock analysis for period-related tables
+            let locks_result = sqlx::query(
+                r#"
+                SELECT l.pid, l.locktype, l.mode, l.granted, c.relname
+                FROM pg_locks l
+                LEFT JOIN pg_class c ON l.relation = c.oid
+                WHERE c.relname IN ('accounting_periods', 'accounts', 'journal_entries', 'journal_lines')
+                "#
+            )
+            .fetch_all(&mut conn)
+            .await;
+
+            match locks_result {
+                Ok(rows) => {
+                    eprintln!("[DIAGNOSTIC] pg_locks dump ({} rows):", rows.len());
+                    for row in rows {
+                        let pid: i32 = row.try_get("pid").unwrap_or(0);
+                        let locktype: Option<String> = row.try_get("locktype").ok();
+                        let mode: Option<String> = row.try_get("mode").ok();
+                        let granted: Option<bool> = row.try_get("granted").ok();
+                        let relname: Option<String> = row.try_get("relname").ok();
+
+                        eprintln!("[DIAGNOSTIC]   pid={}, locktype={:?}, mode={:?}, granted={:?}, table={:?}",
+                            pid, locktype, mode, granted, relname
+                        );
+                    }
+                }
+                Err(e) => {
+                    eprintln!("[DIAGNOSTIC] Failed to fetch pg_locks: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            eprintln!("[DIAGNOSTIC] Failed to connect for diagnostics: {}", e);
+        }
+    }
+}
 
 /// Assert that all connections have been returned to the pool (bounded wait).
 ///
@@ -67,6 +153,14 @@ async fn create_test_period(
 ) -> Uuid {
     let period_id = Uuid::new_v4();
 
+    // ChatGPT diagnostic: Log pool state RIGHT BEFORE the INSERT
+    eprintln!("[DIAGNOSTIC] before create_test_period INSERT: size={}, idle={}, checked_out={}, tenant={}",
+        pool.size(),
+        pool.num_idle(),
+        pool.size().saturating_sub(pool.num_idle() as u32),
+        tenant_id
+    );
+
     let result = sqlx::query(
         r#"
         INSERT INTO accounting_periods (id, tenant_id, period_start, period_end, is_closed, created_at)
@@ -80,8 +174,15 @@ async fn create_test_period(
     .bind(false)
     .bind(Utc::now())
     .execute(pool)
-    .await
-    .expect("Failed to create test period");
+    .await;
+
+    // ChatGPT diagnostic: Dump pg_stat_activity on failure
+    if result.is_err() {
+        eprintln!("[DIAGNOSTIC] create_test_period INSERT failed, dumping pg_stat_activity");
+        dump_pg_activity().await;
+    }
+
+    let result = result.expect("Failed to create test period");
 
     // Explicitly drop the query result to force connection release
     drop(result);
@@ -147,60 +248,54 @@ async fn create_test_account(
 
 /// Helper to cleanup test data
 ///
-/// ChatGPT Final Diagnosis: Use tenant-scoped DELETE to avoid TRUNCATE lock contention.
-/// TRUNCATE takes ACCESS EXCLUSIVE locks that block parallel test binaries.
-/// #[serial] only works within a binary, not across binaries.
-///
-/// NOTE: No transaction wrapper - each DELETE executes and releases connection immediately.
-/// This prevents connection leaks during cleanup.
+/// ChatGPT CORRECTED Fix: Wrap cleanup in transaction to ensure atomic cleanup
+/// and prevent idle-in-transaction states that cause connection corruption.
 ///
 /// **Error propagation:** Propagate errors instead of swallowing them to catch cleanup failures early.
-async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) -> Result<(), sqlx::Error> {
+async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) -> sqlx::Result<()> {
+    let mut tx = pool.begin().await?;
+
     // Delete in reverse FK dependency order (children → parents)
-    // Each DELETE releases its connection immediately (no transaction)
 
     // 1. Journal lines (FK to journal_entries)
     sqlx::query(
         "DELETE FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE tenant_id = $1)"
     )
     .bind(tenant_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
 
     // 2. Journal entries
     sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
 
     // 3. Account balances
     sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
 
     // 4. Period summary snapshots
     sqlx::query("DELETE FROM period_summary_snapshots WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
 
     // 5. Accounts
     sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
 
     // 6. Accounting periods
     sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(pool)
+        .execute(&mut *tx)
         .await?;
 
-    // 7. Processed events - uses unique event_ids per test, no cleanup needed
-
-    // 8. Outbox events - skip (complex join, not critical for test isolation)
-
+    tx.commit().await?;
     Ok(())
 }
 
