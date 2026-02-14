@@ -17,7 +17,7 @@
 //! - GL HTTP server at localhost:8090
 //! - PostgreSQL at localhost:5438
 
-use chrono::{NaiveDate, Utc};
+use chrono::{NaiveDate, TimeZone, Utc};
 use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::account_activity_service::AccountActivityResponse;
@@ -107,6 +107,7 @@ async fn insert_test_journal_entry(
     credit_minor: i64,
     description: Option<&str>,
     memo: Option<&str>,
+    posted_at: chrono::DateTime<Utc>,
 ) -> Uuid {
     let entry_id = Uuid::new_v4();
     let source_event_id = Uuid::new_v4();
@@ -116,18 +117,19 @@ async fn insert_test_journal_entry(
         r#"
         INSERT INTO journal_entries (
             id, tenant_id, posted_at, description, currency,
-            source_module, source_event_id, created_at
+            source_module, source_event_id, source_subject, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         "#,
     )
     .bind(entry_id)
     .bind(tenant_id)
-    .bind(Utc::now())
+    .bind(posted_at)
     .bind(description)
     .bind(currency)
     .bind("test")
     .bind(source_event_id)
+    .bind("test-subject")
     .bind(Utc::now())
     .execute(pool)
     .await
@@ -224,7 +226,11 @@ async fn test_boundary_http_account_activity_with_period_id() {
     )
     .await;
 
-    // Insert test journal entries
+    // Insert test journal entries with posted_at within the period
+    let posted_at = NaiveDate::from_ymd_opt(2024, 3, 15).unwrap()
+        .and_hms_opt(10, 0, 0).unwrap()
+        .and_utc();
+
     insert_test_journal_entry(
         &pool,
         tenant_id,
@@ -234,6 +240,7 @@ async fn test_boundary_http_account_activity_with_period_id() {
         0,
         Some("Test transaction 1"),
         Some("Memo 1"),
+        posted_at,
     )
     .await;
 
@@ -246,6 +253,7 @@ async fn test_boundary_http_account_activity_with_period_id() {
         50000, // $500 credit
         Some("Test transaction 2"),
         Some("Memo 2"),
+        posted_at + chrono::Duration::hours(1),
     )
     .await;
 
@@ -325,7 +333,8 @@ async fn test_boundary_http_account_activity_pagination() {
     )
     .await;
 
-    // Insert 5 test entries
+    // Insert 5 test entries with posted_at within the period
+    let posted_at_base = Utc.with_ymd_and_hms(2024, 3, 15, 10, 0, 0).unwrap();
     for i in 0..5 {
         insert_test_journal_entry(
             &pool,
@@ -336,6 +345,7 @@ async fn test_boundary_http_account_activity_pagination() {
             (i + 1) * 10000, // Varying amounts
             Some(&format!("Transaction {}", i + 1)),
             None,
+            posted_at_base + chrono::Duration::hours(i as i64),
         )
         .await;
     }
@@ -421,10 +431,11 @@ async fn test_boundary_http_account_activity_currency_filter() {
     )
     .await;
 
-    // Insert entries with different currencies
-    insert_test_journal_entry(&pool, tenant_id, account_code, "USD", 0, 100000, Some("USD tx"), None).await;
-    insert_test_journal_entry(&pool, tenant_id, account_code, "EUR", 0, 50000, Some("EUR tx"), None).await;
-    insert_test_journal_entry(&pool, tenant_id, account_code, "USD", 0, 75000, Some("USD tx 2"), None).await;
+    // Insert entries with different currencies within the period
+    let posted_at = Utc.with_ymd_and_hms(2024, 3, 15, 10, 0, 0).unwrap();
+    insert_test_journal_entry(&pool, tenant_id, account_code, "USD", 0, 100000, Some("USD tx"), None, posted_at).await;
+    insert_test_journal_entry(&pool, tenant_id, account_code, "EUR", 0, 50000, Some("EUR tx"), None, posted_at + chrono::Duration::hours(1)).await;
+    insert_test_journal_entry(&pool, tenant_id, account_code, "USD", 0, 75000, Some("USD tx 2"), None, posted_at + chrono::Duration::hours(2)).await;
 
     // Test 1: Filter by USD
     let url_usd = format!(
@@ -564,7 +575,8 @@ async fn test_boundary_http_account_activity_json_dto_structure() {
     )
     .await;
 
-    // Insert test entry
+    // Insert test entry within the period
+    let posted_at = Utc.with_ymd_and_hms(2024, 3, 15, 10, 0, 0).unwrap();
     insert_test_journal_entry(
         &pool,
         tenant_id,
@@ -574,6 +586,7 @@ async fn test_boundary_http_account_activity_json_dto_structure() {
         200000,
         Some("Test revenue"),
         Some("Test memo"),
+        posted_at,
     )
     .await;
 
@@ -661,7 +674,8 @@ async fn test_boundary_http_account_activity_performance_guard() {
     )
     .await;
 
-    // Insert 10 test entries (limited to avoid test slowness)
+    // Insert 10 test entries (limited to avoid test slowness) within the period
+    let posted_at_base = Utc.with_ymd_and_hms(2024, 3, 15, 10, 0, 0).unwrap();
     for i in 0..10 {
         insert_test_journal_entry(
             &pool,
@@ -672,6 +686,7 @@ async fn test_boundary_http_account_activity_performance_guard() {
             0,
             Some(&format!("Expense {}", i + 1)),
             None,
+            posted_at_base + chrono::Duration::hours(i as i64),
         )
         .await;
     }
