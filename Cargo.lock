@@ -1097,6 +1097,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "once_cell",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
