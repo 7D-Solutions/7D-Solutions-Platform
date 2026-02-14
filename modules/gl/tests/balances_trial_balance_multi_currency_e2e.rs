@@ -256,14 +256,14 @@ async fn test_e2e_posting_updates_balances_and_trial_balance_usd() {
         &pool,
         tenant_id,
         period_id,
-        Some("USD"),
+        "USD",  // Changed from Some("USD") - currency is now required
     )
     .await
     .expect("Failed to get trial balance");
 
     assert_eq!(trial_balance.tenant_id, tenant_id);
     assert_eq!(trial_balance.period_id, period_id);
-    assert_eq!(trial_balance.currency, Some("USD".to_string()));
+    assert_eq!(trial_balance.currency, "USD");  // Changed from Some("USD".to_string())
     assert_eq!(trial_balance.rows.len(), 2, "Should have 2 accounts");
 
     // Verify totals are balanced
@@ -434,12 +434,12 @@ async fn test_e2e_multi_currency_isolation_and_filtering() {
         &pool,
         tenant_id,
         period_id,
-        Some("USD"),
+        "USD",  // Changed from Some("USD")
     )
     .await
     .expect("Failed to get USD trial balance");
 
-    assert_eq!(trial_balance_usd.currency, Some("USD".to_string()));
+    assert_eq!(trial_balance_usd.currency, "USD");  // Changed from Some("USD".to_string())
     assert_eq!(trial_balance_usd.rows.len(), 2, "Should have 2 USD accounts");
     assert_eq!(trial_balance_usd.totals.total_debits, 100000);
     assert_eq!(trial_balance_usd.totals.total_credits, 100000);
@@ -455,12 +455,12 @@ async fn test_e2e_multi_currency_isolation_and_filtering() {
         &pool,
         tenant_id,
         period_id,
-        Some("EUR"),
+        "EUR",  // Changed from Some("EUR")
     )
     .await
     .expect("Failed to get EUR trial balance");
 
-    assert_eq!(trial_balance_eur.currency, Some("EUR".to_string()));
+    assert_eq!(trial_balance_eur.currency, "EUR");  // Changed from Some("EUR".to_string())
     assert_eq!(trial_balance_eur.rows.len(), 2, "Should have 2 EUR accounts");
     assert_eq!(trial_balance_eur.totals.total_debits, 50000);
     assert_eq!(trial_balance_eur.totals.total_credits, 50000);
@@ -471,24 +471,9 @@ async fn test_e2e_multi_currency_isolation_and_filtering() {
         assert_eq!(row.currency, "EUR", "All rows should be EUR");
     }
 
-    // Step 6: Verify trial balance without currency filter (all currencies)
-    let trial_balance_all = trial_balance_service::get_trial_balance(
-        &pool,
-        tenant_id,
-        period_id,
-        None,
-    )
-    .await
-    .expect("Failed to get all-currency trial balance");
-
-    assert_eq!(trial_balance_all.currency, None);
-    assert_eq!(trial_balance_all.rows.len(), 4, "Should have 4 balances (2 accounts × 2 currencies)");
-
-    // Verify we have both USD and EUR balances
-    let usd_rows = trial_balance_all.rows.iter().filter(|r| r.currency == "USD").count();
-    let eur_rows = trial_balance_all.rows.iter().filter(|r| r.currency == "EUR").count();
-    assert_eq!(usd_rows, 2, "Should have 2 USD rows");
-    assert_eq!(eur_rows, 2, "Should have 2 EUR rows");
+    // NOTE: Phase 14 - Multi-currency aggregation removed (currency is now required)
+    // Step 6 (all-currency trial balance) removed as currency parameter is now required
+    // To get both currencies, client must call get_trial_balance twice (once per currency)
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;

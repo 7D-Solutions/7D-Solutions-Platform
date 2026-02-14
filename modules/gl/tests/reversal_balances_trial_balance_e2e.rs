@@ -314,7 +314,7 @@ async fn test_e2e_reversal_updates_balances_and_trial_balance() {
 
     // Step 3: Verify initial trial balance
     let trial_balance_initial =
-        trial_balance_service::get_trial_balance(&pool, tenant_id, period_id, Some("USD"))
+        trial_balance_service::get_trial_balance(&pool, tenant_id, period_id, "USD")
             .await
             .expect("Failed to get initial trial balance");
 
@@ -427,7 +427,7 @@ async fn test_e2e_reversal_updates_balances_and_trial_balance() {
 
     // Step 9: Verify trial balance reflects reversal (net zero balances)
     let trial_balance_after =
-        trial_balance_service::get_trial_balance(&pool, tenant_id, period_id, Some("USD"))
+        trial_balance_service::get_trial_balance(&pool, tenant_id, period_id, "USD")
             .await
             .expect("Failed to get trial balance after reversal");
 
@@ -525,7 +525,7 @@ async fn test_e2e_reversal_updates_balances_and_trial_balance() {
 
     // Step 12: Verify trial balance remains unchanged after replay
     let trial_balance_idempotent =
-        trial_balance_service::get_trial_balance(&pool, tenant_id, period_id, Some("USD"))
+        trial_balance_service::get_trial_balance(&pool, tenant_id, period_id, "USD")
             .await
             .expect("Failed to get trial balance after replay");
 
