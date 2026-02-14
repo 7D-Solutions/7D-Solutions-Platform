@@ -9,7 +9,7 @@
 -- Composite index for account activity queries
 -- Supports: WHERE account_ref = X AND journal_entry_id IN (...)
 -- Used by: query_account_activity, query_entries_by_account_codes
-CREATE INDEX idx_journal_lines_account_entry
+CREATE INDEX IF NOT EXISTS idx_journal_lines_account_entry
     ON journal_lines(account_ref, journal_entry_id);
 
 -- ============================================================
@@ -19,7 +19,7 @@ CREATE INDEX idx_journal_lines_account_entry
 -- Composite index for account type filtering
 -- Supports: WHERE tenant_id = X AND type = ANY(array)
 -- Used by: query_entries_by_account_types, count_entries_by_account_types
-CREATE INDEX idx_accounts_tenant_type
+CREATE INDEX IF NOT EXISTS idx_accounts_tenant_type
     ON accounts(tenant_id, type);
 
 -- ============================================================
