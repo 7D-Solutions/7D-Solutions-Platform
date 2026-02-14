@@ -11,6 +11,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -21,7 +22,6 @@ use crate::contracts::period_close_v1::{
 use crate::services::period_close_service::{
     close_period, has_blocking_errors, validate_period_can_close, PeriodCloseError,
 };
-use crate::AppState;
 
 /// Error response wrapper
 #[derive(Debug, serde::Serialize)]
@@ -82,18 +82,24 @@ fn map_error(error: PeriodCloseError) -> PeriodCloseHttpError {
 ///
 /// Returns validation report with errors/warnings.
 pub async fn validate_close(
-    State(app_state): State<Arc<AppState>>,
+    State(pool): State<Arc<PgPool>>,
     Path(period_id): Path<Uuid>,
     Json(request): Json<ValidateCloseRequest>,
 ) -> Result<Json<ValidateCloseResponse>, PeriodCloseHttpError> {
+    // Read DLQ validation config from environment
+    let dlq_validation_enabled = std::env::var("DLQ_VALIDATION_ENABLED")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse()
+        .unwrap_or(false);
+
     // Run validation in a transaction (read-only, but ensures consistency)
-    let mut tx = app_state.pool.begin().await.map_err(|e| PeriodCloseHttpError {
+    let mut tx = pool.begin().await.map_err(|e| PeriodCloseHttpError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
         message: format!("Failed to begin transaction: {}", e),
     })?;
 
     let validation_report =
-        validate_period_can_close(&mut tx, &request.tenant_id, period_id, app_state.dlq_validation_enabled)
+        validate_period_can_close(&mut tx, &request.tenant_id, period_id, dlq_validation_enabled)
             .await
             .map_err(map_error)?;
 
@@ -131,17 +137,23 @@ pub async fn validate_close(
 ///
 /// Returns close status on success, validation report on failure.
 pub async fn close_period_handler(
-    State(app_state): State<Arc<AppState>>,
+    State(pool): State<Arc<PgPool>>,
     Path(period_id): Path<Uuid>,
     Json(request): Json<ClosePeriodRequest>,
 ) -> Result<Json<ClosePeriodResponse>, PeriodCloseHttpError> {
+    // Read DLQ validation config from environment
+    let dlq_validation_enabled = std::env::var("DLQ_VALIDATION_ENABLED")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse()
+        .unwrap_or(false);
+
     let result = close_period(
-        &app_state.pool,
+        &pool,
         &request.tenant_id,
         period_id,
         &request.closed_by,
         request.close_reason.as_deref(),
-        app_state.dlq_validation_enabled,
+        dlq_validation_enabled,
     )
     .await
     .map_err(map_error)?;
@@ -181,7 +193,7 @@ struct PeriodCloseStatusData {
 ///
 /// O(1) query - single row lookup, no unbounded reads.
 pub async fn get_close_status(
-    State(app_state): State<Arc<AppState>>,
+    State(pool): State<Arc<PgPool>>,
     Path(period_id): Path<Uuid>,
     axum::extract::Query(request): axum::extract::Query<CloseStatusRequest>,
 ) -> Result<Json<CloseStatusResponse>, PeriodCloseHttpError> {
@@ -196,7 +208,7 @@ pub async fn get_close_status(
     )
     .bind(period_id)
     .bind(&request.tenant_id)
-    .fetch_optional(&app_state.pool)
+    .fetch_optional(pool.as_ref())
     .await
     .map_err(|e| PeriodCloseHttpError {
         status: StatusCode::INTERNAL_SERVER_ERROR,

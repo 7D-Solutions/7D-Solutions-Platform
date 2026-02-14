@@ -18,7 +18,6 @@ use gl_rs::{
     routes::trial_balance::get_trial_balance,
     start_gl_posting_consumer,
     start_gl_reversal_consumer,
-    AppState,
 };
 
 #[tokio::main]
