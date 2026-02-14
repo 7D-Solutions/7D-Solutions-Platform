@@ -582,6 +582,15 @@ jobs:
         env:
           RUST_LOG: info
 
+      - name: Run Phase 11 boundary E2E test (NATS write path)
+        working-directory: modules/gl
+        run: |
+          cargo test --test boundary_e2e_nats_posting -- --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+          DATABASE_URL: postgres://gl_user:gl_pass@localhost:5438/gl_db
+          NATS_URL: nats://localhost:4222
+
       - name: Show logs on failure
         if: failure()
         run: |
@@ -672,6 +681,7 @@ jobs:
           cargo test --test boundary_e2e_http_account_activity -- --test-threads=1 --nocapture
           cargo test --test boundary_e2e_http_gl_detail -- --test-threads=1 --nocapture
           cargo test --test boundary_e2e_http_period_summary -- --test-threads=1 --nocapture
+          cargo test --test boundary_e2e_http_trial_balance -- --test-threads=1 --nocapture
         env:
           RUST_LOG: info
           DATABASE_URL: postgres://gl_user:gl_pass@localhost:5438/gl_db
