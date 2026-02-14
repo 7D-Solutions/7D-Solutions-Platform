@@ -100,6 +100,46 @@ struct UnbalancedJournalCheck {
     pub unbalanced_count: i64,
 }
 
+/// DLQ pending retry check result
+#[derive(Debug, sqlx::FromRow)]
+struct DlqPendingRetryCheck {
+    pub pending_count: i64,
+}
+
+/// Check for pending DLQ entries for posting-related subjects (optional validation)
+///
+/// This is a bounded query that checks the failed_events table for:
+/// - Tenant-scoped entries only
+/// - Posting-related subjects: "gl.events.posting.requested"
+///
+/// **Note:** This validation is tenant-scoped and bounded - it only queries
+/// the GL module's own DLQ table, not any cross-module dependencies.
+///
+/// # Arguments
+/// * `tx` - Database transaction
+/// * `tenant_id` - Tenant identifier
+///
+/// # Returns
+/// Count of pending DLQ entries for this tenant
+async fn check_pending_dlq_entries(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: &str,
+) -> Result<i64, PeriodCloseError> {
+    let result = sqlx::query_as::<_, DlqPendingRetryCheck>(
+        r#"
+        SELECT COUNT(*) as pending_count
+        FROM failed_events
+        WHERE tenant_id = $1
+          AND subject = 'gl.events.posting.requested'
+        "#,
+    )
+    .bind(tenant_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    Ok(result.pending_count)
+}
+
 /// Validate if a period can be closed (pre-close validation)
 ///
 /// **Mandatory validations:**
@@ -108,8 +148,7 @@ struct UnbalancedJournalCheck {
 /// 3. No unbalanced journal entries in the period
 ///
 /// **Optional validations** (feature-gated via config):
-/// - Balances exist for posted journals (TODO: implement when needed)
-/// - Tenant DLQ empty for posting-related subjects (TODO: implement when needed)
+/// - Tenant DLQ empty for posting-related subjects (bd-31u)
 ///
 /// Returns a structured ValidationReport with errors/warnings.
 /// If any ERRORS exist, close should be blocked (can_close=false).
@@ -118,6 +157,7 @@ struct UnbalancedJournalCheck {
 /// * `tx` - Database transaction (for consistency with close operation)
 /// * `tenant_id` - Tenant identifier
 /// * `period_id` - Accounting period UUID
+/// * `dlq_validation_enabled` - Optional flag to enable DLQ validation (default: false)
 ///
 /// # Returns
 /// ValidationReport with issues (empty if validation passes)
@@ -125,6 +165,7 @@ pub async fn validate_period_can_close(
     tx: &mut Transaction<'_, Postgres>,
     tenant_id: &str,
     period_id: Uuid,
+    dlq_validation_enabled: bool,
 ) -> Result<ValidationReport, PeriodCloseError> {
     let mut issues = Vec::new();
 
@@ -225,10 +266,28 @@ pub async fn validate_period_can_close(
     }
 
     // ========================================
-    // OPTIONAL VALIDATIONS (TODO: Implement when needed)
+    // OPTIONAL VALIDATION: DLQ Empty Check (bd-31u)
     // ========================================
-    // - Check if balances exist for all posted journals (feature-gated)
-    // - Check if tenant DLQ is empty for posting-related subjects (feature-gated)
+    // If enabled via config, check for pending DLQ entries for posting-related subjects.
+    // This is a bounded, tenant-scoped query within GL boundaries.
+    if dlq_validation_enabled {
+        let pending_dlq_count = check_pending_dlq_entries(tx, tenant_id).await?;
+
+        if pending_dlq_count > 0 {
+            issues.push(ValidationIssue {
+                severity: ValidationSeverity::Error,
+                code: "PENDING_DLQ_ENTRIES".to_string(),
+                message: format!(
+                    "Period cannot be closed: tenant has {} pending DLQ entries for posting-related subjects",
+                    pending_dlq_count
+                ),
+                metadata: Some(serde_json::json!({
+                    "pending_dlq_count": pending_dlq_count,
+                    "subject_filter": "gl.events.posting.requested",
+                })),
+            });
+        }
+    }
 
     Ok(ValidationReport { issues })
 }
@@ -601,6 +660,7 @@ struct PeriodForClose {
 /// * `period_id` - Accounting period UUID
 /// * `closed_by` - User or system identifier performing the close
 /// * `close_reason` - Optional reason/notes for closing the period
+/// * `dlq_validation_enabled` - Enable DLQ validation (default: false)
 ///
 /// # Returns
 /// ClosePeriodResult with success status, close status, or validation errors
@@ -610,6 +670,7 @@ pub async fn close_period(
     period_id: Uuid,
     closed_by: &str,
     close_reason: Option<&str>,
+    dlq_validation_enabled: bool,
 ) -> Result<ClosePeriodResult, PeriodCloseError> {
     // BEGIN transaction
     let mut tx = pool.begin().await?;
@@ -687,7 +748,7 @@ pub async fn close_period(
     // ========================================
     // Always re-validate before close, even if client pre-validated.
     // ChatGPT guardrail: validation MUST re-run on every close attempt.
-    let validation_report = validate_period_can_close(&mut tx, tenant_id, period_id).await?;
+    let validation_report = validate_period_can_close(&mut tx, tenant_id, period_id, dlq_validation_enabled).await?;
 
     if has_blocking_errors(&validation_report) {
         tx.rollback().await?;

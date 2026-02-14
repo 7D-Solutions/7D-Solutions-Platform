@@ -8,6 +8,10 @@ pub struct Config {
     pub nats_url: String,
     pub host: String,
     pub port: u16,
+    /// Enable DLQ validation during period close (default: false)
+    /// When enabled, period close will fail if tenant has pending DLQ entries
+    /// for posting-related subjects
+    pub dlq_validation_enabled: bool,
 }
 
 impl Config {
@@ -29,12 +33,18 @@ impl Config {
             .parse()
             .map_err(|_| "PORT must be a valid u16".to_string())?;
 
+        let dlq_validation_enabled = env::var("DLQ_VALIDATION_ENABLED")
+            .unwrap_or_else(|_| "false".to_string())
+            .parse()
+            .unwrap_or(false);
+
         Ok(Config {
             database_url,
             bus_type,
             nats_url,
             host,
             port,
+            dlq_validation_enabled,
         })
     }
 }

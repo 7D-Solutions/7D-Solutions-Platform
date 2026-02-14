@@ -18,6 +18,7 @@ use gl_rs::{
     routes::trial_balance::get_trial_balance,
     start_gl_posting_consumer,
     start_gl_reversal_consumer,
+    AppState,
 };
 
 #[tokio::main]
@@ -84,6 +85,12 @@ async fn main() {
     let reversal_bus = bus.clone();
     start_gl_reversal_consumer(reversal_bus, reversal_pool).await;
 
+    // Create application state
+    let app_state = Arc::new(AppState {
+        pool: pool.clone(),
+        dlq_validation_enabled: config.dlq_validation_enabled,
+    });
+
     // Build the application router
     let app = Router::new()
         .route("/api/health", get(health))
@@ -96,7 +103,7 @@ async fn main() {
         .route("/api/gl/periods/{period_id}/close-status", get(get_close_status))
         .route("/api/gl/detail", get(get_gl_detail))
         .route("/api/gl/accounts/{account_code}/activity", get(get_account_activity))
-        .with_state(Arc::new(pool.clone()))
+        .with_state(app_state)
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)

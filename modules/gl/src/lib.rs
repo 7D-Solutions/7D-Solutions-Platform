@@ -12,3 +12,10 @@ pub mod validation;
 
 pub use consumer::gl_posting_consumer::start_gl_posting_consumer;
 pub use consumer::gl_reversal_consumer::start_gl_reversal_consumer;
+
+/// Application state shared across HTTP handlers
+#[derive(Clone)]
+pub struct AppState {
+    pub pool: sqlx::PgPool,
+    pub dlq_validation_enabled: bool,
+}
