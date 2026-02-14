@@ -130,7 +130,7 @@ async fn test_get_trial_balance_rows_with_explain() {
     log_explain_plan(&pool, explain_query, tenant_id, period_id).await;
 
     // Execute query
-    let rows = get_trial_balance_rows(&pool, tenant_id, period_id, None)
+    let rows = get_trial_balance_rows(&pool, tenant_id, period_id, "USD")
         .await
         .expect("Failed to get trial balance rows");
 
@@ -253,7 +253,7 @@ async fn test_get_income_statement_rows_with_explain() {
     log_explain_plan(&pool, explain_query, tenant_id, period_id).await;
 
     // Execute query
-    let rows = get_income_statement_rows(&pool, tenant_id, period_id, None)
+    let rows = get_income_statement_rows(&pool, tenant_id, period_id, "USD")
         .await
         .expect("Failed to get income statement rows");
 
@@ -379,7 +379,7 @@ async fn test_get_balance_sheet_rows_with_explain() {
     log_explain_plan(&pool, explain_query, tenant_id, period_id).await;
 
     // Execute query
-    let rows = get_balance_sheet_rows(&pool, tenant_id, period_id, None)
+    let rows = get_balance_sheet_rows(&pool, tenant_id, period_id, "USD")
         .await
         .expect("Failed to get balance sheet rows");
 
@@ -480,8 +480,8 @@ async fn test_get_trial_balance_rows_with_currency_filter() {
     .await
     .expect("Failed to insert balances");
 
-    // Test with currency filter
-    let usd_rows = get_trial_balance_rows(&pool, tenant_id, period_id, Some("USD"))
+    // Test USD currency
+    let usd_rows = get_trial_balance_rows(&pool, tenant_id, period_id, "USD")
         .await
         .expect("Failed to get USD rows");
 
@@ -489,13 +489,170 @@ async fn test_get_trial_balance_rows_with_currency_filter() {
     assert_eq!(usd_rows[0].currency, "USD");
     assert_eq!(usd_rows[0].debit_total_minor, 100000);
 
-    // Test without currency filter (should get all currencies)
-    let all_rows = get_trial_balance_rows(&pool, tenant_id, period_id, None)
+    // Test EUR currency
+    let eur_rows = get_trial_balance_rows(&pool, tenant_id, period_id, "EUR")
         .await
-        .expect("Failed to get all rows");
+        .expect("Failed to get EUR rows");
 
-    assert_eq!(all_rows.len(), 3);
-    assert!(all_rows.iter().any(|r| r.currency == "USD"));
-    assert!(all_rows.iter().any(|r| r.currency == "EUR"));
-    assert!(all_rows.iter().any(|r| r.currency == "GBP"));
+    assert_eq!(eur_rows.len(), 1);
+    assert_eq!(eur_rows[0].currency, "EUR");
+    assert_eq!(eur_rows[0].debit_total_minor, 50000);
+
+    // Test GBP currency
+    let gbp_rows = get_trial_balance_rows(&pool, tenant_id, period_id, "GBP")
+        .await
+        .expect("Failed to get GBP rows");
+
+    assert_eq!(gbp_rows.len(), 1);
+    assert_eq!(gbp_rows[0].currency, "GBP");
+    assert_eq!(gbp_rows[0].debit_total_minor, 30000);
+}
+
+/// Test: Period validation - PeriodNotFound error
+#[tokio::test]
+async fn test_period_validation_not_found() {
+    let pool = common::get_test_pool().await;
+    let tenant_id = "tenant_test_period_validation";
+    let non_existent_period_id = Uuid::new_v4();
+
+    // Clean up any existing data for this tenant
+    sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&pool)
+        .await
+        .expect("Failed to clean up balances");
+    sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&pool)
+        .await
+        .expect("Failed to clean up accounts");
+    sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&pool)
+        .await
+        .expect("Failed to clean up periods");
+
+    // Attempt to query with non-existent period - should fail with PeriodNotFound
+    let result = get_trial_balance_rows(&pool, tenant_id, non_existent_period_id, "USD").await;
+
+    assert!(result.is_err());
+    match result.unwrap_err() {
+        gl_rs::repos::statement_repo::StatementError::PeriodNotFound { period_id, tenant_id: tid } => {
+            assert_eq!(period_id, non_existent_period_id);
+            assert_eq!(tid, tenant_id);
+        }
+        other => panic!("Expected PeriodNotFound error, got: {:?}", other),
+    }
+}
+
+/// Test: Numeric safety proof - decimal exactness with integers
+///
+/// This test proves that our i64 minor unit approach maintains exact precision
+/// where floating point would fail. Uses the classic 0.1 + 0.2 != 0.3 case.
+#[tokio::test]
+async fn test_numeric_safety_proof_decimal_exactness() {
+    let pool = common::get_test_pool().await;
+    let tenant_id = "tenant_test_numeric_safety";
+    let period_id = Uuid::new_v4();
+
+    // Clean up any existing data for this tenant
+    sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&pool)
+        .await
+        .expect("Failed to clean up balances");
+    sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&pool)
+        .await
+        .expect("Failed to clean up accounts");
+    sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&pool)
+        .await
+        .expect("Failed to clean up periods");
+
+    // Create accounting period
+    sqlx::query(
+        r#"
+        INSERT INTO accounting_periods (id, tenant_id, period_start, period_end, is_closed, created_at)
+        VALUES ($1, $2, '2024-01-01', '2024-01-31', false, NOW())
+        "#,
+    )
+    .bind(period_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await
+    .expect("Failed to insert period");
+
+    // Create accounts
+    sqlx::query(
+        r#"
+        INSERT INTO accounts (id, tenant_id, code, name, type, normal_balance, is_active, created_at)
+        VALUES
+            (gen_random_uuid(), $1, '1000', 'Account A', 'asset', 'debit', true, NOW()),
+            (gen_random_uuid(), $1, '1001', 'Account B', 'asset', 'debit', true, NOW()),
+            (gen_random_uuid(), $1, '1002', 'Account C', 'asset', 'debit', true, NOW())
+        "#,
+    )
+    .bind(tenant_id)
+    .execute(&pool)
+    .await
+    .expect("Failed to insert accounts");
+
+    // Create balances that would fail with floating point (0.1 + 0.2 case)
+    // In cents: 10 cents + 20 cents = 30 cents (exact with integers)
+    // With float: 0.1 + 0.2 = 0.30000000000000004 (not exact)
+    sqlx::query(
+        r#"
+        INSERT INTO account_balances (
+            tenant_id, period_id, account_code, currency,
+            debit_total_minor, credit_total_minor, net_balance_minor
+        )
+        VALUES
+            ($1, $2, '1000', 'USD', 10, 0, 10),
+            ($1, $2, '1001', 'USD', 20, 0, 20),
+            ($1, $2, '1002', 'USD', 30, 60, -30)
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(period_id)
+    .execute(&pool)
+    .await
+    .expect("Failed to insert balances");
+
+    // Execute query
+    let rows = get_trial_balance_rows(&pool, tenant_id, period_id, "USD")
+        .await
+        .expect("Failed to get trial balance rows");
+
+    assert_eq!(rows.len(), 3);
+
+    // Calculate totals - this would fail with floating point rounding
+    let total_debits: i64 = rows.iter().map(|r| r.debit_total_minor).sum();
+    let total_credits: i64 = rows.iter().map(|r| r.credit_total_minor).sum();
+
+    // Exact integer arithmetic: 10 + 20 + 30 = 60
+    assert_eq!(total_debits, 60, "Debit totals must be exact (no rounding)");
+    assert_eq!(total_credits, 60, "Credit totals must be exact (no rounding)");
+
+    // Verify individual balances are exact
+    let account_a = rows.iter().find(|r| r.account_code == "1000").unwrap();
+    assert_eq!(account_a.debit_total_minor, 10);
+    assert_eq!(account_a.net_balance_minor, 10);
+
+    let account_b = rows.iter().find(|r| r.account_code == "1001").unwrap();
+    assert_eq!(account_b.debit_total_minor, 20);
+    assert_eq!(account_b.net_balance_minor, 20);
+
+    let account_c = rows.iter().find(|r| r.account_code == "1002").unwrap();
+    assert_eq!(account_c.debit_total_minor, 30);
+    assert_eq!(account_c.credit_total_minor, 60);
+    assert_eq!(account_c.net_balance_minor, -30);
+
+    // Final proof: totals balance exactly (would fail with float)
+    assert_eq!(
+        total_debits, total_credits,
+        "Totals must balance exactly - proof of numeric safety"
+    );
 }
