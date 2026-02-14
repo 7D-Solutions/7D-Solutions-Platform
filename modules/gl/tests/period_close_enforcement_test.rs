@@ -55,12 +55,13 @@ async fn close_period(pool: &PgPool, period_id: Uuid, closed_by: &str) {
     sqlx::query(
         r#"
         UPDATE accounting_periods
-        SET closed_at = $1, closed_by = $2
-        WHERE id = $3
+        SET closed_at = $1, closed_by = $2, close_hash = $3
+        WHERE id = $4
         "#,
     )
     .bind(Utc::now())
     .bind(closed_by)
+    .bind("test_hash_placeholder")  // Required by CHECK constraint
     .bind(period_id)
     .execute(pool)
     .await
