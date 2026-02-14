@@ -34,8 +34,6 @@ async fn create_test_period(
 ) -> Uuid {
     let period_id = Uuid::new_v4();
 
-    eprintln!("[create_test_period] Attempting INSERT, pool: size={} idle={}", pool.size(), pool.num_idle());
-
     let result = sqlx::query(
         r#"
         INSERT INTO accounting_periods (id, tenant_id, period_start, period_end, is_closed, created_at)
@@ -49,25 +47,18 @@ async fn create_test_period(
     .bind(false)
     .bind(Utc::now())
     .execute(pool)
-    .await;
+    .await
+    .expect("Failed to create test period");
 
-    match result {
-        Ok(_) => {
-            eprintln!("[create_test_period] INSERT succeeded, pool after: size={} idle={}", pool.size(), pool.num_idle());
-            period_id
-        }
-        Err(e) => {
-            eprintln!("[create_test_period] INSERT failed: {}, pool: size={} idle={}", e, pool.size(), pool.num_idle());
-            panic!("Failed to create test period: {}", e);
-        }
-    }
+    // Explicitly drop the query result to force connection release
+    drop(result);
+
+    period_id
 }
 
 /// Helper to close a period (set closed_at)
 async fn close_period(pool: &PgPool, period_id: Uuid, closed_by: &str) {
-    eprintln!("[close_period] Before UPDATE, pool: size={} idle={}", pool.size(), pool.num_idle());
-
-    sqlx::query(
+    let result = sqlx::query(
         r#"
         UPDATE accounting_periods
         SET closed_at = $1, closed_by = $2, close_hash = $3
@@ -82,7 +73,8 @@ async fn close_period(pool: &PgPool, period_id: Uuid, closed_by: &str) {
     .await
     .expect("Failed to close period");
 
-    eprintln!("[close_period] After UPDATE, pool: size={} idle={}", pool.size(), pool.num_idle());
+    // Explicitly drop the query result to force connection release
+    drop(result);
 }
 
 /// Helper to create a test account
@@ -96,9 +88,7 @@ async fn create_test_account(
 ) -> Uuid {
     let id = Uuid::new_v4();
 
-    eprintln!("[create_test_account] Before INSERT, pool: size={} idle={}", pool.size(), pool.num_idle());
-
-    sqlx::query(
+    let result = sqlx::query(
         r#"
         INSERT INTO accounts (id, tenant_id, code, name, type, normal_balance, is_active, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -116,62 +106,75 @@ async fn create_test_account(
     .await
     .expect("Failed to insert test account");
 
-    eprintln!("[create_test_account] After INSERT, pool: size={} idle={}", pool.size(), pool.num_idle());
+    // Explicitly drop the query result to force connection release
+    drop(result);
 
     id
 }
 
 /// Helper to cleanup test data
 ///
-/// Executes cleanup queries directly against pool (no transaction).
-/// This minimizes connection hold time and prevents pool exhaustion.
+/// Uses TRUNCATE CASCADE wrapped in an explicit transaction to force connection release.
+///
+/// ChatGPT Prescription (Phase 13): Use TRUNCATE instead of DELETE to avoid
+/// row-by-row lock contention that leaves connections in bad state.
 async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
-    eprintln!("[cleanup] START, pool: size={} idle={}", pool.size(), pool.num_idle());
+    // Use a transaction to ensure all cleanup completes atomically
+    // and the connection is properly released
+    let mut tx = match pool.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            eprintln!("[cleanup] Failed to begin transaction: {}", e);
+            return;
+        }
+    };
 
-    // Delete in reverse dependency order - execute directly without transaction
-    // to minimize connection hold time
-    eprintln!("[cleanup] Deleting journal_lines...");
-    let _ = sqlx::query("DELETE FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE tenant_id = $1)")
+    // TRUNCATE for global tables (all tenants)
+    if let Err(e) = sqlx::query(
+        r#"
+        TRUNCATE TABLE
+            journal_lines,
+            journal_entries,
+            account_balances,
+            period_summary_snapshots,
+            processed_events,
+            events_outbox
+        RESTART IDENTITY CASCADE
+        "#,
+    )
+    .execute(&mut *tx)
+    .await
+    {
+        eprintln!("[cleanup] TRUNCATE failed: {}", e);
+        let _ = tx.rollback().await;
+        return;
+    }
+
+    // DELETE for tenant-scoped tables
+    if let Err(e) = sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(pool)
-        .await;
-    eprintln!("[cleanup] After journal_lines, pool: size={} idle={}", pool.size(), pool.num_idle());
+        .execute(&mut *tx)
+        .await
+    {
+        eprintln!("[cleanup] DELETE accounts failed: {}", e);
+        let _ = tx.rollback().await;
+        return;
+    }
 
-    eprintln!("[cleanup] Deleting journal_entries...");
-    let _ = sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
+    if let Err(e) = sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(pool)
-        .await;
-    eprintln!("[cleanup] After journal_entries, pool: size={} idle={}", pool.size(), pool.num_idle());
+        .execute(&mut *tx)
+        .await
+    {
+        eprintln!("[cleanup] DELETE periods failed: {}", e);
+        let _ = tx.rollback().await;
+        return;
+    }
 
-    eprintln!("[cleanup] Deleting account_balances...");
-    let _ = sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
-        .bind(tenant_id)
-        .execute(pool)
-        .await;
-    eprintln!("[cleanup] After account_balances, pool: size={} idle={}", pool.size(), pool.num_idle());
-
-    eprintln!("[cleanup] Deleting accounts...");
-    let _ = sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
-        .bind(tenant_id)
-        .execute(pool)
-        .await;
-    eprintln!("[cleanup] After accounts, pool: size={} idle={}", pool.size(), pool.num_idle());
-
-    eprintln!("[cleanup] Deleting accounting_periods...");
-    let _ = sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
-        .bind(tenant_id)
-        .execute(pool)
-        .await;
-    eprintln!("[cleanup] After accounting_periods, pool: size={} idle={}", pool.size(), pool.num_idle());
-
-    eprintln!("[cleanup] Deleting processed_events...");
-    let _ = sqlx::query("DELETE FROM processed_events WHERE processor = 'test-processor'")
-        .execute(pool)
-        .await;
-    eprintln!("[cleanup] After processed_events, pool: size={} idle={}", pool.size(), pool.num_idle());
-
-    eprintln!("[cleanup] END, pool: size={} idle={}", pool.size(), pool.num_idle());
+    // Commit the cleanup transaction
+    if let Err(e) = tx.commit().await {
+        eprintln!("[cleanup] Failed to commit cleanup: {}", e);
+    }
 }
 
 // ============================================================
@@ -184,14 +187,10 @@ async fn test_posting_blocked_when_period_closed() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
-    eprintln!("[TEST 1 START] Pool: size={} idle={}", pool.size(), pool.num_idle());
-
     // Setup: Create a period
-    eprintln!("[TEST 1] Before create_test_period: size={} idle={}", pool.size(), pool.num_idle());
     let period_start = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();
     let period_end = NaiveDate::from_ymd_opt(2024, 2, 28).unwrap();
     let period_id = create_test_period(&pool, &tenant_id, period_start, period_end).await;
-    eprintln!("[TEST 1] After create_test_period: size={} idle={}", pool.size(), pool.num_idle());
 
     // Create test accounts
     create_test_account(
@@ -244,7 +243,6 @@ async fn test_posting_blocked_when_period_closed() {
 
     let event_id = Uuid::new_v4();
 
-    eprintln!("[TEST 1] Before journal_service: size={} idle={}", pool.size(), pool.num_idle());
     let result = journal_service::process_gl_posting_request(
         &pool,
         event_id,
@@ -254,7 +252,6 @@ async fn test_posting_blocked_when_period_closed() {
         &payload,
     )
     .await;
-    eprintln!("[TEST 1] After journal_service: size={} idle={}", pool.size(), pool.num_idle());
 
     // Assert posting fails with PeriodClosed error
     assert!(result.is_err(), "Posting should fail when period is closed");
@@ -282,6 +279,13 @@ async fn test_posting_blocked_when_period_closed() {
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
+
+    // ChatGPT Phase 13 requirement: Verify connection returned to pool
+    assert_eq!(
+        pool.num_idle() as u32,
+        pool.size(),
+        "Connection still checked out after test!"
+    );
 }
 
 // ============================================================
@@ -293,8 +297,6 @@ async fn test_posting_blocked_when_period_closed() {
 async fn test_reversal_blocked_when_original_period_closed() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
-
-    eprintln!("[TEST 2 START] Pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Setup: Create two periods using current year
     let period_a_start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
@@ -370,14 +372,12 @@ async fn test_reversal_blocked_when_original_period_closed() {
     // Attempt to reverse the entry (reversal would go to period B which is open)
     let reversal_event_id = Uuid::new_v4();
 
-    eprintln!("[TEST 2] Before reversal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
     let result = reversal_service::create_reversal_entry(
         &pool,
         reversal_event_id,
         original_entry_id,
     )
     .await;
-    eprintln!("[TEST 2] After reversal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Assert reversal fails with OriginalPeriodClosed error
     assert!(
@@ -414,6 +414,13 @@ async fn test_reversal_blocked_when_original_period_closed() {
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
+
+    // ChatGPT Phase 13 requirement: Verify connection returned to pool
+    assert_eq!(
+        pool.num_idle() as u32,
+        pool.size(),
+        "Connection still checked out after test!"
+    );
 }
 
 // ============================================================
@@ -425,8 +432,6 @@ async fn test_reversal_blocked_when_original_period_closed() {
 async fn test_reversal_succeeds_when_both_periods_open() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
-
-    eprintln!("[TEST 3 START] Pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Setup: Create two periods (both open) using current year for reversal
     let period_a_start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
@@ -499,14 +504,12 @@ async fn test_reversal_succeeds_when_both_periods_open() {
     // Reverse the entry (both periods are open)
     let reversal_event_id = Uuid::new_v4();
 
-    eprintln!("[TEST 3] Before reversal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
     let result = reversal_service::create_reversal_entry(
         &pool,
         reversal_event_id,
         original_entry_id,
     )
     .await;
-    eprintln!("[TEST 3] After reversal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Assert reversal succeeds
     if let Err(ref e) = result {
@@ -532,6 +535,13 @@ async fn test_reversal_succeeds_when_both_periods_open() {
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
+
+    // ChatGPT Phase 13 requirement: Verify connection returned to pool
+    assert_eq!(
+        pool.num_idle() as u32,
+        pool.size(),
+        "Connection still checked out after test!"
+    );
 }
 
 // ============================================================
@@ -544,12 +554,12 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
-    eprintln!("[TEST 4 START] Pool: size={} idle={}", pool.size(), pool.num_idle());
-
     // Setup: Create a period with is_closed=false
+    eprintln!("[test_closed_at] Start: size={} idle={}", pool.size(), pool.num_idle());
     let period_start = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();
     let period_end = NaiveDate::from_ymd_opt(2024, 2, 28).unwrap();
     let period_id = create_test_period(&pool, &tenant_id, period_start, period_end).await;
+    eprintln!("[test_closed_at] After create_period: size={} idle={}", pool.size(), pool.num_idle());
 
     // Create test accounts
     create_test_account(
@@ -561,6 +571,7 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
         NormalBalance::Debit,
     )
     .await;
+    eprintln!("[test_closed_at] After create_account 1: size={} idle={}", pool.size(), pool.num_idle());
 
     create_test_account(
         &pool,
@@ -571,9 +582,9 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
         NormalBalance::Credit,
     )
     .await;
+    eprintln!("[test_closed_at] After create_account 2: size={} idle={}", pool.size(), pool.num_idle());
 
     // Manually set closed_at while leaving is_closed=false
-    eprintln!("[TEST 4] Before UPDATE closed_at, pool: size={} idle={}", pool.size(), pool.num_idle());
     sqlx::query(
         r#"
         UPDATE accounting_periods
@@ -588,7 +599,7 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
     .execute(&pool)
     .await
     .expect("Failed to set closed_at");
-    eprintln!("[TEST 4] After UPDATE closed_at, pool: size={} idle={}", pool.size(), pool.num_idle());
+    eprintln!("[test_closed_at] After UPDATE closed_at: size={} idle={}", pool.size(), pool.num_idle());
 
     // Attempt to post to the period
     let payload = GlPostingRequestV1 {
@@ -617,7 +628,7 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
 
     let event_id = Uuid::new_v4();
 
-    eprintln!("[TEST 4] Before journal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
+    eprintln!("[test_closed_at] Before journal_service: size={} idle={}", pool.size(), pool.num_idle());
     let result = journal_service::process_gl_posting_request(
         &pool,
         event_id,
@@ -627,7 +638,7 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
         &payload,
     )
     .await;
-    eprintln!("[TEST 4] After journal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
+    eprintln!("[test_closed_at] After journal_service: size={} idle={}", pool.size(), pool.num_idle());
 
     // Assert posting fails (closed_at takes precedence over is_closed)
     assert!(
@@ -636,6 +647,7 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
     );
 
     let error_msg = result.unwrap_err().to_string();
+    eprintln!("[test_closed_at] After unwrap_err: size={} idle={}", pool.size(), pool.num_idle());
     assert!(
         error_msg.contains("closed"),
         "Error should indicate period is closed: {}",
@@ -643,5 +655,14 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
     );
 
     // Explicit cleanup to release DB connections
+    eprintln!("[test_closed_at] Before cleanup: size={} idle={}", pool.size(), pool.num_idle());
     cleanup_test_data(&pool, &tenant_id).await;
+    eprintln!("[test_closed_at] After cleanup: size={} idle={}", pool.size(), pool.num_idle());
+
+    // ChatGPT Phase 13 requirement: Verify connection returned to pool
+    assert_eq!(
+        pool.num_idle() as u32,
+        pool.size(),
+        "Connection still checked out after test!"
+    );
 }

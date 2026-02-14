@@ -46,10 +46,7 @@ pub async fn get_test_pool() -> PgPool {
     // Phase 13 period close tests require 5+ connections for nested service calls
     // with serial execution (#[serial] attribute)
     if std::env::var("DB_MAX_CONNECTIONS").is_err() {
-        eprintln!("[get_test_pool] Setting DB_MAX_CONNECTIONS=5");
         std::env::set_var("DB_MAX_CONNECTIONS", "5");
-    } else {
-        eprintln!("[get_test_pool] DB_MAX_CONNECTIONS already set to: {}", std::env::var("DB_MAX_CONNECTIONS").unwrap());
     }
 
     // Set longer acquire timeout for tests (10s vs 3s production default)
@@ -64,15 +61,9 @@ pub async fn get_test_pool() -> PgPool {
                 "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string()
             });
 
-            eprintln!("[get_test_pool] Initializing pool with DB_MAX_CONNECTIONS={}",
-                std::env::var("DB_MAX_CONNECTIONS").unwrap_or_else(|_| "not set".to_string()));
-
-            let pool = init_pool(&database_url)
+            init_pool(&database_url)
                 .await
-                .expect("Failed to initialize test pool");
-
-            eprintln!("[get_test_pool] Pool initialized with max_connections (will show as size once connections created)");
-            pool
+                .expect("Failed to initialize test pool")
         })
         .await
         .clone()
