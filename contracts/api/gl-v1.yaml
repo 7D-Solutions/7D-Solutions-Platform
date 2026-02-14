@@ -195,6 +195,94 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/gl/accounts/{account_code}/activity:
+    get:
+      summary: Get account activity (journal lines) for a specific account
+      operationId: getAccountActivity
+      parameters:
+        - name: account_code
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Chart of Accounts code (e.g., "1000")
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Tenant identifier
+        - name: period_id
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: Optional accounting period UUID (mutually exclusive with date range)
+        - name: start_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Optional start date (ISO 8601, required if no period_id)
+        - name: end_date
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Optional end date (ISO 8601, required if no period_id)
+        - name: currency
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: '^[A-Z]{3}$'
+          description: Optional currency filter (ISO 4217, e.g., USD, EUR, GBP)
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Page size (default 50)
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Pagination offset (default 0)
+      responses:
+        '200':
+          description: Account activity response with paginated lines
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountActivityResponse'
+        '400':
+          description: Bad request (invalid parameters or missing date filter)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Period not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   schemas:
     TrialBalanceResponse:
@@ -440,6 +528,76 @@ components:
         has_more:
           type: boolean
           description: Whether there are more entries beyond this page
+
+    AccountActivityResponse:
+      type: object
+      required:
+        - tenant_id
+        - account_code
+        - period_start
+        - period_end
+        - lines
+        - pagination
+      properties:
+        tenant_id:
+          type: string
+          description: Tenant identifier
+        account_code:
+          type: string
+          description: Chart of Accounts code
+        period_start:
+          type: string
+          format: date-time
+          description: Start of date range (ISO 8601)
+        period_end:
+          type: string
+          format: date-time
+          description: End of date range (ISO 8601)
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountActivityLine'
+          description: Journal lines for the account
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    AccountActivityLine:
+      type: object
+      required:
+        - entry_id
+        - posted_at
+        - currency
+        - debit_minor
+        - credit_minor
+      properties:
+        entry_id:
+          type: string
+          format: uuid
+          description: Journal entry UUID
+        posted_at:
+          type: string
+          format: date-time
+          description: Posting timestamp (ISO 8601)
+        description:
+          type: string
+          nullable: true
+          description: Optional entry description
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: Currency code (ISO 4217)
+        debit_minor:
+          type: integer
+          format: int64
+          description: Debit amount in minor units (cents)
+        credit_minor:
+          type: integer
+          format: int64
+          description: Credit amount in minor units (cents)
+        memo:
+          type: string
+          nullable: true
+          description: Optional line-level memo
 
     ErrorResponse:
       type: object

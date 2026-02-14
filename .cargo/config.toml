@@ -1,0 +1,16 @@
+# Cargo configuration for 7D Solutions Platform
+
+[build]
+# Optimize build times
+incremental = true
+
+[test]
+# CRITICAL: Limit test parallelism to prevent overwhelming Docker containers
+# With 316+ E2E tests that create database connection pools, running in parallel
+# causes OOM kills on Postgres containers (exit code 137)
+#
+# Default cargo test parallelism = number of CPU cores (often 8-16)
+# This means up to 160+ simultaneous DB connection pools → thousands of connections
+#
+# Setting to 4 allows reasonable parallelism while preventing resource exhaustion
+test-threads = 4

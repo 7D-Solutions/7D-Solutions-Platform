@@ -415,6 +415,13 @@ async fn test_boundary_http_period_summary_currency_filter() {
     );
 
     let response_all = reqwest::get(&url_all).await.expect("Failed to fetch all currencies");
+
+    // Debug: print error if not 200
+    if response_all.status() != 200 {
+        let error_body = response_all.text().await.unwrap_or_else(|_| "Could not read body".to_string());
+        eprintln!("ERROR Response (status {}): {}", response_all.status(), error_body);
+    }
+
     assert_eq!(response_all.status(), 200);
 
     let summary_all: PeriodSummaryResponse = response_all.json().await.expect("Failed to parse JSON");
