@@ -19,10 +19,18 @@ pub async fn init_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
         .and_then(|v| v.parse::<u32>().ok())
         .unwrap_or(0);
 
+    // Configurable timeout for different environments
+    // Tests may need longer timeout (10s) for nested service calls
+    // Production typically uses 3s for fast-fail behavior
+    let acquire_timeout_secs = std::env::var("DB_ACQUIRE_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(3);
+
     PgPoolOptions::new()
         .max_connections(max_connections)
         .min_connections(min_connections)
-        .acquire_timeout(Duration::from_secs(3))
+        .acquire_timeout(Duration::from_secs(acquire_timeout_secs))
         .connect(database_url)
         .await
 }

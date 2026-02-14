@@ -94,41 +94,48 @@ async fn create_test_account(
 }
 
 /// Helper to cleanup test data
+///
+/// Uses a single transaction to cleanup all test data for a tenant.
+/// This ensures connections are properly released and prevents pool exhaustion.
 async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
-    sqlx::query("DELETE FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE tenant_id = $1)")
-        .bind(tenant_id)
-        .execute(pool)
-        .await
-        .ok();
+    // Use a transaction to ensure atomic cleanup and proper connection release
+    let mut tx = match pool.begin().await {
+        Ok(t) => t,
+        Err(_) => return, // If we can't start transaction, skip cleanup
+    };
 
-    sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
+    // Delete in reverse dependency order
+    let _ = sqlx::query("DELETE FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE tenant_id = $1)")
         .bind(tenant_id)
-        .execute(pool)
-        .await
-        .ok();
+        .execute(&mut *tx)
+        .await;
 
-    sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
+    let _ = sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(pool)
-        .await
-        .ok();
+        .execute(&mut *tx)
+        .await;
 
-    sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
+    let _ = sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(pool)
-        .await
-        .ok();
+        .execute(&mut *tx)
+        .await;
 
-    sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
+    let _ = sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(pool)
-        .await
-        .ok();
+        .execute(&mut *tx)
+        .await;
 
-    sqlx::query("DELETE FROM processed_events WHERE processor = 'test-processor'")
-        .execute(pool)
-        .await
-        .ok();
+    let _ = sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&mut *tx)
+        .await;
+
+    let _ = sqlx::query("DELETE FROM processed_events WHERE processor = 'test-processor'")
+        .execute(&mut *tx)
+        .await;
+
+    // Commit the cleanup transaction to release the connection properly
+    let _ = tx.commit().await;
 }
 
 // ============================================================
