@@ -22,8 +22,8 @@ pub struct TrialBalanceQuery {
     pub tenant_id: String,
     /// Accounting period ID
     pub period_id: Uuid,
-    /// Optional currency filter (e.g., "USD", "EUR")
-    pub currency: Option<String>,
+    /// Currency code (ISO 4217, required) - e.g., "USD", "EUR"
+    pub currency: String,
 }
 
 /// Trial balance error response
@@ -44,15 +44,15 @@ pub async fn get_trial_balance(
         &pool,
         &params.tenant_id,
         params.period_id,
-        params.currency.as_deref(),
+        &params.currency,  // Changed from Option<&str> to &str (required)
     )
     .await
     .map_err(|e| {
         // Map service errors to appropriate HTTP status codes
         let status = match e {
             trial_balance_service::TrialBalanceError::InvalidTenantId(_) => StatusCode::BAD_REQUEST,
-            trial_balance_service::TrialBalanceError::InvalidCurrency(_) => StatusCode::BAD_REQUEST,
-            trial_balance_service::TrialBalanceError::BalanceRepo(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            trial_balance_service::TrialBalanceError::Unbalanced { .. } => StatusCode::INTERNAL_SERVER_ERROR,
+            trial_balance_service::TrialBalanceError::StatementRepo(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         TrialBalanceErrorResponse {
