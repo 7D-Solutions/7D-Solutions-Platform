@@ -1,5 +1,6 @@
 pub mod account_activity_service;
 pub mod balance_deltas;
+pub mod balance_sheet_service;
 pub mod balance_updater;
 pub mod gl_detail_service;
 pub mod income_statement_service;
