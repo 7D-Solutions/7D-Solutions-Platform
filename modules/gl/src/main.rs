@@ -10,7 +10,9 @@ use gl_rs::{
     config::Config,
     health::health,
     routes::account_activity::get_account_activity,
+    routes::balance_sheet::get_balance_sheet,
     routes::gl_detail::get_gl_detail,
+    routes::income_statement::get_income_statement,
     routes::period_close::{close_period_handler, get_close_status, validate_close},
     routes::period_summary::get_period_summary,
     routes::trial_balance::get_trial_balance,
@@ -86,6 +88,8 @@ async fn main() {
     let app = Router::new()
         .route("/api/health", get(health))
         .route("/api/gl/trial-balance", get(get_trial_balance))
+        .route("/api/gl/income-statement", get(get_income_statement))
+        .route("/api/gl/balance-sheet", get(get_balance_sheet))
         .route("/api/gl/periods/{period_id}/summary", get(get_period_summary))
         .route("/api/gl/periods/{period_id}/validate-close", post(validate_close))
         .route("/api/gl/periods/{period_id}/close", post(close_period_handler))

@@ -271,14 +271,13 @@ pub async fn get_income_statement_rows(
 
     // Convert DB models to domain models
     // For income statement: revenue is positive (credit balance), expense is negative (debit balance)
+    // Revenue: net_balance_minor is negative (credit > debit), invert to positive
+    // Expense: net_balance_minor is positive (debit > credit), invert to negative
     let domain_rows = db_rows
         .into_iter()
         .map(|row| {
-            let amount_minor = match row.account_type {
-                AccountType::Revenue => row.net_balance_minor, // Credit balance = positive
-                AccountType::Expense => -row.net_balance_minor, // Debit balance = negative
-                _ => row.net_balance_minor, // Shouldn't happen due to SQL filter
-            };
+            // Both revenue and expense need sign inversion for P&L presentation
+            let amount_minor = -row.net_balance_minor;
 
             IncomeStatementRow {
                 account_code: row.account_code,
