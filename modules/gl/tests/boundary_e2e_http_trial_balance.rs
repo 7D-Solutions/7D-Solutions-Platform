@@ -295,10 +295,29 @@ async fn test_boundary_http_trial_balance_currency_filter() {
     )
     .await;
 
-    // Insert balances in MULTIPLE currencies
+    // Setup second account for balanced entries
+    insert_test_account(
+        &pool,
+        tenant_id,
+        "4000",
+        "Revenue",
+        AccountType::Revenue,
+        NormalBalance::Credit,
+    )
+    .await;
+
+    // Insert BALANCED balances in MULTIPLE currencies
+    // USD: Cash debit 100000, Revenue credit 100000 (balanced)
     insert_test_balance(&pool, tenant_id, period_id, "1100", "USD", 100000, 0).await;
+    insert_test_balance(&pool, tenant_id, period_id, "4000", "USD", 0, 100000).await;
+
+    // EUR: Cash debit 50000, Revenue credit 50000 (balanced)
     insert_test_balance(&pool, tenant_id, period_id, "1100", "EUR", 50000, 0).await;
+    insert_test_balance(&pool, tenant_id, period_id, "4000", "EUR", 0, 50000).await;
+
+    // GBP: Cash debit 30000, Revenue credit 30000 (balanced)
     insert_test_balance(&pool, tenant_id, period_id, "1100", "GBP", 30000, 0).await;
+    insert_test_balance(&pool, tenant_id, period_id, "4000", "GBP", 0, 30000).await;
 
     // Test 1: Filter by USD only
     let url_usd = format!(
@@ -310,9 +329,15 @@ async fn test_boundary_http_trial_balance_currency_filter() {
     assert_eq!(response_usd.status(), 200);
 
     let tb_usd: TrialBalanceResponse = response_usd.json().await.expect("Failed to parse JSON");
-    assert_eq!(tb_usd.rows.len(), 1, "Should only have USD balances");
-    assert_eq!(tb_usd.rows[0].currency, "USD");
+    assert_eq!(tb_usd.rows.len(), 2, "Should have 2 USD accounts (Cash + Revenue)");
+
+    // Verify all rows are USD currency
+    assert!(tb_usd.rows.iter().all(|r| r.currency == "USD"), "All rows should be USD");
+
+    // Verify totals are balanced
     assert_eq!(tb_usd.totals.total_debits, 100000, "USD debits should be 100000 minor units");
+    assert_eq!(tb_usd.totals.total_credits, 100000, "USD credits should be 100000 minor units");
+    assert!(tb_usd.totals.is_balanced, "USD trial balance should be balanced");
 
     // NOTE: Phase 14 - Multi-currency aggregation removed (currency is now required)
     // Test 2 (no currency filter) removed as currency parameter is now required
@@ -385,6 +410,16 @@ async fn test_boundary_http_trial_balance_performance_guard() {
     )
     .await;
 
+    insert_test_account(
+        &pool,
+        tenant_id,
+        "4000",
+        "Revenue",
+        AccountType::Revenue,
+        NormalBalance::Credit,
+    )
+    .await;
+
     let period_id = insert_test_period(
         &pool,
         tenant_id,
@@ -393,8 +428,9 @@ async fn test_boundary_http_trial_balance_performance_guard() {
     )
     .await;
 
-    // Insert just ONE balance (should be fast to query)
-    insert_test_balance(&pool, tenant_id, period_id, "1100", "USD", 100000, 0).await;
+    // Insert BALANCED balances (should be fast to query from account_balances, not journal_lines)
+    insert_test_balance(&pool, tenant_id, period_id, "1100", "USD", 100000, 0).await; // Cash debit
+    insert_test_balance(&pool, tenant_id, period_id, "4000", "USD", 0, 100000).await; // Revenue credit
 
     // Make HTTP request and time it
     let url = format!(
