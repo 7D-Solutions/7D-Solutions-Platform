@@ -282,9 +282,6 @@ async fn test_posting_blocked_when_period_closed() {
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
-
-    // Delay to ensure connections return to pool and reset state
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 }
 
 // ============================================================
@@ -417,9 +414,6 @@ async fn test_reversal_blocked_when_original_period_closed() {
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
-
-    // Delay to ensure connections return to pool and reset state
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 }
 
 // ============================================================
@@ -538,9 +532,6 @@ async fn test_reversal_succeeds_when_both_periods_open() {
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
-
-    // Delay to ensure connections return to pool and reset state
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 }
 
 // ============================================================
@@ -649,7 +640,4 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
-
-    // Delay to ensure connections return to pool and reset state
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 }
