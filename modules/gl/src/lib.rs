@@ -3,6 +3,7 @@ pub mod consumer;
 pub mod contracts;
 pub mod db;
 pub mod dlq;
+pub mod domain;
 pub mod health;
 pub mod repos;
 pub mod routes;
