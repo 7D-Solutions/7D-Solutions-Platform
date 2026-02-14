@@ -314,17 +314,9 @@ async fn test_boundary_http_trial_balance_currency_filter() {
     assert_eq!(tb_usd.rows[0].currency, "USD");
     assert_eq!(tb_usd.totals.total_debits, 100000, "USD debits should be 100000 minor units");
 
-    // Test 2: No currency filter (should return all currencies)
-    let url_all = format!(
-        "{}/api/gl/trial-balance?tenant_id={}&period_id={}",
-        gl_service_url, tenant_id, period_id
-    );
-
-    let response_all = reqwest::get(&url_all).await.expect("Failed to fetch all currencies trial balance");
-    assert_eq!(response_all.status(), 200);
-
-    let tb_all: TrialBalanceResponse = response_all.json().await.expect("Failed to parse JSON");
-    assert_eq!(tb_all.rows.len(), 3, "Should have all 3 currency balances");
+    // NOTE: Phase 14 - Multi-currency aggregation removed (currency is now required)
+    // Test 2 (no currency filter) removed as currency parameter is now required
+    // To get multiple currencies, client must call get_trial_balance once per currency
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
