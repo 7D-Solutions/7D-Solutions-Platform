@@ -16,12 +16,11 @@
 //! ```
 
 use gl_rs::db::init_pool;
-use once_cell::sync::OnceCell;
 use sqlx::PgPool;
-use std::sync::Arc;
+use tokio::sync::OnceCell;
 
 /// Singleton pool instance shared across all tests in this binary
-static TEST_POOL: OnceCell<Arc<PgPool>> = OnceCell::new();
+static TEST_POOL: OnceCell<PgPool> = OnceCell::const_new();
 
 /// Get or initialize the shared test database pool
 ///
@@ -40,23 +39,17 @@ static TEST_POOL: OnceCell<Arc<PgPool>> = OnceCell::new();
 /// With singleton + DB_MAX_CONNECTIONS=2:
 /// - 1 test binary × 2 connections = 2 total connections
 /// - Even with 8 test binaries = 16 total connections (safe!)
-pub async fn get_test_pool() -> Arc<PgPool> {
+pub async fn get_test_pool() -> PgPool {
     TEST_POOL
-        .get_or_init(|| {
+        .get_or_init(|| async {
             let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
                 "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string()
             });
 
-            // Block to initialize pool synchronously
-            let pool = tokio::task::block_in_place(|| {
-                tokio::runtime::Handle::current().block_on(async {
-                    init_pool(&database_url)
-                        .await
-                        .expect("Failed to initialize test pool")
-                })
-            });
-
-            Arc::new(pool)
+            init_pool(&database_url)
+                .await
+                .expect("Failed to initialize test pool")
         })
+        .await
         .clone()
 }
