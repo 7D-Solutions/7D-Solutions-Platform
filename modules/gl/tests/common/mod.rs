@@ -52,6 +52,12 @@ pub async fn get_test_pool() -> PgPool {
         eprintln!("[get_test_pool] DB_MAX_CONNECTIONS already set to: {}", std::env::var("DB_MAX_CONNECTIONS").unwrap());
     }
 
+    // Set longer acquire timeout for tests (10s vs 3s production default)
+    // Nested service calls + serial execution may need more time
+    if std::env::var("DB_ACQUIRE_TIMEOUT_SECS").is_err() {
+        std::env::set_var("DB_ACQUIRE_TIMEOUT_SECS", "10");
+    }
+
     TEST_POOL
         .get_or_init(|| async {
             let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {

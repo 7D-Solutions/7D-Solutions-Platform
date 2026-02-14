@@ -95,7 +95,9 @@ pub async fn process_gl_posting_request(
     // Verify period is not closed (Phase 13: use closed_at semantics)
     if period.closed_at.is_some() {
         // Explicit rollback to ensure connection is properly cleaned up before returning error
+        eprintln!("[journal_service] Period closed, rolling back transaction...");
         tx.rollback().await?;
+        eprintln!("[journal_service] Transaction rolled back successfully");
         return Err(JournalError::Period(period_repo::PeriodError::PeriodClosed {
             tenant_id: tenant_id.to_string(),
             date: posting_date,

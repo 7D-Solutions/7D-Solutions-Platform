@@ -573,6 +573,7 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
     .await;
 
     // Manually set closed_at while leaving is_closed=false
+    eprintln!("[TEST 4] Before UPDATE closed_at, pool: size={} idle={}", pool.size(), pool.num_idle());
     sqlx::query(
         r#"
         UPDATE accounting_periods
@@ -587,6 +588,7 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
     .execute(&pool)
     .await
     .expect("Failed to set closed_at");
+    eprintln!("[TEST 4] After UPDATE closed_at, pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Attempt to post to the period
     let payload = GlPostingRequestV1 {
@@ -615,6 +617,7 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
 
     let event_id = Uuid::new_v4();
 
+    eprintln!("[TEST 4] Before journal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
     let result = journal_service::process_gl_posting_request(
         &pool,
         event_id,
@@ -624,6 +627,7 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
         &payload,
     )
     .await;
+    eprintln!("[TEST 4] After journal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Assert posting fails (closed_at takes precedence over is_closed)
     assert!(
