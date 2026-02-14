@@ -3,7 +3,6 @@
 //! Provides period close operations with snapshot sealing and tamper detection.
 //! Implements deterministic hash computation for audit trail integrity.
 
-use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -68,24 +67,30 @@ async fn compute_currency_snapshots(
 ) -> Result<Vec<CurrencySnapshot>, PeriodCloseError> {
     // Query journal_lines grouped by currency to get accurate counts and totals
     // Note: This is the one place where we DO scan journal_lines (at close time only)
+    // Currency is on journal_entries table, not journal_lines
+    // Period is determined by joining with accounting_periods on date range
     let snapshots = sqlx::query_as::<_, CurrencySnapshot>(
         r#"
         SELECT
-            jl.currency,
+            je.currency,
             COUNT(DISTINCT je.id)::INTEGER as journal_count,
             COUNT(jl.id)::INTEGER as line_count,
             COALESCE(SUM(jl.debit_minor), 0)::BIGINT as total_debits_minor,
             COALESCE(SUM(jl.credit_minor), 0)::BIGINT as total_credits_minor
-        FROM journal_lines jl
-        INNER JOIN journal_entries je ON jl.entry_id = je.id
-        WHERE je.tenant_id = $1
-          AND je.period_id = $2
-        GROUP BY jl.currency
-        ORDER BY jl.currency
+        FROM accounting_periods ap
+        INNER JOIN journal_entries je ON
+            je.tenant_id = ap.tenant_id
+            AND je.posted_at::DATE >= ap.period_start
+            AND je.posted_at::DATE <= ap.period_end
+        LEFT JOIN journal_lines jl ON jl.journal_entry_id = je.id
+        WHERE ap.id = $1
+          AND ap.tenant_id = $2
+        GROUP BY je.currency
+        ORDER BY je.currency
         "#,
     )
-    .bind(tenant_id)
     .bind(period_id)
+    .bind(tenant_id)
     .fetch_all(&mut **tx)
     .await?;
 

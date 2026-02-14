@@ -15,9 +15,11 @@
 //! }
 //! ```
 
+use chrono::NaiveDate;
 use gl_rs::db::init_pool;
 use sqlx::PgPool;
 use tokio::sync::OnceCell;
+use uuid::Uuid;
 
 /// Singleton pool instance shared across all tests in this binary
 static TEST_POOL: OnceCell<PgPool> = OnceCell::const_new();
@@ -52,4 +54,64 @@ pub async fn get_test_pool() -> PgPool {
         })
         .await
         .clone()
+}
+
+/// Create a test accounting period
+///
+/// # Returns
+/// UUID of the created period
+pub async fn setup_test_period(
+    pool: &PgPool,
+    tenant_id: &str,
+    period_start: NaiveDate,
+    period_end: NaiveDate,
+) -> Uuid {
+    let period_id = Uuid::new_v4();
+    sqlx::query(
+        r#"
+        INSERT INTO accounting_periods (id, tenant_id, period_start, period_end, is_closed, created_at)
+        VALUES ($1, $2, $3, $4, false, NOW())
+        "#,
+    )
+    .bind(period_id)
+    .bind(tenant_id)
+    .bind(period_start)
+    .bind(period_end)
+    .execute(pool)
+    .await
+    .expect("Failed to create test period");
+
+    period_id
+}
+
+/// Create a test account
+///
+/// # Returns
+/// UUID of the created account
+pub async fn setup_test_account(
+    pool: &PgPool,
+    tenant_id: &str,
+    code: &str,
+    name: &str,
+    account_type: &str,
+    normal_balance: &str,
+) -> Uuid {
+    let account_id = Uuid::new_v4();
+    sqlx::query(
+        r#"
+        INSERT INTO accounts (id, tenant_id, code, name, type, normal_balance, is_active, created_at)
+        VALUES ($1, $2, $3, $4, $5::account_type, $6::normal_balance, true, NOW())
+        "#,
+    )
+    .bind(account_id)
+    .bind(tenant_id)
+    .bind(code)
+    .bind(name)
+    .bind(account_type)
+    .bind(normal_balance)
+    .execute(pool)
+    .await
+    .expect("Failed to create test account");
+
+    account_id
 }
