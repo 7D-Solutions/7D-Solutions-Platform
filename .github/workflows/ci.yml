@@ -686,6 +686,18 @@ jobs:
           RUST_LOG: info
           DATABASE_URL: postgres://gl_user:gl_pass@localhost:5438/gl_db
 
+      # TODO: Enable once bd-3gr (HTTP Handlers) is merged
+      # Phase 13: Period Close Workflow HTTP Boundary E2E Tests
+      # - name: Run Phase 13 period close HTTP boundary E2E tests
+      #   working-directory: modules/gl
+      #   run: |
+      #     cargo test --test boundary_e2e_http_period_close -- --test-threads=1 --nocapture
+      #   env:
+      #     RUST_LOG: info
+      #     DATABASE_URL: postgres://gl_user:gl_pass@localhost:5438/gl_db
+      #     DB_MAX_CONNECTIONS: 2
+      #     DB_MIN_CONNECTIONS: 0
+
       - name: Show logs on failure
         if: failure()
         run: |
