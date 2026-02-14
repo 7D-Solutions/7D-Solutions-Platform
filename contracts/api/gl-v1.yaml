@@ -27,7 +27,15 @@ paths:
 
   /api/gl/trial-balance:
     get:
-      summary: Get trial balance for a tenant and period
+      summary: Get trial balance for a tenant and period with optional currency grouping
+      description: |
+        Returns trial balance report backed by account_balances table (no journal scans).
+
+        **Currency Behavior:**
+        - If `currency` parameter is provided: Returns only balances for that currency with single totals
+        - If `currency` parameter is omitted: Returns all currencies with per-currency totals in `currency_totals` field
+
+        **Performance:** Backed by account_balances table with indexes. Expected < 500ms at normal scale.
       operationId: getTrialBalance
       parameters:
         - name: tenant_id
@@ -49,7 +57,7 @@ paths:
           schema:
             type: string
             pattern: '^[A-Z]{3}$'
-          description: Optional currency filter (ISO 4217, e.g., USD, EUR, GBP)
+          description: Optional currency filter (ISO 4217, e.g., USD, EUR, GBP). If omitted, returns all currencies with per-currency totals.
       responses:
         '200':
           description: Trial balance response
@@ -295,19 +303,29 @@ components:
       properties:
         tenant_id:
           type: string
+          description: Tenant identifier
         period_id:
           type: string
           format: uuid
+          description: Accounting period UUID
         currency:
           type: string
           nullable: true
           pattern: '^[A-Z]{3}$'
+          description: Optional currency filter applied (null = all currencies)
         rows:
           type: array
           items:
             $ref: '#/components/schemas/TrialBalanceRow'
+          description: Trial balance rows (all accounts with balances)
         totals:
           $ref: '#/components/schemas/TrialBalanceTotals'
+        currency_totals:
+          type: array
+          items:
+            $ref: '#/components/schemas/CurrencyTotals'
+          nullable: true
+          description: Per-currency totals (present when no currency filter is applied). Currencies are sorted alphabetically for deterministic ordering.
 
     TrialBalanceRow:
       type: object
@@ -353,11 +371,38 @@ components:
         total_debits:
           type: integer
           format: int64
+          description: Sum of all debit amounts (minor units)
         total_credits:
           type: integer
           format: int64
+          description: Sum of all credit amounts (minor units)
         is_balanced:
           type: boolean
+          description: Whether total debits equal total credits
+
+    CurrencyTotals:
+      type: object
+      required:
+        - currency
+        - total_debits
+        - total_credits
+        - is_balanced
+      properties:
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: Currency code (ISO 4217)
+        total_debits:
+          type: integer
+          format: int64
+          description: Sum of all debit amounts for this currency (minor units)
+        total_credits:
+          type: integer
+          format: int64
+          description: Sum of all credit amounts for this currency (minor units)
+        is_balanced:
+          type: boolean
+          description: Whether total debits equal total credits for this currency
 
     PeriodSummaryResponse:
       type: object
