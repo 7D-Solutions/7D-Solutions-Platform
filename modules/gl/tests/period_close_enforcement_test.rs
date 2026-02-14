@@ -98,47 +98,39 @@ async fn create_test_account(
 
 /// Helper to cleanup test data
 ///
-/// Uses a single transaction to cleanup all test data for a tenant.
-/// This ensures connections are properly released and prevents pool exhaustion.
+/// Executes cleanup queries directly against pool (no transaction).
+/// This minimizes connection hold time and prevents pool exhaustion.
 async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
-    // Use a transaction to ensure atomic cleanup and proper connection release
-    let mut tx = match pool.begin().await {
-        Ok(t) => t,
-        Err(_) => return, // If we can't start transaction, skip cleanup
-    };
-
-    // Delete in reverse dependency order
+    // Delete in reverse dependency order - execute directly without transaction
+    // to minimize connection hold time
     let _ = sqlx::query("DELETE FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE tenant_id = $1)")
         .bind(tenant_id)
-        .execute(&mut *tx)
+        .execute(pool)
         .await;
 
     let _ = sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(&mut *tx)
+        .execute(pool)
         .await;
 
     let _ = sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(&mut *tx)
+        .execute(pool)
         .await;
 
     let _ = sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(&mut *tx)
+        .execute(pool)
         .await;
 
     let _ = sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
         .bind(tenant_id)
-        .execute(&mut *tx)
+        .execute(pool)
         .await;
 
     let _ = sqlx::query("DELETE FROM processed_events WHERE processor = 'test-processor'")
-        .execute(&mut *tx)
+        .execute(pool)
         .await;
-
-    // Commit the cleanup transaction to release the connection properly
-    let _ = tx.commit().await;
 }
 
 // ============================================================
@@ -243,6 +235,9 @@ async fn test_posting_blocked_when_period_closed() {
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
+
+    // Brief delay to ensure connections return to pool
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 }
 
 // ============================================================
@@ -255,13 +250,13 @@ async fn test_reversal_blocked_when_original_period_closed() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
-    // Setup: Create two periods
-    let period_a_start = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
-    let period_a_end = NaiveDate::from_ymd_opt(2024, 1, 31).unwrap();
+    // Setup: Create two periods using current year
+    let period_a_start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+    let period_a_end = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
     let period_a_id = create_test_period(&pool, &tenant_id, period_a_start, period_a_end).await;
 
-    let period_b_start = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();
-    let period_b_end = NaiveDate::from_ymd_opt(2024, 2, 28).unwrap();
+    let period_b_start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
+    let period_b_end = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
     let _period_b_id = create_test_period(&pool, &tenant_id, period_b_start, period_b_end).await;
 
     // Create test accounts
@@ -287,7 +282,7 @@ async fn test_reversal_blocked_when_original_period_closed() {
 
     // Create a journal entry in period A
     let payload = GlPostingRequestV1 {
-        posting_date: "2024-01-15".to_string(),
+        posting_date: "2026-01-15".to_string(),
         currency: "USD".to_string(),
         source_doc_type: SourceDocType::ArInvoice,
         source_doc_id: "inv_original_001".to_string(),
@@ -371,6 +366,9 @@ async fn test_reversal_blocked_when_original_period_closed() {
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
+
+    // Brief delay to ensure connections return to pool
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 }
 
 // ============================================================
@@ -383,13 +381,13 @@ async fn test_reversal_succeeds_when_both_periods_open() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
-    // Setup: Create two periods (both open)
-    let period_a_start = NaiveDate::from_ymd_opt(2024, 1, 1).unwrap();
-    let period_a_end = NaiveDate::from_ymd_opt(2024, 1, 31).unwrap();
+    // Setup: Create two periods (both open) using current year for reversal
+    let period_a_start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+    let period_a_end = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
     let _period_a_id = create_test_period(&pool, &tenant_id, period_a_start, period_a_end).await;
 
-    let period_b_start = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();
-    let period_b_end = NaiveDate::from_ymd_opt(2024, 2, 28).unwrap();
+    let period_b_start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
+    let period_b_end = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
     let _period_b_id = create_test_period(&pool, &tenant_id, period_b_start, period_b_end).await;
 
     // Create test accounts
@@ -415,7 +413,7 @@ async fn test_reversal_succeeds_when_both_periods_open() {
 
     // Create a journal entry in period A
     let payload = GlPostingRequestV1 {
-        posting_date: "2024-01-15".to_string(),
+        posting_date: "2026-01-15".to_string(),
         currency: "USD".to_string(),
         source_doc_type: SourceDocType::ArInvoice,
         source_doc_id: "inv_open_001".to_string(),
@@ -462,7 +460,9 @@ async fn test_reversal_succeeds_when_both_periods_open() {
     .await;
 
     // Assert reversal succeeds
-    assert!(result.is_ok(), "Reversal should succeed when both periods are open");
+    if let Err(ref e) = result {
+        panic!("Reversal should succeed when both periods are open. Error: {}", e);
+    }
 
     let reversal_entry_id = result.unwrap();
 
@@ -483,6 +483,9 @@ async fn test_reversal_succeeds_when_both_periods_open() {
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
+
+    // Brief delay to ensure connections return to pool
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 }
 
 // ============================================================
@@ -589,4 +592,7 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await;
+
+    // Brief delay to ensure connections return to pool
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 }
