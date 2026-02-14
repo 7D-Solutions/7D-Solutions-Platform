@@ -107,132 +107,150 @@ pub async fn create_reversal_entry(
     // Start transaction
     let mut tx = pool.begin().await?;
 
-    // Get the accounting period for the reversal date
-    let reversal_date = Utc::now().date_naive();
-    let period = period_repo::find_by_date_tx(&mut tx, &original_entry.tenant_id, reversal_date)
-        .await?
-        .ok_or_else(|| {
-            period_repo::PeriodError::NoPeriodForDate {
+    // Centralized rollback wrapper - captures all error paths
+    let tx_result: ReversalResult<Uuid> = (async {
+        // Get the accounting period for the reversal date
+        let reversal_date = Utc::now().date_naive();
+        let period = period_repo::find_by_date_tx(&mut tx, &original_entry.tenant_id, reversal_date)
+            .await?
+            .ok_or_else(|| {
+                period_repo::PeriodError::NoPeriodForDate {
+                    tenant_id: original_entry.tenant_id.clone(),
+                    date: reversal_date,
+                }
+            })?;
+
+        // Verify reversal period is not closed (Phase 13: use closed_at semantics)
+        if period.closed_at.is_some() {
+            return Err(ReversalError::Period(period_repo::PeriodError::PeriodClosed {
                 tenant_id: original_entry.tenant_id.clone(),
                 date: reversal_date,
+                period_id: period.id,
+            }));
+        }
+
+        let period_id = period.id;
+
+        // Generate new entry ID for reversal
+        let reversal_entry_id = Uuid::new_v4();
+
+        // Create reversal entry header
+        journal_repo::insert_entry_with_reversal(
+            &mut tx,
+            reversal_entry_id,
+            &original_entry.tenant_id,
+            &original_entry.source_module,
+            reversal_event_id,
+            &format!("REVERSAL: {}", original_entry.source_subject),
+            Utc::now(), // Use current timestamp for reversal
+            &original_entry.currency,
+            Some(&format!(
+                "Reversal of journal entry {}",
+                original_entry_id
+            )),
+            original_entry.reference_type.as_deref(),
+            original_entry.reference_id.as_deref(),
+            Some(original_entry_id), // Link back to original
+        )
+        .await?;
+
+        // Create inverse journal lines (swap debit/credit)
+        let reversal_lines: Vec<journal_repo::JournalLineInsert> = original_lines
+            .iter()
+            .map(|line| journal_repo::JournalLineInsert {
+                id: Uuid::new_v4(),
+                line_no: line.line_no,
+                account_ref: line.account_ref.clone(),
+                debit_minor: line.credit_minor, // Swap: credit becomes debit
+                credit_minor: line.debit_minor,  // Swap: debit becomes credit
+                memo: line.memo.as_ref().map(|m| format!("REVERSAL: {}", m)),
+            })
+            .collect();
+
+        // Insert reversal lines
+        journal_repo::bulk_insert_lines(&mut tx, reversal_entry_id, reversal_lines.clone()).await?;
+
+        // Update account balances from reversal lines (exactly-once, within same transaction)
+        // Convert reversal lines to balance delta input format
+        let balance_input: Vec<JournalLineInput> = reversal_lines
+            .iter()
+            .map(|line| JournalLineInput {
+                account_ref: line.account_ref.clone(),
+                debit_minor: line.debit_minor,
+                credit_minor: line.credit_minor,
+            })
+            .collect();
+
+        // Update balances atomically within the reversal transaction
+        balance_updater::update_balances_from_journal(
+            &mut tx,
+            &original_entry.tenant_id,
+            period_id,
+            &original_entry.currency,
+            reversal_entry_id,
+            &balance_input,
+        )
+        .await?;
+
+        // Mark reversal event as processed
+        processed_repo::insert(
+            &mut tx,
+            reversal_event_id,
+            "gl.events.entry.reverse.requested",
+            "gl-reversal-service",
+        )
+        .await?;
+
+        // Emit gl.events.entry.reversed event
+        let reversed_event = GlEntryReversedV1 {
+            original_entry_id,
+            reversal_entry_id,
+            currency: original_entry.currency.clone(),
+            posted_at: Some(Utc::now().to_rfc3339()),
+        };
+
+        let reversed_event_id = Uuid::new_v4();
+        outbox_repo::insert_outbox_event(
+            &mut tx,
+            reversed_event_id,
+            "gl.events.entry.reversed",
+            "journal_entry",
+            &reversal_entry_id.to_string(),
+            serde_json::to_value(&reversed_event)
+                .map_err(|e| sqlx::Error::Protocol(format!("JSON serialization failed: {}", e)))?,
+        )
+        .await?;
+
+        Ok(reversal_entry_id)
+    })
+    .await;
+
+    // Single commit/rollback decision point - handles ALL error paths
+    match tx_result {
+        Ok(reversal_entry_id) => {
+            tx.commit().await?;
+
+            tracing::info!(
+                reversal_event_id = %reversal_event_id,
+                reversal_entry_id = %reversal_entry_id,
+                original_entry_id = %original_entry_id,
+                tenant_id = %original_entry.tenant_id,
+                "Reversal entry created successfully"
+            );
+
+            Ok(reversal_entry_id)
+        }
+        Err(e) => {
+            // Best-effort rollback; preserve original error
+            if let Err(rb_err) = tx.rollback().await {
+                tracing::error!(
+                    error = %rb_err,
+                    "Rollback failed in create_reversal_entry"
+                );
             }
-        })?;
-
-    // Verify reversal period is not closed (Phase 13: use closed_at semantics)
-    if period.closed_at.is_some() {
-        // Explicit rollback to ensure connection is properly cleaned up before returning error
-        tx.rollback().await?;
-        return Err(ReversalError::Period(period_repo::PeriodError::PeriodClosed {
-            tenant_id: original_entry.tenant_id.clone(),
-            date: reversal_date,
-            period_id: period.id,
-        }));
+            Err(e)
+        }
     }
-
-    let period_id = period.id;
-
-    // Generate new entry ID for reversal
-    let reversal_entry_id = Uuid::new_v4();
-
-    // Create reversal entry header
-    journal_repo::insert_entry_with_reversal(
-        &mut tx,
-        reversal_entry_id,
-        &original_entry.tenant_id,
-        &original_entry.source_module,
-        reversal_event_id,
-        &format!("REVERSAL: {}", original_entry.source_subject),
-        Utc::now(), // Use current timestamp for reversal
-        &original_entry.currency,
-        Some(&format!(
-            "Reversal of journal entry {}",
-            original_entry_id
-        )),
-        original_entry.reference_type.as_deref(),
-        original_entry.reference_id.as_deref(),
-        Some(original_entry_id), // Link back to original
-    )
-    .await?;
-
-    // Create inverse journal lines (swap debit/credit)
-    let reversal_lines: Vec<journal_repo::JournalLineInsert> = original_lines
-        .iter()
-        .map(|line| journal_repo::JournalLineInsert {
-            id: Uuid::new_v4(),
-            line_no: line.line_no,
-            account_ref: line.account_ref.clone(),
-            debit_minor: line.credit_minor, // Swap: credit becomes debit
-            credit_minor: line.debit_minor,  // Swap: debit becomes credit
-            memo: line.memo.as_ref().map(|m| format!("REVERSAL: {}", m)),
-        })
-        .collect();
-
-    // Insert reversal lines
-    journal_repo::bulk_insert_lines(&mut tx, reversal_entry_id, reversal_lines.clone()).await?;
-
-    // Update account balances from reversal lines (exactly-once, within same transaction)
-    // Convert reversal lines to balance delta input format
-    let balance_input: Vec<JournalLineInput> = reversal_lines
-        .iter()
-        .map(|line| JournalLineInput {
-            account_ref: line.account_ref.clone(),
-            debit_minor: line.debit_minor,
-            credit_minor: line.credit_minor,
-        })
-        .collect();
-
-    // Update balances atomically within the reversal transaction
-    balance_updater::update_balances_from_journal(
-        &mut tx,
-        &original_entry.tenant_id,
-        period_id,
-        &original_entry.currency,
-        reversal_entry_id,
-        &balance_input,
-    )
-    .await?;
-
-    // Mark reversal event as processed
-    processed_repo::insert(
-        &mut tx,
-        reversal_event_id,
-        "gl.events.entry.reverse.requested",
-        "gl-reversal-service",
-    )
-    .await?;
-
-    // Emit gl.events.entry.reversed event
-    let reversed_event = GlEntryReversedV1 {
-        original_entry_id,
-        reversal_entry_id,
-        currency: original_entry.currency.clone(),
-        posted_at: Some(Utc::now().to_rfc3339()),
-    };
-
-    let reversed_event_id = Uuid::new_v4();
-    outbox_repo::insert_outbox_event(
-        &mut tx,
-        reversed_event_id,
-        "gl.events.entry.reversed",
-        "journal_entry",
-        &reversal_entry_id.to_string(),
-        serde_json::to_value(&reversed_event)
-            .map_err(|e| sqlx::Error::Protocol(format!("JSON serialization failed: {}", e)))?,
-    )
-    .await?;
-
-    // Commit transaction
-    tx.commit().await?;
-
-    tracing::info!(
-        reversal_event_id = %reversal_event_id,
-        reversal_entry_id = %reversal_entry_id,
-        original_entry_id = %original_entry_id,
-        tenant_id = %original_entry.tenant_id,
-        "Reversal entry created successfully"
-    );
-
-    Ok(reversal_entry_id)
 }
 
 #[cfg(test)]

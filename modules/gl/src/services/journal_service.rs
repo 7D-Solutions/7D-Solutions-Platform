@@ -77,110 +77,126 @@ pub async fn process_gl_posting_request(
     // Start transaction
     let mut tx = pool.begin().await?;
 
-    // Validate account references against Chart of Accounts
-    // This must be done within the transaction to ensure consistency
-    validate_accounts_against_coa(&mut tx, tenant_id, payload).await?;
+    // Centralized rollback wrapper - captures all error paths
+    let tx_result: JournalResult<Uuid> = (async {
+        // Validate account references against Chart of Accounts
+        // This must be done within the transaction to ensure consistency
+        validate_accounts_against_coa(&mut tx, tenant_id, payload).await?;
 
-    // Get the accounting period for the posting date
-    // This validates that the period exists and is open
-    let period = period_repo::find_by_date_tx(&mut tx, tenant_id, posting_date)
-        .await?
-        .ok_or_else(|| {
-            period_repo::PeriodError::NoPeriodForDate {
+        // Get the accounting period for the posting date
+        // This validates that the period exists and is open
+        let period = period_repo::find_by_date_tx(&mut tx, tenant_id, posting_date)
+            .await?
+            .ok_or_else(|| {
+                period_repo::PeriodError::NoPeriodForDate {
+                    tenant_id: tenant_id.to_string(),
+                    date: posting_date,
+                }
+            })?;
+
+        // Verify period is not closed (Phase 13: use closed_at semantics)
+        if period.closed_at.is_some() {
+            return Err(JournalError::Period(period_repo::PeriodError::PeriodClosed {
                 tenant_id: tenant_id.to_string(),
                 date: posting_date,
-            }
-        })?;
+                period_id: period.id,
+            }));
+        }
 
-    // Verify period is not closed (Phase 13: use closed_at semantics)
-    if period.closed_at.is_some() {
-        // Explicit rollback to ensure connection is properly cleaned up before returning error
-        eprintln!("[journal_service] Period closed, rolling back transaction...");
-        tx.rollback().await?;
-        eprintln!("[journal_service] Transaction rolled back successfully");
-        return Err(JournalError::Period(period_repo::PeriodError::PeriodClosed {
-            tenant_id: tenant_id.to_string(),
-            date: posting_date,
-            period_id: period.id,
-        }));
-    }
+        let period_id = period.id;
 
-    let period_id = period.id;
+        // Generate journal entry ID
+        let entry_id = Uuid::new_v4();
 
-    // Generate journal entry ID
-    let entry_id = Uuid::new_v4();
-
-    // Insert journal entry header
-    journal_repo::insert_entry(
-        &mut tx,
-        entry_id,
-        tenant_id,
-        source_module,
-        event_id,
-        source_subject,
-        posted_at,
-        &payload.currency,
-        Some(&payload.description),
-        Some(&payload.source_doc_type.to_string()),
-        Some(&payload.source_doc_id),
-    )
-    .await?;
-
-    // Convert payload lines to repo insert format
-    let lines: Vec<journal_repo::JournalLineInsert> = payload
-        .lines
-        .iter()
-        .enumerate()
-        .map(|(idx, line)| journal_repo::JournalLineInsert {
-            id: Uuid::new_v4(),
-            line_no: (idx + 1) as i32,
-            account_ref: line.account_ref.clone(),
-            debit_minor: (line.debit * 100.0).round() as i64, // Convert to minor units
-            credit_minor: (line.credit * 100.0).round() as i64,
-            memo: line.memo.clone(),
-        })
-        .collect();
-
-    // Insert journal lines
-    journal_repo::bulk_insert_lines(&mut tx, entry_id, lines.clone()).await?;
-
-    // Update account balances from journal lines (exactly-once, within same transaction)
-    // Convert journal lines to balance delta input format
-    let balance_input: Vec<JournalLineInput> = lines
-        .iter()
-        .map(|line| JournalLineInput {
-            account_ref: line.account_ref.clone(),
-            debit_minor: line.debit_minor,
-            credit_minor: line.credit_minor,
-        })
-        .collect();
-
-    // Update balances atomically within the posting transaction
-    balance_updater::update_balances_from_journal(
-        &mut tx,
-        tenant_id,
-        period_id,
-        &payload.currency,
-        entry_id,
-        &balance_input,
-    )
-    .await?;
-
-    // Mark event as processed
-    processed_repo::insert(&mut tx, event_id, "gl.events.posting.requested", "gl-consumer")
+        // Insert journal entry header
+        journal_repo::insert_entry(
+            &mut tx,
+            entry_id,
+            tenant_id,
+            source_module,
+            event_id,
+            source_subject,
+            posted_at,
+            &payload.currency,
+            Some(&payload.description),
+            Some(&payload.source_doc_type.to_string()),
+            Some(&payload.source_doc_id),
+        )
         .await?;
 
-    // Commit transaction
-    tx.commit().await?;
+        // Convert payload lines to repo insert format
+        let lines: Vec<journal_repo::JournalLineInsert> = payload
+            .lines
+            .iter()
+            .enumerate()
+            .map(|(idx, line)| journal_repo::JournalLineInsert {
+                id: Uuid::new_v4(),
+                line_no: (idx + 1) as i32,
+                account_ref: line.account_ref.clone(),
+                debit_minor: (line.debit * 100.0).round() as i64, // Convert to minor units
+                credit_minor: (line.credit * 100.0).round() as i64,
+                memo: line.memo.clone(),
+            })
+            .collect();
 
-    tracing::info!(
-        event_id = %event_id,
-        entry_id = %entry_id,
-        tenant_id = %tenant_id,
-        "Journal entry created successfully"
-    );
+        // Insert journal lines
+        journal_repo::bulk_insert_lines(&mut tx, entry_id, lines.clone()).await?;
 
-    Ok(entry_id)
+        // Update account balances from journal lines (exactly-once, within same transaction)
+        // Convert journal lines to balance delta input format
+        let balance_input: Vec<JournalLineInput> = lines
+            .iter()
+            .map(|line| JournalLineInput {
+                account_ref: line.account_ref.clone(),
+                debit_minor: line.debit_minor,
+                credit_minor: line.credit_minor,
+            })
+            .collect();
+
+        // Update balances atomically within the posting transaction
+        balance_updater::update_balances_from_journal(
+            &mut tx,
+            tenant_id,
+            period_id,
+            &payload.currency,
+            entry_id,
+            &balance_input,
+        )
+        .await?;
+
+        // Mark event as processed
+        processed_repo::insert(&mut tx, event_id, "gl.events.posting.requested", "gl-consumer")
+            .await?;
+
+        Ok(entry_id)
+    })
+    .await;
+
+    // Single commit/rollback decision point - handles ALL error paths
+    match tx_result {
+        Ok(entry_id) => {
+            tx.commit().await?;
+
+            tracing::info!(
+                event_id = %event_id,
+                entry_id = %entry_id,
+                tenant_id = %tenant_id,
+                "Journal entry created successfully"
+            );
+
+            Ok(entry_id)
+        }
+        Err(e) => {
+            // Best-effort rollback; preserve original error
+            if let Err(rb_err) = tx.rollback().await {
+                tracing::error!(
+                    error = %rb_err,
+                    "Rollback failed in process_gl_posting_request"
+                );
+            }
+            Err(e)
+        }
+    }
 }
 
 /// Helper to convert SourceDocType to string
