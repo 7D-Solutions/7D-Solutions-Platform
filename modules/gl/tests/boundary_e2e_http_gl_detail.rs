@@ -114,9 +114,9 @@ async fn insert_test_journal_entry(
         r#"
         INSERT INTO journal_entries (
             id, tenant_id, posted_at, description, currency, source_module,
-            source_event_id, created_at
+            source_event_id, source_subject, created_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         "#,
     )
     .bind(entry_id)
@@ -126,6 +126,7 @@ async fn insert_test_journal_entry(
     .bind(currency)
     .bind(source_module)
     .bind(source_event_id)
+    .bind("test.journal.created")
     .bind(Utc::now())
     .execute(pool)
     .await
