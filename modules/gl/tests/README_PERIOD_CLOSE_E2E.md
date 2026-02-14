@@ -4,9 +4,23 @@
 
 These tests are currently **disabled** (`#[ignore]`) until the HTTP handlers from bd-3gr are implemented.
 
-## Test File
+## Test Files
 
-`boundary_e2e_http_period_close.rs` - 7 comprehensive E2E tests covering the period close workflow.
+The test suite is split into 3 focused files for better surgical failure isolation and easier subset testing:
+
+1. **`boundary_e2e_http_validate_close.rs`** (317 lines)
+   - Validate-close endpoint tests
+   - 2 tests covering success and failure scenarios
+
+2. **`boundary_e2e_http_close_period.rs`** (450 lines)
+   - Close period endpoint tests
+   - 3 tests covering success, idempotency, and already-closed scenarios
+
+3. **`boundary_e2e_http_close_status.rs`** (325 lines)
+   - Close-status endpoint tests
+   - 2 tests covering status query and performance guard
+
+**Total:** 7 comprehensive E2E tests (1,092 lines total)
 
 ## Coverage
 
@@ -58,18 +72,27 @@ These tests are currently **disabled** (`#[ignore]`) until the HTTP handlers fro
 
 Once bd-3gr is merged:
 
-1. Remove `#[ignore]` attributes from all tests in `boundary_e2e_http_period_close.rs`
+1. Remove `#[ignore]` attributes from all tests in the 3 test files:
+   - `boundary_e2e_http_validate_close.rs`
+   - `boundary_e2e_http_close_period.rs`
+   - `boundary_e2e_http_close_status.rs`
+
 2. Run the test suite:
 
 ```bash
 # Run all period close E2E tests
-cargo test --test boundary_e2e_http_period_close -- --test-threads=1
+cargo test --test boundary_e2e_http_validate_close -- --test-threads=1
+cargo test --test boundary_e2e_http_close_period -- --test-threads=1
+cargo test --test boundary_e2e_http_close_status -- --test-threads=1
+
+# Or run all at once with pattern matching
+cargo test boundary_e2e_http_ -- --test-threads=1
 
 # Run specific test
-cargo test --test boundary_e2e_http_period_close test_boundary_http_validate_close_success -- --test-threads=1 --nocapture
+cargo test --test boundary_e2e_http_validate_close test_boundary_http_validate_close_success -- --test-threads=1 --nocapture
 ```
 
-3. Verify all 7 tests pass
+3. Verify all 7 tests pass (2 + 3 + 2)
 4. Add to CI workflow (see below)
 
 ## Running the Tests
