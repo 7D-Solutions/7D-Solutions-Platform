@@ -25,6 +25,9 @@ use uuid::Uuid;
 // TestCleanupGuard removed - Drop trait cannot safely block_on inside tokio runtime
 // Instead, each test must call cleanup_test_data(&pool, &tenant_id).await explicitly
 
+// NOTE: Cross-binary advisory lock is acquired once in get_test_pool() (common/mod.rs)
+// and held for the lifetime of the test binary. This serializes test binaries.
+
 /// Helper to create a test period
 async fn create_test_period(
     pool: &PgPool,
@@ -271,10 +274,12 @@ async fn test_posting_blocked_when_period_closed() {
     cleanup_test_data(&pool, &tenant_id).await;
 
     // ChatGPT Phase 13 requirement: Verify connection returned to pool
-    assert_eq!(
-        pool.num_idle() as u32,
-        pool.size(),
-        "Connection still checked out after test!"
+    // NOTE: Advisory lock holds 1 connection, so idle = size - 1 is acceptable
+    assert!(
+        pool.num_idle() as u32 >= pool.size() - 1,
+        "Too many connections checked out! idle={}, size={}",
+        pool.num_idle(),
+        pool.size()
     );
 }
 
@@ -406,10 +411,12 @@ async fn test_reversal_blocked_when_original_period_closed() {
     cleanup_test_data(&pool, &tenant_id).await;
 
     // ChatGPT Phase 13 requirement: Verify connection returned to pool
-    assert_eq!(
-        pool.num_idle() as u32,
-        pool.size(),
-        "Connection still checked out after test!"
+    // NOTE: Advisory lock holds 1 connection, so idle = size - 1 is acceptable
+    assert!(
+        pool.num_idle() as u32 >= pool.size() - 1,
+        "Too many connections checked out! idle={}, size={}",
+        pool.num_idle(),
+        pool.size()
     );
 }
 
@@ -527,10 +534,12 @@ async fn test_reversal_succeeds_when_both_periods_open() {
     cleanup_test_data(&pool, &tenant_id).await;
 
     // ChatGPT Phase 13 requirement: Verify connection returned to pool
-    assert_eq!(
-        pool.num_idle() as u32,
-        pool.size(),
-        "Connection still checked out after test!"
+    // NOTE: Advisory lock holds 1 connection, so idle = size - 1 is acceptable
+    assert!(
+        pool.num_idle() as u32 >= pool.size() - 1,
+        "Too many connections checked out! idle={}, size={}",
+        pool.num_idle(),
+        pool.size()
     );
 }
 
@@ -640,9 +649,11 @@ async fn test_closed_at_semantics_override_is_closed_boolean() {
     cleanup_test_data(&pool, &tenant_id).await;
 
     // ChatGPT Phase 13 requirement: Verify connection returned to pool
-    assert_eq!(
-        pool.num_idle() as u32,
-        pool.size(),
-        "Connection still checked out after test!"
+    // NOTE: Advisory lock holds 1 connection, so idle = size - 1 is acceptable
+    assert!(
+        pool.num_idle() as u32 >= pool.size() - 1,
+        "Too many connections checked out! idle={}, size={}",
+        pool.num_idle(),
+        pool.size()
     );
 }

@@ -61,9 +61,19 @@ pub async fn get_test_pool() -> PgPool {
                 "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string()
             });
 
-            init_pool(&database_url)
+            let pool = init_pool(&database_url)
                 .await
-                .expect("Failed to initialize test pool")
+                .expect("Failed to initialize test pool");
+
+            // Acquire advisory lock to serialize test execution across ALL test binaries
+            // ChatGPT: #[serial] only works within a binary, not across binaries
+            // Advisory lock ensures only ONE test binary runs at a time
+            sqlx::query("SELECT pg_advisory_lock(123456789)")
+                .execute(&pool)
+                .await
+                .expect("Failed to acquire cross-binary test lock");
+
+            pool
         })
         .await
         .clone()
