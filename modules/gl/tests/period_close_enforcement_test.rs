@@ -3,6 +3,13 @@
 //! Tests for Phase 13 hard lock semantics:
 //! - Posting blocked when period.closed_at is set
 //! - Reversal blocked when original entry's period is closed
+//!
+//! ## Pool Configuration
+//! These tests require DB_MAX_CONNECTIONS >= 5 due to transaction complexity
+//! and cleanup cycles. Run with:
+//! ```bash
+//! DB_MAX_CONNECTIONS=5 cargo test --test period_close_enforcement_test
+//! ```
 
 mod common;
 
@@ -27,7 +34,9 @@ async fn create_test_period(
 ) -> Uuid {
     let period_id = Uuid::new_v4();
 
-    sqlx::query(
+    eprintln!("[create_test_period] Attempting INSERT, pool: size={} idle={}", pool.size(), pool.num_idle());
+
+    let result = sqlx::query(
         r#"
         INSERT INTO accounting_periods (id, tenant_id, period_start, period_end, is_closed, created_at)
         VALUES ($1, $2, $3, $4, $5, $6)
@@ -40,14 +49,24 @@ async fn create_test_period(
     .bind(false)
     .bind(Utc::now())
     .execute(pool)
-    .await
-    .expect("Failed to create test period");
+    .await;
 
-    period_id
+    match result {
+        Ok(_) => {
+            eprintln!("[create_test_period] INSERT succeeded, pool after: size={} idle={}", pool.size(), pool.num_idle());
+            period_id
+        }
+        Err(e) => {
+            eprintln!("[create_test_period] INSERT failed: {}, pool: size={} idle={}", e, pool.size(), pool.num_idle());
+            panic!("Failed to create test period: {}", e);
+        }
+    }
 }
 
 /// Helper to close a period (set closed_at)
 async fn close_period(pool: &PgPool, period_id: Uuid, closed_by: &str) {
+    eprintln!("[close_period] Before UPDATE, pool: size={} idle={}", pool.size(), pool.num_idle());
+
     sqlx::query(
         r#"
         UPDATE accounting_periods
@@ -62,6 +81,8 @@ async fn close_period(pool: &PgPool, period_id: Uuid, closed_by: &str) {
     .execute(pool)
     .await
     .expect("Failed to close period");
+
+    eprintln!("[close_period] After UPDATE, pool: size={} idle={}", pool.size(), pool.num_idle());
 }
 
 /// Helper to create a test account
@@ -74,6 +95,8 @@ async fn create_test_account(
     normal_balance: NormalBalance,
 ) -> Uuid {
     let id = Uuid::new_v4();
+
+    eprintln!("[create_test_account] Before INSERT, pool: size={} idle={}", pool.size(), pool.num_idle());
 
     sqlx::query(
         r#"
@@ -93,6 +116,8 @@ async fn create_test_account(
     .await
     .expect("Failed to insert test account");
 
+    eprintln!("[create_test_account] After INSERT, pool: size={} idle={}", pool.size(), pool.num_idle());
+
     id
 }
 
@@ -101,36 +126,59 @@ async fn create_test_account(
 /// Executes cleanup queries directly against pool (no transaction).
 /// This minimizes connection hold time and prevents pool exhaustion.
 async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
+    eprintln!("[cleanup] START, pool: size={} idle={}", pool.size(), pool.num_idle());
+
     // Delete in reverse dependency order - execute directly without transaction
     // to minimize connection hold time
+    eprintln!("[cleanup] Deleting journal_lines...");
     let _ = sqlx::query("DELETE FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE tenant_id = $1)")
         .bind(tenant_id)
         .execute(pool)
         .await;
+    eprintln!("[cleanup] After journal_lines, pool: size={} idle={}", pool.size(), pool.num_idle());
 
+    eprintln!("[cleanup] Deleting journal_entries...");
     let _ = sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(pool)
         .await;
+    eprintln!("[cleanup] After journal_entries, pool: size={} idle={}", pool.size(), pool.num_idle());
 
+    eprintln!("[cleanup] Deleting account_balances...");
     let _ = sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(pool)
         .await;
+    eprintln!("[cleanup] After account_balances, pool: size={} idle={}", pool.size(), pool.num_idle());
 
+    eprintln!("[cleanup] Deleting accounts...");
     let _ = sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(pool)
         .await;
+    eprintln!("[cleanup] After accounts, pool: size={} idle={}", pool.size(), pool.num_idle());
 
+    eprintln!("[cleanup] Deleting accounting_periods...");
     let _ = sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(pool)
         .await;
+    eprintln!("[cleanup] After accounting_periods, pool: size={} idle={}", pool.size(), pool.num_idle());
 
+    eprintln!("[cleanup] Deleting processed_events...");
     let _ = sqlx::query("DELETE FROM processed_events WHERE processor = 'test-processor'")
         .execute(pool)
         .await;
+    eprintln!("[cleanup] After processed_events, pool: size={} idle={}", pool.size(), pool.num_idle());
+
+    // Force PostgreSQL to reset connection state (clear temp tables, prepared statements, etc.)
+    eprintln!("[cleanup] Running DISCARD ALL...");
+    let _ = sqlx::query("DISCARD ALL")
+        .execute(pool)
+        .await;
+    eprintln!("[cleanup] After DISCARD ALL, pool: size={} idle={}", pool.size(), pool.num_idle());
+
+    eprintln!("[cleanup] END, pool: size={} idle={}", pool.size(), pool.num_idle());
 }
 
 // ============================================================
@@ -143,10 +191,14 @@ async fn test_posting_blocked_when_period_closed() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
 
+    eprintln!("[TEST 1 START] Pool: size={} idle={}", pool.size(), pool.num_idle());
+
     // Setup: Create a period
+    eprintln!("[TEST 1] Before create_test_period: size={} idle={}", pool.size(), pool.num_idle());
     let period_start = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();
     let period_end = NaiveDate::from_ymd_opt(2024, 2, 28).unwrap();
     let period_id = create_test_period(&pool, &tenant_id, period_start, period_end).await;
+    eprintln!("[TEST 1] After create_test_period: size={} idle={}", pool.size(), pool.num_idle());
 
     // Create test accounts
     create_test_account(
@@ -199,6 +251,7 @@ async fn test_posting_blocked_when_period_closed() {
 
     let event_id = Uuid::new_v4();
 
+    eprintln!("[TEST 1] Before journal_service: size={} idle={}", pool.size(), pool.num_idle());
     let result = journal_service::process_gl_posting_request(
         &pool,
         event_id,
@@ -208,6 +261,7 @@ async fn test_posting_blocked_when_period_closed() {
         &payload,
     )
     .await;
+    eprintln!("[TEST 1] After journal_service: size={} idle={}", pool.size(), pool.num_idle());
 
     // Assert posting fails with PeriodClosed error
     assert!(result.is_err(), "Posting should fail when period is closed");
@@ -249,6 +303,8 @@ async fn test_posting_blocked_when_period_closed() {
 async fn test_reversal_blocked_when_original_period_closed() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
+
+    eprintln!("[TEST 2 START] Pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Setup: Create two periods using current year
     let period_a_start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
@@ -324,12 +380,14 @@ async fn test_reversal_blocked_when_original_period_closed() {
     // Attempt to reverse the entry (reversal would go to period B which is open)
     let reversal_event_id = Uuid::new_v4();
 
+    eprintln!("[TEST 2] Before reversal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
     let result = reversal_service::create_reversal_entry(
         &pool,
         reversal_event_id,
         original_entry_id,
     )
     .await;
+    eprintln!("[TEST 2] After reversal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Assert reversal fails with OriginalPeriodClosed error
     assert!(
@@ -380,6 +438,8 @@ async fn test_reversal_blocked_when_original_period_closed() {
 async fn test_reversal_succeeds_when_both_periods_open() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
+
+    eprintln!("[TEST 3 START] Pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Setup: Create two periods (both open) using current year for reversal
     let period_a_start = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
@@ -452,12 +512,14 @@ async fn test_reversal_succeeds_when_both_periods_open() {
     // Reverse the entry (both periods are open)
     let reversal_event_id = Uuid::new_v4();
 
+    eprintln!("[TEST 3] Before reversal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
     let result = reversal_service::create_reversal_entry(
         &pool,
         reversal_event_id,
         original_entry_id,
     )
     .await;
+    eprintln!("[TEST 3] After reversal_service, pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Assert reversal succeeds
     if let Err(ref e) = result {
@@ -497,6 +559,8 @@ async fn test_reversal_succeeds_when_both_periods_open() {
 async fn test_closed_at_semantics_override_is_closed_boolean() {
     let pool = get_test_pool().await;
     let tenant_id = format!("tenant-close-{}", Uuid::new_v4());
+
+    eprintln!("[TEST 4 START] Pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Setup: Create a period with is_closed=false
     let period_start = NaiveDate::from_ymd_opt(2024, 2, 1).unwrap();

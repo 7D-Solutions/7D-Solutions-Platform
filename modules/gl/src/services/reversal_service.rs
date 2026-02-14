@@ -57,6 +57,8 @@ pub async fn create_reversal_entry(
     reversal_event_id: Uuid,
     original_entry_id: Uuid,
 ) -> ReversalResult<Uuid> {
+    eprintln!("[reversal_service] START, pool: size={} idle={}", pool.size(), pool.num_idle());
+
     // Check if reversal event already processed (idempotency)
     if processed_repo::exists(pool, reversal_event_id).await? {
         tracing::info!(
@@ -65,11 +67,13 @@ pub async fn create_reversal_entry(
         );
         return Err(ReversalError::DuplicateEvent(reversal_event_id));
     }
+    eprintln!("[reversal_service] After processed_repo::exists, pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Load original entry with lines
     let (original_entry, original_lines) = journal_repo::fetch_entry_with_lines(pool, original_entry_id)
         .await?
         .ok_or(ReversalError::EntryNotFound(original_entry_id))?;
+    eprintln!("[reversal_service] After fetch_entry_with_lines, pool: size={} idle={}", pool.size(), pool.num_idle());
 
     // Check if entry is already a reversal
     if original_entry.reverses_entry_id.is_some() {
@@ -91,8 +95,10 @@ pub async fn create_reversal_entry(
                 date: original_entry_date,
             }
         })?;
+    eprintln!("[reversal_service] After period_repo::find_by_date, pool: size={} idle={}", pool.size(), pool.num_idle());
 
     if original_period.closed_at.is_some() {
+        eprintln!("[reversal_service] EARLY RETURN (original period closed), pool: size={} idle={}", pool.size(), pool.num_idle());
         tracing::warn!(
             original_entry_id = %original_entry_id,
             original_period_id = %original_period.id,
@@ -120,6 +126,8 @@ pub async fn create_reversal_entry(
 
     // Verify reversal period is not closed (Phase 13: use closed_at semantics)
     if period.closed_at.is_some() {
+        // Explicit rollback to ensure connection is properly cleaned up before returning error
+        tx.rollback().await?;
         return Err(ReversalError::Period(period_repo::PeriodError::PeriodClosed {
             tenant_id: original_entry.tenant_id.clone(),
             date: reversal_date,
@@ -220,7 +228,9 @@ pub async fn create_reversal_entry(
     .await?;
 
     // Commit transaction
+    eprintln!("[reversal_service] Before tx.commit, pool: size={} idle={}", pool.size(), pool.num_idle());
     tx.commit().await?;
+    eprintln!("[reversal_service] After tx.commit, pool: size={} idle={}", pool.size(), pool.num_idle());
 
     tracing::info!(
         reversal_event_id = %reversal_event_id,
@@ -230,6 +240,7 @@ pub async fn create_reversal_entry(
         "Reversal entry created successfully"
     );
 
+    eprintln!("[reversal_service] END (success), pool: size={} idle={}", pool.size(), pool.num_idle());
     Ok(reversal_entry_id)
 }
 
