@@ -635,6 +635,49 @@ jobs:
         env:
           RUST_LOG: info
 
+  gl-statement-contract-tests:
+    name: GL Statement Contract Snapshot Tests (Phase 14.9)
+    runs-on: ubuntu-latest
+    needs: [build-gl]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-gl-contract-${{ hashFiles('modules/gl/Cargo.lock') }}
+
+      - name: Run statement contract snapshot tests
+        working-directory: modules/gl
+        run: cargo test --test statement_contract_snapshot_test
+        env:
+          RUST_LOG: info
+
+      - name: Fail if contract tests fail
+        if: failure()
+        run: |
+          echo "❌ Statement contract snapshot tests FAILED!"
+          echo ""
+          echo "This indicates a BREAKING CHANGE to financial statement API contracts."
+          echo ""
+          echo "If this change is intentional:"
+          echo "  1. Bump version in modules/gl/VERSION (following SemVer)"
+          echo "  2. Update test snapshots in tests/statement_contract_snapshot_test.rs"
+          echo "  3. Document breaking changes in modules/gl/CHANGELOG.md"
+          echo ""
+          echo "See CONTRACT-VERSIONING-POLICY.md for version bump guidelines."
+          exit 1
+
   e2e-phase12-reporting:
     name: E2E Test - Phase 12 Reporting
     runs-on: ubuntu-latest
