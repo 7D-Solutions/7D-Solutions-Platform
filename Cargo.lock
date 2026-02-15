@@ -719,10 +719,12 @@ name = "e2e-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ar-rs",
  "async-nats",
  "chrono",
  "event-bus",
  "futures",
+ "gl-rs",
  "payments-rs",
  "reqwest 0.12.28",
  "serde",
