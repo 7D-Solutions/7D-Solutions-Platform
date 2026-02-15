@@ -156,7 +156,6 @@ async fn create_pool(env_var: &str, default_url: &str) -> Result<PgPool> {
         .max_connections(5) // Reduced from 10 to avoid pool exhaustion
         .min_connections(1) // Reduced from 2
         .acquire_timeout(std::time::Duration::from_secs(30))
-        .connect_timeout(std::time::Duration::from_secs(10))
         .connect(&url)
         .await
         .context(format!("Failed to connect to database: {}", env_var))
