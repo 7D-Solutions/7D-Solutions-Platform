@@ -4,9 +4,9 @@
 //! for payment collection attempts.
 //!
 //! **Retry Schedule:**
-//! - Attempt 0: Due date (immediate)
-//! - Attempt 1: Due date + 3 days
-//! - Attempt 2: Due date + 7 days
+//! - Attempt 0: First attempt date (immediate)
+//! - Attempt 1: First attempt date + 3 days
+//! - Attempt 2: First attempt date + 7 days
 //!
 //! **Critical Invariant (ChatGPT):**
 //! Exactly one attempt per window, enforced by attempt_no derived from window index.
@@ -17,11 +17,11 @@
 //! UNKNOWN indicates webhook ambiguity - customer is not at fault.
 //! Reconciliation workflow (bd-2uw) must resolve UNKNOWN before retry can proceed.
 //!
-//! **Integration:**
+//! **Integration (bd-2wtz Module Isolation):**
 //! - Uses payment_attempts UNIQUE(app_id, payment_id, attempt_no) from bd-7gl
 //! - Calls payments::lifecycle guards from bd-3lm
 //! - Respects UNKNOWN protocol from bd-2uw
-//! - Fetches due dates from ar.ar_invoices via payment_attempts.invoice_id
+//! - Uses first attempt's attempted_at as retry anchor (removed AR cross-module dependency)
 
 use chrono::{NaiveDate, Utc};
 use sqlx::PgPool;
@@ -197,30 +197,38 @@ pub fn is_eligible_for_retry(status: &str) -> bool {
 /// **Logic:**
 /// 1. Fetch payment attempts with eligible status (attempting, failed_retry)
 /// 2. EXCLUDE attempts with status='unknown' (UNKNOWN protocol - bd-2uw)
-/// 3. JOIN to ar.ar_invoices to get due_at date
-/// 4. Calculate which retry window they're in based on due_at
+/// 3. Use first attempt's attempted_at date as retry anchor (removed cross-module AR dependency)
+/// 4. Calculate which retry window they're in based on first attempted_at
 /// 5. Check if attempt already exists for that window
 /// 6. Return payments that need attempt in current window
 ///
 /// **UNKNOWN Blocking:**
 /// This function explicitly filters out status='unknown' to prevent retry scheduling
 /// for payments waiting reconciliation. Customer is not at fault for webhook ambiguity.
+///
+/// **Module Isolation (bd-2wtz):**
+/// Uses attempted_at from payment_attempts (attempt_no=0) instead of joining to AR schema.
+/// Payments module owns retry scheduling logic without cross-module dependencies.
 pub async fn get_payments_for_retry(
     pool: &PgPool,
     app_id: &str,
 ) -> Result<Vec<(Uuid, i32)>, RetryError> {
-    // Fetch payment attempts eligible for retry
+    // Fetch payment IDs with first attempt date (attempt_no=0)
     // CRITICAL: EXCLUDE status='unknown' (UNKNOWN protocol - bd-2uw)
-    // JOIN to ar.ar_invoices to get due_at date from invoice
-    let attempts: Vec<(Uuid, String, String, Option<NaiveDate>)> = sqlx::query_as(
-        "SELECT pa.payment_id, pa.status::text, pa.invoice_id, ai.due_at::date
-         FROM payment_attempts pa
-         LEFT JOIN ar.ar_invoices ai ON ai.id::text = pa.invoice_id
-         WHERE pa.app_id = $1
-           AND pa.status::text IN ('attempting', 'failed_retry')
-           AND pa.status::text != 'unknown'  -- UNKNOWN blocking protocol
-           AND ai.due_at IS NOT NULL
-         ORDER BY ai.due_at ASC"
+    // Use attempted_at from first attempt as retry anchor (no AR dependency)
+    let payments_with_first_attempt: Vec<(Uuid, NaiveDate)> = sqlx::query_as(
+        "SELECT DISTINCT ON (payment_id) payment_id, attempted_at::date
+         FROM payment_attempts
+         WHERE app_id = $1
+           AND attempt_no = 0
+           AND payment_id IN (
+               SELECT DISTINCT payment_id
+               FROM payment_attempts
+               WHERE app_id = $1
+                 AND status::text IN ('attempting', 'failed_retry')
+                 AND status::text != 'unknown'  -- UNKNOWN blocking protocol
+           )
+         ORDER BY payment_id, attempted_at ASC"
     )
     .bind(app_id)
     .fetch_all(pool)
@@ -229,14 +237,9 @@ pub async fn get_payments_for_retry(
     let today = Utc::now().date_naive();
     let mut retry_list = Vec::new();
 
-    for (payment_id, _status, _invoice_id, due_date_opt) in attempts {
-        let due_date = match due_date_opt {
-            Some(d) => d,
-            None => continue, // Skip payments without due date
-        };
-
-        // Determine current retry window
-        let current_window = match determine_current_window(due_date, today) {
+    for (payment_id, first_attempt_date) in payments_with_first_attempt {
+        // Determine current retry window based on first attempt date
+        let current_window = match determine_current_window(first_attempt_date, today) {
             Some(w) => w,
             None => continue, // Not in any window yet
         };
