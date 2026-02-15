@@ -2,6 +2,7 @@ pub mod consumer_task;
 pub mod envelope_validation;
 pub mod events;
 pub mod handlers;
+pub mod idempotency_keys;
 pub mod models;
 pub mod processor;
 
