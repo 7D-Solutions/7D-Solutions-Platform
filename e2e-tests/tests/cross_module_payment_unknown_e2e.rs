@@ -18,6 +18,7 @@
 //! - Implementation: modules/payments/src/{reconciliation.rs, retry.rs, lifecycle.rs}
 
 mod common;
+mod oracle;
 
 use anyhow::Result;
 use chrono::NaiveDate;
@@ -224,6 +225,19 @@ async fn test_unknown_blocks_retry_eligibility() {
         "FAILED_RETRY status should be eligible"
     );
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id: &tenant_id,
+        tenant_id: &tenant_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
     cleanup_test_data(&payments_pool, &ar_pool, &tenant_id).await;
 }
@@ -316,6 +330,19 @@ async fn test_unknown_excluded_from_retry_query() {
         "Wrong payment ID returned"
     );
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id: &tenant_id,
+        tenant_id: &tenant_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
     cleanup_test_data(&payments_pool, &ar_pool, &tenant_id).await;
 }
@@ -368,6 +395,19 @@ async fn test_reconciliation_resolves_unknown_to_succeeded() {
         "Reconciliation should resolve UNKNOWN → SUCCEEDED"
     );
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id: &tenant_id,
+        tenant_id: &tenant_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
     cleanup_test_data(&payments_pool, &ar_pool, &tenant_id).await;
 }
@@ -419,6 +459,19 @@ async fn test_reconciliation_resolves_unknown_to_failed() {
         final_status, "failed_retry",
         "Reconciliation should resolve UNKNOWN → FAILED_RETRY"
     );
+
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id: &tenant_id,
+        tenant_id: &tenant_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
     // Cleanup
     cleanup_test_data(&payments_pool, &ar_pool, &tenant_id).await;
@@ -494,6 +547,19 @@ async fn test_reconciliation_idempotency() {
         transition_count, 1,
         "Should have exactly 1 attempt in succeeded status"
     );
+
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id: &tenant_id,
+        tenant_id: &tenant_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
     // Cleanup
     cleanup_test_data(&payments_pool, &ar_pool, &tenant_id).await;

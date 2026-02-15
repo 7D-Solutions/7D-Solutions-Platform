@@ -9,6 +9,7 @@
 //! 4. Exactly-once mechanisms work together across the entire lifecycle
 
 mod common;
+mod oracle;
 
 use chrono::{NaiveDate, Utc};
 use serial_test::serial;
@@ -177,8 +178,21 @@ async fn test_subscription_cycle_replay_deduplication() {
         "Should have exactly 1 attempt after replay"
     );
 
+    // Oracle: Assert all module invariants
+    let payments_pool = common::get_payments_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id: tenant_id,
+        tenant_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &common::get_payments_pool().await, &subscriptions_pool, &common::get_gl_pool().await, tenant_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, tenant_id)
         .await
         .ok();
 }

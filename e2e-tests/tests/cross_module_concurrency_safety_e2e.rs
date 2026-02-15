@@ -10,6 +10,7 @@
 //! 5. Advisory lock ordering prevents deadlocks
 
 mod common;
+mod oracle;
 
 use serial_test::serial;
 use sqlx::PgPool;
@@ -145,8 +146,21 @@ async fn test_parallel_subscription_cycle_attempts() {
         "Should have exactly 1 attempt record after concurrent operations"
     );
 
+    // Oracle: Assert all module invariants
+    let payments_pool = common::get_payments_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: pool.as_ref(),
+        gl_pool: &gl_pool,
+        app_id: tenant_id,
+        tenant_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &common::get_payments_pool().await, pool.as_ref(), &common::get_gl_pool().await, tenant_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, pool.as_ref(), &gl_pool, tenant_id)
         .await
         .ok();
 }
@@ -210,8 +224,21 @@ async fn test_parallel_payment_attempts() {
         "Should have exactly 1 payment attempt after concurrent operations"
     );
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: pool.as_ref(),
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, pool.as_ref(), &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, pool.as_ref(), &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }
@@ -272,8 +299,22 @@ async fn test_parallel_gl_postings() {
         "Should have exactly 1 journal entry after concurrent operations"
     );
 
+    // Oracle: Assert all module invariants
+    let ar_pool = common::get_ar_pool().await;
+    let payments_pool = common::get_payments_pool().await;
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: pool.as_ref(),
+        app_id: tenant_id,
+        tenant_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&common::get_ar_pool().await, &common::get_payments_pool().await, &common::get_subscriptions_pool().await, pool.as_ref(), tenant_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, pool.as_ref(), tenant_id)
         .await
         .ok();
 }
@@ -386,6 +427,17 @@ async fn test_mixed_concurrent_operations() {
     assert_eq!(pay_count, 1, "Should have exactly 1 payment attempt");
     assert_eq!(gl_count, 1, "Should have exactly 1 GL entry");
 
+    // Oracle: Assert all module invariants
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: pay_pool.as_ref(),
+        subscriptions_pool: sub_pool.as_ref(),
+        gl_pool: gl_pool_arc.as_ref(),
+        app_id: tenant_id,
+        tenant_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
     common::cleanup_tenant_data(&ar_pool, pay_pool.as_ref(), sub_pool.as_ref(), gl_pool_arc.as_ref(), tenant_id)
         .await
@@ -450,8 +502,21 @@ async fn test_high_concurrency_stress() {
         "Should have exactly 1 attempt after 100 concurrent operations"
     );
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: pool.as_ref(),
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, pool.as_ref(), &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, pool.as_ref(), &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }

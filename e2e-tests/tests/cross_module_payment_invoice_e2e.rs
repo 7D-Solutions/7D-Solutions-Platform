@@ -9,6 +9,7 @@
 //! 4. Status propagation timing and ordering
 
 mod common;
+mod oracle;
 
 use chrono::NaiveDate;
 use serial_test::serial;
@@ -144,8 +145,21 @@ async fn test_payment_succeeded_updates_invoice_paid() {
     assert_eq!(final_status, "paid", "Invoice should be marked as paid");
     assert!(final_paid_at.is_some(), "Invoice should have paid_at timestamp");
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }
@@ -198,8 +212,21 @@ async fn test_payment_failed_final_keeps_invoice_open() {
 
     assert_eq!(attempt_count, 3, "Should have exactly 3 payment attempts");
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }
@@ -262,8 +289,21 @@ async fn test_webhook_idempotency_prevents_duplicate_updates() {
 
     assert_eq!(attempt_count, 1, "Should have exactly 1 payment attempt (no duplicates)");
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }
@@ -325,8 +365,21 @@ async fn test_status_propagation_ordering() {
 
     assert_eq!(attempt_count, 2, "Should have exactly 2 payment attempts");
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }
@@ -362,8 +415,21 @@ async fn test_no_update_during_attempting_status() {
     assert_eq!(status, "open", "Invoice should remain open while payment is attempting");
     assert!(paid_at.is_none(), "Invoice should not have paid_at while payment is attempting");
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }

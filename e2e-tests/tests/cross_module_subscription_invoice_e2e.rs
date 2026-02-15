@@ -17,6 +17,7 @@
 //! - GL NATS E2E: modules/gl/tests/boundary_e2e_nats_posting.rs
 
 mod common;
+mod oracle;
 
 use anyhow::Result;
 use chrono::NaiveDate;

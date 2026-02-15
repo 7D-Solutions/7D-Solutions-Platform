@@ -9,6 +9,7 @@
 //! 4. Idempotency key determinism
 
 mod common;
+mod oracle;
 
 use chrono::{NaiveDate, Utc};
 use serial_test::serial;
@@ -128,8 +129,21 @@ async fn test_no_duplicate_payment_attempts() {
 
     assert_eq!(count, 1, "Should have exactly one attempt");
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }
@@ -217,8 +231,21 @@ async fn test_retry_window_discipline() {
 
     assert_eq!(attempt_nos, vec![0, 1, 2], "Attempt numbers should be 0, 1, 2");
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }
@@ -292,8 +319,21 @@ async fn test_failed_retry_allows_next_attempt() {
 
     assert_eq!(count, 2, "Should have 2 attempts");
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }
@@ -361,8 +401,21 @@ async fn test_succeeded_is_terminal() {
     // NOTE: In production, lifecycle guards in payments module would prevent
     // creating new attempts after succeeded status
 
+    // Oracle: Assert all module invariants
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }
@@ -393,31 +446,21 @@ async fn test_payment_invariants_enforcement() {
     create_payment_attempt(&payments_pool, app_id, payment_id, invoice_id, 0, "attempting").await;
     create_payment_attempt(&payments_pool, app_id, Uuid::new_v4(), invoice_id, 0, "succeeded").await;
 
-    // Assert: Module-level invariants (bd-35x)
-    // NOTE: This requires payments_rs::invariants to be imported
-    // Skipping actual invariant calls to avoid module dependency in e2e-tests
-    // In production, would call: payments_rs::invariants::assert_all_invariants(&payments_pool, app_id).await
-
-    // Manual invariant check: No duplicate attempts
-    let duplicates: Vec<(Uuid, i32, i64)> = sqlx::query_as(
-        "SELECT payment_id, attempt_no, COUNT(*) as count
-         FROM payment_attempts
-         WHERE app_id = $1
-         GROUP BY payment_id, attempt_no
-         HAVING COUNT(*) > 1"
-    )
-    .bind(app_id)
-    .fetch_all(&payments_pool)
-    .await
-    .expect("Failed to check duplicates");
-
-    assert!(
-        duplicates.is_empty(),
-        "No duplicate (payment_id, attempt_no) pairs should exist"
-    );
+    // Oracle: Assert all module invariants (replaces manual checks and commented oracle call)
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let gl_pool = common::get_gl_pool().await;
+    let ctx = oracle::TestContext {
+        ar_pool: &ar_pool,
+        payments_pool: &payments_pool,
+        subscriptions_pool: &subscriptions_pool,
+        gl_pool: &gl_pool,
+        app_id,
+        tenant_id: app_id,
+    };
+    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
+    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
         .await
         .ok();
 }

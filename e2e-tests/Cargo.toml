@@ -58,6 +58,8 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 subscriptions-rs = { path = "../modules/subscriptions" }
 payments-rs = { path = "../modules/payments" }
+ar-rs = { path = "../modules/ar" }
+gl-rs = { path = "../modules/gl" }
 anyhow = "1.0"
 
 [dev-dependencies]

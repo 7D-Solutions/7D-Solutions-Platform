@@ -9,6 +9,7 @@
 //! 4. Account validation (accounts exist and active)
 
 mod common;
+mod oracle;
 
 use chrono::Utc;
 use serial_test::serial;
