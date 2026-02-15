@@ -129,9 +129,9 @@ async fn validate_transition(
     attempt_id: Uuid,
     to_status: &str,
 ) -> Result<(), TransitionError> {
-    // Fetch current payment attempt status
+    // Fetch current payment attempt status (cast enum to TEXT)
     let current_status: Option<String> = sqlx::query_scalar(
-        "SELECT status FROM payment_attempts WHERE id = $1"
+        "SELECT status::text FROM payment_attempts WHERE id = $1"
     )
     .bind(attempt_id)
     .fetch_optional(&mut **tx)
@@ -243,7 +243,7 @@ pub async fn transition_to_succeeded(
     validate_transition(&mut tx, attempt_id, status::SUCCEEDED).await?;
 
     // 2. MUTATE: Update payment attempt status (after guard approval)
-    sqlx::query("UPDATE payment_attempts SET status = $1, completed_at = CURRENT_TIMESTAMP WHERE id = $2")
+    sqlx::query("UPDATE payment_attempts SET status = $1::payment_attempt_status, completed_at = CURRENT_TIMESTAMP WHERE id = $2")
         .bind(status::SUCCEEDED)
         .bind(attempt_id)
         .execute(&mut *tx)
@@ -271,7 +271,7 @@ pub async fn transition_to_failed_retry(
     validate_transition(&mut tx, attempt_id, status::FAILED_RETRY).await?;
 
     // 2. MUTATE: Update payment attempt status
-    sqlx::query("UPDATE payment_attempts SET status = $1, completed_at = CURRENT_TIMESTAMP WHERE id = $2")
+    sqlx::query("UPDATE payment_attempts SET status = $1::payment_attempt_status, completed_at = CURRENT_TIMESTAMP WHERE id = $2")
         .bind(status::FAILED_RETRY)
         .bind(attempt_id)
         .execute(&mut *tx)
@@ -299,7 +299,7 @@ pub async fn transition_to_failed_final(
     validate_transition(&mut tx, attempt_id, status::FAILED_FINAL).await?;
 
     // 2. MUTATE: Update payment attempt status
-    sqlx::query("UPDATE payment_attempts SET status = $1, completed_at = CURRENT_TIMESTAMP WHERE id = $2")
+    sqlx::query("UPDATE payment_attempts SET status = $1::payment_attempt_status, completed_at = CURRENT_TIMESTAMP WHERE id = $2")
         .bind(status::FAILED_FINAL)
         .bind(attempt_id)
         .execute(&mut *tx)
@@ -337,7 +337,7 @@ pub async fn transition_to_unknown(
     validate_transition(&mut tx, attempt_id, status::UNKNOWN).await?;
 
     // 2. MUTATE: Update payment attempt status
-    sqlx::query("UPDATE payment_attempts SET status = $1, completed_at = CURRENT_TIMESTAMP WHERE id = $2")
+    sqlx::query("UPDATE payment_attempts SET status = $1::payment_attempt_status, completed_at = CURRENT_TIMESTAMP WHERE id = $2")
         .bind(status::UNKNOWN)
         .bind(attempt_id)
         .execute(&mut *tx)
@@ -369,7 +369,7 @@ pub async fn transition_to_attempting(
     validate_transition(&mut tx, attempt_id, status::ATTEMPTING).await?;
 
     // 2. MUTATE: Update payment attempt status
-    sqlx::query("UPDATE payment_attempts SET status = $1, attempted_at = CURRENT_TIMESTAMP WHERE id = $2")
+    sqlx::query("UPDATE payment_attempts SET status = $1::payment_attempt_status, attempted_at = CURRENT_TIMESTAMP WHERE id = $2")
         .bind(status::ATTEMPTING)
         .bind(attempt_id)
         .execute(&mut *tx)
