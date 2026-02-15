@@ -12,7 +12,7 @@
 //! 3. Lifecycle function emits events (after mutation succeeds)
 //!
 //! **Payment Attempt State Machine:**
-//! ```
+//! ```text
 //! ATTEMPTING ──> SUCCEEDED
 //!   |
 //!   ├──> FAILED_RETRY ──> ATTEMPTING (retry window)
@@ -227,7 +227,7 @@ async fn validate_transition(
 /// - Emit events (NOT YET IMPLEMENTED - placeholder for bd-1wg or bd-1it)
 ///
 /// **Usage:**
-/// ```rust
+/// ```ignore
 /// let pool = /* ... */;
 /// let attempt_id = Uuid::new_v4();
 /// transition_to_succeeded(&pool, attempt_id, "PSP confirmed payment").await?;

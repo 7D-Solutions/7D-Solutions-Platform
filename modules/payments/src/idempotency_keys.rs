@@ -10,7 +10,7 @@
 //! 4. DB-enforced: UNIQUE constraints prevent duplicates
 //!
 //! **Usage:**
-//! ```rust
+//! ```ignore
 //! use payments::idempotency_keys::{generate_payment_attempt_key, PaymentAttemptKey};
 //! use uuid::Uuid;
 //!

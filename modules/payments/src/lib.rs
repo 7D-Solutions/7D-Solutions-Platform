@@ -6,6 +6,8 @@ pub mod idempotency_keys;
 pub mod lifecycle;
 pub mod models;
 pub mod processor;
+pub mod webhook_handler;
+pub mod webhook_signature;
 
 pub use consumer_task::start_payment_collection_consumer;
 pub use events::{enqueue_event, EventConsumer, EventEnvelope};
