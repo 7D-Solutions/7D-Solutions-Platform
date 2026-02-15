@@ -1,5 +1,6 @@
 mod config;
 mod consumer;
+mod cycle_gating;
 mod dlq;
 mod envelope;
 mod envelope_validation;
