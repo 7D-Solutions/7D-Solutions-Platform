@@ -5,6 +5,7 @@
 
 pub mod cycle_gating;
 pub mod gated_invoice_creation;
+pub mod invariants;
 pub mod lifecycle;
 pub mod models;
 

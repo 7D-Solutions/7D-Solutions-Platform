@@ -4,6 +4,7 @@ pub mod events;
 pub mod finalization;
 pub mod idempotency;
 pub mod idempotency_keys;
+pub mod invariants;
 pub mod lifecycle;
 pub mod models;
 pub mod retry;

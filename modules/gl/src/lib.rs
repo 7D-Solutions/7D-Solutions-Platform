@@ -5,6 +5,7 @@ pub mod db;
 pub mod dlq;
 pub mod domain;
 pub mod health;
+pub mod invariants;
 pub mod repos;
 pub mod routes;
 pub mod services;
