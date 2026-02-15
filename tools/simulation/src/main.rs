@@ -635,7 +635,7 @@ impl SimulationRunner {
         info!("Computing DB digest for determinism verification");
 
         // Count AR invoices
-        let ar_invoices: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar.ar_invoices")
+        let ar_invoices: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoices")
             .fetch_one(&self.pools.ar_pool)
             .await
             .context("Failed to count AR invoices")?;
@@ -666,7 +666,7 @@ impl SimulationRunner {
 
         // Get status distributions (AR invoices)
         let ar_status_rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT status, COUNT(*) as count FROM ar.ar_invoices GROUP BY status"
+            "SELECT status, COUNT(*) as count FROM ar_invoices GROUP BY status"
         )
         .fetch_all(&self.pools.ar_pool)
         .await
