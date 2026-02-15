@@ -19,6 +19,14 @@ path = "tests/phase10_governance_e2e.rs"
 name = "cross_module_invoice_payment_e2e"
 path = "tests/cross_module_invoice_payment_e2e.rs"
 
+[[test]]
+name = "cross_module_subscription_invoice_e2e"
+path = "tests/cross_module_subscription_invoice_e2e.rs"
+
+[[test]]
+name = "cross_module_invoice_gl_e2e"
+path = "tests/cross_module_invoice_gl_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -32,6 +40,8 @@ async-nats = "0.33"
 futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+subscriptions-rs = { path = "../modules/subscriptions" }
+anyhow = "1.0"
 
 [dev-dependencies]
 serial_test = "3.0"
