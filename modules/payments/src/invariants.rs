@@ -207,14 +207,13 @@ pub async fn assert_unknown_protocol_compliance(
 ) -> Result<(), InvariantViolation> {
     // Query for UNKNOWN status attempts that would be retry-eligible
     // (This simulates what get_payments_for_retry() would return if UNKNOWN filter was missing)
+    // Note: Cross-module query removed - UNKNOWN blocking is enforced at payment level
+    // We validate UNKNOWN attempts exist, but don't cross-reference AR invoices
     let unknown_in_retry: Vec<(Uuid, String)> = sqlx::query_as(
         "SELECT payment_id, status::text
          FROM payment_attempts
          WHERE app_id = $1
-           AND status::text = 'unknown'
-           AND invoice_id IN (
-               SELECT id::text FROM ar.ar_invoices WHERE due_at IS NOT NULL
-           )"
+           AND status::text = 'unknown'"
     )
     .bind(app_id)
     .fetch_all(pool)
