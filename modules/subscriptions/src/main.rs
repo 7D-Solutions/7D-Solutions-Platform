@@ -4,6 +4,7 @@ mod cycle_gating;
 mod dlq;
 mod envelope;
 mod envelope_validation;
+mod gated_invoice_creation;
 mod lifecycle;
 mod models;
 mod outbox;
