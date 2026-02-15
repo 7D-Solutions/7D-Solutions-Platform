@@ -3097,6 +3097,7 @@ dependencies = [
  "ar-rs",
  "async-nats 0.38.0",
  "chrono",
+ "clap",
  "gl-rs",
  "payments-rs",
  "rand 0.8.5",

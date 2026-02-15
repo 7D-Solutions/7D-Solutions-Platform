@@ -34,6 +34,9 @@ rand_chacha = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+
 # Module access (for oracle)
 ar-rs = { path = "../../modules/ar" }
 payments-rs = { path = "../../modules/payments" }
