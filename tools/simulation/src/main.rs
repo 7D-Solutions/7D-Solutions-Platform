@@ -674,7 +674,7 @@ impl SimulationRunner {
 
         // Get payment status distributions
         let payment_status_rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT status, COUNT(*) as count FROM payment_attempts GROUP BY status"
+            "SELECT status::TEXT, COUNT(*) as count FROM payment_attempts GROUP BY status"
         )
         .fetch_all(&self.pools.payments_pool)
         .await
