@@ -423,8 +423,6 @@ impl SimulationRunner {
             tenant_id,
             invoice_id,
             &tilled_invoice_id,
-            amount_cents,
-            &currency,
             &outcome,
         ).await?;
 
@@ -539,14 +537,12 @@ impl SimulationRunner {
         app_id: &str,
         invoice_id: i32,
         tilled_invoice_id: &str,
-        amount_cents: i32,
-        currency: &str,
         outcome: &failures::PaymentOutcome,
     ) -> Result<Uuid> {
         use uuid::Uuid;
 
         let attempt_id = Uuid::new_v4();
-        let idempotency_key = format!("sim-{}-{}", invoice_id, attempt_id);
+        let payment_id = Uuid::new_v4(); // Parent payment record for grouping retries
 
         // Determine initial status based on outcome
         let status = if outcome.should_be_unknown() {
@@ -559,15 +555,14 @@ impl SimulationRunner {
 
         sqlx::query(
             "INSERT INTO payment_attempts
-             (id, app_id, invoice_id, amount_cents, currency, idempotency_key, status, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())"
+             (id, app_id, payment_id, invoice_id, attempt_no, status)
+             VALUES ($1, $2, $3, $4::text, $5, $6::payment_attempt_status)"
         )
         .bind(attempt_id)
         .bind(app_id)
+        .bind(payment_id)
         .bind(tilled_invoice_id)
-        .bind(amount_cents)
-        .bind(currency)
-        .bind(&idempotency_key)
+        .bind(0) // First attempt
         .bind(status)
         .execute(&self.pools.payments_pool)
         .await
