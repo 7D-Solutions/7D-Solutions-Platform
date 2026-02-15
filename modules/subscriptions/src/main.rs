@@ -3,6 +3,7 @@ mod consumer;
 mod dlq;
 mod envelope;
 mod envelope_validation;
+mod lifecycle;
 mod models;
 mod outbox;
 mod publisher;

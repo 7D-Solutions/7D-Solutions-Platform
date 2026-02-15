@@ -6,5 +6,6 @@ pub mod idempotency;
 pub mod idempotency_keys;
 pub mod lifecycle;
 pub mod models;
+pub mod retry;
 pub mod routes;
 pub mod tilled;
