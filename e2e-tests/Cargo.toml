@@ -15,6 +15,10 @@ path = "tests/real_e2e.rs"
 name = "phase10_governance_e2e"
 path = "tests/phase10_governance_e2e.rs"
 
+[[test]]
+name = "cross_module_invoice_payment_e2e"
+path = "tests/cross_module_invoice_payment_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
