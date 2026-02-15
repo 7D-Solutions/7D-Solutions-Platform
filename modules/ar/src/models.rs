@@ -1,6 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use uuid::Uuid;
 
 /// Customer record from ar_customers table
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -238,6 +239,39 @@ pub struct ListInvoicesQuery {
     pub status: Option<String>,
     pub limit: Option<i32>,
     pub offset: Option<i32>,
+}
+
+// ============================================================================
+// INVOICE ATTEMPT MODELS (Phase 15)
+// ============================================================================
+
+/// Invoice attempt status enum (Phase 15 lifecycle states)
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "ar_invoice_attempt_status", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum InvoiceAttemptStatus {
+    Attempting,
+    Succeeded,
+    FailedRetry,
+    FailedFinal,
+}
+
+/// Invoice attempt record from ar_invoice_attempts table
+/// Phase 15: Deterministic attempt ledger for exactly-once side effect enforcement
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct InvoiceAttempt {
+    pub id: Uuid,
+    pub app_id: String,
+    pub invoice_id: i32,
+    pub attempt_no: i32,
+    pub status: InvoiceAttemptStatus,
+    pub attempted_at: NaiveDateTime,
+    pub completed_at: Option<NaiveDateTime>,
+    pub failure_code: Option<String>,
+    pub failure_message: Option<String>,
+    pub idempotency_key: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 // ============================================================================

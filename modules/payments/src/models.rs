@@ -1,4 +1,6 @@
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 // ============================================================================
 // INCOMING EVENT PAYLOADS
@@ -60,4 +62,43 @@ pub struct PaymentResult {
     pub payment_id: String,
     pub processor_payment_id: String,
     pub payment_method_ref: Option<String>,
+}
+
+// ============================================================================
+// PAYMENT ATTEMPT MODELS (Phase 15)
+// ============================================================================
+
+/// Payment attempt status enum (Phase 15 lifecycle states + UNKNOWN protocol)
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "payment_attempt_status", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum PaymentAttemptStatus {
+    Attempting,
+    Succeeded,
+    FailedRetry,
+    FailedFinal,
+    Unknown,  // Phase 15 UNKNOWN protocol: blocks retries and subscription suspension
+}
+
+/// Payment attempt record from payment_attempts table
+/// Phase 15: Deterministic attempt ledger for exactly-once side effect enforcement
+/// Supports UNKNOWN protocol for webhook reconciliation
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct PaymentAttempt {
+    pub id: Uuid,
+    pub app_id: String,
+    pub payment_id: Uuid,
+    pub invoice_id: String,
+    pub attempt_no: i32,
+    pub status: PaymentAttemptStatus,
+    pub attempted_at: NaiveDateTime,
+    pub completed_at: Option<NaiveDateTime>,
+    pub processor_payment_id: Option<String>,
+    pub payment_method_ref: Option<String>,
+    pub failure_code: Option<String>,
+    pub failure_message: Option<String>,
+    pub webhook_event_id: Option<String>,
+    pub idempotency_key: Option<String>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
