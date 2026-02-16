@@ -8,10 +8,10 @@ use tracing_subscriber::EnvFilter;
 
 use gl_rs::{
     config::Config,
-    health::health,
     routes::account_activity::get_account_activity,
     routes::balance_sheet::get_balance_sheet,
     routes::gl_detail::get_gl_detail,
+    routes::health::{health, ready},
     routes::income_statement::get_income_statement,
     routes::period_close::{close_period_handler, get_close_status, validate_close},
     routes::period_summary::get_period_summary,
@@ -94,6 +94,7 @@ async fn main() {
     // Build the application router
     let app = Router::new()
         .route("/api/health", get(health))
+        .route("/api/ready", get(ready))
         .route("/api/gl/trial-balance", get(get_trial_balance))
         .route("/api/gl/income-statement", get(get_income_statement))
         .route("/api/gl/balance-sheet", get(get_balance_sheet))

@@ -80,7 +80,8 @@ async fn main() {
         .expect("PORT must be a valid u16");
 
     let app = Router::new()
-        .route("/api/health", get(health))
+        .route("/api/health", get(routes::health::health))
+        .route("/api/ready", get(routes::health::ready))
         .with_state(pool.clone())
         .merge(routes::subscriptions_router(pool.clone()))
         .layer(
@@ -100,12 +101,4 @@ async fn main() {
     axum::serve(listener, app)
         .await
         .expect("Server failed to start");
-}
-
-async fn health(State(_pool): State<sqlx::PgPool>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "status": "healthy",
-        "module": "subscriptions",
-        "version": env!("CARGO_PKG_VERSION")
-    }))
 }

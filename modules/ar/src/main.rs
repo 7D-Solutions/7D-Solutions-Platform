@@ -84,7 +84,8 @@ async fn main() {
         .allow_credentials(true);
 
     let app = Router::new()
-        .route("/api/health", get(health))
+        .route("/api/health", get(routes::health::health))
+        .route("/api/ready", get(routes::health::ready))
         .with_state(db.clone())
         .merge(routes::ar_router(db))
         .layer(cors)
@@ -103,11 +104,4 @@ async fn main() {
     axum::serve(listener, app)
         .await
         .expect("Failed to start server");
-}
-
-async fn health(State(_db): State<PgPool>) -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "status": "healthy",
-        "service": "ar-rs"
-    }))
 }

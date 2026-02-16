@@ -7,6 +7,7 @@ use tracing_subscriber::EnvFilter;
 
 mod db;
 mod events;
+mod routes;
 
 #[tokio::main]
 async fn main() {
@@ -74,7 +75,9 @@ async fn main() {
     payments_rs::start_payment_collection_consumer(consumer_bus, consumer_pool).await;
 
     let app = Router::new()
-        .route("/api/health", get(health))
+        .route("/api/health", get(routes::health::health))
+        .route("/api/ready", get(routes::health::ready))
+        .with_state(pool)
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)
@@ -92,12 +95,4 @@ async fn main() {
     axum::serve(listener, app)
         .await
         .expect("Server failed to start");
-}
-
-async fn health() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "status": "healthy",
-        "module": "payments",
-        "version": env!("CARGO_PKG_VERSION")
-    }))
 }

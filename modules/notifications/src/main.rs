@@ -6,6 +6,7 @@ mod envelope_validation;
 mod event_bus;
 mod handlers;
 mod models;
+mod routes;
 
 use axum::{routing::get, Json, Router};
 use ::event_bus::{EventBus, InMemoryBus, NatsBus};
@@ -72,7 +73,9 @@ async fn main() {
         .expect("PORT must be a valid u16");
 
     let app = Router::new()
-        .route("/api/health", get(health))
+        .route("/api/health", get(routes::health::health))
+        .route("/api/ready", get(routes::health::ready))
+        .with_state(db)
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)
@@ -90,12 +93,4 @@ async fn main() {
     axum::serve(listener, app)
         .await
         .expect("Server failed to start");
-}
-
-async fn health() -> Json<serde_json::Value> {
-    Json(serde_json::json!({
-        "status": "healthy",
-        "module": "notifications",
-        "version": env!("CARGO_PKG_VERSION")
-    }))
 }
