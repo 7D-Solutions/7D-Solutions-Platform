@@ -1,0 +1,50 @@
+Please output beads for both **Phase 17 AND Phase 18** in the standard JSON bead format.
+
+**Requirements:**
+1. Use the same bead structure from previous phases (see `schemas/bead-plan-format.json`)
+2. Each bead must have:
+   - `id`: bead identifier (e.g., "bd-XXX")
+   - `title`: brief title
+   - `description`: detailed requirements
+   - `how_to_think`: critical - must include what invariant to protect and what failure mode to avoid
+   - `depends_on`: array of bead IDs this depends on
+   - `acceptance_criteria`: measurable outcomes
+   - `verification_commands`: integrated tests (real services, no mocking)
+   - `estimated_complexity`: 1-5 scale
+   - `files_involved`: array of file paths (verify against codebase structure)
+
+3. **Dependencies must be correct:**
+   - Foundation beads should have empty `depends_on: []`
+   - Child beads should reference parent beads they actually depend on
+   - Dependencies should form a valid DAG (no circular dependencies)
+   - Parallel tracks can share a foundation but run independently
+
+4. **Phase 17 scope:** "Truth at Scale"
+   - P0 Track A: Projection Integrity and Replay Governance
+   - P0 Track B: Audit Spine by Mutation Class
+   - P0 Track C: Tenant Provisioning and Isolation Readiness
+
+5. **Phase 18 scope:** What comes after Phase 17?
+   - Please propose the next logical phase given the platform's progression
+   - Should build on Phase 17's projection/audit/tenant foundations
+
+**Output format:**
+```json
+{
+  "phase_17": [
+    { "id": "bd-XXX", "title": "...", ... },
+    { "id": "bd-YYY", "title": "...", "depends_on": ["bd-XXX"], ... }
+  ],
+  "phase_18": [
+    { "id": "bd-ZZZ", "title": "...", ... }
+  ]
+}
+```
+
+Each bead must be:
+- Single-concern and executable in isolation
+- Have integrated verification (real NATS, real PostgreSQL)
+- Include explicit invariants in `how_to_think`
+- Have file paths verified against actual codebase structure
+
+Please provide the complete bead specifications for both phases.
