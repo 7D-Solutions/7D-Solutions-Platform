@@ -1,0 +1,10 @@
+{
+  "name": "7d-solutions-platform",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "7D Solutions Platform",
+  "scripts": {},
+  "dependencies": {
+    "playwright": "^1.48.0"
+  }
+}
