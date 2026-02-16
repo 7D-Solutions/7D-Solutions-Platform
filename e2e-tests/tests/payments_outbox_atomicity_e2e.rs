@@ -21,7 +21,7 @@
 mod common;
 
 use anyhow::Result;
-use common::{cleanup_tenant_data, generate_test_tenant, get_payments_pool};
+use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_payments_pool, get_subscriptions_pool, get_gl_pool};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -92,12 +92,17 @@ async fn count_outbox_rows_for_payment(pool: &PgPool, payment_id: Uuid) -> Resul
 #[serial]
 async fn test_payments_status_transition_outbox_atomicity() -> Result<()> {
     let test_id = "payments_outbox_atomicity";
-    let tenant_id = generate_test_tenant(test_id);
+    let tenant_id = generate_test_tenant();
 
     let payments_pool = get_payments_pool().await;
+    let ar_pool = get_ar_pool().await;
+    let subscriptions_pool = get_subscriptions_pool().await;
+    let gl_pool = get_gl_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&payments_pool, &tenant_id).await?;
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     // Step 1: Create payment attempt in "attempting" status
     let attempt_id = create_payment_attempt(&payments_pool, &tenant_id, "attempting").await?;
@@ -170,7 +175,9 @@ async fn test_payments_status_transition_outbox_atomicity() -> Result<()> {
     }
 
     // Clean up
-    cleanup_tenant_data(&payments_pool, &tenant_id).await?;
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("\n🎯 Test Result: Atomicity verified!");
     println!("   - Domain state and outbox are consistent");

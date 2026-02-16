@@ -19,7 +19,7 @@
 mod common;
 
 use anyhow::Result;
-use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool};
+use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_payments_pool, get_subscriptions_pool, get_gl_pool};
 use serial_test::serial;
 use sqlx::PgPool;
 
@@ -110,12 +110,17 @@ async fn count_outbox_rows_for_invoice(pool: &PgPool, invoice_id: i32) -> Result
 #[serial]
 async fn test_ar_finalize_invoice_outbox_atomicity() -> Result<()> {
     let test_id = "ar_outbox_atomicity";
-    let tenant_id = generate_test_tenant(test_id);
+    let tenant_id = generate_test_tenant();
 
     let ar_pool = get_ar_pool().await;
+    let payments_pool = get_payments_pool().await;
+    let subscriptions_pool = get_subscriptions_pool().await;
+    let gl_pool = get_gl_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&ar_pool, &tenant_id).await?;
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     // Step 1: Create test customer
     let customer_id = create_ar_customer(&ar_pool, &tenant_id).await?;
@@ -189,7 +194,9 @@ async fn test_ar_finalize_invoice_outbox_atomicity() -> Result<()> {
     }
 
     // Clean up
-    cleanup_tenant_data(&ar_pool, &tenant_id).await?;
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("\n🎯 Test Result: Atomicity verified!");
     println!("   - Domain state and outbox are consistent");

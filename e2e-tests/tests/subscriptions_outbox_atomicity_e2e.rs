@@ -18,12 +18,8 @@
 
 mod common;
 
-use antml:function_calls>
-<invoke name="Bash">
-<parameter name="command">cd "/Users/james/Projects/7D-Solutions Platform" && cat >> "e2e-tests/tests/subscriptions_outbox_atomicity_e2e.rs" <<'EOF'
-
 use anyhow::Result;
-use common::{cleanup_tenant_data, generate_test_tenant, get_subscriptions_pool};
+use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_payments_pool, get_subscriptions_pool, get_gl_pool};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -89,12 +85,17 @@ async fn count_outbox_rows_for_subscription(pool: &PgPool, tenant_id: &str) -> R
 #[serial]
 async fn test_subscriptions_lifecycle_transition_outbox_atomicity() -> Result<()> {
     let test_id = "subs_lifecycle_atomicity";
-    let tenant_id = generate_test_tenant(test_id);
+    let tenant_id = generate_test_tenant();
 
     let subscriptions_pool = get_subscriptions_pool().await;
+    let ar_pool = get_ar_pool().await;
+    let payments_pool = get_payments_pool().await;
+    let gl_pool = get_gl_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&subscriptions_pool, &tenant_id).await?;
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     // Step 1: Create subscription in "active" status
     let subscription_id = create_subscription(&subscriptions_pool, &tenant_id, "active").await?;
@@ -156,7 +157,9 @@ async fn test_subscriptions_lifecycle_transition_outbox_atomicity() -> Result<()
     }
 
     // Clean up
-    cleanup_tenant_data(&subscriptions_pool, &tenant_id).await?;
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("\n🎯 Test Result: Atomicity verified!");
     println!("   - Domain state and outbox are consistent");
