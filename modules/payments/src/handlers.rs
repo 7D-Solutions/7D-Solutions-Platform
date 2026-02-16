@@ -44,6 +44,7 @@ pub async fn handle_payment_collection_requested(
             let envelope = crate::events::envelope::create_payments_envelope(
                 Uuid::new_v4(),
                 envelope_metadata.tenant_id.clone(),
+                "payment.succeeded".to_string(),
                 envelope_metadata.correlation_id.clone(),
                 Some(envelope_metadata.event_id.to_string()),
                 success_payload,
@@ -80,6 +81,7 @@ pub async fn handle_payment_collection_requested(
             let envelope = crate::events::envelope::create_payments_envelope(
                 Uuid::new_v4(),
                 envelope_metadata.tenant_id,
+                "payment.failed".to_string(),
                 envelope_metadata.correlation_id,
                 Some(envelope_metadata.event_id.to_string()),
                 failed_payload,
