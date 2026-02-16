@@ -26,6 +26,8 @@
 //! - `side_effect_id`: Tracks side effects for idempotency
 //! - `replay_safe`: Indicates if the event can be safely replayed
 //! - `mutation_class`: Classification of the mutation (e.g., "financial", "user-data")
+//! - `actor_id`: Identifier of the actor who caused this event
+//! - `actor_type`: Type of actor (User, Service, System)
 //! - `payload`: Event-specific data (generic type parameter)
 
 use chrono::{DateTime, Utc};
@@ -122,6 +124,14 @@ pub struct EventEnvelope<T> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mutation_class: Option<String>,
 
+    /// Identifier of the actor who caused this event
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actor_id: Option<Uuid>,
+
+    /// Type of actor (User, Service, System)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub actor_type: Option<String>,
+
     /// Event-specific payload
     pub payload: T,
 }
@@ -162,6 +172,8 @@ impl<T> EventEnvelope<T> {
             side_effect_id: None,
             replay_safe: true, // Safe default
             mutation_class: None,
+            actor_id: None,
+            actor_type: None,
             payload,
         }
     }
@@ -190,6 +202,8 @@ impl<T> EventEnvelope<T> {
             side_effect_id: None,
             replay_safe: true,
             mutation_class: None,
+            actor_id: None,
+            actor_type: None,
             payload,
         }
     }
@@ -251,6 +265,20 @@ impl<T> EventEnvelope<T> {
     /// Set the mutation class
     pub fn with_mutation_class(mut self, mutation_class: Option<String>) -> Self {
         self.mutation_class = mutation_class;
+        self
+    }
+
+    /// Set the actor identity
+    pub fn with_actor(mut self, actor_id: Uuid, actor_type: String) -> Self {
+        self.actor_id = Some(actor_id);
+        self.actor_type = Some(actor_type);
+        self
+    }
+
+    /// Set the actor identity from audit::Actor
+    pub fn with_actor_from(mut self, actor_id: Option<Uuid>, actor_type: Option<String>) -> Self {
+        self.actor_id = actor_id;
+        self.actor_type = actor_type;
         self
     }
 }
@@ -405,6 +433,21 @@ pub fn validate_envelope_fields(envelope: &serde_json::Value) -> Result<(), Stri
         ));
     }
 
+    // Validate actor fields if present (optional for backward compatibility)
+    if let Some(actor_type) = envelope.get("actor_type").and_then(|v| v.as_str()) {
+        if actor_type.is_empty() {
+            return Err("actor_type cannot be empty".to_string());
+        }
+        // Validate actor_type is a known value
+        const VALID_ACTOR_TYPES: &[&str] = &["User", "Service", "System"];
+        if !VALID_ACTOR_TYPES.contains(&actor_type) {
+            return Err(format!(
+                "Invalid actor_type: '{}'. Must be one of: {:?}",
+                actor_type, VALID_ACTOR_TYPES
+            ));
+        }
+    }
+
     // reverses_event_id and supersedes_event_id are optional UUIDs
     Ok(())
 }
@@ -435,6 +478,8 @@ mod tests {
         assert!(envelope.supersedes_event_id.is_none());
         assert!(envelope.side_effect_id.is_none());
         assert!(envelope.mutation_class.is_none());
+        assert!(envelope.actor_id.is_none());
+        assert!(envelope.actor_type.is_none());
     }
 
     #[test]
@@ -469,6 +514,22 @@ mod tests {
         assert_eq!(envelope.side_effect_id, Some("side-effect-123".to_string()));
         assert!(!envelope.replay_safe);
         assert_eq!(envelope.mutation_class, Some("financial".to_string()));
+    }
+
+    #[test]
+    fn test_envelope_with_actor() {
+        let actor_id = Uuid::new_v4();
+
+        let envelope = EventEnvelope::new(
+            "tenant-123".to_string(),
+            "test-module".to_string(),
+            "test.event".to_string(),
+            json!({"test": "data"}),
+        )
+        .with_actor(actor_id, "User".to_string());
+
+        assert_eq!(envelope.actor_id, Some(actor_id));
+        assert_eq!(envelope.actor_type, Some("User".to_string()));
     }
 
     #[test]
@@ -719,5 +780,73 @@ mod tests {
                 class
             );
         }
+    }
+
+    #[test]
+    fn test_validate_envelope_fields_valid_actor_types() {
+        let valid_actor_types = vec!["User", "Service", "System"];
+
+        for actor_type in valid_actor_types {
+            let envelope = json!({
+                "event_id": "550e8400-e29b-41d4-a716-446655440000",
+                "event_type": "test.event",
+                "occurred_at": "2024-01-01T00:00:00Z",
+                "tenant_id": "tenant-123",
+                "source_module": "test",
+                "source_version": "1.0.0",
+                "schema_version": "1.0.0",
+                "replay_safe": true,
+                "mutation_class": "DATA_MUTATION",
+                "actor_id": "550e8400-e29b-41d4-a716-446655440001",
+                "actor_type": actor_type
+            });
+
+            assert!(
+                validate_envelope_fields(&envelope).is_ok(),
+                "Expected {} to be valid",
+                actor_type
+            );
+        }
+    }
+
+    #[test]
+    fn test_validate_envelope_fields_invalid_actor_type() {
+        let envelope = json!({
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "test.event",
+            "occurred_at": "2024-01-01T00:00:00Z",
+            "tenant_id": "tenant-123",
+            "source_module": "test",
+            "source_version": "1.0.0",
+            "schema_version": "1.0.0",
+            "replay_safe": true,
+            "mutation_class": "DATA_MUTATION",
+            "actor_id": "550e8400-e29b-41d4-a716-446655440001",
+            "actor_type": "InvalidType"
+        });
+
+        let result = validate_envelope_fields(&envelope);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid actor_type"));
+    }
+
+    #[test]
+    fn test_validate_envelope_fields_empty_actor_type() {
+        let envelope = json!({
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "test.event",
+            "occurred_at": "2024-01-01T00:00:00Z",
+            "tenant_id": "tenant-123",
+            "source_module": "test",
+            "source_version": "1.0.0",
+            "schema_version": "1.0.0",
+            "replay_safe": true,
+            "mutation_class": "DATA_MUTATION",
+            "actor_type": ""
+        });
+
+        let result = validate_envelope_fields(&envelope);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("actor_type cannot be empty"));
     }
 }
