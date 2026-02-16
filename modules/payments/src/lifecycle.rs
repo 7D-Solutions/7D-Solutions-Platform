@@ -250,7 +250,12 @@ pub async fn transition_to_succeeded(
         .await?;
 
     // 3. EMIT: Side effects go here (after mutation succeeds)
-    // TODO: emit_payment_succeeded_event (future bead - bd-1wg)
+    // 3. EMIT: Event emission (future bead - bd-1wg)
+    // When implemented, use enqueue_event_tx() for atomicity:
+    // use crate::events::outbox::enqueue_event_tx;
+    // let envelope = create_payments_envelope(...payment_succeeded_payload);
+    // enqueue_event_tx(&mut tx, "payment.succeeded", &envelope).await?;
+    // CRITICAL: Emit BEFORE tx.commit() to ensure atomicity
 
     tx.commit().await?;
     Ok(())
@@ -278,7 +283,8 @@ pub async fn transition_to_failed_retry(
         .await?;
 
     // 3. EMIT: Side effects go here
-    // TODO: emit_payment_failed_retry_event (future bead - bd-1wg)
+    // 3. EMIT: Event emission (future bead - bd-1wg)
+    // When implemented, use enqueue_event_tx(&mut tx, ...) BEFORE tx.commit()
 
     tx.commit().await?;
     Ok(())
@@ -306,7 +312,8 @@ pub async fn transition_to_failed_final(
         .await?;
 
     // 3. EMIT: Side effects go here
-    // TODO: emit_payment_failed_final_event (future bead - bd-1wg)
+    // 3. EMIT: Event emission (future bead - bd-1wg)
+    // When implemented, use enqueue_event_tx(&mut tx, ...) BEFORE tx.commit()
 
     tx.commit().await?;
     Ok(())
@@ -344,7 +351,8 @@ pub async fn transition_to_unknown(
         .await?;
 
     // 3. EMIT: Side effects go here
-    // TODO: emit_payment_unknown_event + trigger_reconciliation_workflow (bd-2uw)
+    // 3. EMIT: Event emission + reconciliation trigger (bd-2uw)
+    // When implemented, use enqueue_event_tx(&mut tx, ...) BEFORE tx.commit()
 
     tx.commit().await?;
     Ok(())
@@ -376,7 +384,8 @@ pub async fn transition_to_attempting(
         .await?;
 
     // 3. EMIT: Side effects go here
-    // TODO: emit_payment_retry_event (future bead - bd-1it)
+    // 3. EMIT: Event emission (future bead - bd-1it)
+    // When implemented, use enqueue_event_tx(&mut tx, ...) BEFORE tx.commit()
 
     tx.commit().await?;
     Ok(())
