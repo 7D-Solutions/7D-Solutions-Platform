@@ -34,7 +34,7 @@
 //!             // Apply event to read model here
 //!             sqlx::query("UPDATE balances SET amount = amount + $1")
 //!                 .bind(100)
-//!                 .execute(&mut **tx)
+//!                 .execute(tx)
 //!                 .await?;
 //!             Ok(())
 //!         }

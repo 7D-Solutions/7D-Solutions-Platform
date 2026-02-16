@@ -186,7 +186,7 @@ impl ProjectionCursor {
 ///             sqlx::query("UPDATE customer_balances SET balance = balance + $1 WHERE customer_id = $2")
 ///                 .bind(100)
 ///                 .bind("cust-456")
-///                 .execute(&mut **tx)
+///                 .execute(tx)
 ///                 .await?;
 ///             Ok(())
 ///         }

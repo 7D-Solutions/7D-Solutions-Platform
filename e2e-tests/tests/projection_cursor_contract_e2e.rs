@@ -238,7 +238,7 @@ async fn test_try_apply_event_applies_new_event() {
                 .bind(100_i64)
                 .bind(customer_id)
                 .bind(tenant_id)
-                .execute(&mut **tx)
+                .execute(tx)
                 .await
                 .map_err(CursorError::from)?;
             Ok(())
@@ -308,7 +308,7 @@ async fn test_try_apply_event_skips_duplicate() {
                 .bind(100_i64)
                 .bind(customer_id)
                 .bind(tenant_id)
-                .execute(&mut **tx)
+                .execute(tx)
                 .await
                 .map_err(CursorError::from)?;
             Ok(())
@@ -333,7 +333,7 @@ async fn test_try_apply_event_skips_duplicate() {
                 .bind(100_i64)
                 .bind(customer_id)
                 .bind(tenant_id)
-                .execute(&mut **tx)
+                .execute(tx)
                 .await
                 .map_err(CursorError::from)?;
             Ok(())
@@ -403,7 +403,7 @@ async fn test_try_apply_event_transactional_rollback() {
                 .bind(100_i64)
                 .bind(customer_id)
                 .bind(tenant_id)
-                .execute(&mut **tx)
+                .execute(tx)
                 .await
                 .map_err(CursorError::from)?;
 
