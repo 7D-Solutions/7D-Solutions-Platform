@@ -49,6 +49,7 @@ pub mod consumer_retry;
 mod envelope;
 mod inmemory_bus;
 mod nats_bus;
+pub mod outbox;
 
 pub use envelope::{validate_envelope_fields, EventEnvelope};
 pub use inmemory_bus::InMemoryBus;

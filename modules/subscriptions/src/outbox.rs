@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use event_bus::outbox::validate_and_serialize_envelope;
 use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -34,6 +35,9 @@ pub struct OutboxRecord {
 /// This function inserts an event into the events_outbox table for reliable delivery.
 /// The background publisher will pick up these events and publish them to the event bus.
 ///
+/// **IMPORTANT**: This function enforces envelope validation at the boundary.
+/// No event can be enqueued without passing constitutional validation.
+///
 /// # Arguments
 /// * `pool` - Database connection pool
 /// * `event_type` - Event type for NATS subject routing (e.g., "billrun.completed")
@@ -43,9 +47,12 @@ pub async fn enqueue_event<T: Serialize>(
     event_type: &str,
     envelope: &event_bus::EventEnvelope<T>,
 ) -> Result<i64, sqlx::Error> {
-    // Serialize the entire envelope as payload
-    let payload = serde_json::to_value(envelope)
-        .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
+    // Validate envelope at boundary - reject invalid envelopes before insert
+    let payload = validate_and_serialize_envelope(envelope)
+        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Envelope validation failed: {}", e),
+        ))))?;
 
     let record = sqlx::query!(
         r#"

@@ -2,14 +2,45 @@
 //!
 //! Uses the transactional outbox pattern to ensure events are persisted
 //! within the same transaction as domain changes.
+//!
+//! ## Phase 16 Migration Note
+//!
+//! GL currently uses a legacy outbox pattern (raw parameters) instead of
+//! EventEnvelope. This provides basic validation but should be migrated
+//! to use the platform EventEnvelope + validation helper in a future bead.
 
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
+/// Validate outbox event parameters
+///
+/// Provides basic validation for GL's legacy outbox pattern.
+/// This is a temporary measure - GL should be migrated to use
+/// EventEnvelope + validate_and_serialize_envelope in the future.
+fn validate_outbox_event_params(
+    event_type: &str,
+    aggregate_type: &str,
+    aggregate_id: &str,
+) -> Result<(), String> {
+    if event_type.is_empty() {
+        return Err("event_type cannot be empty".to_string());
+    }
+    if aggregate_type.is_empty() {
+        return Err("aggregate_type cannot be empty".to_string());
+    }
+    if aggregate_id.is_empty() {
+        return Err("aggregate_id cannot be empty".to_string());
+    }
+    Ok(())
+}
+
 /// Insert an event into the outbox for later publishing
 ///
+/// **IMPORTANT**: This function validates required fields at the boundary
+/// to prevent invalid events from being enqueued.
+///
 /// Note: Envelope metadata columns are nullable for backward compatibility during Phase 16 migration.
-/// Future work will populate these from EventEnvelope instances.
+/// Future work: Migrate GL to use EventEnvelope + platform validation helper.
 pub async fn insert_outbox_event(
     tx: &mut Transaction<'_, Postgres>,
     event_id: Uuid,
@@ -18,6 +49,9 @@ pub async fn insert_outbox_event(
     aggregate_id: &str,
     payload: serde_json::Value,
 ) -> Result<(), sqlx::Error> {
+    // Validate required fields at boundary
+    validate_outbox_event_params(event_type, aggregate_type, aggregate_id)
+        .map_err(|e| sqlx::Error::Protocol(format!("Outbox validation failed: {}", e)))?;
     sqlx::query(
         r#"
         INSERT INTO events_outbox (

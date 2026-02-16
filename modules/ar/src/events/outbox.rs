@@ -1,4 +1,5 @@
 use crate::events::envelope::EventEnvelope;
+use event_bus::outbox::validate_and_serialize_envelope;
 use serde::Serialize;
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
@@ -8,6 +9,9 @@ use uuid::Uuid;
 /// This function stores the event in the database as part of the same transaction
 /// as the business operation. A background publisher will pick it up and publish
 /// to the event bus asynchronously.
+///
+/// **IMPORTANT**: This function enforces envelope validation at the boundary.
+/// No event can be enqueued without passing constitutional validation.
 ///
 /// # Arguments
 /// * `db` - Database connection pool
@@ -22,8 +26,12 @@ pub async fn enqueue_event<T: Serialize>(
     aggregate_id: &str,
     envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
-    let payload = serde_json::to_value(&envelope)
-        .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
+    // Validate envelope at boundary - reject invalid envelopes before insert
+    let payload = validate_and_serialize_envelope(envelope)
+        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Envelope validation failed: {}", e),
+        ))))?;
 
     sqlx::query(
         r#"

@@ -1,3 +1,4 @@
+use event_bus::outbox::validate_and_serialize_envelope;
 use event_bus::{BusMessage, EventBus};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -28,13 +29,20 @@ pub fn create_notifications_envelope<T>(
 ///
 /// This function writes the event to the events_outbox table within the same
 /// database transaction, ensuring exactly-once delivery semantics.
+///
+/// **IMPORTANT**: This function enforces envelope validation at the boundary.
+/// No event can be enqueued without passing constitutional validation.
 pub async fn enqueue_event<T: Serialize>(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     subject: &str,
     envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
-    let payload = serde_json::to_value(envelope)
-        .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
+    // Validate envelope at boundary - reject invalid envelopes before insert
+    let payload = validate_and_serialize_envelope(envelope)
+        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Envelope validation failed: {}", e),
+        ))))?;
 
     sqlx::query(
         r#"

@@ -1,3 +1,4 @@
+use event_bus::outbox::validate_and_serialize_envelope;
 use serde::Serialize;
 use sqlx::PgPool;
 
@@ -7,11 +8,22 @@ use super::envelope::EventEnvelope;
 ///
 /// Events in the outbox will be picked up by the background publisher
 /// and sent to the event bus asynchronously.
+///
+/// **IMPORTANT**: This function enforces envelope validation at the boundary.
+/// No event can be enqueued without passing constitutional validation.
 pub async fn enqueue_event<T: Serialize>(
     pool: &PgPool,
     event_type: &str,
     envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
+    // Validate envelope at boundary - reject invalid envelopes before insert
+    validate_and_serialize_envelope(envelope)
+        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Envelope validation failed: {}", e),
+        ))))?;
+
+    // Serialize just the payload for storage (envelope metadata stored in columns)
     let payload = serde_json::to_value(&envelope.payload)
         .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
 
