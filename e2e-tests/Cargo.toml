@@ -44,8 +44,16 @@ name = "cross_module_concurrency_safety_e2e"
 path = "tests/cross_module_concurrency_safety_e2e.rs"
 
 [[test]]
+name = "audit_append_only_e2e"
+path = "tests/audit_append_only_e2e.rs"
+
+[[test]]
 name = "release_provenance_smoke_e2e"
 path = "tests/release_provenance_smoke_e2e.rs"
+
+[[test]]
+name = "projection_cursor_contract_e2e"
+path = "tests/projection_cursor_contract_e2e.rs"
 
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
@@ -64,6 +72,8 @@ subscriptions-rs = { path = "../modules/subscriptions" }
 payments-rs = { path = "../modules/payments" }
 ar-rs = { path = "../modules/ar" }
 gl-rs = { path = "../modules/gl" }
+audit = { path = "../platform/audit" }
+projections = { path = "../platform/projections" }
 anyhow = "1.0"
 sha2 = "0.10"
 
