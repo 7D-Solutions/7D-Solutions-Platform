@@ -80,8 +80,8 @@ async fn main() {
         .expect("PORT must be a valid u16");
 
     let app = Router::new()
-        .route("/api/health", get(routes::health::health))
-        .route("/api/ready", get(routes::health::ready))
+        .route("/api/health", get(routes::health))
+        .route("/api/ready", get(routes::ready))
         .with_state(pool.clone())
         .merge(routes::subscriptions_router(pool.clone()))
         .layer(
