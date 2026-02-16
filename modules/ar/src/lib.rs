@@ -7,7 +7,14 @@ pub mod idempotency;
 pub mod idempotency_keys;
 pub mod invariants;
 pub mod lifecycle;
+pub mod metrics;
 pub mod models;
 pub mod retry;
 pub mod routes;
 pub mod tilled;
+
+/// AR application state shared across HTTP handlers
+pub struct AppState {
+    pub pool: sqlx::PgPool,
+    pub metrics: std::sync::Arc<metrics::ArMetrics>,
+}

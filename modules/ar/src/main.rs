@@ -1,12 +1,11 @@
-use axum::{extract::State, http::Method, routing::get, Json, Router};
+use axum::{http::Method, routing::get, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
-use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
-use ar_rs::{consumer_tasks, db, events::run_publisher_task, routes};
+use ar_rs::{consumer_tasks, db, events::run_publisher_task, routes, AppState};
 
 #[tokio::main]
 async fn main() {
@@ -68,6 +67,16 @@ async fn main() {
 
     tracing::info!("Event consumer tasks started");
 
+    // Initialize metrics
+    let metrics = Arc::new(ar_rs::metrics::ArMetrics::new().expect("Failed to create metrics"));
+    tracing::info!("Metrics initialized");
+
+    // Create application state
+    let app_state = Arc::new(AppState {
+        pool: db.clone(),
+        metrics: metrics.clone(),
+    });
+
     // CORS configuration
     let cors = CorsLayer::new()
         .allow_origin([
@@ -87,7 +96,8 @@ async fn main() {
         .route("/api/health", get(routes::health::health))
         .route("/api/ready", get(routes::health::ready))
         .route("/api/version", get(routes::health::version))
-        .with_state(db.clone())
+        .route("/metrics", get(ar_rs::metrics::metrics_handler))
+        .with_state(app_state.clone())
         .merge(routes::ar_router(db))
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();

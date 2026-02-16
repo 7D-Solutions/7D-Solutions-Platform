@@ -27,6 +27,7 @@ http-body-util = "0.1"
 event-bus = { path = "../../platform/event-bus" }
 async-nats = "0.33"
 futures = "0.3"
+prometheus = "0.13"
 
 [dev-dependencies]
 serial_test = "3.3.1"
