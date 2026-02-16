@@ -26,7 +26,10 @@
 mod common;
 
 use anyhow::Result;
-use common::{cleanup_tenant_data, generate_test_tenant, get_gl_pool};
+use common::{
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
+    get_subscriptions_pool,
+};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -72,7 +75,7 @@ async fn create_journal_entry(
 }
 
 /// Count outbox rows for a given tenant
-async fn count_outbox_rows_for_tenant(pool: &PgPool, tenant_id: &str) -> Result<i64> {
+async fn count_outbox_rows_for_tenant(pool: &PgPool, _tenant_id: &str) -> Result<i64> {
     // GL uses a different outbox schema - need to check the actual table structure
     // Assuming events_outbox exists with aggregate_id or payload containing tenant info
     let count: i64 = sqlx::query_scalar(
@@ -94,12 +97,18 @@ async fn count_outbox_rows_for_tenant(pool: &PgPool, tenant_id: &str) -> Result<
 #[ignore] // Ignored until reversal service is exposed via API/handler for E2E testing
 async fn test_gl_reversal_outbox_atomicity() -> Result<()> {
     let test_id = "gl_reversal_atomicity";
-    let tenant_id = generate_test_tenant(test_id);
+    let tenant_id = generate_test_tenant();
 
     let gl_pool = get_gl_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&gl_pool, &tenant_id).await?;
+    cleanup_tenant_data(
+        &get_ar_pool().await,
+        &get_payments_pool().await,
+        &get_subscriptions_pool().await,
+        &gl_pool,
+        &tenant_id,
+    ).await.map_err(|e| anyhow::anyhow!(e))?;
 
     // Step 1: Create original journal entry
     let source_event_id = Uuid::new_v4();
@@ -144,7 +153,13 @@ async fn test_gl_reversal_outbox_atomicity() -> Result<()> {
     println!("   - No violations found");
 
     // Clean up
-    cleanup_tenant_data(&gl_pool, &tenant_id).await?;
+    cleanup_tenant_data(
+        &get_ar_pool().await,
+        &get_payments_pool().await,
+        &get_subscriptions_pool().await,
+        &gl_pool,
+        &tenant_id,
+    ).await.map_err(|e| anyhow::anyhow!(e))?;
 
     println!("\n🎯 Test Result: GL reversal service maintains atomicity!");
     println!("   - Domain state and outbox are consistent");
@@ -163,12 +178,18 @@ async fn test_gl_reversal_outbox_atomicity() -> Result<()> {
 #[serial]
 async fn test_gl_posting_no_event_emission() -> Result<()> {
     let test_id = "gl_posting_no_emit";
-    let tenant_id = generate_test_tenant(test_id);
+    let tenant_id = generate_test_tenant();
 
     let gl_pool = get_gl_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&gl_pool, &tenant_id).await?;
+    cleanup_tenant_data(
+        &get_ar_pool().await,
+        &get_payments_pool().await,
+        &get_subscriptions_pool().await,
+        &gl_pool,
+        &tenant_id,
+    ).await.map_err(|e| anyhow::anyhow!(e))?;
 
     // Step 1: Create journal entry (simulating what journal_service does)
     let source_event_id = Uuid::new_v4();
@@ -190,7 +211,13 @@ async fn test_gl_posting_no_event_emission() -> Result<()> {
     println!("   - Only reversals emit events (gl.events.entry.reversed)");
 
     // Clean up
-    cleanup_tenant_data(&gl_pool, &tenant_id).await?;
+    cleanup_tenant_data(
+        &get_ar_pool().await,
+        &get_payments_pool().await,
+        &get_subscriptions_pool().await,
+        &gl_pool,
+        &tenant_id,
+    ).await.map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }
