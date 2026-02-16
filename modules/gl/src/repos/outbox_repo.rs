@@ -7,6 +7,9 @@ use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 /// Insert an event into the outbox for later publishing
+///
+/// Note: Envelope metadata columns are nullable for backward compatibility during Phase 16 migration.
+/// Future work will populate these from EventEnvelope instances.
 pub async fn insert_outbox_event(
     tx: &mut Transaction<'_, Postgres>,
     event_id: Uuid,
@@ -17,9 +20,13 @@ pub async fn insert_outbox_event(
 ) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
-        INSERT INTO events_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, payload)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO events_outbox (
+            event_id, event_type, aggregate_type, aggregate_id, payload,
+            tenant_id, source_module, source_version, schema_version,
+            occurred_at, replay_safe, trace_id, correlation_id, causation_id,
+            reverses_event_id, supersedes_event_id, side_effect_id, mutation_class
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         "#,
     )
     .bind(event_id)
@@ -27,6 +34,20 @@ pub async fn insert_outbox_event(
     .bind(aggregate_type)
     .bind(aggregate_id)
     .bind(payload)
+    // Envelope metadata - defaulted to NULL/empty for now (Phase 16 migration compatibility)
+    .bind(Option::<String>::None) // tenant_id
+    .bind(Option::<String>::None) // source_module
+    .bind(Option::<String>::None) // source_version
+    .bind(Option::<String>::None) // schema_version
+    .bind(Option::<chrono::DateTime<chrono::Utc>>::None) // occurred_at
+    .bind(Option::<bool>::None) // replay_safe
+    .bind(Option::<String>::None) // trace_id
+    .bind(Option::<String>::None) // correlation_id
+    .bind(Option::<String>::None) // causation_id
+    .bind(Option::<Uuid>::None) // reverses_event_id
+    .bind(Option::<Uuid>::None) // supersedes_event_id
+    .bind(Option::<String>::None) // side_effect_id
+    .bind(Option::<String>::None) // mutation_class
     .execute(&mut **tx)
     .await?;
 
