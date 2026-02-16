@@ -267,7 +267,18 @@ impl<T> EventEnvelope<T> {
 /// - `source_version`: Must be non-empty
 /// - `schema_version`: Must be non-empty
 /// - `replay_safe`: Must be a boolean
+/// - `mutation_class`: Must be present and one of the valid classes (Phase 16)
 /// - All other fields are optional
+///
+/// # Valid Mutation Classes
+///
+/// - `DATA_MUTATION`: Financial/audit mutations (idempotent)
+/// - `REVERSAL`: Compensating transactions
+/// - `CORRECTION`: Superseding corrections
+/// - `SIDE_EFFECT`: Non-idempotent external actions
+/// - `QUERY`: Read-only operations
+/// - `LIFECYCLE`: Entity lifecycle transitions
+/// - `ADMINISTRATIVE`: Configuration/setup changes
 ///
 /// # Errors
 ///
@@ -366,10 +377,32 @@ pub fn validate_envelope_fields(envelope: &serde_json::Value) -> Result<(), Stri
         }
     }
 
-    if let Some(mutation_class) = envelope.get("mutation_class").and_then(|v| v.as_str()) {
-        if mutation_class.is_empty() {
-            return Err("mutation_class cannot be empty".to_string());
-        }
+    // Validate mutation_class (Phase 16: Required field)
+    let mutation_class = envelope
+        .get("mutation_class")
+        .and_then(|v| v.as_str())
+        .ok_or("mutation_class is required")?;
+
+    if mutation_class.is_empty() {
+        return Err("mutation_class cannot be empty".to_string());
+    }
+
+    // Validate mutation_class is a known value (from MUTATION-CLASSES.md)
+    const VALID_CLASSES: &[&str] = &[
+        "DATA_MUTATION",
+        "REVERSAL",
+        "CORRECTION",
+        "SIDE_EFFECT",
+        "QUERY",
+        "LIFECYCLE",
+        "ADMINISTRATIVE",
+    ];
+
+    if !VALID_CLASSES.contains(&mutation_class) {
+        return Err(format!(
+            "Invalid mutation_class: '{}'. Must be one of: {:?}",
+            mutation_class, VALID_CLASSES
+        ));
     }
 
     // reverses_event_id and supersedes_event_id are optional UUIDs
@@ -449,6 +482,7 @@ mod tests {
             "source_version": "1.0.0",
             "schema_version": "1.0.0",
             "replay_safe": true,
+            "mutation_class": "DATA_MUTATION",
             "payload": {}
         });
 
@@ -608,12 +642,82 @@ mod tests {
             "source_version": "1.0.0",
             "schema_version": "1.0.0",
             "replay_safe": true,
+            "mutation_class": "DATA_MUTATION",
             "trace_id": "trace-123",
             "correlation_id": "corr-456",
-            "causation_id": "cause-789",
-            "mutation_class": "financial"
+            "causation_id": "cause-789"
         });
 
         assert!(validate_envelope_fields(&envelope).is_ok());
+    }
+
+    #[test]
+    fn test_validate_envelope_fields_missing_mutation_class() {
+        let envelope = json!({
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "payment.succeeded",
+            "occurred_at": "2024-01-01T00:00:00Z",
+            "tenant_id": "tenant-123",
+            "source_module": "payments",
+            "source_version": "1.0.0",
+            "schema_version": "1.0.0",
+            "replay_safe": true
+        });
+
+        let result = validate_envelope_fields(&envelope);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("mutation_class is required"));
+    }
+
+    #[test]
+    fn test_validate_envelope_fields_invalid_mutation_class() {
+        let envelope = json!({
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "payment.succeeded",
+            "occurred_at": "2024-01-01T00:00:00Z",
+            "tenant_id": "tenant-123",
+            "source_module": "payments",
+            "source_version": "1.0.0",
+            "schema_version": "1.0.0",
+            "replay_safe": true,
+            "mutation_class": "INVALID_CLASS"
+        });
+
+        let result = validate_envelope_fields(&envelope);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Invalid mutation_class"));
+    }
+
+    #[test]
+    fn test_validate_envelope_fields_valid_mutation_classes() {
+        let valid_classes = vec![
+            "DATA_MUTATION",
+            "REVERSAL",
+            "CORRECTION",
+            "SIDE_EFFECT",
+            "QUERY",
+            "LIFECYCLE",
+            "ADMINISTRATIVE",
+        ];
+
+        for class in valid_classes {
+            let envelope = json!({
+                "event_id": "550e8400-e29b-41d4-a716-446655440000",
+                "event_type": "test.event",
+                "occurred_at": "2024-01-01T00:00:00Z",
+                "tenant_id": "tenant-123",
+                "source_module": "test",
+                "source_version": "1.0.0",
+                "schema_version": "1.0.0",
+                "replay_safe": true,
+                "mutation_class": class
+            });
+
+            assert!(
+                validate_envelope_fields(&envelope).is_ok(),
+                "Expected {} to be valid",
+                class
+            );
+        }
     }
 }

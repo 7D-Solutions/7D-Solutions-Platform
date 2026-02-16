@@ -120,7 +120,8 @@ mod tests {
             },
         )
         .with_source_version("1.2.3".to_string())
-        .with_schema_version("2.0.0".to_string());
+        .with_schema_version("2.0.0".to_string())
+        .with_mutation_class(Some("DATA_MUTATION".to_string()));
 
         let result = validate_and_serialize_envelope(&envelope);
         assert!(result.is_ok());
@@ -132,6 +133,7 @@ mod tests {
         assert_eq!(payload["source_version"], "1.2.3");
         assert_eq!(payload["schema_version"], "2.0.0");
         assert_eq!(payload["replay_safe"], true);
+        assert_eq!(payload["mutation_class"], "DATA_MUTATION");
     }
 
     #[test]
@@ -146,7 +148,7 @@ mod tests {
         )
         .with_trace_id(Some("trace-123".to_string()))
         .with_correlation_id(Some("corr-456".to_string()))
-        .with_mutation_class(Some("financial".to_string()));
+        .with_mutation_class(Some("SIDE_EFFECT".to_string()));
 
         let result = validate_and_serialize_envelope(&envelope);
         assert!(result.is_ok());
@@ -154,7 +156,7 @@ mod tests {
         let payload = result.unwrap();
         assert_eq!(payload["trace_id"], "trace-123");
         assert_eq!(payload["correlation_id"], "corr-456");
-        assert_eq!(payload["mutation_class"], "financial");
+        assert_eq!(payload["mutation_class"], "SIDE_EFFECT");
     }
 
     #[test]
@@ -204,9 +206,10 @@ mod tests {
             TestPayload {
                 test_field: "data".to_string(),
             },
-        );
+        )
+        .with_mutation_class(Some("QUERY".to_string()));
 
-        // All optional fields are None - should be valid
+        // Optional fields like trace_id, correlation_id are None - but mutation_class is required
         let result = validate_and_serialize_envelope(&envelope);
         assert!(result.is_ok());
     }
