@@ -4,6 +4,7 @@
 //! including lifecycle management for subscription states and cycle gating.
 
 pub mod cycle_gating;
+pub mod outbox;
 pub mod gated_invoice_creation;
 pub mod invariants;
 pub mod lifecycle;
