@@ -1216,15 +1216,6 @@ async fn get_invoice(
         )
     })?;
 
-    // Commit transaction atomically
-    tx.commit().await.map_err(|e| {
-        tracing::error!("Failed to commit transaction: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("transaction_error", format!("Failed to commit transaction: {}", e))),
-        )
-    })?;
-
     Ok(Json(invoice))
 }
 
@@ -1464,15 +1455,6 @@ async fn update_invoice(
     })?;
 
     tracing::info!("Updated invoice {}", id);
-
-    // Commit transaction atomically
-    tx.commit().await.map_err(|e| {
-        tracing::error!("Failed to commit transaction: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new("transaction_error", format!("Failed to commit transaction: {}", e))),
-        )
-    })?;
 
     Ok(Json(invoice))
 }
