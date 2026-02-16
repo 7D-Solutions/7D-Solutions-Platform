@@ -46,9 +46,7 @@ async fn main() {
 
     // Database connection
     tracing::info!("Connecting to database...");
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&config.database_url)
+    let pool = gl_rs::db::init_pool(&config.database_url)
         .await
         .expect("Failed to connect to database");
 
@@ -68,7 +66,7 @@ async fn main() {
         "nats" => {
             tracing::info!("Connecting to NATS at {}", config.nats_url);
             let client = async_nats::connect(&config.nats_url)
-                .await
+        .await
                 .expect("Failed to connect to NATS");
             Arc::new(NatsBus::new(client))
         }

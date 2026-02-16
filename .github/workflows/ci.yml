@@ -376,6 +376,15 @@ jobs:
 
           echo "✓ No .unwrap() or .expect() in critical paths"
 
+  lint-no-raw-db-connect:
+    name: Lint - Forbid Raw PgPool Creation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for raw PgPool creation outside resolvers
+        run: bash tools/ci/lint-no-raw-db-connect.sh
+
   check-dlq-migrations:
     name: Check DLQ Migrations Exist
     runs-on: ubuntu-latest
