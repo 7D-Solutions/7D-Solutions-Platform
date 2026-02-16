@@ -198,6 +198,114 @@ Every event in the system MUST declare a `mutation_class` to indicate its impact
 
 ---
 
+## Domain Concept Registry
+
+**Purpose**: Identify core financial domain concepts and their immutability characteristics BEFORE enforcement logic is built. This registry prevents retroactive policy edits after data exists.
+
+### Classification Categories
+
+1. **Strict Immutable**: Cannot be modified after creation; corrections require compensating transactions
+2. **Lifecycle Managed**: Can be amended during open/draft state; becomes immutable after finalization
+3. **Audit Trail Only**: Modifications tracked but not restricted
+
+---
+
+### Core Domain Concepts
+
+#### 1. Invoices
+- **Owner Module**: AR (Accounts Receivable)
+- **Policy**: Strict Immutable (once finalized)
+- **Compensating Strategy**: REVERSAL required
+- **Event Examples**:
+  - Creation: `ar.invoice.created` (mutation_class: DATA_MUTATION)
+  - Void: `ar.invoice.voided` (mutation_class: REVERSAL)
+- **Enforcement**:
+  - Draft invoices MAY be modified
+  - Finalized invoices MUST NOT be modified
+  - Corrections MUST use `ar.invoice.voided` with `reverses_event_id`
+  - Period close enforcement (Phase 13): cannot void closed-period invoices
+
+#### 2. Payment Attempts
+- **Owner Module**: Payments
+- **Policy**: Strict Immutable (once succeeded/failed)
+- **Compensating Strategy**: REVERSAL required (refunds)
+- **Event Examples**:
+  - Success: `payments.payment.succeeded` (mutation_class: DATA_MUTATION)
+  - Refund: `payments.refund.issued` (mutation_class: REVERSAL)
+- **Enforcement**:
+  - Payment attempts are write-once records
+  - Refunds MUST reference original payment via `reverses_event_id`
+  - Partial refunds create new refund records (not modifications)
+  - Full audit trail required for regulatory compliance
+
+#### 3. Journal Entries
+- **Owner Module**: GL (General Ledger)
+- **Policy**: Strict Immutable (once posted)
+- **Compensating Strategy**: REVERSAL required
+- **Event Examples**:
+  - Posting: `gl.entry.posted` (mutation_class: DATA_MUTATION)
+  - Reversal: `gl.entry.reversed` (mutation_class: REVERSAL)
+- **Enforcement**:
+  - Posted journal entries MUST NOT be modified
+  - Corrections MUST use `gl.entry.reversed` with `reverses_event_id`
+  - Reversal creates offsetting entry with opposite signs
+  - Period close enforcement (Phase 13): cannot reverse closed-period entries
+  - Double-entry bookkeeping integrity maintained
+
+#### 4. Subscription Cycles
+- **Owner Module**: Subscriptions
+- **Policy**: Lifecycle Managed
+- **Compensating Strategy**: CORRECTION during open state, REVERSAL after close
+- **Event Examples**:
+  - Start: `subscriptions.cycle.started` (mutation_class: LIFECYCLE)
+  - Amendment: `subscriptions.cycle.amended` (mutation_class: CORRECTION)
+  - Close: `subscriptions.cycle.closed` (mutation_class: LIFECYCLE)
+- **Enforcement**:
+  - Open cycles MAY be amended via `supersedes_event_id`
+  - Closed cycles are immutable
+  - Billing runs reference cycle state at execution time
+  - State transitions enforce: draft → active → closed (no backwards transitions)
+
+#### 5. Reconciliation Artifacts
+- **Owner Module**: GL (General Ledger)
+- **Policy**: Strict Immutable (once completed)
+- **Compensating Strategy**: REVERSAL required (rare; typically indicates accounting error)
+- **Event Examples**:
+  - Match: `gl.reconciliation.matched` (mutation_class: DATA_MUTATION)
+  - Unmatch: `gl.reconciliation.unmatched` (mutation_class: REVERSAL)
+- **Enforcement**:
+  - Reconciliation matches are write-once
+  - Unmatching requires reversal event
+  - Bank statement reconciliation must maintain complete audit trail
+  - Regulatory requirement: SOX compliance for financial reconciliations
+
+---
+
+### Immutability Policy Matrix
+
+| Domain Concept          | Owner Module  | Immutability Policy    | Compensating Strategy       | Period Close Impact |
+|-------------------------|---------------|------------------------|-----------------------------|---------------------|
+| Invoices                | AR            | Strict Immutable       | REVERSAL (void)             | Yes - blocks voids  |
+| Payment Attempts        | Payments      | Strict Immutable       | REVERSAL (refund)           | No                  |
+| Journal Entries         | GL            | Strict Immutable       | REVERSAL (offsetting entry) | Yes - blocks reversal |
+| Subscription Cycles     | Subscriptions | Lifecycle Managed      | CORRECTION (open) / REVERSAL (closed) | No |
+| Reconciliation Artifacts| GL            | Strict Immutable       | REVERSAL (unmatch)          | Yes - blocks unmatch |
+
+---
+
+### Design Rationale
+
+**Why Classify Domain Concepts?**
+
+1. **Prevent Retroactive Policy Edits**: Establishing immutability rules BEFORE data exists prevents architectural debt
+2. **Regulatory Compliance**: SOX, SOC2, and audit requirements demand clear retention and modification policies
+3. **Replay Safety**: Strict immutability guarantees enable safe event replay without risk of data corruption
+4. **Developer Guidance**: Clear ownership and policies prevent ad-hoc modification patterns
+
+**Failure Mode to Avoid**: Discovering after production that a "temporary" UPDATE was used instead of a compensating transaction, breaking audit trail and replay integrity.
+
+---
+
 ## Enforcement Rules
 
 ### 1. **Mutation Class is Required**
