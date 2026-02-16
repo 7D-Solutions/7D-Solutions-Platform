@@ -134,3 +134,68 @@ pub async fn mark_as_published(pool: &PgPool, event_id: i64) -> Result<(), sqlx:
 
     Ok(())
 }
+
+/// Transaction-aware version of enqueue_event for atomicity guarantees
+///
+/// This function enqueues an event within an existing transaction, ensuring
+/// that the domain mutation and outbox insert commit atomically.
+///
+/// **Phase 16 Atomicity Fix (bd-299f):**
+/// - Subscription mutations + outbox insert must be atomic
+/// - Billing cycle advance + invoice intent events must be atomic
+/// - Either BOTH succeed or BOTH rollback
+/// - Prevents orphaned domain state without corresponding events
+///
+/// # Arguments
+/// * `tx` - Active database transaction
+/// * `event_type` - Event type for NATS subject routing
+/// * `envelope` - Platform-standard event envelope
+pub async fn enqueue_event_tx<T: Serialize>(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    event_type: &str,
+    envelope: &event_bus::EventEnvelope<T>,
+) -> Result<i64, sqlx::Error> {
+    // Validate envelope at boundary - reject invalid envelopes before insert
+    let payload = validate_and_serialize_envelope(envelope)
+        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Envelope validation failed: {}", e),
+        ))))?;
+
+    // Use manual query instead of query! macro for transaction support
+    let record = sqlx::query_scalar::<_, i64>(
+        r#"
+        INSERT INTO events_outbox (
+            subject, payload, event_id, event_type, tenant_id, source_module,
+            source_version, schema_version, replay_safe, occurred_at,
+            trace_id, correlation_id, causation_id, reverses_event_id,
+            supersedes_event_id, side_effect_id, mutation_class
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        RETURNING id
+        "#
+    )
+    .bind(event_type)
+    .bind(&payload)
+    .bind(envelope.event_id)
+    .bind(&envelope.event_type)
+    .bind(&envelope.tenant_id)
+    .bind(&envelope.source_module)
+    .bind(&envelope.source_version)
+    .bind(&envelope.schema_version)
+    .bind(envelope.replay_safe)
+    .bind(envelope.occurred_at)
+    .bind(envelope.trace_id.as_ref())
+    .bind(envelope.correlation_id.as_ref())
+    .bind(envelope.causation_id.as_ref())
+    .bind(envelope.reverses_event_id.as_ref())
+    .bind(envelope.supersedes_event_id.as_ref())
+    .bind(envelope.side_effect_id.as_ref())
+    .bind(envelope.mutation_class.as_ref())
+    .fetch_one(&mut **tx)
+    .await?;
+
+    tracing::debug!("Enqueued event {} to subject {} (in transaction)", record, event_type);
+
+    Ok(record)
+}
