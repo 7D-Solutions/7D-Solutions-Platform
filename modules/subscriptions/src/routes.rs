@@ -299,6 +299,7 @@ async fn execute_bill_run(
     let envelope = create_subscriptions_envelope(
         uuid::Uuid::new_v4(),
         "default".to_string(),
+        "billrun.completed".to_string(),
         None, // No correlation_id for now
         None, // No causation_id for now
         payload,

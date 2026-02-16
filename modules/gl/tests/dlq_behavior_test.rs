@@ -213,15 +213,12 @@ async fn test_dlq_captures_unbalanced_entry() {
     let tenant_id = "tenant-dlq-test-002";
     let correlation_id = format!("cor_{}", Uuid::new_v4());
 
-    let unbalanced_event: EventEnvelope<GlPostingRequestV1> = EventEnvelope {
+    let unbalanced_event: EventEnvelope<GlPostingRequestV1> = EventEnvelope::with_event_id(
         event_id,
-        occurred_at: Utc::now(),
-        tenant_id: tenant_id.to_string(),
-        source_module: "ar".to_string(),
-        source_version: "0.1.0".to_string(),
-        correlation_id: Some(correlation_id.clone()),
-        causation_id: Some("test_causation".to_string()),
-        payload: GlPostingRequestV1 {
+        tenant_id.to_string(),
+        "ar".to_string(),
+        "gl.posting.requested".to_string(),
+        GlPostingRequestV1 {
             posting_date: "2024-02-11".to_string(),
             currency: "USD".to_string(),
             source_doc_type: SourceDocType::ArInvoice,
@@ -244,7 +241,10 @@ async fn test_dlq_captures_unbalanced_entry() {
                 },
             ],
         },
-    };
+    )
+    .with_source_version("0.1.0".to_string())
+    .with_correlation_id(Some(correlation_id.clone()))
+    .with_causation_id(Some("test_causation".to_string()));
 
     println!("📤 Publishing unbalanced entry...");
     println!("   Event ID: {}", event_id);
@@ -333,15 +333,12 @@ async fn test_dlq_captures_invalid_currency() {
     let tenant_id = "tenant-dlq-test-003";
     let correlation_id = format!("cor_{}", Uuid::new_v4());
 
-    let invalid_currency_event: EventEnvelope<GlPostingRequestV1> = EventEnvelope {
+    let invalid_currency_event: EventEnvelope<GlPostingRequestV1> = EventEnvelope::with_event_id(
         event_id,
-        occurred_at: Utc::now(),
-        tenant_id: tenant_id.to_string(),
-        source_module: "ar".to_string(),
-        source_version: "0.1.0".to_string(),
-        correlation_id: Some(correlation_id.clone()),
-        causation_id: Some("test_causation".to_string()),
-        payload: GlPostingRequestV1 {
+        tenant_id.to_string(),
+        "ar".to_string(),
+        "gl.posting.requested".to_string(),
+        GlPostingRequestV1 {
             posting_date: "2024-02-11".to_string(),
             currency: "usd".to_string(), // Invalid: should be "USD" (uppercase)
             source_doc_type: SourceDocType::ArInvoice,
@@ -364,7 +361,10 @@ async fn test_dlq_captures_invalid_currency() {
                 },
             ],
         },
-    };
+    )
+    .with_source_version("0.1.0".to_string())
+    .with_correlation_id(Some(correlation_id.clone()))
+    .with_causation_id(Some("test_causation".to_string()));
 
     println!("📤 Publishing event with invalid currency...");
     println!("   Event ID: {}", event_id);
@@ -506,15 +506,12 @@ async fn test_dlq_captures_empty_account_ref() {
     let tenant_id = "tenant-dlq-test-004";
     let correlation_id = format!("cor_{}", Uuid::new_v4());
 
-    let empty_account_event: EventEnvelope<GlPostingRequestV1> = EventEnvelope {
+    let empty_account_event: EventEnvelope<GlPostingRequestV1> = EventEnvelope::with_event_id(
         event_id,
-        occurred_at: Utc::now(),
-        tenant_id: tenant_id.to_string(),
-        source_module: "ar".to_string(),
-        source_version: "0.1.0".to_string(),
-        correlation_id: Some(correlation_id.clone()),
-        causation_id: Some("test_causation".to_string()),
-        payload: GlPostingRequestV1 {
+        tenant_id.to_string(),
+        "ar".to_string(),
+        "gl.posting.requested".to_string(),
+        GlPostingRequestV1 {
             posting_date: "2024-02-11".to_string(),
             currency: "USD".to_string(),
             source_doc_type: SourceDocType::ArInvoice,
@@ -537,7 +534,10 @@ async fn test_dlq_captures_empty_account_ref() {
                 },
             ],
         },
-    };
+    )
+    .with_source_version("0.1.0".to_string())
+    .with_correlation_id(Some(correlation_id.clone()))
+    .with_causation_id(Some("test_causation".to_string()));
 
     println!("📤 Publishing event with empty account_ref...");
     println!("   Event ID: {}", event_id);

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "bd-16a0",
+    "code": "p16-01",
+    "title": "Add missing fields to EventEnvelope",
+    "priority": "P0",
+    "depends_on": [],
+    "how_to_think": "Think like an event contract architect. The invariant to protect is: every emitted event carries the full constitutional envelope metadata from day one. The failure mode to avoid is: permanent event stream that cannot be reasoned about, traced, reversed, or versioned without migrations.",
+    "acceptance_criteria": [
+      "EventEnvelope<T> includes: event_type, schema_version, trace_id, reverses_event_id, supersedes_event_id, side_effect_id, replay_safe, mutation_class",
+      "Envelope compiles across all crates with no feature flags or optional schema shortcuts"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "platform/event-bus/src/envelope.rs"
+    ],
+    "verification": [
+      "cargo test --workspace",
+      "All workspace tests pass"
+    ]
+  },
+  {
+    "id": "bd-16a1",
+    "code": "p16-02",
+    "title": "Fix envelope validation logic",
+    "priority": "P0",
+    "depends_on": ["bd-16a0"],
+    "how_to_think": "Think like a defensive API validator. The invariant to protect is: envelope validation checks the correct fields and rejects invalid metadata deterministically. The failure mode to avoid is: false validation passes causing silent bad events.",
+    "acceptance_criteria": [
+      "validate_envelope_fields() validates source_version correctly (no duplicate source_module check)",
+      "Unit test proves invalid source_version is rejected"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "platform/event-bus/src/envelope.rs"
+    ],
+    "verification": [
+      "cargo test -p event-bus",
+      "Validation tests pass"
+    ]
+  }
+]
+
+(showing first 2 of 27 beads - full JSON is 593 lines. Should I paste all 27 beads?)

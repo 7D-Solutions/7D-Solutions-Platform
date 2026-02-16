@@ -1,0 +1,618 @@
+## Phase 16 Beads - Path Audit Request
+
+I created 27 Phase 16 beads, but TopazDeer identified that the migration file paths are incorrect.
+
+**Incorrect paths in beads:**
+- ❌ `modules/ar/migrations/*.sql`
+- ❌ `modules/gl/migrations/*.sql`
+- ❌ `modules/payments/migrations/*.sql`
+
+**Actual codebase structure:**
+- ✅ `modules/ar/db/migrations/*.sql`
+- ✅ `modules/gl/db/migrations/*.sql`
+- ✅ `modules/payments/db/migrations/*.sql`
+- ✅ `modules/subscriptions/db/migrations/*.sql`
+- ✅ `modules/notifications/migrations/*.sql` (no db/ subdirectory)
+
+**Request:**
+Please audit ALL 27 beads below and identify:
+1. All beads with incorrect migration paths
+2. Any other file path errors
+3. Provide corrected JSON for affected beads
+
+Here are the 27 beads:
+
+```json
+[
+  {
+    "id": "bd-16a0",
+    "code": "p16-01",
+    "title": "Add missing fields to EventEnvelope",
+    "priority": "P0",
+    "depends_on": [],
+    "how_to_think": "Think like an event contract architect. The invariant to protect is: every emitted event carries the full constitutional envelope metadata from day one. The failure mode to avoid is: permanent event stream that cannot be reasoned about, traced, reversed, or versioned without migrations.",
+    "acceptance_criteria": [
+      "EventEnvelope<T> includes: event_type, schema_version, trace_id, reverses_event_id, supersedes_event_id, side_effect_id, replay_safe, mutation_class",
+      "Envelope compiles across all crates with no feature flags or optional schema shortcuts"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "platform/event-bus/src/envelope.rs"
+    ],
+    "verification": [
+      "cargo test --workspace",
+      "All workspace tests pass"
+    ]
+  },
+  {
+    "id": "bd-16a1",
+    "code": "p16-02",
+    "title": "Fix envelope validation logic",
+    "priority": "P0",
+    "depends_on": ["bd-16a0"],
+    "how_to_think": "Think like a defensive API validator. The invariant to protect is: envelope validation checks the correct fields and rejects invalid metadata deterministically. The failure mode to avoid is: false validation passes causing silent bad events.",
+    "acceptance_criteria": [
+      "validate_envelope_fields() validates source_version correctly (no duplicate source_module check)",
+      "Unit test proves invalid source_version is rejected"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "platform/event-bus/src/envelope.rs"
+    ],
+    "verification": [
+      "cargo test -p event-bus",
+      "Validation tests pass"
+    ]
+  },
+  {
+    "id": "bd-16a2",
+    "code": "p16-03",
+    "title": "Add envelope metadata to outbox tables",
+    "priority": "P0",
+    "depends_on": ["bd-16a0"],
+    "how_to_think": "Think like a database integrity specialist. The invariant to protect is: envelope metadata is stored as queryable columns (not buried in JSON) for replay, governance, and ops. The failure mode to avoid is: unindexable metadata that breaks auditability and versioning.",
+    "acceptance_criteria": [
+      "events_outbox tables store envelope metadata columns required by constitution",
+      "Migrations run cleanly on all module DBs"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/ar/db/migrations/*",
+      "modules/payments/db/migrations/*",
+      "modules/subscriptions/db/migrations/*",
+      "modules/gl/db/migrations/*",
+      "modules/notifications/db/migrations/*"
+    ],
+    "verification": [
+      "sqlx migrate run",
+      "All migrations succeed"
+    ]
+  },
+  {
+    "id": "bd-16a3",
+    "code": "p16-04",
+    "title": "Wire envelope validation into all emit sites",
+    "priority": "P0",
+    "depends_on": ["bd-16a2"],
+    "how_to_think": "Think like a platform completeness auditor. The invariant to protect is: all event emission sites use validated envelopes. The failure mode to avoid is: bypass paths emitting non-compliant events.",
+    "acceptance_criteria": [
+      "All outbox enqueue sites call validate_envelope before insert",
+      "E2E test confirms invalid envelope is rejected"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/ar/src/**/*.rs",
+      "modules/payments/src/**/*.rs",
+      "modules/subscriptions/src/**/*.rs",
+      "modules/gl/src/**/*.rs"
+    ],
+    "verification": [
+      "cargo test --workspace",
+      "All tests pass"
+    ]
+  },
+  {
+    "id": "bd-16a4",
+    "code": "p16-05",
+    "title": "Add E2E envelope roundtrip test",
+    "priority": "P0",
+    "depends_on": ["bd-16a0"],
+    "how_to_think": "Think like a contract compliance tester. The invariant to protect is: envelope metadata survives full publish-subscribe cycle. The failure mode to avoid is: metadata lost in transit.",
+    "acceptance_criteria": [
+      "E2E test publishes event and verifies all envelope fields survive NATS roundtrip",
+      "Test validates trace_id, schema_version, and mutation_class are preserved"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/envelope_roundtrip_e2e.rs"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "cargo test -p e2e-tests envelope_roundtrip_e2e",
+      "Test passes"
+    ]
+  },
+  {
+    "id": "bd-16b0",
+    "code": "p16-06",
+    "title": "Add correlation ID to AR invoicing",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like a distributed tracing engineer. The invariant to protect is: every invoice has a correlation ID linking it to originating subscription cycle. The failure mode to avoid is: untraceable invoice creation.",
+    "acceptance_criteria": [
+      "AR invoices table has correlation_id column",
+      "Invoice creation captures correlation_id from upstream event"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/ar/db/migrations/*",
+      "modules/ar/src/invoicing.rs"
+    ],
+    "verification": [
+      "cargo test -p ar_rs",
+      "Invoice tests pass"
+    ]
+  },
+  {
+    "id": "bd-16b1",
+    "code": "p16-07",
+    "title": "Add correlation ID to Payment attempts",
+    "priority": "P1",
+    "depends_on": ["bd-16b0"],
+    "how_to_think": "Think like a payment flow tracer. The invariant to protect is: payment attempts propagate correlation_id from invoice. The failure mode to avoid is: broken trace chain at payment boundary.",
+    "acceptance_criteria": [
+      "payment_attempts table has correlation_id",
+      "Payment creation propagates correlation_id from invoice"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/payments/db/migrations/*",
+      "modules/payments/src/lifecycle.rs"
+    ],
+    "verification": [
+      "cargo test -p payments_rs",
+      "Payment tests pass"
+    ]
+  },
+  {
+    "id": "bd-16b2",
+    "code": "p16-08",
+    "title": "Add correlation ID to GL posting",
+    "priority": "P1",
+    "depends_on": ["bd-16b1"],
+    "how_to_think": "Think like a financial audit tracer. The invariant to protect is: GL entries inherit correlation_id from originating AR/Payment events. The failure mode to avoid is: GL entries with no audit trail to source transactions.",
+    "acceptance_criteria": [
+      "journal_entries table has correlation_id",
+      "GL posting propagates correlation_id from source event"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/gl/db/migrations/*",
+      "modules/gl/src/posting.rs"
+    ],
+    "verification": [
+      "cargo test -p gl_rs",
+      "GL tests pass"
+    ]
+  },
+  {
+    "id": "bd-16c0",
+    "code": "p16-09",
+    "title": "Add Prometheus metrics to AR",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like an SRE. The invariant to protect is: AR exposes operational metrics for invoice lifecycle. The failure mode to avoid is: blind invoicing with no observability.",
+    "acceptance_criteria": [
+      "AR exposes /metrics endpoint",
+      "Metrics include: invoices_created_total, invoices_paid_total, invoice_age_seconds"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/ar/Cargo.toml",
+      "modules/ar/src/main.rs",
+      "modules/ar/src/metrics.rs"
+    ],
+    "verification": [
+      "curl http://localhost:8081/metrics | grep invoice",
+      "Metrics endpoint returns invoice metrics"
+    ]
+  },
+  {
+    "id": "bd-16c1",
+    "code": "p16-10",
+    "title": "Add Prometheus metrics to Payments",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like a payment ops monitor. The invariant to protect is: payment attempt outcomes are metered. The failure mode to avoid is: invisible payment failure rates.",
+    "acceptance_criteria": [
+      "Payments exposes /metrics",
+      "Metrics include: payment_attempts_total{status}, unknown_duration_seconds, retry_attempts_total"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/payments/Cargo.toml",
+      "modules/payments/src/main.rs",
+      "modules/payments/src/metrics.rs"
+    ],
+    "verification": [
+      "curl http://localhost:8082/metrics | grep payment",
+      "Metrics endpoint returns payment metrics"
+    ]
+  },
+  {
+    "id": "bd-16c2",
+    "code": "p16-11",
+    "title": "Add Prometheus metrics to Subscriptions",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like a billing cycle observer. The invariant to protect is: subscription billing cycles are instrumented. The failure mode to avoid is: invisible billing failures.",
+    "acceptance_criteria": [
+      "Subscriptions exposes /metrics",
+      "Metrics include: cycles_attempted_total, cycles_completed_total, subscription_churn_total"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/subscriptions/Cargo.toml",
+      "modules/subscriptions/src/main.rs",
+      "modules/subscriptions/src/metrics.rs"
+    ],
+    "verification": [
+      "curl http://localhost:8083/metrics | grep subscription",
+      "Metrics endpoint returns subscription metrics"
+    ]
+  },
+  {
+    "id": "bd-16c3",
+    "code": "p16-12",
+    "title": "Add Prometheus metrics to GL",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like a financial operations monitor. The invariant to protect is: GL posting activity is observable. The failure mode to avoid is: blind ledger with no posting visibility.",
+    "acceptance_criteria": [
+      "GL exposes /metrics",
+      "Metrics include: journal_entries_total, posting_errors_total, ledger_balance_cents{account}"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/gl/Cargo.toml",
+      "modules/gl/src/main.rs",
+      "modules/gl/src/metrics.rs"
+    ],
+    "verification": [
+      "curl http://localhost:8084/metrics | grep journal",
+      "Metrics endpoint returns GL metrics"
+    ]
+  },
+  {
+    "id": "bd-16d0",
+    "code": "p16-13",
+    "title": "Define alert thresholds doc",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like an incident response architect. The invariant to protect is: alert thresholds are documented and justified. The failure mode to avoid is: arbitrary alerting with no operational basis.",
+    "acceptance_criteria": [
+      "Alert thresholds document defines SLOs for billing success %, UNKNOWN duration, retry exhaustion",
+      "Thresholds include severity levels (warning/critical)"
+    ],
+    "files_to_create": [
+      "docs/ops/ALERT-THRESHOLDS.md"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "cargo test --workspace",
+      "All tests pass (doc-only change)"
+    ]
+  },
+  {
+    "id": "bd-16d1",
+    "code": "p16-14",
+    "title": "Add UNKNOWN duration alert",
+    "priority": "P1",
+    "depends_on": ["bd-16d0"],
+    "how_to_think": "Think like a payment reliability guardian. The invariant to protect is: UNKNOWN states trigger alerts before customer impact. The failure mode to avoid is: silent payment limbo.",
+    "acceptance_criteria": [
+      "Alert fires when payment UNKNOWN > threshold (from alert doc)",
+      "Alert includes payment_id, duration, customer context"
+    ],
+    "files_to_create": [
+      "infra/monitoring/alerts/payment-unknown.yml"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "Validate alert YAML syntax",
+      "Alert config is valid"
+    ]
+  },
+  {
+    "id": "bd-16d2",
+    "code": "p16-15",
+    "title": "Add invariant failure alert",
+    "priority": "P0",
+    "depends_on": ["bd-16d1"],
+    "how_to_think": "Think like a data integrity sentinel. The invariant to protect is: invariant failures page immediately. The failure mode to avoid is: silent corruption.",
+    "acceptance_criteria": [
+      "Alert fires on any invariant assertion failure",
+      "Alert is severity=critical with module context"
+    ],
+    "files_to_create": [
+      "infra/monitoring/alerts/invariant-failure.yml"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "Validate alert YAML syntax",
+      "Alert config is valid"
+    ]
+  },
+  {
+    "id": "bd-16e0",
+    "code": "p16-16",
+    "title": "Centralize DB pool resolver in AR",
+    "priority": "P0",
+    "depends_on": [],
+    "how_to_think": "Think like a platform seam architect. The invariant to protect is: AR DB pool creation has single entry point for future PDAA isolation. The failure mode to avoid is: scattered pool creation blocking future tenant database routing.",
+    "acceptance_criteria": [
+      "AR main.rs uses db::resolve_pool() (or equivalent) and contains zero PgPoolOptions::new().connect() inline",
+      "Resolver is the only construction point for PgPool"
+    ],
+    "files_to_create": [
+      "modules/ar/src/db/resolver.rs"
+    ],
+    "files_to_modify": [
+      "modules/ar/src/main.rs",
+      "modules/ar/src/db/mod.rs"
+    ],
+    "verification": [
+      "cargo test -p ar_rs",
+      "AR module tests pass"
+    ]
+  },
+  {
+    "id": "bd-16e1",
+    "code": "p16-17",
+    "title": "Centralize DB pool resolver in Payments",
+    "priority": "P0",
+    "depends_on": [],
+    "how_to_think": "Think like a platform seam enforcer. The invariant to protect is: Payments never creates raw pools outside resolver. The failure mode to avoid is: inconsistent connection behavior blocking future PDAA adoption.",
+    "acceptance_criteria": [
+      "Payments main.rs uses resolver function only",
+      "No inline pool creation remains"
+    ],
+    "files_to_create": [
+      "modules/payments/src/db/resolver.rs"
+    ],
+    "files_to_modify": [
+      "modules/payments/src/main.rs",
+      "modules/payments/src/db/mod.rs"
+    ],
+    "verification": [
+      "cargo test -p payments_rs",
+      "Payments tests pass"
+    ]
+  },
+  {
+    "id": "bd-16e2",
+    "code": "p16-18",
+    "title": "Centralize DB pool resolver in Subscriptions",
+    "priority": "P0",
+    "depends_on": [],
+    "how_to_think": "Think like a governance engineer. The invariant to protect is: Subscriptions pool creation is centralized and auditable. The failure mode to avoid is: multiple pool constructors causing config drift and operational inconsistency.",
+    "acceptance_criteria": [
+      "Subscriptions main.rs uses resolver only",
+      "No inline pool creation remains"
+    ],
+    "files_to_create": [
+      "modules/subscriptions/src/db/resolver.rs"
+    ],
+    "files_to_modify": [
+      "modules/subscriptions/src/main.rs",
+      "modules/subscriptions/src/db/mod.rs"
+    ],
+    "verification": [
+      "cargo test -p subscriptions_rs",
+      "Subscriptions tests pass"
+    ]
+  },
+  {
+    "id": "bd-16e3",
+    "code": "p16-19",
+    "title": "Centralize DB pool resolver in Notifications",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like a platform hardening engineer. The invariant to protect is: notifications DB access has a single entry seam. The failure mode to avoid is: future isolation migration requiring manual edits across binaries.",
+    "acceptance_criteria": [
+      "Notifications main.rs uses resolver only",
+      "No inline pool creation remains"
+    ],
+    "files_to_create": [
+      "modules/notifications/src/db/resolver.rs"
+    ],
+    "files_to_modify": [
+      "modules/notifications/src/main.rs",
+      "modules/notifications/src/db/mod.rs"
+    ],
+    "verification": [
+      "cargo test -p notifications_rs",
+      "Notifications tests pass"
+    ]
+  },
+  {
+    "id": "bd-16f0",
+    "code": "p16-20",
+    "title": "Add /ready endpoints (DB reachable)",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like an SRE. The invariant to protect is: readiness implies DB connectivity and critical init complete. The failure mode to avoid is: routing traffic to a live process that cannot access its database.",
+    "acceptance_criteria": [
+      "All modules expose /ready and it checks DB connectivity",
+      "E2E smoke test confirms /ready returns 200 only when DB up"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/ready_endpoints_smoke_e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/ar/src/routes/health.rs",
+      "modules/gl/src/routes/health.rs",
+      "modules/payments/src/routes/health.rs",
+      "modules/subscriptions/src/routes/health.rs",
+      "modules/notifications/src/routes/health.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests ready_endpoints_smoke_e2e -- --nocapture",
+      "Smoke test passes"
+    ]
+  },
+  {
+    "id": "bd-16f1",
+    "code": "p16-21",
+    "title": "Add /version endpoints (name+ver+schema)",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like an ops diagnostician. The invariant to protect is: every module can report exact build and schema version. The failure mode to avoid is: blind debugging during deploys and migrations.",
+    "acceptance_criteria": [
+      "All modules expose /version returning module name, module version, schema version",
+      "E2E test validates payload shape across modules"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/version_endpoints_smoke_e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/ar/src/routes/health.rs",
+      "modules/gl/src/routes/health.rs",
+      "modules/payments/src/routes/health.rs",
+      "modules/subscriptions/src/routes/health.rs",
+      "modules/notifications/src/routes/health.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests version_endpoints_smoke_e2e -- --nocapture",
+      "Smoke test passes"
+    ]
+  },
+  {
+    "id": "bd-16g0",
+    "code": "p16-22",
+    "title": "Create backup script + runbook baseline",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like a disaster recovery engineer. The invariant to protect is: daily backups exist and restore is documented and repeatable. The failure mode to avoid is: total data loss with no recovery path.",
+    "acceptance_criteria": [
+      "Repo contains a daily backup script for all module DBs",
+      "Runbook documents a restore procedure (single-tenant restore minimum)"
+    ],
+    "files_to_create": [
+      "tools/backup/backup_all.sh",
+      "docs/ops/BACKUP-RESTORE-RUNBOOK.md"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "bash tools/backup/backup_all.sh",
+      "Backup artifacts created successfully for each DB"
+    ]
+  },
+  {
+    "id": "bd-16g1",
+    "code": "p16-23",
+    "title": "Add quarterly restore verification test",
+    "priority": "P1",
+    "depends_on": ["bd-16g0"],
+    "how_to_think": "Think like a recovery validation specialist. The invariant to protect is: backups are provably restorable. The failure mode to avoid is: backups that silently fail until the day you need them.",
+    "acceptance_criteria": [
+      "A restore verification script restores one module DB to a scratch DB and runs a basic integrity query",
+      "CI job (manual trigger is acceptable initially) runs restore verification"
+    ],
+    "files_to_create": [
+      "tools/backup/restore_verify.sh",
+      ".github/workflows/backup-restore-verify.yml"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "bash tools/backup/restore_verify.sh",
+      "Restore completes and integrity query succeeds"
+    ]
+  },
+  {
+    "id": "bd-16h0",
+    "code": "p16-24",
+    "title": "Add lint: forbid cross-module imports",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like a CI guardrail engineer. The invariant to protect is: no cross-module source imports ever land. The failure mode to avoid is: accidental coupling that destroys modularity.",
+    "acceptance_criteria": [
+      "Lint script detects cross-module imports and fails with actionable output",
+      "CI runs lint on PRs"
+    ],
+    "files_to_create": [
+      "tools/ci/lint-no-cross-module-imports.sh"
+    ],
+    "files_to_modify": [
+      ".github/workflows/ci.yml"
+    ],
+    "verification": [
+      "bash tools/ci/lint-no-cross-module-imports.sh",
+      "Script exits 0 on clean repo; CI wired"
+    ]
+  },
+  {
+    "id": "bd-16h1",
+    "code": "p16-25",
+    "title": "Add lint: forbid raw PgPool creation",
+    "priority": "P0",
+    "depends_on": ["bd-16e0", "bd-16e1", "bd-16e2", "bd-16e3"],
+    "how_to_think": "Think like a platform seam enforcer. The invariant to protect is: DB pools are only created via resolver. The failure mode to avoid is: bypassing the one-way door that enables future isolation tiers.",
+    "acceptance_criteria": [
+      "Lint fails if PgPoolOptions::new().connect() appears outside db/resolver.rs per module",
+      "CI runs lint and blocks violations"
+    ],
+    "files_to_create": [
+      "tools/ci/lint-no-raw-db-connect.sh"
+    ],
+    "files_to_modify": [
+      ".github/workflows/ci.yml"
+    ],
+    "verification": [
+      "bash tools/ci/lint-no-raw-db-connect.sh",
+      "Script exits 0 on clean repo; CI wired"
+    ]
+  },
+  {
+    "id": "bd-16h2",
+    "code": "p16-26",
+    "title": "Add lint: validate event schema metadata",
+    "priority": "P1",
+    "depends_on": ["bd-16a3"],
+    "how_to_think": "Think like an event governance reviewer. The invariant to protect is: every emitted event has event_type and schema_version populated and valid. The failure mode to avoid is: silent contract drift that breaks consumers.",
+    "acceptance_criteria": [
+      "Script scans outbox enqueue sites to ensure event_type and schema_version are provided",
+      "CI runs script and fails on missing metadata"
+    ],
+    "files_to_create": [
+      "tools/ci/lint-event-metadata-present.sh"
+    ],
+    "files_to_modify": [
+      ".github/workflows/ci.yml"
+    ],
+    "verification": [
+      "bash tools/ci/lint-event-metadata-present.sh",
+      "Script exits 0 on clean repo; CI wired"
+    ]
+  },
+  {
+    "id": "bd-16i0",
+    "code": "p16-27",
+    "title": "Add retention class declarations doc",
+    "priority": "P2",
+    "depends_on": [],
+    "how_to_think": "Think like a data lifecycle owner. The invariant to protect is: every domain concept category has a declared retention class. The failure mode to avoid is: uncontrolled storage growth and unclear legal retention posture.",
+    "acceptance_criteria": [
+      "Retention classes declared for permanent/long/medium/short per module concept categories",
+      "Doc aligns with constitution definitions"
+    ],
+    "files_to_create": [
+      "docs/governance/RETENTION-CLASSES.md"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "cargo test --workspace",
+      "All tests pass (doc-only change)"
+    ]
+  }
+]
+```

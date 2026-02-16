@@ -296,16 +296,19 @@ get_bead_details() {
     local bead_json
     bead_json=$(br show "$bead_id" --json 2>/dev/null || echo "[]")
 
-    local title
+    local title description priority labels parent
+    local how_to_think acceptance_criteria files_create files_modify verification
+
     title=$(echo "$bead_json" | jq -r '.[0].title // "Unknown task"' 2>/dev/null)
-    local description
     description=$(echo "$bead_json" | jq -r '.[0].description // ""' 2>/dev/null)
-    local priority
     priority=$(echo "$bead_json" | jq -r '.[0].priority // ""' 2>/dev/null)
-    local labels
     labels=$(echo "$bead_json" | jq -r '.[0].labels // ""' 2>/dev/null)
-    local parent
     parent=$(echo "$bead_json" | jq -r '.[0].parent // empty' 2>/dev/null)
+    how_to_think=$(echo "$bead_json" | jq -r '.[0].how_to_think // empty' 2>/dev/null)
+    acceptance_criteria=$(echo "$bead_json" | jq -r '.[0].acceptance_criteria // empty | if type == "array" then join("\n  - ") else . end' 2>/dev/null)
+    files_create=$(echo "$bead_json" | jq -r '.[0].files_to_create // empty | if type == "array" then join(", ") else . end' 2>/dev/null)
+    files_modify=$(echo "$bead_json" | jq -r '.[0].files_to_modify // empty | if type == "array" then join(", ") else . end' 2>/dev/null)
+    verification=$(echo "$bead_json" | jq -r '.[0].verification // empty | if type == "array" then join("\n  - ") else . end' 2>/dev/null)
 
     echo "Work on bead $bead_id."
     echo ""
@@ -314,8 +317,23 @@ get_bead_details() {
     [ -n "$priority" ] && echo "Priority: $priority"
     [ -n "$labels" ] && echo "Labels: $labels"
     [ -n "$parent" ] && echo "Parent bead: $parent"
-    echo ""
-    echo "Check your inbox first, then complete this task."
+    if [ -n "$how_to_think" ]; then
+        echo ""
+        echo "## Mindset"
+        echo "$how_to_think"
+    fi
+    if [ -n "$acceptance_criteria" ]; then
+        echo ""
+        echo "## Acceptance Criteria"
+        echo "  - $acceptance_criteria"
+    fi
+    [ -n "$files_create" ] && echo "Files to create: $files_create"
+    [ -n "$files_modify" ] && echo "Files to modify: $files_modify"
+    if [ -n "$verification" ]; then
+        echo ""
+        echo "## Verification"
+        echo "  - $verification"
+    fi
 }
 
 #######################################
@@ -327,26 +345,36 @@ build_system_prompt() {
     cat <<PROMPT
 You are $AGENT_NAME, an autonomous agent working through beads (tasks).
 
-## How to Work
-1. Read the bead details and understand the problem
-2. Check your mail: \`\$PROJECT_ROOT/scripts/agent-mail-helper.sh inbox\`
-3. Implement the solution, committing with \`[BEAD-ID]\` prefix
-4. If you discover a separate issue:
-   - Create a child bead: \`\$PROJECT_ROOT/scripts/br-create.sh "Fix: description" --parent BEAD-ID\`
-   - Fix it and close it: \`br close CHILD-ID\`
-5. When your bead is complete: \`br close BEAD-ID --suggest-next\`
+## Executing a Bead
 
-## After Closing a Bead
-When you finish a bead, run: \`\$PROJECT_ROOT/scripts/next-bead.sh\`
-This claims the next bead and clears your context automatically. You will receive the new bead assignment with fresh context.
+1. Read the bead details. The Mindset section defines your approach — follow it.
+2. Check mail: \`\$PROJECT_ROOT/scripts/agent-mail-helper.sh inbox\`
+3. Read acceptance criteria — these are your definition of done.
+4. Stay in scope: only touch files listed in files_to_create and files_to_modify. If you need to change other files, that's a new bead.
+5. Implement. Commit often with \`[BEAD-ID]\` prefix. Small, focused commits.
+6. Run the verification commands. All tests must be integrated — real databases, real APIs. No mocking. No stubs. If a verification step uses mocks, rewrite it against real services.
+7. When all acceptance criteria pass and verification succeeds: \`br close BEAD-ID --suggest-next\`
+8. Run \`\$PROJECT_ROOT/scripts/next-bead.sh\` and stop. Context will be cleared automatically.
+
+## Scope Rules
+
+- One bead = one concern. Do not mix refactors with features.
+- If you discover a separate issue: create a child bead with \`\$PROJECT_ROOT/scripts/br-create.sh "Fix: description" --parent BEAD-ID\`, fix it, close it.
+- A bead is only done when all its child beads are also closed.
+- Run \`br sync\` before closing to commit bead metadata.
+
+## When to Escalate
+
+- You are blocked and cannot resolve it from the bead text — mail the orchestrator.
+- The bead description is ambiguous or contradicts the codebase — mail the orchestrator. Do not guess.
+- You have sent two messages on the same topic without resolution — stop and wait.
 
 ## Rules
-- Work autonomously. Do NOT ask the user what to do.
-- Do NOT use the Task tool to spawn subagents — they burn tokens. Do all work directly.
-- A bead is only done when all its child beads are also closed.
-- Keep commits small and focused. Prefix every commit with \`[BEAD-ID]\`.
-- After closing a bead, ALWAYS run \`\$PROJECT_ROOT/scripts/next-bead.sh\` to transition.
-- IMPORTANT: Always use \`\$PROJECT_ROOT/scripts/...\` to run scripts, never \`./scripts/...\`. This ensures scripts work from any directory.
+
+- Work autonomously. Do not ask the user what to do.
+- Do not spawn subagents. Do all work directly.
+- Always use \`\$PROJECT_ROOT/scripts/...\` for scripts, never \`./scripts/...\`.
+- After closing a bead, always run \`\$PROJECT_ROOT/scripts/next-bead.sh\` and stop working.
 PROMPT
 }
 

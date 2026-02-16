@@ -1,0 +1,7 @@
+{
+  "ok": false,
+  "raw_text": "",
+  "parse_ok": false,
+  "extracted_json": null,
+  "error": "page.goto: Timeout 30000ms exceeded.\nCall log:\n\u001b[2m  - navigating to \"https://chatgpt.com/c/6991c3e0-3878-8331-bdf9-90b7de49a867\", waiting until \"networkidle\"\u001b[22m\n"
+}

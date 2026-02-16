@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "raw_text": "json\nCopy code\n{\n  \"status\": \"ok\",\n  \"message\": \"Worker is functioning correctly\"\n}\n",
+  "parse_ok": false,
+  "extracted_json": null,
+  "error": null
+}

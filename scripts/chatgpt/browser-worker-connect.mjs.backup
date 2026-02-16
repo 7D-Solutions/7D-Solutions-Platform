@@ -1,0 +1,212 @@
+#!/usr/bin/env node
+import fs from "node:fs";
+import { chromium } from "playwright";
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
+
+const execAsync = promisify(exec);
+
+/**
+ * Browser Worker - connects to persistent authenticated browser
+ * Auto-launches browser if not running
+ */
+
+const CDP_PORT = process.env.CDP_PORT || 9222;
+const CDP_URL = `http://127.0.0.1:${CDP_PORT}`;
+const PROFILE_DIR = ".browser-profiles/chatgpt-persistent";
+const REQUEST_FILE = ".flywheel/browser-request.json";
+const RESPONSE_FILE = ".flywheel/browser-response.json";
+const READY_FILE = ".flywheel/browser-ready.txt";
+
+console.error("=== Browser Worker Starting ===");
+
+// Function to check if browser is running
+async function isBrowserRunning() {
+  try {
+    const response = await fetch(`${CDP_URL}/json/version`, { signal: AbortSignal.timeout(2000) });
+    return response.ok;
+  } catch (e) {
+    return false;
+  }
+}
+
+// Function to launch browser
+async function launchBrowser() {
+  console.error(`Launching persistent browser (profile: ${PROFILE_DIR})...`);
+  
+  // Create profile dir
+  if (!fs.existsSync(PROFILE_DIR)) {
+    fs.mkdirSync(PROFILE_DIR, { recursive: true });
+  }
+
+  // Launch Chrome with remote debugging
+  const chromeCmd = `/Applications/Google\\ Chrome.app/Contents/MacOS/Google\\ Chrome \
+    --remote-debugging-port=${CDP_PORT} \
+    --user-data-dir="$(pwd)/${PROFILE_DIR}" \
+    --no-first-run \
+    --no-default-browser-check \
+    --window-position=3000,3000 \
+    > /dev/null 2>&1 &`;
+
+  await execAsync(chromeCmd);
+  
+  // Wait for browser to be ready
+  console.error("Waiting for browser to start...");
+  for (let i = 0; i < 30; i++) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    if (await isBrowserRunning()) {
+      console.error("✓ Browser launched");
+      return true;
+    }
+  }
+  
+  throw new Error("Browser failed to start after 30 seconds");
+}
+
+// Check if browser is running, launch if not
+if (!(await isBrowserRunning())) {
+  await launchBrowser();
+} else {
+  console.error("✓ Browser already running");
+}
+
+console.error(`Connecting to browser at ${CDP_URL}...`);
+
+// Connect to browser
+const browser = await chromium.connectOverCDP(CDP_URL);
+console.error("✓ Connected to persistent browser");
+
+const contexts = browser.contexts();
+const context = contexts[0];  // Use first context (the one user is logged into)
+console.error("✓ Using existing authenticated context");
+
+const page = await context.newPage();
+console.error("✓ Page ready");
+console.error("");
+console.error("Worker ready. Watching for requests at:", REQUEST_FILE);
+console.error("Press Ctrl+C to stop.");
+console.error("");
+
+// Write ready signal
+fs.writeFileSync(READY_FILE, Date.now().toString());
+
+// Main loop - poll for requests
+while (true) {
+  try {
+    if (fs.existsSync(REQUEST_FILE)) {
+      const requestData = fs.readFileSync(REQUEST_FILE, "utf-8");
+      fs.unlinkSync(REQUEST_FILE); // Delete immediately to prevent reprocessing
+      
+      const request = JSON.parse(requestData);
+      console.error(`[${new Date().toISOString()}] Processing request: ${request.conversation_url}`);
+
+      // Navigate to conversation
+      await page.goto(request.conversation_url, { waitUntil: "networkidle", timeout: 30000 });
+
+      // Wait for input
+      const input = page.locator('[contenteditable="true"]').last();
+      await input.waitFor({ state: "visible", timeout: 10000 });
+      await page.waitForTimeout(1000);
+
+      // Capture baseline
+      const baselineCount = await page.locator('[data-message-author-role="assistant"]').count();
+
+      // Post message
+      await input.evaluate((el, text) => {
+        el.textContent = text;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      }, request.message);
+
+      await page.waitForTimeout(1000);
+      await input.press('Enter');
+
+      // Wait for response
+      const messageLocator = page.locator('[data-message-author-role="assistant"]');
+      let newMessageAppeared = false;
+      const waitStart = Date.now();
+
+      while (!newMessageAppeared && (Date.now() - waitStart < 10000)) {
+        const currentCount = await messageLocator.count();
+        if (currentCount > baselineCount) {
+          newMessageAppeared = true;
+        } else {
+          await page.waitForTimeout(500);
+        }
+      }
+
+      if (!newMessageAppeared) {
+        throw new Error("No new message appeared after 10 seconds");
+      }
+
+      // Wait for stability (text not changing for 4 seconds)
+      let stableCount = 0;
+      let lastText = "";
+      const lastMessage = messageLocator.last();
+
+      while (stableCount < 2) {
+        await page.waitForTimeout(2000);
+        const currentText = await lastMessage.innerText().catch(() => "");
+        
+        if (currentText === lastText && currentText.length > 0) {
+          stableCount++;
+        } else {
+          stableCount = 0;
+          lastText = currentText;
+        }
+      }
+
+      // Extract response
+      const rawText = await lastMessage.innerText();
+      
+      // Try to extract JSON
+      const jsonMatch = rawText.match(/```json\s*([\s\S]*?)\s*```/);
+      let extractedJson = null;
+      let parseOk = false;
+
+      if (jsonMatch) {
+        try {
+          extractedJson = JSON.parse(jsonMatch[1]);
+          parseOk = true;
+        } catch (e) {
+          parseOk = false;
+        }
+      }
+
+      // Write response
+      const response = {
+        ok: true,
+        raw_text: rawText,
+        parse_ok: parseOk,
+        extracted_json: extractedJson,
+        error: null
+      };
+
+      fs.writeFileSync(RESPONSE_FILE, JSON.stringify(response, null, 2));
+      console.error(`✓ Response written (${rawText.length} chars)`);
+
+    } else {
+      // No request, wait and check again
+      await page.waitForTimeout(500);
+    }
+  } catch (error) {
+    console.error(`✗ Error: ${error.message}`);
+    
+    // Write error response
+    const errorResponse = {
+      ok: false,
+      raw_text: "",
+      parse_ok: false,
+      extracted_json: null,
+      error: error.message
+    };
+    
+    try {
+      fs.writeFileSync(RESPONSE_FILE, JSON.stringify(errorResponse, null, 2));
+    } catch (e) {
+      console.error(`Failed to write error response: ${e.message}`);
+    }
+    
+    // Wait before continuing
+    await page.waitForTimeout(2000);
+  }
+}

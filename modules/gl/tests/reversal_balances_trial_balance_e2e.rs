@@ -162,16 +162,14 @@ async fn publish_reversal_request(
         reason: Some("E2E test reversal".to_string()),
     };
 
-    let envelope = EventEnvelope {
+    let envelope = EventEnvelope::with_event_id(
         event_id,
-        occurred_at: Utc::now(),
-        tenant_id: tenant_id.to_string(),
-        source_module: "gl-e2e-test".to_string(),
-        source_version: "0.1.0".to_string(),
-        correlation_id: None,
-        causation_id: None,
-        payload: request,
-    };
+        tenant_id.to_string(),
+        "gl-e2e-test".to_string(),
+        "gl.entry.reverse.requested".to_string(),
+        request,
+    )
+    .with_source_version("0.1.0".to_string());
 
     let payload = serde_json::to_vec(&envelope).expect("Failed to serialize envelope");
 

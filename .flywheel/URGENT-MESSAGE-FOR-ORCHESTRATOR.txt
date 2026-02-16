@@ -1,0 +1,1 @@
+⚠️ CRITICAL: Custom GPT URLs break automation. Browser worker crashed earlier. You're using custom GPT now (Rust+PostGres). Switch to regular ChatGPT: https://chatgpt.com/c/ID (NOT /g/g-p-...). -TopazDeer

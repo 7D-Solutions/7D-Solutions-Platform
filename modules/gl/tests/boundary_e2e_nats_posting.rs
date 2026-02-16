@@ -248,6 +248,7 @@ async fn test_boundary_nats_posting_creates_journal_and_balances() {
         event_id,
         tenant_id.to_string(),
         "ar".to_string(),
+        "gl.posting.requested".to_string(),
         posting_request.clone(),
     )
     .with_source_version("1.0.0".to_string());
@@ -401,6 +402,7 @@ async fn test_boundary_nats_posting_replay_safety() {
         event_id,
         tenant_id.to_string(),
         "ar".to_string(),
+        "gl.posting.requested".to_string(),
         posting_request.clone(),
     );
     let payload1 = serde_json::to_vec(&envelope1).unwrap();
@@ -429,6 +431,7 @@ async fn test_boundary_nats_posting_replay_safety() {
         event_id,
         tenant_id.to_string(),
         "ar".to_string(),
+        "gl.posting.requested".to_string(),
         posting_request.clone(),
     );
     let payload2 = serde_json::to_vec(&envelope2).unwrap();

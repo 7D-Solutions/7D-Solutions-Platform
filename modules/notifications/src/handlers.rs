@@ -52,16 +52,14 @@ pub async fn handle_invoice_issued(
     };
 
     // Create event envelope
-    let envelope = EventEnvelope {
-        event_id: Uuid::new_v4(),
-        occurred_at: chrono::Utc::now(),
-        tenant_id: metadata.tenant_id.clone(),
-        source_module: "notifications".to_string(),
-        source_version: env!("CARGO_PKG_VERSION").to_string(),
-        correlation_id: metadata.correlation_id.clone(),
-        causation_id: Some(metadata.event_id.to_string()),
-        payload: serde_json::to_value(success_payload)?,
-    };
+    let envelope = crate::event_bus::create_notifications_envelope(
+        Uuid::new_v4(),
+        metadata.tenant_id.clone(),
+        "notifications.delivery.succeeded".to_string(),
+        metadata.correlation_id.clone(),
+        Some(metadata.event_id.to_string()),
+        serde_json::to_value(success_payload)?,
+    );
 
     // Enqueue delivery success event to outbox
     let mut tx = pool.begin().await?;
@@ -124,16 +122,14 @@ pub async fn handle_payment_succeeded(
     };
 
     // Create event envelope
-    let envelope = EventEnvelope {
-        event_id: Uuid::new_v4(),
-        occurred_at: chrono::Utc::now(),
-        tenant_id: metadata.tenant_id.clone(),
-        source_module: "notifications".to_string(),
-        source_version: env!("CARGO_PKG_VERSION").to_string(),
-        correlation_id: metadata.correlation_id.clone(),
-        causation_id: Some(metadata.event_id.to_string()),
-        payload: serde_json::to_value(success_payload)?,
-    };
+    let envelope = crate::event_bus::create_notifications_envelope(
+        Uuid::new_v4(),
+        metadata.tenant_id.clone(),
+        "notifications.delivery.succeeded".to_string(),
+        metadata.correlation_id.clone(),
+        Some(metadata.event_id.to_string()),
+        serde_json::to_value(success_payload)?,
+    );
 
     // Enqueue delivery success event to outbox
     let mut tx = pool.begin().await?;
@@ -197,16 +193,14 @@ pub async fn handle_payment_failed(
     };
 
     // Create event envelope
-    let envelope = EventEnvelope {
-        event_id: Uuid::new_v4(),
-        occurred_at: chrono::Utc::now(),
-        tenant_id: metadata.tenant_id.clone(),
-        source_module: "notifications".to_string(),
-        source_version: env!("CARGO_PKG_VERSION").to_string(),
-        correlation_id: metadata.correlation_id.clone(),
-        causation_id: Some(metadata.event_id.to_string()),
-        payload: serde_json::to_value(success_payload)?,
-    };
+    let envelope = crate::event_bus::create_notifications_envelope(
+        Uuid::new_v4(),
+        metadata.tenant_id.clone(),
+        "notifications.delivery.succeeded".to_string(),
+        metadata.correlation_id.clone(),
+        Some(metadata.event_id.to_string()),
+        serde_json::to_value(success_payload)?,
+    );
 
     // Enqueue delivery success event to outbox
     let mut tx = pool.begin().await?;

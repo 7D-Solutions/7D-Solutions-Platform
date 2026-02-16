@@ -1,0 +1,991 @@
+[
+  {
+    "id": "bd-16a0",
+    "code": "p16-01",
+    "title": "Add missing fields to EventEnvelope",
+    "priority": "P0",
+    "depends_on": [],
+    "how_to_think": "Think like an event contract architect. The invariant to protect is: every emitted event carries the full constitutional envelope metadata from day one. The failure mode to avoid is: permanent event streams missing versioning/tracing/reversal semantics that become migration traps.",
+    "acceptance_criteria": [
+      "EventEnvelope<T> includes: event_type, schema_version, trace_id, reverses_event_id, supersedes_event_id, side_effect_id, replay_safe, mutation_class",
+      "Envelope compiles across all crates with no optional schema shortcuts"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "platform/event-bus/src/envelope.rs"
+    ],
+    "verification": [
+      "cargo test --workspace",
+      "All workspace tests pass"
+    ]
+  },
+  {
+    "id": "bd-16a1",
+    "code": "p16-02",
+    "title": "Fix envelope validation logic + unit tests",
+    "priority": "P0",
+    "depends_on": ["bd-16a0"],
+    "how_to_think": "Think like a defensive validator engineer. The invariant to protect is: envelope validation checks the correct fields and rejects invalid metadata deterministically. The failure mode to avoid is: false passes causing silent non-compliant events.",
+    "acceptance_criteria": [
+      "validate_envelope_fields() validates the correct field set (no duplicate checks / missing checks)",
+      "Unit tests prove invalid event_type, schema_version, trace_id, mutation_class are rejected"
+    ],
+    "files_to_create": [
+      "platform/event-bus/src/envelope_tests.rs"
+    ],
+    "files_to_modify": [
+      "platform/event-bus/src/envelope.rs"
+    ],
+    "verification": [
+      "cargo test -p event-bus",
+      "Validation unit tests pass"
+    ]
+  },
+
+  {
+    "id": "bd-16a2-ar",
+    "code": "p16-03a",
+    "title": "Add envelope metadata columns to AR outbox",
+    "priority": "P0",
+    "depends_on": ["bd-16a0"],
+    "how_to_think": "Think like a database integrity specialist. The invariant to protect is: envelope metadata is stored as queryable columns in AR outbox. The failure mode to avoid is: metadata trapped in JSON or missing, breaking auditability and replay safety.",
+    "acceptance_criteria": [
+      "AR outbox schema includes required envelope metadata columns (nullable or defaulted for backfill)",
+      "Migration applies cleanly to a real AR database"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/ar/db/migrations/*"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p ar_rs",
+      "AR starts/migrates and tests pass"
+    ]
+  },
+  {
+    "id": "bd-16a2-pay",
+    "code": "p16-03b",
+    "title": "Add envelope metadata columns to Payments outbox",
+    "priority": "P0",
+    "depends_on": ["bd-16a0"],
+    "how_to_think": "Think like a database integrity specialist. The invariant to protect is: envelope metadata is stored as queryable columns in Payments outbox. The failure mode to avoid is: unqueryable metadata that blocks governance and diagnostics.",
+    "acceptance_criteria": [
+      "Payments outbox schema includes required envelope metadata columns (nullable or defaulted for backfill)",
+      "Migration applies cleanly to a real Payments database"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/payments/db/migrations/*"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p payments_rs",
+      "Payments starts/migrates and tests pass"
+    ]
+  },
+  {
+    "id": "bd-16a2-sub",
+    "code": "p16-03c",
+    "title": "Add envelope metadata columns to Subscriptions outbox",
+    "priority": "P0",
+    "depends_on": ["bd-16a0"],
+    "how_to_think": "Think like a database integrity specialist. The invariant to protect is: envelope metadata is stored as queryable columns in Subscriptions outbox. The failure mode to avoid is: missing envelope metadata preventing deterministic replay analysis.",
+    "acceptance_criteria": [
+      "Subscriptions outbox schema includes required envelope metadata columns (nullable or defaulted for backfill)",
+      "Migration applies cleanly to a real Subscriptions database"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/subscriptions/db/migrations/*"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p subscriptions_rs",
+      "Subscriptions starts/migrates and tests pass"
+    ]
+  },
+  {
+    "id": "bd-16a2-gl",
+    "code": "p16-03d",
+    "title": "Add envelope metadata columns to GL outbox",
+    "priority": "P0",
+    "depends_on": ["bd-16a0"],
+    "how_to_think": "Think like a database integrity specialist. The invariant to protect is: envelope metadata is stored as queryable columns in GL outbox. The failure mode to avoid is: inability to trace postings/reversals via envelope metadata.",
+    "acceptance_criteria": [
+      "GL outbox schema includes required envelope metadata columns (nullable or defaulted for backfill)",
+      "Migration applies cleanly to a real GL database"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/gl/db/migrations/*"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p gl_rs",
+      "GL starts/migrates and tests pass"
+    ]
+  },
+  {
+    "id": "bd-16a2-notif",
+    "code": "p16-03e",
+    "title": "Add envelope metadata columns to Notifications outbox",
+    "priority": "P1",
+    "depends_on": ["bd-16a0"],
+    "how_to_think": "Think like a database integrity specialist. The invariant to protect is: envelope metadata is stored as queryable columns in Notifications outbox. The failure mode to avoid is: operational events that cannot be traced or versioned reliably.",
+    "acceptance_criteria": [
+      "Notifications outbox schema includes required envelope metadata columns (nullable or defaulted for backfill)",
+      "Migration applies cleanly to a real Notifications database"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/notifications/db/migrations/*"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p notifications_rs",
+      "Notifications starts/migrates and tests pass"
+    ]
+  },
+
+  {
+    "id": "bd-16a3",
+    "code": "p16-04",
+    "title": "Require envelope validation at enqueue boundary",
+    "priority": "P0",
+    "depends_on": ["bd-16a1", "bd-16a2-ar", "bd-16a2-pay", "bd-16a2-sub", "bd-16a2-gl"],
+    "how_to_think": "Think like a platform boundary enforcer. The invariant to protect is: no outbox insert occurs without passing envelope validation. The failure mode to avoid is: bypass paths emitting non-compliant events.",
+    "acceptance_criteria": [
+      "Outbox enqueue helper rejects invalid envelopes before insert",
+      "All module emit sites route through the validated enqueue helper (no direct inserts)"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "platform/event-bus/src/envelope.rs",
+      "platform/event-bus/src/outbox.rs",
+      "modules/ar/src/**/*.rs",
+      "modules/payments/src/**/*.rs",
+      "modules/subscriptions/src/**/*.rs",
+      "modules/gl/src/**/*.rs"
+    ],
+    "verification": [
+      "cargo test --workspace",
+      "All tests pass"
+    ]
+  },
+  {
+    "id": "bd-16a3t",
+    "code": "p16-04t",
+    "title": "Add E2E test: invalid envelope rejected",
+    "priority": "P0",
+    "depends_on": ["bd-16a3"],
+    "how_to_think": "Think like a contract compliance tester. The invariant to protect is: invalid envelope metadata cannot be persisted or published. The failure mode to avoid is: corrupt event stream that survives CI.",
+    "acceptance_criteria": [
+      "E2E test attempts to emit an event with invalid envelope metadata",
+      "Test asserts: request fails and outbox row is not created"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/envelope_invalid_rejected_e2e.rs"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests envelope_invalid_rejected_e2e -- --nocapture",
+      "Test passes"
+    ]
+  },
+  {
+    "id": "bd-16a4",
+    "code": "p16-05",
+    "title": "Add E2E envelope NATS roundtrip test",
+    "priority": "P0",
+    "depends_on": ["bd-16a3", "bd-16a2-notif"],
+    "how_to_think": "Think like a contract compliance tester. The invariant to protect is: envelope metadata survives publish-subscribe delivery unchanged. The failure mode to avoid is: metadata lost in transit or remapped incorrectly by publisher/consumer.",
+    "acceptance_criteria": [
+      "E2E test publishes event and verifies all envelope fields survive NATS roundtrip",
+      "Test validates trace_id, schema_version, mutation_class, replay_safe are preserved"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/envelope_roundtrip_e2e.rs"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests envelope_roundtrip_e2e -- --nocapture",
+      "Test passes"
+    ]
+  },
+
+  {
+    "id": "bd-16m0",
+    "code": "p16-06",
+    "title": "Create mutation class registry + enum wiring",
+    "priority": "P0",
+    "depends_on": ["bd-16a0"],
+    "how_to_think": "Think like a financial controls auditor. The invariant to protect is: every domain concept declares a mutation_class and every event carries it. The failure mode to avoid is: illegal updates to financial/audit records with no policy enforcement.",
+    "acceptance_criteria": [
+      "docs/governance/MUTATION-CLASSES.md exists and defines classification rules",
+      "mutation_class is a required EventEnvelope field and cannot be None/empty at runtime"
+    ],
+    "files_to_create": [
+      "docs/governance/MUTATION-CLASSES.md"
+    ],
+    "files_to_modify": [
+      "platform/event-bus/src/envelope.rs"
+    ],
+    "verification": [
+      "cargo test --workspace",
+      "All tests pass"
+    ]
+  },
+  {
+    "id": "bd-16m1",
+    "code": "p16-07",
+    "title": "Classify core domain concepts in registry",
+    "priority": "P0",
+    "depends_on": ["bd-16m0"],
+    "how_to_think": "Think like an accounting policy owner. The invariant to protect is: strict_immutable/compensating_required concepts are identified before enforcement. The failure mode to avoid is: retroactive policy edits after data exists.",
+    "acceptance_criteria": [
+      "Registry classifies: invoices, payment_attempts, journal_entries, subscription cycles, reconciliation artifacts",
+      "Each concept lists owner module"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "docs/governance/MUTATION-CLASSES.md"
+    ],
+    "verification": [
+      "cargo test --workspace",
+      "All tests pass (doc-only change)"
+    ]
+  },
+  {
+    "id": "bd-16m2",
+    "code": "p16-08",
+    "title": "Populate mutation_class at all emit sites",
+    "priority": "P0",
+    "depends_on": ["bd-16m1", "bd-16a3"],
+    "how_to_think": "Think like a governance enforcement engineer. The invariant to protect is: every emitted event has the correct mutation_class matching the registry. The failure mode to avoid is: incorrect class tagging that undermines audit and reversal policy.",
+    "acceptance_criteria": [
+      "All emit sites set mutation_class explicitly (no defaults)",
+      "Integrated test asserts at least one event per module carries the expected mutation_class"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/mutation_class_presence_e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/ar/src/**/*.rs",
+      "modules/payments/src/**/*.rs",
+      "modules/subscriptions/src/**/*.rs",
+      "modules/gl/src/**/*.rs",
+      "modules/notifications/src/**/*.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests mutation_class_presence_e2e -- --nocapture",
+      "Test passes"
+    ]
+  },
+
+  {
+    "id": "bd-16rs0",
+    "code": "p16-09",
+    "title": "Wire reverses/supersedes into envelopes",
+    "priority": "P0",
+    "depends_on": ["bd-16a0", "bd-16a3"],
+    "how_to_think": "Think like a replay-safety engineer. The invariant to protect is: reversal and supersession linkage is represented at the envelope level, enabling deterministic replay and projection correctness. The failure mode to avoid is: compensating events that cannot be linked during replay.",
+    "acceptance_criteria": [
+      "Emit helpers support reverses_event_id and supersedes_event_id (nullable)",
+      "At least one real reversal flow emits envelope metadata correctly"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/envelope_reversal_linkage_e2e.rs"
+    ],
+    "files_to_modify": [
+      "platform/event-bus/src/envelope.rs",
+      "modules/gl/src/**/*.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests envelope_reversal_linkage_e2e -- --nocapture",
+      "Test passes"
+    ]
+  },
+  {
+    "id": "bd-16rs1",
+    "code": "p16-10",
+    "title": "Enforce max reversal chain depth = 1",
+    "priority": "P1",
+    "depends_on": ["bd-16rs0"],
+    "how_to_think": "Think like a ledger correctness auditor. The invariant to protect is: reversal/supersession chains never exceed depth 1 as required. The failure mode to avoid is: recursive reversals that make projections ambiguous.",
+    "acceptance_criteria": [
+      "Invariant rejects attempts to reverse a reversal or supersede a supersession",
+      "Integrated test demonstrates rejection behavior"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/reversal_chain_depth_enforcement_e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/gl/src/invariants.rs",
+      "e2e-tests/tests/oracle.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests reversal_chain_depth_enforcement_e2e -- --nocapture",
+      "Test passes"
+    ]
+  },
+
+  {
+    "id": "bd-16o0",
+    "code": "p16-11",
+    "title": "Fix AR outbox atomicity + prove via E2E",
+    "priority": "P0",
+    "depends_on": ["bd-16a3"],
+    "how_to_think": "Think like an outbox correctness engineer. The invariant to protect is: domain state changes and outbox inserts commit atomically in one transaction. The failure mode to avoid is: state mutation with missing events (silent inconsistency).",
+    "acceptance_criteria": [
+      "AR invoice mutation + outbox insert occur in a single SQL transaction",
+      "E2E test proves no state change can persist without an outbox row"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/ar_outbox_atomicity_e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/ar/src/**/*.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests ar_outbox_atomicity_e2e -- --nocapture",
+      "Test passes"
+    ]
+  },
+  {
+    "id": "bd-16o1",
+    "code": "p16-12",
+    "title": "Audit Payments outbox atomicity + prove via E2E",
+    "priority": "P0",
+    "depends_on": ["bd-16a3"],
+    "how_to_think": "Think like a payment integrity engineer. The invariant to protect is: payment lifecycle mutations and emitted events are atomic. The failure mode to avoid is: UNKNOWN/RETRY transitions that never publish events.",
+    "acceptance_criteria": [
+      "Representative payment transition is transactionally atomic with outbox insert",
+      "E2E test proves atomicity under failure injection"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/payments_outbox_atomicity_e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/payments/src/**/*.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests payments_outbox_atomicity_e2e -- --nocapture",
+      "Test passes"
+    ]
+  },
+  {
+    "id": "bd-16o2",
+    "code": "p16-13",
+    "title": "Audit Subscriptions outbox atomicity + prove via E2E",
+    "priority": "P0",
+    "depends_on": ["bd-16a3"],
+    "how_to_think": "Think like a billing correctness engineer. The invariant to protect is: subscription cycle mutations and outbox events are atomic. The failure mode to avoid is: cycle advance without invoice intent emission.",
+    "acceptance_criteria": [
+      "Representative subscription cycle mutation is transactionally atomic with outbox insert",
+      "E2E test proves atomicity"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/subscriptions_outbox_atomicity_e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/subscriptions/src/**/*.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests subscriptions_outbox_atomicity_e2e -- --nocapture",
+      "Test passes"
+    ]
+  },
+  {
+    "id": "bd-16o3",
+    "code": "p16-14",
+    "title": "Audit GL outbox atomicity + prove via E2E",
+    "priority": "P1",
+    "depends_on": ["bd-16a3"],
+    "how_to_think": "Think like a ledger event integrity engineer. The invariant to protect is: GL posting state changes and emitted events are atomic. The failure mode to avoid is: postings without events or events without postings.",
+    "acceptance_criteria": [
+      "Representative GL mutation+outbox is atomic",
+      "E2E test proves atomicity"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/gl_outbox_atomicity_e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/gl/src/**/*.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests gl_outbox_atomicity_e2e -- --nocapture",
+      "Test passes"
+    ]
+  },
+  {
+    "id": "bd-16o4",
+    "code": "p16-15",
+    "title": "Audit Notifications outbox atomicity + prove via E2E",
+    "priority": "P2",
+    "depends_on": ["bd-16a3", "bd-16a2-notif"],
+    "how_to_think": "Think like an event delivery integrity specialist. The invariant to protect is: notification state changes and outbox events are atomic. The failure mode to avoid is: notification state drifting from published events.",
+    "acceptance_criteria": [
+      "Representative notification transition is atomic with outbox insert",
+      "E2E test proves atomicity"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/notifications_outbox_atomicity_e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/notifications/src/**/*.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests notifications_outbox_atomicity_e2e -- --nocapture",
+      "Test passes"
+    ]
+  },
+
+  {
+    "id": "bd-16e0",
+    "code": "p16-16",
+    "title": "Centralize DB pool resolver in AR",
+    "priority": "P0",
+    "depends_on": [],
+    "how_to_think": "Think like an isolation-tier architect. The invariant to protect is: AR creates DB pools only via a single resolver seam. The failure mode to avoid is: scattered pool creation blocking future tenant routing/PDAA.",
+    "acceptance_criteria": [
+      "AR main.rs uses db::resolve_pool() only (no inline PgPoolOptions::new().connect())",
+      "Resolver is the only PgPool construction point"
+    ],
+    "files_to_create": [
+      "modules/ar/src/db/resolver.rs"
+    ],
+    "files_to_modify": [
+      "modules/ar/src/main.rs",
+      "modules/ar/src/db/mod.rs"
+    ],
+    "verification": [
+      "cargo test -p ar_rs",
+      "AR module tests pass"
+    ]
+  },
+  {
+    "id": "bd-16e1",
+    "code": "p16-17",
+    "title": "Centralize DB pool resolver in Payments",
+    "priority": "P0",
+    "depends_on": [],
+    "how_to_think": "Think like a platform seam enforcer. The invariant to protect is: Payments creates DB pools only via resolver. The failure mode to avoid is: inconsistent connection behavior blocking PDAA adoption.",
+    "acceptance_criteria": [
+      "Payments main.rs uses resolver only",
+      "No inline pool creation remains"
+    ],
+    "files_to_create": [
+      "modules/payments/src/db/resolver.rs"
+    ],
+    "files_to_modify": [
+      "modules/payments/src/main.rs",
+      "modules/payments/src/db/mod.rs"
+    ],
+    "verification": [
+      "cargo test -p payments_rs",
+      "Payments tests pass"
+    ]
+  },
+  {
+    "id": "bd-16e2",
+    "code": "p16-18",
+    "title": "Centralize DB pool resolver in Subscriptions",
+    "priority": "P0",
+    "depends_on": [],
+    "how_to_think": "Think like a governance engineer. The invariant to protect is: Subscriptions creates DB pools only via resolver. The failure mode to avoid is: config drift and operational inconsistency.",
+    "acceptance_criteria": [
+      "Subscriptions main.rs uses resolver only",
+      "No inline pool creation remains"
+    ],
+    "files_to_create": [
+      "modules/subscriptions/src/db/resolver.rs"
+    ],
+    "files_to_modify": [
+      "modules/subscriptions/src/main.rs",
+      "modules/subscriptions/src/db/mod.rs"
+    ],
+    "verification": [
+      "cargo test -p subscriptions_rs",
+      "Subscriptions tests pass"
+    ]
+  },
+  {
+    "id": "bd-16e3",
+    "code": "p16-19",
+    "title": "Centralize DB pool resolver in Notifications",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like a platform hardening engineer. The invariant to protect is: Notifications creates DB pools only via resolver. The failure mode to avoid is: future isolation migration requiring multi-file rewrites.",
+    "acceptance_criteria": [
+      "Notifications main.rs uses resolver only",
+      "No inline pool creation remains"
+    ],
+    "files_to_create": [
+      "modules/notifications/src/db/resolver.rs"
+    ],
+    "files_to_modify": [
+      "modules/notifications/src/main.rs",
+      "modules/notifications/src/db/mod.rs"
+    ],
+    "verification": [
+      "cargo test -p notifications_rs",
+      "Notifications tests pass"
+    ]
+  },
+
+  {
+    "id": "bd-16h0",
+    "code": "p16-24",
+    "title": "Add lint: forbid cross-module imports",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like a CI guardrail engineer. The invariant to protect is: no cross-module source imports ever land. The failure mode to avoid is: accidental coupling that destroys modularity.",
+    "acceptance_criteria": [
+      "Lint script detects cross-module imports and fails with actionable output",
+      "CI runs lint on PRs"
+    ],
+    "files_to_create": [
+      "tools/ci/lint-no-cross-module-imports.sh"
+    ],
+    "files_to_modify": [
+      ".github/workflows/ci.yml"
+    ],
+    "verification": [
+      "bash tools/ci/lint-no-cross-module-imports.sh",
+      "Script exits 0 on clean repo; CI wired"
+    ]
+  },
+  {
+    "id": "bd-16h1",
+    "code": "p16-25",
+    "title": "Add lint: forbid raw PgPool creation",
+    "priority": "P0",
+    "depends_on": ["bd-16e0", "bd-16e1", "bd-16e2", "bd-16e3"],
+    "how_to_think": "Think like a platform seam enforcer. The invariant to protect is: DB pools are only created via resolver. The failure mode to avoid is: bypassing the one-way door enabling future isolation tiers.",
+    "acceptance_criteria": [
+      "Lint fails if PgPoolOptions::new().connect() appears outside db/resolver.rs per module",
+      "CI runs lint and blocks violations"
+    ],
+    "files_to_create": [
+      "tools/ci/lint-no-raw-db-connect.sh"
+    ],
+    "files_to_modify": [
+      ".github/workflows/ci.yml"
+    ],
+    "verification": [
+      "bash tools/ci/lint-no-raw-db-connect.sh",
+      "Script exits 0 on clean repo; CI wired"
+    ]
+  },
+  {
+    "id": "bd-16h2",
+    "code": "p16-26",
+    "title": "Add lint: require event metadata present",
+    "priority": "P1",
+    "depends_on": ["bd-16a3", "bd-16m2"],
+    "how_to_think": "Think like an event governance reviewer. The invariant to protect is: every emitted event has required metadata populated. The failure mode to avoid is: silent contract drift that breaks consumers.",
+    "acceptance_criteria": [
+      "Script fails if emit sites omit event_type, schema_version, trace_id, mutation_class",
+      "CI runs script and blocks violations"
+    ],
+    "files_to_create": [
+      "tools/ci/lint-event-metadata-present.sh"
+    ],
+    "files_to_modify": [
+      ".github/workflows/ci.yml"
+    ],
+    "verification": [
+      "bash tools/ci/lint-event-metadata-present.sh",
+      "Script exits 0 on clean repo; CI wired"
+    ]
+  },
+
+  {
+    "id": "bd-16f0",
+    "code": "p16-20",
+    "title": "Add /ready endpoints (DB reachable)",
+    "priority": "P1",
+    "depends_on": ["bd-16e0", "bd-16e1", "bd-16e2", "bd-16e3"],
+    "how_to_think": "Think like an SRE. The invariant to protect is: readiness implies DB connectivity and critical init complete. The failure mode to avoid is: routing traffic to a live process that cannot access its database.",
+    "acceptance_criteria": [
+      "All modules expose /ready and it checks DB connectivity",
+      "E2E smoke test confirms /ready returns 200 only when DB up"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/ready_endpoints_smoke_e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/ar/src/routes/health.rs",
+      "modules/gl/src/routes/health.rs",
+      "modules/payments/src/routes/health.rs",
+      "modules/subscriptions/src/routes/health.rs",
+      "modules/notifications/src/routes/health.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests ready_endpoints_smoke_e2e -- --nocapture",
+      "Smoke test passes"
+    ]
+  },
+  {
+    "id": "bd-16f1",
+    "code": "p16-21",
+    "title": "Add /version endpoints (name+ver+schema)",
+    "priority": "P1",
+    "depends_on": ["bd-16f0"],
+    "how_to_think": "Think like an ops diagnostician. The invariant to protect is: every module can report exact build and schema version. The failure mode to avoid is: blind debugging during deploys and migrations.",
+    "acceptance_criteria": [
+      "All modules expose /version returning module name, module version, schema version",
+      "E2E test validates payload shape across modules"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/version_endpoints_smoke_e2e.rs"
+    ],
+    "files_to_modify": [
+      "modules/ar/src/routes/health.rs",
+      "modules/gl/src/routes/health.rs",
+      "modules/payments/src/routes/health.rs",
+      "modules/subscriptions/src/routes/health.rs",
+      "modules/notifications/src/routes/health.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests version_endpoints_smoke_e2e -- --nocapture",
+      "Smoke test passes"
+    ]
+  },
+
+  {
+    "id": "bd-16g0",
+    "code": "p16-22",
+    "title": "Create backup script + runbook baseline",
+    "priority": "P1",
+    "depends_on": [],
+    "how_to_think": "Think like a disaster recovery engineer. The invariant to protect is: daily backups exist and restore is documented and repeatable. The failure mode to avoid is: total data loss with no recovery path.",
+    "acceptance_criteria": [
+      "Repo contains a daily backup script for all module DBs",
+      "Runbook documents a restore procedure (single-tenant restore minimum)"
+    ],
+    "files_to_create": [
+      "tools/backup/backup_all.sh",
+      "docs/ops/BACKUP-RESTORE-RUNBOOK.md"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "bash tools/backup/backup_all.sh",
+      "Backup artifacts created successfully for each DB"
+    ]
+  },
+  {
+    "id": "bd-16g1",
+    "code": "p16-23",
+    "title": "Add quarterly restore verification test",
+    "priority": "P1",
+    "depends_on": ["bd-16g0"],
+    "how_to_think": "Think like a recovery validation specialist. The invariant to protect is: backups are provably restorable. The failure mode to avoid is: backups that silently fail until the day you need them.",
+    "acceptance_criteria": [
+      "Restore verification script restores one module DB to a scratch DB and runs an integrity query",
+      "CI job (manual trigger acceptable) runs restore verification"
+    ],
+    "files_to_create": [
+      "tools/backup/restore_verify.sh",
+      ".github/workflows/backup-restore-verify.yml"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "bash tools/backup/restore_verify.sh",
+      "Restore completes and integrity query succeeds"
+    ]
+  },
+
+  {
+    "id": "bd-16r0",
+    "code": "p16-27",
+    "title": "Add domain ownership registry",
+    "priority": "P0",
+    "depends_on": [],
+    "how_to_think": "Think like a platform governance lead. The invariant to protect is: each domain concept has exactly one owning module declared. The failure mode to avoid is: overlapping ownership forcing cross-module coupling and inconsistent truth.",
+    "acceptance_criteria": [
+      "Domain ownership registry exists and lists owners for AR/GL/Payments/Subscriptions/Notifications",
+      "Registry includes inter-module command list with declared write degradation class"
+    ],
+    "files_to_create": [
+      "docs/governance/DOMAIN-OWNERSHIP-REGISTRY.md"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "cargo test --workspace",
+      "All tests pass (doc-only change)"
+    ]
+  },
+  {
+    "id": "bd-16r1",
+    "code": "p16-28",
+    "title": "Declare degradation class for Sub→AR",
+    "priority": "P0",
+    "depends_on": ["bd-16r0"],
+    "how_to_think": "Think like a resilience engineer. The invariant to protect is: every inter-module write command has an explicit degradation class and behavior. The failure mode to avoid is: implicit retries/hangs under dependency outage.",
+    "acceptance_criteria": [
+      "Subscriptions→AR command documented with degradation class + timeout budget",
+      "Implementation contains no implicit retry beyond declared policy"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "docs/governance/DOMAIN-OWNERSHIP-REGISTRY.md",
+      "modules/subscriptions/src/**/*.rs"
+    ],
+    "verification": [
+      "cargo test -p subscriptions_rs",
+      "Subscriptions tests pass"
+    ]
+  },
+  {
+    "id": "bd-16r2",
+    "code": "p16-29",
+    "title": "Add degradation E2E: Sub→AR target down",
+    "priority": "P0",
+    "depends_on": ["bd-16r1"],
+    "how_to_think": "Think like an integration test engineer. The invariant to protect is: declared degradation behavior is proven under target unavailability. The failure mode to avoid is: production outage causing deadlocks or inconsistent state.",
+    "acceptance_criteria": [
+      "E2E test simulates AR unavailable and asserts declared degradation outcome",
+      "Test asserts no crash/hang and no undeclared retry behavior"
+    ],
+    "files_to_create": [
+      "e2e-tests/tests/subscriptions_ar_degradation_e2e.rs"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p e2e-tests subscriptions_ar_degradation_e2e -- --nocapture",
+      "Test passes and matches declared degradation class"
+    ]
+  },
+
+  {
+    "id": "bd-16i0",
+    "code": "p16-30",
+    "title": "Add retention class declarations doc",
+    "priority": "P2",
+    "depends_on": [],
+    "how_to_think": "Think like a data lifecycle owner. The invariant to protect is: every domain concept category has a declared retention class. The failure mode to avoid is: uncontrolled storage growth and unclear retention posture.",
+    "acceptance_criteria": [
+      "Retention classes declared for permanent/long/medium/short per module concept categories",
+      "Doc aligns with constitution definitions"
+    ],
+    "files_to_create": [
+      "docs/governance/RETENTION-CLASSES.md"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "cargo test --workspace",
+      "All tests pass (doc-only change)"
+    ]
+  },
+
+  {
+    "id": "bd-16b0",
+    "code": "p16-31",
+    "title": "Add correlation ID to AR invoicing",
+    "priority": "P2",
+    "depends_on": ["bd-16a4"],
+    "how_to_think": "Think like a distributed tracing engineer. The invariant to protect is: invoices can be correlated across lifecycle boundaries. The failure mode to avoid is: untraceable invoice creation despite trace_id presence.",
+    "acceptance_criteria": [
+      "AR invoices table has correlation_id column",
+      "Invoice creation captures correlation_id from upstream context"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/ar/db/migrations/*",
+      "modules/ar/src/invoicing.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p ar_rs",
+      "Invoice tests pass"
+    ]
+  },
+  {
+    "id": "bd-16b1",
+    "code": "p16-32",
+    "title": "Add correlation ID to payment attempts",
+    "priority": "P2",
+    "depends_on": ["bd-16b0"],
+    "how_to_think": "Think like a payment flow tracer. The invariant to protect is: payment attempts propagate correlation_id from invoice. The failure mode to avoid is: broken trace chain at payment boundary.",
+    "acceptance_criteria": [
+      "payment_attempts table has correlation_id",
+      "Payment attempt creation propagates correlation_id from invoice"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/payments/db/migrations/*",
+      "modules/payments/src/lifecycle.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p payments_rs",
+      "Payment tests pass"
+    ]
+  },
+  {
+    "id": "bd-16b2",
+    "code": "p16-33",
+    "title": "Add correlation ID to GL posting",
+    "priority": "P2",
+    "depends_on": ["bd-16b1"],
+    "how_to_think": "Think like a financial audit tracer. The invariant to protect is: GL entries inherit correlation_id from originating AR/Payment context. The failure mode to avoid is: GL entries with no trail to source transactions.",
+    "acceptance_criteria": [
+      "journal_entries table has correlation_id",
+      "GL posting propagates correlation_id from source context"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/gl/db/migrations/*",
+      "modules/gl/src/posting.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p gl_rs",
+      "GL tests pass"
+    ]
+  },
+
+  {
+    "id": "bd-16c0",
+    "code": "p16-34",
+    "title": "Add Prometheus metrics to AR",
+    "priority": "P2",
+    "depends_on": ["bd-16f0"],
+    "how_to_think": "Think like an SRE. The invariant to protect is: AR exposes operational metrics without breaking request paths. The failure mode to avoid is: metrics code that destabilizes hot paths or hides failures.",
+    "acceptance_criteria": [
+      "AR exposes /metrics endpoint",
+      "Metrics include: invoices_created_total, invoices_paid_total, invoice_age_seconds"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/ar/Cargo.toml",
+      "modules/ar/src/main.rs",
+      "modules/ar/src/metrics.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p ar_rs",
+      "AR tests pass and /metrics returns 200"
+    ]
+  },
+  {
+    "id": "bd-16c1",
+    "code": "p16-35",
+    "title": "Add Prometheus metrics to Payments",
+    "priority": "P2",
+    "depends_on": ["bd-16f0"],
+    "how_to_think": "Think like a payment ops monitor. The invariant to protect is: payment outcomes are metered accurately. The failure mode to avoid is: misleading metrics or missing UNKNOWN visibility.",
+    "acceptance_criteria": [
+      "Payments exposes /metrics",
+      "Metrics include: payment_attempts_total{status}, unknown_duration_seconds, retry_attempts_total"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/payments/Cargo.toml",
+      "modules/payments/src/main.rs",
+      "modules/payments/src/metrics.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p payments_rs",
+      "Payments tests pass and /metrics returns 200"
+    ]
+  },
+  {
+    "id": "bd-16c2",
+    "code": "p16-36",
+    "title": "Add Prometheus metrics to Subscriptions",
+    "priority": "P2",
+    "depends_on": ["bd-16f0"],
+    "how_to_think": "Think like a billing cycle observer. The invariant to protect is: billing cycles are instrumented without changing behavior. The failure mode to avoid is: metrics introducing side effects.",
+    "acceptance_criteria": [
+      "Subscriptions exposes /metrics",
+      "Metrics include: cycles_attempted_total, cycles_completed_total, subscription_churn_total"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/subscriptions/Cargo.toml",
+      "modules/subscriptions/src/main.rs",
+      "modules/subscriptions/src/metrics.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p subscriptions_rs",
+      "Subscriptions tests pass and /metrics returns 200"
+    ]
+  },
+  {
+    "id": "bd-16c3",
+    "code": "p16-37",
+    "title": "Add Prometheus metrics to GL",
+    "priority": "P2",
+    "depends_on": ["bd-16f0"],
+    "how_to_think": "Think like a financial operations monitor. The invariant to protect is: GL posting activity is observable without affecting correctness. The failure mode to avoid is: metrics that mask posting errors or miscount entries.",
+    "acceptance_criteria": [
+      "GL exposes /metrics",
+      "Metrics include: journal_entries_total, posting_errors_total"
+    ],
+    "files_to_create": [],
+    "files_to_modify": [
+      "modules/gl/Cargo.toml",
+      "modules/gl/src/main.rs",
+      "modules/gl/src/metrics.rs"
+    ],
+    "verification": [
+      "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && cargo test -p gl_rs",
+      "GL tests pass and /metrics returns 200"
+    ]
+  },
+
+  {
+    "id": "bd-16al0",
+    "code": "p16-38",
+    "title": "Define alert thresholds doc",
+    "priority": "P2",
+    "depends_on": ["bd-16c0", "bd-16c1", "bd-16c2", "bd-16c3"],
+    "how_to_think": "Think like an incident response architect. The invariant to protect is: alerts are tied to explicit SLO/threshold definitions. The failure mode to avoid is: arbitrary alerting that trains teams to ignore pages.",
+    "acceptance_criteria": [
+      "Alert thresholds doc defines UNKNOWN duration, retry exhaustion, invariant failure criteria",
+      "Thresholds include warning/critical levels"
+    ],
+    "files_to_create": [
+      "docs/ops/ALERT-THRESHOLDS.md"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "cargo test --workspace",
+      "All tests pass (doc-only change)"
+    ]
+  },
+  {
+    "id": "bd-16al1",
+    "code": "p16-39",
+    "title": "Add UNKNOWN duration alert rule",
+    "priority": "P2",
+    "depends_on": ["bd-16al0"],
+    "how_to_think": "Think like a payment reliability guardian. The invariant to protect is: UNKNOWN states are surfaced before customer impact. The failure mode to avoid is: silent payment limbo with no operational visibility.",
+    "acceptance_criteria": [
+      "Prometheus alert rule exists for UNKNOWN duration > documented threshold",
+      "Rule is validated by promtool"
+    ],
+    "files_to_create": [
+      "infra/monitoring/alerts/payment-unknown.yml"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "promtool check rules infra/monitoring/alerts/payment-unknown.yml",
+      "promtool exits 0"
+    ]
+  },
+  {
+    "id": "bd-16al2",
+    "code": "p16-40",
+    "title": "Add invariant failure alert rule",
+    "priority": "P2",
+    "depends_on": ["bd-16al0"],
+    "how_to_think": "Think like a data integrity sentinel. The invariant to protect is: invariant failures page immediately. The failure mode to avoid is: silent corruption.",
+    "acceptance_criteria": [
+      "Prometheus alert rule exists for invariant failure metric > 0",
+      "Rule is validated by promtool"
+    ],
+    "files_to_create": [
+      "infra/monitoring/alerts/invariant-failure.yml"
+    ],
+    "files_to_modify": [],
+    "verification": [
+      "promtool check rules infra/monitoring/alerts/invariant-failure.yml",
+      "promtool exits 0"
+    ]
+  }
+]
