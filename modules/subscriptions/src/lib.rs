@@ -8,6 +8,7 @@ pub mod outbox;
 pub mod gated_invoice_creation;
 pub mod invariants;
 pub mod lifecycle;
+pub mod metrics;
 pub mod models;
 
 // Re-export commonly used types
@@ -30,3 +31,9 @@ pub use cycle_gating::{
     mark_attempt_failed,
     CycleGatingError,
 };
+
+/// Subscriptions application state shared across HTTP handlers
+pub struct AppState {
+    pub pool: sqlx::PgPool,
+    pub metrics: std::sync::Arc<metrics::SubscriptionsMetrics>,
+}

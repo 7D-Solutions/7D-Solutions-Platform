@@ -6,13 +6,15 @@ mod dlq;
 mod envelope;
 mod envelope_validation;
 mod gated_invoice_creation;
+mod invariants;
 mod lifecycle;
+mod metrics;
 mod models;
 mod outbox;
 mod publisher;
 mod routes;
 
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{routing::get, Router};
 use config::Config;
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 
@@ -20,6 +22,12 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
+
+/// Application state shared across HTTP handlers
+pub struct AppState {
+    pub pool: sqlx::PgPool,
+    pub metrics: Arc<metrics::SubscriptionsMetrics>,
+}
 
 #[tokio::main]
 async fn main() {
@@ -73,6 +81,16 @@ async fn main() {
 
     tracing::info!("Background event publisher started");
 
+    // Initialize metrics
+    let metrics = Arc::new(metrics::SubscriptionsMetrics::new().expect("Failed to create metrics"));
+    tracing::info!("Metrics initialized");
+
+    // Create application state
+    let app_state = Arc::new(AppState {
+        pool: pool.clone(),
+        metrics: metrics.clone(),
+    });
+
     let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port: u16 = std::env::var("PORT")
         .unwrap_or_else(|_| "8087".to_string())
@@ -83,7 +101,8 @@ async fn main() {
         .route("/api/health", get(routes::health))
         .route("/api/ready", get(routes::ready))
         .route("/api/version", get(routes::version))
-        .with_state(pool.clone())
+        .route("/metrics", get(metrics::metrics_handler))
+        .with_state(app_state.clone())
         .merge(routes::subscriptions_router(pool.clone()))
         .layer(
             CorsLayer::new()

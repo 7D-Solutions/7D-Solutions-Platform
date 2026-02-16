@@ -6,6 +6,7 @@ use axum::{
 };
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use sqlx::PgPool;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::models::{
@@ -380,11 +381,11 @@ pub async fn health() -> Json<serde_json::Value> {
 ///
 /// Returns 200 OK if ready, 503 Service Unavailable if not ready.
 pub async fn ready(
-    State(pool): State<PgPool>,
+    State(app_state): State<Arc<crate::AppState>>,
 ) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
     // Test DB connectivity with a simple query
     match sqlx::query("SELECT 1")
-        .execute(&pool)
+        .execute(&app_state.pool)
         .await
     {
         Ok(_) => Ok(Json(serde_json::json!({
