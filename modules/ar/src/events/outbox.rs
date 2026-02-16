@@ -27,9 +27,13 @@ pub async fn enqueue_event<T: Serialize>(
 
     sqlx::query(
         r#"
-        INSERT INTO events_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, payload, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        INSERT INTO events_outbox (
+            event_id, event_type, aggregate_type, aggregate_id, payload,
+            tenant_id, source_module, source_version, schema_version,
+            occurred_at, replay_safe, trace_id, correlation_id, causation_id,
+            reverses_event_id, supersedes_event_id, side_effect_id, mutation_class
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
         "#,
     )
     .bind(envelope.event_id)
@@ -37,7 +41,19 @@ pub async fn enqueue_event<T: Serialize>(
     .bind(aggregate_type)
     .bind(aggregate_id)
     .bind(payload)
+    .bind(&envelope.tenant_id)
+    .bind(&envelope.source_module)
+    .bind(&envelope.source_version)
+    .bind(&envelope.schema_version)
     .bind(envelope.occurred_at)
+    .bind(envelope.replay_safe)
+    .bind(&envelope.trace_id)
+    .bind(&envelope.correlation_id)
+    .bind(&envelope.causation_id)
+    .bind(&envelope.reverses_event_id)
+    .bind(&envelope.supersedes_event_id)
+    .bind(&envelope.side_effect_id)
+    .bind(&envelope.mutation_class)
     .execute(db)
     .await?;
 
@@ -57,7 +73,11 @@ pub async fn fetch_unpublished_events(
 ) -> Result<Vec<UnpublishedEvent>, sqlx::Error> {
     let events = sqlx::query_as::<_, UnpublishedEvent>(
         r#"
-        SELECT id, event_id, event_type, aggregate_type, aggregate_id, payload, created_at
+        SELECT
+            id, event_id, event_type, aggregate_type, aggregate_id, payload, created_at,
+            tenant_id, source_module, source_version, schema_version,
+            occurred_at, replay_safe, trace_id, correlation_id, causation_id,
+            reverses_event_id, supersedes_event_id, side_effect_id, mutation_class
         FROM events_outbox
         WHERE published_at IS NULL
         ORDER BY created_at ASC
@@ -99,4 +119,18 @@ pub struct UnpublishedEvent {
     pub aggregate_id: String,
     pub payload: serde_json::Value,
     pub created_at: chrono::NaiveDateTime,
+    // Envelope metadata
+    pub tenant_id: Option<String>,
+    pub source_module: Option<String>,
+    pub source_version: Option<String>,
+    pub schema_version: Option<String>,
+    pub occurred_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub replay_safe: Option<bool>,
+    pub trace_id: Option<String>,
+    pub correlation_id: Option<String>,
+    pub causation_id: Option<String>,
+    pub reverses_event_id: Option<Uuid>,
+    pub supersedes_event_id: Option<Uuid>,
+    pub side_effect_id: Option<String>,
+    pub mutation_class: Option<String>,
 }
