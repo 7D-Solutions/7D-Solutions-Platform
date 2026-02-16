@@ -63,15 +63,52 @@ console.log("");
 console.log("Please complete the following steps:");
 console.log("1. Log in to ChatGPT if you're not already logged in");
 console.log("2. Wait until you see the ChatGPT chat interface");
-console.log("3. Press Enter in this terminal to save the session");
+console.log("");
+console.log("Waiting for login (checking every 5 seconds)...");
+console.log("The script will automatically save the session once you're logged in.");
+console.log("(Ctrl+C to cancel)");
 console.log("");
 
-// Wait for user to press Enter
-await new Promise((resolve) => {
-  process.stdin.once('data', resolve);
-});
+// Wait for authentication by checking for ChatGPT-specific elements
+let isLoggedIn = false;
+while (!isLoggedIn) {
+  try {
+    // Check for elements that indicate the user is logged in
+    // Look for the chat interface or user menu
+    const hasChat = await page.locator('[data-testid="conversation-turn-0"]').count() > 0;
+    const hasPrompt = await page.locator('textarea[placeholder*="Message"]').count() > 0;
+    const hasUserMenu = await page.locator('[data-headlessui-state]').count() > 0;
 
-// Save storage state
+    if (hasChat || hasPrompt || hasUserMenu) {
+      isLoggedIn = true;
+      console.log("✓ Detected ChatGPT interface - you appear to be logged in!");
+    } else {
+      // Check if we're on a login page
+      const url = page.url();
+      if (url.includes('chatgpt.com') && !url.includes('auth')) {
+        // We're on ChatGPT but not on auth page - might be logged in
+        // Wait a bit more to be sure
+        await page.waitForTimeout(2000);
+        const hasPromptNow = await page.locator('textarea').count() > 0;
+        if (hasPromptNow) {
+          isLoggedIn = true;
+          console.log("✓ Detected ChatGPT interface!");
+        }
+      }
+
+      if (!isLoggedIn) {
+        await page.waitForTimeout(5000);
+        process.stdout.write(".");
+      }
+    }
+  } catch (e) {
+    // Keep waiting
+    await page.waitForTimeout(5000);
+    process.stdout.write(".");
+  }
+}
+
+console.log("");
 console.log("");
 console.log("Saving session state...");
 await context.storageState({ path: STORAGE_STATE_PATH });
