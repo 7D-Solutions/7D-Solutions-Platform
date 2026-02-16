@@ -30,14 +30,14 @@
 //!         "tenant-123",
 //!         event_id,
 //!         Utc::now(),
-//!         |tx| async move {
+//!         |tx| Box::pin(async move {
 //!             // Apply event to read model here
 //!             sqlx::query("UPDATE balances SET amount = amount + $1")
 //!                 .bind(100)
 //!                 .execute(tx)
 //!                 .await?;
 //!             Ok(())
-//!         }
+//!         })
 //!     ).await?;
 //!
 //!     Ok(applied)

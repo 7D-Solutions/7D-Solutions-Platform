@@ -232,7 +232,7 @@ async fn test_try_apply_event_applies_new_event() {
         tenant_id,
         event_id,
         Utc::now(),
-        |tx| async move {
+        |tx| Box::pin(async move {
             // Update customer balance
             sqlx::query("UPDATE test_customer_balances SET balance = balance + $1 WHERE customer_id = $2 AND tenant_id = $3")
                 .bind(100_i64)
@@ -242,7 +242,7 @@ async fn test_try_apply_event_applies_new_event() {
                 .await
                 .map_err(CursorError::from)?;
             Ok(())
-        },
+        }),
     )
     .await
     .expect("Failed to apply event");
@@ -303,7 +303,7 @@ async fn test_try_apply_event_skips_duplicate() {
         tenant_id,
         event_id,
         Utc::now(),
-        |tx| async move {
+        |tx| Box::pin(async move {
             sqlx::query("UPDATE test_customer_balances SET balance = balance + $1 WHERE customer_id = $2 AND tenant_id = $3")
                 .bind(100_i64)
                 .bind(customer_id)
@@ -312,7 +312,7 @@ async fn test_try_apply_event_skips_duplicate() {
                 .await
                 .map_err(CursorError::from)?;
             Ok(())
-        },
+        }),
     )
     .await
     .expect("Failed to apply event first time");
@@ -328,7 +328,7 @@ async fn test_try_apply_event_skips_duplicate() {
         tenant_id,
         event_id,
         Utc::now(),
-        |tx| async move {
+        |tx| Box::pin(async move {
             sqlx::query("UPDATE test_customer_balances SET balance = balance + $1 WHERE customer_id = $2 AND tenant_id = $3")
                 .bind(100_i64)
                 .bind(customer_id)
@@ -337,7 +337,7 @@ async fn test_try_apply_event_skips_duplicate() {
                 .await
                 .map_err(CursorError::from)?;
             Ok(())
-        },
+        }),
     )
     .await
     .expect("Failed to apply event second time");
@@ -397,7 +397,7 @@ async fn test_try_apply_event_transactional_rollback() {
         tenant_id,
         event_id,
         Utc::now(),
-        |tx| async move {
+        |tx| Box::pin(async move {
             // Update customer balance
             sqlx::query("UPDATE test_customer_balances SET balance = balance + $1 WHERE customer_id = $2 AND tenant_id = $3")
                 .bind(100_i64)
@@ -409,7 +409,7 @@ async fn test_try_apply_event_transactional_rollback() {
 
             // Simulate an error during processing
             Err(CursorError::Database(sqlx::Error::RowNotFound))
-        },
+        }),
     )
     .await;
 

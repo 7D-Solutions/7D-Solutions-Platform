@@ -181,7 +181,7 @@ impl ProjectionCursor {
 ///         "tenant-123",
 ///         event_id,
 ///         Utc::now(),
-///         |tx| async move {
+///         |tx| Box::pin(async move {
 ///             // Apply event to read model
 ///             sqlx::query("UPDATE customer_balances SET balance = balance + $1 WHERE customer_id = $2")
 ///                 .bind(100)
@@ -189,12 +189,12 @@ impl ProjectionCursor {
 ///                 .execute(tx)
 ///                 .await?;
 ///             Ok(())
-///         }
+///         })
 ///     ).await
 /// }
 /// ```
-pub async fn try_apply_event<F, Fut>(
-    tx: &mut PgConnection,
+pub async fn try_apply_event<'a, F>(
+    tx: &'a mut PgConnection,
     projection_name: &str,
     tenant_id: &str,
     event_id: Uuid,
@@ -202,8 +202,7 @@ pub async fn try_apply_event<F, Fut>(
     apply_fn: F,
 ) -> CursorResult<bool>
 where
-    F: FnOnce(&mut PgConnection) -> Fut,
-    Fut: Future<Output = CursorResult<()>>,
+    F: for<'b> FnOnce(&'b mut PgConnection) -> std::pin::Pin<Box<dyn Future<Output = CursorResult<()>> + Send + 'b>>,
 {
     // Check if this event was already processed (idempotency check)
     let already_processed =
