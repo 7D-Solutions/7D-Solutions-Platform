@@ -24,9 +24,18 @@ pub async fn enqueue_event<T: Serialize>(
             tenant_id,
             correlation_id,
             causation_id,
-            payload
+            payload,
+            source_module,
+            source_version,
+            schema_version,
+            replay_safe,
+            trace_id,
+            reverses_event_id,
+            supersedes_event_id,
+            side_effect_id,
+            mutation_class
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
         "#,
     )
     .bind(envelope.event_id)
@@ -36,6 +45,15 @@ pub async fn enqueue_event<T: Serialize>(
     .bind(&envelope.correlation_id)
     .bind(&envelope.causation_id)
     .bind(payload)
+    .bind(&envelope.source_module)
+    .bind(&envelope.source_version)
+    .bind(&envelope.schema_version)
+    .bind(envelope.replay_safe)
+    .bind(&envelope.trace_id)
+    .bind(&envelope.reverses_event_id)
+    .bind(&envelope.supersedes_event_id)
+    .bind(&envelope.side_effect_id)
+    .bind(&envelope.mutation_class)
     .execute(pool)
     .await?;
 
@@ -74,12 +92,24 @@ pub async fn start_outbox_publisher(
             correlation_id: Option<String>,
             causation_id: Option<String>,
             payload: serde_json::Value,
+            source_module: Option<String>,
+            source_version: Option<String>,
+            schema_version: Option<String>,
+            replay_safe: Option<bool>,
+            trace_id: Option<String>,
+            reverses_event_id: Option<uuid::Uuid>,
+            supersedes_event_id: Option<uuid::Uuid>,
+            side_effect_id: Option<String>,
+            mutation_class: Option<String>,
         }
 
         let events: Vec<OutboxEvent> = sqlx::query_as(
             r#"
             SELECT id, event_id, event_type, occurred_at, tenant_id,
-                   correlation_id, causation_id, payload
+                   correlation_id, causation_id, payload,
+                   source_module, source_version, schema_version, replay_safe,
+                   trace_id, reverses_event_id, supersedes_event_id,
+                   side_effect_id, mutation_class
             FROM payments_events_outbox
             WHERE published_at IS NULL
             ORDER BY occurred_at ASC
@@ -99,12 +129,20 @@ pub async fn start_outbox_publisher(
             // Construct full envelope for publishing
             let full_envelope = serde_json::json!({
                 "event_id": event.event_id,
+                "event_type": event.event_type,
                 "occurred_at": event.occurred_at.and_utc().to_rfc3339(),
                 "tenant_id": event.tenant_id,
-                "source_module": "payments",
-                "source_version": env!("CARGO_PKG_VERSION"),
+                "source_module": event.source_module.unwrap_or_else(|| "payments".to_string()),
+                "source_version": event.source_version.unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string()),
+                "schema_version": event.schema_version.unwrap_or_else(|| "1.0.0".to_string()),
+                "replay_safe": event.replay_safe.unwrap_or(true),
                 "correlation_id": event.correlation_id,
                 "causation_id": event.causation_id,
+                "trace_id": event.trace_id,
+                "reverses_event_id": event.reverses_event_id,
+                "supersedes_event_id": event.supersedes_event_id,
+                "side_effect_id": event.side_effect_id,
+                "mutation_class": event.mutation_class,
                 "payload": event.payload,
             });
 
