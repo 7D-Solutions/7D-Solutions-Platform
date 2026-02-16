@@ -1,13 +1,12 @@
 use axum::{extract::State, http::Method, routing::get, Json, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
-use ar_rs::{consumer_tasks, events::run_publisher_task, routes};
+use ar_rs::{consumer_tasks, db, events::run_publisher_task, routes};
 
 #[tokio::main]
 async fn main() {
@@ -25,21 +24,8 @@ async fn main() {
         .parse()
         .expect("PORT must be a valid u16");
 
-    // Configure connection pool
-    let is_test = std::env::var("NODE_ENV").unwrap_or_default() == "test";
-    let max_connections = if is_test { 5 } else { 10 };
-    let idle_timeout = if is_test {
-        std::time::Duration::from_secs(60)
-    } else {
-        std::time::Duration::from_secs(300)
-    };
-
-    let db = PgPoolOptions::new()
-        .max_connections(max_connections)
-        .idle_timeout(Some(idle_timeout))
-        .max_lifetime(Some(std::time::Duration::from_secs(1800)))
-        .acquire_timeout(std::time::Duration::from_secs(10))
-        .connect(&database_url)
+    // Resolve DB pool through centralized resolver (Phase 16: PDAA preparation)
+    let db = db::resolve_pool(&database_url)
         .await
         .expect("Failed to connect to Postgres");
 

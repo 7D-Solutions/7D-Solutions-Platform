@@ -1576,6 +1576,7 @@ async fn finalize_invoice(
     let event_envelope = crate::events::envelope::create_ar_envelope(
         uuid::Uuid::new_v4(),
         app_id.to_string(),
+        "payment.collection.requested".to_string(),
         uuid::Uuid::new_v4().to_string(),
         None,
         event_payload,
@@ -1634,6 +1635,7 @@ async fn finalize_invoice(
     let gl_envelope = crate::events::envelope::create_ar_envelope(
         uuid::Uuid::new_v4(),
         app_id.to_string(),
+        "gl.posting.requested".to_string(),
         uuid::Uuid::new_v4().to_string(),
         None,
         gl_payload,

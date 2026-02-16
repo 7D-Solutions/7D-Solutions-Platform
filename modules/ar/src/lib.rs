@@ -1,4 +1,5 @@
 pub mod consumer_tasks;
+pub mod db;
 pub mod envelope_validation;
 pub mod events;
 pub mod finalization;
