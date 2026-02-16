@@ -2,7 +2,7 @@ mod common;
 
 use ar_rs::events::{
     enqueue_event, is_event_processed, mark_event_processed, process_event_idempotent,
-    EventEnvelope,
+    envelope::create_ar_envelope,
 };
 use event_bus::{EventBus, InMemoryBus};
 use serde::{Deserialize, Serialize};
@@ -34,20 +34,20 @@ async fn test_enqueue_event_to_outbox() {
         amount: 100,
     };
 
-    let envelope = EventEnvelope::new(
-        "ar.invoice.created".to_string(),
-        "1.0.0".to_string(),
+    let envelope = create_ar_envelope(
+        Uuid::new_v4(),
         "tenant-123".to_string(),
-        "invoice".to_string(),
-        "inv-456".to_string(),
+        "ar.invoice.created".to_string(),
         "trace-789".to_string(),
+        None,
+        "DATA_MUTATION".to_string(),
         event_data,
     );
 
     let event_id = envelope.event_id;
 
     // Enqueue event
-    let result = enqueue_event(&pool, &envelope).await;
+    let result = enqueue_event(&pool, "ar.invoice.created", "invoice", "inv-456", &envelope).await;
     assert!(result.is_ok(), "Should enqueue event successfully");
 
     // Verify event is in outbox
@@ -190,19 +190,18 @@ async fn test_event_envelope_with_causation() {
 
     let causation_id = Uuid::new_v4();
 
-    let envelope = EventEnvelope::new(
-        "ar.payment.processed".to_string(),
-        "1.0.0".to_string(),
+    let envelope = create_ar_envelope(
+        Uuid::new_v4(),
         "tenant-456".to_string(),
-        "payment".to_string(),
-        "pay-789".to_string(),
+        "ar.payment.processed".to_string(),
         "trace-abc".to_string(),
+        Some(causation_id.to_string()),
+        "DATA_MUTATION".to_string(),
         event_data,
-    )
-    .with_causation(causation_id);
+    );
 
-    assert_eq!(envelope.causation_id, Some(causation_id));
-    assert_eq!(envelope.producer, "ar-rs");
+    assert_eq!(envelope.causation_id, Some(causation_id.to_string()));
+    assert_eq!(envelope.source_module, "ar");
     assert_eq!(envelope.event_type, "ar.payment.processed");
     assert_eq!(envelope.tenant_id, "tenant-456");
 }
@@ -226,19 +225,19 @@ async fn test_publisher_with_inmemory_bus() {
         amount: 300,
     };
 
-    let envelope = EventEnvelope::new(
-        "ar.test.published".to_string(),
-        "1.0.0".to_string(),
+    let envelope = create_ar_envelope(
+        Uuid::new_v4(),
         "tenant-789".to_string(),
-        "test".to_string(),
-        "test-123".to_string(),
+        "ar.test.published".to_string(),
         "trace-xyz".to_string(),
+        None,
+        "DATA_MUTATION".to_string(),
         event_data,
     );
 
     let event_id = envelope.event_id;
 
-    enqueue_event(&pool, &envelope)
+    enqueue_event(&pool, "ar.test.published", "test", "test-123", &envelope)
         .await
         .expect("Should enqueue event");
 
@@ -312,19 +311,19 @@ async fn test_batch_event_enqueue() {
             amount: 100 * (i as i64),
         };
 
-        let envelope = EventEnvelope::new(
-            format!("ar.batch.event.{}", i),
-            "1.0.0".to_string(),
+        let envelope = create_ar_envelope(
+            Uuid::new_v4(),
             "tenant-batch".to_string(),
-            "batch".to_string(),
-            format!("batch-{}", i),
+            format!("ar.batch.event.{}", i),
             format!("trace-batch-{}", i),
+            None,
+            "DATA_MUTATION".to_string(),
             event_data,
         );
 
         event_ids.push(envelope.event_id);
 
-        enqueue_event(&pool, &envelope)
+        enqueue_event(&pool, &format!("ar.batch.event.{}", i), "batch", &format!("batch-{}", i), &envelope)
             .await
             .expect("Should enqueue event");
     }

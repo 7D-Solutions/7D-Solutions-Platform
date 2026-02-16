@@ -1126,14 +1126,14 @@ async fn create_invoice(
             app_id, tilled_invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, due_at, metadata,
             billing_period_start, billing_period_end, line_item_details, compliance_codes,
-            created_at, updated_at
+            correlation_id, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
         RETURNING
             id, app_id, tilled_invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, due_at, paid_at, hosted_url, metadata,
             billing_period_start, billing_period_end, line_item_details, compliance_codes,
-            created_at, updated_at
+            correlation_id, created_at, updated_at
         "#,
     )
     .bind(app_id)
@@ -1149,6 +1149,7 @@ async fn create_invoice(
     .bind(req.billing_period_end)
     .bind(req.line_item_details)
     .bind(req.compliance_codes)
+    .bind(req.correlation_id)
     .fetch_one(&db)
     .await
     .map_err(|e| {
@@ -1186,7 +1187,7 @@ async fn get_invoice(
             i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
             i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
             i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
-            i.created_at, i.updated_at
+            i.correlation_id, i.created_at, i.updated_at
         FROM ar_invoices i
         INNER JOIN ar_customers c ON i.ar_customer_id = c.id
         WHERE i.id = $1 AND c.app_id = $2
@@ -1239,7 +1240,7 @@ async fn list_invoices(
                     i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
                     i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
                     i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
-                    i.created_at, i.updated_at
+                    i.correlation_id, i.created_at, i.updated_at
                 FROM ar_invoices i
                 INNER JOIN ar_customers c ON i.ar_customer_id = c.id
                 WHERE c.app_id = $1 AND i.ar_customer_id = $2 AND i.status = $3
@@ -1262,7 +1263,7 @@ async fn list_invoices(
                     i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
                     i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
                     i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
-                    i.created_at, i.updated_at
+                    i.correlation_id, i.created_at, i.updated_at
                 FROM ar_invoices i
                 INNER JOIN ar_customers c ON i.ar_customer_id = c.id
                 WHERE c.app_id = $1 AND i.ar_customer_id = $2
@@ -1284,7 +1285,7 @@ async fn list_invoices(
                     i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
                     i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
                     i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
-                    i.created_at, i.updated_at
+                    i.correlation_id, i.created_at, i.updated_at
                 FROM ar_invoices i
                 INNER JOIN ar_customers c ON i.ar_customer_id = c.id
                 WHERE c.app_id = $1 AND i.subscription_id = $2
@@ -1306,7 +1307,7 @@ async fn list_invoices(
                     i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
                     i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
                     i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
-                    i.created_at, i.updated_at
+                    i.correlation_id, i.created_at, i.updated_at
                 FROM ar_invoices i
                 INNER JOIN ar_customers c ON i.ar_customer_id = c.id
                 WHERE c.app_id = $1 AND i.status = $2
@@ -1328,7 +1329,7 @@ async fn list_invoices(
                     i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
                     i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
                     i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
-                    i.created_at, i.updated_at
+                    i.correlation_id, i.created_at, i.updated_at
                 FROM ar_invoices i
                 INNER JOIN ar_customers c ON i.ar_customer_id = c.id
                 WHERE c.app_id = $1
@@ -1373,7 +1374,7 @@ async fn update_invoice(
             i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
             i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
             i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
-            i.created_at, i.updated_at
+            i.correlation_id, i.created_at, i.updated_at
         FROM ar_invoices i
         INNER JOIN ar_customers c ON i.ar_customer_id = c.id
         WHERE i.id = $1 AND c.app_id = $2
@@ -1433,7 +1434,7 @@ async fn update_invoice(
             id, app_id, tilled_invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, due_at, paid_at, hosted_url, metadata,
             billing_period_start, billing_period_end, line_item_details, compliance_codes,
-            created_at, updated_at
+            correlation_id, created_at, updated_at
         "#,
     )
     .bind(&status)
@@ -1475,7 +1476,7 @@ async fn finalize_invoice(
             i.id, i.app_id, i.tilled_invoice_id, i.ar_customer_id, i.subscription_id,
             i.status, i.amount_cents, i.currency, i.due_at, i.paid_at, i.hosted_url, i.metadata,
             i.billing_period_start, i.billing_period_end, i.line_item_details, i.compliance_codes,
-            i.created_at, i.updated_at
+            i.correlation_id, i.created_at, i.updated_at
         FROM ar_invoices i
         INNER JOIN ar_customers c ON i.ar_customer_id = c.id
         WHERE i.id = $1 AND c.app_id = $2
@@ -1540,7 +1541,7 @@ async fn finalize_invoice(
             id, app_id, tilled_invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, due_at, paid_at, hosted_url, metadata,
             billing_period_start, billing_period_end, line_item_details, compliance_codes,
-            created_at, updated_at
+            correlation_id, created_at, updated_at
         "#,
     )
     .bind(paid_at)

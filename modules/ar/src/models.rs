@@ -196,6 +196,7 @@ pub struct Invoice {
     pub billing_period_end: Option<NaiveDateTime>,
     pub line_item_details: Option<JsonValue>,
     pub compliance_codes: Option<JsonValue>,
+    pub correlation_id: Option<String>, // Phase 16: Distributed tracing correlation ID
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -214,6 +215,7 @@ pub struct CreateInvoiceRequest {
     pub billing_period_end: Option<NaiveDateTime>,
     pub line_item_details: Option<JsonValue>,
     pub compliance_codes: Option<JsonValue>,
+    pub correlation_id: Option<String>, // Phase 16: Distributed tracing correlation ID
 }
 
 /// Request body for updating an invoice

@@ -370,7 +370,7 @@ async fn test_finalize_invoice_emits_event() {
         r#"
         SELECT COUNT(*)
         FROM events_outbox
-        WHERE event_type = 'ar.payment.collection.requested'
+        WHERE event_type = 'payment.collection.requested'
           AND aggregate_type = 'invoice'
           AND aggregate_id = $1
           AND published_at IS NULL
@@ -383,7 +383,7 @@ async fn test_finalize_invoice_emits_event() {
 
     assert_eq!(
         event_count, 1,
-        "Should have one ar.payment.collection.requested event in outbox"
+        "Should have one payment.collection.requested event in outbox"
     );
 
     // Verify event payload contains correct data
@@ -391,7 +391,7 @@ async fn test_finalize_invoice_emits_event() {
         r#"
         SELECT payload
         FROM events_outbox
-        WHERE event_type = 'ar.payment.collection.requested'
+        WHERE event_type = 'payment.collection.requested'
           AND aggregate_id = $1
         "#,
     )
@@ -400,7 +400,7 @@ async fn test_finalize_invoice_emits_event() {
     .await
     .unwrap();
 
-    let data = &event_payload["data"];
+    let data = &event_payload["payload"];
     assert_eq!(data["invoice_id"], invoice_id.to_string());
     assert_eq!(data["customer_id"], customer_id.to_string());
     assert_eq!(data["amount_minor"], 25000);
