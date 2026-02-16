@@ -1594,6 +1594,7 @@ async fn finalize_invoice(
         "payment.collection.requested".to_string(),
         uuid::Uuid::new_v4().to_string(),
         None,
+        "DATA_MUTATION".to_string(), // Phase 16: Requests payment collection (financially significant)
         event_payload,
     );
 
@@ -1647,6 +1648,7 @@ async fn finalize_invoice(
         "gl.posting.requested".to_string(),
         uuid::Uuid::new_v4().to_string(),
         None,
+        "DATA_MUTATION".to_string(), // Phase 16: Requests GL journal entry (financially significant)
         gl_payload,
     );
 

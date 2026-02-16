@@ -58,6 +58,7 @@ pub async fn handle_invoice_issued(
         "notifications.delivery.succeeded".to_string(),
         metadata.correlation_id.clone(),
         Some(metadata.event_id.to_string()),
+        "SIDE_EFFECT".to_string(), // Phase 16: Email/SMS delivery is a non-idempotent side effect
         serde_json::to_value(success_payload)?,
     );
 
@@ -128,6 +129,7 @@ pub async fn handle_payment_succeeded(
         "notifications.delivery.succeeded".to_string(),
         metadata.correlation_id.clone(),
         Some(metadata.event_id.to_string()),
+        "SIDE_EFFECT".to_string(), // Phase 16: Email/SMS delivery is a non-idempotent side effect
         serde_json::to_value(success_payload)?,
     );
 
@@ -199,6 +201,7 @@ pub async fn handle_payment_failed(
         "notifications.delivery.succeeded".to_string(),
         metadata.correlation_id.clone(),
         Some(metadata.event_id.to_string()),
+        "SIDE_EFFECT".to_string(), // Phase 16: Email/SMS delivery is a non-idempotent side effect
         serde_json::to_value(success_payload)?,
     );
 

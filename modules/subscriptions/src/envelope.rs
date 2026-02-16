@@ -2,16 +2,20 @@
 pub use event_bus::EventEnvelope;
 
 /// Helper function to create a subscriptions-specific envelope
+///
+/// **Phase 16**: mutation_class is REQUIRED. Refer to docs/governance/MUTATION-CLASSES.md
 pub fn create_subscriptions_envelope<T>(
     event_id: uuid::Uuid,
     tenant_id: String,
     event_type: String,
     correlation_id: Option<String>,
     causation_id: Option<String>,
+    mutation_class: String,
     payload: T,
 ) -> EventEnvelope<T> {
     EventEnvelope::with_event_id(event_id, tenant_id, "subscriptions".to_string(), event_type, payload)
         .with_source_version(env!("CARGO_PKG_VERSION").to_string())
         .with_correlation_id(correlation_id)
         .with_causation_id(causation_id)
+        .with_mutation_class(Some(mutation_class))
 }

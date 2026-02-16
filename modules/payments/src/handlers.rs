@@ -47,6 +47,7 @@ pub async fn handle_payment_collection_requested(
                 "payment.succeeded".to_string(),
                 envelope_metadata.correlation_id.clone(),
                 Some(envelope_metadata.event_id.to_string()),
+                "DATA_MUTATION".to_string(), // Phase 16: Payment success is financially significant
                 success_payload,
             );
 
@@ -84,6 +85,7 @@ pub async fn handle_payment_collection_requested(
                 "payment.failed".to_string(),
                 envelope_metadata.correlation_id,
                 Some(envelope_metadata.event_id.to_string()),
+                "DATA_MUTATION".to_string(), // Phase 16: Payment failure is financially significant
                 failed_payload,
             );
 

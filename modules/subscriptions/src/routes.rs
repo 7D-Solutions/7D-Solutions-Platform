@@ -302,6 +302,7 @@ async fn execute_bill_run(
         "billrun.completed".to_string(),
         None, // No correlation_id for now
         None, // No causation_id for now
+        "LIFECYCLE".to_string(), // Phase 16: Bill run completion is a lifecycle transition
         payload,
     );
 

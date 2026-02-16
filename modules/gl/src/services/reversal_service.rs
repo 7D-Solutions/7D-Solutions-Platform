@@ -221,6 +221,7 @@ pub async fn create_reversal_entry(
                 .map_err(|e| sqlx::Error::Protocol(format!("JSON serialization failed: {}", e)))?,
             Some(original_entry.source_event_id), // reverses_event_id: link to original posting event
             None, // supersedes_event_id: not applicable for reversals
+            "REVERSAL", // Phase 16: GL entry reversal is a compensating transaction
         )
         .await?;
 

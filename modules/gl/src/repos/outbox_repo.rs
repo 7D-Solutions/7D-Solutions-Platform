@@ -53,6 +53,7 @@ pub async fn insert_outbox_event(
     aggregate_type: &str,
     aggregate_id: &str,
     payload: serde_json::Value,
+    mutation_class: &str,
 ) -> Result<(), sqlx::Error> {
     insert_outbox_event_with_linkage(
         tx,
@@ -63,6 +64,7 @@ pub async fn insert_outbox_event(
         payload,
         None,
         None,
+        mutation_class,
     )
     .await
 }
@@ -71,6 +73,8 @@ pub async fn insert_outbox_event(
 ///
 /// This function supports reverses_event_id and supersedes_event_id for
 /// compensating transactions and corrections, enabling deterministic replay.
+///
+/// **Phase 16**: mutation_class is REQUIRED. Refer to docs/governance/MUTATION-CLASSES.md
 pub async fn insert_outbox_event_with_linkage(
     tx: &mut Transaction<'_, Postgres>,
     event_id: Uuid,
@@ -80,6 +84,7 @@ pub async fn insert_outbox_event_with_linkage(
     payload: serde_json::Value,
     reverses_event_id: Option<Uuid>,
     supersedes_event_id: Option<Uuid>,
+    mutation_class: &str,
 ) -> Result<(), sqlx::Error> {
     // Validate required fields at boundary
     validate_outbox_event_params(event_type, aggregate_type, aggregate_id)
@@ -113,7 +118,7 @@ pub async fn insert_outbox_event_with_linkage(
     .bind(reverses_event_id) // reverses_event_id - NOW WIRED!
     .bind(supersedes_event_id) // supersedes_event_id - NOW WIRED!
     .bind(Option::<String>::None) // side_effect_id
-    .bind(Option::<String>::None) // mutation_class
+    .bind(Some(mutation_class)) // mutation_class - Phase 16: Required!
     .execute(&mut **tx)
     .await?;
 
