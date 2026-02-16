@@ -6,6 +6,7 @@ pub mod dlq;
 pub mod domain;
 pub mod health;
 pub mod invariants;
+pub mod metrics;
 pub mod repos;
 pub mod routes;
 pub mod services;
@@ -19,4 +20,5 @@ pub use consumer::gl_reversal_consumer::start_gl_reversal_consumer;
 pub struct AppState {
     pub pool: sqlx::PgPool,
     pub dlq_validation_enabled: bool,
+    pub metrics: std::sync::Arc<metrics::GlMetrics>,
 }

@@ -21,6 +21,7 @@ event-bus = { path = "../../platform/event-bus" }
 async-nats = "0.33"
 futures = "0.3"
 sha2 = "0.10"
+prometheus = "0.13"
 
 [dev-dependencies]
 serial_test = "3.3.1"

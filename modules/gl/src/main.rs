@@ -1,6 +1,5 @@
 use axum::{routing::{get, post}, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
-use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -83,10 +82,17 @@ async fn main() {
     let reversal_bus = bus.clone();
     start_gl_reversal_consumer(reversal_bus, reversal_pool).await;
 
+    // Create metrics registry
+    let metrics = Arc::new(
+        gl_rs::metrics::GlMetrics::new()
+            .expect("Failed to create metrics registry")
+    );
+
     // Create application state
     let app_state = Arc::new(AppState {
         pool: pool.clone(),
         dlq_validation_enabled: config.dlq_validation_enabled,
+        metrics: metrics.clone(),
     });
 
     // Build the application router
@@ -94,6 +100,7 @@ async fn main() {
         .route("/api/health", get(health))
         .route("/api/ready", get(ready))
         .route("/api/version", get(version))
+        .route("/metrics", get(gl_rs::metrics::metrics_handler))
         .route("/api/gl/trial-balance", get(get_trial_balance))
         .route("/api/gl/income-statement", get(get_income_statement))
         .route("/api/gl/balance-sheet", get(get_balance_sheet))
