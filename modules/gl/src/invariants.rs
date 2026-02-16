@@ -61,6 +61,13 @@ pub enum InvariantViolation {
         line_no: i32,
         count: i64,
     },
+    /// Excessive reversal chain depth (depth > 1)
+    /// This prevents "reversing a reversal" or "superseding a supersession"
+    ExcessiveReversalChainDepth {
+        reversal_entry_id: Uuid,
+        original_entry_id: Uuid,
+        original_reverses_id: Uuid,
+    },
     /// Database query error
     DatabaseError(String),
 }
@@ -112,6 +119,15 @@ impl fmt::Display for InvariantViolation {
                 f,
                 "Entry {} has duplicate line_no {}: count={}",
                 entry_id, line_no, count
+            ),
+            Self::ExcessiveReversalChainDepth {
+                reversal_entry_id,
+                original_entry_id,
+                original_reverses_id,
+            } => write!(
+                f,
+                "Reversal chain depth exceeded: entry {} reverses entry {}, but {} already reverses {}",
+                reversal_entry_id, original_entry_id, original_entry_id, original_reverses_id
             ),
             Self::DatabaseError(msg) => write!(f, "Database error: {}", msg),
         }
@@ -328,12 +344,54 @@ pub async fn assert_unique_line_numbers(
 /// **Convenience function** that runs all GL-specific invariant assertions.
 ///
 /// **Returns:** Ok(()) if all invariants hold, Err on first violation
+/// Assert: No excessive reversal chain depth (max depth = 1)
+///
+/// **Invariant:** reversal/supersession chains never exceed depth 1
+///
+/// **Checks:**
+/// - If entry A reverses entry B (A.reverses_entry_id = B.id), then B.reverses_entry_id MUST be NULL
+/// - Prevents "reversing a reversal" or "superseding a supersession"
+/// - Ensures projection ambiguity is avoided
+///
+/// **Returns:** Ok(()) if invariant holds, Err(InvariantViolation) otherwise
+pub async fn assert_max_reversal_chain_depth(
+    pool: &PgPool,
+    tenant_id: &str,
+) -> Result<(), InvariantViolation> {
+    // Query for entries that reverse an entry which itself is a reversal
+    // i.e., find A where A.reverses_entry_id = B.id AND B.reverses_entry_id IS NOT NULL
+    let excessive_chains: Vec<(Uuid, Uuid, Uuid)> = sqlx::query_as(
+        "SELECT reversal.id as reversal_entry_id,
+                reversal.reverses_entry_id as original_entry_id,
+                original.reverses_entry_id as original_reverses_id
+         FROM journal_entries reversal
+         INNER JOIN journal_entries original ON reversal.reverses_entry_id = original.id
+         WHERE reversal.tenant_id = $1
+           AND reversal.reverses_entry_id IS NOT NULL
+           AND original.reverses_entry_id IS NOT NULL"
+    )
+    .bind(tenant_id)
+    .fetch_all(pool)
+    .await?;
+
+    if let Some((reversal_entry_id, original_entry_id, original_reverses_id)) = excessive_chains.first() {
+        return Err(InvariantViolation::ExcessiveReversalChainDepth {
+            reversal_entry_id: *reversal_entry_id,
+            original_entry_id: *original_entry_id,
+            original_reverses_id: *original_reverses_id,
+        });
+    }
+
+    Ok(())
+}
+
 pub async fn assert_all_invariants(pool: &PgPool, tenant_id: &str) -> Result<(), InvariantViolation> {
     assert_all_entries_balanced(pool, tenant_id).await?;
     assert_no_duplicate_postings(pool, tenant_id).await?;
     assert_valid_account_references(pool, tenant_id).await?;
     assert_no_closed_period_postings(pool, tenant_id).await?;
     assert_unique_line_numbers(pool, tenant_id).await?;
+    assert_max_reversal_chain_depth(pool, tenant_id).await?;
     Ok(())
 }
 
