@@ -21,6 +21,40 @@ BOLD='\033[1m'
 # Create state directory for session resurrection
 mkdir -p "$STATE_DIR"
 
+# Auto-install flywheel_tools if needed
+ensure_flywheel_tools() {
+    # Skip if we're in AgentCore (has flywheel_tools as subdirectory)
+    if [ -d "$PROJECT_ROOT/flywheel_tools" ]; then
+        return 0
+    fi
+
+    # Check if AgentCore exists as sibling project
+    local AGENTCORE_PATH="$PROJECT_ROOT/../AgentCore"
+    if [ ! -d "$AGENTCORE_PATH/flywheel_tools" ]; then
+        echo -e "${YELLOW}⚠️  AgentCore not found at: $AGENTCORE_PATH${NC}" >&2
+        return 0
+    fi
+
+    # Check if scripts need installation (check a few key scripts)
+    local NEEDS_INSTALL=false
+    if [ ! -L "$PROJECT_ROOT/scripts/agent-runner.sh" ] || \
+       [ ! -L "$PROJECT_ROOT/scripts/br-create.sh" ] || \
+       [ ! -L "$PROJECT_ROOT/scripts/visual-session-manager.sh" ]; then
+        NEEDS_INSTALL=true
+    fi
+
+    if [ "$NEEDS_INSTALL" = true ]; then
+        echo -e "${BLUE}⚡ Installing flywheel_tools symlinks...${NC}"
+        "$AGENTCORE_PATH/flywheel_tools/install.sh" --symlink "$PROJECT_ROOT" >/dev/null 2>&1 || {
+            echo -e "${YELLOW}⚠️  Failed to auto-install flywheel_tools${NC}" >&2
+            return 0
+        }
+        echo -e "${GREEN}✓ Flywheel tools installed${NC}"
+    fi
+}
+
+ensure_flywheel_tools
+
 # Ensure mail server is running
 ensure_mail_server() {
     local MCP_AGENT_MAIL_DIR="${MCP_AGENT_MAIL_DIR:-$HOME/mcp_agent_mail}"
@@ -79,6 +113,93 @@ ensure_disk_monitor() {
 
     return 0
 }
+
+# Ensure supervisord is running in tmux (foreground mode)
+ensure_supervisord() {
+    local SESSION_NAME="${1:-agentcore}"  # Default to agentcore session
+    local SOCKET_FILE="$PROJECT_ROOT/tmp/supervisor.sock"
+    local CONFIG_FILE="$PROJECT_ROOT/config/supervisord.conf"
+
+    # Check if config file exists
+    if [ ! -f "$CONFIG_FILE" ]; then
+        return 0  # Skip if no supervisord config
+    fi
+
+    # Check if supervisord is already running
+    if [ -S "$SOCKET_FILE" ]; then
+        if supervisorctl -c "$CONFIG_FILE" status >/dev/null 2>&1; then
+            return 0  # Already running
+        fi
+    fi
+
+    # Check if we're in a tmux session
+    if [ -z "${TMUX:-}" ]; then
+        echo -e "${YELLOW}⚠️  Not in tmux session, skipping supervisord${NC}" >&2
+        return 0
+    fi
+
+    # Check if supervisord window already exists
+    if tmux list-windows -t "$SESSION_NAME" 2>/dev/null | grep -q "supervisord"; then
+        return 0  # Window already exists
+    fi
+
+    # Create supervisord window and start in foreground mode
+    echo -e "${CYAN}Starting supervisord in tmux...${NC}"
+    tmux new-window -t "$SESSION_NAME" -n "supervisord" -c "$PROJECT_ROOT" \
+        "supervisord -c config/supervisord.conf -n" 2>/dev/null || true
+
+    # Wait a moment for supervisord to start
+    sleep 2
+
+    # Verify it started
+    if [ -S "$SOCKET_FILE" ]; then
+        echo -e "${GREEN}✓ Supervisord running in tmux window${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Supervisord may not have started${NC}" >&2
+    fi
+
+    return 0
+}
+
+# Ensure orchestrator agent is running in tmux
+ensure_orchestrator() {
+    local SESSION_NAME="${1:-agentcore}"  # Default to agentcore session
+    local ORCHESTRATOR_SCRIPT="$PROJECT_ROOT/flywheel_tools/scripts/core/start-orchestrator.sh"
+
+    # Check if orchestrator script exists
+    if [ ! -f "$ORCHESTRATOR_SCRIPT" ]; then
+        return 0  # Skip if no orchestrator script
+    fi
+
+    # Check if we're in a tmux session
+    if [ -z "${TMUX:-}" ]; then
+        echo -e "${YELLOW}⚠️  Not in tmux session, skipping orchestrator${NC}" >&2
+        return 0
+    fi
+
+    # Check if orchestrator window already exists
+    if tmux list-windows -t "$SESSION_NAME" 2>/dev/null | grep -q "orchestrator"; then
+        return 0  # Window already exists
+    fi
+
+    # Create orchestrator window and start
+    echo -e "${CYAN}Starting orchestrator in tmux...${NC}"
+    tmux new-window -t "$SESSION_NAME" -n "orchestrator" -c "$PROJECT_ROOT" \
+        "$ORCHESTRATOR_SCRIPT" 2>/dev/null || true
+
+    # Wait a moment for orchestrator to start
+    sleep 2
+
+    # Verify it started (check if window still exists with process running)
+    if tmux list-windows -t "$SESSION_NAME" 2>/dev/null | grep -q "orchestrator"; then
+        echo -e "${GREEN}✓ Orchestrator running in tmux window${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Orchestrator window may not have started${NC}" >&2
+    fi
+
+    return 0
+}
+
 # Check if fzf is installed
 check_fzf() {
     if ! command -v fzf &> /dev/null; then
@@ -190,6 +311,8 @@ resurrect_session() {
         # Ensure mail server is running for agent registration
         ensure_mail_server
         ensure_disk_monitor
+        ensure_supervisord "$session_name"
+        ensure_orchestrator "$session_name"
         # Sync beads workflow to the project
         if [ -n "$project_path" ] && [ -d "$project_path" ]; then
             "$SCRIPT_DIR/sync-beads-to-project.sh" "$project_path" 2>/dev/null || true
@@ -739,7 +862,9 @@ attach_sessions() {
 
     # Ensure mail server is running for agent registration
     ensure_mail_server
-        ensure_disk_monitor
+    ensure_disk_monitor
+    ensure_supervisord "$(tmux display-message -p "#{session_name}" 2>/dev/null || echo "agentcore")"
+    ensure_orchestrator "$(tmux display-message -p "#{session_name}" 2>/dev/null || echo "agentcore")"
 
     # Sync beads workflow to each session's project
     echo ""
@@ -966,58 +1091,142 @@ smart_start() {
     echo -e "${GREEN}Selected: $project_path${NC}"
     echo ""
 
+    # Derive session name from project path
+    local session_name=$(basename "$project_path")
+
     # Sync beads workflow scripts to the target project
     echo -e "${CYAN}Syncing beads workflow...${NC}"
     "$SCRIPT_DIR/sync-beads-to-project.sh" "$project_path" 2>/dev/null || true
     echo ""
 
+    # Ensure flywheel_tools is installed in the target project
+    echo -e "${CYAN}Setting up flywheel_tools...${NC}"
+    (
+        cd "$project_path"
+
+        # Ensure package.json exists
+        if [ ! -f "package.json" ]; then
+            echo '{"name":"'$(basename "$project_path")'","version":"1.0.0","type":"module"}' > package.json
+        fi
+
+        # Check if flywheel_tools dependency exists
+        if ! grep -q "@agentcore/flywheel-tools" package.json 2>/dev/null; then
+            echo "  Adding flywheel_tools dependency to package.json..."
+            # Use node to properly update package.json
+            node -e '
+                const fs = require("fs");
+                const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+                pkg.devDependencies = pkg.devDependencies || {};
+                pkg.devDependencies["@agentcore/flywheel-tools"] = "file:../AgentCore/flywheel_tools";
+                fs.writeFileSync("package.json", JSON.stringify(pkg, null, 2) + "\n");
+            '
+        fi
+
+        # Run npm install if needed
+        if [ ! -d "node_modules" ] || [ ! -d "node_modules/@agentcore/flywheel-tools" ]; then
+            echo "  Running npm install..."
+            npm install --silent
+            echo -e "  ${GREEN}✓ flywheel_tools installed${NC}"
+        else
+            echo -e "  ${GREEN}✓ flywheel_tools already installed${NC}"
+        fi
+    )
+    echo ""
+
     # Ensure mail server is running for agent registration
     ensure_mail_server
-        ensure_disk_monitor
+    ensure_disk_monitor
+    ensure_supervisord "$session_name"
 
-    # Step 2: Analyze bead queue for the selected project
-    echo -e "${CYAN}Analyzing bead queue...${NC}"
-    echo ""
-    "$SCRIPT_DIR/plan-to-agents.sh" --project "$project_path"
-
-    echo ""
-    echo -e "${YELLOW}Options:${NC}"
-    echo -e "  ${GREEN}[Y]${NC} Spawn recommended agents (runs agent-runner.sh in each pane)"
-    echo -e "  ${GREEN}[C]${NC} Customize (enter manual session creation)"
-    echo -e "  ${GREEN}[Q]${NC} Cancel"
-    echo ""
-    read -p "Your choice: " -n 1 smart_choice
+    # Step 2: How many worker agents?
+    echo -e "${BLUE}Step 2: Number of worker agents${NC}"
+    echo -e "${YELLOW}💡 Orchestrator will be created automatically in addition to workers${NC}"
     echo ""
 
-    case "$smart_choice" in
-        [Yy])
-            echo ""
-            local default_name
-            default_name=$(basename "$project_path")
-            echo -en "${YELLOW}Session name (press Enter for '$default_name'):${NC} "
-            read smart_session_name || smart_session_name=""
-            smart_session_name=${smart_session_name:-$default_name}
+    local agent_count=""
+    while true; do
+        echo -en "${YELLOW}Number of worker agents (press Enter for 3):${NC} "
+        read agent_count || agent_count=""
+        agent_count=${agent_count:-3}
 
-            local spawn_args="--auto --project $project_path"
-            if [ -n "$smart_session_name" ]; then
-                spawn_args="$spawn_args --session $smart_session_name"
-            fi
+        if [[ "$agent_count" =~ ^[0-9]+$ ]] && [ "$agent_count" -gt 0 ]; then
+            break
+        else
+            echo -e "${RED}Error: Must be a number greater than 0${NC}"
+        fi
+    done
 
-            echo ""
-            echo -e "${GREEN}Spawning agents...${NC}"
-            "$SCRIPT_DIR/plan-to-agents.sh" $spawn_args
+    echo -e "${GREEN}✓ Will create: 1 orchestrator + $agent_count workers${NC}"
+    echo ""
 
-            echo ""
-            echo -e "${GREEN}Done! Agents are running agent-runner.sh in each pane.${NC}"
-            sleep 3
-            ;;
-        [Cc])
-            create_new_session "$project_path"
-            ;;
-        *)
-            return
-            ;;
-    esac
+    # Step 3: Session name
+    local default_name
+    default_name=$(basename "$project_path")
+    echo -en "${YELLOW}Session name (press Enter for '$default_name'):${NC} "
+    read smart_session_name || smart_session_name=""
+    smart_session_name=${smart_session_name:-$default_name}
+    echo ""
+
+    # Spawn orchestrator + workers
+    echo -e "${GREEN}Creating tmux session: $smart_session_name${NC}"
+
+    # Check if session already exists
+    if tmux has-session -t "$smart_session_name" 2>/dev/null; then
+        echo -e "${RED}Error: Session '$smart_session_name' already exists${NC}"
+        echo -e "${YELLOW}Attach with: tmux attach -t \"$smart_session_name\"${NC}"
+        sleep 3
+        return 1
+    fi
+
+    # Create new session (window 1 will be orchestrator)
+    tmux new-session -d -s "$smart_session_name" -c "$project_path" -n "orchestrator"
+
+    # Start orchestrator in window 1, pane 1
+    echo -e "${CYAN}  Window 1: Orchestrator + $agent_count Workers (all in one window)${NC}"
+    tmux send-keys -t "$smart_session_name:1.1" \
+        "cd \"$project_path\" && ./node_modules/@agentcore/flywheel-tools/scripts/core/start-orchestrator.sh" C-m
+
+    # Create worker panes in window 1 (panes 2 through N+1)
+    for ((i=1; i<=agent_count; i++)); do
+        local pane_num=$((i + 1))
+        echo -e "${CYAN}    Pane $pane_num: Worker $i${NC}"
+
+        # Split panes to create grid layout
+        if [ $i -eq 1 ]; then
+            # First worker: split horizontally (creates right side)
+            tmux split-window -h -t "$smart_session_name:1.1" -c "$project_path"
+        elif [ $((i % 2)) -eq 1 ]; then
+            # Odd workers: split left side vertically
+            tmux split-window -v -t "$smart_session_name:1.$(((i+1)/2))" -c "$project_path"
+        else
+            # Even workers: split right side vertically
+            tmux split-window -v -t "$smart_session_name:1.$((i/2 + 1))" -c "$project_path"
+        fi
+
+        # Launch agent-runner in the new pane
+        tmux send-keys -t "$smart_session_name:1.$pane_num" \
+            "cd \"$project_path\" && PROJECT_ROOT=\"$project_path\" \"$project_path/node_modules/@agentcore/flywheel-tools/scripts/core/agent-runner.sh\"" C-m
+    done
+
+    # Apply tiled layout for even distribution
+    tmux select-layout -t "$smart_session_name:1" tiled
+
+    # Select first pane (orchestrator)
+    tmux select-pane -t "$smart_session_name:1.1"
+
+    echo ""
+    echo -e "${GREEN}✓ Created session with 1 orchestrator + $agent_count workers${NC}"
+    echo -e "${CYAN}  Attach with: tmux attach -t \"$smart_session_name\"${NC}"
+    echo ""
+
+    # Attach to session
+    if [ -n "${TMUX:-}" ]; then
+        # We're inside tmux, switch to new session
+        tmux switch-client -t "$smart_session_name"
+    else
+        # Not in tmux, attach directly
+        tmux attach -t "$smart_session_name"
+    fi
 }
 
 # Create a new session - fully integrated visual workflow
