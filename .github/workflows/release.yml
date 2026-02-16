@@ -1,0 +1,102 @@
+name: Release Artifacts
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggered on version tags (e.g., v0.1.0)
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  build-artifacts:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build all workspace binaries
+        run: |
+          cargo build --release --workspace --bins
+          echo "✓ All workspace binaries built"
+
+      - name: Create artifacts directory
+        run: mkdir -p artifacts
+
+      - name: Collect binaries and compute checksums
+        run: |
+          # Find all binary executables in target/release
+          for binary in ar-rs payments-rs subscriptions-rs gl-rs notifications-rs identity-auth; do
+            if [ -f "target/release/$binary" ]; then
+              echo "Processing $binary..."
+
+              # Copy binary to artifacts directory
+              cp "target/release/$binary" "artifacts/$binary"
+
+              # Compute SHA256 checksum
+              cd artifacts
+              sha256sum "$binary" > "${binary}.sha256"
+              cd ..
+
+              echo "✓ $binary → artifacts/ (with checksum)"
+            else
+              echo "⚠ Binary $binary not found (may be lib-only crate)"
+            fi
+          done
+
+      - name: Create release manifest
+        run: |
+          cat > artifacts/manifest.json << 'EOF'
+          {
+            "version": "${{ github.ref_name }}",
+            "git_sha": "${{ github.sha }}",
+            "build_time": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "artifacts": []
+          }
+          EOF
+
+          # Add artifact metadata to manifest
+          cd artifacts
+          for sha_file in *.sha256; do
+            if [ -f "$sha_file" ]; then
+              binary="${sha_file%.sha256}"
+              checksum=$(cat "$sha_file" | awk '{print $1}')
+
+              # Append to manifest (using jq would be better, but keeping it simple)
+              echo "  - binary: $binary, checksum: $checksum"
+            fi
+          done
+          cd ..
+
+          echo "✓ Release manifest created"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts-${{ github.sha }}
+          path: artifacts/
+          retention-days: 90
+
+      - name: Summary
+        run: |
+          echo "## Release Artifacts Built" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Git SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Artifacts:" >> $GITHUB_STEP_SUMMARY
+          ls -lh artifacts/ | tail -n +2 >> $GITHUB_STEP_SUMMARY

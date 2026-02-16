@@ -43,6 +43,10 @@ path = "tests/cross_module_replay_safety_e2e.rs"
 name = "cross_module_concurrency_safety_e2e"
 path = "tests/cross_module_concurrency_safety_e2e.rs"
 
+[[test]]
+name = "release_provenance_smoke_e2e"
+path = "tests/release_provenance_smoke_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -61,6 +65,7 @@ payments-rs = { path = "../modules/payments" }
 ar-rs = { path = "../modules/ar" }
 gl-rs = { path = "../modules/gl" }
 anyhow = "1.0"
+sha2 = "0.10"
 
 [dev-dependencies]
 serial_test = "3.0"
