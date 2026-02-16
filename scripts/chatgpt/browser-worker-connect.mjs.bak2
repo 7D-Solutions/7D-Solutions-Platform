@@ -90,30 +90,9 @@ console.error("");
 // Write ready signal
 fs.writeFileSync(READY_FILE, Date.now().toString());
 
-// Helper function to ensure page is valid
-async function ensurePageValid() {
-  try {
-    await page.evaluate(() => true);
-    return true;
-  } catch (e) {
-    console.error("Page invalid, recreating...");
-    try {
-      page = await context.newPage();
-      console.error("✓ Page recreated");
-      return true;
-    } catch (err) {
-      console.error(`Failed to recreate page: ${err.message}`);
-      return false;
-    }
-  }
-}
-
 // Main loop - poll for requests
 while (true) {
   try {
-    // Ensure page is valid before processing
-    await ensurePageValid();
-
     if (fs.existsSync(REQUEST_FILE)) {
       const requestData = fs.readFileSync(REQUEST_FILE, "utf-8");
       fs.unlinkSync(REQUEST_FILE); // Delete immediately to prevent reprocessing
@@ -127,7 +106,7 @@ while (true) {
       // Wait for input
       const input = page.locator('[contenteditable="true"]').last();
       await input.waitFor({ state: "visible", timeout: 10000 });
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await page.waitForTimeout(1000);
 
       // Capture baseline
       const baselineCount = await page.locator('[data-message-author-role="assistant"]').count();
@@ -138,7 +117,7 @@ while (true) {
         el.dispatchEvent(new Event("input", { bubbles: true }));
       }, request.message);
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await page.waitForTimeout(1000);
       await input.press('Enter');
 
       // Wait for response
@@ -151,7 +130,7 @@ while (true) {
         if (currentCount > baselineCount) {
           newMessageAppeared = true;
         } else {
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await page.waitForTimeout(500);
         }
       }
 
@@ -165,7 +144,7 @@ while (true) {
       const lastMessage = messageLocator.last();
 
       while (stableCount < 2) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await page.waitForTimeout(2000);
         const currentText = await lastMessage.innerText().catch(() => "");
         
         if (currentText === lastText && currentText.length > 0) {
@@ -207,21 +186,10 @@ while (true) {
 
     } else {
       // No request, wait and check again
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await page.waitForTimeout(500);
     }
   } catch (error) {
     console.error(`✗ Error: ${error.message}`);
-    
-    // Check if page/browser is closed and try to recreate
-    if (error.message.includes('closed') || error.message.includes('Target')) {
-      console.error('Page/browser closed, recreating page...');
-      try {
-        page = await context.newPage();
-        console.error('✓ Page recreated');
-      } catch (e) {
-        console.error(`Failed to recreate page: ${e.message}`);
-      }
-    }
     
     // Write error response
     const errorResponse = {
@@ -239,6 +207,6 @@ while (true) {
     }
     
     // Wait before continuing
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await page.waitForTimeout(2000);
   }
 }

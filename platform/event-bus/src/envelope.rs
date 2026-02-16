@@ -341,8 +341,38 @@ pub fn validate_envelope_fields(envelope: &serde_json::Value) -> Result<(), Stri
         .and_then(|v| v.as_bool())
         .ok_or("Missing or invalid replay_safe")?;
 
-    // trace_id, correlation_id, causation_id, reverses_event_id,
-    // supersedes_event_id, side_effect_id, and mutation_class are optional
+    // Validate optional string fields are non-empty if present
+    if let Some(trace_id) = envelope.get("trace_id").and_then(|v| v.as_str()) {
+        if trace_id.is_empty() {
+            return Err("trace_id cannot be empty".to_string());
+        }
+    }
+
+    if let Some(correlation_id) = envelope.get("correlation_id").and_then(|v| v.as_str()) {
+        if correlation_id.is_empty() {
+            return Err("correlation_id cannot be empty".to_string());
+        }
+    }
+
+    if let Some(causation_id) = envelope.get("causation_id").and_then(|v| v.as_str()) {
+        if causation_id.is_empty() {
+            return Err("causation_id cannot be empty".to_string());
+        }
+    }
+
+    if let Some(side_effect_id) = envelope.get("side_effect_id").and_then(|v| v.as_str()) {
+        if side_effect_id.is_empty() {
+            return Err("side_effect_id cannot be empty".to_string());
+        }
+    }
+
+    if let Some(mutation_class) = envelope.get("mutation_class").and_then(|v| v.as_str()) {
+        if mutation_class.is_empty() {
+            return Err("mutation_class cannot be empty".to_string());
+        }
+    }
+
+    // reverses_event_id and supersedes_event_id are optional UUIDs
     Ok(())
 }
 
@@ -499,5 +529,91 @@ mod tests {
         });
 
         assert!(validate_envelope_fields(&envelope).is_err());
+    }
+
+    #[test]
+    fn test_validate_envelope_fields_empty_event_type() {
+        let envelope = json!({
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "",
+            "occurred_at": "2024-01-01T00:00:00Z",
+            "tenant_id": "tenant-123",
+            "source_module": "payments",
+            "source_version": "1.0.0",
+            "schema_version": "1.0.0",
+            "replay_safe": true
+        });
+
+        assert!(validate_envelope_fields(&envelope).is_err());
+    }
+
+    #[test]
+    fn test_validate_envelope_fields_empty_schema_version() {
+        let envelope = json!({
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "payment.succeeded",
+            "occurred_at": "2024-01-01T00:00:00Z",
+            "tenant_id": "tenant-123",
+            "source_module": "payments",
+            "source_version": "1.0.0",
+            "schema_version": "",
+            "replay_safe": true
+        });
+
+        assert!(validate_envelope_fields(&envelope).is_err());
+    }
+
+    #[test]
+    fn test_validate_envelope_fields_empty_trace_id() {
+        let envelope = json!({
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "payment.succeeded",
+            "occurred_at": "2024-01-01T00:00:00Z",
+            "tenant_id": "tenant-123",
+            "source_module": "payments",
+            "source_version": "1.0.0",
+            "schema_version": "1.0.0",
+            "replay_safe": true,
+            "trace_id": ""
+        });
+
+        assert!(validate_envelope_fields(&envelope).is_err());
+    }
+
+    #[test]
+    fn test_validate_envelope_fields_empty_mutation_class() {
+        let envelope = json!({
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "payment.succeeded",
+            "occurred_at": "2024-01-01T00:00:00Z",
+            "tenant_id": "tenant-123",
+            "source_module": "payments",
+            "source_version": "1.0.0",
+            "schema_version": "1.0.0",
+            "replay_safe": true,
+            "mutation_class": ""
+        });
+
+        assert!(validate_envelope_fields(&envelope).is_err());
+    }
+
+    #[test]
+    fn test_validate_envelope_fields_valid_with_optional_fields() {
+        let envelope = json!({
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "payment.succeeded",
+            "occurred_at": "2024-01-01T00:00:00Z",
+            "tenant_id": "tenant-123",
+            "source_module": "payments",
+            "source_version": "1.0.0",
+            "schema_version": "1.0.0",
+            "replay_safe": true,
+            "trace_id": "trace-123",
+            "correlation_id": "corr-456",
+            "causation_id": "cause-789",
+            "mutation_class": "financial"
+        });
+
+        assert!(validate_envelope_fields(&envelope).is_ok());
     }
 }
