@@ -129,6 +129,12 @@ async fn process_gl_posting_message(
         "Processing GL posting request"
     );
 
+    // Parse correlation_id from string to Uuid
+    let correlation_id = envelope
+        .correlation_id
+        .as_ref()
+        .and_then(|id_str| Uuid::parse_str(id_str).ok());
+
     // Process the posting request
     match process_gl_posting_request(
         pool,
@@ -137,6 +143,7 @@ async fn process_gl_posting_message(
         &envelope.source_module,
         &msg.subject,
         &envelope.payload,
+        correlation_id, // Phase 16: Propagate correlation_id for audit traceability
     )
     .await
     {

@@ -151,6 +151,7 @@ pub async fn create_reversal_entry(
             original_entry.reference_type.as_deref(),
             original_entry.reference_id.as_deref(),
             Some(original_entry_id), // Link back to original
+            original_entry.correlation_id, // Phase 16: Propagate correlation_id from original entry
         )
         .await?;
 

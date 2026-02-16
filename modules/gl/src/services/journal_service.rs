@@ -53,6 +53,7 @@ pub async fn process_gl_posting_request(
     source_module: &str,
     source_subject: &str,
     payload: &GlPostingRequestV1,
+    correlation_id: Option<Uuid>, // Phase 16: Propagate correlation_id from source events
 ) -> JournalResult<Uuid> {
     // Check if event already processed (idempotency)
     if processed_repo::exists(pool, event_id).await? {
@@ -121,6 +122,7 @@ pub async fn process_gl_posting_request(
             Some(&payload.description),
             Some(&payload.source_doc_type.to_string()),
             Some(&payload.source_doc_id),
+            correlation_id, // Phase 16: Store correlation_id for audit traceability
         )
         .await?;
 

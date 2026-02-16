@@ -16,6 +16,7 @@ pub struct JournalEntry {
     pub reference_type: Option<String>,
     pub reference_id: Option<String>,
     pub reverses_entry_id: Option<Uuid>,
+    pub correlation_id: Option<Uuid>, // Phase 16: Audit traceability
     pub created_at: DateTime<Utc>,
 }
 
@@ -40,12 +41,12 @@ pub async fn fetch_entry_with_lines(
     let entry = sqlx::query_as::<_, (
         Uuid, String, String, Uuid, String, DateTime<Utc>,
         String, Option<String>, Option<String>, Option<String>,
-        Option<Uuid>, DateTime<Utc>
+        Option<Uuid>, Option<Uuid>, DateTime<Utc>
     )>(
         r#"
         SELECT id, tenant_id, source_module, source_event_id, source_subject,
                posted_at, currency, description, reference_type, reference_id,
-               reverses_entry_id, created_at
+               reverses_entry_id, correlation_id, created_at
         FROM journal_entries
         WHERE id = $1
         "#
@@ -70,7 +71,8 @@ pub async fn fetch_entry_with_lines(
         reference_type: entry_row.8,
         reference_id: entry_row.9,
         reverses_entry_id: entry_row.10,
-        created_at: entry_row.11,
+        correlation_id: entry_row.11,
+        created_at: entry_row.12,
     };
 
     // Fetch lines
@@ -114,13 +116,14 @@ pub async fn insert_entry_with_reversal(
     reference_type: Option<&str>,
     reference_id: Option<&str>,
     reverses_entry_id: Option<Uuid>,
+    correlation_id: Option<Uuid>, // Phase 16: Audit traceability
 ) -> Result<Uuid, sqlx::Error> {
     sqlx::query(
         r#"
         INSERT INTO journal_entries
             (id, tenant_id, source_module, source_event_id, source_subject,
-             posted_at, currency, description, reference_type, reference_id, reverses_entry_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             posted_at, currency, description, reference_type, reference_id, reverses_entry_id, correlation_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         "#
     )
     .bind(entry_id)
@@ -134,6 +137,7 @@ pub async fn insert_entry_with_reversal(
     .bind(reference_type)
     .bind(reference_id)
     .bind(reverses_entry_id)
+    .bind(correlation_id)
     .execute(&mut **tx)
     .await?;
 
@@ -141,7 +145,7 @@ pub async fn insert_entry_with_reversal(
 }
 
 /// Insert a journal entry header and return the generated entry_id
-/// (Backward-compatible wrapper without reverses_entry_id)
+/// (Wrapper without reverses_entry_id)
 pub async fn insert_entry(
     tx: &mut Transaction<'_, Postgres>,
     entry_id: Uuid,
@@ -154,10 +158,11 @@ pub async fn insert_entry(
     description: Option<&str>,
     reference_type: Option<&str>,
     reference_id: Option<&str>,
+    correlation_id: Option<Uuid>, // Phase 16: Audit traceability
 ) -> Result<Uuid, sqlx::Error> {
     insert_entry_with_reversal(
         tx, entry_id, tenant_id, source_module, source_event_id, source_subject,
-        posted_at, currency, description, reference_type, reference_id, None
+        posted_at, currency, description, reference_type, reference_id, None, correlation_id
     ).await
 }
 
