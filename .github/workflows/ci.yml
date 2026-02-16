@@ -396,6 +396,15 @@ jobs:
       - name: Check for raw PgPool creation outside resolvers
         run: bash tools/ci/lint-no-raw-db-connect.sh
 
+  lint-no-cross-module-imports:
+    name: Lint - Forbid Cross-Module Imports
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for cross-module imports
+        run: bash tools/ci/lint-no-cross-module-imports.sh
+
   check-dlq-migrations:
     name: Check DLQ Migrations Exist
     runs-on: ubuntu-latest
