@@ -98,7 +98,7 @@ fn test_checksum_deterministic() -> Result<()> {
     assert_eq!(checksum1, checksum2, "Checksums must be deterministic");
 
     // Verify against known SHA256
-    let expected = "9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa";
+    let expected = "992bfc644086a39fb15b697e9c784ef9ab95f5509baa844d132401de0fe40638";
     assert_eq!(checksum1, expected, "SHA256 must match expected value");
 
     // Cleanup
