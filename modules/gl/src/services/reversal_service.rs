@@ -210,7 +210,8 @@ pub async fn create_reversal_entry(
         };
 
         let reversed_event_id = Uuid::new_v4();
-        outbox_repo::insert_outbox_event(
+        // Wire reversal linkage: reversed event references the original posting event
+        outbox_repo::insert_outbox_event_with_linkage(
             &mut tx,
             reversed_event_id,
             "gl.events.entry.reversed",
@@ -218,6 +219,8 @@ pub async fn create_reversal_entry(
             &reversal_entry_id.to_string(),
             serde_json::to_value(&reversed_event)
                 .map_err(|e| sqlx::Error::Protocol(format!("JSON serialization failed: {}", e)))?,
+            Some(original_entry.source_event_id), // reverses_event_id: link to original posting event
+            None, // supersedes_event_id: not applicable for reversals
         )
         .await?;
 

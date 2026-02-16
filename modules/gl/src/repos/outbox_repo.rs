@@ -41,6 +41,11 @@ fn validate_outbox_event_params(
 ///
 /// Note: Envelope metadata columns are nullable for backward compatibility during Phase 16 migration.
 /// Future work: Migrate GL to use EventEnvelope + platform validation helper.
+///
+/// # Arguments
+///
+/// * `reverses_event_id` - Optional ID of the event being reversed (for compensating transactions)
+/// * `supersedes_event_id` - Optional ID of the event being superseded (for corrections)
 pub async fn insert_outbox_event(
     tx: &mut Transaction<'_, Postgres>,
     event_id: Uuid,
@@ -48,6 +53,33 @@ pub async fn insert_outbox_event(
     aggregate_type: &str,
     aggregate_id: &str,
     payload: serde_json::Value,
+) -> Result<(), sqlx::Error> {
+    insert_outbox_event_with_linkage(
+        tx,
+        event_id,
+        event_type,
+        aggregate_type,
+        aggregate_id,
+        payload,
+        None,
+        None,
+    )
+    .await
+}
+
+/// Insert an event into the outbox with reversal/supersession linkage
+///
+/// This function supports reverses_event_id and supersedes_event_id for
+/// compensating transactions and corrections, enabling deterministic replay.
+pub async fn insert_outbox_event_with_linkage(
+    tx: &mut Transaction<'_, Postgres>,
+    event_id: Uuid,
+    event_type: &str,
+    aggregate_type: &str,
+    aggregate_id: &str,
+    payload: serde_json::Value,
+    reverses_event_id: Option<Uuid>,
+    supersedes_event_id: Option<Uuid>,
 ) -> Result<(), sqlx::Error> {
     // Validate required fields at boundary
     validate_outbox_event_params(event_type, aggregate_type, aggregate_id)
@@ -78,8 +110,8 @@ pub async fn insert_outbox_event(
     .bind(Option::<String>::None) // trace_id
     .bind(Option::<String>::None) // correlation_id
     .bind(Option::<String>::None) // causation_id
-    .bind(Option::<Uuid>::None) // reverses_event_id
-    .bind(Option::<Uuid>::None) // supersedes_event_id
+    .bind(reverses_event_id) // reverses_event_id - NOW WIRED!
+    .bind(supersedes_event_id) // supersedes_event_id - NOW WIRED!
     .bind(Option::<String>::None) // side_effect_id
     .bind(Option::<String>::None) // mutation_class
     .execute(&mut **tx)
