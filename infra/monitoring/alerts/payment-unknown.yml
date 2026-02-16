@@ -1,0 +1,66 @@
+# Prometheus Alert Rules: Payment UNKNOWN Duration
+#
+# Phase 16: Operational Readiness - Payment Reliability Guardian
+#
+# These alerts surface payment UNKNOWN states before customer impact.
+# UNKNOWN indicates business logic uncertainty requiring manual resolution.
+#
+# Thresholds (from docs/ops/ALERT-THRESHOLDS.md):
+# - Warning: > 1800s (30 minutes) - Investigate root cause, prepare intervention
+# - Critical: > 3600s (1 hour) - Immediate manual resolution required
+
+groups:
+  - name: payment_unknown_duration
+    interval: 60s
+    rules:
+      # Critical: Payment stuck in UNKNOWN for >1 hour
+      - alert: PaymentUnknownDurationCritical
+        expr: unknown_payment_age_seconds > 3600
+        for: 5m
+        labels:
+          severity: critical
+          module: payments
+          category: payment_reliability
+        annotations:
+          summary: "Payment in UNKNOWN state for >1 hour"
+          description: >
+            Payment {{ $labels.payment_id }} (tenant: {{ $labels.tenant_id }})
+            has been in UNKNOWN state for {{ $value | humanizeDuration }}.
+            Critical threshold (1 hour) exceeded. Customer experience blocked.
+            Manual resolution required immediately.
+          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/UNKNOWN-RESOLUTION"
+          dashboard_url: "https://grafana.7dsolutions.com/d/payments/payment-details?var-payment_id={{ $labels.payment_id }}"
+
+      # Warning: Payment stuck in UNKNOWN for >30 minutes
+      - alert: PaymentUnknownDurationWarning
+        expr: unknown_payment_age_seconds > 1800
+        for: 5m
+        labels:
+          severity: warning
+          module: payments
+          category: payment_reliability
+        annotations:
+          summary: "Payment in UNKNOWN state for >30 minutes"
+          description: >
+            Payment {{ $labels.payment_id }} (tenant: {{ $labels.tenant_id }})
+            has been in UNKNOWN state for {{ $value | humanizeDuration }}.
+            Approaching critical threshold (1 hour). Investigate root cause.
+          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/UNKNOWN-RESOLUTION"
+          dashboard_url: "https://grafana.7dsolutions.com/d/payments/payment-details?var-payment_id={{ $labels.payment_id }}"
+
+      # Critical: Multiple payments stuck in UNKNOWN (systemic issue)
+      - alert: PaymentUnknownSystemicCritical
+        expr: count(unknown_payment_age_seconds > 1800) > 10
+        for: 2m
+        labels:
+          severity: critical
+          module: payments
+          category: platform_health
+        annotations:
+          summary: "Systemic payment UNKNOWN failures detected"
+          description: >
+            {{ $value }} payments currently stuck in UNKNOWN state (>30min).
+            This indicates a systemic failure in payment processing or external gateway.
+            Immediate platform investigation required.
+          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/PAYMENT-SYSTEMIC-FAILURE"
+          dashboard_url: "https://grafana.7dsolutions.com/d/payments/payment-overview"
