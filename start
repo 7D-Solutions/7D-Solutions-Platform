@@ -56,6 +56,30 @@ fi
 
 # Continue in current terminal
 
+# Auto-install dependencies if package.json exists and node_modules is missing/stale
+if [ -f "package.json" ]; then
+    NEEDS_INSTALL=false
+
+    # Check if node_modules exists
+    if [ ! -d "node_modules" ]; then
+        echo "📦 node_modules not found - running npm install..."
+        NEEDS_INSTALL=true
+    # Check if package-lock.json is newer than node_modules
+    elif [ -f "package-lock.json" ] && [ "package-lock.json" -nt "node_modules" ]; then
+        echo "📦 Dependencies outdated - running npm install..."
+        NEEDS_INSTALL=true
+    fi
+
+    if [ "$NEEDS_INSTALL" = true ]; then
+        npm install
+        if [ $? -ne 0 ]; then
+            echo "❌ npm install failed - fix errors above before continuing"
+            exit 1
+        fi
+        echo "✅ Dependencies installed"
+    fi
+fi
+
 # Start disk space monitor if not already running
 if [ -f "./scripts/disk-space-monitor.sh" ]; then
     ./scripts/disk-space-monitor.sh start

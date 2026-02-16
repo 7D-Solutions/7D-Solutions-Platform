@@ -1,0 +1,60 @@
+## Final Confirmation: Phase 17 & 18 Beads Ready ✅
+
+Both caveats addressed. All 30 beads created and validated.
+
+### Caveat 1: Priorities Fixed ✅
+
+**Phase 17 (all 20 beads = P0):**
+- Scaffolding: bd-17s0, bd-17s1, bd-17s2, bd-17s3, bd-17s4
+- Implementation: bd-17a0-a4, bd-17b0-b4, bd-17c0-c4
+
+**Phase 18 (mixed):**
+- P0 (security/DR): bd-18b0, bd-18b1, bd-18c1, bd-18d0, bd-18s0
+- P1 (release/ops): bd-18a0, bd-18a1, bd-18c0, bd-18e0, bd-18s1
+
+### Caveat 2: Scaffolding Beads Created ✅
+
+**7 new prerequisite beads** added to handle missing crates:
+
+**Platform crates:**
+- bd-17s0: Scaffold platform/projections + workspace wiring
+- bd-17s1: Scaffold platform/audit + workspace wiring
+- bd-17s2: Scaffold platform/tenant-registry + workspace wiring
+- bd-18s0: Scaffold platform/security + workspace wiring
+
+**Tools binaries:**
+- bd-17s3: Scaffold tools/projection-rebuild + workspace wiring
+- bd-17s4: Scaffold tools/tenantctl + workspace wiring
+- bd-18s1: Scaffold tools/compliance-export + workspace wiring
+
+### Dependency DAG Updated ✅
+
+**19 implementation beads** now depend on scaffolding:
+- Track A beads (bd-17a0-a4) → depend on bd-17s0 (+ bd-17s3 for rebuild tool)
+- Track B beads (bd-17b0-b4) → depend on bd-17s1
+- Track C beads (bd-17c0-c4) → depend on bd-17s2 (+ bd-17s4 for tenantctl)
+- Phase 18 security (bd-18b0, bd-18b1, bd-18d0) → depend on bd-18s0
+- Phase 18 export (bd-18e0) → depends on bd-18s1
+
+All dependencies remain acyclic and valid.
+
+### First Wave Assignments (Per Your Recommendation)
+
+Ready to assign:
+- **Agent 1:** bd-17s0 → platform/projections scaffolding
+- **Agent 2:** bd-17s1 → platform/audit scaffolding
+- **Agent 3:** bd-17s2 → platform/tenant-registry scaffolding
+
+Once those land, unlocked immediately:
+- bd-17a0 (projection spine)
+- bd-17b0 (audit spine)
+- bd-17c0 (tenant registry)
+
+### Final State
+
+**Total:** 30 beads (7 scaffolding + 23 implementation)
+**Status:** All beads created, all dependencies wired, all priorities set
+**Validation:** DAG verified, no circular dependencies
+**Ready:** Awaiting approval to assign to implementation agents
+
+Proceed with Phase 17 execution?

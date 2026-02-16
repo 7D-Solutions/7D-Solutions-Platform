@@ -1,7 +1,7 @@
 #!/bin/bash
 # Fully dynamic pane discovery - no hardcoded registry
 # Derives identity from tmux pane index
-# Usage: discover.sh [--force] [--quiet] [--pane <pane_id>] [--all]
+# Usage: discover.sh [--force] [--quiet] [--pane <pane_id>]
 
 # Source shared project configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -11,7 +11,6 @@ FORCE=false
 QUIET=false
 SUMMARY=false
 TARGET_PANE=""
-DISCOVER_ALL=false
 
 while [[ $# -gt 0 ]]; do
   case $1 in
@@ -19,7 +18,6 @@ while [[ $# -gt 0 ]]; do
     --quiet) QUIET=true; shift ;;
     --summary) SUMMARY=true; shift ;;
     --pane) TARGET_PANE="$2"; shift 2 ;;
-    --all) DISCOVER_ALL=true; shift ;;
     *) shift ;;
   esac
 done
@@ -70,55 +68,13 @@ retry_auto_register() {
   return 1
 }
 
-# If --all, discover all panes and cleanup stale files
-if [ "$DISCOVER_ALL" = true ]; then
-  # Discover all panes first
-  tmux list-panes -a -F "#{session_name}:#{window_index}.#{pane_index}" | while read pane; do
-    ARGS="--pane $pane"
-    [ "$FORCE" = true ] && ARGS="$ARGS --force"
-    [ "$QUIET" = true ] && ARGS="$ARGS --quiet"
-    bash "$0" $ARGS
-  done
-
-  # Cleanup stale identity files
-  ARCHIVE_DIR="$PROJECT_ROOT/archive/panes"
-  mkdir -p "$ARCHIVE_DIR"
-
-  for identity_file in "$PANES_DIR/"*.identity; do
-    [ -f "$identity_file" ] || continue
-
-    # Check if this pane still exists in tmux
-    pane_id=$(jq -r '.pane // empty' "$identity_file" 2>/dev/null)
-    if [ -n "$pane_id" ]; then
-      if ! tmux list-panes -a -F "#{session_name}:#{window_index}.#{pane_index}" 2>/dev/null | grep -q "^${pane_id}$"; then
-        # Pane doesn't exist, move identity file to archive
-        filename=$(basename "$identity_file")
-        [ "$QUIET" = false ] && echo "Archiving stale identity: $filename (pane $pane_id does not exist)"
-        mv "$identity_file" "$ARCHIVE_DIR/"
-      fi
-    fi
-  done
-
-  # Cleanup stale agent-name files
-  for agent_name_file in "$PIDS_DIR/"*.agent-name; do
-    [ -f "$agent_name_file" ] || continue
-
-    # Extract pane ID from filename (e.g., flywheel-1-6.agent-name -> flywheel:1.6)
-    # Replace last hyphen with '.', then new last hyphen with ':' (greedy match)
-    filename=$(basename "$agent_name_file" .agent-name)
-    pane_id=$(echo "$filename" | sed 's/\(.*\)-/\1./; s/\(.*\)-/\1:/')
-
-    if ! tmux list-panes -a -F "#{session_name}:#{window_index}.#{pane_index}" 2>/dev/null | grep -q "^${pane_id}$"; then
-      [ "$QUIET" = false ] && echo "Archiving stale agent-name: $(basename $agent_name_file) (pane $pane_id does not exist)"
-      mv "$agent_name_file" "$ARCHIVE_DIR/"
-    fi
-  done
-
-  # Cleanup stale lock files (lock files are temporary, safe to remove all)
-  find "$PANES_DIR" -name '*.lock' -type f -exec mv {} "$ARCHIVE_DIR/" \; 2>/dev/null
-
-  exit 0
-fi
+# REMOVED: --all flag (bd-5jzv)
+# The --all flag was dangerous because it discovered panes from ALL tmux sessions,
+# including sessions from OTHER projects, causing:
+# - Cross-project identity pollution
+# - Duplicate agent registrations
+# - Conflicting agent names
+# Projects should only discover their own session's panes.
 
 if [ -n "$TARGET_PANE" ]; then
   MY_PANE="$TARGET_PANE"

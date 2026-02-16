@@ -3,6 +3,8 @@ members = [
   "platform/event-bus",
   "platform/identity-auth",
   "platform/audit",
+  "platform/tenant-registry",
+  "platform/projections",
   "modules/ar",
   "modules/subscriptions",
   "modules/payments",

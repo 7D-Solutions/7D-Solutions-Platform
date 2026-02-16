@@ -1,0 +1,21 @@
+# Phase 18 Dependency Verification
+
+## Scaffolding Beads (Can Start Immediately - No Dependencies)
+bd-18s0: platform/security scaffolding - NO dependencies ✅
+bd-18s1: tools/compliance-export scaffolding - NO dependencies ✅
+bd-18a0: Release pipeline - NO dependencies ✅ (scope-locked)
+
+## Implementation Beads (Blocked Until Phase 17 Complete)
+bd-18a1 → depends on: bd-18a0
+bd-18b0 → depends on: bd-18s0, bd-17a3, bd-17c1 ⚠️ BLOCKED by Phase 17
+bd-18b1 → depends on: bd-18s0, bd-18b0, bd-17c3, bd-17a2 ⚠️ BLOCKED by Phase 17
+bd-18c0 → depends on: bd-17a1, bd-17b4, bd-16d2 ⚠️ BLOCKED by Phase 17
+bd-18c1 → depends on: bd-17a4, bd-17b4, bd-16g1 ⚠️ BLOCKED by Phase 17
+bd-18d0 → depends on: bd-18s0, bd-17a3 ⚠️ BLOCKED by Phase 17
+bd-18e0 → depends on: bd-18s1, bd-17b0, bd-17c0 ⚠️ BLOCKED by Phase 17
+
+## Dependency Graph Status
+✅ Scaffolding beads (bd-18s0, bd-18s1, bd-18a0) have no dependencies - can run in Wave 0
+✅ All Phase 18 implementation beads depend on Phase 17 beads - properly sequenced
+✅ DAG enforces ChatGPT's guidance automatically
+

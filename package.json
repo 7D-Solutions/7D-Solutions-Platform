@@ -6,5 +6,8 @@
   "scripts": {},
   "dependencies": {
     "playwright": "^1.48.0"
+  },
+  "devDependencies": {
+    "@agentcore/flywheel-tools": "file:../AgentCore/flywheel_tools"
   }
 }

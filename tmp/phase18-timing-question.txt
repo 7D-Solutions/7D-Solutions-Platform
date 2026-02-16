@@ -1,0 +1,28 @@
+## Question: Phase 18 Timing
+
+Can we start Phase 18 beads in parallel with Phase 17, or should we wait until Phase 17 is complete?
+
+### Phase 18 Beads with NO Phase 17 Dependencies
+
+These could potentially start immediately:
+- **bd-18a0**: Release pipeline (no dependencies - foundation bead)
+- **bd-18s0**: Scaffold platform/security (no dependencies)
+- **bd-18s1**: Scaffold tools/compliance-export (no dependencies)
+
+### Phase 18 Beads that DEPEND on Phase 17
+
+These must wait:
+- **bd-18b0**: Depends on bd-17a3, bd-17c1
+- **bd-18b1**: Depends on bd-18b0, bd-17c3, bd-17a2
+- **bd-18c0**: Depends on bd-17a1, bd-17b4, bd-16d2
+- **bd-18c1**: Depends on bd-17a4, bd-17b4, bd-16g1
+- **bd-18d0**: Depends on bd-17a3
+- **bd-18e0**: Depends on bd-17b0, bd-17c0
+- **bd-18a1**: Depends on bd-18a0 only
+
+### Should We:
+1. **Wait for Phase 17 to complete** before starting any Phase 18 work?
+2. **Start independent Phase 18 beads** (bd-18a0, bd-18s0, bd-18s1) in parallel with Phase 17?
+3. **Different recommendation?**
+
+What's the correct sequencing strategy?

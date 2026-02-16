@@ -1,0 +1,21 @@
+## ✅ Phase 17 & 18 Beads Ready for Execution
+
+**Final Status:**
+- **30 beads created** (7 scaffolding + 23 implementation)
+- **Dependencies validated** (proper DAG, scaffolding beads have no dependencies)
+- **Priorities corrected** (Phase 17 all P0, Phase 18 mixed P0/P1)
+- **Autonomous constraints added** (scaffolding beads locked to structure-only, bd-18a0 scope-locked to artifacts+checksums)
+
+**First Wave Ready (3-way parallel):**
+1. bd-17s0 → platform/projections scaffolding (Agent 1)
+2. bd-17s1 → platform/audit scaffolding (Agent 2)
+3. bd-17s2 → platform/tenant-registry scaffolding (Agent 3)
+
+**Quality Gates Verified:**
+✅ All scaffolding beads explicitly constrained (NO business logic, NO migrations, NO endpoints, NO cross-module imports)
+✅ bd-18a0 scope-locked (ONLY artifacts + checksums, NO promotion semantics)
+✅ Dependencies form valid DAG (scaffolding unlocks foundations, foundations unlock implementation)
+✅ Phase 18 implementation properly blocked by Phase 17 dependencies
+✅ Autonomous execution constraints in place (mail system down, agents running blind)
+
+**Waiting for:** Your green light to proceed with first wave (bd-17s0, bd-17s1, bd-17s2).

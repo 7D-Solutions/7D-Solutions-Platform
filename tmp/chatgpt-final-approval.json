@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "raw_text": "Yes — proceed with Phase 17 execution using the exact first-wave assignment you listed.\n\n✅ Approved first wave (3-way parallel)\n\nAgent 1 → bd-17s0 (platform/projections scaffolding)\n\nAgent 2 → bd-17s1 (platform/audit scaffolding)\n\nAgent 3 → bd-17s2 (platform/tenant-registry scaffolding)\n\nHard constraints for these 3 scaffolding beads\n\nEach agent must deliver:\n\nNew crate directory + Cargo.toml + src/lib.rs\n\nRoot workspace Cargo.toml updated (members)\n\ncargo test --workspace passes\n\nNo business logic, no migrations, no endpoints, no cross-module imports\n\nImmediately after those merge\n\nStart the next unlocked P0 foundations in parallel:\n\nbd-17a0 (projection cursor contract)\n\nbd-17b0 (audit append-only schema + writer API)\n\nbd-17c0 (tenant registry schema baseline)\n\n“Stop-the-line” checks (don’t skip)\n\nBefore moving from scaffolding → foundation beads, confirm:\n\nNew crates have no dependency on module crates (AR/Payments/etc.)\n\nCI lints still pass (boundary + raw pool + metadata checks)\n\nWorkspace build time didn’t explode due to accidental feature flags or heavy deps\n\nGreen light granted.",
+  "parse_ok": false,
+  "extracted_json": null,
+  "error": "NO_JSON_STRUCTURE_FOUND"
+}
