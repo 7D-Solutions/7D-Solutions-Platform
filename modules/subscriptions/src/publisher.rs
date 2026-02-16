@@ -6,6 +6,19 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 /// Background task that publishes events from the outbox to the event bus
+///
+/// # Retry Policy (per DOMAIN-OWNERSHIP-REGISTRY.md)
+///
+/// **Infinite Retry**: This loop runs indefinitely, retrying failed publishes every 1 second.
+/// This is INTENTIONAL behavior for eventual consistency guarantees.
+///
+/// - Events remain in outbox (published_at = NULL) until successfully published
+/// - No timeout limit or max retry count
+/// - System prioritizes data integrity over liveness
+/// - Operator intervention required if NATS is down for extended periods
+///
+/// **Rationale**: Outbox pattern ensures at-least-once delivery. Dropping events
+/// would violate cross-module consistency guarantees.
 pub async fn run_publisher(pool: PgPool, bus: Arc<dyn EventBus>) {
     tracing::info!("Starting event publisher task");
 

@@ -155,7 +155,17 @@ pub async fn create_gated_invoice(
     tx.commit().await?;
 
     // Step 4: Execute invoice creation via AR API (outside transaction)
-    let client = reqwest::Client::new();
+    //
+    // Timeout Budget (per DOMAIN-OWNERSHIP-REGISTRY.md):
+    // - 15s per HTTP call (create + finalize)
+    // - 30s total for invoice creation operation
+    // - NO automatic retry (cycle gating enforces exactly-once)
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| InvoiceCreationError::ArApiCommunicationError {
+            message: format!("Failed to build HTTP client: {}", e),
+        })?;
 
     // Create invoice
     let create_invoice_req = CreateInvoiceRequest {

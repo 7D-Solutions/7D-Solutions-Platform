@@ -146,16 +146,57 @@ This registry declares the single source of truth for each domain concept in the
 
 This section declares all cross-module commands (events) and their write degradation characteristics.
 
-### Event: `subscription.bill_run.completed`
+### Command: `Subscriptions → AR (Invoice Creation)`
 
 **Producer**: Subscriptions
 **Consumer**: AR
+**Protocol**: Hybrid (HTTP API + Event Outbox)
 **Trigger**: Monthly/annual billing cycle execution
-**Payload**: Subscription ID, customer ID, billing period, amount
 **Degradation Class**: **Critical**
 
-**Failure Mode**: If AR cannot process this event, customer invoices are not generated, blocking revenue recognition.
-**Recovery**: Replay from outbox, manual invoice creation via AR API.
+**Execution Pattern**:
+1. **Synchronous HTTP Call**: `POST /api/ar/invoices` (create + finalize)
+2. **Asynchronous Event**: `subscription.bill_run.completed` via outbox (optional notification)
+
+**Timeout Budget**:
+- **HTTP Request**: 30 seconds per call (15s create + 15s finalize)
+- **Total Operation**: 60 seconds (including gating checks)
+- **Outbox Publish**: 5 seconds per NATS publish attempt
+
+**Retry Policy**:
+- **HTTP Failures**: NO automatic retry (cycle gating prevents duplicates)
+  - Mark attempt as 'failed' in subscription_invoice_attempts
+  - Operator must investigate and manually retry via bill run API
+- **Outbox Publish Failures**: Infinite retry with 1-second polling interval
+  - Events remain in outbox until successfully published
+  - No timeout limit (eventual consistency)
+
+**Degradation Behavior**:
+| AR State | Subscriptions Behavior | Impact |
+|----------|------------------------|--------|
+| **Healthy** | Invoice created within 30s | Normal operation |
+| **Slow (15-30s)** | Invoice created with latency | Acceptable degradation |
+| **Timeout (>30s)** | HTTP call fails, attempt marked 'failed' | Billing cycle blocked, requires operator intervention |
+| **Down (sustained)** | All invoice creation fails, cycles accumulate | Revenue recognition halted, manual recovery needed |
+
+**Failure Mode**: If AR cannot process invoice creation, customer invoices are not generated, blocking revenue recognition and cash collection.
+
+**Recovery**:
+1. Check subscription_invoice_attempts table for 'failed' attempts
+2. Investigate AR module health (logs, database, connectivity)
+3. Retry failed cycles via `POST /api/subscriptions/bill-run` endpoint
+4. Verify invoice creation in AR database
+
+**Monitoring**:
+- Alert on HTTP timeout rate > 5%
+- Alert on failed cycle attempts > 10 per hour
+- Dashboard: Invoice creation latency p50/p95/p99
+
+---
+
+### Event: `subscription.bill_run.completed` (Deprecated - See Above)
+
+**Note**: This event is documented above as part of the hybrid Subscriptions→AR command flow.
 
 ---
 
