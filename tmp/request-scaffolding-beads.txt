@@ -1,0 +1,20 @@
+Yes, please output the exact JSON beads for the 7 scaffolding prerequisites plus the dependency edits for the existing 23 beads.
+
+Use the same bead format:
+- id, title, description, how_to_think, depends_on, acceptance_criteria, verification_commands, estimated_complexity, files_involved
+
+Format as JSON:
+```json
+{
+  "scaffolding_beads": [
+    { "id": "bd-17s0", ... },
+    ...
+  ],
+  "dependency_updates": [
+    { "bead_id": "bd-17a0", "add_dependencies": ["bd-17s0"] },
+    ...
+  ]
+}
+```
+
+Please include all 7 scaffolding beads and all necessary dependency updates to the 23 existing beads.

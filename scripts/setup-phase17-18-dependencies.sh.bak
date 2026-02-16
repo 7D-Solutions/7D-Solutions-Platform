@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+echo "Setting up dependencies for Phase 17 & 18 beads..."
+echo
+
+now=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+# Phase 17 Track A dependencies
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17a1', 'bd-17a0', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17a1 depends on bd-17a0"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17a2', 'bd-17a0', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17a2 depends on bd-17a0"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17a3', 'bd-17a1', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17a3 depends on bd-17a1"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17a4', 'bd-17a2', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17a4 depends on bd-17a2"
+
+# Phase 17 Track B dependencies
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17b1', 'bd-17b0', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17b1 depends on bd-17b0"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17b2', 'bd-17b1', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17b2 depends on bd-17b1"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17b3', 'bd-17b0', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17b3 depends on bd-17b0"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17b4', 'bd-17b1', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17b4 depends on bd-17b1"
+
+# Phase 17 Track C dependencies
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17c1', 'bd-17c0', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17c1 depends on bd-17c0"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17c2', 'bd-17c0', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17c2 depends on bd-17c0"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17c3', 'bd-17c1', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17c3 depends on bd-17c1"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17c3', 'bd-17b0', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17c3 depends on bd-17b0"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17c4', 'bd-17a4', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17c4 depends on bd-17a4"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17c4', 'bd-17b4', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17c4 depends on bd-17b4"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-17c4', 'bd-17c2', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-17c4 depends on bd-17c2"
+
+# Phase 18 dependencies
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18a1', 'bd-18a0', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18a1 depends on bd-18a0"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18b0', 'bd-17a3', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18b0 depends on bd-17a3"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18b0', 'bd-17c1', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18b0 depends on bd-17c1"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18b1', 'bd-18b0', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18b1 depends on bd-18b0"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18b1', 'bd-17c3', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18b1 depends on bd-17c3"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18b1', 'bd-17a2', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18b1 depends on bd-17a2"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18c0', 'bd-17a1', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18c0 depends on bd-17a1"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18c0', 'bd-17b4', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18c0 depends on bd-17b4"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18c0', 'bd-16d2', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18c0 depends on bd-16d2"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18c1', 'bd-17a4', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18c1 depends on bd-17a4"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18c1', 'bd-17b4', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18c1 depends on bd-17b4"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18c1', 'bd-16g1', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18c1 depends on bd-16g1"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18d0', 'bd-17a3', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18d0 depends on bd-17a3"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18e0', 'bd-17b0', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18e0 depends on bd-17b0"
+
+sqlite3 .beads/beads.db "INSERT OR IGNORE INTO dependencies (issue_id, depends_on_id, type, created_at, created_by) VALUES ('bd-18e0', 'bd-17c0', 'blocks', '$now', 'BrightHill');"
+echo "✓ bd-18e0 depends on bd-17c0"
+
+echo
+echo "✅ Added $added dependency relationships"
+echo
+
+# Flush to JSONL
+echo "Flushing to JSONL..."
+br sync --flush-only
+
+echo
+echo "✅ Dependencies setup complete!"

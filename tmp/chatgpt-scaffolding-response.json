@@ -1,0 +1,300 @@
+{
+  "ok": true,
+  "raw_text": "JSON\n{\n  \"scaffolding_beads\": [\n    {\n      \"id\": \"bd-17s0\",\n      \"title\": \"Scaffold platform/projections crate + workspace wiring\",\n      \"description\": \"Create the new shared platform crate at platform/projections. Add Cargo.toml, src/lib.rs, minimal module skeleton (cursor/mod/metrics placeholders), and wire into the root Cargo workspace members so it builds in CI. No projection business logic yet.\",\n      \"how_to_think\": \"Think like a Rust workspace steward. Invariant: the workspace builds deterministically with the new crate included and no cyclic deps. Failure mode to avoid: breaking the build graph or introducing accidental cross-module coupling via incorrect crate dependencies.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"platform/projections/Cargo.toml exists with a valid crate name and edition matching workspace\",\n        \"platform/projections/src/lib.rs exists and compiles\",\n        \"Root Cargo workspace includes platform/projections as a member\",\n        \"cargo test --workspace passes with the new crate included\"\n      ],\n      \"verification_commands\": [\n        \"cargo test --workspace\",\n        \"All workspace tests pass\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"Cargo.toml\",\n        \"platform/projections/Cargo.toml\",\n        \"platform/projections/src/lib.rs\",\n        \"platform/projections/src/cursor.rs\",\n        \"platform/projections/src/metrics.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-17s1\",\n      \"title\": \"Scaffold platform/audit crate + workspace wiring\",\n      \"description\": \"Create the new shared platform crate at platform/audit. Add Cargo.toml, src/lib.rs, minimal module skeleton (actor/policy/diff placeholders), and wire into the root Cargo workspace members so it builds in CI. No audit DB/migrations yet.\",\n      \"how_to_think\": \"Think like a compliance-platform engineer. Invariant: the audit crate is a pure shared library (no module DB imports, no cross-module dependencies). Failure mode to avoid: introducing hidden coupling or breaking workspace builds.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"platform/audit/Cargo.toml exists with valid crate metadata\",\n        \"platform/audit/src/lib.rs exists and compiles\",\n        \"Root Cargo workspace includes platform/audit as a member\",\n        \"cargo test --workspace passes\"\n      ],\n      \"verification_commands\": [\n        \"cargo test --workspace\",\n        \"All workspace tests pass\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"Cargo.toml\",\n        \"platform/audit/Cargo.toml\",\n        \"platform/audit/src/lib.rs\",\n        \"platform/audit/src/actor.rs\",\n        \"platform/audit/src/policy.rs\",\n        \"platform/audit/src/diff.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-17s2\",\n      \"title\": \"Scaffold platform/tenant-registry crate + workspace wiring\",\n      \"description\": \"Create the new shared platform crate at platform/tenant-registry. Add Cargo.toml, src/lib.rs, minimal API placeholders for registry operations. Wire into the root Cargo workspace members. No DB schema/migrations yet.\",\n      \"how_to_think\": \"Think like a control-plane engineer. Invariant: the tenant registry crate is buildable and dependency-safe as a reusable platform library. Failure mode to avoid: workspace breakage or pulling in module-specific crates that violate boundaries.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"platform/tenant-registry/Cargo.toml exists and compiles\",\n        \"platform/tenant-registry/src/lib.rs exists and compiles\",\n        \"Root Cargo workspace includes platform/tenant-registry as a member\",\n        \"cargo test --workspace passes\"\n      ],\n      \"verification_commands\": [\n        \"cargo test --workspace\",\n        \"All workspace tests pass\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"Cargo.toml\",\n        \"platform/tenant-registry/Cargo.toml\",\n        \"platform/tenant-registry/src/lib.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-17s3\",\n      \"title\": \"Scaffold tools/projection-rebuild binary + workspace wiring\",\n      \"description\": \"Create the new tool at tools/projection-rebuild as a Rust binary crate. Add Cargo.toml, src/main.rs with minimal CLI skeleton and placeholder subcommands. Wire into workspace members. No rebuild logic yet.\",\n      \"how_to_think\": \"Think like an ops tooling engineer. Invariant: the tool builds, runs, and can be extended without modifying module crates. Failure mode to avoid: tool accidentally importing module internals or failing CI due to workspace wiring issues.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"tools/projection-rebuild/Cargo.toml exists and defines a binary\",\n        \"tools/projection-rebuild/src/main.rs builds and prints a help/usage message\",\n        \"Root Cargo workspace includes tools/projection-rebuild as a member\",\n        \"cargo test --workspace passes\"\n      ],\n      \"verification_commands\": [\n        \"cargo test --workspace\",\n        \"All workspace tests pass\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"Cargo.toml\",\n        \"tools/projection-rebuild/Cargo.toml\",\n        \"tools/projection-rebuild/src/main.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-17s4\",\n      \"title\": \"Scaffold tools/tenantctl binary + workspace wiring\",\n      \"description\": \"Create the new tool at tools/tenantctl as a Rust binary crate. Add Cargo.toml, src/main.rs with minimal CLI skeleton and placeholder commands (create/verify/fleet). Wire into workspace members. No provisioning logic yet.\",\n      \"how_to_think\": \"Think like a platform operations engineer. Invariant: tenantctl is a standalone ops tool and does not require tenant_id threading through runtime code. Failure mode to avoid: coupling tenant ops to module binaries or breaking the workspace build.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"tools/tenantctl/Cargo.toml exists and defines a binary\",\n        \"tools/tenantctl/src/main.rs builds and prints a help/usage message\",\n        \"Root Cargo workspace includes tools/tenantctl as a member\",\n        \"cargo test --workspace passes\"\n      ],\n      \"verification_commands\": [\n        \"cargo test --workspace\",\n        \"All workspace tests pass\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"Cargo.toml\",\n        \"tools/tenantctl/Cargo.toml\",\n        \"tools/tenantctl/src/main.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-18s0\",\n      \"title\": \"Scaffold platform/security crate + workspace wiring\",\n      \"description\": \"Create the new shared platform crate at platform/security. Add Cargo.toml, src/lib.rs, minimal placeholders for auth token verification, rbac, and ratelimit utilities. Wire into workspace members. No enforcement in modules yet.\",\n      \"how_to_think\": \"Think like a platform security engineer. Invariant: shared security primitives compile and are reusable without leaking secrets or adding runtime side effects. Failure mode to avoid: breaking builds or introducing unsafe defaults before policy is implemented.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"platform/security/Cargo.toml exists and compiles\",\n        \"platform/security/src/lib.rs exists and compiles\",\n        \"Root Cargo workspace includes platform/security as a member\",\n        \"cargo test --workspace passes\"\n      ],\n      \"verification_commands\": [\n        \"cargo test --workspace\",\n        \"All workspace tests pass\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"Cargo.toml\",\n        \"platform/security/Cargo.toml\",\n        \"platform/security/src/lib.rs\",\n        \"platform/security/src/rbac.rs\",\n        \"platform/security/src/ratelimit.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-18s1\",\n      \"title\": \"Scaffold tools/compliance-export binary + workspace wiring\",\n      \"description\": \"Create the new tool at tools/compliance-export as a Rust binary crate. Add Cargo.toml, src/main.rs with minimal CLI skeleton and placeholder export subcommand. Wire into workspace members. No export logic yet.\",\n      \"how_to_think\": \"Think like a compliance tooling engineer. Invariant: the export tool compiles and can be extended to produce deterministic outputs without pulling module internals. Failure mode to avoid: build failures or hidden coupling that violates module boundaries.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"tools/compliance-export/Cargo.toml exists and defines a binary\",\n        \"tools/compliance-export/src/main.rs builds and prints a help/usage message\",\n        \"Root Cargo workspace includes tools/compliance-export as a member\",\n        \"cargo test --workspace passes\"\n      ],\n      \"verification_commands\": [\n        \"cargo test --workspace\",\n        \"All workspace tests pass\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"Cargo.toml\",\n        \"tools/compliance-export/Cargo.toml\",\n        \"tools/compliance-export/src/main.rs\"\n      ]\n    }\n  ],\n  \"dependency_updates\": [\n    { \"bead_id\": \"bd-17a0\", \"add_dependencies\": [\"bd-17s0\"] },\n    { \"bead_id\": \"bd-17a1\", \"add_dependencies\": [\"bd-17s0\"] },\n    { \"bead_id\": \"bd-17a2\", \"add_dependencies\": [\"bd-17s0\", \"bd-17s3\"] },\n    { \"bead_id\": \"bd-17a3\", \"add_dependencies\": [\"bd-17s0\"] },\n    { \"bead_id\": \"bd-17a4\", \"add_dependencies\": [\"bd-17s0\", \"bd-17s3\"] },\n\n    { \"bead_id\": \"bd-17b0\", \"add_dependencies\": [\"bd-17s1\"] },\n    { \"bead_id\": \"bd-17b1\", \"add_dependencies\": [\"bd-17s1\"] },\n    { \"bead_id\": \"bd-17b2\", \"add_dependencies\": [\"bd-17s1\"] },\n    { \"bead_id\": \"bd-17b3\", \"add_dependencies\": [\"bd-17s1\"] },\n    { \"bead_id\": \"bd-17b4\", \"add_dependencies\": [\"bd-17s1\"] },\n\n    { \"bead_id\": \"bd-17c0\", \"add_dependencies\": [\"bd-17s2\"] },\n    { \"bead_id\": \"bd-17c1\", \"add_dependencies\": [\"bd-17s2\", \"bd-17s4\"] },\n    { \"bead_id\": \"bd-17c2\", \"add_dependencies\": [\"bd-17s2\", \"bd-17s4\"] },\n    { \"bead_id\": \"bd-17c3\", \"add_dependencies\": [\"bd-17s2\", \"bd-17s4\"] },\n    { \"bead_id\": \"bd-17c4\", \"add_dependencies\": [\"bd-17s2\", \"bd-17s4\"] },\n\n    { \"bead_id\": \"bd-18b0\", \"add_dependencies\": [\"bd-18s0\"] },\n    { \"bead_id\": \"bd-18b1\", \"add_dependencies\": [\"bd-18s0\"] },\n    { \"bead_id\": \"bd-18d0\", \"add_dependencies\": [\"bd-18s0\"] },\n\n    { \"bead_id\": \"bd-18e0\", \"add_dependencies\": [\"bd-18s1\"] }\n  ]\n}",
+  "parse_ok": true,
+  "extracted_json": {
+    "scaffolding_beads": [
+      {
+        "id": "bd-17s0",
+        "title": "Scaffold platform/projections crate + workspace wiring",
+        "description": "Create the new shared platform crate at platform/projections. Add Cargo.toml, src/lib.rs, minimal module skeleton (cursor/mod/metrics placeholders), and wire into the root Cargo workspace members so it builds in CI. No projection business logic yet.",
+        "how_to_think": "Think like a Rust workspace steward. Invariant: the workspace builds deterministically with the new crate included and no cyclic deps. Failure mode to avoid: breaking the build graph or introducing accidental cross-module coupling via incorrect crate dependencies.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "platform/projections/Cargo.toml exists with a valid crate name and edition matching workspace",
+          "platform/projections/src/lib.rs exists and compiles",
+          "Root Cargo workspace includes platform/projections as a member",
+          "cargo test --workspace passes with the new crate included"
+        ],
+        "verification_commands": [
+          "cargo test --workspace",
+          "All workspace tests pass"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "Cargo.toml",
+          "platform/projections/Cargo.toml",
+          "platform/projections/src/lib.rs",
+          "platform/projections/src/cursor.rs",
+          "platform/projections/src/metrics.rs"
+        ]
+      },
+      {
+        "id": "bd-17s1",
+        "title": "Scaffold platform/audit crate + workspace wiring",
+        "description": "Create the new shared platform crate at platform/audit. Add Cargo.toml, src/lib.rs, minimal module skeleton (actor/policy/diff placeholders), and wire into the root Cargo workspace members so it builds in CI. No audit DB/migrations yet.",
+        "how_to_think": "Think like a compliance-platform engineer. Invariant: the audit crate is a pure shared library (no module DB imports, no cross-module dependencies). Failure mode to avoid: introducing hidden coupling or breaking workspace builds.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "platform/audit/Cargo.toml exists with valid crate metadata",
+          "platform/audit/src/lib.rs exists and compiles",
+          "Root Cargo workspace includes platform/audit as a member",
+          "cargo test --workspace passes"
+        ],
+        "verification_commands": [
+          "cargo test --workspace",
+          "All workspace tests pass"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "Cargo.toml",
+          "platform/audit/Cargo.toml",
+          "platform/audit/src/lib.rs",
+          "platform/audit/src/actor.rs",
+          "platform/audit/src/policy.rs",
+          "platform/audit/src/diff.rs"
+        ]
+      },
+      {
+        "id": "bd-17s2",
+        "title": "Scaffold platform/tenant-registry crate + workspace wiring",
+        "description": "Create the new shared platform crate at platform/tenant-registry. Add Cargo.toml, src/lib.rs, minimal API placeholders for registry operations. Wire into the root Cargo workspace members. No DB schema/migrations yet.",
+        "how_to_think": "Think like a control-plane engineer. Invariant: the tenant registry crate is buildable and dependency-safe as a reusable platform library. Failure mode to avoid: workspace breakage or pulling in module-specific crates that violate boundaries.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "platform/tenant-registry/Cargo.toml exists and compiles",
+          "platform/tenant-registry/src/lib.rs exists and compiles",
+          "Root Cargo workspace includes platform/tenant-registry as a member",
+          "cargo test --workspace passes"
+        ],
+        "verification_commands": [
+          "cargo test --workspace",
+          "All workspace tests pass"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "Cargo.toml",
+          "platform/tenant-registry/Cargo.toml",
+          "platform/tenant-registry/src/lib.rs"
+        ]
+      },
+      {
+        "id": "bd-17s3",
+        "title": "Scaffold tools/projection-rebuild binary + workspace wiring",
+        "description": "Create the new tool at tools/projection-rebuild as a Rust binary crate. Add Cargo.toml, src/main.rs with minimal CLI skeleton and placeholder subcommands. Wire into workspace members. No rebuild logic yet.",
+        "how_to_think": "Think like an ops tooling engineer. Invariant: the tool builds, runs, and can be extended without modifying module crates. Failure mode to avoid: tool accidentally importing module internals or failing CI due to workspace wiring issues.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "tools/projection-rebuild/Cargo.toml exists and defines a binary",
+          "tools/projection-rebuild/src/main.rs builds and prints a help/usage message",
+          "Root Cargo workspace includes tools/projection-rebuild as a member",
+          "cargo test --workspace passes"
+        ],
+        "verification_commands": [
+          "cargo test --workspace",
+          "All workspace tests pass"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "Cargo.toml",
+          "tools/projection-rebuild/Cargo.toml",
+          "tools/projection-rebuild/src/main.rs"
+        ]
+      },
+      {
+        "id": "bd-17s4",
+        "title": "Scaffold tools/tenantctl binary + workspace wiring",
+        "description": "Create the new tool at tools/tenantctl as a Rust binary crate. Add Cargo.toml, src/main.rs with minimal CLI skeleton and placeholder commands (create/verify/fleet). Wire into workspace members. No provisioning logic yet.",
+        "how_to_think": "Think like a platform operations engineer. Invariant: tenantctl is a standalone ops tool and does not require tenant_id threading through runtime code. Failure mode to avoid: coupling tenant ops to module binaries or breaking the workspace build.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "tools/tenantctl/Cargo.toml exists and defines a binary",
+          "tools/tenantctl/src/main.rs builds and prints a help/usage message",
+          "Root Cargo workspace includes tools/tenantctl as a member",
+          "cargo test --workspace passes"
+        ],
+        "verification_commands": [
+          "cargo test --workspace",
+          "All workspace tests pass"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "Cargo.toml",
+          "tools/tenantctl/Cargo.toml",
+          "tools/tenantctl/src/main.rs"
+        ]
+      },
+      {
+        "id": "bd-18s0",
+        "title": "Scaffold platform/security crate + workspace wiring",
+        "description": "Create the new shared platform crate at platform/security. Add Cargo.toml, src/lib.rs, minimal placeholders for auth token verification, rbac, and ratelimit utilities. Wire into workspace members. No enforcement in modules yet.",
+        "how_to_think": "Think like a platform security engineer. Invariant: shared security primitives compile and are reusable without leaking secrets or adding runtime side effects. Failure mode to avoid: breaking builds or introducing unsafe defaults before policy is implemented.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "platform/security/Cargo.toml exists and compiles",
+          "platform/security/src/lib.rs exists and compiles",
+          "Root Cargo workspace includes platform/security as a member",
+          "cargo test --workspace passes"
+        ],
+        "verification_commands": [
+          "cargo test --workspace",
+          "All workspace tests pass"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "Cargo.toml",
+          "platform/security/Cargo.toml",
+          "platform/security/src/lib.rs",
+          "platform/security/src/rbac.rs",
+          "platform/security/src/ratelimit.rs"
+        ]
+      },
+      {
+        "id": "bd-18s1",
+        "title": "Scaffold tools/compliance-export binary + workspace wiring",
+        "description": "Create the new tool at tools/compliance-export as a Rust binary crate. Add Cargo.toml, src/main.rs with minimal CLI skeleton and placeholder export subcommand. Wire into workspace members. No export logic yet.",
+        "how_to_think": "Think like a compliance tooling engineer. Invariant: the export tool compiles and can be extended to produce deterministic outputs without pulling module internals. Failure mode to avoid: build failures or hidden coupling that violates module boundaries.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "tools/compliance-export/Cargo.toml exists and defines a binary",
+          "tools/compliance-export/src/main.rs builds and prints a help/usage message",
+          "Root Cargo workspace includes tools/compliance-export as a member",
+          "cargo test --workspace passes"
+        ],
+        "verification_commands": [
+          "cargo test --workspace",
+          "All workspace tests pass"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "Cargo.toml",
+          "tools/compliance-export/Cargo.toml",
+          "tools/compliance-export/src/main.rs"
+        ]
+      }
+    ],
+    "dependency_updates": [
+      {
+        "bead_id": "bd-17a0",
+        "add_dependencies": [
+          "bd-17s0"
+        ]
+      },
+      {
+        "bead_id": "bd-17a1",
+        "add_dependencies": [
+          "bd-17s0"
+        ]
+      },
+      {
+        "bead_id": "bd-17a2",
+        "add_dependencies": [
+          "bd-17s0",
+          "bd-17s3"
+        ]
+      },
+      {
+        "bead_id": "bd-17a3",
+        "add_dependencies": [
+          "bd-17s0"
+        ]
+      },
+      {
+        "bead_id": "bd-17a4",
+        "add_dependencies": [
+          "bd-17s0",
+          "bd-17s3"
+        ]
+      },
+      {
+        "bead_id": "bd-17b0",
+        "add_dependencies": [
+          "bd-17s1"
+        ]
+      },
+      {
+        "bead_id": "bd-17b1",
+        "add_dependencies": [
+          "bd-17s1"
+        ]
+      },
+      {
+        "bead_id": "bd-17b2",
+        "add_dependencies": [
+          "bd-17s1"
+        ]
+      },
+      {
+        "bead_id": "bd-17b3",
+        "add_dependencies": [
+          "bd-17s1"
+        ]
+      },
+      {
+        "bead_id": "bd-17b4",
+        "add_dependencies": [
+          "bd-17s1"
+        ]
+      },
+      {
+        "bead_id": "bd-17c0",
+        "add_dependencies": [
+          "bd-17s2"
+        ]
+      },
+      {
+        "bead_id": "bd-17c1",
+        "add_dependencies": [
+          "bd-17s2",
+          "bd-17s4"
+        ]
+      },
+      {
+        "bead_id": "bd-17c2",
+        "add_dependencies": [
+          "bd-17s2",
+          "bd-17s4"
+        ]
+      },
+      {
+        "bead_id": "bd-17c3",
+        "add_dependencies": [
+          "bd-17s2",
+          "bd-17s4"
+        ]
+      },
+      {
+        "bead_id": "bd-17c4",
+        "add_dependencies": [
+          "bd-17s2",
+          "bd-17s4"
+        ]
+      },
+      {
+        "bead_id": "bd-18b0",
+        "add_dependencies": [
+          "bd-18s0"
+        ]
+      },
+      {
+        "bead_id": "bd-18b1",
+        "add_dependencies": [
+          "bd-18s0"
+        ]
+      },
+      {
+        "bead_id": "bd-18d0",
+        "add_dependencies": [
+          "bd-18s0"
+        ]
+      },
+      {
+        "bead_id": "bd-18e0",
+        "add_dependencies": [
+          "bd-18s1"
+        ]
+      }
+    ]
+  },
+  "error": null
+}

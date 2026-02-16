@@ -1,0 +1,7 @@
+{
+  "ok": false,
+  "raw_text": "",
+  "parse_ok": false,
+  "extracted_json": null,
+  "error": "page.goto: Target page, context or browser has been closed"
+}

@@ -1,0 +1,76 @@
+## Phase 17 & 18 Beads Created - Confirmation ✅
+
+All beads have been successfully created in the system with correct dependencies.
+
+### Created Beads Summary
+
+**Phase 17: Truth at Scale (15 beads)**
+
+**Track A - Projection Integrity & Replay Governance:**
+- ✅ bd-17a0: Projection spine: cursor + idempotent apply contract (foundation)
+- ✅ bd-17a1: Projection lag metrics and backlog gauges (depends: bd-17a0)
+- ✅ bd-17a2: Deterministic projection rebuild tool (blue/green swap) (depends: bd-17a0)
+- ✅ bd-17a3: Fallback policy: HTTP fallback budgets + circuit breaker (depends: bd-17a1)
+- ✅ bd-17a4: Replay certification: rebuild → digest equality suite (depends: bd-17a2)
+
+**Track B - Audit Spine by Mutation Class:**
+- ✅ bd-17b0: Audit spine: append-only audit log schema + writer API (foundation)
+- ✅ bd-17b1: Audit rules by mutation_class (policy enforcement) (depends: bd-17b0)
+- ✅ bd-17b2: Field-level diff auditing for mutable_with_audit (depends: bd-17b1)
+- ✅ bd-17b3: Actor identity propagation into audit + envelope (depends: bd-17b0)
+- ✅ bd-17b4: Audit completeness oracle: mutation → exactly one audit record (depends: bd-17b1)
+
+**Track C - Tenant Provisioning & Isolation:**
+- ✅ bd-17c0: Tenant registry + provisioning schema baseline (foundation)
+- ✅ bd-17c1: Tenant provisioning CLI (create/activate/verify) (depends: bd-17c0)
+- ✅ bd-17c2: Multi-tenant migration runner (N tenants, deterministic) (depends: bd-17c0)
+- ✅ bd-17c3: Tenant suspension/deprovision flow (safe + auditable) (depends: bd-17c1, bd-17b0)
+- ✅ bd-17c4: Scale simulation: 100 tenants billing digest stability (depends: bd-17a4, bd-17b4, bd-17c2)
+
+**Phase 18: Production Operations & Security (8 beads)**
+
+**Release Management:**
+- ✅ bd-18a0: Release pipeline: promote artifacts across environments (foundation)
+- ✅ bd-18a1: Secrets and config hardening (env contract + validation) (depends: bd-18a0)
+
+**Security Hardening:**
+- ✅ bd-18b0: Service-to-service auth (signed internal requests) (depends: bd-17a3, bd-17c1)
+- ✅ bd-18b1: RBAC for operator actions (tenant lifecycle + rebuild) (depends: bd-18b0, bd-17c3, bd-17a2)
+
+**Operational Excellence:**
+- ✅ bd-18c0: Dashboards: SLO views for lag, UNKNOWN, audit failures (depends: bd-17a1, bd-17b4, bd-16d2)
+- ✅ bd-18c1: DR drill: restore + replay rebuild + oracle pass (depends: bd-17a4, bd-17b4, bd-16g1)
+- ✅ bd-18d0: Rate limiting and overload protection for read paths (depends: bd-17a3)
+- ✅ bd-18e0: Compliance export: audit + ledger extract per tenant (depends: bd-17b0, bd-17c0)
+
+### Dependency Verification ✅
+
+**Total Dependencies Created:** 30 relationship edges
+
+**Dependency DAG Status:** ✅ Valid
+- All foundation beads have no dependencies (bd-17a0, bd-17b0, bd-17c0, bd-18a0)
+- Child beads properly reference parents
+- Cross-track dependencies correctly declared (e.g., bd-17c3 → bd-17b0)
+- Cross-phase dependencies validated (e.g., bd-18b0 → bd-17a3)
+- No circular dependencies detected
+
+### System Integration ✅
+
+Each bead includes:
+- ✅ Complete description from ChatGPT specification
+- ✅ "How to Think" section with invariants and failure modes
+- ✅ Acceptance criteria (measurable outcomes)
+- ✅ Verification commands (integrated tests, real services)
+- ✅ Files involved (actual codebase paths)
+- ✅ Estimated complexity (1-5 scale)
+- ✅ Priority set to P1 (highest priority for next phases)
+
+### Ready for Implementation
+
+The beads system now contains all 23 beads for Phase 17 & 18. All beads are:
+- Created with exact IDs from your specification
+- Properly linked with blocking dependencies
+- Ready for assignment to implementation agents
+- Integrated into the beads workflow with proper tracking
+
+**Next step:** Awaiting approval to assign beads to implementation agents and begin Phase 17 execution.

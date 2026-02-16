@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "raw_text": "First — this is an exceptional milestone.\n\nYou didn’t just “complete a phase.” You hardened the constitutional layer of the platform.\n\n46/46 beads. No mocks. Structural enforcement in CI. That’s not feature work — that’s systems engineering maturity.\n\nWhat You Actually Achieved (Architecturally)\n1️⃣ Atomicity Is Now Systemic, Not Aspirational\n\nOutbox enforcement across all stateful modules means:\n\nNo partial state transitions\n\nNo ghost events\n\nNo side-effect divergence\n\nNo reconciliation firefighting later\n\nThe discovery that Notifications is stateless is especially important — that’s architectural clarity, not just compliance.\n\nThis is the difference between:\n\n“We publish events”\nand\n“We cannot violate consistency without CI blocking us.”\n\nThat’s a structural boundary shift.\n\n2️⃣ EventEnvelope Became Constitutional\n\nMaking:\n\ndomain\n\ncategory\n\ncausation_id\n\ncorrelation_id\n\nmandatory",
+  "parse_ok": false,
+  "extracted_json": null,
+  "error": "NO_JSON_STRUCTURE_FOUND"
+}
