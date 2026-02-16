@@ -70,6 +70,7 @@ async fn test_journal_entry_with_lines() {
         Some("Test invoice journal entry"),
         Some("invoice"),
         Some("INV-001"),
+        None, // correlation_id
     )
     .await
     .expect("Failed to insert journal entry");
@@ -203,6 +204,7 @@ async fn test_transaction_rollback() {
         Some("Test rollback"),
         None,
         None,
+        None, // correlation_id
     )
     .await
     .expect("Failed to insert journal entry");

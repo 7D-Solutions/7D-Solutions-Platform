@@ -284,6 +284,7 @@ async fn test_e2e_reversal_updates_balances_and_trial_balance() {
         "ar",
         "gl.events.posting.requested",
         &posting_request,
+        None, // correlation_id
     )
     .await
     .expect("Failed to process posting request");

@@ -226,6 +226,7 @@ async fn test_e2e_posting_updates_balances_and_trial_balance_usd() {
         "ar",
         "gl.events.posting.requested",
         &posting_request,
+        None, // correlation_id
     )
     .await
     .expect("Failed to process posting request");
@@ -369,6 +370,7 @@ async fn test_e2e_multi_currency_isolation_and_filtering() {
         "gl",
         "gl.events.posting.requested",
         &posting_usd,
+        None, // correlation_id
     )
     .await
     .expect("Failed to process USD posting");
@@ -406,6 +408,7 @@ async fn test_e2e_multi_currency_isolation_and_filtering() {
         "gl",
         "gl.events.posting.requested",
         &posting_eur,
+        None, // correlation_id
     )
     .await
     .expect("Failed to process EUR posting");

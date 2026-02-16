@@ -139,6 +139,7 @@ async fn test_posting_succeeds_with_valid_accounts() {
         "ar",
         "ar.invoice.created",
         &payload,
+        None, // correlation_id
     )
     .await;
 
@@ -213,6 +214,7 @@ async fn test_posting_fails_account_not_found() {
         "ar",
         "ar.invoice.created",
         &payload,
+        None, // correlation_id
     )
     .await;
 
@@ -309,6 +311,7 @@ async fn test_posting_fails_account_inactive() {
         "ar",
         "ar.invoice.created",
         &payload,
+        None, // correlation_id
     )
     .await;
 
@@ -401,6 +404,7 @@ async fn test_posting_validates_all_lines() {
         "ar",
         "ar.invoice.created",
         &payload,
+        None, // correlation_id
     )
     .await;
 
@@ -485,6 +489,7 @@ async fn test_posting_preserves_idempotency_with_coa_validation() {
         "ar",
         "ar.invoice.created",
         &payload,
+        None, // correlation_id
     )
     .await;
 
@@ -498,6 +503,7 @@ async fn test_posting_preserves_idempotency_with_coa_validation() {
         "ar",
         "ar.invoice.created",
         &payload,
+        None, // correlation_id
     )
     .await;
 

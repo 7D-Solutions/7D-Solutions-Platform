@@ -2,6 +2,7 @@
 members = [
   "platform/event-bus",
   "platform/identity-auth",
+  "platform/audit",
   "modules/ar",
   "modules/subscriptions",
   "modules/payments",

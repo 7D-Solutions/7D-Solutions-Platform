@@ -374,6 +374,7 @@ async fn test_posting_blocked_when_period_closed() -> Result<(), sqlx::Error> {
         "ar",
         "ar.invoice.created",
         &payload,
+        None, // correlation_id
     )
     .await;
 
@@ -492,6 +493,7 @@ async fn test_reversal_blocked_when_original_period_closed() -> Result<(), sqlx:
         "ar",
         "ar.invoice.created",
         &payload,
+        None, // correlation_id
     )
     .await
     .expect("Failed to create original entry");
@@ -633,6 +635,7 @@ async fn test_reversal_succeeds_when_both_periods_open() -> Result<(), sqlx::Err
         "ar",
         "ar.invoice.created",
         &payload,
+        None, // correlation_id
     )
     .await
     .expect("Failed to create original entry");
@@ -772,6 +775,7 @@ async fn test_closed_at_semantics_override_is_closed_boolean() -> Result<(), sql
         "ar",
         "ar.invoice.created",
         &payload,
+        None, // correlation_id
     )
     .await;
 
