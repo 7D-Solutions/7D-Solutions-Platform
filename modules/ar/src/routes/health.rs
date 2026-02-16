@@ -38,3 +38,25 @@ pub async fn ready(
         )),
     }
 }
+/// Version endpoint - returns module identity and schema version
+///
+/// This endpoint provides build and deployment information:
+/// - module_name: The service identifier
+/// - module_version: Build version from Cargo.toml
+/// - schema_version: Database schema version (latest migration)
+///
+/// Used for:
+/// - Deployment verification
+/// - Troubleshooting version mismatches
+/// - Migration status checks
+pub async fn version() -> Json<serde_json::Value> {
+    // Schema version derived from latest migration timestamp
+    // Format: YYYYMMDDNNNNNN (e.g., 20260216000002)
+    const SCHEMA_VERSION: &str = "20260216000002";
+    
+    Json(serde_json::json!({
+        "module_name": "ar-rs",
+        "module_version": env!("CARGO_PKG_VERSION"),
+        "schema_version": SCHEMA_VERSION
+    }))
+}

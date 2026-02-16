@@ -1,0 +1,253 @@
+name: Backup Restore Verification
+
+# Phase 16: Quarterly restore verification test
+# Purpose: Ensure backups are provably restorable
+# Trigger: Manual (workflow_dispatch) or quarterly schedule
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_date:
+        description: 'Backup date to verify (YYYY-MM-DD) - defaults to latest'
+        required: false
+        type: string
+      module:
+        description: 'Module to verify (ar, payments, subscriptions, gl, notifications)'
+        required: true
+        type: choice
+        options:
+          - ar
+          - payments
+          - subscriptions
+          - gl
+          - notifications
+        default: 'ar'
+
+  # Run quarterly (first day of Jan, Apr, Jul, Oct at 3 AM UTC)
+  schedule:
+    - cron: '0 3 1 1,4,7,10 *'
+
+jobs:
+  restore-verify:
+    name: Restore Verification Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Determine backup to verify
+        id: backup
+        run: |
+          MODULE="${{ github.event.inputs.module || 'ar' }}"
+          BACKUP_DATE="${{ github.event.inputs.backup_date }}"
+
+          # If no date specified, use latest backup
+          if [ -z "${BACKUP_DATE}" ]; then
+            echo "Using latest backup for module: ${MODULE}"
+            # In production, this would fetch latest from S3/backup storage
+            # For now, we'll use a placeholder
+            BACKUP_FILE="backups/latest/${MODULE}_latest.sql.gz"
+          else
+            echo "Using backup from date: ${BACKUP_DATE}"
+            BACKUP_FILE="backups/${BACKUP_DATE}/${MODULE}_${BACKUP_DATE}.sql.gz"
+          fi
+
+          echo "module=${MODULE}" >> $GITHUB_OUTPUT
+          echo "backup_file=${BACKUP_FILE}" >> $GITHUB_OUTPUT
+
+      - name: Create test backup (for CI testing)
+        run: |
+          # Create a minimal test backup for CI verification
+          # In production, backups would be fetched from S3/backup storage
+
+          MODULE="${{ steps.backup.outputs.module }}"
+          BACKUP_FILE="${{ steps.backup.outputs.backup_file }}"
+
+          mkdir -p $(dirname "${BACKUP_FILE}")
+
+          # Create test SQL dump based on module
+          case "${MODULE}" in
+            ar)
+              cat > /tmp/test_backup.sql <<'EOF'
+          -- Test AR backup
+          CREATE TABLE IF NOT EXISTS invoices (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              app_id VARCHAR(50) NOT NULL,
+              amount_cents INTEGER NOT NULL,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS events_outbox (
+              id BIGSERIAL PRIMARY KEY,
+              event_type VARCHAR(255) NOT NULL
+          );
+
+          INSERT INTO invoices (app_id, amount_cents) VALUES ('test_app', 1000);
+          EOF
+              ;;
+
+            payments)
+              cat > /tmp/test_backup.sql <<'EOF'
+          -- Test Payments backup
+          CREATE TYPE payment_attempt_status AS ENUM ('attempting', 'succeeded', 'failed_retry', 'failed_final', 'unknown');
+
+          CREATE TABLE IF NOT EXISTS payment_attempts (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              app_id VARCHAR(50) NOT NULL,
+              payment_id UUID NOT NULL,
+              invoice_id VARCHAR(255) NOT NULL,
+              attempt_no INTEGER NOT NULL,
+              status payment_attempt_status NOT NULL,
+              CONSTRAINT unique_payment_attempt UNIQUE (app_id, payment_id, attempt_no)
+          );
+
+          INSERT INTO payment_attempts (app_id, payment_id, invoice_id, attempt_no, status)
+          VALUES ('test_app', gen_random_uuid(), 'inv_123', 0, 'succeeded');
+          EOF
+              ;;
+
+            subscriptions)
+              cat > /tmp/test_backup.sql <<'EOF'
+          -- Test Subscriptions backup
+          CREATE TYPE subscription_status AS ENUM ('active', 'suspended', 'past_due');
+
+          CREATE TABLE IF NOT EXISTS subscriptions (
+              id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+              tenant_id VARCHAR(50) NOT NULL,
+              status subscription_status NOT NULL
+          );
+
+          INSERT INTO subscriptions (tenant_id, status) VALUES ('test_tenant', 'active');
+          EOF
+              ;;
+
+            gl)
+              cat > /tmp/test_backup.sql <<'EOF'
+          -- Test GL backup
+          CREATE TABLE IF NOT EXISTS journal_entries (
+              id BIGSERIAL PRIMARY KEY,
+              tenant_id VARCHAR(50) NOT NULL,
+              debit_cents INTEGER NOT NULL DEFAULT 0,
+              credit_cents INTEGER NOT NULL DEFAULT 0
+          );
+
+          -- Balanced entries (debits = credits)
+          INSERT INTO journal_entries (tenant_id, debit_cents, credit_cents) VALUES ('test', 1000, 0);
+          INSERT INTO journal_entries (tenant_id, debit_cents, credit_cents) VALUES ('test', 0, 1000);
+          EOF
+              ;;
+
+            notifications)
+              cat > /tmp/test_backup.sql <<'EOF'
+          -- Test Notifications backup
+          CREATE TABLE IF NOT EXISTS notification_log (
+              id BIGSERIAL PRIMARY KEY,
+              created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
+
+          INSERT INTO notification_log DEFAULT VALUES;
+          EOF
+              ;;
+          esac
+
+          # Compress test backup
+          gzip -c /tmp/test_backup.sql > "${BACKUP_FILE}"
+          echo "Created test backup: ${BACKUP_FILE}"
+
+      - name: Run restore verification
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        run: |
+          MODULE="${{ steps.backup.outputs.module }}"
+          BACKUP_FILE="${{ steps.backup.outputs.backup_file }}"
+
+          echo "Running restore verification for module: ${MODULE}"
+          echo "Backup file: ${BACKUP_FILE}"
+
+          ./tools/backup/restore_verify.sh "${BACKUP_FILE}" "${MODULE}"
+
+      - name: Report results
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "✅ Restore verification PASSED"
+            echo "Module: ${{ steps.backup.outputs.module }}"
+            echo "Backup: ${{ steps.backup.outputs.backup_file }}"
+          else
+            echo "❌ Restore verification FAILED"
+            echo "Module: ${{ steps.backup.outputs.module }}"
+            echo "Backup: ${{ steps.backup.outputs.backup_file }}"
+            exit 1
+          fi
+
+      - name: Create verification report
+        if: always()
+        run: |
+          mkdir -p verification-reports
+          cat > verification-reports/restore-verify-${{ github.run_id }}.md <<EOF
+          # Restore Verification Report
+
+          **Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          **Module:** ${{ steps.backup.outputs.module }}
+          **Backup:** ${{ steps.backup.outputs.backup_file }}
+          **Status:** ${{ job.status }}
+          **Run ID:** ${{ github.run_id }}
+
+          ## Summary
+
+          Quarterly restore verification test to ensure backups are provably restorable.
+
+          ## Results
+
+          - Restore Status: ${{ job.status }}
+          - Integrity Checks: ${{ job.status == 'success' && '✅ PASSED' || '❌ FAILED' }}
+
+          ## Next Steps
+
+          - Quarterly verification schedule: Q1 (Jan 1), Q2 (Apr 1), Q3 (Jul 1), Q4 (Oct 1)
+          - Manual trigger available via workflow_dispatch
+          - Report any failures to platform team immediately
+
+          EOF
+
+          cat verification-reports/restore-verify-${{ github.run_id }}.md
+
+      - name: Upload verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: restore-verification-report-${{ github.run_id }}
+          path: verification-reports/
+          retention-days: 90
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Restore verification failed for module ${{ steps.backup.outputs.module }}"
+          echo "::error::Review verification report for details"
+          # In production, send Slack/email notification

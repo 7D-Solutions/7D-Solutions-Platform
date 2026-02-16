@@ -82,6 +82,7 @@ async fn main() {
     let app = Router::new()
         .route("/api/health", get(routes::health))
         .route("/api/ready", get(routes::ready))
+        .route("/api/version", get(routes::version))
         .with_state(pool.clone())
         .merge(routes::subscriptions_router(pool.clone()))
         .layer(

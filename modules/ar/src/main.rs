@@ -86,6 +86,7 @@ async fn main() {
     let app = Router::new()
         .route("/api/health", get(routes::health::health))
         .route("/api/ready", get(routes::health::ready))
+        .route("/api/version", get(routes::health::version))
         .with_state(db.clone())
         .merge(routes::ar_router(db))
         .layer(cors)
