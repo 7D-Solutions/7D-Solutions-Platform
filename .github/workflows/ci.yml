@@ -178,11 +178,22 @@ jobs:
           fi
 
           echo "✓ No prohibited cross-module Cargo path dependencies"
-      
+
       - name: Check migration boundaries
         run: |
           chmod +x tools/check_migration_boundaries.sh
           ./tools/check_migration_boundaries.sh
+
+  event-metadata-lint:
+    name: Event Metadata Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lint event metadata presence
+        run: |
+          chmod +x tools/ci/lint-event-metadata-present.sh
+          ./tools/ci/lint-event-metadata-present.sh
 
   build-auth:
     name: Build AUTH Module
