@@ -1,0 +1,180 @@
+{
+  "phase_17": {
+    "total": 15,
+    "tracks": {
+      "projection_integrity": 5,
+      "audit_spine": 5,
+      "tenant_provisioning": 5
+    }
+  },
+  "phase_18": {
+    "total": 8
+  },
+  "beads_created": [
+    {
+      "id": "bd-17a0",
+      "title": "Projection spine: cursor + idempotent apply contract",
+      "deps": []
+    },
+    {
+      "id": "bd-17a1",
+      "title": "Projection lag metrics and backlog gauges",
+      "deps": [
+        "bd-17a0"
+      ]
+    },
+    {
+      "id": "bd-17a2",
+      "title": "Deterministic projection rebuild tool (blue/green swap)",
+      "deps": [
+        "bd-17a0"
+      ]
+    },
+    {
+      "id": "bd-17a3",
+      "title": "Fallback policy: HTTP fallback budgets + circuit breaker",
+      "deps": [
+        "bd-17a1"
+      ]
+    },
+    {
+      "id": "bd-17a4",
+      "title": "Replay certification: rebuild -> digest equality suite",
+      "deps": [
+        "bd-17a2"
+      ]
+    },
+    {
+      "id": "bd-17b0",
+      "title": "Audit spine: append-only audit log schema + writer API",
+      "deps": []
+    },
+    {
+      "id": "bd-17b1",
+      "title": "Audit rules by mutation_class (policy enforcement)",
+      "deps": [
+        "bd-17b0"
+      ]
+    },
+    {
+      "id": "bd-17b2",
+      "title": "Field-level diff auditing for mutable_with_audit",
+      "deps": [
+        "bd-17b1"
+      ]
+    },
+    {
+      "id": "bd-17b3",
+      "title": "Actor identity propagation into audit + envelope",
+      "deps": [
+        "bd-17b0"
+      ]
+    },
+    {
+      "id": "bd-17b4",
+      "title": "Audit completeness oracle: mutation -> exactly one audit record",
+      "deps": [
+        "bd-17b1"
+      ]
+    },
+    {
+      "id": "bd-17c0",
+      "title": "Tenant registry + provisioning schema baseline",
+      "deps": []
+    },
+    {
+      "id": "bd-17c1",
+      "title": "Tenant provisioning CLI (create/activate/verify)",
+      "deps": [
+        "bd-17c0"
+      ]
+    },
+    {
+      "id": "bd-17c2",
+      "title": "Multi-tenant migration runner (N tenants, deterministic)",
+      "deps": [
+        "bd-17c0"
+      ]
+    },
+    {
+      "id": "bd-17c3",
+      "title": "Tenant suspension/deprovision flow (safe + auditable)",
+      "deps": [
+        "bd-17c1",
+        "bd-17b0"
+      ]
+    },
+    {
+      "id": "bd-17c4",
+      "title": "Scale simulation: 100 tenants billing digest stability",
+      "deps": [
+        "bd-17a4",
+        "bd-17b4",
+        "bd-17c2"
+      ]
+    },
+    {
+      "id": "bd-18a0",
+      "title": "Release pipeline: promote artifacts across environments",
+      "deps": []
+    },
+    {
+      "id": "bd-18a1",
+      "title": "Secrets and config hardening (env contract + validation)",
+      "deps": [
+        "bd-18a0"
+      ]
+    },
+    {
+      "id": "bd-18b0",
+      "title": "Service-to-service auth (signed internal requests)",
+      "deps": [
+        "bd-17a3",
+        "bd-17c1"
+      ]
+    },
+    {
+      "id": "bd-18b1",
+      "title": "RBAC for operator actions (tenant lifecycle + rebuild)",
+      "deps": [
+        "bd-18b0",
+        "bd-17c3",
+        "bd-17a2"
+      ]
+    },
+    {
+      "id": "bd-18c0",
+      "title": "Dashboards: SLO views for lag, UNKNOWN, audit failures",
+      "deps": [
+        "bd-17a1",
+        "bd-17b4",
+        "bd-16d2"
+      ]
+    },
+    {
+      "id": "bd-18c1",
+      "title": "DR drill: restore + replay rebuild + oracle pass",
+      "deps": [
+        "bd-17a4",
+        "bd-17b4",
+        "bd-16g1"
+      ]
+    },
+    {
+      "id": "bd-18d0",
+      "title": "Rate limiting and overload protection for read paths",
+      "deps": [
+        "bd-17a3"
+      ]
+    },
+    {
+      "id": "bd-18e0",
+      "title": "Compliance export: audit + ledger extract per tenant",
+      "deps": [
+        "bd-17b0",
+        "bd-17c0"
+      ]
+    }
+  ],
+  "created_at": "2026-02-16T22:14:38.317Z"
+}

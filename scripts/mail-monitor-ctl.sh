@@ -2,11 +2,35 @@
 # Control script for Agent Mail Monitor (terminal notifications)
 # Usage: ./scripts/mail-monitor-ctl.sh [--pane PANE_ID] {start|stop|status|restart}
 
+# Resolve real path (symlink-aware)
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "Error: python3 required for path resolution" >&2
+  exit 1
+fi
+SCRIPT_PATH="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "${BASH_SOURCE[0]}")"
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+
 # Source shared project configuration
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/project-config.sh"
 
 PROJECT_KEY="$MAIL_PROJECT_KEY"
+
+# Help message
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  echo "Usage: $0 [--pane PANE_ID] {start|stop|status|restart|ensure}"
+  echo "Control script for Agent Mail Monitor (terminal notifications)"
+  echo ""
+  echo "Commands:"
+  echo "  start    Start the mail monitor"
+  echo "  stop     Stop the mail monitor"
+  echo "  status   Check monitor status"
+  echo "  restart  Restart the monitor"
+  echo "  ensure   Start if not running (idempotent)"
+  echo ""
+  echo "Options:"
+  echo "  --pane PANE_ID   Target specific tmux pane"
+  exit 0
+fi
 
 # Parse optional --pane parameter
 TARGET_PANE=""
