@@ -24,6 +24,8 @@ sha2 = "0.10"
 event-bus = { path = "../../platform/event-bus" }
 futures = "0.3"
 async-nats = "0.33"
+prometheus-client = "0.22"
+lazy_static = "1.4"
 
 [dev-dependencies]
 serial_test = "3.3.1"

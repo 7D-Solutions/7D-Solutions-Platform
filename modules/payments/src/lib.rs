@@ -5,6 +5,7 @@ pub mod handlers;
 pub mod idempotency_keys;
 pub mod invariants;
 pub mod lifecycle;
+pub mod metrics;
 pub mod models;
 pub mod processor;
 pub mod reconciliation;

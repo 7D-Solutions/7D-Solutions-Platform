@@ -7,7 +7,18 @@ use tracing_subscriber::EnvFilter;
 
 mod db;
 mod events;
+mod metrics;
 mod routes;
+
+/// Handler for /metrics endpoint
+async fn metrics_handler() -> String {
+    use prometheus_client::encoding::text::encode;
+
+    let registry = metrics::METRICS_REGISTRY.lock().unwrap();
+    let mut buffer = String::new();
+    encode(&mut buffer, &registry).unwrap();
+    buffer
+}
 
 #[tokio::main]
 async fn main() {
@@ -78,6 +89,7 @@ async fn main() {
         .route("/api/health", get(routes::health::health))
         .route("/api/ready", get(routes::health::ready))
         .route("/api/version", get(routes::health::version))
+        .route("/metrics", get(metrics_handler))
         .with_state(pool)
         .layer(
             CorsLayer::new()

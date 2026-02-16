@@ -258,6 +258,10 @@ pub async fn transition_to_succeeded(
     // CRITICAL: Emit BEFORE tx.commit() to ensure atomicity
 
     tx.commit().await?;
+
+    // Record metrics (Phase 16: bd-1pw7)
+    crate::metrics::record_payment_attempt(status::SUCCEEDED);
+
     Ok(())
 }
 
@@ -287,6 +291,10 @@ pub async fn transition_to_failed_retry(
     // When implemented, use enqueue_event_tx(&mut tx, ...) BEFORE tx.commit()
 
     tx.commit().await?;
+
+    // Record metrics (Phase 16: bd-1pw7)
+    crate::metrics::record_payment_attempt(status::FAILED_RETRY);
+
     Ok(())
 }
 
@@ -316,6 +324,10 @@ pub async fn transition_to_failed_final(
     // When implemented, use enqueue_event_tx(&mut tx, ...) BEFORE tx.commit()
 
     tx.commit().await?;
+
+    // Record metrics (Phase 16: bd-1pw7)
+    crate::metrics::record_payment_attempt(status::FAILED_FINAL);
+
     Ok(())
 }
 
@@ -355,6 +367,10 @@ pub async fn transition_to_unknown(
     // When implemented, use enqueue_event_tx(&mut tx, ...) BEFORE tx.commit()
 
     tx.commit().await?;
+
+    // Record metrics (Phase 16: bd-1pw7)
+    crate::metrics::record_payment_attempt(status::UNKNOWN);
+
     Ok(())
 }
 
@@ -388,6 +404,11 @@ pub async fn transition_to_attempting(
     // When implemented, use enqueue_event_tx(&mut tx, ...) BEFORE tx.commit()
 
     tx.commit().await?;
+
+    // Record metrics (Phase 16: bd-1pw7)
+    crate::metrics::record_payment_attempt(status::ATTEMPTING);
+    crate::metrics::record_retry_attempt();
+
     Ok(())
 }
 

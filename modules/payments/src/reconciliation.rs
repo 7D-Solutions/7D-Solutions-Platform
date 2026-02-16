@@ -326,6 +326,15 @@ async fn resolve_unknown_to_terminal(
     target_status: &str,
     psp_status: &PspPaymentStatus,
 ) -> Result<(), ReconciliationError> {
+    // Fetch completed_at timestamp to calculate UNKNOWN duration (Phase 16: bd-1pw7)
+    let completed_at: Option<chrono::NaiveDateTime> = sqlx::query_scalar(
+        "SELECT completed_at FROM payment_attempts WHERE id = $1"
+    )
+    .bind(attempt_id)
+    .fetch_optional(pool)
+    .await?
+    .flatten();
+
     let reason = match psp_status {
         PspPaymentStatus::Succeeded => "PSP confirmed payment succeeded".to_string(),
         PspPaymentStatus::FailedRetry { code, message } => {
@@ -356,6 +365,14 @@ async fn resolve_unknown_to_terminal(
                 target_status
             )));
         }
+    }
+
+    // Record UNKNOWN duration metric (Phase 16: bd-1pw7)
+    if let Some(unknown_started_at) = completed_at {
+        let now = chrono::Utc::now().naive_utc();
+        let duration = now.signed_duration_since(unknown_started_at);
+        let duration_seconds = duration.num_seconds() as f64;
+        crate::metrics::record_unknown_duration(duration_seconds);
     }
 
     Ok(())
