@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 /// Outbox record for fetching unpublished events
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -10,6 +11,22 @@ pub struct OutboxRecord {
     pub payload: serde_json::Value,
     pub created_at: DateTime<Utc>,
     pub published_at: Option<DateTime<Utc>>,
+    // Envelope metadata
+    pub event_id: Option<Uuid>,
+    pub event_type: Option<String>,
+    pub tenant_id: Option<String>,
+    pub source_module: Option<String>,
+    pub source_version: Option<String>,
+    pub schema_version: Option<String>,
+    pub replay_safe: Option<bool>,
+    pub occurred_at: Option<DateTime<Utc>>,
+    pub trace_id: Option<String>,
+    pub correlation_id: Option<String>,
+    pub causation_id: Option<String>,
+    pub reverses_event_id: Option<Uuid>,
+    pub supersedes_event_id: Option<Uuid>,
+    pub side_effect_id: Option<String>,
+    pub mutation_class: Option<String>,
 }
 
 /// Enqueue an event to be published later
@@ -32,12 +49,32 @@ pub async fn enqueue_event<T: Serialize>(
 
     let record = sqlx::query!(
         r#"
-        INSERT INTO events_outbox (subject, payload)
-        VALUES ($1, $2)
+        INSERT INTO events_outbox (
+            subject, payload, event_id, event_type, tenant_id, source_module,
+            source_version, schema_version, replay_safe, occurred_at,
+            trace_id, correlation_id, causation_id, reverses_event_id,
+            supersedes_event_id, side_effect_id, mutation_class
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         RETURNING id
         "#,
         event_type,
-        payload
+        payload,
+        envelope.event_id,
+        &envelope.event_type,
+        &envelope.tenant_id,
+        &envelope.source_module,
+        &envelope.source_version,
+        &envelope.schema_version,
+        envelope.replay_safe,
+        envelope.occurred_at,
+        envelope.trace_id.as_ref(),
+        envelope.correlation_id.as_ref(),
+        envelope.causation_id.as_ref(),
+        envelope.reverses_event_id.as_ref(),
+        envelope.supersedes_event_id.as_ref(),
+        envelope.side_effect_id.as_ref(),
+        envelope.mutation_class.as_ref()
     )
     .fetch_one(pool)
     .await?;
@@ -54,7 +91,12 @@ pub async fn fetch_unpublished_events(
 ) -> Result<Vec<OutboxRecord>, sqlx::Error> {
     let records = sqlx::query_as::<_, OutboxRecord>(
         r#"
-        SELECT id, subject, payload, created_at, published_at
+        SELECT
+            id, subject, payload, created_at, published_at,
+            event_id, event_type, tenant_id, source_module,
+            source_version, schema_version, replay_safe, occurred_at,
+            trace_id, correlation_id, causation_id, reverses_event_id,
+            supersedes_event_id, side_effect_id, mutation_class
         FROM events_outbox
         WHERE published_at IS NULL
         ORDER BY created_at ASC

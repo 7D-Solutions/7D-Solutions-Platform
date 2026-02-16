@@ -1,11 +1,11 @@
 use axum::{routing::get, Json, Router};
 use event_bus::{EventBus, InMemoryBus};
-use sqlx::postgres::PgPoolOptions;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
+mod db;
 mod events;
 
 #[tokio::main]
@@ -29,9 +29,7 @@ async fn main() {
 
     // Database connection
     tracing::info!("Connecting to database...");
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
+    let pool = db::resolver::resolve_pool(&database_url)
         .await
         .expect("Failed to connect to database");
 
