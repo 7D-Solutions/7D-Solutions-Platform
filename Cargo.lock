@@ -787,11 +787,13 @@ dependencies = [
  "anyhow",
  "ar-rs",
  "async-nats 0.33.0",
+ "audit",
  "chrono",
  "event-bus",
  "futures",
  "gl-rs",
  "payments-rs",
+ "projections",
  "reqwest 0.12.28",
  "serde",
  "serde_json",
@@ -2394,6 +2396,9 @@ dependencies = [
  "chrono",
  "serde",
  "serde_json",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
  "uuid",
 ]
 
