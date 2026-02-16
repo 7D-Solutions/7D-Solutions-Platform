@@ -46,14 +46,32 @@ pub async fn enqueue_event<T: Serialize>(
 
     sqlx::query(
         r#"
-        INSERT INTO events_outbox (event_id, subject, payload, tenant_id, status)
-        VALUES ($1, $2, $3, $4, 'pending')
+        INSERT INTO events_outbox (
+            event_id, subject, payload, tenant_id, status,
+            event_type, source_module, source_version, schema_version,
+            occurred_at, replay_safe, trace_id, correlation_id, causation_id,
+            reverses_event_id, supersedes_event_id, side_effect_id, mutation_class
+        )
+        VALUES ($1, $2, $3, $4, 'pending', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         "#
     )
     .bind(envelope.event_id)
     .bind(subject)
     .bind(payload)
     .bind(&envelope.tenant_id)
+    .bind(&envelope.event_type)
+    .bind(&envelope.source_module)
+    .bind(&envelope.source_version)
+    .bind(&envelope.schema_version)
+    .bind(envelope.occurred_at)
+    .bind(envelope.replay_safe)
+    .bind(&envelope.trace_id)
+    .bind(&envelope.correlation_id)
+    .bind(&envelope.causation_id)
+    .bind(&envelope.reverses_event_id)
+    .bind(&envelope.supersedes_event_id)
+    .bind(&envelope.side_effect_id)
+    .bind(&envelope.mutation_class)
     .execute(&mut **tx)
     .await?;
 
@@ -96,12 +114,30 @@ async fn publish_pending_events(
         payload: serde_json::Value,
         tenant_id: String,
         retry_count: i32,
+        // Envelope metadata
+        event_type: Option<String>,
+        source_module: Option<String>,
+        source_version: Option<String>,
+        schema_version: Option<String>,
+        occurred_at: Option<chrono::DateTime<chrono::Utc>>,
+        replay_safe: Option<bool>,
+        trace_id: Option<String>,
+        correlation_id: Option<String>,
+        causation_id: Option<String>,
+        reverses_event_id: Option<Uuid>,
+        supersedes_event_id: Option<Uuid>,
+        side_effect_id: Option<String>,
+        mutation_class: Option<String>,
     }
 
     // Fetch pending events (limit batch size to avoid overwhelming the bus)
     let events = sqlx::query_as::<_, OutboxEvent>(
         r#"
-        SELECT id, event_id, subject, payload, tenant_id, retry_count
+        SELECT
+            id, event_id, subject, payload, tenant_id, retry_count,
+            event_type, source_module, source_version, schema_version,
+            occurred_at, replay_safe, trace_id, correlation_id, causation_id,
+            reverses_event_id, supersedes_event_id, side_effect_id, mutation_class
         FROM events_outbox
         WHERE status = 'pending'
         ORDER BY created_at ASC

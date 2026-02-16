@@ -1,4 +1,5 @@
 mod config;
+mod db;
 mod consumer;
 mod cycle_gating;
 mod dlq;
@@ -14,7 +15,7 @@ mod routes;
 use axum::{extract::State, routing::get, Json, Router};
 use config::Config;
 use event_bus::{EventBus, InMemoryBus, NatsBus};
-use sqlx::postgres::PgPoolOptions;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -33,9 +34,7 @@ async fn main() {
     tracing::info!("Configuration loaded: {:?}", config.bus_type);
 
     // Initialize database pool
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&config.database_url)
+    let pool = db::resolver::resolve_pool(&config.database_url)
         .await
         .expect("Failed to connect to database");
 
