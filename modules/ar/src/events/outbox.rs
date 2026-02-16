@@ -142,3 +142,74 @@ pub struct UnpublishedEvent {
     pub side_effect_id: Option<String>,
     pub mutation_class: Option<String>,
 }
+
+/// Transaction-aware version of enqueue_event for atomicity guarantees
+///
+/// This function enqueues an event within an existing transaction, ensuring
+/// that the domain mutation and outbox insert commit atomically.
+///
+/// **Phase 16 Atomicity Fix (bd-umnu):**
+/// - Invoice finalization + outbox insert must be atomic
+/// - Either BOTH succeed or BOTH rollback
+/// - Prevents orphaned domain state without corresponding events
+///
+/// # Arguments
+/// * `tx` - Active database transaction
+/// * `event_type` - Event type for NATS subject routing
+/// * `aggregate_type` - Aggregate type for AR's DDD model
+/// * `aggregate_id` - Aggregate instance ID
+/// * `envelope` - Platform-standard event envelope
+pub async fn enqueue_event_tx<T: Serialize>(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    event_type: &str,
+    aggregate_type: &str,
+    aggregate_id: &str,
+    envelope: &EventEnvelope<T>,
+) -> Result<(), sqlx::Error> {
+    // Validate envelope at boundary - reject invalid envelopes before insert
+    let payload = validate_and_serialize_envelope(envelope)
+        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Envelope validation failed: {}", e),
+        ))))?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO events_outbox (
+            event_id, event_type, aggregate_type, aggregate_id, payload,
+            tenant_id, source_module, source_version, schema_version,
+            occurred_at, replay_safe, trace_id, correlation_id, causation_id,
+            reverses_event_id, supersedes_event_id, side_effect_id, mutation_class
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        "#,
+    )
+    .bind(envelope.event_id)
+    .bind(event_type)
+    .bind(aggregate_type)
+    .bind(aggregate_id)
+    .bind(payload)
+    .bind(&envelope.tenant_id)
+    .bind(&envelope.source_module)
+    .bind(&envelope.source_version)
+    .bind(&envelope.schema_version)
+    .bind(envelope.occurred_at)
+    .bind(envelope.replay_safe)
+    .bind(&envelope.trace_id)
+    .bind(&envelope.correlation_id)
+    .bind(&envelope.causation_id)
+    .bind(&envelope.reverses_event_id)
+    .bind(&envelope.supersedes_event_id)
+    .bind(&envelope.side_effect_id)
+    .bind(&envelope.mutation_class)
+    .execute(&mut **tx)
+    .await?;
+
+    tracing::debug!(
+        event_id = %envelope.event_id,
+        event_type = %event_type,
+        "Event enqueued to outbox (in transaction)"
+    );
+
+    Ok(())
+}

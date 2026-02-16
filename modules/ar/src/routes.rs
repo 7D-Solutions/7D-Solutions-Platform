@@ -1,3 +1,5 @@
+pub mod health;
+
 use axum::{
     body::Bytes,
     extract::{Path, Query, State},
@@ -1214,6 +1216,15 @@ async fn get_invoice(
         )
     })?;
 
+    // Commit transaction atomically
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("transaction_error", format!("Failed to commit transaction: {}", e))),
+        )
+    })?;
+
     Ok(Json(invoice))
 }
 
@@ -1454,6 +1465,15 @@ async fn update_invoice(
 
     tracing::info!("Updated invoice {}", id);
 
+    // Commit transaction atomically
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("transaction_error", format!("Failed to commit transaction: {}", e))),
+        )
+    })?;
+
     Ok(Json(invoice))
 }
 
@@ -1516,6 +1536,19 @@ async fn finalize_invoice(
 
     let paid_at = req.paid_at.or_else(|| Some(chrono::Utc::now().naive_utc()));
 
+    // Begin transaction for atomicity (bd-umnu: invoice mutation + outbox must commit together)
+    let mut tx = db.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new(
+                "database_error",
+                format!("Failed to begin transaction: {}", e),
+            )),
+        )
+    })?;
+
+
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"
         UPDATE ar_invoices
@@ -1530,7 +1563,7 @@ async fn finalize_invoice(
     )
     .bind(paid_at)
     .bind(id)
-    .fetch_one(&db)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!("Failed to finalize invoice: {:?}", e);
@@ -1550,7 +1583,7 @@ async fn finalize_invoice(
         "SELECT default_payment_method_id FROM ar_customers WHERE id = $1"
     )
     .bind(invoice.ar_customer_id)
-    .fetch_optional(&db)
+    .fetch_optional(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!("Failed to fetch customer payment method: {:?}", e);
@@ -1582,28 +1615,22 @@ async fn finalize_invoice(
         event_payload,
     );
 
-    if let Err(e) = enqueue_event(
-        &db,
+    crate::events::outbox::enqueue_event_tx(
+        &mut tx,
         "payment.collection.requested",
         "invoice",
         &invoice.id.to_string(),
         &event_envelope,
     )
     .await
-    {
-        tracing::error!(
-            "Failed to enqueue payment.collection.requested event for invoice {}: {:?}",
-            invoice.id,
-            e
-        );
-        // Don't fail the finalization if event emission fails
-        // The invoice is already finalized in the database
-    } else {
-        tracing::info!(
-            "Enqueued payment.collection.requested event for invoice {}",
-            invoice.id
-        );
-    }
+    .map_err(|e| {
+        tracing::error!("Failed to enqueue payment.collection.requested event: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("outbox_error", format!("Failed to enqueue event: {}", e))),
+        )
+    })?;
+
 
     // Emit gl.posting.requested event to GL module
     use crate::models::{GlPostingRequestPayload, GlPostingLine};
@@ -1641,26 +1668,31 @@ async fn finalize_invoice(
         gl_payload,
     );
 
-    if let Err(e) = enqueue_event(
-        &db,
+    crate::events::outbox::enqueue_event_tx(
+        &mut tx,
         "gl.posting.requested",
         "invoice",
         &invoice.id.to_string(),
         &gl_envelope,
     )
     .await
-    {
-        tracing::error!(
-            "Failed to enqueue gl.posting.requested event for invoice {}: {:?}",
-            invoice.id,
-            e
-        );
-    } else {
-        tracing::info!(
-            "Enqueued gl.posting.requested event for invoice {}",
-            invoice.id
-        );
-    }
+    .map_err(|e| {
+        tracing::error!("Failed to enqueue gl.posting.requested event: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("outbox_error", format!("Failed to enqueue event: {}", e))),
+        )
+    })?;
+
+
+    // Commit transaction atomically
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit transaction: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("transaction_error", format!("Failed to commit transaction: {}", e))),
+        )
+    })?;
 
     Ok(Json(invoice))
 }
