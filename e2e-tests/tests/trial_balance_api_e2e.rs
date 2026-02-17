@@ -286,9 +286,9 @@ async fn test_trial_balance_api() {
         .await
         .expect("Failed to create test balances");
 
-    // Call trial balance API
+    // Call trial balance API with explicit currency (API requires currency parameter)
     let url = format!(
-        "http://localhost:8090/api/gl/trial-balance?tenant_id={}&period_id={}",
+        "http://localhost:8090/api/gl/trial-balance?tenant_id={}&period_id={}&currency=USD",
         tenant_id, period_id
     );
 
@@ -317,7 +317,7 @@ async fn test_trial_balance_api() {
     println!("✓ Trial balance API returned {} rows", tb.rows.len());
     assert_eq!(tb.tenant_id, tenant_id);
     assert_eq!(tb.period_id, period_id);
-    assert_eq!(tb.currency, None); // No currency filter
+    assert_eq!(tb.currency, Some("USD".to_string())); // Currency filter applied
 
     // Verify rows
     assert_eq!(tb.rows.len(), 3, "Expected 3 accounts");
