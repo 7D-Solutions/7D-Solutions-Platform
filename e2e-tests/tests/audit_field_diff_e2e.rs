@@ -10,7 +10,7 @@ mod common;
 
 use audit::{
     actor::Actor,
-    diff::{Diff, FieldChange},
+    diff::Diff,
     schema::{MutationClass, WriteAuditRequest},
     writer::AuditWriter,
 };

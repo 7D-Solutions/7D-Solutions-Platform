@@ -1,7 +1,0 @@
-{
-  "ok": true,
-  "raw_text": "Green light granted. Execute the first wave exactly as defined.\n\n✅ Approved to proceed (Wave 1)\n\nAgent 1: bd-17s0 (platform/projections scaffolding)\n\nAgent 2: bd-17s1 (platform/audit scaffolding)\n\nAgent 3: bd-17s2 (platform/tenant-registry scaffolding)\n\nNon-negotiable deliverable checklist (each bead)\n\nNew crate directory exists\n\nCargo.toml + src/lib.rs (or main.rs for tools; not applicable here)\n\nRoot workspace Cargo.toml members updated\n\ncargo test --workspace passes\n\nNo business logic, no migrations, no endpoints\n\nNo dependencies on module crates (AR/Payments/Subscriptions/GL/Notifications)\n\nMerge order rule\n\nMerge whichever finishes first, but do not merge if it introduces:\n\ncross-module imports\n\nnew heavy deps without justification\n\nCI failures in existing lints/gates\n\nImmediate next wave (unlocked after all 3 merge)\n\nRun these in parallel:\n\nbd-17a0 Projection spine (cursor contract)\n\nbd-17b0 Audit spine (append-only schema + writer API)\n\nbd-17c0 Tenant registry baseline\n\nProceed.",
-  "parse_ok": false,
-  "extracted_json": null,
-  "error": "NO_JSON_STRUCTURE_FOUND"
-}

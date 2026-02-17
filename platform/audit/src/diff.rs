@@ -4,7 +4,7 @@
 /// Diffs are deterministic (stable ordering) and include complete metadata.
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::Value;
 use std::collections::BTreeMap;
 
 /// Field-level change record

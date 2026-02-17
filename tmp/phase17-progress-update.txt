@@ -1,0 +1,42 @@
+## Phase 17/18 Progress Update - Wave 1 Status
+
+### Closed Beads (12 complete):
+
+**Scaffolding (all done):**
+- bd-17s0: projections crate ✅ (CopperRiver)
+- bd-17s1: audit crate ✅ (BrightHill)
+- bd-17s2: tenant-registry crate ✅ (CopperRiver)
+
+**Projection Track (A):**
+- bd-17a0: Projection cursor + idempotent apply contract ✅ (CopperRiver) - 11 E2E tests
+- bd-17a1: Projection lag metrics + backlog gauges ✅ (CopperRiver)
+
+**Audit Track (B):**
+- bd-17b0: Audit spine: append-only schema + writer API ✅
+- bd-17b1: Audit rules by mutation_class (policy enforcement) ✅ (MaroonHarbor)
+- bd-17b3: Actor identity propagation into audit + envelope ✅ (PurpleCliff)
+
+**Tenant Track (C):**
+- bd-17c0: Tenant registry + provisioning schema baseline ✅ (PurpleCliff)
+
+**Phase 18:**
+- bd-18a0: Release pipeline: promote artifacts across environments ✅ (MaroonHarbor)
+
+**Bug fixes:**
+- bd-17b0.1: Fix projection cursor E2E compilation ✅
+- bd-17b1.1: Fix Clone impl for ProjectionMetrics ✅
+
+### In Progress (3):
+- bd-17a3: Fallback policy: HTTP fallback budgets + circuit breaker (MaroonHarbor)
+- bd-17b2: Field-level diff auditing for mutable_with_audit (PurpleCliff)
+- bd-17b4: Audit completeness oracle: mutation -> exactly one audit record (CopperRiver)
+
+### Wave 1 Assessment:
+- 12/30 beads complete (40%)
+- All 3 scaffolding beads done
+- All 3 tracks (Projection, Audit, Tenant) have foundation beads complete
+- 3 agents actively working on Wave 1 tail beads
+- No blockers identified
+
+### Ready for Wave 2 Planning?
+Wave 1 foundation is solid. The remaining 3 in-progress beads should close soon. Should we start unlocking Wave 2 beads (bd-17a2, bd-17a4, bd-17c1-c4, bd-17s3-s4)?
