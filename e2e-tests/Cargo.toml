@@ -112,6 +112,18 @@ name = "demo_seed_determinism_e2e"
 path = "tests/demo_seed_determinism_e2e.rs"
 
 [[test]]
+name = "ar_usage_capture_e2e"
+path = "tests/ar_usage_capture_e2e.rs"
+
+[[test]]
+name = "usage_to_invoice_e2e"
+path = "tests/usage_to_invoice_e2e.rs"
+
+[[test]]
+name = "credit_note_gl_posting_e2e"
+path = "tests/credit_note_gl_posting_e2e.rs"
+
+[[test]]
 name = "ar_credit_note_e2e"
 path = "tests/ar_credit_note_e2e.rs"
 

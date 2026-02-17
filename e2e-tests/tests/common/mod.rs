@@ -409,18 +409,48 @@ pub async fn cleanup_tenant_data(
 ) -> Result<(), String> {
     // Cleanup in reverse dependency order
 
-    // GL
+    // GL (reverse FK order: lines → processed_events → entries → balances → snapshots → accounts → periods)
     sqlx::query("DELETE FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE tenant_id = $1)")
         .bind(tenant_id)
         .execute(gl_pool)
         .await
         .map_err(|e| format!("Failed to cleanup GL lines: {}", e))?;
 
+    sqlx::query("DELETE FROM processed_events WHERE event_id IN (SELECT source_event_id FROM journal_entries WHERE tenant_id = $1)")
+        .bind(tenant_id)
+        .execute(gl_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup GL processed_events: {}", e))?;
+
     sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(gl_pool)
         .await
         .map_err(|e| format!("Failed to cleanup GL entries: {}", e))?;
+
+    sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(gl_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup GL account_balances: {}", e))?;
+
+    sqlx::query("DELETE FROM period_summary_snapshots WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(gl_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup GL period_summary_snapshots: {}", e))?;
+
+    sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(gl_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup GL accounts: {}", e))?;
+
+    sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(gl_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup GL accounting_periods: {}", e))?;
 
     // Payments
     sqlx::query("DELETE FROM payment_attempts WHERE app_id = $1")
@@ -429,37 +459,70 @@ pub async fn cleanup_tenant_data(
         .await
         .map_err(|e| format!("Failed to cleanup payment attempts: {}", e))?;
 
-    // AR
+    // AR outbox events (must come before AR domain tables)
+    sqlx::query("DELETE FROM events_outbox WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(ar_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup AR events_outbox: {}", e))?;
+
+    // AR write-offs (before invoices due to FK)
+    sqlx::query("DELETE FROM ar_invoice_write_offs WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(ar_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup AR write-offs: {}", e))?;
+
+    // AR credit notes (before invoices due to FK)
+    sqlx::query("DELETE FROM ar_credit_notes WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(ar_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup AR credit notes: {}", e))?;
+
+    // AR dunning states
+    sqlx::query("DELETE FROM ar_dunning_states WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(ar_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup AR dunning states: {}", e))?;
+
+    // AR invoice attempts
     sqlx::query("DELETE FROM ar_invoice_attempts WHERE app_id = $1")
         .bind(tenant_id)
         .execute(ar_pool)
         .await
         .map_err(|e| format!("Failed to cleanup AR attempts: {}", e))?;
 
+    // AR metered usage
     sqlx::query("DELETE FROM ar_metered_usage WHERE app_id = $1")
         .bind(tenant_id)
         .execute(ar_pool)
         .await
         .map_err(|e| format!("Failed to cleanup AR metered usage: {}", e))?;
 
+    // AR charges
     sqlx::query("DELETE FROM ar_charges WHERE app_id = $1")
         .bind(tenant_id)
         .execute(ar_pool)
         .await
         .map_err(|e| format!("Failed to cleanup AR charges: {}", e))?;
 
+    // AR invoice line items
     sqlx::query("DELETE FROM ar_invoice_line_items WHERE app_id = $1")
         .bind(tenant_id)
         .execute(ar_pool)
         .await
         .map_err(|e| format!("Failed to cleanup AR invoice line items: {}", e))?;
 
+    // AR invoices
     sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
         .bind(tenant_id)
         .execute(ar_pool)
         .await
         .map_err(|e| format!("Failed to cleanup AR invoices: {}", e))?;
 
+    // AR aging buckets
     sqlx::query("DELETE FROM ar_aging_buckets WHERE app_id = $1")
         .bind(tenant_id)
         .execute(ar_pool)
