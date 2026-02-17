@@ -4,6 +4,7 @@ pub mod contracts;
 pub mod db;
 pub mod dlq;
 pub mod domain;
+pub mod events;
 pub mod health;
 pub mod invariants;
 pub mod metrics;
