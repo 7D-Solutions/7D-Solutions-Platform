@@ -4916,6 +4916,7 @@ async fn dunning_poll_route(
         &db,
         batch_size,
         &correlation_id,
+        None, // No tenant filter — global scheduler
     )
     .await;
 

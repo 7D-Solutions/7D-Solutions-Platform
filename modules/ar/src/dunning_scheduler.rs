@@ -2,12 +2,12 @@
 //!
 //! Polls for due dunning rows using `FOR UPDATE SKIP LOCKED` to claim work,
 //! executes the next dunning action, records the outcome, computes backoff,
-//! and emits state-changed events atomically.
+//! and emits state-changed events atomically — all within a single transaction.
 //!
 //! ## Concurrency Safety
 //!
 //! - `FOR UPDATE SKIP LOCKED` ensures two concurrent workers never process the same row.
-//! - Each row is claimed inside a transaction: claim → execute → record → emit → commit.
+//! - Claim + state update + outbox event all happen in ONE transaction.
 //! - Bounded exponential backoff: base 1h, factor 2×, max 72h.
 //!
 //! ## Backoff Formula
@@ -18,7 +18,7 @@
 //!
 //! Where base = 1 hour, max_delay = 72 hours.
 
-use crate::dunning::{transition_dunning, DunningError, DunningStateValue, TransitionDunningRequest};
+use crate::dunning::{DunningError, DunningStateValue};
 use crate::events::{
     build_dunning_state_changed_envelope, DunningState, DunningStateChangedPayload,
     EVENT_TYPE_DUNNING_STATE_CHANGED,
@@ -61,15 +61,15 @@ pub fn compute_next_attempt(now: DateTime<Utc>, attempt_count: i32) -> DateTime<
 
 /// A dunning row that is due for processing.
 #[derive(Debug)]
-pub struct ClaimableDunningRow {
-    pub id: i32,
-    pub dunning_id: Uuid,
-    pub app_id: String,
-    pub invoice_id: i32,
-    pub customer_id: String,
-    pub state: String,
-    pub version: i32,
-    pub attempt_count: i32,
+struct ClaimableDunningRow {
+    id: i32,
+    dunning_id: Uuid,
+    app_id: String,
+    invoice_id: i32,
+    customer_id: String,
+    state: String,
+    version: i32,
+    attempt_count: i32,
 }
 
 impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for ClaimableDunningRow {
@@ -126,7 +126,7 @@ fn next_state_for(current: &DunningStateValue) -> Option<DunningStateValue> {
         DunningStateValue::Pending => Some(DunningStateValue::Warned),
         DunningStateValue::Warned => Some(DunningStateValue::Escalated),
         DunningStateValue::Escalated => Some(DunningStateValue::Suspended),
-        // Terminal states — no automatic progression
+        // Terminal or suspended — no automatic progression
         DunningStateValue::Suspended
         | DunningStateValue::Resolved
         | DunningStateValue::WrittenOff => None,
@@ -137,48 +137,75 @@ fn next_state_for(current: &DunningStateValue) -> Option<DunningStateValue> {
 // Core scheduler functions
 // ============================================================================
 
-/// Claim and execute a single due dunning row.
+/// Claim and execute a single due dunning row within a single transaction.
 ///
 /// Uses `FOR UPDATE SKIP LOCKED` to safely claim one row that is due
-/// (next_attempt_at <= now, non-terminal state). If claimed:
+/// (next_attempt_at <= now, non-terminal state). Within the same transaction:
 /// 1. Determines the next state via progression policy
 /// 2. Computes bounded backoff for next_attempt_at
-/// 3. Transitions the state atomically (state + outbox event)
+/// 3. Updates the state row
+/// 4. Inserts outbox event (LIFECYCLE)
+/// 5. Commits atomically
 ///
-/// Returns the execution outcome.
+/// An optional `app_id` filter restricts claiming to a specific tenant.
 pub async fn claim_and_execute_one(
     pool: &PgPool,
     correlation_id: &str,
+    app_id_filter: Option<&str>,
 ) -> Result<DunningExecutionOutcome, DunningError> {
     let now = Utc::now();
+    let mut tx = pool.begin().await?;
 
-    // 1. Claim one due row with SKIP LOCKED
-    let row: Option<ClaimableDunningRow> = sqlx::query_as(
-        r#"
-        SELECT id, dunning_id, app_id, invoice_id, customer_id, state, version, attempt_count
-        FROM ar_dunning_states
-        WHERE next_attempt_at <= $1
-          AND state NOT IN ('resolved', 'written_off')
-        ORDER BY next_attempt_at ASC
-        LIMIT 1
-        FOR UPDATE SKIP LOCKED
-        "#,
-    )
-    .bind(now)
-    .fetch_optional(pool)
-    .await?;
+    // 1. Claim one due row with SKIP LOCKED (inside this transaction)
+    let row: Option<ClaimableDunningRow> = if let Some(app_id) = app_id_filter {
+        sqlx::query_as(
+            r#"
+            SELECT id, dunning_id, app_id, invoice_id, customer_id, state, version, attempt_count
+            FROM ar_dunning_states
+            WHERE next_attempt_at <= $1
+              AND state NOT IN ('resolved', 'written_off')
+              AND app_id = $2
+            ORDER BY next_attempt_at ASC
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+            "#,
+        )
+        .bind(now)
+        .bind(app_id)
+        .fetch_optional(&mut *tx)
+        .await?
+    } else {
+        sqlx::query_as(
+            r#"
+            SELECT id, dunning_id, app_id, invoice_id, customer_id, state, version, attempt_count
+            FROM ar_dunning_states
+            WHERE next_attempt_at <= $1
+              AND state NOT IN ('resolved', 'written_off')
+            ORDER BY next_attempt_at ASC
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+            "#,
+        )
+        .bind(now)
+        .fetch_optional(&mut *tx)
+        .await?
+    };
 
     let row = match row {
         Some(r) => r,
-        None => return Ok(DunningExecutionOutcome::NothingToClaim),
+        None => {
+            tx.rollback().await?;
+            return Ok(DunningExecutionOutcome::NothingToClaim);
+        }
     };
 
     let current_state = match DunningStateValue::from_str(&row.state) {
         Some(s) => s,
         None => {
+            tx.rollback().await?;
             return Ok(DunningExecutionOutcome::Failed {
                 error: format!("Unknown state in DB: {}", row.state),
-            })
+            });
         }
     };
 
@@ -186,64 +213,135 @@ pub async fn claim_and_execute_one(
     let target_state = match next_state_for(&current_state) {
         Some(s) => s,
         None => {
+            tx.rollback().await?;
             return Ok(DunningExecutionOutcome::AlreadyTerminal {
                 state: row.state.clone(),
-            })
+            });
         }
     };
 
-    // 3. Compute backoff for next attempt (based on new attempt count after transition)
+    // 3. Compute backoff for next attempt
     let new_attempt_count = row.attempt_count + 1;
     let next_attempt_at = if target_state.is_terminal() {
-        None // No further attempts for terminal states
+        None
     } else {
         Some(compute_next_attempt(now, new_attempt_count))
     };
 
-    // 4. Transition the dunning record (atomic: state + outbox event)
-    let result = transition_dunning(
-        pool,
-        TransitionDunningRequest {
-            app_id: row.app_id.clone(),
-            invoice_id: row.invoice_id,
-            to_state: target_state.clone(),
-            reason: format!("scheduler_auto_escalation_attempt_{}", new_attempt_count),
-            next_attempt_at,
-            last_error: None,
-            correlation_id: correlation_id.to_string(),
-            causation_id: Some(format!("dunning-scheduler-{}", row.dunning_id)),
-        },
+    // 4. Update the state row (optimistic lock via version)
+    let rows_updated = sqlx::query(
+        r#"
+        UPDATE ar_dunning_states
+        SET
+            state           = $1,
+            version         = version + 1,
+            attempt_count   = $2,
+            next_attempt_at = $3,
+            updated_at      = $4
+        WHERE
+            id = $5
+            AND version = $6
+        "#,
     )
+    .bind(target_state.as_str())
+    .bind(new_attempt_count)
+    .bind(&next_attempt_at)
+    .bind(now)
+    .bind(row.id)
+    .bind(row.version)
+    .execute(&mut *tx)
     .await?;
 
-    match result {
-        crate::dunning::TransitionDunningResult::Transitioned {
-            from_state,
-            to_state,
-            new_attempt_count: actual_attempt_count,
-            ..
-        } => Ok(DunningExecutionOutcome::Transitioned {
-            from_state: from_state.as_str().to_string(),
-            to_state: to_state.as_str().to_string(),
-            new_attempt_count: actual_attempt_count,
-            next_attempt_at,
-        }),
+    if rows_updated.rows_affected() == 0 {
+        tx.rollback().await?;
+        return Err(DunningError::ConcurrentModification {
+            invoice_id: row.invoice_id,
+        });
     }
+
+    // 5. Build and enqueue outbox event (LIFECYCLE)
+    let outbox_event_id = Uuid::new_v4();
+    let payload = DunningStateChangedPayload {
+        tenant_id: row.app_id.clone(),
+        invoice_id: row.invoice_id.to_string(),
+        customer_id: row.customer_id.clone(),
+        from_state: Some(current_state.to_event_state()),
+        to_state: target_state.to_event_state(),
+        reason: format!("scheduler_auto_escalation_attempt_{}", new_attempt_count),
+        attempt_number: new_attempt_count,
+        next_retry_at: next_attempt_at,
+        transitioned_at: now,
+    };
+
+    let envelope = build_dunning_state_changed_envelope(
+        outbox_event_id,
+        row.app_id.clone(),
+        correlation_id.to_string(),
+        Some(format!("dunning-scheduler-{}", row.dunning_id)),
+        payload,
+    );
+
+    let payload_json = serde_json::to_value(&envelope)
+        .map_err(|e| DunningError::DatabaseError(e.to_string()))?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO events_outbox (
+            event_id, event_type, aggregate_type, aggregate_id, payload,
+            tenant_id, source_module, mutation_class, schema_version,
+            occurred_at, replay_safe, correlation_id, causation_id
+        )
+        VALUES ($1, $2, 'dunning_state', $3, $4, $5, 'ar', 'LIFECYCLE', $6, $7, true, $8, $9)
+        "#,
+    )
+    .bind(outbox_event_id)
+    .bind(EVENT_TYPE_DUNNING_STATE_CHANGED)
+    .bind(row.dunning_id.to_string())
+    .bind(payload_json)
+    .bind(&row.app_id)
+    .bind(&envelope.schema_version)
+    .bind(now)
+    .bind(correlation_id)
+    .bind(format!("dunning-scheduler-{}", row.dunning_id))
+    .execute(&mut *tx)
+    .await?;
+
+    // 6. Update outbox_event_id on the dunning record for correlation
+    sqlx::query(
+        "UPDATE ar_dunning_states SET outbox_event_id = $1 WHERE id = $2",
+    )
+    .bind(outbox_event_id)
+    .bind(row.id)
+    .execute(&mut *tx)
+    .await?;
+
+    // 7. Commit the entire transaction atomically
+    tx.commit().await?;
+
+    Ok(DunningExecutionOutcome::Transitioned {
+        from_state: current_state.as_str().to_string(),
+        to_state: target_state.as_str().to_string(),
+        new_attempt_count,
+        next_attempt_at,
+    })
 }
 
 /// Poll and execute a batch of due dunning rows.
 ///
 /// Calls `claim_and_execute_one` up to `batch_size` times, stopping early
 /// when there's nothing left to claim. Returns all outcomes.
+///
+/// An optional `app_id` filter restricts claiming to a specific tenant.
 pub async fn poll_and_execute_batch(
     pool: &PgPool,
     batch_size: usize,
     correlation_id: &str,
+    app_id_filter: Option<&str>,
 ) -> Vec<DunningExecutionOutcome> {
     let mut outcomes = Vec::with_capacity(batch_size);
 
     for _ in 0..batch_size {
-        match claim_and_execute_one(pool, correlation_id).await {
+        match claim_and_execute_one(pool, correlation_id, app_id_filter).await {
             Ok(DunningExecutionOutcome::NothingToClaim) => {
                 outcomes.push(DunningExecutionOutcome::NothingToClaim);
                 break; // No more work available
@@ -294,7 +392,7 @@ mod tests {
     }
 
     #[test]
-    fn backoff_attempt_7_caps_at_72h() {
+    fn backoff_attempt_7_is_64h() {
         let now = Utc::now();
         let next = compute_next_attempt(now, 7);
         let diff = (next - now).num_seconds();
