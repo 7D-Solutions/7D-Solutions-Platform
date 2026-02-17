@@ -12,18 +12,18 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::domain::statements::{TrialBalanceRow, StatementTotals};
+use crate::domain::statements::{TrialBalanceRow, StatementTotals, CurrencyTotals};
 use crate::repos::statement_repo::{self, StatementError};
 
 /// Trial balance response with account balances and totals
 ///
-/// **Currency Policy**: Optional filter - if currency was specified it is echoed here; None means all currencies.
+/// **Currency Policy**: Single-currency only (currency is required parameter).
 /// **Balance Guarantee**: totals.is_balanced MUST be true or data is invalid.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrialBalanceResponse {
     pub tenant_id: String,
     pub period_id: Uuid,
-    pub currency: Option<String>, // None if no currency filter was applied
+    pub currency: String, // Changed from Option<String> - currency is now required
     pub rows: Vec<TrialBalanceRow>,
     pub totals: StatementTotals,
 }
@@ -74,7 +74,7 @@ pub async fn get_trial_balance(
     pool: &PgPool,
     tenant_id: &str,
     period_id: Uuid,
-    currency: Option<&str>,
+    currency: &str,  // Changed from Option<&str> - currency is now required
 ) -> Result<TrialBalanceResponse, TrialBalanceError> {
     // Validate tenant_id
     if tenant_id.is_empty() {
@@ -102,7 +102,7 @@ pub async fn get_trial_balance(
     Ok(TrialBalanceResponse {
         tenant_id: tenant_id.to_string(),
         period_id,
-        currency: currency.map(|c| c.to_string()),
+        currency: currency.to_string(),
         rows,
         totals,
     })
