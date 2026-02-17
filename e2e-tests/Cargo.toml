@@ -111,6 +111,14 @@ path = "tests/tenant_summary_api_e2e.rs"
 name = "demo_seed_determinism_e2e"
 path = "tests/demo_seed_determinism_e2e.rs"
 
+[[test]]
+name = "ar_credit_note_e2e"
+path = "tests/ar_credit_note_e2e.rs"
+
+[[test]]
+name = "ar_writeoff_e2e"
+path = "tests/ar_writeoff_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
