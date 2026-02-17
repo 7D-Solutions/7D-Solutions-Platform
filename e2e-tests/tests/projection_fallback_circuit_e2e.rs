@@ -5,6 +5,8 @@
 //! 2. Circuit breaker trips under sustained failures
 //! 3. Metrics are emitted for fallback count and latency
 
+mod common;
+
 use chrono::{Duration, Utc};
 use projections::{
     cursor::ProjectionCursor, CircuitBreaker, FallbackError, FallbackMetrics, FallbackPolicy,
@@ -12,36 +14,6 @@ use projections::{
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
-
-/// Helper to initialize test database with projection cursors schema
-async fn setup_test_db() -> PgPool {
-    let database_url = std::env::var("TEST_DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5432/ar_test".to_string());
-
-    let pool = PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect to test database");
-
-    // Ensure projection_cursors table exists
-    sqlx::query(
-        r#"
-        CREATE TABLE IF NOT EXISTS projection_cursors (
-            projection_name TEXT NOT NULL,
-            tenant_id TEXT NOT NULL,
-            last_event_id UUID NOT NULL,
-            last_event_occurred_at TIMESTAMPTZ NOT NULL,
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            events_processed BIGINT NOT NULL DEFAULT 0,
-            PRIMARY KEY (projection_name, tenant_id)
-        )
-        "#,
-    )
-    .execute(&pool)
-    .await
-    .expect("Failed to create projection_cursors table");
-
-    pool
-}
 
 /// Helper to clean up test data
 async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
@@ -55,7 +27,7 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 /// Test 1: Fallback only activates when projection is stale beyond threshold
 #[tokio::test]
 async fn test_fallback_staleness_threshold() {
-    let pool = setup_test_db().await;
+    let pool = common::get_projections_pool().await;
     let tenant_id = "test-tenant-staleness";
     let projection_name = "test_projection";
 
@@ -309,7 +281,7 @@ async fn test_fallback_metrics() {
 /// Test 6: End-to-end fallback flow with projection cursor
 #[tokio::test]
 async fn test_e2e_fallback_flow() {
-    let pool = setup_test_db().await;
+    let pool = common::get_projections_pool().await;
     let tenant_id = "test-tenant-e2e";
     let projection_name = "invoice_projection";
 
