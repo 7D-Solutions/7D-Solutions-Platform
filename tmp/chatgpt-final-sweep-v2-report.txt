@@ -1,0 +1,67 @@
+Phase 19 Post-Cleanup E2E Sweep Results
+
+PASS: 212 | FAIL: 19 | IGNORED: 1 | TOTAL: 232
+(9 failing targets)
+
+Ignored tests: DOWN from 18 to 1 (only real_e2e.rs::test_real_nats_based_e2e — requires live NATS, legitimate).
+
+The 17 formerly-ignored tests are now running. Some pass, some exposed new failures. Here's the full categorization of all 19 failures:
+
+═══════════════════════════════════════════════════════════════
+A. Phase10 governance — account_type enum cast (5 failures) — NEW
+═══════════════════════════════════════════════════════════════
+CopperRiver's bd-1oe rewrite INSERTs text into account_type enum column without ::account_type cast.
+Error: "column 'type' is of type account_type but expression is of type text"
+Tests: test_phase10_invalid_account_rejection, test_phase10_inactive_account_rejection, test_phase10_closed_period_rejection, test_phase10_valid_posting_open_period, test_phase10_valid_reversal, test_phase10_idempotent_reversal (5 of 6 fail, 1 might pass)
+Fix: Add ::account_type casts to INSERT statements in phase10_governance_e2e.rs
+
+═══════════════════════════════════════════════════════════════
+B. AR outbox atomicity + idempotency (2 failures)
+═══════════════════════════════════════════════════════════════
+test_ar_finalize_invoice_outbox_atomicity: finalize_invoice() succeeded but outbox has 0 events.
+test_ar_finalize_invoice_idempotency: NEW from bd-1ez conversion. Likely calls finalize_invoice twice but second call doesn't return AlreadyProcessed as expected.
+Root cause: AR finalize_invoice may not be writing to outbox in test harness.
+
+═══════════════════════════════════════════════════════════════
+C. Concurrency assertions (2 failures) — MaroonHarbor's bd-1mx
+═══════════════════════════════════════════════════════════════
+test_parallel_subscription_cycle_attempts + test_mixed_concurrent_operations
+These were supposed to be fixed by bd-1mx. Still failing — barrier pattern may not be working.
+
+═══════════════════════════════════════════════════════════════
+D. GL balance / journal (2 failures)
+═══════════════════════════════════════════════════════════════
+test_gl_balance_validation + test_multiple_independent_entries
+Likely NUMERIC vs INT8 type mismatch in SUM() or stale data.
+
+═══════════════════════════════════════════════════════════════
+E. Compliance export (2 failures)
+═══════════════════════════════════════════════════════════════
+test_compliance_export_determinism + test_compliance_export_tenant_isolation
+Panic at export.rs:212 — code-level bug in compliance export tool.
+
+═══════════════════════════════════════════════════════════════
+F. Pool timeout (2 failures)
+═══════════════════════════════════════════════════════════════
+test_e2e_fallback_flow + test_fallback_staleness_threshold
+Projections DB pool times out.
+
+═══════════════════════════════════════════════════════════════
+G. Other (4 failures)
+═══════════════════════════════════════════════════════════════
+- test_subscription_cycle_replay_deduplication: Oracle SucceededWithoutInvoice
+- test_invalid_double_reversal_rejected: UUID mismatch
+- test_trial_balance_api: API returns 400 instead of 200
+
+═══════════════════════════════════════════════════════════════
+SUMMARY
+═══════════════════════════════════════════════════════════════
+
+Category A (5 failures) is a trivial fix — add enum casts. Same pattern we fixed in Round 4.
+Category B (2) needs investigation.
+Category C (2) needs bd-1mx rework.
+Categories D-G (8) are pre-existing edge cases.
+
+Progress: Started at 63 failures → now 19. Ignored: 18 → 1.
+
+What beads for the next round?

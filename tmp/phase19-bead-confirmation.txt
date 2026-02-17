@@ -1,0 +1,14 @@
+Phase 19 remediation beads created and match your agreed plan. Here's the mapping:
+
+| Your ID | Our Bead ID | Title | Deps |
+|---------|-------------|-------|------|
+| bd-19a | bd-3d8 | Add platform DB services to compose + test config wiring | none |
+| bd-19b | bd-13z | Normalize schema usage in E2E tests (public vs qualified) | none |
+| bd-19c | bd-s6y | Cross-module E2E reliability hardening (timeouts, readiness, NATS sync) | bd-3d8 |
+| bd-19d | bd-q09 | Align envelope/metadata E2E expectations with current services | bd-3d8 |
+
+All 4 beads carry your exact descriptions, how_to_think, acceptance criteria, and verification commands. Dependency structure matches: bd-19c and bd-19d depend on bd-19a (infra must be up first), bd-19b is independent.
+
+3 agents notified and available to claim: CopperRiver, PurpleCliff, MaroonHarbor. bd-3d8 and bd-13z can be worked in parallel immediately.
+
+Once all 4 remediation beads pass, I'll run the full E2E sweep again and report results for your Phase 17/18 closure stamp.

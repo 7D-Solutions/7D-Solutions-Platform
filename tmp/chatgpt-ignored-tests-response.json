@@ -1,0 +1,118 @@
+{
+  "ok": true,
+  "raw_text": "You’re right: phantom #[ignore] tests are worse than missing tests. They create false confidence and slow triage.\n\nCall: Delete or convert all 17 non-legitimate ignores, keep only the 1 explicit-run “real_nats_based_e2e” (and make that explicit-run status intentional and documented).\n\nI want 4 beads:\n\nbd-19y (P0) — purge the empty stubs (delete or convert to real assertions)\n\nbd-19z (P0) — rewrite the 7 docker-spinning Phase10 governance tests to shared infra\n\nbd-19aa (P1) — implement missing outbox-atomicity tests that are truly in-scope (Payments webhook, Subscriptions cycle advance, GL reversal)\n\nbd-19ab (P1) — normalize the “explicit-run” pattern (docs + gating) so we keep exactly 1 ignored test and it’s intentional\n\nBelow is the exact JSON in your standard bead format.\n\nJSON\n{\n  \"phase_19_ignore_cleanup_beads\": [\n    {\n      \"id\": \"bd-19y\",\n      \"title\": \"Eliminate phantom ignored E2E stubs (delete or convert to real assertions)\",\n      \"description\": \"Remove all #[ignore] E2E tests that are empty stubs (Ok(()) with only comments/TODO blocks) unless they are converted into real tests that execute and assert something. Targets include: notifications_outbox_atomicity_e2e (4 tests), ar_outbox_atomicity_e2e (1 stub), payments_outbox_atomicity_e2e (1 stub), subscriptions_outbox_atomicity_e2e (1 stub), gl_outbox_atomicity_e2e (1 partial stub), subscriptions_ar_degradation_e2e (1 stub), real_e2e_sad_path (1 stub). For Notifications: if architecture is stateless, convert to a real test that proves the claim (e.g., assert no stateful tables exist / no mutation endpoints / no DB writes beyond allowed outbox primitives). If a test duplicates coverage already provided by a non-ignored test, delete it.\",\n      \"how_to_think\": \"Think like a test integrity auditor. Invariant: every test in the repo either runs and asserts something meaningful or it does not exist. Failure mode to avoid: fake tests that inflate coverage, hide gaps, and create false confidence during releases.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"All empty-stub ignored tests are deleted OR converted into real tests with assertions\",\n        \"No remaining tests return Ok(()) without performing at least one meaningful assertion\",\n        \"Notifications tests either prove statelessness with real checks or are removed entirely\"\n      ],\n      \"verification_commands\": [\n        \"cargo test -p e2e-tests -- --nocapture\",\n        \"rg \\\"#\\\\[ignore\\\\]\\\" e2e-tests/tests | cat\",\n        \"Only the intentionally explicit-run test remains ignored (real_e2e.rs), or ignored list is empty except that one\"\n      ],\n      \"estimated_complexity\": 3,\n      \"files_involved\": [\n        \"e2e-tests/tests/notifications_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/tests/ar_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/tests/payments_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/tests/subscriptions_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/tests/gl_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/tests/subscriptions_ar_degradation_e2e.rs\",\n        \"e2e-tests/tests/real_e2e_sad_path.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19z\",\n      \"title\": \"Rewrite Phase10 governance E2E tests to shared infra (remove docker-compose-in-test)\",\n      \"description\": \"Refactor phase10_governance_e2e.rs (7 tests) to run against the same shared infrastructure pattern as the rest of e2e-tests. Remove all logic that shells out to docker compose or force-recreates containers from inside tests. Use the existing TestContext/shared DB pools + HTTP clients pointing at already-running services OR in-process routers as used elsewhere in the suite. Ensure these tests can run in the standard cargo test sweep without requiring exclusive control of docker. If these governance checks are already fully covered elsewhere, delete redundant tests instead of rewriting.\",\n      \"how_to_think\": \"Think like a CI determinism engineer. Invariant: E2E tests do not manage global infrastructure lifecycle and can run in parallel without stepping on each other. Failure mode to avoid: tests that mutate docker state, cause flakiness, or require serial execution across the entire suite.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"phase10_governance_e2e tests run without invoking docker compose\",\n        \"All 7 governance tests are runnable in the default E2E sweep (not ignored)\",\n        \"No conflicts with already-running infrastructure; tests use shared pools/clients\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests phase10_governance_e2e -- --nocapture\",\n        \"cargo test -p e2e-tests -- --nocapture\",\n        \"Governance tests pass and do not start/stop containers\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"e2e-tests/tests/phase10_governance_e2e.rs\",\n        \"e2e-tests/src/*\"\n      ]\n    },\n    {\n      \"id\": \"bd-19aa\",\n      \"title\": \"Implement in-scope outbox atomicity E2E tests currently ignored\",\n      \"description\": \"For each ignored atomicity stub that represents a real system invariant, implement the test end-to-end using the shared infra harness: (1) payments_webhook_handler_atomicity (prove webhook handler mutation + outbox enqueue in one transaction), (2) subscriptions_cycle_advance_atomicity (prove cycle advancement mutation + outbox enqueue in one transaction), (3) gl_reversal_outbox_atomicity (execute reversal via the real service function/API and assert outbox record emitted). If a capability is not in scope or does not exist, delete the test rather than keeping a stub. Do not introduce mocks; use real DB + real code paths.\",\n      \"how_to_think\": \"Think like a transactional boundary auditor. Invariant: Guard -> Mutation -> Outbox is atomic for the core mutation points that drive projections/audit. Failure mode to avoid: allowing a mutation to commit without emitting its event, breaking replay/projections and audit completeness.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"The three atomicity tests are fully implemented and run in the default suite (not ignored)\",\n        \"Each test proves exactly-one outbox record created within the same transaction as the mutation\",\n        \"If any of these flows are truly out of scope, the corresponding test file/test is deleted (no stubs remain)\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests payments_outbox_atomicity_e2e subscriptions_outbox_atomicity_e2e gl_outbox_atomicity_e2e -- --nocapture\",\n        \"All implemented atomicity tests pass\"\n      ],\n      \"estimated_complexity\": 5,\n      \"files_involved\": [\n        \"e2e-tests/tests/payments_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/tests/subscriptions_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/tests/gl_outbox_atomicity_e2e.rs\",\n        \"modules/payments/src/**/*.rs\",\n        \"modules/subscriptions/src/**/*.rs\",\n        \"modules/gl/src/**/*.rs\",\n        \"platform/event-bus/src/**/*\"\n      ]\n    },\n    {\n      \"id\": \"bd-19ab\",\n      \"title\": \"Normalize explicit-run E2E pattern (keep exactly one intentional ignored test)\",\n      \"description\": \"Keep real_e2e.rs::test_real_nats_based_e2e as an explicit-run test if it truly requires special runtime prerequisites. Make it explicitly documented and enforced: add a short docs entry explaining how to run it, and add a CI guard that fails if any new #[ignore] tests are introduced without an allowlist entry. Optionally: annotate the ignored test with a clear reason and required env vars. Goal: prevent future phantom ignores from creeping back in.\",\n      \"how_to_think\": \"Think like a governance guardrail engineer. Invariant: ignored tests are exceptional and intentional, never a dumping ground. Failure mode to avoid: ignore creep that erodes confidence in the test suite over time.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"Only allowlisted ignored tests remain (target: exactly real_e2e.rs::test_real_nats_based_e2e)\",\n        \"Docs exist describing how to run explicit-run tests\",\n        \"CI guard fails if a new ignored test is added without allowlist update\"\n      ],\n      \"verification_commands\": [\n        \"rg \\\"#\\\\[ignore\\\\]\\\" e2e-tests/tests | cat\",\n        \"bash tools/ci/lint-no-ignored-tests.sh\",\n        \"cargo test -p e2e-tests -- --nocapture\",\n        \"Only the allowlisted ignored test remains; lint passes; suite passes\"\n      ],\n      \"estimated_complexity\": 3,\n      \"files_involved\": [\n        \"e2e-tests/tests/real_e2e.rs\",\n        \"docs/ops/E2E-TESTING.md\",\n        \"tools/ci/lint-no-ignored-tests.sh\",\n        \".github/workflows/ci.yml\"\n      ]\n    }\n  ],\n  \"priority_order\": [\n    \"bd-19y\",\n    \"bd-19z\",\n    \"bd-19aa\",\n    \"bd-19ab\"\n  ]\n}\nDecision calls embedded (so nobody bikesheds)\n\nNotifications “stateless proof”: convert to a real test that asserts statelessness (or delete entirely). No more comment-only tests.\n\nAR finalize API stub: delete (already covered).\n\nSad path stub: delete.\n\nDegradation “slow AR” stub: delete unless you’re willing to build a deterministic slow-path harness (not worth it right now).\n\nPhase10 docker-spinning tests: rewrite to shared infra or delete if redundant.\n\nIf you approve, create these 4 beads and assign:\n\nCopperRiver → bd-19z (hardest infra rewrite)\n\nPurpleCliff → bd-19y (purge stubs / stateless proof)\n\nMaroonHarbor → bd-19ab + bd-19aa (guardrail + implement 3 atomicity tests)",
+  "parse_ok": true,
+  "extracted_json": {
+    "phase_19_ignore_cleanup_beads": [
+      {
+        "id": "bd-19y",
+        "title": "Eliminate phantom ignored E2E stubs (delete or convert to real assertions)",
+        "description": "Remove all #[ignore] E2E tests that are empty stubs (Ok(()) with only comments/TODO blocks) unless they are converted into real tests that execute and assert something. Targets include: notifications_outbox_atomicity_e2e (4 tests), ar_outbox_atomicity_e2e (1 stub), payments_outbox_atomicity_e2e (1 stub), subscriptions_outbox_atomicity_e2e (1 stub), gl_outbox_atomicity_e2e (1 partial stub), subscriptions_ar_degradation_e2e (1 stub), real_e2e_sad_path (1 stub). For Notifications: if architecture is stateless, convert to a real test that proves the claim (e.g., assert no stateful tables exist / no mutation endpoints / no DB writes beyond allowed outbox primitives). If a test duplicates coverage already provided by a non-ignored test, delete it.",
+        "how_to_think": "Think like a test integrity auditor. Invariant: every test in the repo either runs and asserts something meaningful or it does not exist. Failure mode to avoid: fake tests that inflate coverage, hide gaps, and create false confidence during releases.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "All empty-stub ignored tests are deleted OR converted into real tests with assertions",
+          "No remaining tests return Ok(()) without performing at least one meaningful assertion",
+          "Notifications tests either prove statelessness with real checks or are removed entirely"
+        ],
+        "verification_commands": [
+          "cargo test -p e2e-tests -- --nocapture",
+          "rg \"#\\[ignore\\]\" e2e-tests/tests | cat",
+          "Only the intentionally explicit-run test remains ignored (real_e2e.rs), or ignored list is empty except that one"
+        ],
+        "estimated_complexity": 3,
+        "files_involved": [
+          "e2e-tests/tests/notifications_outbox_atomicity_e2e.rs",
+          "e2e-tests/tests/ar_outbox_atomicity_e2e.rs",
+          "e2e-tests/tests/payments_outbox_atomicity_e2e.rs",
+          "e2e-tests/tests/subscriptions_outbox_atomicity_e2e.rs",
+          "e2e-tests/tests/gl_outbox_atomicity_e2e.rs",
+          "e2e-tests/tests/subscriptions_ar_degradation_e2e.rs",
+          "e2e-tests/tests/real_e2e_sad_path.rs"
+        ]
+      },
+      {
+        "id": "bd-19z",
+        "title": "Rewrite Phase10 governance E2E tests to shared infra (remove docker-compose-in-test)",
+        "description": "Refactor phase10_governance_e2e.rs (7 tests) to run against the same shared infrastructure pattern as the rest of e2e-tests. Remove all logic that shells out to docker compose or force-recreates containers from inside tests. Use the existing TestContext/shared DB pools + HTTP clients pointing at already-running services OR in-process routers as used elsewhere in the suite. Ensure these tests can run in the standard cargo test sweep without requiring exclusive control of docker. If these governance checks are already fully covered elsewhere, delete redundant tests instead of rewriting.",
+        "how_to_think": "Think like a CI determinism engineer. Invariant: E2E tests do not manage global infrastructure lifecycle and can run in parallel without stepping on each other. Failure mode to avoid: tests that mutate docker state, cause flakiness, or require serial execution across the entire suite.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "phase10_governance_e2e tests run without invoking docker compose",
+          "All 7 governance tests are runnable in the default E2E sweep (not ignored)",
+          "No conflicts with already-running infrastructure; tests use shared pools/clients"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests phase10_governance_e2e -- --nocapture",
+          "cargo test -p e2e-tests -- --nocapture",
+          "Governance tests pass and do not start/stop containers"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "e2e-tests/tests/phase10_governance_e2e.rs",
+          "e2e-tests/src/*"
+        ]
+      },
+      {
+        "id": "bd-19aa",
+        "title": "Implement in-scope outbox atomicity E2E tests currently ignored",
+        "description": "For each ignored atomicity stub that represents a real system invariant, implement the test end-to-end using the shared infra harness: (1) payments_webhook_handler_atomicity (prove webhook handler mutation + outbox enqueue in one transaction), (2) subscriptions_cycle_advance_atomicity (prove cycle advancement mutation + outbox enqueue in one transaction), (3) gl_reversal_outbox_atomicity (execute reversal via the real service function/API and assert outbox record emitted). If a capability is not in scope or does not exist, delete the test rather than keeping a stub. Do not introduce mocks; use real DB + real code paths.",
+        "how_to_think": "Think like a transactional boundary auditor. Invariant: Guard -> Mutation -> Outbox is atomic for the core mutation points that drive projections/audit. Failure mode to avoid: allowing a mutation to commit without emitting its event, breaking replay/projections and audit completeness.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "The three atomicity tests are fully implemented and run in the default suite (not ignored)",
+          "Each test proves exactly-one outbox record created within the same transaction as the mutation",
+          "If any of these flows are truly out of scope, the corresponding test file/test is deleted (no stubs remain)"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests payments_outbox_atomicity_e2e subscriptions_outbox_atomicity_e2e gl_outbox_atomicity_e2e -- --nocapture",
+          "All implemented atomicity tests pass"
+        ],
+        "estimated_complexity": 5,
+        "files_involved": [
+          "e2e-tests/tests/payments_outbox_atomicity_e2e.rs",
+          "e2e-tests/tests/subscriptions_outbox_atomicity_e2e.rs",
+          "e2e-tests/tests/gl_outbox_atomicity_e2e.rs",
+          "modules/payments/src/**/*.rs",
+          "modules/subscriptions/src/**/*.rs",
+          "modules/gl/src/**/*.rs",
+          "platform/event-bus/src/**/*"
+        ]
+      },
+      {
+        "id": "bd-19ab",
+        "title": "Normalize explicit-run E2E pattern (keep exactly one intentional ignored test)",
+        "description": "Keep real_e2e.rs::test_real_nats_based_e2e as an explicit-run test if it truly requires special runtime prerequisites. Make it explicitly documented and enforced: add a short docs entry explaining how to run it, and add a CI guard that fails if any new #[ignore] tests are introduced without an allowlist entry. Optionally: annotate the ignored test with a clear reason and required env vars. Goal: prevent future phantom ignores from creeping back in.",
+        "how_to_think": "Think like a governance guardrail engineer. Invariant: ignored tests are exceptional and intentional, never a dumping ground. Failure mode to avoid: ignore creep that erodes confidence in the test suite over time.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Only allowlisted ignored tests remain (target: exactly real_e2e.rs::test_real_nats_based_e2e)",
+          "Docs exist describing how to run explicit-run tests",
+          "CI guard fails if a new ignored test is added without allowlist update"
+        ],
+        "verification_commands": [
+          "rg \"#\\[ignore\\]\" e2e-tests/tests | cat",
+          "bash tools/ci/lint-no-ignored-tests.sh",
+          "cargo test -p e2e-tests -- --nocapture",
+          "Only the allowlisted ignored test remains; lint passes; suite passes"
+        ],
+        "estimated_complexity": 3,
+        "files_involved": [
+          "e2e-tests/tests/real_e2e.rs",
+          "docs/ops/E2E-TESTING.md",
+          "tools/ci/lint-no-ignored-tests.sh",
+          ".github/workflows/ci.yml"
+        ]
+      }
+    ],
+    "priority_order": [
+      "bd-19y",
+      "bd-19z",
+      "bd-19aa",
+      "bd-19ab"
+    ]
+  },
+  "error": null
+}

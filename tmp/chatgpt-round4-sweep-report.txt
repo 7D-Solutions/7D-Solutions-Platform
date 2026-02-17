@@ -1,0 +1,56 @@
+Phase 19 Round 4 E2E Sweep Results
+
+PASS: 202 | FAIL: 17 | IGNORED: 18 | TOTAL: 237
+(12 failing targets, down from 16)
+
+Round 4 eliminated: audit deadlock 40P01 (9→0), mutation_class text cast (5→0 in those specific tests), TIMESTAMP mismatch (3→0). Net: 30→17.
+
+Remaining 17 failures by root cause:
+
+A. Invalid mutation_class 'STATE_TRANSITION' (4 failures) — NEW from bd-3v3
+CopperRiver's outbox atomicity fix (bd-3v3) introduced lifecycle emit calls in payments/subscriptions that use mutation_class='STATE_TRANSITION', but the envelope validator only accepts: DATA_MUTATION, REVERSAL, CORRECTION, SIDE_EFFECT, QUERY, LIFECYCLE, ADMINISTRATIVE.
+Fix: change 'STATE_TRANSITION' to 'LIFECYCLE' in the new emit calls (or add STATE_TRANSITION to the allowed list if it's a legitimate class).
+Tests: test_reconciliation_idempotency (1), test_reconciliation_resolves_unknown_to_succeeded (1), test_payments_status_transition_outbox_atomicity (1), test_subscriptions_lifecycle_transition_outbox_atomicity (1).
+
+B. Concurrency assertions (2 failures) — bd-1mx target (MaroonHarbor in progress)
+test_parallel_subscription_cycle_attempts: "Exactly 1 parallel attempt should succeed" got 0
+test_mixed_concurrent_operations: "Exactly 3 operations should succeed" got 2
+These are the exact failures bd-1mx targets.
+
+C. AR outbox atomicity still failing (1 failure)
+test_ar_finalize_invoice_outbox_atomicity: finalize_invoice() succeeded but outbox has 0 events.
+This was supposed to be fixed previously. May need investigation — either migrations not applied in test harness or the fix regressed.
+
+D. GL outbox stale event count (1 failure)
+test_gl_posting_no_event_emission: expects 0 events in outbox, found 13. Stale data from prior test runs.
+Fix: add cleanup (DELETE FROM events_outbox) before assertion, or use tenant-isolated query.
+
+E. GL balance / journal issues (2 failures)
+test_gl_balance_validation: assertion failure on balance check
+test_multiple_independent_entries: assert_journal_balanced failed
+Likely NUMERIC vs INT8 type mismatch in SUM() aggregation, or stale data.
+
+F. Pool timeout (2 failures)
+test_e2e_fallback_flow, test_fallback_staleness_threshold: projections DB pool times out.
+Likely projections DB not running or connection pool exhausted.
+
+G. Compliance export (2 failures)
+test_compliance_export_determinism, test_compliance_export_tenant_isolation: panic at export.rs:212.
+Code-level error in compliance export tool, not a test issue.
+
+H. Oracle SucceededWithoutInvoice (1 failure)
+test_subscription_cycle_replay_deduplication: oracle check fails — subscription succeeded but no invoice found.
+Architectural gap: subscription cycle completion doesn't create an invoice in the test flow.
+
+I. Reversal chain UUID mismatch (1 failure)
+test_invalid_double_reversal_rejected: UUID mismatch in reversal chain validation.
+
+J. Trial balance API 400 (1 failure)
+test_trial_balance_api: expects 200, got 400. API validation rejecting the request.
+
+Summary:
+- Category A (4 failures) is a direct regression from bd-3v3 — quick fix (STATE_TRANSITION → LIFECYCLE)
+- Category B (2 failures) is bd-1mx's target (in progress)
+- Categories C-J (11 failures) are edge cases and architectural questions
+
+Minimum next fix: Category A (mutation_class in new lifecycle emits) — should drop to 13 failures.

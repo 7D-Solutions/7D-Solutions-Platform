@@ -1,0 +1,213 @@
+{
+  "ok": true,
+  "raw_text": "Round 3 needs targeted beads, not another “sweep-and-hope.” You’re right: A + B are the leverage, and D must be resolved as a policy (rebuild containers vs test shape).\n\nHere’s the bead set I want for Round 3 (P0 first). If you want, you can copy these directly into your system.\n\nJSON\n{\n  \"phase_19_round3_beads\": [\n    {\n      \"id\": \"bd-19l\",\n      \"title\": \"Fix audit enum migration idempotency (catch 23505 unique_violation)\",\n      \"description\": \"Repair the audit migration that creates the mutation_class enum so it is re-runnable. Current DO/EXCEPTION catches duplicate_object but actual failure is SQLSTATE 23505 (pg_type_typname_nsp_index unique_violation). Update migration to handle both cases safely (unique_violation and duplicate_object) or use an IF NOT EXISTS check against pg_type + pg_namespace before CREATE TYPE. Must be non-destructive (no DROP TYPE).\",\n      \"how_to_think\": \"Think like a Postgres migration reliability engineer. Invariant: migrations are re-runnable across restore/fleet scenarios. Failure mode to avoid: migrations that pass only on fresh DBs and fail on real environments due to prior partial state.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"Audit migrations run successfully on fresh DB\",\n        \"Audit migrations run successfully when re-run on the same DB\",\n        \"No destructive DROP patterns\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests --no-fail-fast -- --nocapture\",\n        \"No remaining failures mentioning mutation_class enum already exists / 23505\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"platform/audit/db/migrations/*\"\n      ]\n    },\n    {\n      \"id\": \"bd-19m\",\n      \"title\": \"E2E fixture/schema alignment: AR updated_at NOT NULL default or fixture update\",\n      \"description\": \"Resolve systemic failures where tests insert into ar_invoices without updated_at but column is NOT NULL with no DEFAULT. Choose one canonical policy: (A) add DEFAULT now() in migration for updated_at, or (B) update all fixtures/helpers (setup_test_invoice) to always provide updated_at. Apply consistently across AR and any other tables with similar pattern.\",\n      \"how_to_think\": \"Think like a schema contract owner. Invariant: required timestamp columns are always populated deterministically. Failure mode to avoid: making tests pass by weakening constraints in ways that production wouldn’t accept, or leaving tests dependent on undefined behavior.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"All AR invoice setup helpers insert successfully on clean DB\",\n        \"No remaining E2E failures about ar_invoices.updated_at NOT NULL\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests cross_module_* ar_* -- --nocapture\",\n        \"All previously failing AR updated_at tests pass\"\n      ],\n      \"estimated_complexity\": 3,\n      \"files_involved\": [\n        \"modules/ar/db/migrations/*\",\n        \"e2e-tests/src/fixtures/*.rs\",\n        \"e2e-tests/tests/**/*ar*e2e.rs\",\n        \"e2e-tests/tests/cross_module_*e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19n\",\n      \"title\": \"E2E fixture/schema alignment: GL journal_entries required fields + updated_at references\",\n      \"description\": \"Fix GL E2E drift: (1) inserts missing journal_entries.source_module where schema requires NOT NULL, (2) tests referencing journal_entries.updated_at that doesn’t exist. Decide the canonical schema: either add updated_at to journal_entries with migration and populate, or remove test assumptions. Update fixtures to always include required fields (source_module, etc.).\",\n      \"how_to_think\": \"Think like a ledger integrity tester. Invariant: fixtures generate rows that satisfy schema constraints and reflect production semantics. Failure mode to avoid: silently changing schema in ways that break posting or audit trails, or leaving tests asserting nonexistent columns.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"GL tests no longer fail on source_module NOT NULL\",\n        \"No tests reference journal_entries.updated_at unless schema includes it\",\n        \"GL E2E suite passes on clean DB\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests gl_* trial_balance_* -- --nocapture\",\n        \"All GL schema drift failures eliminated\"\n      ],\n      \"estimated_complexity\": 3,\n      \"files_involved\": [\n        \"modules/gl/db/migrations/*\",\n        \"e2e-tests/src/fixtures/*.rs\",\n        \"e2e-tests/tests/gl_*e2e.rs\",\n        \"e2e-tests/tests/trial_balance_*e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19o\",\n      \"title\": \"Schema drift resolution: payments.amount_minor + subscriptions.app_id\",\n      \"description\": \"Resolve remaining test/schema drift for (1) payments.amount_minor missing, (2) subscriptions.app_id missing. For each: decide whether schema should include the column (domain requirement) or tests should stop assuming it. Implement the minimal consistent change set (migration + code if needed, or fixtures/tests update).\",\n      \"how_to_think\": \"Think like a domain data model governor. Invariant: schemas match the domain contract and tests validate real behavior. Failure mode to avoid: adding columns just to satisfy tests without domain justification, or keeping tests that never matched reality.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"No E2E failures referencing missing payments.amount_minor\",\n        \"No E2E failures referencing missing subscriptions.app_id\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests payments_* subscriptions_* cross_module_* -- --nocapture\",\n        \"All tests touching these columns pass\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"modules/payments/db/migrations/*\",\n        \"modules/subscriptions/db/migrations/*\",\n        \"e2e-tests/src/fixtures/*.rs\",\n        \"e2e-tests/tests/**/*payments*e2e.rs\",\n        \"e2e-tests/tests/**/*subscriptions*e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19p\",\n      \"title\": \"Ensure outbox tables/migrations present and applied (events_outbox + notifications)\",\n      \"description\": \"Fix failures where events_outbox table is missing (AR and others) and a test references a notifications table that doesn't exist. Determine whether: (A) migrations were never created, (B) migrations exist but not applied in compose/test harness, or (C) tests reference wrong DB/table for stateless notifications. Ensure events_outbox exists wherever required by Phase 16 atomicity invariants, and fix the notifications test to match the actual architecture (stateless module => no DB table unless explicitly added).\",\n      \"how_to_think\": \"Think like an outbox correctness auditor. Invariant: state mutation + outbox always share the same transaction and the outbox table exists and is migrated. Failure mode to avoid: passing by skipping outbox validation, or leaving production capable of mutating without emitting events.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"events_outbox exists and is migrated for modules that enqueue events\",\n        \"Outbox atomicity E2E tests pass (no missing table)\",\n        \"No test references a notifications DB table unless it truly exists\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests *_outbox_* -- --nocapture\",\n        \"Outbox atomicity and outbox table existence tests pass\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"modules/ar/db/migrations/*\",\n        \"modules/payments/db/migrations/*\",\n        \"modules/subscriptions/db/migrations/*\",\n        \"modules/gl/db/migrations/*\",\n        \"e2e-tests/tests/*outbox*e2e.rs\",\n        \"e2e-tests/tests/bill_run_e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19q\",\n      \"title\": \"Docker test images freshness: rebuild-and-run policy for E2E\",\n      \"description\": \"Resolve stale container runtime issue where /api/version and /api/ready still return 401 despite code fixes. Define and implement a deterministic E2E policy: compose must run images built from current HEAD. Add a make/script target that: (1) builds module images, (2) tags them with git SHA, (3) updates compose to use that SHA (or uses docker compose build), (4) starts stack and runs tests. Ensure e2e harness hits those containers, not old ones.\",\n      \"how_to_think\": \"Think like a release/test pipeline engineer. Invariant: E2E tests exercise the code you just built, not whatever image was lying around. Failure mode to avoid: chasing phantom failures caused by stale runtime artifacts.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"Single command builds fresh images and runs E2E against them\",\n        \"/api/version and /api/ready tests reflect current HEAD behavior\",\n        \"No more 401 failures due to stale containers\"\n      ],\n      \"verification_commands\": [\n        \"bash tools/ci/e2e_docker_fresh_run.sh\",\n        \"cargo test -p e2e-tests version_endpoints_smoke_e2e ready_endpoints_smoke_e2e -- --nocapture\",\n        \"Version/ready tests pass with fresh images\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"infra/docker/docker-compose.infrastructure.yml\",\n        \"Dockerfile*\",\n        \"tools/ci/*\",\n        \"e2e-tests/tests/version_endpoints_smoke_e2e.rs\",\n        \"e2e-tests/tests/ready_endpoints_smoke_e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19r\",\n      \"title\": \"Fix test-level type mismatch + enum casting + mutation_class expected set\",\n      \"description\": \"Resolve type mismatch failures: (1) compliance_export writing text into payment_attempt_status enum column (use proper enum cast/bind), (2) GL SUM() NUMERIC vs i64 bind (cast in query or bind to Decimal), (3) UUID parse failures where tests bind plan IDs like 'plan-monthly' as UUID, (4) mutation_class test uses invalid value 'IDEMPOTENT'—update to valid mutation_class set. Keep these changes confined to tests/fixtures unless schema truly wrong.\",\n      \"how_to_think\": \"Think like a strict typing enforcer. Invariant: tests bind values using correct SQL types and validate the true domain enums. Failure mode to avoid: loosening DB types or changing production enums to accommodate incorrect test data.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"No remaining failures due to enum/text casting\",\n        \"No remaining failures due to NUMERIC vs INT8 binds\",\n        \"mutation_class tests reflect the valid allowed set\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests compliance_export_e2e mutation_class_presence_e2e trial_balance_* -- --nocapture\",\n        \"All previously failing type mismatch tests pass\"\n      ],\n      \"estimated_complexity\": 3,\n      \"files_involved\": [\n        \"e2e-tests/src/fixtures/*.rs\",\n        \"e2e-tests/tests/compliance_export_e2e.rs\",\n        \"e2e-tests/tests/mutation_class_presence_e2e.rs\",\n        \"e2e-tests/tests/trial_balance_*e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19s\",\n      \"title\": \"Deterministic test isolation: cleanup + seed reset for balance/oracle suites\",\n      \"description\": \"Fix failures caused by stale data across tests (balance_posting, balance_reversal returning wrong totals; oracle invariant SucceededWithoutInvoice; concurrency expectation mismatch). Add deterministic cleanup between tests: truncate relevant tables per DB in setup/teardown, or use per-test tenant/app IDs with guaranteed uniqueness. Ensure tests don’t rely on execution order or leftover data.\",\n      \"how_to_think\": \"Think like a test determinism engineer. Invariant: each test is isolated and repeatable regardless of order. Failure mode to avoid: test suites that pass only when run alone or in a specific sequence.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"Balance and oracle suites pass when run alone and when run in full suite\",\n        \"No order dependence (repeat run yields same result)\",\n        \"Concurrency tests assert only what is guaranteed (no brittle exact-count expectations unless deterministic)\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests balance_* oracle_* cross_module_concurrency_e2e -- --nocapture\",\n        \"cargo test -p e2e-tests --no-fail-fast -- --nocapture\",\n        \"Failures due to stale data/order dependence are eliminated\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"e2e-tests/src/fixtures/*.rs\",\n        \"e2e-tests/src/db.rs\",\n        \"e2e-tests/tests/balance_*e2e.rs\",\n        \"e2e-tests/tests/oracle.rs\",\n        \"e2e-tests/tests/cross_module_concurrency_e2e.rs\"\n      ]\n    }\n  ],\n  \"priority_order\": [\n    \"bd-19l\",\n    \"bd-19m\",\n    \"bd-19n\",\n    \"bd-19q\",\n    \"bd-19p\",\n    \"bd-19r\",\n    \"bd-19s\",\n    \"bd-19o\"\n  ]\n}\nNotes on sequencing\n\nbd-19q (fresh images) is the key policy bead. If you don’t solve that, you will keep seeing “fixed in code, failing in runtime.”\n\nbd-19m/n will collapse a big chunk of Category A quickly.\n\nbd-19p likely also resolves your “AR outbox atomicity violation” because missing outbox tables/migrations can masquerade as logic bugs.\n\nbd-19s is how you eliminate the “stale data / order dependence” noise for good.\n\nIf you want fewer beads: keep bd-19l, bd-19m, bd-19n, bd-19q, bd-19p as the minimal P0 set and defer the rest.",
+  "parse_ok": true,
+  "extracted_json": {
+    "phase_19_round3_beads": [
+      {
+        "id": "bd-19l",
+        "title": "Fix audit enum migration idempotency (catch 23505 unique_violation)",
+        "description": "Repair the audit migration that creates the mutation_class enum so it is re-runnable. Current DO/EXCEPTION catches duplicate_object but actual failure is SQLSTATE 23505 (pg_type_typname_nsp_index unique_violation). Update migration to handle both cases safely (unique_violation and duplicate_object) or use an IF NOT EXISTS check against pg_type + pg_namespace before CREATE TYPE. Must be non-destructive (no DROP TYPE).",
+        "how_to_think": "Think like a Postgres migration reliability engineer. Invariant: migrations are re-runnable across restore/fleet scenarios. Failure mode to avoid: migrations that pass only on fresh DBs and fail on real environments due to prior partial state.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Audit migrations run successfully on fresh DB",
+          "Audit migrations run successfully when re-run on the same DB",
+          "No destructive DROP patterns"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests --no-fail-fast -- --nocapture",
+          "No remaining failures mentioning mutation_class enum already exists / 23505"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "platform/audit/db/migrations/*"
+        ]
+      },
+      {
+        "id": "bd-19m",
+        "title": "E2E fixture/schema alignment: AR updated_at NOT NULL default or fixture update",
+        "description": "Resolve systemic failures where tests insert into ar_invoices without updated_at but column is NOT NULL with no DEFAULT. Choose one canonical policy: (A) add DEFAULT now() in migration for updated_at, or (B) update all fixtures/helpers (setup_test_invoice) to always provide updated_at. Apply consistently across AR and any other tables with similar pattern.",
+        "how_to_think": "Think like a schema contract owner. Invariant: required timestamp columns are always populated deterministically. Failure mode to avoid: making tests pass by weakening constraints in ways that production wouldn’t accept, or leaving tests dependent on undefined behavior.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "All AR invoice setup helpers insert successfully on clean DB",
+          "No remaining E2E failures about ar_invoices.updated_at NOT NULL"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests cross_module_* ar_* -- --nocapture",
+          "All previously failing AR updated_at tests pass"
+        ],
+        "estimated_complexity": 3,
+        "files_involved": [
+          "modules/ar/db/migrations/*",
+          "e2e-tests/src/fixtures/*.rs",
+          "e2e-tests/tests/**/*ar*e2e.rs",
+          "e2e-tests/tests/cross_module_*e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19n",
+        "title": "E2E fixture/schema alignment: GL journal_entries required fields + updated_at references",
+        "description": "Fix GL E2E drift: (1) inserts missing journal_entries.source_module where schema requires NOT NULL, (2) tests referencing journal_entries.updated_at that doesn’t exist. Decide the canonical schema: either add updated_at to journal_entries with migration and populate, or remove test assumptions. Update fixtures to always include required fields (source_module, etc.).",
+        "how_to_think": "Think like a ledger integrity tester. Invariant: fixtures generate rows that satisfy schema constraints and reflect production semantics. Failure mode to avoid: silently changing schema in ways that break posting or audit trails, or leaving tests asserting nonexistent columns.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "GL tests no longer fail on source_module NOT NULL",
+          "No tests reference journal_entries.updated_at unless schema includes it",
+          "GL E2E suite passes on clean DB"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests gl_* trial_balance_* -- --nocapture",
+          "All GL schema drift failures eliminated"
+        ],
+        "estimated_complexity": 3,
+        "files_involved": [
+          "modules/gl/db/migrations/*",
+          "e2e-tests/src/fixtures/*.rs",
+          "e2e-tests/tests/gl_*e2e.rs",
+          "e2e-tests/tests/trial_balance_*e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19o",
+        "title": "Schema drift resolution: payments.amount_minor + subscriptions.app_id",
+        "description": "Resolve remaining test/schema drift for (1) payments.amount_minor missing, (2) subscriptions.app_id missing. For each: decide whether schema should include the column (domain requirement) or tests should stop assuming it. Implement the minimal consistent change set (migration + code if needed, or fixtures/tests update).",
+        "how_to_think": "Think like a domain data model governor. Invariant: schemas match the domain contract and tests validate real behavior. Failure mode to avoid: adding columns just to satisfy tests without domain justification, or keeping tests that never matched reality.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "No E2E failures referencing missing payments.amount_minor",
+          "No E2E failures referencing missing subscriptions.app_id"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests payments_* subscriptions_* cross_module_* -- --nocapture",
+          "All tests touching these columns pass"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "modules/payments/db/migrations/*",
+          "modules/subscriptions/db/migrations/*",
+          "e2e-tests/src/fixtures/*.rs",
+          "e2e-tests/tests/**/*payments*e2e.rs",
+          "e2e-tests/tests/**/*subscriptions*e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19p",
+        "title": "Ensure outbox tables/migrations present and applied (events_outbox + notifications)",
+        "description": "Fix failures where events_outbox table is missing (AR and others) and a test references a notifications table that doesn't exist. Determine whether: (A) migrations were never created, (B) migrations exist but not applied in compose/test harness, or (C) tests reference wrong DB/table for stateless notifications. Ensure events_outbox exists wherever required by Phase 16 atomicity invariants, and fix the notifications test to match the actual architecture (stateless module => no DB table unless explicitly added).",
+        "how_to_think": "Think like an outbox correctness auditor. Invariant: state mutation + outbox always share the same transaction and the outbox table exists and is migrated. Failure mode to avoid: passing by skipping outbox validation, or leaving production capable of mutating without emitting events.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "events_outbox exists and is migrated for modules that enqueue events",
+          "Outbox atomicity E2E tests pass (no missing table)",
+          "No test references a notifications DB table unless it truly exists"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests *_outbox_* -- --nocapture",
+          "Outbox atomicity and outbox table existence tests pass"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "modules/ar/db/migrations/*",
+          "modules/payments/db/migrations/*",
+          "modules/subscriptions/db/migrations/*",
+          "modules/gl/db/migrations/*",
+          "e2e-tests/tests/*outbox*e2e.rs",
+          "e2e-tests/tests/bill_run_e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19q",
+        "title": "Docker test images freshness: rebuild-and-run policy for E2E",
+        "description": "Resolve stale container runtime issue where /api/version and /api/ready still return 401 despite code fixes. Define and implement a deterministic E2E policy: compose must run images built from current HEAD. Add a make/script target that: (1) builds module images, (2) tags them with git SHA, (3) updates compose to use that SHA (or uses docker compose build), (4) starts stack and runs tests. Ensure e2e harness hits those containers, not old ones.",
+        "how_to_think": "Think like a release/test pipeline engineer. Invariant: E2E tests exercise the code you just built, not whatever image was lying around. Failure mode to avoid: chasing phantom failures caused by stale runtime artifacts.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Single command builds fresh images and runs E2E against them",
+          "/api/version and /api/ready tests reflect current HEAD behavior",
+          "No more 401 failures due to stale containers"
+        ],
+        "verification_commands": [
+          "bash tools/ci/e2e_docker_fresh_run.sh",
+          "cargo test -p e2e-tests version_endpoints_smoke_e2e ready_endpoints_smoke_e2e -- --nocapture",
+          "Version/ready tests pass with fresh images"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "infra/docker/docker-compose.infrastructure.yml",
+          "Dockerfile*",
+          "tools/ci/*",
+          "e2e-tests/tests/version_endpoints_smoke_e2e.rs",
+          "e2e-tests/tests/ready_endpoints_smoke_e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19r",
+        "title": "Fix test-level type mismatch + enum casting + mutation_class expected set",
+        "description": "Resolve type mismatch failures: (1) compliance_export writing text into payment_attempt_status enum column (use proper enum cast/bind), (2) GL SUM() NUMERIC vs i64 bind (cast in query or bind to Decimal), (3) UUID parse failures where tests bind plan IDs like 'plan-monthly' as UUID, (4) mutation_class test uses invalid value 'IDEMPOTENT'—update to valid mutation_class set. Keep these changes confined to tests/fixtures unless schema truly wrong.",
+        "how_to_think": "Think like a strict typing enforcer. Invariant: tests bind values using correct SQL types and validate the true domain enums. Failure mode to avoid: loosening DB types or changing production enums to accommodate incorrect test data.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "No remaining failures due to enum/text casting",
+          "No remaining failures due to NUMERIC vs INT8 binds",
+          "mutation_class tests reflect the valid allowed set"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests compliance_export_e2e mutation_class_presence_e2e trial_balance_* -- --nocapture",
+          "All previously failing type mismatch tests pass"
+        ],
+        "estimated_complexity": 3,
+        "files_involved": [
+          "e2e-tests/src/fixtures/*.rs",
+          "e2e-tests/tests/compliance_export_e2e.rs",
+          "e2e-tests/tests/mutation_class_presence_e2e.rs",
+          "e2e-tests/tests/trial_balance_*e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19s",
+        "title": "Deterministic test isolation: cleanup + seed reset for balance/oracle suites",
+        "description": "Fix failures caused by stale data across tests (balance_posting, balance_reversal returning wrong totals; oracle invariant SucceededWithoutInvoice; concurrency expectation mismatch). Add deterministic cleanup between tests: truncate relevant tables per DB in setup/teardown, or use per-test tenant/app IDs with guaranteed uniqueness. Ensure tests don’t rely on execution order or leftover data.",
+        "how_to_think": "Think like a test determinism engineer. Invariant: each test is isolated and repeatable regardless of order. Failure mode to avoid: test suites that pass only when run alone or in a specific sequence.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Balance and oracle suites pass when run alone and when run in full suite",
+          "No order dependence (repeat run yields same result)",
+          "Concurrency tests assert only what is guaranteed (no brittle exact-count expectations unless deterministic)"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests balance_* oracle_* cross_module_concurrency_e2e -- --nocapture",
+          "cargo test -p e2e-tests --no-fail-fast -- --nocapture",
+          "Failures due to stale data/order dependence are eliminated"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "e2e-tests/src/fixtures/*.rs",
+          "e2e-tests/src/db.rs",
+          "e2e-tests/tests/balance_*e2e.rs",
+          "e2e-tests/tests/oracle.rs",
+          "e2e-tests/tests/cross_module_concurrency_e2e.rs"
+        ]
+      }
+    ],
+    "priority_order": [
+      "bd-19l",
+      "bd-19m",
+      "bd-19n",
+      "bd-19q",
+      "bd-19p",
+      "bd-19r",
+      "bd-19s",
+      "bd-19o"
+    ]
+  },
+  "error": null
+}

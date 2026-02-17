@@ -1,0 +1,70 @@
+## Phase 17/18 Validation Sweep Results — Remediation Needed
+
+Ran `cargo test -p e2e-tests --no-fail-fast` against healthy containers. Results:
+
+### PASSING (7 test files, 53 tests):
+- audit_policy_e2e: 11/11 (pure logic, no DB)
+- config_validation_e2e: 10/10 (pure logic)
+- cross_module_invoice_e2e: 6/6
+- rate_limit_e2e: 7/7
+- rbac_e2e: 13/13
+- release_pipeline_e2e: 6/6
+- notifications_outbox_e2e: 4 ignored (stateless module)
+
+### FAILING (~25 test files, ~90 failures):
+
+**Category 1: DB schema/connection issues (~40 failures)**
+- projection_cursor_contract_e2e: 11 failures (can't connect to projection DB)
+- projection_rebuild_e2e: 6 failures (same)
+- projection_lag_metrics_e2e: 4 failures (same)
+- replay_certification_e2e: 3 failures (same)
+- scale_simulation_e2e: 4 failures (same)
+- tenant_provisioning_e2e: 8 failures (tenant registry DB not set up)
+- tenant_lifecycle_e2e: 4 failures (same)
+- compliance_export_e2e: 2 failures (same)
+
+Root cause: Tests reference platform DBs (projections, audit, tenant-registry) that don't exist as container services. These are new Phase 17 platform crates without dedicated Postgres containers in compose.
+
+**Category 2: Schema-qualified table references (~15 failures)**
+- ar_outbox_atomicity_e2e: "ar.ar_invoices" doesn't exist (tables in public schema)
+- payments_outbox_atomicity_e2e: similar
+- subscriptions_outbox_atomicity_e2e: similar
+- gl_outbox_atomicity_e2e: similar
+
+Root cause: Tests use schema-qualified names (e.g., `ar.ar_invoices`) but tables live in `public` schema.
+
+**Category 3: Service integration issues (~20 failures)**
+- cross_module_concurrency_e2e: 5 failures (137s runtime — likely timeouts)
+- cross_module_unknown_protocol_e2e: 5 failures (172s — timeouts)
+- cross_module_replay_safety_e2e: 5 failures (68s — timeouts)
+- cross_module_payment_invoice_e2e: 5 failures
+- service_to_service_auth_e2e: 2 failures (version endpoints not returning expected auth)
+
+Root cause: Cross-module tests hitting services that may not have the latest code, or NATS event propagation timeouts.
+
+**Category 4: Envelope/metadata E2E issues (~10 failures)**
+- envelope_invalid_rejected_e2e: 3 failures
+- envelope_nats_roundtrip_e2e: 1 failure
+- mutation_class_presence_e2e: 5 failures
+
+Root cause: Tests expect specific envelope behavior from services that may have been rebuilt with different code versions.
+
+### Summary
+- 53 tests PASS
+- ~90 tests FAIL
+- ~14 tests IGNORED
+
+Most failures are infrastructure/setup issues, not logic bugs:
+1. Missing platform DB containers (projections, audit, tenant-registry)
+2. Schema qualification mismatch (ar.table vs public.table)
+3. Cross-module timeout issues (services rebuilt, possible config drift)
+
+### Request
+Per your earlier guidance: this triggers the remediation bead approach. Please specify the remediation beads needed. I suggest:
+
+1. **bd-19a: Platform DB infrastructure** — Add containers for projections, audit, tenant-registry Postgres databases (or configure tests to use existing containers with separate schemas)
+2. **bd-19b: Schema qualification fix** — Fix all E2E tests using schema-qualified table names to match actual schema (public)
+3. **bd-19c: Cross-module E2E timeout hardening** — Fix flaky cross-module tests (increase timeouts, add retry logic, verify NATS connectivity)
+4. **bd-19d: Envelope E2E alignment** — Align envelope/metadata tests with actual service behavior
+
+What's your call on structure and priority?

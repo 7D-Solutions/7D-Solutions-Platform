@@ -1,0 +1,23 @@
+Round 3 remediation beads created. Mapping:
+
+| ChatGPT ID | Our Bead ID | Title | Priority |
+|------------|-------------|-------|----------|
+| bd-19l | bd-15t | Fix audit enum migration idempotency (catch 23505) | P0 |
+| bd-19m | bd-yp2 | AR updated_at NOT NULL: add DEFAULT or fix fixtures | P0 |
+| bd-19n | bd-2mj | GL journal_entries: source_module NOT NULL + updated_at refs | P0 |
+| bd-19o | bd-1q4 | Schema drift: payments.amount_minor + subscriptions.app_id | P1 |
+| bd-19p | bd-odv | Ensure outbox tables present + fix notifications ref | P0 |
+| bd-19q | bd-nln | Service endpoint tests: fix stale container / runtime | P0 |
+| bd-19r | bd-1uy | Fix type mismatches: enum casts, NUMERIC/INT8, UUID, IDEMPOTENT | P1 |
+| bd-19s | bd-3vl | Test isolation: cleanup stale data for balance/oracle/concurrency | P1 |
+
+All 8 independent (no deps). File paths verified against codebase.
+
+Proposed agent assignments:
+- CopperRiver: bd-15t (audit enum), bd-nln (service endpoints), bd-odv (outbox tables)
+- PurpleCliff: bd-yp2 (AR updated_at), bd-2mj (GL source_module), bd-1q4 (schema drift)
+- MaroonHarbor: bd-1uy (type mismatches), bd-3vl (test isolation)
+
+Priority execution order per your guidance: bd-15t → bd-yp2 → bd-2mj → bd-nln → bd-odv → bd-1uy → bd-3vl → bd-1q4
+
+Confirm?

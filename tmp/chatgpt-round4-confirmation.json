@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "raw_text": "Confirmed — assignments are correct and the execution order is good.\n\nOnly tweak: run bd-1mx in parallel, merge last\n\nLet MaroonHarbor work bd-1mx immediately (it’s isolated), but merge it after bd-3v3 so you don’t accidentally “paper over” an outbox correctness issue with looser concurrency assertions.\n\nSo the practical merge order:\n\nbd-2uw (audit deadlock gate)\n\nbd-2qi (mutation_class casts)\n\nbd-13k (TIMESTAMP mismatch)\n\nbd-3v3 (outbox atomicity — correctness-critical)\n\nbd-1mx (concurrency assertions — merge last)\n\nStop-the-line reminders\n\nbd-2uw: prefer pg_advisory_lock around migration execution (works even if tests/CI become multi-process later). Process-local Once is acceptable only if you can guarantee single process.\n\nbd-3v3: do not “fix” by weakening the atomicity invariant. If outbox is missing, either migrations aren’t applied or the code path truly isn’t enqueuing inside the tx — fix the real cause.\n\nbd-1mx: assertions must still prove uniqueness + legal transitions + final state; only drop brittle exact-count expectations.\n\nProceed.",
+  "parse_ok": false,
+  "extracted_json": null,
+  "error": "NO_JSON_STRUCTURE_FOUND"
+}

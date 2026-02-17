@@ -1,0 +1,166 @@
+{
+  "ok": true,
+  "raw_text": "You’re in the “last-mile” zone now. Next round should be 6 beads: 2 immediate “cheap wins”, 2 correctness-critical, and 2 stability/infra.\n\nHere are the exact beads I want.\n\nJSON\n{\n  \"phase_19_round5_beads\": [\n    {\n      \"id\": \"bd-19ac\",\n      \"title\": \"Phase10 governance: fix account_type enum inserts (add casts/bind enum)\",\n      \"description\": \"Fix phase10_governance_e2e.rs inserts that write TEXT into the account_type enum column without casting. Update the test inserts/fixtures to bind the correct enum type or add explicit ::account_type casts. Ensure all Phase10 governance tests run cleanly under the shared infra harness with strict typing.\",\n      \"how_to_think\": \"Think like a strict Postgres typing enforcer. Invariant: tests insert values with correct enum typing; no implicit casts assumed. Failure mode to avoid: loosening schema or leaving tests that fail due to type mismatches rather than logic regressions.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"All phase10_governance_e2e tests pass\",\n        \"No errors remain: 'column is of type account_type but expression is of type text'\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests phase10_governance_e2e -- --nocapture\",\n        \"All Phase10 governance tests pass\"\n      ],\n      \"estimated_complexity\": 1,\n      \"files_involved\": [\n        \"e2e-tests/tests/phase10_governance_e2e.rs\",\n        \"e2e-tests/src/fixtures/*.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19ad\",\n      \"title\": \"Fix compliance-export panic (export.rs:212) + determinism/isolation tests\",\n      \"description\": \"Investigate and fix the panic at tools/compliance-export (export.rs:212) triggered by compliance export E2E tests. Root cause likely unwrap/assumption about data presence or schema shape. Replace panic with typed error propagation and make export deterministic. Ensure tenant isolation rules are enforced (no cross-tenant leakage) and SHA256 manifest checksums are stable for identical inputs.\",\n      \"how_to_think\": \"Think like a compliance pipeline reliability engineer. Invariant: export never panics; it produces deterministic, tenant-isolated output or a structured error. Failure mode to avoid: silent partial exports, nondeterministic manifests, or crashes during DR/compliance workflows.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"No panic paths remain at export.rs:212 (panic eliminated or unreachable)\",\n        \"test_compliance_export_determinism passes (stable checksum/manifest)\",\n        \"test_compliance_export_tenant_isolation passes (no cross-tenant data)\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests compliance_export_* -- --nocapture\",\n        \"cargo test -p e2e-tests --no-fail-fast -- --nocapture\",\n        \"Compliance export tests pass and no panics occur\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"tools/compliance-export/src/export.rs\",\n        \"tools/compliance-export/src/lib.rs\",\n        \"e2e-tests/tests/compliance_export_e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19ae\",\n      \"title\": \"AR finalize_invoice: enforce outbox atomicity + idempotency semantics\",\n      \"description\": \"Fix AR finalize_invoice behavior so: (1) success implies exactly one outbox event written in the same transaction, and (2) repeated finalize_invoice calls are idempotent and return AlreadyProcessed (or equivalent) without emitting duplicates. Current failures show finalize_invoice succeeds but outbox has 0 events, and idempotency expectation fails. Determine whether tests are checking wrong DB/table, migrations not applied, or finalize path bypasses outbox enqueue. Fix the true root cause without weakening invariants.\",\n      \"how_to_think\": \"Think like a billing ledger correctness auditor. Invariant: every invoice finalization that mutates state emits the corresponding event exactly once, atomically. Failure mode to avoid: state changes without events (break projections/replay) or duplicate events (break exactly-once).\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"test_ar_finalize_invoice_outbox_atomicity passes (outbox row exists after finalize)\",\n        \"test_ar_finalize_invoice_idempotency passes (2nd finalize returns AlreadyProcessed and emits no new outbox rows)\",\n        \"Outbox write occurs inside the same transaction as the finalize mutation\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests ar_outbox_atomicity_e2e -- --nocapture\",\n        \"cargo test -p e2e-tests cross_module_invoice_e2e -- --nocapture\",\n        \"AR finalize atomicity + idempotency tests pass\"\n      ],\n      \"estimated_complexity\": 5,\n      \"files_involved\": [\n        \"modules/ar/src/**/*.rs\",\n        \"modules/ar/db/migrations/*\",\n        \"platform/event-bus/src/**/*\",\n        \"e2e-tests/tests/ar_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/src/fixtures/*.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19af\",\n      \"title\": \"Concurrency E2E rework: deterministic barrier + invariant-based assertions (fix bd-1mx fallout)\",\n      \"description\": \"Repair the two failing concurrency tests (parallel_subscription_cycle_attempts, mixed_concurrent_operations). Current barrier/synchronization may not actually align the critical section starts, causing nondeterministic outcomes. Implement deterministic scheduling: create all tasks, wait on a Barrier, then release simultaneously, and assert only guaranteed invariants (uniqueness constraints, legal transitions, final state). If exact success counts are asserted, they must be made guaranteed via deterministic setup. Ensure tests pass repeatedly across multiple runs.\",\n      \"how_to_think\": \"Think like a concurrency test engineer. Invariant: tests validate correctness under arbitrary scheduling and are reproducible. Failure mode to avoid: flaky tests that fail because timing differs, or weakened tests that no longer prove concurrency safety.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"Both failing concurrency tests pass reliably across repeated runs\",\n        \"Assertions check uniqueness + legal state transitions + final states\",\n        \"If asserting exact counts, barriers guarantee that deterministically\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"for i in 1 2 3; do cargo test -p e2e-tests cross_module_concurrency_e2e -- --nocapture; done\",\n        \"All 3 runs pass\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"e2e-tests/tests/cross_module_concurrency_e2e.rs\",\n        \"e2e-tests/src/concurrency.rs\",\n        \"e2e-tests/src/fixtures/*.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19ag\",\n      \"title\": \"Fix projections DB pool timeouts in fallback circuit E2E tests\",\n      \"description\": \"Resolve projection_fallback_circuit failures where projections DB pool times out (test_e2e_fallback_flow, test_fallback_staleness_threshold). Determine whether the projections DB service is underprovisioned, misconfigured URLs, missing migrations, or pool settings too strict. Implement a fix that makes pool acquisition reliable: correct DATABASE_URL wiring, ensure migrations run once, increase max_connections/timeout appropriately for tests, and add readiness gating in the test harness before executing fallback flows.\",\n      \"how_to_think\": \"Think like an SRE diagnosing DB connectivity. Invariant: projections DB is reachable and ready before tests execute; pool settings must be stable under parallel runs. Failure mode to avoid: hiding real logic failures behind infrastructure flakiness or inflating timeouts without fixing readiness.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"Both fallback circuit E2E tests pass without pool timeout\",\n        \"Test harness waits for projections DB readiness before running fallback tests\",\n        \"No regressions to the rest of the suite\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests projection_fallback_circuit_e2e -- --nocapture\",\n        \"cargo test -p e2e-tests --no-fail-fast -- --nocapture\",\n        \"No pool timeout failures remain\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"platform/projections/src/**/*.rs\",\n        \"infra/docker/docker-compose.infrastructure.yml\",\n        \"e2e-tests/src/db.rs\",\n        \"e2e-tests/tests/projection_fallback_circuit_e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19ah\",\n      \"title\": \"GL balance/journal test fixes + remaining misc correctness triage\",\n      \"description\": \"Eliminate remaining 'other' failures: GL SUM() NUMERIC vs INT8 decoding in balance tests, GL outbox stale event count assertion, invalid_double_reversal_rejected UUID mismatch, trial_balance API 400, and oracle SucceededWithoutInvoice in subscription_cycle_replay_deduplication. For each: determine if test is wrong (binding/types/assumptions) or code is wrong (API validation, reversal chain semantics, oracle invariants). Fix the smallest correct thing. Keep changes single-concern within this bead by addressing only these remaining misc failures and not touching unrelated systems.\",\n      \"how_to_think\": \"Think like a final-release triage lead. Invariant: the suite is green because behavior is correct, not because assertions were weakened. Failure mode to avoid: sweeping real defects under the rug at the finish line or making broad refactors that introduce new failures.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"GL balance/journal tests pass (correct numeric decoding)\",\n        \"trial_balance API test returns expected 200 with valid request\",\n        \"Remaining 'other' tests are resolved (either fixed tests or fixed code) with clear justification\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests gl_* trial_balance_* subscription_cycle_replay_deduplication -- --nocapture\",\n        \"cargo test -p e2e-tests --no-fail-fast -- --nocapture\",\n        \"No remaining failures in the misc bucket\"\n      ],\n      \"estimated_complexity\": 5,\n      \"files_involved\": [\n        \"modules/gl/src/**/*.rs\",\n        \"modules/gl/db/migrations/*\",\n        \"modules/subscriptions/src/**/*.rs\",\n        \"modules/ar/src/**/*.rs\",\n        \"e2e-tests/tests/gl_*e2e.rs\",\n        \"e2e-tests/tests/trial_balance_*e2e.rs\",\n        \"e2e-tests/tests/subscription_cycle_replay_deduplication_e2e.rs\",\n        \"e2e-tests/tests/invalid_double_reversal_rejected_e2e.rs\"\n      ]\n    }\n  ],\n  \"priority_order\": [\n    \"bd-19ac\",\n    \"bd-19ae\",\n    \"bd-19af\",\n    \"bd-19ad\",\n    \"bd-19ag\",\n    \"bd-19ah\"\n  ]\n}\nNotes on sequencing\n\nbd-19ac is a 10-minute fix and removes noise immediately.\n\nbd-19ae (AR outbox/idempotency) is correctness-critical; do it early.\n\nbd-19af fixes the lingering concurrency flake.\n\nbd-19ad is a real code bug (panic) — must be fixed before closure.\n\nbd-19ag stabilizes the last infra flake (projection pool).\n\nbd-19ah is the final mop-up bucket.\n\nWhen these are done, you should be at 0 FAIL / 1 IGNORED (real_e2e only), which is acceptable for the Phase 17/18 closure stamp.",
+  "parse_ok": true,
+  "extracted_json": {
+    "phase_19_round5_beads": [
+      {
+        "id": "bd-19ac",
+        "title": "Phase10 governance: fix account_type enum inserts (add casts/bind enum)",
+        "description": "Fix phase10_governance_e2e.rs inserts that write TEXT into the account_type enum column without casting. Update the test inserts/fixtures to bind the correct enum type or add explicit ::account_type casts. Ensure all Phase10 governance tests run cleanly under the shared infra harness with strict typing.",
+        "how_to_think": "Think like a strict Postgres typing enforcer. Invariant: tests insert values with correct enum typing; no implicit casts assumed. Failure mode to avoid: loosening schema or leaving tests that fail due to type mismatches rather than logic regressions.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "All phase10_governance_e2e tests pass",
+          "No errors remain: 'column is of type account_type but expression is of type text'"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests phase10_governance_e2e -- --nocapture",
+          "All Phase10 governance tests pass"
+        ],
+        "estimated_complexity": 1,
+        "files_involved": [
+          "e2e-tests/tests/phase10_governance_e2e.rs",
+          "e2e-tests/src/fixtures/*.rs"
+        ]
+      },
+      {
+        "id": "bd-19ad",
+        "title": "Fix compliance-export panic (export.rs:212) + determinism/isolation tests",
+        "description": "Investigate and fix the panic at tools/compliance-export (export.rs:212) triggered by compliance export E2E tests. Root cause likely unwrap/assumption about data presence or schema shape. Replace panic with typed error propagation and make export deterministic. Ensure tenant isolation rules are enforced (no cross-tenant leakage) and SHA256 manifest checksums are stable for identical inputs.",
+        "how_to_think": "Think like a compliance pipeline reliability engineer. Invariant: export never panics; it produces deterministic, tenant-isolated output or a structured error. Failure mode to avoid: silent partial exports, nondeterministic manifests, or crashes during DR/compliance workflows.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "No panic paths remain at export.rs:212 (panic eliminated or unreachable)",
+          "test_compliance_export_determinism passes (stable checksum/manifest)",
+          "test_compliance_export_tenant_isolation passes (no cross-tenant data)"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests compliance_export_* -- --nocapture",
+          "cargo test -p e2e-tests --no-fail-fast -- --nocapture",
+          "Compliance export tests pass and no panics occur"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "tools/compliance-export/src/export.rs",
+          "tools/compliance-export/src/lib.rs",
+          "e2e-tests/tests/compliance_export_e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19ae",
+        "title": "AR finalize_invoice: enforce outbox atomicity + idempotency semantics",
+        "description": "Fix AR finalize_invoice behavior so: (1) success implies exactly one outbox event written in the same transaction, and (2) repeated finalize_invoice calls are idempotent and return AlreadyProcessed (or equivalent) without emitting duplicates. Current failures show finalize_invoice succeeds but outbox has 0 events, and idempotency expectation fails. Determine whether tests are checking wrong DB/table, migrations not applied, or finalize path bypasses outbox enqueue. Fix the true root cause without weakening invariants.",
+        "how_to_think": "Think like a billing ledger correctness auditor. Invariant: every invoice finalization that mutates state emits the corresponding event exactly once, atomically. Failure mode to avoid: state changes without events (break projections/replay) or duplicate events (break exactly-once).",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "test_ar_finalize_invoice_outbox_atomicity passes (outbox row exists after finalize)",
+          "test_ar_finalize_invoice_idempotency passes (2nd finalize returns AlreadyProcessed and emits no new outbox rows)",
+          "Outbox write occurs inside the same transaction as the finalize mutation"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests ar_outbox_atomicity_e2e -- --nocapture",
+          "cargo test -p e2e-tests cross_module_invoice_e2e -- --nocapture",
+          "AR finalize atomicity + idempotency tests pass"
+        ],
+        "estimated_complexity": 5,
+        "files_involved": [
+          "modules/ar/src/**/*.rs",
+          "modules/ar/db/migrations/*",
+          "platform/event-bus/src/**/*",
+          "e2e-tests/tests/ar_outbox_atomicity_e2e.rs",
+          "e2e-tests/src/fixtures/*.rs"
+        ]
+      },
+      {
+        "id": "bd-19af",
+        "title": "Concurrency E2E rework: deterministic barrier + invariant-based assertions (fix bd-1mx fallout)",
+        "description": "Repair the two failing concurrency tests (parallel_subscription_cycle_attempts, mixed_concurrent_operations). Current barrier/synchronization may not actually align the critical section starts, causing nondeterministic outcomes. Implement deterministic scheduling: create all tasks, wait on a Barrier, then release simultaneously, and assert only guaranteed invariants (uniqueness constraints, legal transitions, final state). If exact success counts are asserted, they must be made guaranteed via deterministic setup. Ensure tests pass repeatedly across multiple runs.",
+        "how_to_think": "Think like a concurrency test engineer. Invariant: tests validate correctness under arbitrary scheduling and are reproducible. Failure mode to avoid: flaky tests that fail because timing differs, or weakened tests that no longer prove concurrency safety.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Both failing concurrency tests pass reliably across repeated runs",
+          "Assertions check uniqueness + legal state transitions + final states",
+          "If asserting exact counts, barriers guarantee that deterministically"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "for i in 1 2 3; do cargo test -p e2e-tests cross_module_concurrency_e2e -- --nocapture; done",
+          "All 3 runs pass"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "e2e-tests/tests/cross_module_concurrency_e2e.rs",
+          "e2e-tests/src/concurrency.rs",
+          "e2e-tests/src/fixtures/*.rs"
+        ]
+      },
+      {
+        "id": "bd-19ag",
+        "title": "Fix projections DB pool timeouts in fallback circuit E2E tests",
+        "description": "Resolve projection_fallback_circuit failures where projections DB pool times out (test_e2e_fallback_flow, test_fallback_staleness_threshold). Determine whether the projections DB service is underprovisioned, misconfigured URLs, missing migrations, or pool settings too strict. Implement a fix that makes pool acquisition reliable: correct DATABASE_URL wiring, ensure migrations run once, increase max_connections/timeout appropriately for tests, and add readiness gating in the test harness before executing fallback flows.",
+        "how_to_think": "Think like an SRE diagnosing DB connectivity. Invariant: projections DB is reachable and ready before tests execute; pool settings must be stable under parallel runs. Failure mode to avoid: hiding real logic failures behind infrastructure flakiness or inflating timeouts without fixing readiness.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Both fallback circuit E2E tests pass without pool timeout",
+          "Test harness waits for projections DB readiness before running fallback tests",
+          "No regressions to the rest of the suite"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests projection_fallback_circuit_e2e -- --nocapture",
+          "cargo test -p e2e-tests --no-fail-fast -- --nocapture",
+          "No pool timeout failures remain"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "platform/projections/src/**/*.rs",
+          "infra/docker/docker-compose.infrastructure.yml",
+          "e2e-tests/src/db.rs",
+          "e2e-tests/tests/projection_fallback_circuit_e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19ah",
+        "title": "GL balance/journal test fixes + remaining misc correctness triage",
+        "description": "Eliminate remaining 'other' failures: GL SUM() NUMERIC vs INT8 decoding in balance tests, GL outbox stale event count assertion, invalid_double_reversal_rejected UUID mismatch, trial_balance API 400, and oracle SucceededWithoutInvoice in subscription_cycle_replay_deduplication. For each: determine if test is wrong (binding/types/assumptions) or code is wrong (API validation, reversal chain semantics, oracle invariants). Fix the smallest correct thing. Keep changes single-concern within this bead by addressing only these remaining misc failures and not touching unrelated systems.",
+        "how_to_think": "Think like a final-release triage lead. Invariant: the suite is green because behavior is correct, not because assertions were weakened. Failure mode to avoid: sweeping real defects under the rug at the finish line or making broad refactors that introduce new failures.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "GL balance/journal tests pass (correct numeric decoding)",
+          "trial_balance API test returns expected 200 with valid request",
+          "Remaining 'other' tests are resolved (either fixed tests or fixed code) with clear justification"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests gl_* trial_balance_* subscription_cycle_replay_deduplication -- --nocapture",
+          "cargo test -p e2e-tests --no-fail-fast -- --nocapture",
+          "No remaining failures in the misc bucket"
+        ],
+        "estimated_complexity": 5,
+        "files_involved": [
+          "modules/gl/src/**/*.rs",
+          "modules/gl/db/migrations/*",
+          "modules/subscriptions/src/**/*.rs",
+          "modules/ar/src/**/*.rs",
+          "e2e-tests/tests/gl_*e2e.rs",
+          "e2e-tests/tests/trial_balance_*e2e.rs",
+          "e2e-tests/tests/subscription_cycle_replay_deduplication_e2e.rs",
+          "e2e-tests/tests/invalid_double_reversal_rejected_e2e.rs"
+        ]
+      }
+    ],
+    "priority_order": [
+      "bd-19ac",
+      "bd-19ae",
+      "bd-19af",
+      "bd-19ad",
+      "bd-19ag",
+      "bd-19ah"
+    ]
+  },
+  "error": null
+}

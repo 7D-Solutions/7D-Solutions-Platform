@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "raw_text": "Understood. This handoff is structurally complete and authoritative.\n\nFor the new session, use this conversation title:\n\nPhase 19 — Final E2E Integrity Closure (Round 5 Command Supervision)\n\nWhen the next sweep report arrives, I will:\n\nEvaluate FAIL set by architectural class (atomicity, envelope, projection, governance, concurrency).\n\nMap each remaining failure to a one-way or two-way door per Constitution v1.3.\n\nEnforce stop-the-line rules exactly as defined.\n\nEither:\n\nDeclare Phase 19 CLOSED, or\n\nDefine Round 6 minimal remediation beads (surgically targeted, no broad refactors).\n\nAwaiting updated sweep:\n\nCode\ncargo test -p e2e-tests --no-fail-fast\n\nProvide raw signal only:\n\nPASS\n\nFAIL\n\nIGNORED\n\nFailure list with error snippets\n\nWe proceed from there.",
+  "parse_ok": false,
+  "extracted_json": null,
+  "error": "NO_JSON_STRUCTURE_FOUND"
+}

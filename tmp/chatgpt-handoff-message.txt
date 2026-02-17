@@ -1,0 +1,422 @@
+Below is the complete handoff document for a fresh ChatGPT conversation.
+This can be pasted as the first message in a new session.
+
+🔥 7D Solutions Platform — Master Handoff (Phase 19 Context)
+1️⃣ Project Identity
+What This Is
+
+The 7D Solutions Platform is a production-grade, event-driven, multi-module ERP/billing system built in:
+
+Rust (Axum + SQLx + Tokio)
+
+PostgreSQL (multi-database, one DB per module)
+
+NATS (event bus)
+
+Docker Compose infrastructure
+
+Deterministic E2E testing (no mocks, no stubs)
+
+The architecture is modular, contract-driven, and event-first.
+
+Module Layout
+
+Each module has its own:
+
+PostgreSQL database
+
+Migrations
+
+Outbox table
+
+Invariant assertions
+
+HTTP API
+
+/api/ready
+
+/api/version
+
+/metrics endpoint
+
+Business Modules
+
+modules/ar
+
+modules/payments
+
+modules/subscriptions
+
+modules/gl
+
+modules/notifications (stateless, outbox only)
+
+Platform Crates
+
+platform/event-bus
+
+platform/projections
+
+platform/audit
+
+platform/tenant-registry
+
+platform/security
+
+platform/identity-auth
+
+Tools
+
+tools/simulation
+
+tools/tenantctl
+
+tools/projection-rebuild
+
+tools/compliance-export
+
+tools/backup
+
+tools/ci
+
+2️⃣ Phase History Summary
+Phase 7–10
+
+Financial core + governance + GL integrity + period controls.
+
+Phase 11–14
+
+Retry windows, UNKNOWN protocol, deterministic billing lifecycle.
+
+Phase 15
+
+Deterministic simulation harness (5 identical runs required).
+
+Phase 16
+
+Production hardening:
+
+EventEnvelope constitutional metadata
+
+DB pool resolver seam
+
+CI architectural lints
+
+Operational endpoints + alerts
+
+Atomic Guard → Mutation → Outbox enforcement
+
+Phase 17 — “Truth at Scale”
+
+Projection rebuild + replay certification
+
+Audit spine by mutation_class
+
+Tenant provisioning + 100-tenant deterministic simulation
+
+Phase 18 — “Production Operations & Security”
+
+Service-to-service auth
+
+RBAC (Admin/Operator/Auditor)
+
+Compliance export (deterministic SHA256)
+
+DR drill (restore → replay → oracle pass)
+
+Rate limiting + dashboards
+
+All features delivered.
+
+3️⃣ Phase 19 — E2E Remediation Campaign
+Starting State
+
+Initial E2E sweep after Phase 17/18:
+
+63 FAIL
+
+18 ignored tests (many phantom stubs)
+
+Phase 19 Progress
+Round 1–4
+
+Fixed platform DB infra
+
+Schema qualification drift
+
+Envelope contract alignment
+
+Audit migration idempotency
+
+Removed Docker-in-test anti-pattern
+
+Removed phantom ignored tests
+
+Fixed deadlocks, enum casts, timestamp mismatches
+
+Result:
+
+63 FAIL → 19 FAIL
+
+18 ignored → 1 legitimate ignored
+
+Ignored Test Status
+
+Now only:
+
+Code
+real_e2e.rs::test_real_nats_based_e2e
+
+Legitimate explicit-run test requiring live NATS.
+
+All phantom Ok(()) tests purged.
+
+Current State
+Code
+PASS: 212
+FAIL: 19
+IGNORED: 1
+TOTAL: 232
+4️⃣ Round 5 — Final 6 Remediation Beads
+Mapping
+ChatGPT ID	Our Bead ID	Title
+bd-19ac	bd-3hp	Phase10 governance enum casts
+bd-19ad	bd-35e	Compliance export panic
+bd-19ae	bd-3h5	AR finalize_invoice atomicity
+bd-19af	bd-2a3	Concurrency deterministic barrier
+bd-19ag	bd-26i	Projections DB pool timeouts
+bd-19ah	bd-k4w	GL balance + misc triage
+Agent Assignments
+
+CopperRiver
+
+bd-3hp
+
+bd-3h5
+
+PurpleCliff
+
+bd-35e
+
+bd-k4w
+
+MaroonHarbor
+
+bd-2a3
+
+bd-26i
+
+Closure Bar
+
+Phase 19 closes when:
+
+Code
+cargo test -p e2e-tests --no-fail-fast
+
+Returns:
+
+Code
+0 FAIL
+1 IGNORED (real_e2e only)
+
+No weakening of assertions allowed.
+
+5️⃣ Architectural Constraints (Non-Negotiable)
+🚫 Tests NEVER spin up Docker
+
+No Command::new("docker") inside tests.
+
+🚫 No mocks or stubs
+
+All tests hit:
+
+Real Postgres
+
+Real NATS
+
+Real services
+
+Real migrations
+
+✅ Guard → Mutation → Outbox atomicity
+
+State mutation + event enqueue MUST occur in same transaction.
+
+✅ EventEnvelope constitutional metadata
+
+All events include:
+
+causation_id
+
+correlation_id
+
+idempotency_key
+
+mutation_class
+
+tenant_id
+
+schema_version
+
+✅ CI Lints
+
+No cross-module imports
+
+No raw PgPool creation
+
+No new #[ignore] tests without allowlist
+
+🚫 No weakening assertions
+
+If test fails, fix the system or correct the test’s incorrect assumption.
+Never delete logic checks to “make green”.
+
+6️⃣ Stop-the-Line Rules (Round 5)
+bd-3h5 (AR atomicity)
+
+Do NOT fix by weakening outbox assertion.
+If outbox row missing:
+
+Either mutation path skipped enqueue
+
+Or test checking wrong DB
+Prove root cause.
+
+bd-2a3 (Concurrency)
+
+If exact counts are asserted:
+
+Must enforce deterministic barrier.
+Otherwise:
+
+Assert invariants (uniqueness, legal transitions).
+
+No flaky tests allowed.
+
+bd-35e (Compliance Export)
+
+No unwrap().
+No panics.
+Must return structured error.
+
+Deterministic checksum must remain stable.
+
+bd-26i (Pool Timeout)
+
+Fix readiness or URL wiring.
+Do NOT simply increase timeout blindly.
+
+bd-k4w (GL + Misc)
+
+Fix smallest correct thing.
+Do not refactor broadly.
+
+7️⃣ Communication Protocol
+
+This project uses an AI Flywheel Worker System.
+
+Orchestrator
+
+Claude instance (BrightHill) assigns beads.
+
+Workers
+
+CopperRiver
+
+PurpleCliff
+
+MaroonHarbor
+
+They:
+
+Claim bead
+
+Implement
+
+Report
+
+Run targeted tests
+
+Run full sweep
+
+ChatGPT receives:
+
+Sweep report
+
+Root cause categorization
+
+Proposed next bead set
+
+ChatGPT responds with:
+
+Bead definitions
+
+Priorities
+
+Stop-the-line guidance
+
+Closure decision
+
+8️⃣ What Happens Next
+
+After Round 5:
+
+If:
+Code
+0 FAIL / 1 IGNORED
+
+→ Phase 19 CLOSED
+→ Phase 17/18 receive final production stamp
+→ System declared structurally stable
+
+If residual failures remain:
+
+→ Round 6 beads created
+→ Target only remaining root causes
+→ No broad refactors
+
+9️⃣ Current Objective for New Session
+
+The new ChatGPT instance must:
+
+Assume all context above is authoritative.
+
+Continue supervising Round 5 execution.
+
+Evaluate next E2E sweep.
+
+Either:
+
+Stamp Phase 19 CLOSED
+
+Or define Round 6 remediation beads
+
+Do not ask:
+
+“What project is this?”
+
+“What architecture are you using?”
+
+“Are you mocking tests?”
+
+All of that is already defined above.
+
+🔒 Integrity Standard
+
+The suite must be green because:
+
+The architecture is correct
+
+The contracts are enforced
+
+Atomicity is proven
+
+Concurrency is safe
+
+Determinism holds
+
+No phantom coverage remains
+
+Not because tests were softened.
+
+End of Handoff

@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "raw_text": "Approved. Your mapping preserves intent and the dependency DAG is correct.\n\nAssignments (max throughput, minimal coupling)\n\nCopperRiver → bd-3d8 (platform DB services + test wiring)\nThis unlocks bd-s6y and bd-q09, so it’s the critical path.\n\nPurpleCliff → bd-13z (schema qualification normalization)\nIndependent, fast noise-reducer.\n\nMaroonHarbor → bd-3d8 support OR pre-work for bd-s6y\nIf CopperRiver is deep in compose, have MaroonHarbor prep the readiness/NATS barrier utilities and logging changes in a branch, but do not merge until bd-3d8 lands.\n\nMerge order\n\nbd-13z can merge anytime once green.\n\nbd-3d8 must merge next (infra foundation).\n\nThen run:\n\nbd-s6y (timeouts/readiness/NATS sync)\n\nbd-q09 (envelope/metadata alignment)\n\nStop-the-line constraints (don’t violate)\n\nNo mocks/stubs added to make tests pass\n\nPlatform DBs must be explicit in compose (or explicit DBs on an existing PG service) and connected via env vars\n\nIf you choose “single PG service, multiple DBs”: document the env var mapping clearly and keep it deterministic\n\nWhat I want back for the closure stamp\n\nAfter all 4 beads are closed, paste:\n\ncargo test -p e2e-tests --no-fail-fast summary (pass/fail counts)\n\nA short note confirming platform DB containers exist in compose (names + ports)\n\nConfirmation that the previously failing categories are now green (projection, tenant-registry, envelope)\n\nProceed.",
+  "parse_ok": false,
+  "extracted_json": null,
+  "error": "NO_JSON_STRUCTURE_FOUND"
+}

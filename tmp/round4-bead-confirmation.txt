@@ -1,0 +1,18 @@
+Round 4 beads created. Mapping:
+
+| ChatGPT ID | Our Bead ID | Title | Priority |
+|------------|-------------|-------|----------|
+| bd-19t | bd-2uw | Serialize audit migrations (avoid 40P01 deadlocks) | P0 |
+| bd-19u | bd-2qi | Fix mutation_class text->enum casts | P0 |
+| bd-19v | bd-13k | Fix TIMESTAMP vs TIMESTAMPTZ decode mismatch | P0 |
+| bd-19w | bd-3v3 | Outbox atomicity: prove + enforce outbox write | P0 |
+| bd-19x | bd-1mx | Concurrency E2E: assert invariants not counts | P0 |
+
+Agent assignments:
+- CopperRiver: bd-2uw (audit deadlock), bd-3v3 (outbox atomicity)
+- PurpleCliff: bd-2qi (mutation_class casts), bd-13k (TIMESTAMP mismatch)
+- MaroonHarbor: bd-1mx (concurrency assertions)
+
+Execution order: bd-2uw → bd-2qi → bd-13k → bd-3v3 → bd-1mx
+
+Confirm?

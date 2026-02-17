@@ -1,0 +1,1 @@
+Yes, output the exact JSON beads for bd-19e through bd-19k in our standard format so I can create them immediately.

@@ -1,0 +1,17 @@
+Ignored test cleanup beads created. Mapping:
+
+| ChatGPT ID | Our Bead ID | Title | Priority |
+|------------|-------------|-------|----------|
+| bd-19y | bd-1ez | Purge phantom ignored E2E stubs | P0 |
+| bd-19z | bd-1oe | Rewrite Phase10 governance tests — no Docker in tests | P0 |
+| bd-19aa | bd-64k | Implement in-scope outbox atomicity E2E tests | P1 |
+| bd-19ab | bd-2hf | Add CI lint preventing new #[ignore] tests | P1 |
+
+Additional constraint from project owner: Tests must NEVER spin up Docker. This is a hard rule, not just for Phase10 — applies everywhere.
+
+Proposed assignments:
+- PurpleCliff: bd-1ez (purge stubs)
+- CopperRiver: bd-1oe (Phase10 governance rewrite)
+- MaroonHarbor: bd-64k (implement atomicity tests) + bd-2hf (CI lint)
+
+Confirm?

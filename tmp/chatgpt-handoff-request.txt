@@ -1,0 +1,31 @@
+Your context is getting low. We need to prepare a handoff document for a fresh conversation.
+
+Please produce a complete handoff document that a new ChatGPT conversation can ingest as its first message to continue seamlessly. It should include:
+
+1. **Project identity**: What this project is, the architecture (Rust, PostgreSQL multi-DB, NATS event bus, Docker Compose infra, module list)
+
+2. **Phase history summary**: Phases 7-16 complete (one-liner each). Phase 17/18 delivered features. Phase 19 is E2E remediation.
+
+3. **Phase 19 current state**:
+   - Rounds 1-4 complete (63 failures → 19)
+   - Ignored test cleanup complete (18 phantom ignores → 1 legitimate)
+   - Round 5 in flight: 6 beads targeting the final 19 failures
+   - Round 5 bead mapping (ChatGPT IDs → our bead IDs)
+   - Agent assignments (CopperRiver, PurpleCliff, MaroonHarbor)
+   - Closure bar: 0 FAIL / 1 IGNORED (real_e2e only)
+
+4. **Architectural constraints established**:
+   - Tests NEVER spin up Docker
+   - No mocks/stubs — real integrated tests against real DBs
+   - Guard → Mutation → Outbox atomicity pattern
+   - EventEnvelope constitutional metadata
+   - CI lint prevents new #[ignore] tests without allowlist
+   - No weakening assertions to make tests pass
+
+5. **Stop-the-line rules** for Round 5 beads (the ones you gave me this round)
+
+6. **Communication protocol**: How the orchestrator (BrightHill/Claude) communicates with you — flywheel worker, bead ID mapping, sweep reports
+
+7. **What happens next**: After Round 5 sweep, if 0 failures → Phase 19 closure stamp. If residual → Round 6.
+
+Format it as a single self-contained message that can be pasted into a new conversation. Include enough context that you (as a new instance) can pick up without asking "what project is this?"

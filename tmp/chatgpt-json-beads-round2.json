@@ -1,0 +1,212 @@
+{
+  "ok": true,
+  "raw_text": "JSON\n{\n  \"phase_19_round2_remediation_beads\": [\n    {\n      \"id\": \"bd-19e\",\n      \"title\": \"Fix audit migration idempotency (mutation_class enum exists)\",\n      \"description\": \"Repair audit DB migrations so they are safely re-runnable on an already-initialized database. Current failures indicate a migration attempts to CREATE TYPE mutation_class when it already exists. Implement a Postgres-safe idempotent pattern (e.g., DO $$ BEGIN IF NOT EXISTS (...) THEN CREATE TYPE ...; END IF; END $$;), or refactor migrations so enum creation occurs once and subsequent migrations depend on it without re-creating it. Ensure this works under: fresh DB, DB restored from backup, and DB where partial migrations ran previously. Do not use DROP TYPE in a way that could destroy data.\",\n      \"how_to_think\": \"Think like a database fleet migration engineer. Invariant: every migration is idempotent and safe across repeated runs on many tenant/platform DBs. Failure mode to avoid: fleet migrations failing mid-run or DR restore failing because a migration cannot be applied twice.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"Audit migrations succeed on a fresh audit DB\",\n        \"Audit migrations succeed when re-run on the same audit DB (no errors)\",\n        \"No destructive DROP TYPE/objects that could remove existing audit data\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests audit_* -- --nocapture\",\n        \"cargo test -p e2e-tests --no-fail-fast -- --nocapture\",\n        \"All audit-related E2E tests pass; no migration 'enum already exists' failures remain\"\n      ],\n      \"estimated_complexity\": 3,\n      \"files_involved\": [\n        \"platform/audit/db/migrations/*\",\n        \"e2e-tests/src/*\",\n        \"e2e-tests/tests/audit_policy_e2e.rs\",\n        \"e2e-tests/tests/audit_append_only_e2e.rs\",\n        \"e2e-tests/tests/audit_completeness_oracle_e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19f\",\n      \"title\": \"Normalize audit DB env var name in test harness\",\n      \"description\": \"Eliminate inconsistent audit DB env var usage causing connection failures. Some tests look for PLATFORM_AUDIT_DATABASE_URL while others use AUDIT_DATABASE_URL. Choose a single canonical variable name for all codepaths (prefer AUDIT_DATABASE_URL). Add a backward-compatible alias resolver in the e2e-tests harness (e.g., if AUDIT_DATABASE_URL missing, fall back to PLATFORM_AUDIT_DATABASE_URL) to prevent drift. Update all tests/helpers to use the canonical getter.\",\n      \"how_to_think\": \"Think like a build-and-test reliability engineer. Invariant: test configuration is consistent and deterministic across machines and CI. Failure mode to avoid: tests failing due to env var naming drift rather than real functional regressions.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"All audit tests read audit DB URL from a single canonical getter\",\n        \"AUDIT_DATABASE_URL is the documented canonical name\",\n        \"Legacy PLATFORM_AUDIT_DATABASE_URL still works via alias mapping (optional but preferred)\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"unset PLATFORM_AUDIT_DATABASE_URL; export AUDIT_DATABASE_URL=postgres://... && cargo test -p e2e-tests audit_* -- --nocapture\",\n        \"unset AUDIT_DATABASE_URL; export PLATFORM_AUDIT_DATABASE_URL=postgres://... && cargo test -p e2e-tests audit_* -- --nocapture\",\n        \"Audit tests pass under both env var configurations\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"e2e-tests/src/config.rs\",\n        \"e2e-tests/src/db.rs\",\n        \"e2e-tests/tests/**/*audit*e2e.rs\",\n        \"docs/ops/*\"\n      ]\n    },\n    {\n      \"id\": \"bd-19g\",\n      \"title\": \"Align /api/version and /api/ready auth policy with ops needs\",\n      \"description\": \"Resolve E2E failures where /api/version returns 401 (AR currently blocked by auth middleware). Decide and implement the platform policy: diagnostic endpoints (/api/version and /api/ready) must be callable without user auth for ops tooling and test harness, OR tests must provide a valid service token. Recommended: exempt /api/version and /api/ready from auth middleware across all modules consistently. Ensure RBAC/strong auth remains on operator/mutation endpoints. Update e2e tests accordingly.\",\n      \"how_to_think\": \"Think like an operations security architect. Invariant: diagnostic endpoints remain reliably accessible for health/version checks without weakening mutation security. Failure mode to avoid: locking out ops tooling (and tests) behind auth, or accidentally exempting mutation endpoints and creating a security hole.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"All modules return 200 for /api/version and /api/ready without auth\",\n        \"Mutation/privileged endpoints remain protected (no unintended auth bypass)\",\n        \"E2E version/readiness tests pass\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests version_endpoints_smoke_e2e ready_endpoints_smoke_e2e -- --nocapture\",\n        \"cargo test -p e2e-tests service_to_service_auth_e2e -- --nocapture\",\n        \"Version/ready are 200 unauthenticated; auth-protected endpoints still enforce 401/403\"\n      ],\n      \"estimated_complexity\": 3,\n      \"files_involved\": [\n        \"modules/ar/src/main.rs\",\n        \"modules/ar/src/routes/health.rs\",\n        \"modules/payments/src/main.rs\",\n        \"modules/payments/src/routes/health.rs\",\n        \"modules/subscriptions/src/main.rs\",\n        \"modules/subscriptions/src/routes/health.rs\",\n        \"modules/gl/src/main.rs\",\n        \"modules/gl/src/routes/health.rs\",\n        \"modules/notifications/src/main.rs\",\n        \"modules/notifications/src/routes/health.rs\",\n        \"modules/*/src/middleware/auth.rs\",\n        \"e2e-tests/tests/version_endpoints_smoke_e2e.rs\",\n        \"e2e-tests/tests/ready_endpoints_smoke_e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19h\",\n      \"title\": \"Fix envelope validation and oracle invariant regressions\",\n      \"description\": \"Resolve the remaining failing tests indicating real contract/invariant violations: mutation_class required validation mismatches and UNKNOWN payment retry queue/oracle invariant issues. Steps: (1) identify the exact failing assertions and the event/envelope fields missing or mis-validated, (2) ensure emit and ingest paths validate envelopes consistently (no bypass), (3) ensure mutation_class is always populated where constitution requires it, (4) ensure UNKNOWN protocol queueing and retry blocks remain correct under current code. Fix code (not tests) if the contract is being violated; only adjust tests if they are asserting outdated contract semantics.\",\n      \"how_to_think\": \"Think like an event-contract integrity lead. Invariant: every emitted event satisfies constitutional envelope requirements and the oracle invariants always hold under replay and UNKNOWN handling. Failure mode to avoid: weakening validation/tests to hide real violations, allowing bad events that break replay, auditing, or billing correctness.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"mutation_class_presence_e2e passes across all relevant modules\",\n        \"envelope_invalid_rejected_e2e passes by rejecting invalid envelopes at a real validation point\",\n        \"UNKNOWN-related oracle/invariant tests pass without relaxing invariants\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests mutation_class_presence_e2e envelope_invalid_rejected_e2e envelope_nats_roundtrip_e2e -- --nocapture\",\n        \"cargo test -p e2e-tests cross_module_unknown_protocol_e2e -- --nocapture\",\n        \"cargo test -p e2e-tests --no-fail-fast -- --nocapture\",\n        \"All envelope/UNKNOWN/oracle failures are eliminated\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"platform/event-bus/src/envelope.rs\",\n        \"modules/ar/src/**/*.rs\",\n        \"modules/payments/src/**/*.rs\",\n        \"modules/subscriptions/src/**/*.rs\",\n        \"modules/gl/src/**/*.rs\",\n        \"e2e-tests/tests/mutation_class_presence_e2e.rs\",\n        \"e2e-tests/tests/envelope_invalid_rejected_e2e.rs\",\n        \"e2e-tests/tests/envelope_nats_roundtrip_e2e.rs\",\n        \"e2e-tests/tests/cross_module_unknown_protocol_e2e.rs\",\n        \"e2e-tests/tests/oracle.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19i\",\n      \"title\": \"Resolve AR customer_id type mismatch (schema vs tests)\",\n      \"description\": \"Fix drift where E2E tests supply a string ar_customer_id but the AR DB schema expects an integer (or vice versa). Decide the canonical type for customer_id in AR based on your platform conventions (recommended: TEXT/UUID-like stable identifiers for cross-system traceability). Then align: (1) AR migrations/schema, (2) AR code paths, (3) E2E tests and fixtures. If changing schema type, add a safe migration strategy for existing data (cast/transform) appropriate for dev/test environments.\",\n      \"how_to_think\": \"Think like a domain data model owner. Invariant: identifier types are consistent across the system and safe for long-term compatibility. Failure mode to avoid: silently casting or mixing int/text IDs, creating hard-to-debug joins, exports, and audit traces that cannot reconcile.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"AR customer_id type is clearly defined and consistent in schema + code + tests\",\n        \"All AR E2E tests that previously failed on customer_id now pass\",\n        \"If schema changes, migration is forward-only and succeeds on clean DB\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests ar_* -- --nocapture\",\n        \"cargo test -p e2e-tests cross_module_* -- --nocapture\",\n        \"AR and cross-module tests involving customers pass\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"modules/ar/db/migrations/*\",\n        \"modules/ar/src/**/*.rs\",\n        \"e2e-tests/src/fixtures/*.rs\",\n        \"e2e-tests/tests/ar_*e2e.rs\",\n        \"e2e-tests/tests/cross_module_*e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19j\",\n      \"title\": \"Resolve Subscriptions customer_id schema drift (missing column)\",\n      \"description\": \"Fix drift where E2E tests insert or expect a subscriptions table column customer_id that does not exist. Decide whether customer_id is a required subscriptions domain attribute. If yes: add the column via migration, wire it through creation/update flows, and ensure it is populated from envelope/correlation metadata where appropriate. If no: update tests/fixtures to remove the assumption and rely on the actual subscription identity model. Keep changes single-concern: schema + minimal code or tests based on the chosen truth.\",\n      \"how_to_think\": \"Think like a subscriptions domain architect. Invariant: tests match real schema and the schema reflects the intended domain model. Failure mode to avoid: adding fields just to satisfy tests without a domain reason, or keeping tests that assert nonexistent fields and never validate real behavior.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"Subscriptions schema and tests are aligned (no references to nonexistent customer_id)\",\n        \"If customer_id is added, it is migrated and populated deterministically\",\n        \"Subscriptions-related E2E tests that previously failed now pass\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests subscriptions_* -- --nocapture\",\n        \"cargo test -p e2e-tests cross_module_* -- --nocapture\",\n        \"Subscriptions and dependent cross-module tests pass\"\n      ],\n      \"estimated_complexity\": 3,\n      \"files_involved\": [\n        \"modules/subscriptions/db/migrations/*\",\n        \"modules/subscriptions/src/**/*.rs\",\n        \"e2e-tests/src/fixtures/*.rs\",\n        \"e2e-tests/tests/subscriptions_*e2e.rs\",\n        \"e2e-tests/tests/cross_module_*e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19k\",\n      \"title\": \"Fix GL accounts inserts in tests (missing UUID id)\",\n      \"description\": \"Repair GL E2E tests that insert accounts without providing a required UUID id. Preferred approach: update tests/fixtures to generate UUIDs explicitly when inserting accounts. Only add a DB default (gen_random_uuid) if the production domain model expects server-side default IDs. Ensure deterministic tests by generating UUIDs explicitly in fixtures.\",\n      \"how_to_think\": \"Think like a database correctness tester. Invariant: tests create valid rows that satisfy schema constraints without relying on implicit behaviors that may differ across environments. Failure mode to avoid: masking schema constraints by loosening DB requirements, or introducing nondeterministic IDs that break replay/digest checks.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"All GL tests that previously failed due to NULL/absent id now pass\",\n        \"Test fixtures generate UUIDs deterministically (standard uuid v4 is acceptable if not used in digest comparisons; otherwise stable seeded UUIDs)\",\n        \"No production schema loosening unless explicitly intended\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests gl_* -- --nocapture\",\n        \"cargo test -p e2e-tests --no-fail-fast -- --nocapture\",\n        \"All GL-related failures are eliminated\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"e2e-tests/src/fixtures/*.rs\",\n        \"e2e-tests/tests/gl_*e2e.rs\",\n        \"modules/gl/db/migrations/*\"\n      ]\n    }\n  ],\n  \"priority_order\": [\n    \"bd-19e\",\n    \"bd-19f\",\n    \"bd-19g\",\n    \"bd-19h\",\n    \"bd-19i\",\n    \"bd-19j\",\n    \"bd-19k\"\n  ]\n}",
+  "parse_ok": true,
+  "extracted_json": {
+    "phase_19_round2_remediation_beads": [
+      {
+        "id": "bd-19e",
+        "title": "Fix audit migration idempotency (mutation_class enum exists)",
+        "description": "Repair audit DB migrations so they are safely re-runnable on an already-initialized database. Current failures indicate a migration attempts to CREATE TYPE mutation_class when it already exists. Implement a Postgres-safe idempotent pattern (e.g., DO $$ BEGIN IF NOT EXISTS (...) THEN CREATE TYPE ...; END IF; END $$;), or refactor migrations so enum creation occurs once and subsequent migrations depend on it without re-creating it. Ensure this works under: fresh DB, DB restored from backup, and DB where partial migrations ran previously. Do not use DROP TYPE in a way that could destroy data.",
+        "how_to_think": "Think like a database fleet migration engineer. Invariant: every migration is idempotent and safe across repeated runs on many tenant/platform DBs. Failure mode to avoid: fleet migrations failing mid-run or DR restore failing because a migration cannot be applied twice.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Audit migrations succeed on a fresh audit DB",
+          "Audit migrations succeed when re-run on the same audit DB (no errors)",
+          "No destructive DROP TYPE/objects that could remove existing audit data"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests audit_* -- --nocapture",
+          "cargo test -p e2e-tests --no-fail-fast -- --nocapture",
+          "All audit-related E2E tests pass; no migration 'enum already exists' failures remain"
+        ],
+        "estimated_complexity": 3,
+        "files_involved": [
+          "platform/audit/db/migrations/*",
+          "e2e-tests/src/*",
+          "e2e-tests/tests/audit_policy_e2e.rs",
+          "e2e-tests/tests/audit_append_only_e2e.rs",
+          "e2e-tests/tests/audit_completeness_oracle_e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19f",
+        "title": "Normalize audit DB env var name in test harness",
+        "description": "Eliminate inconsistent audit DB env var usage causing connection failures. Some tests look for PLATFORM_AUDIT_DATABASE_URL while others use AUDIT_DATABASE_URL. Choose a single canonical variable name for all codepaths (prefer AUDIT_DATABASE_URL). Add a backward-compatible alias resolver in the e2e-tests harness (e.g., if AUDIT_DATABASE_URL missing, fall back to PLATFORM_AUDIT_DATABASE_URL) to prevent drift. Update all tests/helpers to use the canonical getter.",
+        "how_to_think": "Think like a build-and-test reliability engineer. Invariant: test configuration is consistent and deterministic across machines and CI. Failure mode to avoid: tests failing due to env var naming drift rather than real functional regressions.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "All audit tests read audit DB URL from a single canonical getter",
+          "AUDIT_DATABASE_URL is the documented canonical name",
+          "Legacy PLATFORM_AUDIT_DATABASE_URL still works via alias mapping (optional but preferred)"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "unset PLATFORM_AUDIT_DATABASE_URL; export AUDIT_DATABASE_URL=postgres://... && cargo test -p e2e-tests audit_* -- --nocapture",
+          "unset AUDIT_DATABASE_URL; export PLATFORM_AUDIT_DATABASE_URL=postgres://... && cargo test -p e2e-tests audit_* -- --nocapture",
+          "Audit tests pass under both env var configurations"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "e2e-tests/src/config.rs",
+          "e2e-tests/src/db.rs",
+          "e2e-tests/tests/**/*audit*e2e.rs",
+          "docs/ops/*"
+        ]
+      },
+      {
+        "id": "bd-19g",
+        "title": "Align /api/version and /api/ready auth policy with ops needs",
+        "description": "Resolve E2E failures where /api/version returns 401 (AR currently blocked by auth middleware). Decide and implement the platform policy: diagnostic endpoints (/api/version and /api/ready) must be callable without user auth for ops tooling and test harness, OR tests must provide a valid service token. Recommended: exempt /api/version and /api/ready from auth middleware across all modules consistently. Ensure RBAC/strong auth remains on operator/mutation endpoints. Update e2e tests accordingly.",
+        "how_to_think": "Think like an operations security architect. Invariant: diagnostic endpoints remain reliably accessible for health/version checks without weakening mutation security. Failure mode to avoid: locking out ops tooling (and tests) behind auth, or accidentally exempting mutation endpoints and creating a security hole.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "All modules return 200 for /api/version and /api/ready without auth",
+          "Mutation/privileged endpoints remain protected (no unintended auth bypass)",
+          "E2E version/readiness tests pass"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests version_endpoints_smoke_e2e ready_endpoints_smoke_e2e -- --nocapture",
+          "cargo test -p e2e-tests service_to_service_auth_e2e -- --nocapture",
+          "Version/ready are 200 unauthenticated; auth-protected endpoints still enforce 401/403"
+        ],
+        "estimated_complexity": 3,
+        "files_involved": [
+          "modules/ar/src/main.rs",
+          "modules/ar/src/routes/health.rs",
+          "modules/payments/src/main.rs",
+          "modules/payments/src/routes/health.rs",
+          "modules/subscriptions/src/main.rs",
+          "modules/subscriptions/src/routes/health.rs",
+          "modules/gl/src/main.rs",
+          "modules/gl/src/routes/health.rs",
+          "modules/notifications/src/main.rs",
+          "modules/notifications/src/routes/health.rs",
+          "modules/*/src/middleware/auth.rs",
+          "e2e-tests/tests/version_endpoints_smoke_e2e.rs",
+          "e2e-tests/tests/ready_endpoints_smoke_e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19h",
+        "title": "Fix envelope validation and oracle invariant regressions",
+        "description": "Resolve the remaining failing tests indicating real contract/invariant violations: mutation_class required validation mismatches and UNKNOWN payment retry queue/oracle invariant issues. Steps: (1) identify the exact failing assertions and the event/envelope fields missing or mis-validated, (2) ensure emit and ingest paths validate envelopes consistently (no bypass), (3) ensure mutation_class is always populated where constitution requires it, (4) ensure UNKNOWN protocol queueing and retry blocks remain correct under current code. Fix code (not tests) if the contract is being violated; only adjust tests if they are asserting outdated contract semantics.",
+        "how_to_think": "Think like an event-contract integrity lead. Invariant: every emitted event satisfies constitutional envelope requirements and the oracle invariants always hold under replay and UNKNOWN handling. Failure mode to avoid: weakening validation/tests to hide real violations, allowing bad events that break replay, auditing, or billing correctness.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "mutation_class_presence_e2e passes across all relevant modules",
+          "envelope_invalid_rejected_e2e passes by rejecting invalid envelopes at a real validation point",
+          "UNKNOWN-related oracle/invariant tests pass without relaxing invariants"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests mutation_class_presence_e2e envelope_invalid_rejected_e2e envelope_nats_roundtrip_e2e -- --nocapture",
+          "cargo test -p e2e-tests cross_module_unknown_protocol_e2e -- --nocapture",
+          "cargo test -p e2e-tests --no-fail-fast -- --nocapture",
+          "All envelope/UNKNOWN/oracle failures are eliminated"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "platform/event-bus/src/envelope.rs",
+          "modules/ar/src/**/*.rs",
+          "modules/payments/src/**/*.rs",
+          "modules/subscriptions/src/**/*.rs",
+          "modules/gl/src/**/*.rs",
+          "e2e-tests/tests/mutation_class_presence_e2e.rs",
+          "e2e-tests/tests/envelope_invalid_rejected_e2e.rs",
+          "e2e-tests/tests/envelope_nats_roundtrip_e2e.rs",
+          "e2e-tests/tests/cross_module_unknown_protocol_e2e.rs",
+          "e2e-tests/tests/oracle.rs"
+        ]
+      },
+      {
+        "id": "bd-19i",
+        "title": "Resolve AR customer_id type mismatch (schema vs tests)",
+        "description": "Fix drift where E2E tests supply a string ar_customer_id but the AR DB schema expects an integer (or vice versa). Decide the canonical type for customer_id in AR based on your platform conventions (recommended: TEXT/UUID-like stable identifiers for cross-system traceability). Then align: (1) AR migrations/schema, (2) AR code paths, (3) E2E tests and fixtures. If changing schema type, add a safe migration strategy for existing data (cast/transform) appropriate for dev/test environments.",
+        "how_to_think": "Think like a domain data model owner. Invariant: identifier types are consistent across the system and safe for long-term compatibility. Failure mode to avoid: silently casting or mixing int/text IDs, creating hard-to-debug joins, exports, and audit traces that cannot reconcile.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "AR customer_id type is clearly defined and consistent in schema + code + tests",
+          "All AR E2E tests that previously failed on customer_id now pass",
+          "If schema changes, migration is forward-only and succeeds on clean DB"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests ar_* -- --nocapture",
+          "cargo test -p e2e-tests cross_module_* -- --nocapture",
+          "AR and cross-module tests involving customers pass"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "modules/ar/db/migrations/*",
+          "modules/ar/src/**/*.rs",
+          "e2e-tests/src/fixtures/*.rs",
+          "e2e-tests/tests/ar_*e2e.rs",
+          "e2e-tests/tests/cross_module_*e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19j",
+        "title": "Resolve Subscriptions customer_id schema drift (missing column)",
+        "description": "Fix drift where E2E tests insert or expect a subscriptions table column customer_id that does not exist. Decide whether customer_id is a required subscriptions domain attribute. If yes: add the column via migration, wire it through creation/update flows, and ensure it is populated from envelope/correlation metadata where appropriate. If no: update tests/fixtures to remove the assumption and rely on the actual subscription identity model. Keep changes single-concern: schema + minimal code or tests based on the chosen truth.",
+        "how_to_think": "Think like a subscriptions domain architect. Invariant: tests match real schema and the schema reflects the intended domain model. Failure mode to avoid: adding fields just to satisfy tests without a domain reason, or keeping tests that assert nonexistent fields and never validate real behavior.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Subscriptions schema and tests are aligned (no references to nonexistent customer_id)",
+          "If customer_id is added, it is migrated and populated deterministically",
+          "Subscriptions-related E2E tests that previously failed now pass"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests subscriptions_* -- --nocapture",
+          "cargo test -p e2e-tests cross_module_* -- --nocapture",
+          "Subscriptions and dependent cross-module tests pass"
+        ],
+        "estimated_complexity": 3,
+        "files_involved": [
+          "modules/subscriptions/db/migrations/*",
+          "modules/subscriptions/src/**/*.rs",
+          "e2e-tests/src/fixtures/*.rs",
+          "e2e-tests/tests/subscriptions_*e2e.rs",
+          "e2e-tests/tests/cross_module_*e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19k",
+        "title": "Fix GL accounts inserts in tests (missing UUID id)",
+        "description": "Repair GL E2E tests that insert accounts without providing a required UUID id. Preferred approach: update tests/fixtures to generate UUIDs explicitly when inserting accounts. Only add a DB default (gen_random_uuid) if the production domain model expects server-side default IDs. Ensure deterministic tests by generating UUIDs explicitly in fixtures.",
+        "how_to_think": "Think like a database correctness tester. Invariant: tests create valid rows that satisfy schema constraints without relying on implicit behaviors that may differ across environments. Failure mode to avoid: masking schema constraints by loosening DB requirements, or introducing nondeterministic IDs that break replay/digest checks.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "All GL tests that previously failed due to NULL/absent id now pass",
+          "Test fixtures generate UUIDs deterministically (standard uuid v4 is acceptable if not used in digest comparisons; otherwise stable seeded UUIDs)",
+          "No production schema loosening unless explicitly intended"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests gl_* -- --nocapture",
+          "cargo test -p e2e-tests --no-fail-fast -- --nocapture",
+          "All GL-related failures are eliminated"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "e2e-tests/src/fixtures/*.rs",
+          "e2e-tests/tests/gl_*e2e.rs",
+          "modules/gl/db/migrations/*"
+        ]
+      }
+    ],
+    "priority_order": [
+      "bd-19e",
+      "bd-19f",
+      "bd-19g",
+      "bd-19h",
+      "bd-19i",
+      "bd-19j",
+      "bd-19k"
+    ]
+  },
+  "error": null
+}

@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "raw_text": "Approved — the mapping is faithful, priorities are right, and the assignments maximize leverage.\n\nOne adjustment (important)\n\nEven though you created them as independent, enforce an execution order constraint informally so you don’t chase downstream noise:\n\nRun order for merges/tests\n\nbd-2hz (env var normalization) — removes config flake early\n\nbd-3d7 (audit migration idempotency) — clears 12 failures and stabilizes fleet runs\n\nbd-25z (/api/version auth policy) — clears ops/test gating issues\n\nbd-29g (envelope + oracle invariants) — only meaningful once infra/config/auth are stable\n\nbd-3d4 (GL UUID test fix) — quick cleanup\n\nbd-kaw / bd-3bi (AR + Subscriptions drift) — last, because they may require domain decisions\n\nIf you can, treat bd-29g as “merge last” even if it finishes earlier.\n\nStop-the-line rules\n\nNo loosening invariants to make tests pass (especially in bd-29g).\n\nFor bd-3d7, do not use destructive DROP patterns that can delete audit data.\n\nFor bd-25z, only exempt /api/version and /api/ready — nothing else.\n\nWhat I want back\n\nAfter these land, run exactly:\n\ncargo test -p e2e-tests --no-fail-fast -- --nocapture\n\nPaste the final summary line: PASS / FAIL / IGNORED / TOTAL plus any remaining ignored list.\n\nProceed.",
+  "parse_ok": false,
+  "extracted_json": null,
+  "error": "NO_JSON_STRUCTURE_FOUND"
+}

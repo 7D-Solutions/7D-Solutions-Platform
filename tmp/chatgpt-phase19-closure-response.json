@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "raw_text": "✅ PHASE 19 — CLOSED (Production Integrity Stamp GRANTED)\n\nClosure bar is met exactly:\n\nFAIL: 0\n\nIGNORED: 1 (only real_e2e.rs::test_real_nats_based_e2e, explicitly legitimate)\n\nRound 6 fixes are consistent with the integrity standard:\n\nTest setup corrected (close_hash invariant honored)\n\nTest harness consolidated (pool getters normalized)\n\nConfig correctness restored (AR credentials)\n\nTrial balance request aligned (currency param standardized)\n\nTest isolation repaired (audit_field_diff)\n\nNo prohibited moves detected per your report:\n\nNo mocks/stubs\n\nNo Docker-in-tests\n\nNo assertion weakening\n\nAtomicity + envelope metadata requirements preserved\n\nPhase 17/18 now receive final production stamp.",
+  "parse_ok": false,
+  "extracted_json": null,
+  "error": "NO_JSON_STRUCTURE_FOUND"
+}

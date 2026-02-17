@@ -1,0 +1,688 @@
+warning: unused import: `uuid::Uuid`
+ --> modules/gl/src/domain/statements.rs:8:5
+  |
+8 | use uuid::Uuid;
+  |     ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `DateTime` and `Utc`
+ --> modules/gl/src/services/gl_detail_service.rs:7:14
+  |
+7 | use chrono::{DateTime, NaiveTime, Utc};
+  |              ^^^^^^^^             ^^^
+
+warning: fields `id` and `tenant_id` are never read
+   --> modules/gl/src/routes/period_close.rs:166:9
+    |
+165 | struct PeriodCloseStatusData {
+    |        --------------------- fields in this struct
+166 |     pub id: Uuid,
+    |         ^^
+167 |     pub tenant_id: String,
+    |         ^^^^^^^^^
+    |
+    = note: `PeriodCloseStatusData` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `id`, `tenant_id`, and `close_requested_at` are never read
+  --> modules/gl/src/services/period_close_service.rs:89:9
+   |
+88 | struct PeriodData {
+   |        ---------- fields in this struct
+89 |     pub id: Uuid,
+   |         ^^
+90 |     pub tenant_id: String,
+   |         ^^^^^^^^^
+...
+94 |     pub close_requested_at: Option<DateTime<Utc>>,
+   |         ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `PeriodData` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `id`, `tenant_id`, `period_start`, and `period_end` are never read
+   --> modules/gl/src/services/period_close_service.rs:629:9
+    |
+628 | struct PeriodForClose {
+    |        -------------- fields in this struct
+629 |     pub id: Uuid,
+    |         ^^
+630 |     pub tenant_id: String,
+    |         ^^^^^^^^^
+631 |     pub period_start: chrono::NaiveDate,
+    |         ^^^^^^^^^^^^
+632 |     pub period_end: chrono::NaiveDate,
+    |         ^^^^^^^^^^
+    |
+    = note: `PeriodForClose` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: `gl-rs` (lib) generated 5 warnings (run `cargo fix --lib -p gl-rs` to apply 2 suggestions)
+   Compiling subscriptions-rs v0.1.0 (/Users/james/Projects/7D-Solutions Platform/modules/subscriptions)
+   Compiling payments-rs v0.1.0 (/Users/james/Projects/7D-Solutions Platform/modules/payments)
+warning: unused import: `crate::events::enqueue_event`
+  --> modules/ar/src/routes.rs:17:5
+   |
+17 | use crate::events::enqueue_event;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `ar-rs` (lib) generated 1 warning (run `cargo fix --lib -p ar-rs` to apply 1 suggestion)
+warning: unused import: `PgPool`
+  --> modules/subscriptions/src/cycle_gating.rs:22:26
+   |
+22 | use sqlx::{PgConnection, PgPool};
+   |                          ^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Utc`
+ --> modules/payments/src/envelope_validation.rs:1:24
+  |
+1 | use chrono::{DateTime, Utc};
+  |                        ^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `PgConnection`
+  --> modules/subscriptions/src/gated_invoice_creation.rs:12:12
+   |
+12 | use sqlx::{PgConnection, PgPool};
+   |            ^^^^^^^^^^^^
+
+warning: unused import: `EventEnvelope`
+ --> modules/payments/src/handlers.rs:4:36
+  |
+4 | use crate::events::{enqueue_event, EventEnvelope};
+  |                                    ^^^^^^^^^^^^^
+
+warning: unused imports: `Postgres` and `Transaction`
+  --> modules/payments/src/reconciliation.rs:26:20
+   |
+26 | use sqlx::{PgPool, Postgres, Transaction};
+   |                    ^^^^^^^^  ^^^^^^^^^^^
+
+warning: field `id` is never read
+  --> modules/payments/src/events/consumer.rs:26:13
+   |
+25 |         struct ProcessedEvent {
+   |                -------------- field in this struct
+26 |             id: i32,
+   |             ^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `subscriptions-rs` (lib) generated 2 warnings (run `cargo fix --lib -p subscriptions-rs` to apply 2 suggestions)
+warning: `payments-rs` (lib) generated 4 warnings (run `cargo fix --lib -p payments-rs` to apply 3 suggestions)
+   Compiling e2e-tests v0.1.0 (/Users/james/Projects/7D-Solutions Platform/e2e-tests)
+warning: unused import: `uuid::Uuid`
+  --> e2e-tests/tests/audit_policy_enforcement_e2e.rs:14:5
+   |
+14 | use uuid::Uuid;
+   |     ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `create_shadow_table`
+  --> e2e-tests/tests/replay_certification_digest_e2e.rs:15:59
+   |
+15 |     compute_versioned_digest, create_shadow_cursor_table, create_shadow_table,
+   |                                                           ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cursor_table`
+   --> e2e-tests/tests/replay_certification_digest_e2e.rs:113:5
+    |
+113 |     cursor_table: &str,
+    |     ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_cursor_table`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cursor_table`
+   --> e2e-tests/tests/replay_certification_digest_e2e.rs:176:5
+    |
+176 |     cursor_table: &str,
+    |     ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_cursor_table`
+
+warning: fields `projection_name` and `last_event_occurred_at` are never read
+   --> e2e-tests/tests/replay_certification_digest_e2e.rs:242:5
+    |
+241 | struct RebuildRunSummary {
+    |        ----------------- fields in this struct
+242 |     projection_name: String,
+    |     ^^^^^^^^^^^^^^^
+...
+246 |     last_event_occurred_at: DateTime<Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `RebuildRunSummary` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `chrono::NaiveDate`
+  --> e2e-tests/tests/common/mod.rs:15:5
+   |
+15 | use chrono::NaiveDate;
+   |     ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `futures::StreamExt`
+  --> e2e-tests/tests/common/mod.rs:16:5
+   |
+16 | use futures::StreamExt;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `test_id`
+  --> e2e-tests/tests/gl_outbox_atomicity_e2e.rs:99:9
+   |
+99 |     let test_id = "gl_reversal_atomicity";
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `wait_for_db_ready` is never used
+  --> e2e-tests/tests/common/mod.rs:31:14
+   |
+31 | pub async fn wait_for_db_ready(name: &str, url: &str) -> PgPool {
+   |              ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `get_ar_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:64:14
+   |
+64 | pub async fn get_ar_pool() -> PgPool {
+   |              ^^^^^^^^^^^
+
+warning: unused variable: `test_id`
+   --> e2e-tests/tests/gl_outbox_atomicity_e2e.rs:180:9
+    |
+180 |     let test_id = "gl_posting_no_emit";
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+
+warning: function `get_payments_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:71:14
+   |
+71 | pub async fn get_payments_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^^^^^
+
+warning: function `get_subscriptions_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:78:14
+   |
+78 | pub async fn get_subscriptions_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_gl_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:85:14
+   |
+85 | pub async fn get_gl_pool() -> PgPool {
+   |              ^^^^^^^^^^^
+
+warning: function `get_auth_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:92:14
+   |
+92 | pub async fn get_auth_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^
+
+warning: function `get_projections_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:99:14
+   |
+99 | pub async fn get_projections_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_audit_pool` is never used
+   --> e2e-tests/tests/common/mod.rs:107:14
+    |
+107 | pub async fn get_audit_pool() -> PgPool {
+    |              ^^^^^^^^^^^^^^
+
+warning: function `get_tenant_registry_pool` is never used
+   --> e2e-tests/tests/common/mod.rs:115:14
+    |
+115 | pub async fn get_tenant_registry_pool() -> PgPool {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `setup_nats_client` is never used
+   --> e2e-tests/tests/common/mod.rs:127:14
+    |
+127 | pub async fn setup_nats_client() -> NatsClient {
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: function `publish_event` is never used
+   --> e2e-tests/tests/common/mod.rs:137:14
+    |
+137 | pub async fn publish_event<T: serde::Serialize>(
+    |              ^^^^^^^^^^^^^
+
+warning: function `subscribe_to_events` is never used
+   --> e2e-tests/tests/common/mod.rs:153:14
+    |
+153 | pub async fn subscribe_to_events(
+    |              ^^^^^^^^^^^^^^^^^^^
+
+warning: function `poll_for_record` is never used
+   --> e2e-tests/tests/common/mod.rs:176:14
+    |
+176 | pub async fn poll_for_record<F, Fut, T>(
+    |              ^^^^^^^^^^^^^^^
+
+warning: function `poll_for_invoice` is never used
+   --> e2e-tests/tests/common/mod.rs:208:14
+    |
+208 | pub async fn poll_for_invoice(
+    |              ^^^^^^^^^^^^^^^^
+
+warning: function `poll_for_payment_attempt` is never used
+   --> e2e-tests/tests/common/mod.rs:236:14
+    |
+236 | pub async fn poll_for_payment_attempt(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `poll_for_journal_entry` is never used
+   --> e2e-tests/tests/common/mod.rs:264:14
+    |
+264 | pub async fn poll_for_journal_entry(
+    |              ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `assert_exactly_one` is never used
+   --> e2e-tests/tests/common/mod.rs:296:14
+    |
+296 | pub async fn assert_exactly_one(
+    |              ^^^^^^^^^^^^^^^^^^
+
+warning: function `assert_journal_balanced` is never used
+   --> e2e-tests/tests/common/mod.rs:314:14
+    |
+314 | pub async fn assert_journal_balanced(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `count_records` is never used
+   --> e2e-tests/tests/common/mod.rs:346:14
+    |
+346 | pub async fn count_records(pool: &PgPool, query: &str) -> Result<i64, String> {
+    |              ^^^^^^^^^^^^^
+
+warning: function `cleanup_tenant_data` is never used
+   --> e2e-tests/tests/common/mod.rs:358:14
+    |
+358 | pub async fn cleanup_tenant_data(
+    |              ^^^^^^^^^^^^^^^^^^^
+
+warning: function `create_ar_customer` is never used
+   --> e2e-tests/tests/common/mod.rs:432:14
+    |
+432 | pub async fn create_ar_customer(pool: &PgPool, app_id: &str) -> i32 {
+    |              ^^^^^^^^^^^^^^^^^^
+
+warning: constant `AUDIT_MIGRATION_LOCK_KEY` is never used
+   --> e2e-tests/tests/common/mod.rs:460:7
+    |
+460 | const AUDIT_MIGRATION_LOCK_KEY: i64 = 7_419_283_561_i64;
+    |       ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `run_audit_migrations` is never used
+   --> e2e-tests/tests/common/mod.rs:475:14
+    |
+475 | pub async fn run_audit_migrations(pool: &PgPool) {
+    |              ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `run_audit_migrations_inner` is never used
+   --> e2e-tests/tests/common/mod.rs:496:10
+    |
+496 | async fn run_audit_migrations_inner(pool: &PgPool) -> Result<(), sqlx::Error> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_auth_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:92:14
+   |
+92 | pub async fn get_auth_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `webhook_event_id`
+   --> e2e-tests/tests/cross_module_payment_invoice_e2e.rs:250:9
+    |
+250 |     let webhook_event_id = Uuid::new_v4();
+    |         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_webhook_event_id`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `e2e-tests` (test "audit_policy_enforcement_e2e") generated 1 warning (run `cargo fix --test "audit_policy_enforcement_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "replay_certification_digest_e2e") generated 4 warnings (run `cargo fix --test "replay_certification_digest_e2e" -p e2e-tests` to apply 3 suggestions)
+warning: `e2e-tests` (test "audit_append_only_e2e") generated 23 warnings (23 duplicates)
+warning: `e2e-tests` (test "gl_outbox_atomicity_e2e") generated 22 warnings (19 duplicates) (run `cargo fix --test "gl_outbox_atomicity_e2e" -p e2e-tests` to apply 2 suggestions)
+warning: `e2e-tests` (test "mutation_class_presence_e2e") generated 26 warnings (run `cargo fix --test "mutation_class_presence_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "audit_field_diff_e2e") generated 23 warnings (23 duplicates)
+warning: `e2e-tests` (test "audit_actor_propagation_e2e") generated 23 warnings (23 duplicates)
+warning: `e2e-tests` (test "cross_module_payment_invoice_e2e") generated 19 warnings (18 duplicates) (run `cargo fix --test "cross_module_payment_invoice_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "envelope_roundtrip_e2e") generated 24 warnings (24 duplicates)
+warning: fields `id`, `tenant_id`, `period_id`, `currency`, and `last_journal_entry_id` are never read
+   --> e2e-tests/tests/balance_reversal_e2e.rs:150:5
+    |
+149 | struct AccountBalance {
+    |        -------------- fields in this struct
+150 |     id: Uuid,
+    |     ^^
+151 |     tenant_id: String,
+    |     ^^^^^^^^^
+152 |     period_id: Uuid,
+    |     ^^^^^^^^^
+153 |     account_code: String,
+154 |     currency: String,
+    |     ^^^^^^^^
+...
+158 |     last_journal_entry_id: Option<Uuid>,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `AccountBalance` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `e2e-tests` (test "balance_reversal_e2e") generated 1 warning
+warning: unused variable: `subscriptions_pool`
+   --> e2e-tests/tests/subscriptions_ar_degradation_e2e.rs:192:9
+    |
+192 |     let subscriptions_pool = get_subscriptions_pool().await;
+    |         ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_subscriptions_pool`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Utc`
+  --> e2e-tests/tests/cross_module_invoice_payment_e2e.rs:14:25
+   |
+14 | use chrono::{NaiveDate, Utc};
+   |                         ^^^
+
+warning: fields `id`, `tenant_id`, `period_id`, and `last_journal_entry_id` are never read
+   --> e2e-tests/tests/balance_posting_e2e.rs:150:5
+    |
+149 | struct AccountBalance {
+    |        -------------- fields in this struct
+150 |     id: Uuid,
+    |     ^^
+151 |     tenant_id: String,
+    |     ^^^^^^^^^
+152 |     period_id: Uuid,
+    |     ^^^^^^^^^
+...
+158 |     last_journal_entry_id: Option<Uuid>,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `AccountBalance` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `sqlx::PgPool`
+  --> e2e-tests/tests/envelope_invalid_rejected_e2e.rs:31:5
+   |
+31 | use sqlx::PgPool;
+   |     ^^^^^^^^^^^^
+
+warning: unused variable: `test_id`
+  --> e2e-tests/tests/envelope_invalid_rejected_e2e.rs:42:9
+   |
+42 |     let test_id = "invalid_envelope_empty_tenant";
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `test_id`
+   --> e2e-tests/tests/envelope_invalid_rejected_e2e.rs:118:9
+    |
+118 |     let test_id = "invalid_envelope_empty_trace";
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+
+warning: unused variable: `test_id`
+   --> e2e-tests/tests/envelope_invalid_rejected_e2e.rs:194:9
+    |
+194 |     let test_id = "valid_envelope_accepted";
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+
+warning: `e2e-tests` (test "subscriptions_ar_degradation_e2e") generated 27 warnings (26 duplicates) (run `cargo fix --test "subscriptions_ar_degradation_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "balance_posting_e2e") generated 1 warning
+warning: `e2e-tests` (test "cross_module_invoice_payment_e2e") generated 19 warnings (18 duplicates) (run `cargo fix --test "cross_module_invoice_payment_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "subscriptions_outbox_atomicity_e2e") generated 20 warnings (20 duplicates)
+warning: `e2e-tests` (test "envelope_invalid_rejected_e2e") generated 24 warnings (20 duplicates) (run `cargo fix --test "envelope_invalid_rejected_e2e" -p e2e-tests` to apply 4 suggestions)
+warning: `e2e-tests` (test "cross_module_concurrency_safety_e2e") generated 19 warnings (19 duplicates)
+warning: unused variable: `event_id`
+   --> e2e-tests/tests/bill_run_e2e.rs:325:17
+    |
+325 |             let event_id = envelope["event_id"].as_str().unwrap_or("unknown");
+    |                 ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_event_id`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `EventEnvelope` is never constructed
+  --> e2e-tests/tests/bill_run_e2e.rs:68:8
+   |
+68 | struct EventEnvelope<T> {
+   |        ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `PaymentCollectionRequestedPayload` is never constructed
+  --> e2e-tests/tests/bill_run_e2e.rs:81:8
+   |
+81 | struct PaymentCollectionRequestedPayload {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `PaymentSucceededPayload` is never constructed
+  --> e2e-tests/tests/bill_run_e2e.rs:89:8
+   |
+89 | struct PaymentSucceededPayload {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `NotificationDeliveryPayload` is never constructed
+  --> e2e-tests/tests/bill_run_e2e.rs:97:8
+   |
+97 | struct NotificationDeliveryPayload {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `NaiveDate`
+  --> e2e-tests/tests/cross_module_replay_safety_e2e.rs:14:14
+   |
+14 | use chrono::{NaiveDate, Utc};
+   |              ^^^^^^^^^
+
+warning: unused variable: `audit_pool`
+   --> e2e-tests/tests/cross_module_replay_safety_e2e.rs:286:9
+    |
+286 |     let audit_pool = common::get_audit_pool().await;
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_audit_pool`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `entry1_id`
+   --> e2e-tests/tests/cross_module_replay_safety_e2e.rs:294:9
+    |
+294 |     let entry1_id = entry1_result.unwrap();
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_entry1_id`
+
+warning: unused variable: `audit_pool`
+   --> e2e-tests/tests/cross_module_replay_safety_e2e.rs:337:9
+    |
+337 |     let audit_pool = common::get_audit_pool().await;
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_audit_pool`
+
+warning: `e2e-tests` (test "bill_run_e2e") generated 5 warnings (run `cargo fix --test "bill_run_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "cross_module_replay_safety_e2e") generated 22 warnings (18 duplicates) (run `cargo fix --test "cross_module_replay_safety_e2e" -p e2e-tests` to apply 4 suggestions)
+warning: `e2e-tests` (test "payments_outbox_atomicity_e2e") generated 20 warnings (20 duplicates)
+warning: unused import: `cleanup_tenant_data`
+  --> e2e-tests/tests/cross_module_subscription_invoice_e2e.rs:25:5
+   |
+25 |     cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_subscriptions_pool,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `i`
+   --> e2e-tests/tests/cross_module_subscription_invoice_e2e.rs:462:9
+    |
+462 |     for i in 0..5 {
+    |         ^ help: if this is intentional, prefix it with an underscore: `_i`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `get_payments_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:71:14
+   |
+71 | pub async fn get_payments_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `TestContext` is never constructed
+  --> e2e-tests/tests/oracle.rs:22:12
+   |
+22 | pub struct TestContext<'a> {
+   |            ^^^^^^^^^^^
+
+warning: variant `AuditInvariantViolation` is never constructed
+  --> e2e-tests/tests/oracle.rs:43:5
+   |
+38 | pub enum OracleError {
+   |          ----------- variant in this enum
+...
+43 |     AuditInvariantViolation(String),
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `OracleError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: function `assert_audit_completeness` is never used
+   --> e2e-tests/tests/oracle.rs:102:10
+    |
+102 | async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleError> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `assert_cross_module_invariants` is never used
+   --> e2e-tests/tests/oracle.rs:290:14
+    |
+290 | pub async fn assert_cross_module_invariants(ctx: &TestContext<'_>) -> Result<(), OracleError> {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: `e2e-tests` (test "reversal_chain_depth_enforcement_e2e") generated 20 warnings (20 duplicates)
+warning: unused variable: `result`
+   --> e2e-tests/tests/cross_module_payment_unknown_e2e.rs:384:9
+    |
+384 |     let result = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `result`
+   --> e2e-tests/tests/cross_module_payment_unknown_e2e.rs:451:9
+    |
+451 |     let result = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+
+warning: unused variable: `result_1`
+   --> e2e-tests/tests/cross_module_payment_unknown_e2e.rs:519:9
+    |
+519 |     let result_1 = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_result_1`
+
+warning: unused variable: `result_2`
+   --> e2e-tests/tests/cross_module_payment_unknown_e2e.rs:523:9
+    |
+523 |     let result_2 = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_result_2`
+
+warning: unused variable: `result_3`
+   --> e2e-tests/tests/cross_module_payment_unknown_e2e.rs:527:9
+    |
+527 |     let result_3 = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_result_3`
+
+warning: `e2e-tests` (test "cross_module_invoice_gl_e2e") generated 23 warnings (23 duplicates)
+warning: `e2e-tests` (test "cross_module_subscription_invoice_e2e") generated 29 warnings (22 duplicates) (run `cargo fix --test "cross_module_subscription_invoice_e2e" -p e2e-tests` to apply 2 suggestions)
+warning: `e2e-tests` (test "cross_module_payment_unknown_e2e") generated 25 warnings (20 duplicates) (run `cargo fix --test "cross_module_payment_unknown_e2e" -p e2e-tests` to apply 5 suggestions)
+warning: `e2e-tests` (test "ar_outbox_atomicity_e2e") generated 20 warnings (20 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.09s
+     Running tests/ar_outbox_atomicity_e2e.rs (target/debug/deps/ar_outbox_atomicity_e2e-f7c7cdddfdb09369)
+
+running 3 tests
+test test_ar_finalize_invoice_api_atomicity ... ignored
+test common::tests::test_generate_test_tenant ... ok
+✅ Created customer 1163 + draft invoice 874
+✅ finalize_invoice() succeeded (NewAttempt)
+
+📊 Atomicity Check:
+  Invoice status: draft -> attempting (finalized)
+  Outbox rows: 0 -> 0
+
+thread 'test_ar_finalize_invoice_outbox_atomicity' (93390957) panicked at e2e-tests/tests/ar_outbox_atomicity_e2e.rs:148:5:
+❌ ATOMICITY VIOLATION: finalize_invoice() succeeded but outbox has 0 events (expected >= 1). Guard->Mutation->Outbox must all commit atomically.
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_ar_finalize_invoice_outbox_atomicity ... FAILED
+
+failures:
+
+failures:
+    test_ar_finalize_invoice_outbox_atomicity
+
+test result: FAILED. 1 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+error: test failed, to rerun pass `-p e2e-tests --test ar_outbox_atomicity_e2e`
+     Running tests/audit_actor_propagation_e2e.rs (target/debug/deps/audit_actor_propagation_e2e-6b0a18ce3ae21449)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+test test_actor_propagation_to_event_envelope ... ok
+test test_user_actor_in_audit ... ok
+test test_actor_required_for_mutations ... ok
+test test_multiple_actor_types_in_correlation ... ok
+test test_system_actor ... ok
+test test_service_actor_deterministic_id ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/audit_append_only_e2e.rs (target/debug/deps/audit_append_only_e2e-61051621f9b538e5)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+test test_audit_write_in_transaction ... ok
+test test_audit_delete_rejected ... ok
+test test_audit_correlation_query ... ok
+test test_audit_write_success ... ok
+test test_audit_update_rejected ... ok
+test test_audit_transaction_rollback ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/audit_field_diff_e2e.rs (target/debug/deps/audit_field_diff_e2e-796d0dc064627c77)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+test test_field_diff_deterministic_ordering ... ok
+test test_field_diff_no_changes ... ok
+test test_field_diff_with_transaction ... ok
+test test_field_diff_multiple_updates ... ok
+test test_field_diff_with_field_addition_and_removal ... ok
+test test_field_diff_single_update ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/audit_policy_enforcement_e2e.rs (target/debug/deps/audit_policy_enforcement_e2e-8bffb482740a18e6)
+
+running 11 tests
+test test_compensating_required_blocks_deletes ... ok
+test test_compensating_required_with_linkage ... ok
+test test_compensating_required_without_linkage ... ok
+test test_mutable_standard_allows_all_operations ... ok
+test test_mutable_with_audit_allows_deletes ... ok
+test test_mutable_with_audit_with_diff ... ok
+test test_mutable_with_audit_without_diff ... ok
+test test_policy_enforcement_matrix ... ok
+test test_strict_immutable_allows_creates ... ok
+test test_strict_immutable_blocks_deletes ... ok
+test test_strict_immutable_policy_enforcement ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/balance_posting_e2e.rs (target/debug/deps/balance_posting_e2e-fe609d6f335fec67)
+
+running 1 test
+⏳ Checking if 7d-gl is healthy...
+✓ 7d-gl is healthy
+✓ Using existing accounting period: c3b94712-840b-4841-aa71-55673b4d8c6b
+✓ Created COA accounts (1100, 4000)
+✓ Created test journal entry and balances
+✓ Account balances created correctly

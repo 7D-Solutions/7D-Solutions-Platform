@@ -1,0 +1,125 @@
+{
+  "ok": true,
+  "raw_text": "Your diagnosis is correct. This is not “Phase 17/18 logic broken”; it’s test harness + infra drift. Treat it as a Phase 19: Validation & Ops Hardening slice with 4 remediation beads, but tighten scope so you don’t accidentally reopen architecture.\n\nBelow is the bead set I’d run, with P0 order and explicit invariants.\n\nJSON\n{\n  \"phase_19_remediation_beads\": [\n    {\n      \"id\": \"bd-19a\",\n      \"title\": \"Add platform DB services to compose + test config wiring\",\n      \"description\": \"Extend infra/docker/docker-compose.infrastructure.yml to include dedicated Postgres services (or dedicated databases on an existing Postgres service) for the new platform crates: projections, audit, tenant-registry. Provide consistent env vars for e2e-tests (DATABASE_URL_* or equivalent) so projection/audit/tenant-registry tests can connect. Ensure migrations for these platform DBs run deterministically during test setup (either via an init container or via the test harness calling sqlx migrator).\",\n      \"how_to_think\": \"Think like a test-infra engineer. Invariant: every DB that a test references exists in the running docker compose environment and is migrated before tests run. Failure mode to avoid: 'passes on my machine' where tests implicitly rely on undeclared local DBs or missing services.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"docker compose up brings up platform DB services (or DBs) for projections/audit/tenant-registry\",\n        \"E2E tests can connect to all platform DBs using env-configured URLs\",\n        \"Platform DB migrations run successfully as part of test startup (no manual steps)\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && docker ps\",\n        \"cargo test -p e2e-tests projection_cursor_contract_e2e -- --nocapture\",\n        \"projection_cursor_contract_e2e passes against real Postgres + NATS\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"infra/docker/docker-compose.infrastructure.yml\",\n        \"infra/docker/*\",\n        \"platform/projections/db/migrations/*\",\n        \"platform/audit/db/migrations/*\",\n        \"platform/tenant-registry/db/migrations/*\",\n        \"e2e-tests/src/*\",\n        \"e2e-tests/tests/projection_cursor_contract_e2e.rs\",\n        \"e2e-tests/tests/tenant_provisioning_e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19b\",\n      \"title\": \"Normalize schema usage in E2E tests (public vs qualified)\",\n      \"description\": \"Fix E2E tests that reference schema-qualified tables (e.g., ar.ar_invoices) when tables actually live in the public schema. Standardize one approach: either (A) remove schema qualification in tests and always use public, or (B) migrate all module DBs to use explicit schemas and update migrations accordingly. Given your current DB reality, choose A: update tests/queries to match public schema.\",\n      \"how_to_think\": \"Think like a database semantics auditor. Invariant: tests query the same schema layout that production uses. Failure mode to avoid: tests that fail due to naming assumptions rather than real behavior, masking actual regressions.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"All failing atomicity tests no longer reference non-existent schema-qualified tables\",\n        \"Queries run successfully on a clean migrated DB\",\n        \"No change to production schema required (public schema remains canonical)\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests ar_outbox_atomicity_e2e payments_outbox_atomicity_e2e subscriptions_outbox_atomicity_e2e gl_outbox_atomicity_e2e -- --nocapture\",\n        \"All atomicity E2E tests pass\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"e2e-tests/tests/ar_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/tests/payments_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/tests/subscriptions_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/tests/gl_outbox_atomicity_e2e.rs\",\n        \"e2e-tests/tests/**/*_e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19c\",\n      \"title\": \"Cross-module E2E reliability hardening (timeouts, readiness, NATS sync)\",\n      \"description\": \"Stabilize cross-module E2E tests that are timing out by adding deterministic readiness gates and bounded waits. Requirements: (1) tests must wait for /api/ready across all participating modules before starting, (2) use explicit event-drain or subscription barriers when validating NATS propagation, (3) set realistic per-test timeouts and remove unbounded sleeps, (4) instrument failures with actionable logs (which service was not ready, which event not observed, current lag/backlog metrics). No mocking allowed; all real services.\",\n      \"how_to_think\": \"Think like a distributed-systems test engineer. Invariant: tests are deterministic under normal machine load and fail with precise diagnostics when invariants break. Failure mode to avoid: flaky timeouts that alternate PASS/FAIL and hide real regressions.\",\n      \"depends_on\": [\"bd-19a\"],\n      \"acceptance_criteria\": [\n        \"Previously timing-out cross-module suites complete within a bounded time window (target: <30s per file on healthy docker)\",\n        \"Tests use readiness gating instead of fixed sleeps\",\n        \"Failure output identifies the missing readiness or missing event cause\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests cross_module_concurrency_e2e cross_module_unknown_protocol_e2e cross_module_replay_safety_e2e cross_module_payment_invoice_e2e -- --nocapture\",\n        \"All targeted cross-module E2E files pass without timeouts\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"e2e-tests/src/http.rs\",\n        \"e2e-tests/src/nats.rs\",\n        \"e2e-tests/src/wait.rs\",\n        \"e2e-tests/tests/cross_module_concurrency_e2e.rs\",\n        \"e2e-tests/tests/cross_module_unknown_protocol_e2e.rs\",\n        \"e2e-tests/tests/cross_module_replay_safety_e2e.rs\",\n        \"e2e-tests/tests/cross_module_payment_invoice_e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19d\",\n      \"title\": \"Align envelope/metadata E2E expectations with current services\",\n      \"description\": \"Fix envelope/metadata E2E failures by making the tests assert the constitutional contract actually implemented by services at HEAD. Steps: (1) confirm /api/version of each module under docker is built from current artifact, (2) ensure EventEnvelope fields required by Phase 16+ are present and validated consistently, (3) update tests to use the oracle/contract helpers rather than hardcoding outdated field names/values, (4) ensure invalid envelope rejection test targets an actual emit/ingest point that performs validation (not a bypass path).\",\n      \"how_to_think\": \"Think like an event-contract verifier. Invariant: E2E tests assert the real envelope contract and fail only when contract is violated. Failure mode to avoid: tests pinning stale assumptions about metadata fields that no longer match the code, producing false negatives.\",\n      \"depends_on\": [\"bd-19a\"],\n      \"acceptance_criteria\": [\n        \"Envelope roundtrip and invalid rejection tests pass against docker services built from current code\",\n        \"mutation_class presence checks pass consistently across modules\",\n        \"Tests fail deterministically if required envelope fields are removed\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests envelope_invalid_rejected_e2e envelope_nats_roundtrip_e2e mutation_class_presence_e2e -- --nocapture\",\n        \"All envelope/metadata E2E tests pass\"\n      ],\n      \"estimated_complexity\": 3,\n      \"files_involved\": [\n        \"platform/event-bus/src/envelope.rs\",\n        \"e2e-tests/tests/envelope_invalid_rejected_e2e.rs\",\n        \"e2e-tests/tests/envelope_nats_roundtrip_e2e.rs\",\n        \"e2e-tests/tests/mutation_class_presence_e2e.rs\",\n        \"e2e-tests/src/*\"\n      ]\n    }\n  ],\n  \"priority_order\": [\n    \"bd-19a\",\n    \"bd-19b\",\n    \"bd-19c\",\n    \"bd-19d\"\n  ]\n}\nNotes on your suggested structure\n\nYour bd-19a/b/c/d split is correct.\n\nI made bd-19c and bd-19d depend on bd-19a because without platform DB connectivity + consistent docker build, you’ll chase ghosts.\n\nI left bd-19b independent because schema-qualification fixes can land immediately and reduce noise.\n\nIf you want one more bead, the only optional one worth adding is bd-19e: “Docker image/version pinning for tests” (ensures compose always runs current binaries), but I’d only add it if you discover you’re accidentally running stale images.",
+  "parse_ok": true,
+  "extracted_json": {
+    "phase_19_remediation_beads": [
+      {
+        "id": "bd-19a",
+        "title": "Add platform DB services to compose + test config wiring",
+        "description": "Extend infra/docker/docker-compose.infrastructure.yml to include dedicated Postgres services (or dedicated databases on an existing Postgres service) for the new platform crates: projections, audit, tenant-registry. Provide consistent env vars for e2e-tests (DATABASE_URL_* or equivalent) so projection/audit/tenant-registry tests can connect. Ensure migrations for these platform DBs run deterministically during test setup (either via an init container or via the test harness calling sqlx migrator).",
+        "how_to_think": "Think like a test-infra engineer. Invariant: every DB that a test references exists in the running docker compose environment and is migrated before tests run. Failure mode to avoid: 'passes on my machine' where tests implicitly rely on undeclared local DBs or missing services.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "docker compose up brings up platform DB services (or DBs) for projections/audit/tenant-registry",
+          "E2E tests can connect to all platform DBs using env-configured URLs",
+          "Platform DB migrations run successfully as part of test startup (no manual steps)"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d && docker ps",
+          "cargo test -p e2e-tests projection_cursor_contract_e2e -- --nocapture",
+          "projection_cursor_contract_e2e passes against real Postgres + NATS"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "infra/docker/docker-compose.infrastructure.yml",
+          "infra/docker/*",
+          "platform/projections/db/migrations/*",
+          "platform/audit/db/migrations/*",
+          "platform/tenant-registry/db/migrations/*",
+          "e2e-tests/src/*",
+          "e2e-tests/tests/projection_cursor_contract_e2e.rs",
+          "e2e-tests/tests/tenant_provisioning_e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19b",
+        "title": "Normalize schema usage in E2E tests (public vs qualified)",
+        "description": "Fix E2E tests that reference schema-qualified tables (e.g., ar.ar_invoices) when tables actually live in the public schema. Standardize one approach: either (A) remove schema qualification in tests and always use public, or (B) migrate all module DBs to use explicit schemas and update migrations accordingly. Given your current DB reality, choose A: update tests/queries to match public schema.",
+        "how_to_think": "Think like a database semantics auditor. Invariant: tests query the same schema layout that production uses. Failure mode to avoid: tests that fail due to naming assumptions rather than real behavior, masking actual regressions.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "All failing atomicity tests no longer reference non-existent schema-qualified tables",
+          "Queries run successfully on a clean migrated DB",
+          "No change to production schema required (public schema remains canonical)"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests ar_outbox_atomicity_e2e payments_outbox_atomicity_e2e subscriptions_outbox_atomicity_e2e gl_outbox_atomicity_e2e -- --nocapture",
+          "All atomicity E2E tests pass"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "e2e-tests/tests/ar_outbox_atomicity_e2e.rs",
+          "e2e-tests/tests/payments_outbox_atomicity_e2e.rs",
+          "e2e-tests/tests/subscriptions_outbox_atomicity_e2e.rs",
+          "e2e-tests/tests/gl_outbox_atomicity_e2e.rs",
+          "e2e-tests/tests/**/*_e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19c",
+        "title": "Cross-module E2E reliability hardening (timeouts, readiness, NATS sync)",
+        "description": "Stabilize cross-module E2E tests that are timing out by adding deterministic readiness gates and bounded waits. Requirements: (1) tests must wait for /api/ready across all participating modules before starting, (2) use explicit event-drain or subscription barriers when validating NATS propagation, (3) set realistic per-test timeouts and remove unbounded sleeps, (4) instrument failures with actionable logs (which service was not ready, which event not observed, current lag/backlog metrics). No mocking allowed; all real services.",
+        "how_to_think": "Think like a distributed-systems test engineer. Invariant: tests are deterministic under normal machine load and fail with precise diagnostics when invariants break. Failure mode to avoid: flaky timeouts that alternate PASS/FAIL and hide real regressions.",
+        "depends_on": [
+          "bd-19a"
+        ],
+        "acceptance_criteria": [
+          "Previously timing-out cross-module suites complete within a bounded time window (target: <30s per file on healthy docker)",
+          "Tests use readiness gating instead of fixed sleeps",
+          "Failure output identifies the missing readiness or missing event cause"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests cross_module_concurrency_e2e cross_module_unknown_protocol_e2e cross_module_replay_safety_e2e cross_module_payment_invoice_e2e -- --nocapture",
+          "All targeted cross-module E2E files pass without timeouts"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "e2e-tests/src/http.rs",
+          "e2e-tests/src/nats.rs",
+          "e2e-tests/src/wait.rs",
+          "e2e-tests/tests/cross_module_concurrency_e2e.rs",
+          "e2e-tests/tests/cross_module_unknown_protocol_e2e.rs",
+          "e2e-tests/tests/cross_module_replay_safety_e2e.rs",
+          "e2e-tests/tests/cross_module_payment_invoice_e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19d",
+        "title": "Align envelope/metadata E2E expectations with current services",
+        "description": "Fix envelope/metadata E2E failures by making the tests assert the constitutional contract actually implemented by services at HEAD. Steps: (1) confirm /api/version of each module under docker is built from current artifact, (2) ensure EventEnvelope fields required by Phase 16+ are present and validated consistently, (3) update tests to use the oracle/contract helpers rather than hardcoding outdated field names/values, (4) ensure invalid envelope rejection test targets an actual emit/ingest point that performs validation (not a bypass path).",
+        "how_to_think": "Think like an event-contract verifier. Invariant: E2E tests assert the real envelope contract and fail only when contract is violated. Failure mode to avoid: tests pinning stale assumptions about metadata fields that no longer match the code, producing false negatives.",
+        "depends_on": [
+          "bd-19a"
+        ],
+        "acceptance_criteria": [
+          "Envelope roundtrip and invalid rejection tests pass against docker services built from current code",
+          "mutation_class presence checks pass consistently across modules",
+          "Tests fail deterministically if required envelope fields are removed"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests envelope_invalid_rejected_e2e envelope_nats_roundtrip_e2e mutation_class_presence_e2e -- --nocapture",
+          "All envelope/metadata E2E tests pass"
+        ],
+        "estimated_complexity": 3,
+        "files_involved": [
+          "platform/event-bus/src/envelope.rs",
+          "e2e-tests/tests/envelope_invalid_rejected_e2e.rs",
+          "e2e-tests/tests/envelope_nats_roundtrip_e2e.rs",
+          "e2e-tests/tests/mutation_class_presence_e2e.rs",
+          "e2e-tests/src/*"
+        ]
+      }
+    ],
+    "priority_order": [
+      "bd-19a",
+      "bd-19b",
+      "bd-19c",
+      "bd-19d"
+    ]
+  },
+  "error": null
+}

@@ -1,0 +1,106 @@
+Phase 19 E2E Sweep: 18 Ignored Tests Need Resolution
+
+We have 18 tests marked #[ignore] in the E2E suite. On investigation, most are empty shells that test nothing. This inflates apparent coverage and hides gaps. Here's the full audit:
+
+═══════════════════════════════════════════════════════════════
+CATEGORY 1: Empty stubs — Ok(()) with comments (11 tests)
+═══════════════════════════════════════════════════════════════
+
+These functions return Ok(()) immediately. They contain comments describing what they WOULD test but execute zero assertions.
+
+1. notifications_outbox_atomicity_e2e.rs (4 tests)
+   - test_notifications_invoice_issued_uses_transaction
+   - test_notifications_payment_succeeded_uses_transaction
+   - test_notifications_payment_failed_uses_transaction
+   - test_notifications_has_no_state_mutations
+   Reason given: "Requires infrastructure" / "Notifications is stateless"
+   Reality: Bodies are Ok(()) with quoted source code in comments. Zero DB calls.
+
+   Decision needed: Notifications IS genuinely stateless (confirmed in Phase 16). These "tests" document architecture findings. Should they be deleted entirely, or converted to real tests that prove the stateless claim (e.g., verify no tables exist beyond events_outbox)?
+
+2. ar_outbox_atomicity_e2e.rs (1 test)
+   - test_ar_finalize_invoice_api_atomicity
+   Reason: "Ignored until we expose finalization logic for testing"
+   Reality: Ok(()) with TODO. But finalize_invoice() IS already exposed and tested by the non-ignored test in the same file. This is dead code.
+
+   Decision: DELETE — the real test already exists.
+
+3. payments_outbox_atomicity_e2e.rs (1 test)
+   - test_payments_webhook_handler_atomicity
+   Reason: "Ignored until webhook handler event emission is implemented"
+   Reality: Ok(()) with TODO.
+
+   Decision needed: Is webhook handler atomicity in scope? If not, DELETE. If yes, IMPLEMENT.
+
+4. subscriptions_outbox_atomicity_e2e.rs (1 test)
+   - test_subscriptions_cycle_advance_atomicity
+   Reason: "Ignored until cycle advancement event emission is implemented"
+   Reality: Ok(()) with TODO.
+
+   Decision needed: Same question — is cycle advancement atomicity in scope?
+
+5. gl_outbox_atomicity_e2e.rs (1 test)
+   - test_gl_reversal_outbox_atomicity
+   Reason: "Ignored until reversal service is exposed via API/handler"
+   Reality: Has setup code (creates journal entry, checks outbox) but the actual reversal call is a COMMENT BLOCK describing expected behavior. Never executes the assertion path.
+
+   Decision needed: Reversal service exists. Can this be wired up to call it directly?
+
+6. subscriptions_ar_degradation_e2e.rs (1 test)
+   - test_ar_timeout_graceful_failure
+   Reason: "Requires >30s to run" / "requires mock slow AR service"
+   Reality: Ok(()) that prints what it would test.
+
+   Decision needed: DELETE (no mock AR exists) or defer to explicit test suite?
+
+7. real_e2e_sad_path.rs (1 test)
+   - test_payment_failure_sad_path
+   Reason: "Run explicitly"
+   Reality: Ok(()) — same empty stub pattern.
+
+   Decision: DELETE — it's a lie.
+
+═══════════════════════════════════════════════════════════════
+CATEGORY 2: Docker-spinning tests (7 tests)
+═══════════════════════════════════════════════════════════════
+
+phase10_governance_e2e.rs — ALL 7 tests:
+   - test_phase10_invalid_account_rejection
+   - test_phase10_inactive_account_rejection
+   - test_phase10_closed_period_rejection
+   - test_phase10_valid_posting_open_period
+   - test_phase10_valid_reversal
+   - test_phase10_idempotent_reversal
+   - test_phase10_all_governance_checks
+
+These tests call `docker compose -f docker-compose.modules.yml up -d --force-recreate` to spin up their own containers, then hit HTTP APIs via reqwest.
+
+Problem: Infrastructure is ALREADY running. Every other E2E test connects to existing pools. These tests are incompatible with the shared test infrastructure and are ignored as a workaround.
+
+Decision needed: Rewrite to use shared infrastructure (connect to existing DBs + in-process router pattern like other tests), or delete if the governance checks are already covered elsewhere.
+
+═══════════════════════════════════════════════════════════════
+CATEGORY 3: Legitimate explicit-run test (1 test)
+═══════════════════════════════════════════════════════════════
+
+real_e2e.rs — test_real_nats_based_e2e
+   - Has real code: connects to all DBs, truncates tables, sets up test data, checks NATS health
+   - Requires live NATS (not available in standard E2E test run)
+   - Marked "Run explicitly with: cargo test --test real_e2e -- --ignored"
+
+   This is the ONLY legitimately ignored test.
+
+═══════════════════════════════════════════════════════════════
+SUMMARY
+═══════════════════════════════════════════════════════════════
+
+| Category | Count | Verdict |
+|----------|-------|---------|
+| Empty stubs (Ok(()) with comments) | 10 | Delete or implement |
+| Docker-spinning (own container lifecycle) | 7 | Rewrite to shared infra |
+| Legitimate explicit-run | 1 | Keep as-is |
+| TOTAL | 18 | |
+
+Proposal: Create beads to either delete or fix all 17 non-legitimate ignores. The E2E suite should have 0 phantom tests. Every test either runs and asserts something, or doesn't exist.
+
+What beads do you want?

@@ -1,0 +1,141 @@
+{
+  "ok": true,
+  "raw_text": "Round 4 should be surgical and split into P0 “remove systemic nondeterminism” vs P1 “edge correctness + real bugs.” You’re exactly right that A+B+C are the leverage.\n\nI want 5 beads this round:\n\n3 P0 beads to collapse 17/30 failures immediately (A+B+C)\n\n2 P0 beads to answer the only real “is the system lying?” question (D outbox) and the “are we testing the wrong concurrency guarantee?” question (E)\n\nLeave F+G as P1 cleanup unless D exposes deeper defects.\n\nJSON\n{\n  \"phase_19_round4_beads\": [\n    {\n      \"id\": \"bd-19t\",\n      \"title\": \"Serialize audit migrations in E2E harness (avoid 40P01 DDL deadlocks)\",\n      \"description\": \"Prevent Postgres deadlocks (SQLSTATE 40P01) caused by concurrent audit DDL (CREATE/REPLACE FUNCTION/TRIGGER) when multiple tests run in parallel and each runs audit migrations independently. Implement a single-process migration gate for the audit DB in the e2e harness. Preferred: a DB-scoped Postgres advisory lock (pg_advisory_lock) around migration execution so even multi-process/CI parallelism is safe. Acceptable fallback: process-local Once + mutex if tests are single-process only. Ensure the lock is released even on panic/failure.\",\n      \"how_to_think\": \"Think like a database concurrency engineer. Invariant: migrations run exactly once per DB per test run and never deadlock under parallel test starts. Failure mode to avoid: flakey DDL deadlocks that mask real failures and make CI non-reproducible.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"Audit-related E2E tests no longer fail with 40P01 under parallel execution\",\n        \"Migrations are gated by a Postgres advisory lock (or equivalent DB-scoped mechanism)\",\n        \"Gate is robust to multiple tests starting simultaneously\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"RUST_TEST_THREADS=10 cargo test -p e2e-tests audit_* -- --nocapture\",\n        \"No 40P01 deadlocks occur; audit suites pass\"\n      ],\n      \"estimated_complexity\": 3,\n      \"files_involved\": [\n        \"e2e-tests/src/db.rs\",\n        \"e2e-tests/src/migrations.rs\",\n        \"platform/audit/db/migrations/*\",\n        \"e2e-tests/tests/audit_actor_propagation_e2e.rs\",\n        \"e2e-tests/tests/audit_append_only_e2e.rs\",\n        \"e2e-tests/tests/audit_field_diff_e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19u\",\n      \"title\": \"Fix mutation_class inserts in tests (text literal -> enum cast)\",\n      \"description\": \"Repair tests that insert text literals into the mutation_class enum column without casting, causing failures. Update inserts/fixtures to bind the correct enum type or add explicit ::mutation_class casts. Target at minimum: compliance_export_determinism and tenant_lifecycle_suspend_deprovision. Do not change production schema/types to accommodate incorrect test inserts.\",\n      \"how_to_think\": \"Think like a strict SQL typing specialist. Invariant: tests insert values using correct Postgres types and never rely on implicit casts that are not guaranteed. Failure mode to avoid: loosening production types or hiding type errors that would bite in production queries/exports.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"No failures remain due to mutation_class text->enum insert errors\",\n        \"Fixtures consistently bind mutation_class as the enum type\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests compliance_export_determinism_e2e tenant_lifecycle_suspend_deprovision_e2e -- --nocapture\",\n        \"All targeted tests pass; no mutation_class cast failures remain\"\n      ],\n      \"estimated_complexity\": 2,\n      \"files_involved\": [\n        \"e2e-tests/src/fixtures/*.rs\",\n        \"e2e-tests/tests/compliance_export_determinism_e2e.rs\",\n        \"e2e-tests/tests/tenant_lifecycle_suspend_deprovision_e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19v\",\n      \"title\": \"Resolve TIMESTAMP vs TIMESTAMPTZ decode mismatch in cross-module tests\",\n      \"description\": \"Fix decoding failures where tests query a TIMESTAMP (no timezone) column but decode into DateTime<Utc> (TIMESTAMPTZ). Choose the canonical approach per domain: (A) migrate the column(s) to TIMESTAMPTZ and ensure writes use UTC, or (B) update Rust decoding to use chrono::NaiveDateTime for TIMESTAMP columns. Apply consistently for the failing cross_module_payment_invoice tests and any shared fixture helpers.\",\n      \"how_to_think\": \"Think like a time semantics auditor. Invariant: database timestamp types match Rust decoding types and UTC assumptions are explicit. Failure mode to avoid: silent timezone skew or brittle decoding that fails depending on DB type and driver behavior.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"cross_module_payment_invoice failures due to TIMESTAMP/TIMESTAMPTZ mismatch are eliminated\",\n        \"Timestamp semantics are consistent (documented UTC policy if using TIMESTAMPTZ)\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests cross_module_payment_invoice_e2e -- --nocapture\",\n        \"Tests pass with correct timestamp decoding\"\n      ],\n      \"estimated_complexity\": 3,\n      \"files_involved\": [\n        \"modules/ar/db/migrations/*\",\n        \"modules/payments/db/migrations/*\",\n        \"modules/subscriptions/db/migrations/*\",\n        \"modules/gl/db/migrations/*\",\n        \"e2e-tests/tests/cross_module_payment_invoice_e2e.rs\",\n        \"e2e-tests/src/fixtures/*.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19w\",\n      \"title\": \"Outbox atomicity: prove migrations applied and enforce outbox write on mutations\",\n      \"description\": \"Resolve outbox atomicity violations where a mutation commits but outbox has 0 events (AR/Payments/Subscriptions). Determine whether this is (1) migrations not applied in test harness, (2) test checking wrong DB/table, or (3) real code path missing outbox enqueue inside the transaction. Fix root cause without weakening the invariant. Ensure Guard -> Mutation -> Outbox occurs in the same SQL transaction for finalize/transition operations under test.\",\n      \"how_to_think\": \"Think like a transactional integrity enforcer. Invariant: every mutation that should emit an event writes exactly one outbox record in the same transaction. Failure mode to avoid: allowing state transitions without events, breaking projections, replay, audits, and cross-module consistency.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"AR/Payments/Subscriptions outbox atomicity E2E tests pass\",\n        \"Outbox table existence + migration application is proven in test startup logs or assertions\",\n        \"No mutation path remains that commits without required outbox enqueue\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"cargo test -p e2e-tests ar_outbox_atomicity_e2e payments_outbox_atomicity_e2e subscriptions_outbox_atomicity_e2e -- --nocapture\",\n        \"All outbox atomicity tests pass\"\n      ],\n      \"estimated_complexity\": 5,\n      \"files_involved\": [\n        \"modules/ar/src/**/*.rs\",\n        \"modules/payments/src/**/*.rs\",\n        \"modules/subscriptions/src/**/*.rs\",\n        \"modules/ar/db/migrations/*\",\n        \"modules/payments/db/migrations/*\",\n        \"modules/subscriptions/db/migrations/*\",\n        \"platform/event-bus/src/**/*\",\n        \"e2e-tests/tests/*outbox*e2e.rs\"\n      ]\n    },\n    {\n      \"id\": \"bd-19x\",\n      \"title\": \"Concurrency E2E assertions: assert guaranteed invariants, not brittle counts\",\n      \"description\": \"Fix cross-module concurrency tests that assert exact success counts that are not guaranteed under timing variance (e.g., expecting exactly 1 success but observing 0 or 2). Rewrite assertions to validate the real invariants guaranteed by design: DB uniqueness holds, no illegal transitions occurred, at-most-once side effects, and final state is correct. Where exact counts are truly required, add deterministic barriers (Barrier/Notify) so the count becomes guaranteed. Keep tests strict, but only on deterministically guaranteed outcomes.\",\n      \"how_to_think\": \"Think like a concurrency test designer. Invariant: tests validate correctness properties that must hold under any scheduling, and they are reproducible. Failure mode to avoid: flaky tests that fail due to scheduler timing rather than correctness regressions, or weakened tests that stop validating concurrency safety.\",\n      \"depends_on\": [],\n      \"acceptance_criteria\": [\n        \"Concurrency E2E tests pass reliably across repeated runs\",\n        \"Assertions validate uniqueness + final state + absence of illegal transitions\",\n        \"If asserting exact counts, tests include deterministic synchronization to make counts guaranteed\"\n      ],\n      \"verification_commands\": [\n        \"docker compose -f infra/docker/docker-compose.infrastructure.yml up -d\",\n        \"for i in 1 2 3; do cargo test -p e2e-tests cross_module_concurrency_e2e -- --nocapture; done\",\n        \"All runs pass; no flaky count-based failures\"\n      ],\n      \"estimated_complexity\": 4,\n      \"files_involved\": [\n        \"e2e-tests/tests/cross_module_concurrency_e2e.rs\",\n        \"e2e-tests/src/concurrency.rs\",\n        \"e2e-tests/src/fixtures/*.rs\"\n      ]\n    }\n  ],\n  \"priority_order\": [\n    \"bd-19t\",\n    \"bd-19u\",\n    \"bd-19v\",\n    \"bd-19w\",\n    \"bd-19x\"\n  ]\n}\nWhy this is the right Round 4\n\nbd-19t removes the new nondeterministic deadlock class permanently.\n\nbd-19u + bd-19v remove type/temporal mismatch failures that are pure drift.\n\nbd-19w is the only one that might reveal a real architecture break (and must be treated as such).\n\nbd-19x keeps concurrency tests strict but stops demanding impossible determinism.\n\nAfter these 5, run the full sweep again. If anything remains, it’ll be the small “Other” bucket (NUMERIC/i64, trial_balance 400, projection pool timeout), which we can do as a final Round 5 mop-up if needed.",
+  "parse_ok": true,
+  "extracted_json": {
+    "phase_19_round4_beads": [
+      {
+        "id": "bd-19t",
+        "title": "Serialize audit migrations in E2E harness (avoid 40P01 DDL deadlocks)",
+        "description": "Prevent Postgres deadlocks (SQLSTATE 40P01) caused by concurrent audit DDL (CREATE/REPLACE FUNCTION/TRIGGER) when multiple tests run in parallel and each runs audit migrations independently. Implement a single-process migration gate for the audit DB in the e2e harness. Preferred: a DB-scoped Postgres advisory lock (pg_advisory_lock) around migration execution so even multi-process/CI parallelism is safe. Acceptable fallback: process-local Once + mutex if tests are single-process only. Ensure the lock is released even on panic/failure.",
+        "how_to_think": "Think like a database concurrency engineer. Invariant: migrations run exactly once per DB per test run and never deadlock under parallel test starts. Failure mode to avoid: flakey DDL deadlocks that mask real failures and make CI non-reproducible.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Audit-related E2E tests no longer fail with 40P01 under parallel execution",
+          "Migrations are gated by a Postgres advisory lock (or equivalent DB-scoped mechanism)",
+          "Gate is robust to multiple tests starting simultaneously"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "RUST_TEST_THREADS=10 cargo test -p e2e-tests audit_* -- --nocapture",
+          "No 40P01 deadlocks occur; audit suites pass"
+        ],
+        "estimated_complexity": 3,
+        "files_involved": [
+          "e2e-tests/src/db.rs",
+          "e2e-tests/src/migrations.rs",
+          "platform/audit/db/migrations/*",
+          "e2e-tests/tests/audit_actor_propagation_e2e.rs",
+          "e2e-tests/tests/audit_append_only_e2e.rs",
+          "e2e-tests/tests/audit_field_diff_e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19u",
+        "title": "Fix mutation_class inserts in tests (text literal -> enum cast)",
+        "description": "Repair tests that insert text literals into the mutation_class enum column without casting, causing failures. Update inserts/fixtures to bind the correct enum type or add explicit ::mutation_class casts. Target at minimum: compliance_export_determinism and tenant_lifecycle_suspend_deprovision. Do not change production schema/types to accommodate incorrect test inserts.",
+        "how_to_think": "Think like a strict SQL typing specialist. Invariant: tests insert values using correct Postgres types and never rely on implicit casts that are not guaranteed. Failure mode to avoid: loosening production types or hiding type errors that would bite in production queries/exports.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "No failures remain due to mutation_class text->enum insert errors",
+          "Fixtures consistently bind mutation_class as the enum type"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests compliance_export_determinism_e2e tenant_lifecycle_suspend_deprovision_e2e -- --nocapture",
+          "All targeted tests pass; no mutation_class cast failures remain"
+        ],
+        "estimated_complexity": 2,
+        "files_involved": [
+          "e2e-tests/src/fixtures/*.rs",
+          "e2e-tests/tests/compliance_export_determinism_e2e.rs",
+          "e2e-tests/tests/tenant_lifecycle_suspend_deprovision_e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19v",
+        "title": "Resolve TIMESTAMP vs TIMESTAMPTZ decode mismatch in cross-module tests",
+        "description": "Fix decoding failures where tests query a TIMESTAMP (no timezone) column but decode into DateTime<Utc> (TIMESTAMPTZ). Choose the canonical approach per domain: (A) migrate the column(s) to TIMESTAMPTZ and ensure writes use UTC, or (B) update Rust decoding to use chrono::NaiveDateTime for TIMESTAMP columns. Apply consistently for the failing cross_module_payment_invoice tests and any shared fixture helpers.",
+        "how_to_think": "Think like a time semantics auditor. Invariant: database timestamp types match Rust decoding types and UTC assumptions are explicit. Failure mode to avoid: silent timezone skew or brittle decoding that fails depending on DB type and driver behavior.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "cross_module_payment_invoice failures due to TIMESTAMP/TIMESTAMPTZ mismatch are eliminated",
+          "Timestamp semantics are consistent (documented UTC policy if using TIMESTAMPTZ)"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests cross_module_payment_invoice_e2e -- --nocapture",
+          "Tests pass with correct timestamp decoding"
+        ],
+        "estimated_complexity": 3,
+        "files_involved": [
+          "modules/ar/db/migrations/*",
+          "modules/payments/db/migrations/*",
+          "modules/subscriptions/db/migrations/*",
+          "modules/gl/db/migrations/*",
+          "e2e-tests/tests/cross_module_payment_invoice_e2e.rs",
+          "e2e-tests/src/fixtures/*.rs"
+        ]
+      },
+      {
+        "id": "bd-19w",
+        "title": "Outbox atomicity: prove migrations applied and enforce outbox write on mutations",
+        "description": "Resolve outbox atomicity violations where a mutation commits but outbox has 0 events (AR/Payments/Subscriptions). Determine whether this is (1) migrations not applied in test harness, (2) test checking wrong DB/table, or (3) real code path missing outbox enqueue inside the transaction. Fix root cause without weakening the invariant. Ensure Guard -> Mutation -> Outbox occurs in the same SQL transaction for finalize/transition operations under test.",
+        "how_to_think": "Think like a transactional integrity enforcer. Invariant: every mutation that should emit an event writes exactly one outbox record in the same transaction. Failure mode to avoid: allowing state transitions without events, breaking projections, replay, audits, and cross-module consistency.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "AR/Payments/Subscriptions outbox atomicity E2E tests pass",
+          "Outbox table existence + migration application is proven in test startup logs or assertions",
+          "No mutation path remains that commits without required outbox enqueue"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "cargo test -p e2e-tests ar_outbox_atomicity_e2e payments_outbox_atomicity_e2e subscriptions_outbox_atomicity_e2e -- --nocapture",
+          "All outbox atomicity tests pass"
+        ],
+        "estimated_complexity": 5,
+        "files_involved": [
+          "modules/ar/src/**/*.rs",
+          "modules/payments/src/**/*.rs",
+          "modules/subscriptions/src/**/*.rs",
+          "modules/ar/db/migrations/*",
+          "modules/payments/db/migrations/*",
+          "modules/subscriptions/db/migrations/*",
+          "platform/event-bus/src/**/*",
+          "e2e-tests/tests/*outbox*e2e.rs"
+        ]
+      },
+      {
+        "id": "bd-19x",
+        "title": "Concurrency E2E assertions: assert guaranteed invariants, not brittle counts",
+        "description": "Fix cross-module concurrency tests that assert exact success counts that are not guaranteed under timing variance (e.g., expecting exactly 1 success but observing 0 or 2). Rewrite assertions to validate the real invariants guaranteed by design: DB uniqueness holds, no illegal transitions occurred, at-most-once side effects, and final state is correct. Where exact counts are truly required, add deterministic barriers (Barrier/Notify) so the count becomes guaranteed. Keep tests strict, but only on deterministically guaranteed outcomes.",
+        "how_to_think": "Think like a concurrency test designer. Invariant: tests validate correctness properties that must hold under any scheduling, and they are reproducible. Failure mode to avoid: flaky tests that fail due to scheduler timing rather than correctness regressions, or weakened tests that stop validating concurrency safety.",
+        "depends_on": [],
+        "acceptance_criteria": [
+          "Concurrency E2E tests pass reliably across repeated runs",
+          "Assertions validate uniqueness + final state + absence of illegal transitions",
+          "If asserting exact counts, tests include deterministic synchronization to make counts guaranteed"
+        ],
+        "verification_commands": [
+          "docker compose -f infra/docker/docker-compose.infrastructure.yml up -d",
+          "for i in 1 2 3; do cargo test -p e2e-tests cross_module_concurrency_e2e -- --nocapture; done",
+          "All runs pass; no flaky count-based failures"
+        ],
+        "estimated_complexity": 4,
+        "files_involved": [
+          "e2e-tests/tests/cross_module_concurrency_e2e.rs",
+          "e2e-tests/src/concurrency.rs",
+          "e2e-tests/src/fixtures/*.rs"
+        ]
+      }
+    ],
+    "priority_order": [
+      "bd-19t",
+      "bd-19u",
+      "bd-19v",
+      "bd-19w",
+      "bd-19x"
+    ]
+  },
+  "error": null
+}

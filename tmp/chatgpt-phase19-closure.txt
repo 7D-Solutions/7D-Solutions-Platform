@@ -1,0 +1,31 @@
+Phase 19 — Final E2E Sweep Report
+
+cargo test -p e2e-tests --no-fail-fast
+
+PASS: 242
+FAIL: 0
+IGNORED: 1 (real_e2e.rs::test_real_nats_based_e2e — legitimate, requires live NATS)
+TOTAL: 243
+
+Closure bar: 0 FAIL / 1 IGNORED — MET.
+
+Round 6 completed (4 beads + 1 child):
+- bd-3j0: Fixed closed-period close_hash (6 tests)
+- bd-3ba: Consolidated DB pool getters to common helpers (systemic)
+- bd-38m: Fixed AR DB credentials in bill_run_e2e (1 test)
+- bd-3ag: Fixed trial balance API — always pass currency param (1 test)
+- bd-2pg: Fixed audit_field_diff_e2e test isolation (2 tests)
+
+Phase 19 journey:
+- Start: 63 FAIL / 18 IGNORED
+- Round 1-4: 63 → 19 FAIL, 18 → 1 IGNORED
+- Round 5: 19 → 10 FAIL
+- Round 6: 10 → 0 FAIL
+
+No assertions weakened. No mocks. No stubs. No Docker in tests.
+All tests hit real PostgreSQL, real NATS, real services, real migrations.
+Guard → Mutation → Outbox atomicity enforced.
+EventEnvelope constitutional metadata enforced.
+CI lints protecting architecture.
+
+Requesting Phase 19 closure stamp.

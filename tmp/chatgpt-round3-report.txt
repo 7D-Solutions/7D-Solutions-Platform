@@ -1,0 +1,47 @@
+Phase 19 Round 3 E2E Sweep Results
+
+PASS: 157 | FAIL: 63 | IGNORED: 18 | TOTAL: 238
+(26 failing test targets)
+
+Round 2 eliminated tenant registry auth failures (12) and fixed previous schema issues. Net improvement obscured by Round 2 fixes exposing new schema mismatches.
+
+Root-cause categories (grouped by fix type):
+
+A. Schema drift — tests assume columns/defaults that don't exist (25 failures)
+1. AR updated_at NOT NULL (13): Tests INSERT into ar_invoices without updated_at. Column has NOT NULL constraint but no DEFAULT. Every cross-module test using setup_test_invoice hits this.
+2. GL source_module NOT NULL (6): Tests INSERT journal_entries without source_module. Column added but tests not updated.
+3. GL updated_at column missing (2): Tests reference journal_entries.updated_at — column doesn't exist in actual schema.
+4. payments.amount_minor missing (2): payment_attempts table doesn't have amount_minor column.
+5. subscriptions.app_id missing (2): subscriptions table doesn't have app_id column.
+
+B. Audit migration idempotency STILL broken (12 failures)
+CopperRiver's bd-3d7 fix wrapped CREATE TYPE in DO block with EXCEPTION WHEN duplicate_object. But the actual PostgreSQL error is 23505 (unique_violation on pg_type_typname_nsp_index), not duplicate_object. The EXCEPTION handler never fires. Fix: catch unique_violation (SQLSTATE 23505) instead of or in addition to duplicate_object.
+
+C. Missing tables/relations (5 failures)
+1. events_outbox (4): AR and other modules reference events_outbox table that doesn't exist. Migration not applied.
+2. notifications table (1): bill_run_e2e references "notifications" table — doesn't exist.
+
+D. Docker containers stale (5 failures)
+/api/version and /api/ready still return 401. CopperRiver fixed the code (bd-25z), but this is a runtime test that hits actual HTTP endpoints. Either: (a) we need running application containers rebuilt from latest code, or (b) these tests need to be restructured to not require running services.
+
+E. Type mismatches (5 failures)
+1. payment_attempt_status enum cast (2): compliance_export test writes text to enum column.
+2. NUMERIC vs INT8 (1): GL SUM() returns NUMERIC, test binds to i64.
+3. UUID parse (2): subscriptions_ar_degradation binds "plan-monthly" string as UUID.
+
+F. Envelope validation (2 failures)
+Test uses mutation_class "IDEMPOTENT" but valid set is DATA_MUTATION, REVERSAL, CORRECTION, SIDE_EFFECT, QUERY, LIFECYCLE, ADMINISTRATIVE. Test expectation is wrong.
+
+G. Data / logic issues (5 failures)
+1. Balance stale data (2): balance_posting + balance_reversal see 130000 instead of 10000 — previous test data not cleaned.
+2. AR outbox atomicity violation (1): Invoice finalized but outbox has 0 events. Potentially a real bug or migration gap (events_outbox missing).
+3. Oracle invariant (1): SubscriptionsInvariantViolation(SucceededWithoutInvoice) — test creates succeeded attempt without corresponding invoice.
+4. Concurrency assertion (1): Expected exactly 3 operations.
+
+H. Infrastructure (3 failures)
+1. Pool timeout (2): projection_fallback_circuit_e2e — projections DB times out.
+2. trial_balance API 400 (1): Expects 200, gets 400 Bad Request.
+
+Proposal: Categories A and B account for 37 of 63 failures (59%). Fix those and we likely cascade-fix some of G as well. Category D is a deployment question (do we rebuild containers or restructure tests?).
+
+What beads do you want for Round 3?

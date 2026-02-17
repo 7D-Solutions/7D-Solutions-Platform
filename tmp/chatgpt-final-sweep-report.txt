@@ -1,0 +1,39 @@
+Phase 19 Round 3 E2E Sweep Results (post all 8 beads)
+
+PASS: 189 | FAIL: 30 | IGNORED: 18 | TOTAL: 237
+(16 failing targets, down from 26)
+
+Round 3 eliminated: audit enum 23505 (12→0), AR updated_at (13→0), GL source_module (6→0), tenant registry auth (12→0), service 401 (5→0), envelope IDEMPOTENT (2→0), balance stale data (2→0). Net: 63→30.
+
+Remaining 30 failures by root cause:
+
+A. Audit migration deadlock 40P01 (9 failures) — NEW
+Parallel test execution causes deadlocks in CREATE OR REPLACE TRIGGER/FUNCTION on pg_proc catalog. Each test independently runs audit migrations. When 3-5 tests start simultaneously, PG deadlocks on DDL catalog locks. Fix: serialize migration execution with std::sync::Once or a PG advisory lock. Tests: audit_actor_propagation (3), audit_append_only (4), audit_field_diff (2).
+
+B. mutation_class text→enum cast (5 failures)
+Tests INSERT text literals into mutation_class enum column without ::mutation_class cast. compliance_export_determinism (2), tenant_lifecycle_suspend_deprovision (3).
+
+C. TIMESTAMP vs TIMESTAMPTZ (3 failures)
+cross_module_payment_invoice tests SELECT a TIMESTAMP column but decode as Option<DateTime<Utc>> (TIMESTAMPTZ). Fix: either change column to TIMESTAMPTZ or use NaiveDateTime in Rust.
+
+D. Outbox atomicity violations (3 failures)
+AR (1), Payments (1), Subscriptions (1) — mutations committed but outbox has 0 events. Likely either: events_outbox migrations not applied in test harness, or production code doesn't write to outbox. These may be real architectural gaps.
+
+E. Concurrency assertions (2 failures)
+Non-deterministic results: "Exactly 1 parallel attempt should succeed" got 0; "Exactly 3 operations should succeed" got 2. Tests assume precise concurrency outcomes that aren't guaranteed.
+
+F. Pool timeout (2 failures)
+projection_fallback_circuit — projections DB pool times out.
+
+G. Other (6 failures)
+- NUMERIC vs INT8 in GL SUM() (2 — one direct, one cascade assertion)
+- GL outbox stale event count (1 — expects 0 events, found 13)
+- Reversal chain UUID mismatch (1)
+- Oracle SucceededWithoutInvoice (1)
+- trial_balance API 400 (1)
+
+Categories A+B+C = 17 of 30 (57%) are straightforward fixes. D is an architectural question. E+F+G are edge cases.
+
+Minimum viable fix set: A (serialize audit migrations), B (add enum casts), C (fix timestamp type). This should drop failures to ~13, all of which are either edge cases or architectural questions.
+
+What beads do you want for Round 4?

@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "raw_text": "Confirmed.\n\nThat constraint (“tests must never spin up Docker”) is the right hard rule, and your bead split + assignments match it.\n\nAssignments ✅\n\nPurpleCliff → bd-1ez (purge phantom ignored stubs)\n\nCopperRiver → bd-1oe (rewrite Phase10 governance tests to shared infra)\n\nMaroonHarbor → bd-64k + bd-2hf (implement atomicity tests + CI lint guard)\n\nMerge order (recommended)\n\nbd-1ez first (removes fake coverage + clarifies remaining gaps)\n\nbd-1oe next (removes Docker-in-test anti-pattern)\n\nbd-64k then (adds real atomicity coverage)\n\nbd-2hf last (so lint doesn’t block in-flight cleanup)\n\nStop-the-line checks\n\nbd-1oe: enforce “no docker in tests” by deleting any Command::new(\"docker\") usage and replacing with shared pools/clients or in-process routers.\n\nbd-64k: if a flow is truly not callable without standing up extra infra, delete the test rather than leaving a stub; but for Payments webhook / Subscriptions cycle advance / GL reversal, prefer calling the real handler/service function directly within the test harness.\n\nbd-2hf: lint should fail on any new #[ignore] unless the test is on an allowlist (target: only real_e2e.rs::test_real_nats_based_e2e, if you keep it).\n\nProceed.",
+  "parse_ok": false,
+  "extracted_json": null,
+  "error": "NO_JSON_STRUCTURE_FOUND"
+}

@@ -1,0 +1,17 @@
+Round 5 beads created. Mapping:
+
+| ChatGPT ID | Our Bead ID | Title | Priority |
+|------------|-------------|-------|----------|
+| bd-19ac | bd-3hp | Phase10 governance: fix account_type enum casts | P0 |
+| bd-19ad | bd-35e | Fix compliance-export panic at export.rs:212 | P0 |
+| bd-19ae | bd-3h5 | AR finalize_invoice: outbox atomicity + idempotency | P0 |
+| bd-19af | bd-2a3 | Concurrency E2E rework: deterministic barrier | P0 |
+| bd-19ag | bd-26i | Fix projections DB pool timeouts | P1 |
+| bd-19ah | bd-k4w | GL balance/journal + remaining misc triage | P1 |
+
+Assignments:
+- CopperRiver: bd-3hp (account_type casts — his Phase10 rewrite), bd-3h5 (AR outbox atomicity)
+- PurpleCliff: bd-35e (compliance export panic), bd-k4w (GL/misc triage)
+- MaroonHarbor: bd-2a3 (concurrency rework), bd-26i (projections pool timeout)
+
+Target: 0 FAIL / 1 IGNORED (real_e2e only). Confirm?

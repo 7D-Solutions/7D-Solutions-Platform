@@ -1,0 +1,1797 @@
+warning: unused import: `PgPool`
+  --> modules/subscriptions/src/cycle_gating.rs:22:26
+   |
+22 | use sqlx::{PgConnection, PgPool};
+   |                          ^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `PgConnection`
+  --> modules/subscriptions/src/gated_invoice_creation.rs:12:12
+   |
+12 | use sqlx::{PgConnection, PgPool};
+   |            ^^^^^^^^^^^^
+
+warning: unused import: `uuid::Uuid`
+ --> modules/gl/src/domain/statements.rs:8:5
+  |
+8 | use uuid::Uuid;
+  |     ^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `DateTime` and `Utc`
+ --> modules/gl/src/services/gl_detail_service.rs:7:14
+  |
+7 | use chrono::{DateTime, NaiveTime, Utc};
+  |              ^^^^^^^^             ^^^
+
+warning: fields `id` and `tenant_id` are never read
+   --> modules/gl/src/routes/period_close.rs:166:9
+    |
+165 | struct PeriodCloseStatusData {
+    |        --------------------- fields in this struct
+166 |     pub id: Uuid,
+    |         ^^
+167 |     pub tenant_id: String,
+    |         ^^^^^^^^^
+    |
+    = note: `PeriodCloseStatusData` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `id`, `tenant_id`, and `close_requested_at` are never read
+  --> modules/gl/src/services/period_close_service.rs:89:9
+   |
+88 | struct PeriodData {
+   |        ---------- fields in this struct
+89 |     pub id: Uuid,
+   |         ^^
+90 |     pub tenant_id: String,
+   |         ^^^^^^^^^
+...
+94 |     pub close_requested_at: Option<DateTime<Utc>>,
+   |         ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `PeriodData` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: fields `id`, `tenant_id`, `period_start`, and `period_end` are never read
+   --> modules/gl/src/services/period_close_service.rs:629:9
+    |
+628 | struct PeriodForClose {
+    |        -------------- fields in this struct
+629 |     pub id: Uuid,
+    |         ^^
+630 |     pub tenant_id: String,
+    |         ^^^^^^^^^
+631 |     pub period_start: chrono::NaiveDate,
+    |         ^^^^^^^^^^^^
+632 |     pub period_end: chrono::NaiveDate,
+    |         ^^^^^^^^^^
+    |
+    = note: `PeriodForClose` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: `subscriptions-rs` (lib) generated 2 warnings (run `cargo fix --lib -p subscriptions-rs` to apply 2 suggestions)
+warning: `gl-rs` (lib) generated 5 warnings (run `cargo fix --lib -p gl-rs` to apply 2 suggestions)
+warning: unused import: `Utc`
+ --> modules/payments/src/envelope_validation.rs:1:24
+  |
+1 | use chrono::{DateTime, Utc};
+  |                        ^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `EventEnvelope`
+ --> modules/payments/src/handlers.rs:4:36
+  |
+4 | use crate::events::{enqueue_event, EventEnvelope};
+  |                                    ^^^^^^^^^^^^^
+
+warning: unused imports: `Postgres` and `Transaction`
+  --> modules/payments/src/reconciliation.rs:26:20
+   |
+26 | use sqlx::{PgPool, Postgres, Transaction};
+   |                    ^^^^^^^^  ^^^^^^^^^^^
+
+warning: field `id` is never read
+  --> modules/payments/src/events/consumer.rs:26:13
+   |
+25 |         struct ProcessedEvent {
+   |                -------------- field in this struct
+26 |             id: i32,
+   |             ^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `payments-rs` (lib) generated 4 warnings (run `cargo fix --lib -p payments-rs` to apply 3 suggestions)
+warning: unused import: `crate::events::enqueue_event`
+  --> modules/ar/src/routes.rs:17:5
+   |
+17 | use crate::events::enqueue_event;
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `ar-rs` (lib) generated 1 warning (run `cargo fix --lib -p ar-rs` to apply 1 suggestion)
+warning: fields `id`, `tenant_id`, `period_id`, `currency`, and `last_journal_entry_id` are never read
+   --> e2e-tests/tests/balance_reversal_e2e.rs:150:5
+    |
+149 | struct AccountBalance {
+    |        -------------- fields in this struct
+150 |     id: Uuid,
+    |     ^^
+151 |     tenant_id: String,
+    |     ^^^^^^^^^
+152 |     period_id: Uuid,
+    |     ^^^^^^^^^
+153 |     account_code: String,
+154 |     currency: String,
+    |     ^^^^^^^^
+...
+158 |     last_journal_entry_id: Option<Uuid>,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `AccountBalance` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `chrono::NaiveDate`
+  --> e2e-tests/tests/common/mod.rs:15:5
+   |
+15 | use chrono::NaiveDate;
+   |     ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `futures::StreamExt`
+  --> e2e-tests/tests/common/mod.rs:16:5
+   |
+16 | use futures::StreamExt;
+   |     ^^^^^^^^^^^^^^^^^^
+
+warning: function `wait_for_db_ready` is never used
+  --> e2e-tests/tests/common/mod.rs:31:14
+   |
+31 | pub async fn wait_for_db_ready(name: &str, url: &str) -> PgPool {
+   |              ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `get_ar_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:64:14
+   |
+64 | pub async fn get_ar_pool() -> PgPool {
+   |              ^^^^^^^^^^^
+
+warning: function `get_payments_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:71:14
+   |
+71 | pub async fn get_payments_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^^^^^
+
+warning: function `get_subscriptions_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:78:14
+   |
+78 | pub async fn get_subscriptions_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_gl_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:85:14
+   |
+85 | pub async fn get_gl_pool() -> PgPool {
+   |              ^^^^^^^^^^^
+
+warning: function `get_auth_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:92:14
+   |
+92 | pub async fn get_auth_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^
+
+warning: function `get_projections_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:99:14
+   |
+99 | pub async fn get_projections_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_audit_pool` is never used
+   --> e2e-tests/tests/common/mod.rs:107:14
+    |
+107 | pub async fn get_audit_pool() -> PgPool {
+    |              ^^^^^^^^^^^^^^
+
+warning: function `get_tenant_registry_pool` is never used
+   --> e2e-tests/tests/common/mod.rs:115:14
+    |
+115 | pub async fn get_tenant_registry_pool() -> PgPool {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `setup_nats_client` is never used
+   --> e2e-tests/tests/common/mod.rs:127:14
+    |
+127 | pub async fn setup_nats_client() -> NatsClient {
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: function `publish_event` is never used
+   --> e2e-tests/tests/common/mod.rs:137:14
+    |
+137 | pub async fn publish_event<T: serde::Serialize>(
+    |              ^^^^^^^^^^^^^
+
+warning: function `subscribe_to_events` is never used
+   --> e2e-tests/tests/common/mod.rs:153:14
+    |
+153 | pub async fn subscribe_to_events(
+    |              ^^^^^^^^^^^^^^^^^^^
+
+warning: function `poll_for_record` is never used
+   --> e2e-tests/tests/common/mod.rs:176:14
+    |
+176 | pub async fn poll_for_record<F, Fut, T>(
+    |              ^^^^^^^^^^^^^^^
+
+warning: function `poll_for_invoice` is never used
+   --> e2e-tests/tests/common/mod.rs:208:14
+    |
+208 | pub async fn poll_for_invoice(
+    |              ^^^^^^^^^^^^^^^^
+
+warning: function `poll_for_payment_attempt` is never used
+   --> e2e-tests/tests/common/mod.rs:236:14
+    |
+236 | pub async fn poll_for_payment_attempt(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `poll_for_journal_entry` is never used
+   --> e2e-tests/tests/common/mod.rs:264:14
+    |
+264 | pub async fn poll_for_journal_entry(
+    |              ^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `assert_exactly_one` is never used
+   --> e2e-tests/tests/common/mod.rs:296:14
+    |
+296 | pub async fn assert_exactly_one(
+    |              ^^^^^^^^^^^^^^^^^^
+
+warning: function `assert_journal_balanced` is never used
+   --> e2e-tests/tests/common/mod.rs:314:14
+    |
+314 | pub async fn assert_journal_balanced(
+    |              ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `count_records` is never used
+   --> e2e-tests/tests/common/mod.rs:346:14
+    |
+346 | pub async fn count_records(pool: &PgPool, query: &str) -> Result<i64, String> {
+    |              ^^^^^^^^^^^^^
+
+warning: function `cleanup_tenant_data` is never used
+   --> e2e-tests/tests/common/mod.rs:358:14
+    |
+358 | pub async fn cleanup_tenant_data(
+    |              ^^^^^^^^^^^^^^^^^^^
+
+warning: function `create_ar_customer` is never used
+   --> e2e-tests/tests/common/mod.rs:432:14
+    |
+432 | pub async fn create_ar_customer(pool: &PgPool, app_id: &str) -> i32 {
+    |              ^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `cleanup_tenant_data`
+  --> e2e-tests/tests/cross_module_subscription_invoice_e2e.rs:25:5
+   |
+25 |     cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_subscriptions_pool,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `i`
+   --> e2e-tests/tests/cross_module_subscription_invoice_e2e.rs:462:9
+    |
+462 |     for i in 0..5 {
+    |         ^ help: if this is intentional, prefix it with an underscore: `_i`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `get_payments_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:71:14
+   |
+71 | pub async fn get_payments_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `TestContext` is never constructed
+  --> e2e-tests/tests/oracle.rs:22:12
+   |
+22 | pub struct TestContext<'a> {
+   |            ^^^^^^^^^^^
+
+warning: variant `AuditInvariantViolation` is never constructed
+  --> e2e-tests/tests/oracle.rs:43:5
+   |
+38 | pub enum OracleError {
+   |          ----------- variant in this enum
+...
+43 |     AuditInvariantViolation(String),
+   |     ^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `OracleError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+
+warning: function `assert_audit_completeness` is never used
+   --> e2e-tests/tests/oracle.rs:102:10
+    |
+102 | async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleError> {
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `assert_cross_module_invariants` is never used
+   --> e2e-tests/tests/oracle.rs:290:14
+    |
+290 | pub async fn assert_cross_module_invariants(ctx: &TestContext<'_>) -> Result<(), OracleError> {
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: function `get_auth_pool` is never used
+  --> e2e-tests/tests/common/mod.rs:92:14
+   |
+92 | pub async fn get_auth_pool() -> PgPool {
+   |              ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `test_id`
+  --> e2e-tests/tests/payments_outbox_atomicity_e2e.rs:94:9
+   |
+94 |     let test_id = "payments_outbox_atomicity";
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `e2e-tests` (test "balance_reversal_e2e") generated 1 warning
+warning: `e2e-tests` (test "mutation_class_presence_e2e") generated 23 warnings (run `cargo fix --test "mutation_class_presence_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "audit_field_diff_e2e") generated 23 warnings (23 duplicates)
+warning: `e2e-tests` (test "audit_actor_propagation_e2e") generated 23 warnings (23 duplicates)
+warning: `e2e-tests` (test "cross_module_subscription_invoice_e2e") generated 26 warnings (19 duplicates) (run `cargo fix --test "cross_module_subscription_invoice_e2e" -p e2e-tests` to apply 2 suggestions)
+warning: `e2e-tests` (test "cross_module_invoice_gl_e2e") generated 20 warnings (19 duplicates)
+warning: `e2e-tests` (test "payments_outbox_atomicity_e2e") generated 18 warnings (17 duplicates) (run `cargo fix --test "payments_outbox_atomicity_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: unused import: `NaiveDate`
+  --> e2e-tests/tests/cross_module_replay_safety_e2e.rs:14:14
+   |
+14 | use chrono::{NaiveDate, Utc};
+   |              ^^^^^^^^^
+
+warning: unused variable: `audit_pool`
+   --> e2e-tests/tests/cross_module_replay_safety_e2e.rs:286:9
+    |
+286 |     let audit_pool = common::get_audit_pool().await;
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_audit_pool`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `entry1_id`
+   --> e2e-tests/tests/cross_module_replay_safety_e2e.rs:294:9
+    |
+294 |     let entry1_id = entry1_result.unwrap();
+    |         ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_entry1_id`
+
+warning: unused variable: `audit_pool`
+   --> e2e-tests/tests/cross_module_replay_safety_e2e.rs:337:9
+    |
+337 |     let audit_pool = common::get_audit_pool().await;
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_audit_pool`
+
+warning: unused variable: `test_id`
+  --> e2e-tests/tests/subscriptions_outbox_atomicity_e2e.rs:87:9
+   |
+87 |     let test_id = "subs_lifecycle_atomicity";
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `subscriptions_pool`
+   --> e2e-tests/tests/subscriptions_ar_degradation_e2e.rs:181:9
+    |
+181 |     let subscriptions_pool = get_subscriptions_pool().await;
+    |         ^^^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_subscriptions_pool`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `test_id`
+   --> e2e-tests/tests/ar_outbox_atomicity_e2e.rs:112:9
+    |
+112 |     let test_id = "ar_outbox_atomicity";
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `create_shadow_table`
+  --> e2e-tests/tests/replay_certification_digest_e2e.rs:15:59
+   |
+15 |     compute_versioned_digest, create_shadow_cursor_table, create_shadow_table,
+   |                                                           ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cursor_table`
+   --> e2e-tests/tests/replay_certification_digest_e2e.rs:113:5
+    |
+113 |     cursor_table: &str,
+    |     ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_cursor_table`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `cursor_table`
+   --> e2e-tests/tests/replay_certification_digest_e2e.rs:176:5
+    |
+176 |     cursor_table: &str,
+    |     ^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_cursor_table`
+
+warning: fields `projection_name` and `last_event_occurred_at` are never read
+   --> e2e-tests/tests/replay_certification_digest_e2e.rs:242:5
+    |
+241 | struct RebuildRunSummary {
+    |        ----------------- fields in this struct
+242 |     projection_name: String,
+    |     ^^^^^^^^^^^^^^^
+...
+246 |     last_event_occurred_at: DateTime<Utc>,
+    |     ^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `RebuildRunSummary` has derived impls for the traits `Clone` and `Debug`, but these are intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `e2e-tests` (test "cross_module_replay_safety_e2e") generated 19 warnings (15 duplicates) (run `cargo fix --test "cross_module_replay_safety_e2e" -p e2e-tests` to apply 4 suggestions)
+warning: `e2e-tests` (test "subscriptions_outbox_atomicity_e2e") generated 18 warnings (17 duplicates) (run `cargo fix --test "subscriptions_outbox_atomicity_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "subscriptions_ar_degradation_e2e") generated 24 warnings (23 duplicates) (run `cargo fix --test "subscriptions_ar_degradation_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "ar_outbox_atomicity_e2e") generated 18 warnings (17 duplicates) (run `cargo fix --test "ar_outbox_atomicity_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "cross_module_concurrency_safety_e2e") generated 16 warnings (16 duplicates)
+warning: `e2e-tests` (test "replay_certification_digest_e2e") generated 4 warnings (run `cargo fix --test "replay_certification_digest_e2e" -p e2e-tests` to apply 3 suggestions)
+warning: unused import: `sqlx::PgPool`
+  --> e2e-tests/tests/envelope_invalid_rejected_e2e.rs:31:5
+   |
+31 | use sqlx::PgPool;
+   |     ^^^^^^^^^^^^
+
+warning: unused variable: `test_id`
+  --> e2e-tests/tests/envelope_invalid_rejected_e2e.rs:42:9
+   |
+42 |     let test_id = "invalid_envelope_empty_tenant";
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `test_id`
+   --> e2e-tests/tests/envelope_invalid_rejected_e2e.rs:118:9
+    |
+118 |     let test_id = "invalid_envelope_empty_trace";
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+
+warning: unused variable: `test_id`
+   --> e2e-tests/tests/envelope_invalid_rejected_e2e.rs:194:9
+    |
+194 |     let test_id = "valid_envelope_accepted";
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+
+warning: unused variable: `webhook_event_id`
+   --> e2e-tests/tests/cross_module_payment_invoice_e2e.rs:250:9
+    |
+250 |     let webhook_event_id = Uuid::new_v4();
+    |         ^^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_webhook_event_id`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `uuid::Uuid`
+  --> e2e-tests/tests/audit_policy_enforcement_e2e.rs:14:5
+   |
+14 | use uuid::Uuid;
+   |     ^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: fields `id`, `tenant_id`, `period_id`, and `last_journal_entry_id` are never read
+   --> e2e-tests/tests/balance_posting_e2e.rs:150:5
+    |
+149 | struct AccountBalance {
+    |        -------------- fields in this struct
+150 |     id: Uuid,
+    |     ^^
+151 |     tenant_id: String,
+    |     ^^^^^^^^^
+152 |     period_id: Uuid,
+    |     ^^^^^^^^^
+...
+158 |     last_journal_entry_id: Option<Uuid>,
+    |     ^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `AccountBalance` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `Utc`
+  --> e2e-tests/tests/cross_module_invoice_payment_e2e.rs:14:25
+   |
+14 | use chrono::{NaiveDate, Utc};
+   |                         ^^^
+
+warning: unused variable: `event_id`
+   --> e2e-tests/tests/bill_run_e2e.rs:336:17
+    |
+336 |             let event_id = envelope["event_id"].as_str().unwrap_or("unknown");
+    |                 ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_event_id`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `EventEnvelope` is never constructed
+  --> e2e-tests/tests/bill_run_e2e.rs:79:8
+   |
+79 | struct EventEnvelope<T> {
+   |        ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: struct `PaymentCollectionRequestedPayload` is never constructed
+  --> e2e-tests/tests/bill_run_e2e.rs:92:8
+   |
+92 | struct PaymentCollectionRequestedPayload {
+   |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `PaymentSucceededPayload` is never constructed
+   --> e2e-tests/tests/bill_run_e2e.rs:100:8
+    |
+100 | struct PaymentSucceededPayload {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: struct `NotificationDeliveryPayload` is never constructed
+   --> e2e-tests/tests/bill_run_e2e.rs:108:8
+    |
+108 | struct NotificationDeliveryPayload {
+    |        ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+warning: unused variable: `result`
+   --> e2e-tests/tests/cross_module_payment_unknown_e2e.rs:384:9
+    |
+384 |     let result = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `result`
+   --> e2e-tests/tests/cross_module_payment_unknown_e2e.rs:451:9
+    |
+451 |     let result = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    |         ^^^^^^ help: if this is intentional, prefix it with an underscore: `_result`
+
+warning: unused variable: `result_1`
+   --> e2e-tests/tests/cross_module_payment_unknown_e2e.rs:519:9
+    |
+519 |     let result_1 = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_result_1`
+
+warning: unused variable: `result_2`
+   --> e2e-tests/tests/cross_module_payment_unknown_e2e.rs:523:9
+    |
+523 |     let result_2 = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_result_2`
+
+warning: unused variable: `result_3`
+   --> e2e-tests/tests/cross_module_payment_unknown_e2e.rs:527:9
+    |
+527 |     let result_3 = reconcile_unknown_attempt(&payments_pool, attempt_id)
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_result_3`
+
+warning: unused variable: `test_id`
+  --> e2e-tests/tests/gl_outbox_atomicity_e2e.rs:99:9
+   |
+99 |     let test_id = "gl_reversal_atomicity";
+   |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `test_id`
+   --> e2e-tests/tests/gl_outbox_atomicity_e2e.rs:180:9
+    |
+180 |     let test_id = "gl_posting_no_emit";
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_test_id`
+
+warning: `e2e-tests` (test "envelope_invalid_rejected_e2e") generated 21 warnings (17 duplicates) (run `cargo fix --test "envelope_invalid_rejected_e2e" -p e2e-tests` to apply 4 suggestions)
+warning: `e2e-tests` (test "cross_module_payment_invoice_e2e") generated 16 warnings (15 duplicates) (run `cargo fix --test "cross_module_payment_invoice_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "audit_policy_enforcement_e2e") generated 1 warning (run `cargo fix --test "audit_policy_enforcement_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "balance_posting_e2e") generated 1 warning
+warning: `e2e-tests` (test "audit_append_only_e2e") generated 23 warnings (23 duplicates)
+warning: `e2e-tests` (test "cross_module_invoice_payment_e2e") generated 16 warnings (15 duplicates) (run `cargo fix --test "cross_module_invoice_payment_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "bill_run_e2e") generated 5 warnings (run `cargo fix --test "bill_run_e2e" -p e2e-tests` to apply 1 suggestion)
+warning: `e2e-tests` (test "envelope_roundtrip_e2e") generated 21 warnings (21 duplicates)
+warning: `e2e-tests` (test "cross_module_payment_unknown_e2e") generated 22 warnings (17 duplicates) (run `cargo fix --test "cross_module_payment_unknown_e2e" -p e2e-tests` to apply 5 suggestions)
+warning: `e2e-tests` (test "gl_outbox_atomicity_e2e") generated 19 warnings (17 duplicates) (run `cargo fix --test "gl_outbox_atomicity_e2e" -p e2e-tests` to apply 2 suggestions)
+warning: `e2e-tests` (test "reversal_chain_depth_enforcement_e2e") generated 17 warnings (17 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.38s
+     Running tests/ar_outbox_atomicity_e2e.rs (target/debug/deps/ar_outbox_atomicity_e2e-1c798d226731c3d2)
+
+running 3 tests
+test test_ar_finalize_invoice_api_atomicity ... ignored
+test common::tests::test_generate_test_tenant ... ok
+✅ Created customer 1084
+✅ Created draft invoice 786
+✅ Finalized invoice 786 (status updated to 'open')
+
+📊 Atomicity Check:
+  Invoice Status: draft -> open
+  Outbox Rows: 0 -> 0
+
+thread 'test_ar_finalize_invoice_outbox_atomicity' (91763549) panicked at e2e-tests/tests/ar_outbox_atomicity_e2e.rs:179:9:
+❌ ATOMICITY VIOLATION: Invoice finalized but outbox has 0 events (expected >= 1). This proves the bug: invoice mutation committed without outbox insert.
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_ar_finalize_invoice_outbox_atomicity ... FAILED
+
+failures:
+
+failures:
+    test_ar_finalize_invoice_outbox_atomicity
+
+test result: FAILED. 1 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+error: test failed, to rerun pass `-p e2e-tests --test ar_outbox_atomicity_e2e`
+     Running tests/audit_actor_propagation_e2e.rs (target/debug/deps/audit_actor_propagation_e2e-aa066623c2419faa)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+test test_actor_propagation_to_event_envelope ... ok
+
+thread 'test_system_actor' (91763566) panicked at e2e-tests/tests/audit_actor_propagation_e2e.rs:52:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'test_actor_required_for_mutations' (91763563) panicked at e2e-tests/tests/audit_actor_propagation_e2e.rs:52:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+
+thread 'test_service_actor_deterministic_id' (91763565) panicked at e2e-tests/tests/audit_actor_propagation_e2e.rs:52:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+
+thread 'test_multiple_actor_types_in_correlation' (91763564) panicked at e2e-tests/tests/audit_actor_propagation_e2e.rs:52:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+test test_service_actor_deterministic_id ... FAILED
+test test_multiple_actor_types_in_correlation ... FAILED
+test test_actor_required_for_mutations ... FAILED
+test test_system_actor ... FAILED
+test test_user_actor_in_audit ... ok
+
+failures:
+
+failures:
+    test_actor_required_for_mutations
+    test_multiple_actor_types_in_correlation
+    test_service_actor_deterministic_id
+    test_system_actor
+
+test result: FAILED. 3 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+error: test failed, to rerun pass `-p e2e-tests --test audit_actor_propagation_e2e`
+     Running tests/audit_append_only_e2e.rs (target/debug/deps/audit_append_only_e2e-6c3faa115e11297b)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+
+thread 'test_audit_correlation_query' (91763581) panicked at e2e-tests/tests/audit_append_only_e2e.rs:48:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'test_audit_transaction_rollback' (91763583) panicked at e2e-tests/tests/audit_append_only_e2e.rs:48:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+
+thread 'test_audit_write_success' (91763586) panicked at e2e-tests/tests/audit_append_only_e2e.rs:48:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+
+thread 'test_audit_update_rejected' (91763584) panicked at e2e-tests/tests/audit_append_only_e2e.rs:48:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+
+thread 'test_audit_write_in_transaction' (91763585) panicked at e2e-tests/tests/audit_append_only_e2e.rs:48:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+test test_audit_correlation_query ... FAILED
+test test_audit_write_in_transaction ... FAILED
+test test_audit_update_rejected ... FAILED
+test test_audit_write_success ... FAILED
+test test_audit_transaction_rollback ... FAILED
+test test_audit_delete_rejected ... ok
+
+failures:
+
+failures:
+    test_audit_correlation_query
+    test_audit_transaction_rollback
+    test_audit_update_rejected
+    test_audit_write_in_transaction
+    test_audit_write_success
+
+test result: FAILED. 2 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+error: test failed, to rerun pass `-p e2e-tests --test audit_append_only_e2e`
+     Running tests/audit_field_diff_e2e.rs (target/debug/deps/audit_field_diff_e2e-c65fda16eaae70af)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+test test_field_diff_no_changes ... ok
+test test_field_diff_deterministic_ordering ... ok
+
+thread 'test_field_diff_with_transaction' (91763654) panicked at e2e-tests/tests/audit_field_diff_e2e.rs:53:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'test_field_diff_single_update' (91763649) panicked at e2e-tests/tests/audit_field_diff_e2e.rs:53:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+
+thread 'test_field_diff_with_field_addition_and_removal' (91763650) panicked at e2e-tests/tests/audit_field_diff_e2e.rs:53:10:
+Failed to run audit migrations: Database(PgDatabaseError { severity: Error, code: "23505", message: "duplicate key value violates unique constraint \"pg_type_typname_nsp_index\"", detail: Some("Key (typname, typnamespace)=(mutation_class, 2200) already exists."), hint: None, position: None, where: Some("SQL statement \"CREATE TYPE mutation_class AS ENUM (\n        'CREATE',\n        'UPDATE',\n        'DELETE',\n        'STATE_TRANSITION',\n        'REVERSAL'\n    )\"\nPL/pgSQL function inline_code_block line 3 at SQL statement"), schema: Some("pg_catalog"), table: Some("pg_type"), column: None, data_type: None, constraint: Some("pg_type_typname_nsp_index"), file: Some("nbtinsert.c"), line: Some(666), routine: Some("_bt_check_unique") })
+test test_field_diff_with_field_addition_and_removal ... FAILED
+test test_field_diff_single_update ... FAILED
+test test_field_diff_with_transaction ... FAILED
+test test_field_diff_multiple_updates ... ok
+
+failures:
+
+failures:
+    test_field_diff_single_update
+    test_field_diff_with_field_addition_and_removal
+    test_field_diff_with_transaction
+
+test result: FAILED. 4 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+error: test failed, to rerun pass `-p e2e-tests --test audit_field_diff_e2e`
+     Running tests/audit_policy_enforcement_e2e.rs (target/debug/deps/audit_policy_enforcement_e2e-106f7978bad0c87b)
+
+running 11 tests
+test test_compensating_required_blocks_deletes ... ok
+test test_compensating_required_without_linkage ... ok
+test test_compensating_required_with_linkage ... ok
+test test_mutable_standard_allows_all_operations ... ok
+test test_mutable_with_audit_allows_deletes ... ok
+test test_mutable_with_audit_with_diff ... ok
+test test_mutable_with_audit_without_diff ... ok
+test test_policy_enforcement_matrix ... ok
+test test_strict_immutable_allows_creates ... ok
+test test_strict_immutable_blocks_deletes ... ok
+test test_strict_immutable_policy_enforcement ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/balance_posting_e2e.rs (target/debug/deps/balance_posting_e2e-6dfaca8e27750d29)
+
+running 1 test
+⏳ Checking if 7d-gl is healthy...
+✓ 7d-gl is healthy
+✓ Using existing accounting period: c3b94712-840b-4841-aa71-55673b4d8c6b
+✓ Created COA accounts (1100, 4000)
+✓ Created test journal entry and balances
+
+thread 'test_balances_posting_once' (91763779) panicked at e2e-tests/tests/balance_posting_e2e.rs:292:5:
+assertion `left == right` failed: AR debit should be 10000 (minor units)
+  left: 140000
+ right: 10000
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_balances_posting_once ... FAILED
+
+failures:
+
+failures:
+    test_balances_posting_once
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+
+error: test failed, to rerun pass `-p e2e-tests --test balance_posting_e2e`
+     Running tests/balance_reversal_e2e.rs (target/debug/deps/balance_reversal_e2e-941ba633c51f41d1)
+
+running 1 test
+⏳ Checking if 7d-gl is healthy...
+✓ 7d-gl is healthy
+✓ Using existing accounting period: 787794b6-2ad9-482d-aa1a-c171b8a33b28
+✓ Created COA accounts (1100, 4000)
+✓ Created original journal entry and balances
+✓ Created reversal entry and updated balances
+
+thread 'test_balances_reversal_once' (91763801) panicked at e2e-tests/tests/balance_reversal_e2e.rs:351:5:
+assertion `left == right` failed: AR should have 10000 debit total (from original)
+  left: 140000
+ right: 10000
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_balances_reversal_once ... FAILED
+
+failures:
+
+failures:
+    test_balances_reversal_once
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+error: test failed, to rerun pass `-p e2e-tests --test balance_reversal_e2e`
+     Running tests/bill_run_e2e.rs (target/debug/deps/bill_run_e2e-92040f8372b5b012)
+
+running 1 test
+[2m2026-02-17T05:05:38.203961Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m 🚀 Starting E2E proof test: Bill Run → Payment → Notification
+[2m2026-02-17T05:05:38.343559Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "ar_subscriptions"
+[2m2026-02-17T05:05:38.343651Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "ar_payment_methods"
+[2m2026-02-17T05:05:38.343841Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "ar_charges"
+[2m2026-02-17T05:05:38.343941Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "ar_refunds"
+[2m2026-02-17T05:05:38.344094Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "ar_tax_calculations"
+[2m2026-02-17T05:05:38.344216Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "ar_discount_applications"
+[2m2026-02-17T05:05:38.344328Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "ar_metered_usage"
+[2m2026-02-17T05:05:38.344483Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "ar_invoice_line_items"
+[2m2026-02-17T05:05:38.344807Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "ar_invoice_attempts"
+[2m2026-02-17T05:05:38.345017Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "ar_disputes"
+[2m2026-02-17T05:05:38.345146Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "ar_subscription_addons"
+[2m2026-02-17T05:05:38.422309Z[0m [32m INFO[0m [2msqlx::postgres::notice[0m[2m:[0m truncate cascades to table "subscription_invoice_attempts"
+[2m2026-02-17T05:05:38.455514Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m 🔧 Starting mock consumers...
+[2m2026-02-17T05:05:38.564366Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ✓ Created AR customer: 1085
+[2m2026-02-17T05:05:38.619613Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ✓ Created subscription: 9e0a9ffd-ea1e-4e22-91be-e40b5a82808e
+[2m2026-02-17T05:05:38.619638Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m 📋 Triggering bill-run: e2e-test-54b299b3-6c50-45e7-a364-a4209d3ab2ae
+[2m2026-02-17T05:05:38.663296Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m 💳 Payment consumer: Processing payment for invoice 787
+[2m2026-02-17T05:05:38.664640Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ✓ Bill-run triggered, created invoice: 787
+[2m2026-02-17T05:05:38.664649Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ⏳ Waiting for subscriptions.billrun.completed...
+[2m2026-02-17T05:05:38.664680Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ✓ Received subscriptions.billrun.completed
+[2m2026-02-17T05:05:38.664685Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ⏳ Waiting for ar.payment.collection.requested...
+[2m2026-02-17T05:05:38.664706Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ✓ Received ar.payment.collection.requested for invoice: 787
+[2m2026-02-17T05:05:38.664838Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ⏳ Waiting for payment.succeeded...
+[2m2026-02-17T05:05:38.664915Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ✓ Payment consumer: Emitted payment.succeeded for pay_3fa2ef21-eb42-49a8-a823-eec95f75495f
+[2m2026-02-17T05:05:38.664955Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m 📝 AR payment consumer: Applying payment pay_3fa2ef21-eb42-49a8-a823-eec95f75495f to invoice 787
+[2m2026-02-17T05:05:38.664996Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m 📧 Notification consumer: Sending notification for payment pay_3fa2ef21-eb42-49a8-a823-eec95f75495f
+[2m2026-02-17T05:05:38.665213Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ✓ Received payment.succeeded: pay_3fa2ef21-eb42-49a8-a823-eec95f75495f
+[2m2026-02-17T05:05:38.665220Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ⏳ Waiting for notification.delivery.succeeded...
+[2m2026-02-17T05:05:38.665562Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ✓ Notification consumer: Emitted notification.delivery.succeeded
+[2m2026-02-17T05:05:38.665611Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ✓ Received notification.delivery.succeeded
+[2m2026-02-17T05:05:38.665616Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m 🔍 Verifying final state in databases...
+[2m2026-02-17T05:05:38.666091Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m ✓ AR payment consumer: Invoice 787 marked as paid
+[2m2026-02-17T05:05:38.871741Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m   ✓ AR: Invoice status = paid
+[2m2026-02-17T05:05:38.873425Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m   ✓ Subscriptions: next_bill_date updated to 2026-03-19
+[2m2026-02-17T05:05:38.875884Z[0m [32m INFO[0m [2mbill_run_e2e[0m[2m:[0m   ✓ Payments: Payment record exists
+
+thread 'test_bill_run_to_notification_happy_path' (91763821) panicked at e2e-tests/tests/bill_run_e2e.rs:659:6:
+Failed to query notifications: Database(PgDatabaseError { severity: Error, code: "42P01", message: "relation \"notifications\" does not exist", detail: None, hint: None, position: Some(Original(22)), where: None, schema: None, table: None, column: None, data_type: None, constraint: None, file: Some("parse_relation.c"), line: Some(1449), routine: Some("parserOpenTable") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_bill_run_to_notification_happy_path ... FAILED
+
+failures:
+
+failures:
+    test_bill_run_to_notification_happy_path
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+error: test failed, to rerun pass `-p e2e-tests --test bill_run_e2e`
+     Running tests/compliance_export_determinism_e2e.rs (target/debug/deps/compliance_export_determinism_e2e-3426f7b2e075facb)
+
+running 2 tests
+
+thread 'test_compliance_export_determinism' (91763843) panicked at e2e-tests/tests/compliance_export_determinism_e2e.rs:200:10:
+Failed to setup test data: Database(PgDatabaseError { severity: Error, code: "42804", message: "column \"status\" is of type payment_attempt_status but expression is of type text", detail: None, hint: Some("You will need to rewrite or cast the expression."), position: Some(Original(152)), where: None, schema: None, table: None, column: None, data_type: None, constraint: None, file: Some("parse_target.c"), line: Some(586), routine: Some("transformAssignedExpr") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_compliance_export_determinism ... FAILED
+
+thread 'test_compliance_export_tenant_isolation' (91763844) panicked at e2e-tests/tests/compliance_export_determinism_e2e.rs:333:10:
+Failed to setup tenant1 data: Database(PgDatabaseError { severity: Error, code: "42804", message: "column \"status\" is of type payment_attempt_status but expression is of type text", detail: None, hint: Some("You will need to rewrite or cast the expression."), position: Some(Original(152)), where: None, schema: None, table: None, column: None, data_type: None, constraint: None, file: Some("parse_target.c"), line: Some(586), routine: Some("transformAssignedExpr") })
+test test_compliance_export_tenant_isolation ... FAILED
+
+failures:
+
+failures:
+    test_compliance_export_determinism
+    test_compliance_export_tenant_isolation
+
+test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+error: test failed, to rerun pass `-p e2e-tests --test compliance_export_determinism_e2e`
+     Running tests/config_validation_failfast_e2e.rs (target/debug/deps/config_validation_failfast_e2e-cfbef1a8bff5c480)
+
+running 10 tests
+✓ Subscriptions config uses default NATS_URL when BUS_TYPE=nats
+✓ GL config validation requires DATABASE_URL
+✓ Payments config validates PORT
+✓ AR config rejects empty DATABASE_URL
+test test_subscriptions_config_nats_requires_url ... ok
+✓ AR config validates BUS_TYPE values
+test test_gl_config_requires_database_url ... ok
+✓ GL config accepts valid configuration
+test test_payments_config_validates_port ... ok
+test test_ar_config_rejects_empty_database_url ... ok
+✓ AR config accepts valid NATS configuration
+test test_ar_config_validates_bus_type ... ok
+✓ Payments config validation requires DATABASE_URL
+test test_gl_config_accepts_valid_config ... ok
+✓ Subscriptions config validation requires DATABASE_URL
+test test_ar_config_valid_nats_config ... ok
+✓ AR config validation requires DATABASE_URL
+test test_payments_config_requires_database_url ... ok
+test test_subscriptions_config_requires_database_url ... ok
+test test_ar_config_requires_database_url ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/cross_module_concurrency_safety_e2e.rs (target/debug/deps/cross_module_concurrency_safety_e2e-00db597fe0cbb270)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+test oracle::tests::test_oracle_error_display ... ok
+
+thread 'test_parallel_subscription_cycle_attempts' (91763930) panicked at e2e-tests/tests/cross_module_concurrency_safety_e2e.rs:129:5:
+assertion `left == right` failed: Exactly 1 parallel attempt should succeed
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_parallel_subscription_cycle_attempts ... FAILED
+test test_parallel_gl_postings ... ok
+
+thread 'test_mixed_concurrent_operations' (91763927) panicked at e2e-tests/tests/cross_module_concurrency_safety_e2e.rs:399:5:
+assertion `left == right` failed: Exactly 3 operations should succeed (1 per module)
+  left: 2
+ right: 3
+test test_mixed_concurrent_operations ... FAILED
+test test_high_concurrency_stress ... ok
+test test_parallel_payment_attempts ... ok
+
+failures:
+
+failures:
+    test_mixed_concurrent_operations
+    test_parallel_subscription_cycle_attempts
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.11s
+
+error: test failed, to rerun pass `-p e2e-tests --test cross_module_concurrency_safety_e2e`
+     Running tests/cross_module_invoice_gl_e2e.rs (target/debug/deps/cross_module_invoice_gl_e2e-f6afbec5cf9e7d57)
+
+running 7 tests
+test oracle::tests::test_oracle_error_display ... ok
+test common::tests::test_generate_test_tenant ... ok
+test test_account_validation ... ok
+test test_no_duplicate_gl_postings ... ok
+test test_unbalanced_entry_detection ... ok
+
+thread 'test_multiple_independent_entries' (91764183) panicked at e2e-tests/tests/cross_module_invoice_gl_e2e.rs:328:5:
+assertion failed: common::assert_journal_balanced(&gl_pool, entry1_id).await.is_ok()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_multiple_independent_entries ... FAILED
+
+thread 'test_gl_balance_validation' (91764182) panicked at e2e-tests/tests/cross_module_invoice_gl_e2e.rs:197:5:
+Journal entry should be balanced: Err("Failed to get total_debits: error occurred while decoding column \"total_debits\": mismatched types; Rust type `i64` (as SQL type `INT8`) is not compatible with SQL type `NUMERIC`")
+test test_gl_balance_validation ... FAILED
+
+failures:
+
+failures:
+    test_gl_balance_validation
+    test_multiple_independent_entries
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.93s
+
+error: test failed, to rerun pass `-p e2e-tests --test cross_module_invoice_gl_e2e`
+     Running tests/cross_module_invoice_payment_e2e.rs (target/debug/deps/cross_module_invoice_payment_e2e-841141ea7e8ad357)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+test oracle::tests::test_oracle_error_display ... ok
+
+thread 'test_retry_window_discipline' (91764295) panicked at e2e-tests/tests/cross_module_invoice_payment_e2e.rs:40:6:
+Failed to create test invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (790, test-tenant-884afc68-3262-47f8-9289-183f0d5f7271, inv-d2bcdbc4-8185-4c43-8f4b-dcac679a2f67, 1088, null, open, 10000, USD, 2026-02-01 00:00:00, null, null, null, 2026-02-17 05:05:42.26858, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_retry_window_discipline ... FAILED
+
+thread 'test_no_duplicate_payment_attempts' (91764293) panicked at e2e-tests/tests/cross_module_invoice_payment_e2e.rs:40:6:
+Failed to create test invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (791, test-tenant-10b569e3-491b-4295-80e3-fbf41e2fabdc, inv-542a05d2-8176-428b-bec3-a7f2f9a636d0, 1089, null, open, 10000, USD, 2026-02-15 00:00:00, null, null, null, 2026-02-17 05:05:42.375651, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+test test_no_duplicate_payment_attempts ... FAILED
+
+thread 'test_payment_invariants_enforcement' (91764294) panicked at e2e-tests/tests/cross_module_invoice_payment_e2e.rs:40:6:
+Failed to create test invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (792, test-tenant-b01e95b0-50b6-4615-a6d1-74b72e5f5b50, inv-b584ef78-6648-4508-81b6-e19203fc4eb3, 1090, null, open, 10000, USD, 2026-02-15 00:00:00, null, null, null, 2026-02-17 05:05:42.475286, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+test test_payment_invariants_enforcement ... FAILED
+
+thread 'test_succeeded_is_terminal' (91764296) panicked at e2e-tests/tests/cross_module_invoice_payment_e2e.rs:40:6:
+Failed to create test invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (793, test-tenant-f2fba12b-d0a0-49f9-ba4c-9c215718a7d5, inv-57642088-fc1d-480b-8861-2b4a9070aba6, 1091, null, open, 10000, USD, 2026-02-15 00:00:00, null, null, null, 2026-02-17 05:05:42.574433, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+test test_succeeded_is_terminal ... FAILED
+
+thread 'test_failed_retry_allows_next_attempt' (91764292) panicked at e2e-tests/tests/cross_module_invoice_payment_e2e.rs:40:6:
+Failed to create test invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (794, test-tenant-f5c433cd-1918-447c-b6d4-f93274465c56, inv-4c776cd4-2eee-4e89-b48b-7002a01693d8, 1092, null, open, 10000, USD, 2026-02-01 00:00:00, null, null, null, 2026-02-17 05:05:42.679898, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+test test_failed_retry_allows_next_attempt ... FAILED
+
+failures:
+
+failures:
+    test_failed_retry_allows_next_attempt
+    test_no_duplicate_payment_attempts
+    test_payment_invariants_enforcement
+    test_retry_window_discipline
+    test_succeeded_is_terminal
+
+test result: FAILED. 2 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+error: test failed, to rerun pass `-p e2e-tests --test cross_module_invoice_payment_e2e`
+     Running tests/cross_module_payment_invoice_e2e.rs (target/debug/deps/cross_module_payment_invoice_e2e-34d38bddccda8b00)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+test oracle::tests::test_oracle_error_display ... ok
+
+thread 'test_status_propagation_ordering' (91764311) panicked at e2e-tests/tests/cross_module_payment_invoice_e2e.rs:40:6:
+Failed to create test invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (795, test-tenant-4c9af1c6-6cf8-4351-a8a8-1a2ab7fd0934, inv-5c5f2181-bec2-42cf-8df8-541201292e14, 1093, null, open, 10000, USD, 2026-02-15 00:00:00, null, null, null, 2026-02-17 05:05:42.807382, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_status_propagation_ordering ... FAILED
+
+thread 'test_webhook_idempotency_prevents_duplicate_updates' (91764312) panicked at e2e-tests/tests/cross_module_payment_invoice_e2e.rs:40:6:
+Failed to create test invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (796, test-tenant-2575f85f-a575-4844-9199-b87e1ec69c61, inv-49529e65-caa9-46be-b90d-d1d62d9146eb, 1094, null, open, 10000, USD, 2026-02-15 00:00:00, null, null, null, 2026-02-17 05:05:42.908867, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+test test_webhook_idempotency_prevents_duplicate_updates ... FAILED
+
+thread 'test_payment_failed_final_keeps_invoice_open' (91764309) panicked at e2e-tests/tests/cross_module_payment_invoice_e2e.rs:40:6:
+Failed to create test invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (797, test-tenant-9bc8b0e6-ff60-44be-b6eb-141b8ef5e341, inv-4dda6d8d-96a5-48f0-9152-66761c90ad6f, 1095, null, open, 10000, USD, 2026-02-15 00:00:00, null, null, null, 2026-02-17 05:05:43.011588, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+test test_payment_failed_final_keeps_invoice_open ... FAILED
+
+thread 'test_no_update_during_attempting_status' (91764308) panicked at e2e-tests/tests/cross_module_payment_invoice_e2e.rs:40:6:
+Failed to create test invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (798, test-tenant-b7935db4-cef2-4b23-bee4-eb93d1287148, inv-39cee60d-d057-425e-a001-575cbc445f5a, 1096, null, open, 10000, USD, 2026-02-15 00:00:00, null, null, null, 2026-02-17 05:05:43.113666, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+test test_no_update_during_attempting_status ... FAILED
+
+thread 'test_payment_succeeded_updates_invoice_paid' (91764310) panicked at e2e-tests/tests/cross_module_payment_invoice_e2e.rs:40:6:
+Failed to create test invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (799, test-tenant-f839760b-6533-48c5-9969-dc4956536c14, inv-d3a22015-c1e2-4eda-a971-c8565be6693e, 1097, null, open, 10000, USD, 2026-02-15 00:00:00, null, null, null, 2026-02-17 05:05:43.219689, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+test test_payment_succeeded_updates_invoice_paid ... FAILED
+
+failures:
+
+failures:
+    test_no_update_during_attempting_status
+    test_payment_failed_final_keeps_invoice_open
+    test_payment_succeeded_updates_invoice_paid
+    test_status_propagation_ordering
+    test_webhook_idempotency_prevents_duplicate_updates
+
+test result: FAILED. 2 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+error: test failed, to rerun pass `-p e2e-tests --test cross_module_payment_invoice_e2e`
+     Running tests/cross_module_payment_unknown_e2e.rs (target/debug/deps/cross_module_payment_unknown_e2e-5ec0f842b9193475)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+test oracle::tests::test_oracle_error_display ... ok
+test test_reconciliation_resolves_unknown_to_failed ... ok
+test test_unknown_excluded_from_retry_query ... ok
+test test_unknown_blocks_retry_eligibility ... ok
+test test_reconciliation_idempotency ... ok
+test test_reconciliation_resolves_unknown_to_succeeded ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.11s
+
+     Running tests/cross_module_replay_safety_e2e.rs (target/debug/deps/cross_module_replay_safety_e2e-6a051deb573b20ca)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+test oracle::tests::test_oracle_error_display ... ok
+test test_gl_posting_replay_deduplication ... ok
+
+thread 'test_payment_attempt_replay_deduplication' (91764712) panicked at e2e-tests/tests/cross_module_replay_safety_e2e.rs:87:6:
+Failed to create invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (807, test-tenant-0bb7765f-9e52-44ab-9c36-dc57e3fd9503, inv-f2636379-0d75-4d89-a0fe-a2b43e585e8d, 1103, null, open, 10000, USD, 2026-02-28 00:00:00, null, null, null, 2026-02-17 05:05:45.745994, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_payment_attempt_replay_deduplication ... FAILED
+
+thread 'test_subscription_cycle_replay_deduplication' (91764713) panicked at e2e-tests/tests/cross_module_replay_safety_e2e.rs:202:56:
+Oracle invariants should pass: SubscriptionsInvariantViolation(SucceededWithoutInvoice { attempt_id: 382c2390-2cef-4fc7-9cce-21c105729434, cycle_key: "2026-02" })
+test test_subscription_cycle_replay_deduplication ... FAILED
+
+thread 'test_full_flow_replay_produces_identical_results' (91764709) panicked at e2e-tests/tests/cross_module_replay_safety_e2e.rs:87:6:
+Failed to create invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (808, test-tenant-b14e2dc3-c143-4278-97f6-be17e3d09482, inv-fa15a241-17a5-470c-bbb7-4dac2bcf2621, 1104, null, open, 10000, USD, 2026-02-28 00:00:00, null, null, null, 2026-02-17 05:05:46.286393, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+test test_full_flow_replay_produces_identical_results ... FAILED
+
+thread 'test_multiple_replays_remain_deterministic' (91764711) panicked at e2e-tests/tests/cross_module_replay_safety_e2e.rs:87:6:
+Failed to create invoice: Database(PgDatabaseError { severity: Error, code: "23502", message: "null value in column \"updated_at\" of relation \"ar_invoices\" violates not-null constraint", detail: Some("Failing row contains (809, test-tenant-840271e0-d826-4add-8bc7-cce6a3af1631, inv-e9832f7b-353b-498a-92a9-695138a50b5a, 1105, null, open, 10000, USD, 2026-02-28 00:00:00, null, null, null, 2026-02-17 05:05:46.398486, null, null, null, null, null, null)."), hint: None, position: None, where: None, schema: Some("public"), table: Some("ar_invoices"), column: Some("updated_at"), data_type: None, constraint: None, file: Some("execMain.c"), line: Some(2057), routine: Some("ExecConstraints") })
+test test_multiple_replays_remain_deterministic ... FAILED
+
+failures:
+
+failures:
+    test_full_flow_replay_produces_identical_results
+    test_multiple_replays_remain_deterministic
+    test_payment_attempt_replay_deduplication
+    test_subscription_cycle_replay_deduplication
+
+test result: FAILED. 3 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
+
+error: test failed, to rerun pass `-p e2e-tests --test cross_module_replay_safety_e2e`
+     Running tests/cross_module_subscription_invoice_e2e.rs (target/debug/deps/cross_module_subscription_invoice_e2e-0812bcec1f92c3da)
+
+running 6 tests
+test common::tests::test_generate_test_tenant ... ok
+test oracle::tests::test_oracle_error_display ... ok
+test test_exactly_one_invoice_per_cycle ... ok
+test test_concurrency_safety_parallel_bill_runs ... ok
+test test_replay_safety_same_cycle_multiple_attempts ... ok
+test test_different_cycles_create_separate_invoices ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+
+     Running tests/envelope_invalid_rejected_e2e.rs (target/debug/deps/envelope_invalid_rejected_e2e-d91637d4df6ac887)
+
+running 4 tests
+test common::tests::test_generate_test_tenant ... ok
+✅ Invalid envelope (empty trace_id) correctly rejected at boundary
+✅ No outbox row created for invalid envelope
+test test_invalid_envelope_empty_trace_id_rejected ... ok
+✅ Invalid envelope (empty tenant_id) correctly rejected at boundary
+✅ No outbox row created for invalid envelope
+test test_invalid_envelope_empty_tenant_id_rejected ... ok
+✅ Valid envelope correctly accepted at boundary
+✅ Outbox row created for valid envelope
+test test_valid_envelope_accepted ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+
+     Running tests/envelope_roundtrip_e2e.rs (target/debug/deps/envelope_roundtrip_e2e-27070422a2027ce2)
+
+running 3 tests
+test common::tests::test_generate_test_tenant ... ok
+Error: error occurred while encoding a value: Envelope validation failed: Invalid mutation_class: 'IDEMPOTENT'. Must be one of: ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"]
+
+Caused by:
+    Envelope validation failed: Invalid mutation_class: 'IDEMPOTENT'. Must be one of: ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"]
+test test_envelope_nats_roundtrip_multiple_events_distinct_metadata ... FAILED
+✅ Envelope enqueued into outbox
+✅ Outbox publisher emitted 4 events to NATS
+✅ Received event from NATS
+✅ Deserialized envelope from NATS payload
+✅ All envelope metadata fields preserved through NATS roundtrip
+   - trace_id: trace-b3379743-68fd-4972-8ae8-3283544ca615
+   - correlation_id: corr-65075d91-4255-41c4-a1a1-153677b7fa27
+   - causation_id: cause-b36ebbb3-afb0-4984-b7bb-775fff8476d0
+   - mutation_class: DATA_MUTATION
+   - schema_version: 1.0.0
+   - replay_safe: true
+test test_envelope_nats_roundtrip_preserves_metadata ... ok
+
+failures:
+
+failures:
+    test_envelope_nats_roundtrip_multiple_events_distinct_metadata
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+error: test failed, to rerun pass `-p e2e-tests --test envelope_roundtrip_e2e`
+     Running tests/gl_outbox_atomicity_e2e.rs (target/debug/deps/gl_outbox_atomicity_e2e-199a13e3069b8d9e)
+
+running 3 tests
+test test_gl_reversal_outbox_atomicity ... ignored
+test common::tests::test_generate_test_tenant ... ok
+Error: error returned from database: column "updated_at" of relation "journal_entries" does not exist
+
+Caused by:
+    column "updated_at" of relation "journal_entries" does not exist
+test test_gl_posting_no_event_emission ... FAILED
+
+failures:
+
+failures:
+    test_gl_posting_no_event_emission
+
+test result: FAILED. 1 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+error: test failed, to rerun pass `-p e2e-tests --test gl_outbox_atomicity_e2e`
+     Running tests/mutation_class_presence_e2e.rs (target/debug/deps/mutation_class_presence_e2e-901835fc116bda27)
+
+running 7 tests
+test common::tests::test_generate_test_tenant ... ok
+Error: error returned from database: relation "events_outbox" does not exist
+
+Caused by:
+    relation "events_outbox" does not exist
+test test_payments_module_emits_mutation_class ... FAILED
+Error: error returned from database: column "mutation_class" does not exist
+
+Caused by:
+    column "mutation_class" does not exist
+test test_gl_module_emits_mutation_class ... FAILED
+✅ Subscriptions module emits 5 events with mutation_class
+   - event_type: Some("test.multi"), mutation_class: Some("SIDE_EFFECT")
+   - event_type: Some("test.multi"), mutation_class: Some("DATA_MUTATION")
+   - event_type: Some("test.event.valid"), mutation_class: Some("DATA_MUTATION")
+   - event_type: Some("test.multi"), mutation_class: Some("SIDE_EFFECT")
+   - event_type: Some("test.multi"), mutation_class: Some("DATA_MUTATION")
+test test_subscriptions_module_emits_mutation_class ... ok
+⚠️  No AR events found with mutation_class - this may be expected if no events have been created yet
+test test_ar_module_emits_mutation_class ... ok
+Error: error returned from database: column "event_type" does not exist
+
+Caused by:
+    column "event_type" does not exist
+
+🔍 Verifying mutation_class compliance across all modules...
+
+test test_notifications_module_emits_mutation_class ... FAILED
+Error: error returned from database: relation "events_outbox" does not exist
+
+Caused by:
+    relation "events_outbox" does not exist
+test test_mutation_class_registry_compliance ... FAILED
+
+failures:
+
+failures:
+    test_gl_module_emits_mutation_class
+    test_mutation_class_registry_compliance
+    test_notifications_module_emits_mutation_class
+    test_payments_module_emits_mutation_class
+
+test result: FAILED. 3 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+
+error: test failed, to rerun pass `-p e2e-tests --test mutation_class_presence_e2e`
+     Running tests/notifications_outbox_atomicity_e2e.rs (target/debug/deps/notifications_outbox_atomicity_e2e-3240100847cc4de0)
+
+running 4 tests
+test test_notifications_has_no_state_mutations ... ignored
+test test_notifications_invoice_issued_uses_transaction ... ignored
+test test_notifications_payment_failed_uses_transaction ... ignored
+test test_notifications_payment_succeeded_uses_transaction ... ignored
+
+test result: ok. 0 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/oracle.rs (target/debug/deps/oracle-888a237f3501ebc6)
+
+running 1 test
+test tests::test_oracle_error_display ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/payments_outbox_atomicity_e2e.rs (target/debug/deps/payments_outbox_atomicity_e2e-7e67f56c58f96c06)
+
+running 3 tests
+test test_payments_webhook_handler_atomicity ... ignored
+test common::tests::test_generate_test_tenant ... ok
+Error: error returned from database: column "amount_minor" of relation "payment_attempts" does not exist
+
+Caused by:
+    column "amount_minor" of relation "payment_attempts" does not exist
+test test_payments_status_transition_outbox_atomicity ... FAILED
+
+failures:
+
+failures:
+    test_payments_status_transition_outbox_atomicity
+
+test result: FAILED. 1 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+error: test failed, to rerun pass `-p e2e-tests --test payments_outbox_atomicity_e2e`
+     Running tests/phase10_governance_e2e.rs (target/debug/deps/phase10_governance_e2e-fb3d2060d564ffef)
+
+running 7 tests
+test test_phase10_all_governance_checks ... ignored
+test test_phase10_closed_period_rejection ... ignored
+test test_phase10_idempotent_reversal ... ignored
+test test_phase10_inactive_account_rejection ... ignored
+test test_phase10_invalid_account_rejection ... ignored
+test test_phase10_valid_posting_open_period ... ignored
+test test_phase10_valid_reversal ... ignored
+
+test result: ok. 0 passed; 0 failed; 7 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/projection_cursor_contract_e2e.rs (target/debug/deps/projection_cursor_contract_e2e-644a99f662384e0d)
+
+running 11 tests
+test test_try_apply_event_transactional_rollback ... ok
+test test_try_apply_event_skips_duplicate ... ok
+test test_cursor_load_nonexistent ... ok
+test test_is_processed_returns_true_for_same_event ... ok
+test test_try_apply_event_applies_new_event ... ok
+test test_multi_projection_isolation ... ok
+test test_cursor_save_and_load ... ok
+test test_is_processed_returns_false_for_new_event ... ok
+test test_multi_tenant_isolation ... ok
+test test_cursor_save_updates_existing ... ok
+test test_is_processed_returns_false_for_different_event ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+
+     Running tests/projection_fallback_circuit_e2e.rs (target/debug/deps/projection_fallback_circuit_e2e-8e909d2a41300e82)
+
+running 7 tests
+test test_circuit_breaker_trips ... ok
+test test_circuit_prevents_cascading_failures ... ok
+test test_circuit_breaker_recovery ... ok
+test test_fallback_metrics ... ok
+test test_time_budget_enforcement ... ok
+
+thread 'test_fallback_staleness_threshold' (91765459) panicked at e2e-tests/tests/projection_fallback_circuit_e2e.rs:23:10:
+Failed to connect to test database: PoolTimedOut
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'test_e2e_fallback_flow' (91765457) panicked at e2e-tests/tests/projection_fallback_circuit_e2e.rs:23:10:
+Failed to connect to test database: PoolTimedOut
+test test_e2e_fallback_flow ... FAILED
+test test_fallback_staleness_threshold ... FAILED
+
+failures:
+
+failures:
+    test_e2e_fallback_flow
+    test_fallback_staleness_threshold
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 30.01s
+
+error: test failed, to rerun pass `-p e2e-tests --test projection_fallback_circuit_e2e`
+     Running tests/projection_lag_metrics_e2e.rs (target/debug/deps/projection_lag_metrics_e2e-626be402e1952ee6)
+
+running 6 tests
+test test_projection_metrics_creation ... ok
+test test_projection_last_applied_age ... ok
+test test_projection_backlog_recording ... ok
+test test_projection_lag_from_cursor ... ok
+test test_failing_projection_increases_lag ... ok
+test test_multiple_projections_separate_metrics ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/projection_rebuild_blue_green_e2e.rs (target/debug/deps/projection_rebuild_blue_green_e2e-28728b6ada963b28)
+
+running 6 tests
+test test_blue_green_swap_atomic ... ok
+test test_compute_digest_deterministic ... ok
+test test_shadow_cursor_table ... ok
+test test_rebuild_determinism_two_runs ... ok
+test test_create_shadow_table ... ok
+test test_complete_rebuild_workflow ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+
+     Running tests/rate_limit_overload_protection_e2e.rs (target/debug/deps/rate_limit_overload_protection_e2e-4a661adc75617cf4)
+
+running 7 tests
+✓ Rate limit config defaults verified
+test test_rate_limit_config_defaults ... ok
+✓ Different endpoints have independent rate limit quotas
+✓ Fallback limits (10/min) are 10x tighter than normal limits (100/min)
+✓ Tenant isolation verified: tenant-1 rate limited, tenant-2 unaffected
+✓ Rate limit engaged: 3/10 requests allowed, 7/10 rate limited
+test test_different_endpoints_have_separate_quotas ... ok
+test test_fallback_has_tighter_limits ... ok
+test test_rate_limit_tenant_isolation ... ok
+test test_rate_limit_engages_under_load ... ok
+✓ System remained healthy: 100 rate-limited requests didn't crash
+test test_system_remains_healthy_under_rate_limiting ... ok
+✓ Token bucket refilled over time as expected
+test test_quota_refills_over_time ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/rbac_operator_actions_e2e.rs (target/debug/deps/rbac_operator_actions_e2e-eb5ba46a5e4ae0e8)
+
+running 13 tests
+✓ Admin allowed for high-risk operation (fleet migrate)
+✓ Admin has full access to all operations
+✓ Auditor allowed for read-only operation (verify)
+✓ Auditor denied for write operation (rebuild)
+✓ Auditor has read-only access (verify, status, list only)
+✓ Authorization denial is logged with actor and resource: Insufficient permissions: role=Auditor cannot perform operation=TenantSuspend on resource=tenant-123 (actor=auditor-user)
+✓ Authorization success is logged (info level)
+✓ Comprehensive permission matrix verified for all roles
+✓ Operator allowed for non-destructive operation (suspend)
+✓ Operator denied for high-risk operation (fleet migrate)
+✓ Operator denied for destructive operation (deprovision)
+✓ Operator has limited access (suspend, projection ops, but not deprovision or fleet migrate)
+test test_admin_can_fleet_migrate ... ok
+test test_admin_full_access ... ok
+✓ Role parsing is case-insensitive
+test test_auditor_can_verify ... ok
+test test_auditor_cannot_rebuild ... ok
+test test_auditor_read_only ... ok
+test test_authorize_failure_logs_denial ... ok
+test test_authorize_success_logs_approval ... ok
+test test_comprehensive_permission_matrix ... ok
+test test_operator_can_suspend ... ok
+test test_operator_cannot_fleet_migrate ... ok
+test test_operator_cannot_deprovision ... ok
+test test_operator_limited_access ... ok
+test test_role_parsing_case_insensitive ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/real_e2e.rs (target/debug/deps/real_e2e-4f85ed5ea51fc47e)
+
+running 1 test
+test test_real_nats_based_e2e ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/real_e2e_sad_path.rs (target/debug/deps/real_e2e_sad_path-a9109a2bbce6b1f1)
+
+running 1 test
+test test_payment_failure_sad_path ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/release_provenance_smoke_e2e.rs (target/debug/deps/release_provenance_smoke_e2e-d6eb81feb0c9641e)
+
+running 6 tests
+✓ Manifest structure is valid
+test test_manifest_structure ... ok
+✓ Checksum computation is deterministic
+test test_checksum_deterministic ... ok
+✓ Artifact immutability detection works
+test test_artifact_immutability ... ok
+✓ All expected binaries are present
+test test_expected_binaries_present ... ok
+✓ Checksum files can be validated
+test test_checksum_validation ... ok
+✓ Full release workflow integration works
+test test_release_workflow_integration ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay_certification_digest_e2e.rs (target/debug/deps/replay_certification_digest_e2e-c13bd3e1ecf61f97)
+
+running 3 tests
+
+thread 'test_multi_projection_certification_suite' (91769294) panicked at e2e-tests/tests/replay_certification_digest_e2e.rs:50:10:
+Failed to run projection migrations: Database(PgDatabaseError { severity: Error, code: "42P07", message: "relation \"projection_cursors_updated_at\" already exists", detail: None, hint: None, position: None, where: None, schema: None, table: None, column: None, data_type: None, constraint: None, file: Some("index.c"), line: Some(885), routine: Some("index_create") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_multi_projection_certification_suite ... FAILED
+
+thread 'test_payments_attempt_summary_digest_equality' (91769295) panicked at e2e-tests/tests/replay_certification_digest_e2e.rs:50:10:
+Failed to run projection migrations: Database(PgDatabaseError { severity: Error, code: "42P07", message: "relation \"projection_cursors_updated_at\" already exists", detail: None, hint: None, position: None, where: None, schema: None, table: None, column: None, data_type: None, constraint: None, file: Some("index.c"), line: Some(885), routine: Some("index_create") })
+test test_payments_attempt_summary_digest_equality ... FAILED
+
+thread 'test_ar_invoice_summary_digest_equality' (91769293) panicked at e2e-tests/tests/replay_certification_digest_e2e.rs:50:10:
+Failed to run projection migrations: Database(PgDatabaseError { severity: Error, code: "42P07", message: "relation \"projection_cursors_updated_at\" already exists", detail: None, hint: None, position: None, where: None, schema: None, table: None, column: None, data_type: None, constraint: None, file: Some("index.c"), line: Some(885), routine: Some("index_create") })
+test test_ar_invoice_summary_digest_equality ... FAILED
+
+failures:
+
+failures:
+    test_ar_invoice_summary_digest_equality
+    test_multi_projection_certification_suite
+    test_payments_attempt_summary_digest_equality
+
+test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+error: test failed, to rerun pass `-p e2e-tests --test replay_certification_digest_e2e`
+     Running tests/reversal_chain_depth_enforcement_e2e.rs (target/debug/deps/reversal_chain_depth_enforcement_e2e-6e8d9c083685de1c)
+
+running 4 tests
+test common::tests::test_generate_test_tenant ... ok
+
+🔍 Testing invalid double reversal (depth = 2) rejection
+
+Error: error returned from database: null value in column "source_module" of relation "journal_entries" violates not-null constraint
+
+Caused by:
+    null value in column "source_module" of relation "journal_entries" violates not-null constraint
+test test_invalid_double_reversal_rejected ... FAILED
+
+🔍 Testing valid single-level reversal (depth = 1)
+
+Error: error returned from database: null value in column "source_module" of relation "journal_entries" violates not-null constraint
+
+Caused by:
+    null value in column "source_module" of relation "journal_entries" violates not-null constraint
+test test_valid_single_level_reversal ... FAILED
+
+🔍 Testing multiple independent reversals (no chaining)
+
+Error: error returned from database: null value in column "source_module" of relation "journal_entries" violates not-null constraint
+
+Caused by:
+    null value in column "source_module" of relation "journal_entries" violates not-null constraint
+test test_multiple_independent_reversals_allowed ... FAILED
+
+failures:
+
+failures:
+    test_invalid_double_reversal_rejected
+    test_multiple_independent_reversals_allowed
+    test_valid_single_level_reversal
+
+test result: FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s
+
+error: test failed, to rerun pass `-p e2e-tests --test reversal_chain_depth_enforcement_e2e`
+     Running tests/scale_100_tenants_truth_at_scale_e2e.rs (target/debug/deps/scale_100_tenants_truth_at_scale_e2e-c355576d0180420f)
+
+running 5 tests
+test oracle::tests::test_oracle_error_display ... ok
+
+=== Scale Test: 100-Tenant Projection Lag Bounds ===
+SLO bound: 5000ms
+Cursors saved and metrics recorded for 100 tenants
+Metric count: 100 ✓
+Max lag observed: 71.0ms (SLO: 5000ms)
+✅ All 100 tenants within lag SLO
+✅ All 100 tenants have fresh last_applied_age
+
+✅ 100-Tenant Projection Lag SLO Test: ALL PASSED
+
+test test_100_tenants_projection_lag_within_slo_bounds ... ok
+
+=== Scale Test: 100-Tenant Projection Digest Stability ===
+Tenants: 100
+Events/tenant: 6 (compressed billing cycles)
+Total events: 600
+
+--- Rebuild Pass 1 ---
+Digest: v1:100:e33236d6db8093439642ae097c7b1f655de055dc1ac6a1c893b35b08ea138e28
+Row count: 100 (expected 100)
+Max cycles per tenant: 6 ✓
+
+--- Rebuild Pass 2 ---
+Digest: v1:100:e33236d6db8093439642ae097c7b1f655de055dc1ac6a1c893b35b08ea138e28
+
+✅ Digest stability: PASSED (100 tenants × 6 cycles = 600 events, deterministic)
+Cursor count: 100 (expected 100)
+✅ Cursor integrity: PASSED
+
+✅ 100-Tenant Projection Digest Stability: ALL PASSED
+
+test test_100_tenants_projection_digest_stability ... ok
+
+╔══════════════════════════════════════════════════════════╗
+║         Phase 17 Capstone: Truth at Scale                ║
+║         100 Tenants × 6 Compressed Billing Cycles        ║
+╚══════════════════════════════════════════════════════════╝
+Tenants: 100
+Cycles/tenant: 6
+Total events: 600
+
+[Gate 1] Projection digest stability...
+  Pass 1 digest: v1:100:e33236d6db8093439642ae097c7b1f655de055dc1ac6a1c893b35b08ea138e28
+  Pass 2 digest: v1:100:e33236d6db8093439642ae097c7b1f655de055dc1ac6a1c893b35b08ea138e28
+  ✅ Gate 1 PASSED: Digest stable across 2 rebuilds
+
+[Gate 2] Projection lag within SLO (< 5000ms)...
+  ✅ Gate 2 PASSED: All 100 tenants within lag SLO
+
+[Gate 3] Oracle correctness (no false positives at scale)...
+  ✅ Gate 3 PASSED: Oracle clean for all 100 tenants
+
+╔══════════════════════════════════════════════════════════╗
+║  ✅ TRUTH AT SCALE: ALL 3 GATES PASSED                   ║
+║  100 tenants × 6 cycles = 600 total events processed       ║
+║                                                          ║
+║  Gate 1: Projection digest stability    ✅               ║
+║  Gate 2: Projection lag within SLO      ✅               ║
+║  Gate 3: Oracle correctness (no FP)     ✅               ║
+╚══════════════════════════════════════════════════════════╝
+
+test test_scale_100_tenants_truth_at_scale ... ok
+
+=== Scale Test: 100-Tenant Oracle Correctness ===
+Tenants: 100
+Checking oracle produces no false positives at scale...
+
+Oracle results: 100/100 passed, 0 failed
+✅ Oracle: no false positives across 100 tenants
+
+✅ 100-Tenant Oracle Correctness: ALL PASSED
+
+test test_100_tenants_oracle_correctness ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.12s
+
+     Running tests/service_to_service_auth_e2e.rs (target/debug/deps/service_to_service_auth_e2e-69c44fa28e96135f)
+
+running 15 tests
+✅ Rejected token with invalid format
+✅ Generated valid service token
+✅ Verified valid service token
+   Service: tenantctl
+   Issued at: 1771304786
+✅ Verified token with custom validity
+   Validity: 30 minutes
+✅ Service 'tenantctl' authenticated successfully
+test test_reject_invalid_format ... ok
+✅ get_service_token() works correctly
+✅ Service 'ar-service' authenticated successfully
+test test_token_with_custom_validity ... ok
+   Expires at: 1771305686
+✅ Rejected expired token
+✅ HTTP Authorization header simulation successful
+   Header: Authorization: Bearer eyJzZXJ2aWNlX25hbWUiOiJ0ZW5hbnRjdGwiLCJpc3N1ZWRfYXQiOjE3NzEzMDQ3ODYsImV4cGlyZXNfYXQiOjE3NzEzMDU2ODZ9.IZel-PCKfw-7_yOl94BsNwedVU6AZb-8O-PbyjSURMU
+   Verified service: tenantctl
+✅ Rejected tampered token
+✅ Service 'gl-service' authenticated successfully
+✅ Service 'payments-service' authenticated successfully
+test test_generate_valid_token ... ok
+test test_get_service_token_from_env ... ok
+test test_verify_valid_token ... ok
+test test_reject_expired_token ... ok
+test test_http_request_simulation ... ok
+test test_reject_tampered_token ... ok
+test test_multiple_services_can_authenticate ... ok
+✅ /api/ready without auth - Status: 401 Unauthorized
+
+thread 'test_ready_endpoint_without_token_succeeds' (91769955) panicked at e2e-tests/tests/service_to_service_auth_e2e.rs:276:5:
+Expected /api/ready to be public (200/503), got: 401 Unauthorized
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+✅ /api/version without auth - Status: 401 Unauthorized
+
+thread 'test_version_endpoint_without_token_succeeds' (91769962) panicked at e2e-tests/tests/service_to_service_auth_e2e.rs:332:5:
+Expected /api/version to be public (200), got: 401 Unauthorized
+✅ /api/ready with auth - Status: 401 Unauthorized
+
+thread 'test_ready_endpoint_with_valid_token' (91769954) panicked at e2e-tests/tests/service_to_service_auth_e2e.rs:260:5:
+Expected success or service unavailable, got: 401 Unauthorized
+✅ /api/ready with ignored token - Status: 401 Unauthorized
+
+thread 'test_ready_endpoint_with_invalid_token_still_succeeds' (91769953) panicked at e2e-tests/tests/service_to_service_auth_e2e.rs:292:5:
+Expected /api/ready to be public even with invalid token, got: 401 Unauthorized
+✅ /api/health (public) - Status: 200 OK
+test test_health_endpoint_no_auth_required ... ok
+✅ /api/version with auth - Status: 401 Unauthorized
+
+thread 'test_version_endpoint_with_valid_token' (91769961) panicked at e2e-tests/tests/service_to_service_auth_e2e.rs:310:5:
+Expected success with valid token, got: 401 Unauthorized
+test test_ready_endpoint_with_invalid_token_still_succeeds ... FAILED
+test test_ready_endpoint_without_token_succeeds ... FAILED
+test test_ready_endpoint_with_valid_token ... FAILED
+test test_version_endpoint_with_valid_token ... FAILED
+test test_version_endpoint_without_token_succeeds ... FAILED
+
+failures:
+
+failures:
+    test_ready_endpoint_with_invalid_token_still_succeeds
+    test_ready_endpoint_with_valid_token
+    test_ready_endpoint_without_token_succeeds
+    test_version_endpoint_with_valid_token
+    test_version_endpoint_without_token_succeeds
+
+test result: FAILED. 10 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+
+error: test failed, to rerun pass `-p e2e-tests --test service_to_service_auth_e2e`
+     Running tests/subscriptions_ar_degradation_e2e.rs (target/debug/deps/subscriptions_ar_degradation_e2e-21fe713669f724fc)
+
+running 4 tests
+test test_ar_timeout_graceful_failure ... ignored
+test common::tests::test_generate_test_tenant ... ok
+
+🔍 Verifying degradation class compliance with DOMAIN-OWNERSHIP-REGISTRY.md
+
+✅ Degradation class documentation is complete and compliant
+
+test test_degradation_class_compliance ... ok
+
+🔍 Testing Subscriptions→AR degradation: AR Down scenario
+
+Error: error returned from database: invalid input syntax for type uuid: "plan-monthly"
+
+Caused by:
+    invalid input syntax for type uuid: "plan-monthly"
+test test_ar_down_graceful_failure ... FAILED
+
+failures:
+
+failures:
+    test_ar_down_graceful_failure
+
+test result: FAILED. 2 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p e2e-tests --test subscriptions_ar_degradation_e2e`
+     Running tests/subscriptions_outbox_atomicity_e2e.rs (target/debug/deps/subscriptions_outbox_atomicity_e2e-d1e5164bb92236ae)
+
+running 3 tests
+test test_subscriptions_cycle_advance_atomicity ... ignored
+test common::tests::test_generate_test_tenant ... ok
+Error: error returned from database: column "app_id" of relation "subscriptions" does not exist
+
+Caused by:
+    column "app_id" of relation "subscriptions" does not exist
+test test_subscriptions_lifecycle_transition_outbox_atomicity ... FAILED
+
+failures:
+
+failures:
+    test_subscriptions_lifecycle_transition_outbox_atomicity
+
+test result: FAILED. 1 passed; 1 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+error: test failed, to rerun pass `-p e2e-tests --test subscriptions_outbox_atomicity_e2e`
+     Running tests/tenant_lifecycle_suspend_deprovision_e2e.rs (target/debug/deps/tenant_lifecycle_suspend_deprovision_e2e-320e9590f754b066)
+
+running 4 tests
+test test_lifecycle_registry_reflects_status_accurately ... ok
+
+thread 'test_suspend_active_tenant_succeeds' (91770005) panicked at e2e-tests/tests/tenant_lifecycle_suspend_deprovision_e2e.rs:144:6:
+Failed to write audit entry: Database(PgDatabaseError { severity: Error, code: "42804", message: "column \"mutation_class\" is of type mutation_class but expression is of type text", detail: None, hint: Some("You will need to rewrite or cast the expression."), position: Some(Original(240)), where: None, schema: None, table: None, column: None, data_type: None, constraint: None, file: Some("parse_target.c"), line: Some(586), routine: Some("transformAssignedExpr") })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'test_deprovision_suspended_tenant_succeeds' (91770003) panicked at e2e-tests/tests/tenant_lifecycle_suspend_deprovision_e2e.rs:310:6:
+Failed to write audit entry: Database(PgDatabaseError { severity: Error, code: "42804", message: "column \"mutation_class\" is of type mutation_class but expression is of type text", detail: None, hint: Some("You will need to rewrite or cast the expression."), position: Some(Original(240)), where: None, schema: None, table: None, column: None, data_type: None, constraint: None, file: Some("parse_target.c"), line: Some(586), routine: Some("transformAssignedExpr") })
+
+thread 'test_deprovision_active_tenant_succeeds' (91770002) panicked at e2e-tests/tests/tenant_lifecycle_suspend_deprovision_e2e.rs:227:6:
+Failed to write audit entry: Database(PgDatabaseError { severity: Error, code: "42804", message: "column \"mutation_class\" is of type mutation_class but expression is of type text", detail: None, hint: Some("You will need to rewrite or cast the expression."), position: Some(Original(240)), where: None, schema: None, table: None, column: None, data_type: None, constraint: None, file: Some("parse_target.c"), line: Some(586), routine: Some("transformAssignedExpr") })
+test test_suspend_active_tenant_succeeds ... FAILED
+test test_deprovision_suspended_tenant_succeeds ... FAILED
+test test_deprovision_active_tenant_succeeds ... FAILED
+
+failures:
+
+failures:
+    test_deprovision_active_tenant_succeeds
+    test_deprovision_suspended_tenant_succeeds
+    test_suspend_active_tenant_succeeds
+
+test result: FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+error: test failed, to rerun pass `-p e2e-tests --test tenant_lifecycle_suspend_deprovision_e2e`
+     Running tests/tenant_registry_smoke_e2e.rs (target/debug/deps/tenant_registry_smoke_e2e-4665da90d2136dd1)
+
+running 9 tests
+test test_tenant_record_insert_and_query ... ok
+test test_tenant_status_constraint ... ok
+test test_standard_provisioning_sequence_definition ... ok
+test test_multi_tenant_isolation ... ok
+test test_provisioning_step_verification_result ... ok
+test test_provisioning_steps_tracking ... ok
+test test_environment_constraint ... ok
+test test_unique_step_per_tenant_constraint ... ok
+test test_module_schema_versions_storage ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+
+     Running tests/trial_balance_api_e2e.rs (target/debug/deps/trial_balance_api_e2e-c379f6d3d8b3b33e)
+
+running 2 tests
+⏳ Checking if 7d-gl is healthy...
+⏳ Checking if 7d-gl is healthy...
+✓ 7d-gl is healthy
+✓ 7d-gl is healthy
+✓ Created accounting period: a7c122bf-a89d-4b03-ac31-97d2dd0c1ca8
+✓ Created accounting period: 692209b1-f2e8-4d94-94b5-f26f11a41299
+✓ Created COA accounts (1000, 1100, 4000)
+✓ Created COA accounts (1000, 1100, 4000)
+✓ Created test balances (Cash: $1000, AR: $500, Revenue: $1500)
+📡 Calling trial balance API: http://localhost:8090/api/gl/trial-balance?tenant_id=test_tenant_trial_balance_c2795777-9c64-4969-8fd2-606c2fcac321&period_id=692209b1-f2e8-4d94-94b5-f26f11a41299
+✓ Created test balances (Cash: $1000, AR: $500, Revenue: $1500)
+📡 Calling trial balance API with currency filter: http://localhost:8090/api/gl/trial-balance?tenant_id=test_tenant_trial_balance_currency_9beca4d2-a601-4f7e-9594-6be3c24d7a0f&period_id=a7c122bf-a89d-4b03-ac31-97d2dd0c1ca8&currency=USD
+
+thread 'test_trial_balance_api' (91770092) panicked at e2e-tests/tests/trial_balance_api_e2e.rs:307:5:
+assertion `left == right` failed: Expected 200 OK, got 400 Bad Request
+  left: 400
+ right: 200
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_trial_balance_api ... FAILED
+✅ Trial balance API with currency filter test passed!
+test test_trial_balance_api_with_currency_filter ... ok
+
+failures:
+
+failures:
+    test_trial_balance_api
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+
+error: test failed, to rerun pass `-p e2e-tests --test trial_balance_api_e2e`
+     Running tests/version_endpoints_smoke_e2e.rs (target/debug/deps/version_endpoints_smoke_e2e-8747ec4530378c8d)
+
+running 1 test
+Testing ar-rs at http://localhost:8086/api/version
+
+thread 'test_version_endpoints_all_modules' (91770291) panicked at e2e-tests/tests/version_endpoints_smoke_e2e.rs:48:9:
+assertion `left == right` failed: ar-rs version endpoint should return 200 OK
+  left: 401
+ right: 200
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_version_endpoints_all_modules ... FAILED
+
+failures:
+
+failures:
+    test_version_endpoints_all_modules
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+
+error: test failed, to rerun pass `-p e2e-tests --test version_endpoints_smoke_e2e`
+error: 26 targets failed:
+    `-p e2e-tests --test ar_outbox_atomicity_e2e`
+    `-p e2e-tests --test audit_actor_propagation_e2e`
+    `-p e2e-tests --test audit_append_only_e2e`
+    `-p e2e-tests --test audit_field_diff_e2e`
+    `-p e2e-tests --test balance_posting_e2e`
+    `-p e2e-tests --test balance_reversal_e2e`
+    `-p e2e-tests --test bill_run_e2e`
+    `-p e2e-tests --test compliance_export_determinism_e2e`
+    `-p e2e-tests --test cross_module_concurrency_safety_e2e`
+    `-p e2e-tests --test cross_module_invoice_gl_e2e`
+    `-p e2e-tests --test cross_module_invoice_payment_e2e`
+    `-p e2e-tests --test cross_module_payment_invoice_e2e`
+    `-p e2e-tests --test cross_module_replay_safety_e2e`
+    `-p e2e-tests --test envelope_roundtrip_e2e`
+    `-p e2e-tests --test gl_outbox_atomicity_e2e`
+    `-p e2e-tests --test mutation_class_presence_e2e`
+    `-p e2e-tests --test payments_outbox_atomicity_e2e`
+    `-p e2e-tests --test projection_fallback_circuit_e2e`
+    `-p e2e-tests --test replay_certification_digest_e2e`
+    `-p e2e-tests --test reversal_chain_depth_enforcement_e2e`
+    `-p e2e-tests --test service_to_service_auth_e2e`
+    `-p e2e-tests --test subscriptions_ar_degradation_e2e`
+    `-p e2e-tests --test subscriptions_outbox_atomicity_e2e`
+    `-p e2e-tests --test tenant_lifecycle_suspend_deprovision_e2e`
+    `-p e2e-tests --test trial_balance_api_e2e`
+    `-p e2e-tests --test version_endpoints_smoke_e2e`

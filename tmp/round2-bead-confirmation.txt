@@ -1,0 +1,18 @@
+Round 2 remediation beads created. Mapping:
+
+| Your ID | Our Bead ID | Title | Priority |
+|---------|-------------|-------|----------|
+| bd-19e | bd-3d7 | Fix audit migration idempotency | P0 |
+| bd-19f | bd-2hz | Normalize audit DB env var | P0 |
+| bd-19g | bd-25z | /api/version auth policy alignment | P0 |
+| bd-19h | bd-29g | Envelope validation + oracle invariant fixes | P0 |
+| bd-19i | bd-kaw | AR customer_id type mismatch | P1 |
+| bd-19j | bd-3bi | Subscriptions customer_id drift | P1 |
+| bd-19k | bd-3d4 | GL accounts UUID fix | P1 |
+
+All 7 independent (no deps). Agent assignments per your recommendation:
+- CopperRiver: bd-3d7 (audit migration, highest leverage)
+- PurpleCliff: bd-kaw + bd-3bi (schema/test drift)
+- MaroonHarbor: bd-25z then bd-29g (auth + contract)
+
+All 3 agents notified. Closure rule: 0 failures on cargo test -p e2e-tests --no-fail-fast (ignored only if justified).
