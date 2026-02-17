@@ -6,6 +6,8 @@
 pub mod registry;
 pub mod lifecycle;
 pub mod schema;
+pub mod summary;
+pub mod routes;
 
 // Re-export commonly used types
 pub use schema::{
@@ -25,4 +27,19 @@ pub use lifecycle::{
 pub use registry::{
     TenantRegistry, RegistryResult, RegistryError,
     is_valid_state_transition,
+};
+
+pub use summary::{
+    fetch_tenant_summary,
+    ModuleUrl,
+    ModuleReadiness,
+    ReadinessStatus,
+    TenantSummary,
+    SummaryError,
+    MODULE_READINESS_TIMEOUT,
+};
+
+pub use routes::{
+    SummaryState,
+    summary_router,
 };
