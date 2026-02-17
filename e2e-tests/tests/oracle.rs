@@ -97,8 +97,11 @@ impl From<gl_rs::invariants::InvariantViolation> for OracleError {
 ///
 /// **Returns:** Ok(()) if all mutations are audited exactly once, Err if gaps or duplicates found
 async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleError> {
+    use sqlx::Row;
+    use uuid::Uuid;
+
     // Query all mutation events from AR outbox
-    let ar_events = sqlx::query!(
+    let ar_events: Vec<Uuid> = sqlx::query(
         r#"
         SELECT event_id
         FROM events_outbox
@@ -108,40 +111,42 @@ async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleEr
     )
     .fetch_all(ctx.ar_pool)
     .await
-    .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query AR outbox: {}", e)))?;
+    .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query AR outbox: {}", e)))?
+    .into_iter()
+    .map(|row| row.get::<Uuid, _>("event_id"))
+    .collect();
 
     // Check each AR event has exactly one audit record
-    for event in ar_events {
-        let audit_count: i64 = sqlx::query_scalar!(
+    for event_id in ar_events {
+        let audit_count: i64 = sqlx::query_scalar(
             r#"
-            SELECT COUNT(*)
+            SELECT COUNT(*)::bigint
             FROM audit_events
             WHERE causation_id = $1
-            "#,
-            event.event_id
+            "#
         )
+        .bind(event_id)
         .fetch_one(ctx.audit_pool)
         .await
-        .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query audit for AR event {}: {}", event.event_id, e)))?
-        .unwrap_or(0);
+        .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query audit for AR event {}: {}", event_id, e)))?;
 
         if audit_count == 0 {
             return Err(OracleError::AuditInvariantViolation(format!(
                 "AR mutation {} has no audit record",
-                event.event_id
+                event_id
             )));
         }
 
         if audit_count > 1 {
             return Err(OracleError::AuditInvariantViolation(format!(
                 "AR mutation {} has {} audit records (expected exactly 1)",
-                event.event_id, audit_count
+                event_id, audit_count
             )));
         }
     }
 
     // Query all mutation events from Payments outbox
-    let payment_events = sqlx::query!(
+    let payment_events: Vec<Uuid> = sqlx::query(
         r#"
         SELECT event_id
         FROM payments_events_outbox
@@ -151,40 +156,42 @@ async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleEr
     )
     .fetch_all(ctx.payments_pool)
     .await
-    .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query Payments outbox: {}", e)))?;
+    .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query Payments outbox: {}", e)))?
+    .into_iter()
+    .map(|row| row.get::<Uuid, _>("event_id"))
+    .collect();
 
     // Check each Payment event has exactly one audit record
-    for event in payment_events {
-        let audit_count: i64 = sqlx::query_scalar!(
+    for event_id in payment_events {
+        let audit_count: i64 = sqlx::query_scalar(
             r#"
-            SELECT COUNT(*)
+            SELECT COUNT(*)::bigint
             FROM audit_events
             WHERE causation_id = $1
-            "#,
-            event.event_id
+            "#
         )
+        .bind(event_id)
         .fetch_one(ctx.audit_pool)
         .await
-        .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query audit for Payment event {}: {}", event.event_id, e)))?
-        .unwrap_or(0);
+        .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query audit for Payment event {}: {}", event_id, e)))?;
 
         if audit_count == 0 {
             return Err(OracleError::AuditInvariantViolation(format!(
                 "Payment mutation {} has no audit record",
-                event.event_id
+                event_id
             )));
         }
 
         if audit_count > 1 {
             return Err(OracleError::AuditInvariantViolation(format!(
                 "Payment mutation {} has {} audit records (expected exactly 1)",
-                event.event_id, audit_count
+                event_id, audit_count
             )));
         }
     }
 
     // Query all mutation events from GL outbox
-    let gl_events = sqlx::query!(
+    let gl_events: Vec<Uuid> = sqlx::query(
         r#"
         SELECT event_id
         FROM events_outbox
@@ -194,34 +201,36 @@ async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleEr
     )
     .fetch_all(ctx.gl_pool)
     .await
-    .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query GL outbox: {}", e)))?;
+    .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query GL outbox: {}", e)))?
+    .into_iter()
+    .map(|row| row.get::<Uuid, _>("event_id"))
+    .collect();
 
     // Check each GL event has exactly one audit record
-    for event in gl_events {
-        let audit_count: i64 = sqlx::query_scalar!(
+    for event_id in gl_events {
+        let audit_count: i64 = sqlx::query_scalar(
             r#"
-            SELECT COUNT(*)
+            SELECT COUNT(*)::bigint
             FROM audit_events
             WHERE causation_id = $1
-            "#,
-            event.event_id
+            "#
         )
+        .bind(event_id)
         .fetch_one(ctx.audit_pool)
         .await
-        .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query audit for GL event {}: {}", event.event_id, e)))?
-        .unwrap_or(0);
+        .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query audit for GL event {}: {}", event_id, e)))?;
 
         if audit_count == 0 {
             return Err(OracleError::AuditInvariantViolation(format!(
                 "GL mutation {} has no audit record",
-                event.event_id
+                event_id
             )));
         }
 
         if audit_count > 1 {
             return Err(OracleError::AuditInvariantViolation(format!(
                 "GL mutation {} has {} audit records (expected exactly 1)",
-                event.event_id, audit_count
+                event_id, audit_count
             )));
         }
     }
