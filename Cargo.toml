@@ -4,6 +4,7 @@ members = [
   "platform/identity-auth",
   "platform/audit",
   "platform/tenant-registry",
+  "platform/control-plane",
   "platform/projections",
   "platform/security",
   "modules/ar",
@@ -16,6 +17,7 @@ members = [
   "tools/tenantctl",
   "tools/projection-rebuild",
   "tools/compliance-export",
+  "tools/demo-seed",
   "e2e-tests"
 ]
 
