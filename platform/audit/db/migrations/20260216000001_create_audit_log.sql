@@ -6,19 +6,24 @@
 -- ENUMS
 -- ============================================================
 
-CREATE TYPE mutation_class AS ENUM (
-    'CREATE',
-    'UPDATE',
-    'DELETE',
-    'STATE_TRANSITION',
-    'REVERSAL'
-);
+DO $$
+BEGIN
+    CREATE TYPE mutation_class AS ENUM (
+        'CREATE',
+        'UPDATE',
+        'DELETE',
+        'STATE_TRANSITION',
+        'REVERSAL'
+    );
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+END $$;
 
 -- ============================================================
 -- AUDIT LOG TABLE (APPEND-ONLY)
 -- ============================================================
 
-CREATE TABLE audit_events (
+CREATE TABLE IF NOT EXISTS audit_events (
     audit_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     occurred_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -56,13 +61,13 @@ CREATE TABLE audit_events (
 -- INDEXES FOR QUERY PERFORMANCE
 -- ============================================================
 
-CREATE INDEX audit_events_occurred_at ON audit_events(occurred_at DESC);
-CREATE INDEX audit_events_actor_id ON audit_events(actor_id);
-CREATE INDEX audit_events_entity ON audit_events(entity_type, entity_id);
-CREATE INDEX audit_events_action ON audit_events(action);
-CREATE INDEX audit_events_mutation_class ON audit_events(mutation_class);
-CREATE INDEX audit_events_correlation_id ON audit_events(correlation_id);
-CREATE INDEX audit_events_trace_id ON audit_events(trace_id);
+CREATE INDEX IF NOT EXISTS audit_events_occurred_at ON audit_events(occurred_at DESC);
+CREATE INDEX IF NOT EXISTS audit_events_actor_id ON audit_events(actor_id);
+CREATE INDEX IF NOT EXISTS audit_events_entity ON audit_events(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS audit_events_action ON audit_events(action);
+CREATE INDEX IF NOT EXISTS audit_events_mutation_class ON audit_events(mutation_class);
+CREATE INDEX IF NOT EXISTS audit_events_correlation_id ON audit_events(correlation_id);
+CREATE INDEX IF NOT EXISTS audit_events_trace_id ON audit_events(trace_id);
 
 -- ============================================================
 -- APPEND-ONLY ENFORCEMENT
@@ -76,12 +81,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER enforce_append_only_update
+CREATE OR REPLACE TRIGGER enforce_append_only_update
     BEFORE UPDATE ON audit_events
     FOR EACH ROW
     EXECUTE FUNCTION prevent_audit_modification();
 
-CREATE TRIGGER enforce_append_only_delete
+CREATE OR REPLACE TRIGGER enforce_append_only_delete
     BEFORE DELETE ON audit_events
     FOR EACH ROW
     EXECUTE FUNCTION prevent_audit_modification();
