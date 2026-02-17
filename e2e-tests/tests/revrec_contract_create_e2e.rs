@@ -24,13 +24,27 @@ use gl_rs::revrec::{
 // Helpers
 // ============================================================================
 
-/// Run revrec migrations on the GL database
+/// Advisory lock key for serializing revrec migration execution.
+const REVREC_MIGRATION_LOCK_KEY: i64 = 7_419_283_562_i64;
+
+/// Run revrec migrations on the GL database with advisory lock to prevent deadlocks.
 async fn run_revrec_migrations(pool: &PgPool) {
-    let migration_sql = include_str!("../../modules/gl/db/migrations/20260217000001_create_revrec_tables.sql");
-    sqlx::raw_sql(migration_sql)
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(REVREC_MIGRATION_LOCK_KEY)
         .execute(pool)
         .await
-        .expect("Failed to run revrec migration");
+        .expect("Failed to acquire revrec migration advisory lock");
+
+    let migration_sql = include_str!("../../modules/gl/db/migrations/20260217000001_create_revrec_tables.sql");
+    let result = sqlx::raw_sql(migration_sql).execute(pool).await;
+
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(REVREC_MIGRATION_LOCK_KEY)
+        .execute(pool)
+        .await
+        .expect("Failed to release revrec migration advisory lock");
+
+    result.expect("Failed to run revrec migration");
 }
 
 /// Build a sample contract payload with two obligations
@@ -148,7 +162,7 @@ async fn test_revrec_contract_create_persists_atomically() {
 
     // Assert: allocation sum invariant holds in DB
     let db_sum: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(allocated_amount_minor), 0) FROM revrec_obligations WHERE contract_id = $1",
+        "SELECT COALESCE(SUM(allocated_amount_minor), 0)::BIGINT FROM revrec_obligations WHERE contract_id = $1",
     )
     .bind(contract_id)
     .fetch_one(&gl_pool)

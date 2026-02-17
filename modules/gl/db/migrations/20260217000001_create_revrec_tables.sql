@@ -4,12 +4,13 @@
 -- Tables: revrec_contracts, revrec_obligations, revrec_schedules, revrec_schedule_lines
 -- All writes are atomic with outbox (transactional outbox pattern).
 -- Idempotency: contract_id is the caller-supplied stable business key.
+-- All DDL is idempotent (IF NOT EXISTS) for safe parallel test execution.
 
 -- ============================================================
 -- CONTRACTS
 -- ============================================================
 
-CREATE TABLE revrec_contracts (
+CREATE TABLE IF NOT EXISTS revrec_contracts (
     contract_id  UUID PRIMARY KEY,
     tenant_id    TEXT NOT NULL,
     customer_id  TEXT NOT NULL,
@@ -24,15 +25,14 @@ CREATE TABLE revrec_contracts (
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_revrec_contracts_tenant ON revrec_contracts(tenant_id);
-CREATE INDEX idx_revrec_contracts_customer ON revrec_contracts(tenant_id, customer_id);
-CREATE UNIQUE INDEX idx_revrec_contracts_idempotent ON revrec_contracts(contract_id);
+CREATE INDEX IF NOT EXISTS idx_revrec_contracts_tenant ON revrec_contracts(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_revrec_contracts_customer ON revrec_contracts(tenant_id, customer_id);
 
 -- ============================================================
 -- PERFORMANCE OBLIGATIONS
 -- ============================================================
 
-CREATE TABLE revrec_obligations (
+CREATE TABLE IF NOT EXISTS revrec_obligations (
     obligation_id UUID PRIMARY KEY,
     contract_id   UUID NOT NULL REFERENCES revrec_contracts(contract_id),
     tenant_id     TEXT NOT NULL,
@@ -46,14 +46,14 @@ CREATE TABLE revrec_obligations (
     created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_revrec_obligations_contract ON revrec_obligations(contract_id);
-CREATE INDEX idx_revrec_obligations_tenant ON revrec_obligations(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_revrec_obligations_contract ON revrec_obligations(contract_id);
+CREATE INDEX IF NOT EXISTS idx_revrec_obligations_tenant ON revrec_obligations(tenant_id);
 
 -- ============================================================
 -- RECOGNITION SCHEDULES
 -- ============================================================
 
-CREATE TABLE revrec_schedules (
+CREATE TABLE IF NOT EXISTS revrec_schedules (
     schedule_id  UUID PRIMARY KEY,
     contract_id  UUID NOT NULL REFERENCES revrec_contracts(contract_id),
     obligation_id UUID NOT NULL REFERENCES revrec_obligations(obligation_id),
@@ -65,15 +65,15 @@ CREATE TABLE revrec_schedules (
     created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_revrec_schedules_contract ON revrec_schedules(contract_id);
-CREATE INDEX idx_revrec_schedules_obligation ON revrec_schedules(obligation_id);
-CREATE INDEX idx_revrec_schedules_tenant ON revrec_schedules(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_revrec_schedules_contract ON revrec_schedules(contract_id);
+CREATE INDEX IF NOT EXISTS idx_revrec_schedules_obligation ON revrec_schedules(obligation_id);
+CREATE INDEX IF NOT EXISTS idx_revrec_schedules_tenant ON revrec_schedules(tenant_id);
 
 -- ============================================================
 -- SCHEDULE LINES (amortization table)
 -- ============================================================
 
-CREATE TABLE revrec_schedule_lines (
+CREATE TABLE IF NOT EXISTS revrec_schedule_lines (
     id           BIGSERIAL PRIMARY KEY,
     schedule_id  UUID NOT NULL REFERENCES revrec_schedules(schedule_id),
     period       TEXT NOT NULL,
@@ -84,8 +84,8 @@ CREATE TABLE revrec_schedule_lines (
     recognized_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_revrec_schedule_lines_schedule ON revrec_schedule_lines(schedule_id);
-CREATE UNIQUE INDEX idx_revrec_schedule_lines_unique ON revrec_schedule_lines(schedule_id, period);
+CREATE INDEX IF NOT EXISTS idx_revrec_schedule_lines_schedule ON revrec_schedule_lines(schedule_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_revrec_schedule_lines_unique ON revrec_schedule_lines(schedule_id, period);
 
 COMMENT ON TABLE revrec_contracts IS 'Revenue contracts (ASC 606 Step 1) — root entity for revrec lifecycle';
 COMMENT ON TABLE revrec_obligations IS 'Performance obligations (ASC 606 Step 2) — distinct promises within a contract';
