@@ -21,6 +21,9 @@
 //! - `ModificationType`         — price_change | term_extension | obligation_added | etc.
 
 pub mod contracts;
+pub mod schedule_builder;
+
+pub use schedule_builder::{generate_schedule, ScheduleBuildError};
 
 pub use contracts::{
     build_contract_created_envelope,
