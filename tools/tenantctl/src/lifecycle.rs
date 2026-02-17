@@ -285,6 +285,150 @@ async fn write_lifecycle_audit_entry(
 }
 
 // ============================================================================
+// Demo Reset
+// ============================================================================
+
+/// Result of a demo reset operation
+#[derive(Debug)]
+pub struct DemoResetResult {
+    /// The resolved tenant UUID
+    pub tenant_id: String,
+    /// SHA256 digest of the seeded dataset
+    pub dataset_digest: String,
+}
+
+/// Reset a tenant to a known demo state.
+///
+/// This operation:
+/// 1. Drops all tenant module databases (irreversible!)
+/// 2. Re-provisions the tenant (creates DBs, runs migrations)
+/// 3. Re-seeds demo data via demo-seed binary with the given seed
+/// 4. Returns the dataset digest for determinism verification
+///
+/// **Warning:** All existing tenant data is permanently deleted.
+pub async fn demo_reset_tenant(
+    tenant_id: &str,
+    seed: u64,
+    ar_base_url: &str,
+) -> Result<DemoResetResult> {
+    use crate::provision::{create_tenant, MODULES};
+    use sqlx::Connection;
+
+    tracing::info!(tenant_id, seed, "Starting demo reset");
+
+    // Resolve tenant ID (same logic as create_tenant)
+    let tid = if tenant_id.len() == 36 {
+        let uuid = tenant_id
+            .parse::<Uuid>()
+            .context("Invalid tenant UUID format")?;
+        uuid
+    } else {
+        let namespace = Uuid::NAMESPACE_DNS;
+        Uuid::new_v5(&namespace, tenant_id.as_bytes())
+    };
+
+    // 1. Drop all module databases for this tenant
+    for module in MODULES {
+        let db_name = format!("tenant_{}_{}_db", tid, module.name);
+        let base_url = format!(
+            "postgres://{}:{}@{}:{}/postgres",
+            module.postgres_user,
+            module.postgres_password,
+            module.postgres_host,
+            module.postgres_port
+        );
+
+        match sqlx::postgres::PgConnection::connect(&base_url).await {
+            Ok(mut conn) => {
+                // Terminate existing connections to the database before dropping
+                let _ = sqlx::query(
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1"
+                )
+                .bind(&db_name)
+                .execute(&mut conn)
+                .await;
+
+                // Drop the database (ignore if it doesn't exist)
+                let drop_sql = format!("DROP DATABASE IF EXISTS \"{}\"", db_name);
+                match sqlx::query(&drop_sql).execute(&mut conn).await {
+                    Ok(_) => tracing::info!(db_name, module = module.name, "Dropped database"),
+                    Err(e) => tracing::warn!(
+                        db_name,
+                        module = module.name,
+                        error = %e,
+                        "Failed to drop database (continuing)"
+                    ),
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    module = module.name,
+                    error = %e,
+                    "Cannot connect to drop databases (continuing)"
+                );
+            }
+        }
+    }
+
+    // 2. Re-provision the tenant
+    let provision_result = create_tenant(tenant_id)
+        .await
+        .context("Failed to re-provision tenant after reset")?;
+
+    if !provision_result.success {
+        let err = provision_result
+            .error_message
+            .unwrap_or_else(|| "Unknown provisioning error".to_string());
+        anyhow::bail!("Re-provisioning failed: {}", err);
+    }
+
+    tracing::info!(tenant_id, "Tenant re-provisioned successfully");
+
+    // 3. Run demo-seed via subprocess
+    //
+    // We invoke the compiled demo-seed binary. In CI, it should already be
+    // compiled. In dev, we use `cargo run -p demo-seed`.
+    let demo_seed_binary = std::env::var("DEMO_SEED_BINARY")
+        .unwrap_or_else(|_| "cargo".to_string());
+
+    let mut cmd = if demo_seed_binary == "cargo" {
+        let mut c = std::process::Command::new("cargo");
+        c.args(["run", "-p", "demo-seed", "--"]);
+        c
+    } else {
+        std::process::Command::new(&demo_seed_binary)
+    };
+
+    cmd.args([
+        "--tenant", tenant_id,
+        "--seed", &seed.to_string(),
+        "--ar-url", ar_base_url,
+    ]);
+
+    tracing::info!(tenant_id, seed, ar_base_url, "Running demo-seed");
+
+    let output = cmd.output().context("Failed to run demo-seed")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("demo-seed failed: {}", stderr);
+    }
+
+    let digest = String::from_utf8_lossy(&output.stdout).trim().to_string();
+
+    if digest.is_empty() {
+        anyhow::bail!("demo-seed produced no output digest");
+    }
+
+    tracing::info!(tenant_id, seed, digest = %digest, "Demo reset complete");
+
+    Ok(DemoResetResult {
+        tenant_id: tid.to_string(),
+        dataset_digest: digest,
+    })
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 

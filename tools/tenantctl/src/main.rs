@@ -97,6 +97,18 @@ enum TenantOperation {
         #[arg(long)]
         tenant: String,
     },
+    /// Reset tenant to a fresh demo state (drops data, re-provisions, re-seeds)
+    DemoReset {
+        /// Tenant ID to reset
+        #[arg(long)]
+        tenant: String,
+        /// Deterministic RNG seed for demo data (same seed → same data)
+        #[arg(long, default_value_t = 42)]
+        seed: u64,
+        /// AR module base URL for demo seeding
+        #[arg(long, env = "AR_BASE_URL", default_value = "http://localhost:8086")]
+        ar_url: String,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -180,6 +192,14 @@ async fn main() -> Result<()> {
             TenantOperation::Deprovision { tenant } => {
                 lifecycle::deprovision_tenant(role, actor, &tenant).await?;
                 println!("\n✅ Tenant {} deprovisioned!", tenant);
+                Ok(())
+            }
+            TenantOperation::DemoReset { tenant, seed, ar_url } => {
+                let result = lifecycle::demo_reset_tenant(&tenant, seed, &ar_url).await?;
+                println!("\n✅ Tenant {} reset complete!", tenant);
+                println!("   Tenant UUID:    {}", result.tenant_id);
+                println!("   Dataset digest: {}", result.dataset_digest);
+                println!("   Seed:           {}", seed);
                 Ok(())
             }
         },
