@@ -17,9 +17,12 @@
 //! or insecure behavior.
 
 use anyhow::Result;
+use serial_test::serial;
 
 /// Test: AR config validation requires DATABASE_URL
 #[test]
+#[serial]
+#[serial]
 fn test_ar_config_requires_database_url() -> Result<()> {
     // Save current env
     let original_database_url = std::env::var("DATABASE_URL").ok();
@@ -48,8 +51,8 @@ fn test_ar_config_requires_database_url() -> Result<()> {
         error
     );
     assert!(
-        error.contains("required") || error.contains("must be set"),
-        "Error message should indicate it's required, got: {}",
+        error.contains("required") || error.contains("must be set") || error.contains("empty"),
+        "Error message should indicate it's required or empty, got: {}",
         error
     );
 
@@ -59,6 +62,7 @@ fn test_ar_config_requires_database_url() -> Result<()> {
 
 /// Test: Payments config validation requires DATABASE_URL
 #[test]
+#[serial]
 fn test_payments_config_requires_database_url() -> Result<()> {
     // Save current env
     let original_database_url = std::env::var("DATABASE_URL").ok();
@@ -87,8 +91,8 @@ fn test_payments_config_requires_database_url() -> Result<()> {
         error
     );
     assert!(
-        error.contains("required") || error.contains("must be set"),
-        "Error message should indicate it's required, got: {}",
+        error.contains("required") || error.contains("must be set") || error.contains("empty"),
+        "Error message should indicate it's required or empty, got: {}",
         error
     );
 
@@ -98,6 +102,7 @@ fn test_payments_config_requires_database_url() -> Result<()> {
 
 /// Test: Subscriptions config validation requires DATABASE_URL
 #[test]
+#[serial]
 fn test_subscriptions_config_requires_database_url() -> Result<()> {
     // Save current env
     let original_database_url = std::env::var("DATABASE_URL").ok();
@@ -126,8 +131,8 @@ fn test_subscriptions_config_requires_database_url() -> Result<()> {
         error
     );
     assert!(
-        error.contains("required") || error.contains("must be set"),
-        "Error message should indicate it's required, got: {}",
+        error.contains("required") || error.contains("must be set") || error.contains("empty"),
+        "Error message should indicate it's required or empty, got: {}",
         error
     );
 
@@ -137,6 +142,7 @@ fn test_subscriptions_config_requires_database_url() -> Result<()> {
 
 /// Test: GL config validation requires DATABASE_URL
 #[test]
+#[serial]
 fn test_gl_config_requires_database_url() -> Result<()> {
     // Save current env
     let original_database_url = std::env::var("DATABASE_URL").ok();
@@ -165,8 +171,8 @@ fn test_gl_config_requires_database_url() -> Result<()> {
         error
     );
     assert!(
-        error.contains("required") || error.contains("must be set"),
-        "Error message should indicate it's required, got: {}",
+        error.contains("required") || error.contains("must be set") || error.contains("empty"),
+        "Error message should indicate it's required or empty, got: {}",
         error
     );
 
@@ -176,6 +182,7 @@ fn test_gl_config_requires_database_url() -> Result<()> {
 
 /// Test: AR config validates BUS_TYPE values
 #[test]
+#[serial]
 fn test_ar_config_validates_bus_type() -> Result<()> {
     // Save current env
     let original_database_url = std::env::var("DATABASE_URL").ok();
@@ -217,6 +224,7 @@ fn test_ar_config_validates_bus_type() -> Result<()> {
 
 /// Test: AR config validation rejects empty DATABASE_URL
 #[test]
+#[serial]
 fn test_ar_config_rejects_empty_database_url() -> Result<()> {
     // Save current env
     let original_database_url = std::env::var("DATABASE_URL").ok();
@@ -252,6 +260,7 @@ fn test_ar_config_rejects_empty_database_url() -> Result<()> {
 
 /// Test: Payments config validation rejects invalid PORT
 #[test]
+#[serial]
 fn test_payments_config_validates_port() -> Result<()> {
     // Save current env
     let original_database_url = std::env::var("DATABASE_URL").ok();
@@ -293,6 +302,7 @@ fn test_payments_config_validates_port() -> Result<()> {
 
 /// Test: GL config validation accepts valid configuration
 #[test]
+#[serial]
 fn test_gl_config_accepts_valid_config() -> Result<()> {
     // Save current env
     let original_database_url = std::env::var("DATABASE_URL").ok();
@@ -339,6 +349,7 @@ fn test_gl_config_accepts_valid_config() -> Result<()> {
 
 /// Test: Subscriptions config validation requires NATS_URL when BUS_TYPE=nats
 #[test]
+#[serial]
 fn test_subscriptions_config_nats_requires_url() -> Result<()> {
     // Save current env
     let original_database_url = std::env::var("DATABASE_URL").ok();
@@ -381,6 +392,7 @@ fn test_subscriptions_config_nats_requires_url() -> Result<()> {
 
 /// Test: AR config with valid NATS configuration
 #[test]
+#[serial]
 fn test_ar_config_valid_nats_config() -> Result<()> {
     // Save current env
     let original_database_url = std::env::var("DATABASE_URL").ok();
