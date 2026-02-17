@@ -27,8 +27,8 @@ async fn setup_test_invoice(
     due_date: NaiveDate,
 ) -> i32 {
     sqlx::query_scalar::<_, i32>(
-        "INSERT INTO ar_invoices (app_id, ar_customer_id, status, amount_cents, currency, due_at, tilled_invoice_id)
-         VALUES ($1, $2, 'open', 10000, 'USD', $3, $4)
+        "INSERT INTO ar_invoices (app_id, ar_customer_id, status, amount_cents, currency, due_at, tilled_invoice_id, updated_at)
+         VALUES ($1, $2, 'open', 10000, 'USD', $3, $4, NOW())
          RETURNING id"
     )
     .bind(app_id)
