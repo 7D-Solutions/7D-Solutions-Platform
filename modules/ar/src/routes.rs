@@ -1,4 +1,5 @@
 pub mod health;
+pub mod invoices;
 
 use axum::{
     body::Bytes,
