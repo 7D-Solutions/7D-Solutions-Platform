@@ -11,54 +11,18 @@
 /// Runs with BUS_TYPE=inmemory (all components in same process share one bus instance)
 /// Can also run with NATS if services are running externally
 
+mod common;
+
 use chrono::{NaiveDate, Utc};
 use event_bus::{EventBus, InMemoryBus};
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use serial_test::serial;
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
-
-// ============================================================================
-// Database Setup
-// ============================================================================
-
-async fn setup_ar_pool() -> PgPool {
-    let database_url = std::env::var("AR_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5433/ar_test".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await
-        .expect("Failed to connect to AR database")
-}
-
-async fn setup_subscriptions_pool() -> PgPool {
-    let database_url = std::env::var("SUBSCRIPTIONS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5434/subscriptions_test".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await
-        .expect("Failed to connect to Subscriptions database")
-}
-
-async fn setup_payments_pool() -> PgPool {
-    let database_url = std::env::var("PAYMENTS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5435/payments_test".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await
-        .expect("Failed to connect to Payments database")
-}
 
 // ============================================================================
 // Event Models
@@ -485,9 +449,9 @@ async fn test_bill_run_to_notification_happy_path() {
     tracing::info!("🚀 Starting E2E proof test: Bill Run → Payment → Notification");
 
     // Setup databases
-    let ar_pool = setup_ar_pool().await;
-    let subscriptions_pool = setup_subscriptions_pool().await;
-    let payments_pool = setup_payments_pool().await;
+    let ar_pool = common::get_ar_pool().await;
+    let subscriptions_pool = common::get_subscriptions_pool().await;
+    let payments_pool = common::get_payments_pool().await;
 
     // Clean up test data from previous runs
     sqlx::query("TRUNCATE TABLE ar_invoices, ar_customers CASCADE").execute(&ar_pool).await.ok();
