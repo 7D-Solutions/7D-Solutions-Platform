@@ -9,7 +9,7 @@
 mod common;
 
 use audit::{
-    actor::{Actor, ActorType},
+    actor::Actor,
     schema::{MutationClass, WriteAuditRequest},
     writer::AuditWriter,
 };
