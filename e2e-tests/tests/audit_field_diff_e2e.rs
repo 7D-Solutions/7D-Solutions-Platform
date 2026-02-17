@@ -32,10 +32,12 @@ async fn test_field_diff_single_update() {
     common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
+    let test_id = Uuid::new_v4(); // unique per run — prevents stale-data count interference
 
     let actor = Actor::user(Uuid::new_v4());
     let correlation_id = Uuid::new_v4();
     let trace_id = "trace-single-update";
+    let entity_id = format!("cust_{}", test_id);
 
     // Simulate a customer name update
     let before = json!({
@@ -62,7 +64,7 @@ async fn test_field_diff_single_update() {
         "UpdateCustomer".to_string(),
         MutationClass::Update,
         "Customer".to_string(),
-        "cust_123".to_string(),
+        entity_id.clone(),
     )
     .with_snapshots(Some(before), Some(after))
     .with_correlation(None, Some(correlation_id), Some(trace_id.to_string()))
@@ -78,7 +80,7 @@ async fn test_field_diff_single_update() {
 
     // Verify the audit event was written with correct metadata
     let events = writer
-        .get_by_entity("Customer", "cust_123")
+        .get_by_entity("Customer", &entity_id)
         .await
         .expect("Failed to query audit events");
 
@@ -118,9 +120,11 @@ async fn test_field_diff_multiple_updates() {
     common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
+    let test_id = Uuid::new_v4(); // unique per run — prevents stale-data count interference
 
     let actor = Actor::service("billing-service");
     let correlation_id = Uuid::new_v4();
+    let entity_id = format!("inv_{}", test_id);
 
     let before = json!({
         "invoice_id": "inv_456",
@@ -146,7 +150,7 @@ async fn test_field_diff_multiple_updates() {
         "FinalizeInvoice".to_string(),
         MutationClass::StateTransition,
         "Invoice".to_string(),
-        "inv_456".to_string(),
+        entity_id.clone(),
     )
     .with_snapshots(Some(before), Some(after))
     .with_correlation(None, Some(correlation_id), None)
@@ -161,7 +165,7 @@ async fn test_field_diff_multiple_updates() {
         .expect("Failed to write audit event");
 
     let events = writer
-        .get_by_entity("Invoice", "inv_456")
+        .get_by_entity("Invoice", &entity_id)
         .await
         .expect("Failed to query audit events");
 
@@ -230,9 +234,11 @@ async fn test_field_diff_with_field_addition_and_removal() {
     common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
+    let test_id = Uuid::new_v4(); // unique per run — prevents stale-data count interference
 
     let actor = Actor::system();
     let trace_id = "trace-field-mutation";
+    let entity_id = format!("entity_{}", test_id);
 
     let before = json!({
         "id": "entity_1",
@@ -254,7 +260,7 @@ async fn test_field_diff_with_field_addition_and_removal() {
         "MigrateEntity".to_string(),
         MutationClass::Update,
         "Entity".to_string(),
-        "entity_1".to_string(),
+        entity_id.clone(),
     )
     .with_snapshots(Some(before), Some(after))
     .with_correlation(None, None, Some(trace_id.to_string()))
@@ -269,7 +275,7 @@ async fn test_field_diff_with_field_addition_and_removal() {
         .expect("Failed to write audit event");
 
     let events = writer
-        .get_by_entity("Entity", "entity_1")
+        .get_by_entity("Entity", &entity_id)
         .await
         .expect("Failed to query audit events");
 
@@ -299,6 +305,8 @@ async fn test_field_diff_with_transaction() {
     let pool = get_audit_pool().await;
     common::run_audit_migrations(&pool).await;
 
+    let test_id = Uuid::new_v4(); // unique per run — prevents stale-data count interference
+    let entity_id = format!("acc_{}", test_id);
     let mut tx = pool.begin().await.expect("Failed to begin transaction");
 
     let actor = Actor::user(Uuid::new_v4());
@@ -322,7 +330,7 @@ async fn test_field_diff_with_transaction() {
         "UpdateBalance".to_string(),
         MutationClass::Update,
         "Account".to_string(),
-        "acc_999".to_string(),
+        entity_id.clone(),
     )
     .with_snapshots(Some(before), Some(after))
     .with_correlation(None, Some(correlation_id), None)
@@ -340,7 +348,7 @@ async fn test_field_diff_with_transaction() {
     // Verify the event was committed with field diff
     let writer = AuditWriter::new(pool);
     let events = writer
-        .get_by_entity("Account", "acc_999")
+        .get_by_entity("Account", &entity_id)
         .await
         .expect("Failed to query audit events");
 

@@ -540,16 +540,10 @@ pub async fn run_audit_migrations(pool: &PgPool) {
 async fn run_audit_migrations_inner(pool: &PgPool) -> Result<(), sqlx::Error> {
     let migration_sql = include_str!("../../../platform/audit/db/migrations/20260216000001_create_audit_log.sql");
 
-    // Drop existing objects (idempotent reset for test isolation)
-    sqlx::query("DROP TABLE IF EXISTS audit_events CASCADE")
-        .execute(pool)
-        .await?;
-
-    sqlx::query("DROP TYPE IF EXISTS mutation_class CASCADE")
-        .execute(pool)
-        .await?;
-
-    // Execute the full migration (CREATE TABLE, FUNCTION, TRIGGERs)
+    // Execute the migration idempotently — migration SQL already uses
+    // CREATE TABLE IF NOT EXISTS and DO $$ ... EXCEPTION duplicate_object $$
+    // for the enum. No DROP needed: tests use unique tenant_ids for isolation
+    // and dropping here causes race conditions across parallel test binaries.
     sqlx::raw_sql(migration_sql)
         .execute(pool)
         .await?;

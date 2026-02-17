@@ -28,9 +28,11 @@ async fn test_audit_write_success() {
     common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
+    let test_id = Uuid::new_v4(); // unique per run — prevents stale-data count interference
 
     let actor_id = Uuid::new_v4();
     let correlation_id = Uuid::new_v4();
+    let entity_id = format!("inv_{}", test_id);
 
     let request = WriteAuditRequest::new(
         actor_id,
@@ -38,7 +40,7 @@ async fn test_audit_write_success() {
         "CreateInvoice".to_string(),
         MutationClass::Create,
         "Invoice".to_string(),
-        "inv_12345".to_string(),
+        entity_id.clone(),
     )
     .with_correlation(None, Some(correlation_id), Some("trace-abc".to_string()))
     .with_snapshots(
@@ -57,7 +59,7 @@ async fn test_audit_write_success() {
 
     // Verify the event was written
     let events = writer
-        .get_by_entity("Invoice", "inv_12345")
+        .get_by_entity("Invoice", &entity_id)
         .await
         .expect("Failed to query audit events");
 
@@ -65,7 +67,7 @@ async fn test_audit_write_success() {
     assert_eq!(events[0].audit_id, audit_id);
     assert_eq!(events[0].action, "CreateInvoice");
     assert_eq!(events[0].entity_type, "Invoice");
-    assert_eq!(events[0].entity_id, "inv_12345");
+    assert_eq!(events[0].entity_id, entity_id);
     assert_eq!(events[0].mutation_class, MutationClass::Create);
     assert_eq!(events[0].actor_id, actor_id);
     assert!(events[0].after_snapshot.is_some());
@@ -204,6 +206,8 @@ async fn test_audit_write_in_transaction() {
     let pool = get_audit_pool().await;
     common::run_audit_migrations(&pool).await;
 
+    let test_id = Uuid::new_v4();
+    let entity_id = format!("acc_{}", test_id);
     let mut tx = pool.begin().await.expect("Failed to begin transaction");
 
     let request = WriteAuditRequest::new(
@@ -212,7 +216,7 @@ async fn test_audit_write_in_transaction() {
         "TransactionalUpdate".to_string(),
         MutationClass::Update,
         "Account".to_string(),
-        "acc_999".to_string(),
+        entity_id.clone(),
     );
 
     let audit_id = AuditWriter::write_in_tx(&mut tx, request)
@@ -225,7 +229,7 @@ async fn test_audit_write_in_transaction() {
     // Verify the event was committed
     let writer = AuditWriter::new(pool);
     let events = writer
-        .get_by_entity("Account", "acc_999")
+        .get_by_entity("Account", &entity_id)
         .await
         .expect("Failed to query audit events");
 
@@ -238,6 +242,8 @@ async fn test_audit_transaction_rollback() {
     let pool = get_audit_pool().await;
     common::run_audit_migrations(&pool).await;
 
+    let test_id = Uuid::new_v4();
+    let entity_id = format!("test_rollback_{}", test_id);
     let mut tx = pool.begin().await.expect("Failed to begin transaction");
 
     let request = WriteAuditRequest::new(
@@ -246,7 +252,7 @@ async fn test_audit_transaction_rollback() {
         "RollbackTest".to_string(),
         MutationClass::Create,
         "TestEntity".to_string(),
-        "test_rollback".to_string(),
+        entity_id.clone(),
     );
 
     let _audit_id = AuditWriter::write_in_tx(&mut tx, request)
@@ -259,7 +265,7 @@ async fn test_audit_transaction_rollback() {
     // Verify the event was NOT committed
     let writer = AuditWriter::new(pool);
     let events = writer
-        .get_by_entity("TestEntity", "test_rollback")
+        .get_by_entity("TestEntity", &entity_id)
         .await
         .expect("Failed to query audit events");
 

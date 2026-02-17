@@ -32,10 +32,12 @@ async fn test_user_actor_in_audit() {
     common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
+    let test_id = Uuid::new_v4(); // unique per run — prevents stale-data count interference
 
     // Simulate a user action (e.g., from HTTP request with authenticated user)
     let user_id = Uuid::new_v4();
     let actor = Actor::user(user_id);
+    let entity_id = format!("cust_{}", test_id);
 
     let request = WriteAuditRequest::new(
         actor.id,
@@ -43,7 +45,7 @@ async fn test_user_actor_in_audit() {
         "CreateCustomer".to_string(),
         MutationClass::Create,
         "Customer".to_string(),
-        "cust_123".to_string(),
+        entity_id.clone(),
     );
 
     let audit_id = writer
@@ -53,7 +55,7 @@ async fn test_user_actor_in_audit() {
 
     // Verify the actor identity is preserved
     let events = writer
-        .get_by_entity("Customer", "cust_123")
+        .get_by_entity("Customer", &entity_id)
         .await
         .expect("Failed to query audit events");
 
@@ -70,6 +72,7 @@ async fn test_service_actor_deterministic_id() {
     common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
+    let test_id = Uuid::new_v4();
 
     // Simulate a scheduled job (e.g., billing scheduler)
     let actor1 = Actor::service("billing-scheduler");
@@ -81,13 +84,14 @@ async fn test_service_actor_deterministic_id() {
         "Service actors should have deterministic IDs"
     );
 
+    let entity_id = format!("batch_{}", test_id);
     let request = WriteAuditRequest::new(
         actor1.id,
         actor1.actor_type_str(),
         "GenerateInvoices".to_string(),
         MutationClass::Create,
         "InvoiceBatch".to_string(),
-        "batch_456".to_string(),
+        entity_id.clone(),
     );
 
     let audit_id = writer
@@ -97,7 +101,7 @@ async fn test_service_actor_deterministic_id() {
 
     // Verify the service actor is recorded
     let events = writer
-        .get_by_entity("InvoiceBatch", "batch_456")
+        .get_by_entity("InvoiceBatch", &entity_id)
         .await
         .expect("Failed to query audit events");
 
@@ -113,9 +117,11 @@ async fn test_system_actor() {
     common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
+    let test_id = Uuid::new_v4();
 
     // Simulate a system operation (e.g., migration, maintenance)
     let actor = Actor::system();
+    let entity_id = format!("migration_{}", test_id);
 
     let request = WriteAuditRequest::new(
         actor.id,
@@ -123,7 +129,7 @@ async fn test_system_actor() {
         "MigrateData".to_string(),
         MutationClass::Update,
         "System".to_string(),
-        "migration_v2".to_string(),
+        entity_id.clone(),
     );
 
     let audit_id = writer
@@ -133,7 +139,7 @@ async fn test_system_actor() {
 
     // Verify the system actor uses nil UUID
     let events = writer
-        .get_by_entity("System", "migration_v2")
+        .get_by_entity("System", &entity_id)
         .await
         .expect("Failed to query audit events");
 
