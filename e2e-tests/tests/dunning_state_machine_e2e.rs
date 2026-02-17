@@ -21,7 +21,8 @@ use ar_rs::dunning::{
     init_dunning, transition_dunning, DunningError, DunningStateValue, InitDunningRequest,
     InitDunningResult, TransitionDunningRequest, TransitionDunningResult,
 };
-use common::{generate_test_tenant, get_ar_pool};
+use common::{generate_test_tenant, get_ar_pool, get_subscriptions_pool};
+use subscriptions_rs::consumer::{handle_invoice_suspended, InvoiceSuspendedEvent};
 use uuid::Uuid;
 
 // ============================================================================
@@ -596,4 +597,209 @@ async fn test_dunning_transition_unknown_invoice_not_found() {
         "expected DunningNotFound, got {:?}",
         err
     );
+}
+
+// ============================================================================
+// Integrated cross-domain test (bd-b6k)
+// ============================================================================
+
+/// Create a subscription plan and an active subscription in the subscriptions DB.
+async fn create_test_subscription(
+    pool: &sqlx::PgPool,
+    tenant_id: &str,
+    ar_customer_id: &str,
+) -> anyhow::Result<Uuid> {
+    let plan_id: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO subscription_plans (tenant_id, name, schedule, price_minor, currency, created_at, updated_at)
+        VALUES ($1, 'Dunning Integ Plan', 'monthly', 5000, 'usd', NOW(), NOW())
+        RETURNING id
+        "#,
+    )
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await?;
+
+    let sub_id: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO subscriptions (
+            tenant_id, ar_customer_id, plan_id, status, schedule,
+            price_minor, currency, start_date, next_bill_date,
+            created_at, updated_at
+        )
+        VALUES ($1, $2, $3, 'active', 'monthly', 5000, 'usd', CURRENT_DATE, CURRENT_DATE + 30, NOW(), NOW())
+        RETURNING id
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(ar_customer_id)
+    .bind(plan_id)
+    .fetch_one(pool)
+    .await?;
+
+    Ok(sub_id)
+}
+
+/// Clean up subscriptions test data for a tenant.
+async fn cleanup_subs_tenant(pool: &sqlx::PgPool, tenant_id: &str) {
+    sqlx::query("DELETE FROM events_outbox WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM subscriptions WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM subscription_plans WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+}
+
+/// Test 10 (bd-b6k): Integrated dunning-to-subscription-suspension flow.
+///
+/// Proves the full chain: init dunning → Warned → Escalated → Suspended →
+/// ar.invoice_suspended outbox event emitted → subscription consumer processes
+/// the event → subscription status changes to 'suspended'.
+#[tokio::test]
+async fn test_integrated_dunning_to_subscription_suspension() {
+    let ar_pool = get_ar_pool().await;
+    let subs_pool = get_subscriptions_pool().await;
+    let tenant_id = generate_test_tenant();
+    let dunning_id = Uuid::new_v4();
+    let customer_id_str = format!("cust-{}", tenant_id);
+
+    // --- Setup: AR invoice + subscription ---
+    let (_customer_id, invoice_id) = create_test_invoice(&ar_pool, &tenant_id)
+        .await
+        .expect("failed to create invoice");
+
+    let sub_id = create_test_subscription(&subs_pool, &tenant_id, &customer_id_str)
+        .await
+        .expect("failed to create subscription");
+
+    // Verify subscription starts as active
+    let status: String = sqlx::query_scalar(
+        "SELECT status FROM subscriptions WHERE id = $1",
+    )
+    .bind(sub_id)
+    .fetch_one(&subs_pool)
+    .await
+    .expect("subscription query failed");
+    assert_eq!(status, "active", "subscription must start as active");
+
+    // --- Step 1: Init dunning (Pending) ---
+    let result = init_dunning(&ar_pool, InitDunningRequest {
+        dunning_id,
+        app_id: tenant_id.clone(),
+        invoice_id,
+        customer_id: customer_id_str.clone(),
+        next_attempt_at: None,
+        correlation_id: Uuid::new_v4().to_string(),
+        causation_id: None,
+    })
+    .await
+    .expect("init_dunning failed");
+    assert!(matches!(result, InitDunningResult::Initialized { .. }));
+
+    // --- Step 2: Pending → Warned ---
+    transition_dunning(&ar_pool, TransitionDunningRequest {
+        app_id: tenant_id.clone(),
+        invoice_id,
+        to_state: DunningStateValue::Warned,
+        reason: "first_collection_failed".to_string(),
+        next_attempt_at: None,
+        last_error: Some("card_declined".to_string()),
+        correlation_id: Uuid::new_v4().to_string(),
+        causation_id: Some(dunning_id.to_string()),
+    })
+    .await
+    .expect("Pending → Warned failed");
+
+    // --- Step 3: Warned → Escalated ---
+    transition_dunning(&ar_pool, TransitionDunningRequest {
+        app_id: tenant_id.clone(),
+        invoice_id,
+        to_state: DunningStateValue::Escalated,
+        reason: "second_collection_failed".to_string(),
+        next_attempt_at: None,
+        last_error: Some("card_declined_again".to_string()),
+        correlation_id: Uuid::new_v4().to_string(),
+        causation_id: Some(dunning_id.to_string()),
+    })
+    .await
+    .expect("Warned → Escalated failed");
+
+    // --- Step 4: Escalated → Suspended ---
+    transition_dunning(&ar_pool, TransitionDunningRequest {
+        app_id: tenant_id.clone(),
+        invoice_id,
+        to_state: DunningStateValue::Suspended,
+        reason: "max_retries_exhausted".to_string(),
+        next_attempt_at: None,
+        last_error: Some("all_attempts_failed".to_string()),
+        correlation_id: Uuid::new_v4().to_string(),
+        causation_id: Some(dunning_id.to_string()),
+    })
+    .await
+    .expect("Escalated → Suspended failed");
+
+    // Verify dunning state is suspended in DB
+    let dunning_state: String = sqlx::query_scalar(
+        "SELECT state FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2",
+    )
+    .bind(&tenant_id)
+    .bind(invoice_id)
+    .fetch_one(&ar_pool)
+    .await
+    .expect("dunning state query failed");
+    assert_eq!(dunning_state, "suspended");
+
+    // Verify ar.invoice_suspended outbox event was emitted
+    let suspended_event_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND event_type = 'ar.invoice_suspended'",
+    )
+    .bind(&tenant_id)
+    .fetch_one(&ar_pool)
+    .await
+    .expect("outbox query failed");
+    assert!(
+        suspended_event_count >= 1,
+        "ar.invoice_suspended event must be emitted on Suspended transition"
+    );
+
+    // --- Step 5: Feed the event to the subscription consumer ---
+    let event_id = Uuid::new_v4().to_string();
+    let event = InvoiceSuspendedEvent {
+        tenant_id: tenant_id.clone(),
+        invoice_id: invoice_id.to_string(),
+        customer_id: customer_id_str.clone(),
+        dunning_attempt: 3,
+        reason: "max_retries_exhausted".to_string(),
+    };
+
+    let processed = handle_invoice_suspended(&subs_pool, &event_id, &event)
+        .await
+        .expect("handle_invoice_suspended failed");
+    assert!(processed, "consumer must process the event successfully");
+
+    // --- Step 6: Verify subscription is now suspended ---
+    let sub_status: String = sqlx::query_scalar(
+        "SELECT status FROM subscriptions WHERE id = $1",
+    )
+    .bind(sub_id)
+    .fetch_one(&subs_pool)
+    .await
+    .expect("subscription status query failed");
+    assert_eq!(
+        sub_status, "suspended",
+        "subscription must be suspended after dunning chain completes"
+    );
+
+    // --- Cleanup ---
+    cleanup_tenant(&ar_pool, &tenant_id).await.unwrap();
+    cleanup_subs_tenant(&subs_pool, &tenant_id).await;
 }

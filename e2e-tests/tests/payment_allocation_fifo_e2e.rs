@@ -13,6 +13,7 @@
 
 mod common;
 
+use ar_rs::aging::refresh_aging;
 use ar_rs::payment_allocation::{allocate_payment_fifo, AllocatePaymentRequest};
 use common::{generate_test_tenant, get_ar_pool};
 use serial_test::serial;
@@ -464,4 +465,173 @@ async fn test_alloc_respects_prior_allocations() {
     assert_eq!(total_allocated, 10000, "invoice fully allocated across two payments");
 
     cleanup_tenant(&pool, &tenant_id).await;
+}
+
+// ============================================================================
+// Integrated cross-domain test (bd-b6k)
+// ============================================================================
+
+/// Run the aging buckets migration (idempotent).
+async fn run_aging_migration(pool: &sqlx::PgPool) {
+    let sql =
+        include_str!("../../modules/ar/db/migrations/20260217000005_create_ar_aging_buckets.sql");
+    sqlx::raw_sql(sql)
+        .execute(pool)
+        .await
+        .expect("failed to run aging migration");
+}
+
+/// Clean up aging + allocation data for a tenant.
+async fn cleanup_tenant_with_aging(pool: &sqlx::PgPool, tenant_id: &str) {
+    sqlx::query("DELETE FROM ar_aging_buckets WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    cleanup_tenant(pool, tenant_id).await;
+}
+
+/// Test 8 (bd-b6k): Integrated allocation → aging multi-cycle proof.
+///
+/// Proves the full chain across two payment cycles:
+///   Cycle 1: Create 3 invoices in different aging buckets → allocate partial payment
+///            via FIFO → refresh aging → verify buckets reflect reduced balances.
+///   Cycle 2: Second payment covers remaining balance → refresh aging →
+///            total_outstanding drops to zero.
+#[tokio::test]
+#[serial]
+async fn test_integrated_allocation_aging_multi_cycle() {
+    let pool = get_ar_pool().await;
+    run_alloc_migration(&pool).await;
+    run_aging_migration(&pool).await;
+    let tenant_id = generate_test_tenant();
+
+    let customer = create_customer(&pool, &tenant_id).await;
+
+    // Create 3 invoices in different aging buckets using dynamic due dates:
+    //   Invoice A: $100, due 15 days ago → days_1_30 bucket
+    //   Invoice B: $200, due 45 days ago → days_31_60 bucket
+    //   Invoice C: $150, due in the future → current bucket
+    let due_15_ago = chrono::Utc::now().naive_utc().date() - chrono::Duration::days(15);
+    let due_45_ago = chrono::Utc::now().naive_utc().date() - chrono::Duration::days(45);
+    let due_future = chrono::Utc::now().naive_utc().date() + chrono::Duration::days(10);
+
+    let inv_a = create_invoice(
+        &pool, &tenant_id, customer, 10000, "usd",
+        Some(&due_15_ago.format("%Y-%m-%d").to_string()),
+    ).await;
+    let inv_b = create_invoice(
+        &pool, &tenant_id, customer, 20000, "usd",
+        Some(&due_45_ago.format("%Y-%m-%d").to_string()),
+    ).await;
+    let _inv_c = create_invoice(
+        &pool, &tenant_id, customer, 15000, "usd",
+        Some(&due_future.format("%Y-%m-%d").to_string()),
+    ).await;
+
+    // --- Pre-allocation aging baseline ---
+    let snapshot_before = refresh_aging(&pool, &tenant_id, customer)
+        .await
+        .expect("refresh_aging before allocation failed");
+    assert_eq!(snapshot_before.total_outstanding_minor, 45000, "total = $100 + $200 + $150");
+    assert_eq!(snapshot_before.invoice_count, 3);
+
+    // --- Cycle 1: Partial payment of $250 via FIFO ---
+    // FIFO orders by due_at ASC, so: inv_b ($200, oldest) → inv_a ($100) → inv_c ($150)
+    // $250 covers inv_b fully ($200) + $50 of inv_a
+    let req1 = AllocatePaymentRequest {
+        payment_id: format!("pay_cycle1_{}", Uuid::new_v4()),
+        customer_id: customer,
+        amount_cents: 25000,
+        currency: "usd".to_string(),
+        idempotency_key: Uuid::new_v4().to_string(),
+    };
+
+    let alloc_result1 = allocate_payment_fifo(&pool, &tenant_id, &req1)
+        .await
+        .expect("cycle 1 allocation failed");
+    assert_eq!(alloc_result1.allocated_amount_cents, 25000);
+    assert_eq!(alloc_result1.unallocated_amount_cents, 0);
+    assert_eq!(alloc_result1.allocations.len(), 2, "covers inv_b fully + inv_a partially");
+
+    // Refresh aging after allocation
+    let snapshot_after_cycle1 = refresh_aging(&pool, &tenant_id, customer)
+        .await
+        .expect("refresh_aging after cycle 1 failed");
+
+    // Total outstanding should be $450 - $250 = $200 remaining
+    assert_eq!(
+        snapshot_after_cycle1.total_outstanding_minor, 20000,
+        "total outstanding after $250 allocation = $200"
+    );
+
+    // inv_b ($200, days_31_60) fully covered → 0 in that bucket
+    assert_eq!(
+        snapshot_after_cycle1.days_31_60_minor, 0,
+        "days_31_60 bucket should be 0 (inv_b fully allocated)"
+    );
+
+    // inv_a ($100, days_1_30) has $50 remaining after partial allocation
+    assert_eq!(
+        snapshot_after_cycle1.days_1_30_minor, 5000,
+        "days_1_30 bucket should be $50 (inv_a partially allocated)"
+    );
+
+    // inv_c ($150, current) untouched
+    assert_eq!(
+        snapshot_after_cycle1.current_minor, 15000,
+        "current bucket should be $150 (inv_c untouched)"
+    );
+
+    // --- Cycle 2: Second payment covers remaining $200 ---
+    let req2 = AllocatePaymentRequest {
+        payment_id: format!("pay_cycle2_{}", Uuid::new_v4()),
+        customer_id: customer,
+        amount_cents: 20000,
+        currency: "usd".to_string(),
+        idempotency_key: Uuid::new_v4().to_string(),
+    };
+
+    let alloc_result2 = allocate_payment_fifo(&pool, &tenant_id, &req2)
+        .await
+        .expect("cycle 2 allocation failed");
+    assert_eq!(alloc_result2.allocated_amount_cents, 20000);
+    assert_eq!(alloc_result2.unallocated_amount_cents, 0);
+
+    // Refresh aging after second allocation
+    let snapshot_after_cycle2 = refresh_aging(&pool, &tenant_id, customer)
+        .await
+        .expect("refresh_aging after cycle 2 failed");
+
+    assert_eq!(
+        snapshot_after_cycle2.total_outstanding_minor, 0,
+        "all invoices fully covered after two payment cycles"
+    );
+    assert_eq!(snapshot_after_cycle2.current_minor, 0);
+    assert_eq!(snapshot_after_cycle2.days_1_30_minor, 0);
+    assert_eq!(snapshot_after_cycle2.days_31_60_minor, 0);
+    assert_eq!(snapshot_after_cycle2.days_61_90_minor, 0);
+    assert_eq!(snapshot_after_cycle2.days_over_90_minor, 0);
+
+    // Verify outbox: should have ar.payment_allocated events for both cycles
+    let alloc_event_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND event_type = 'ar.payment_allocated'",
+    )
+    .bind(&tenant_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(alloc_event_count, 2, "two payment_allocated events for two cycles");
+
+    // Verify aging outbox events
+    let aging_event_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND event_type = 'ar.ar_aging_updated'",
+    )
+    .bind(&tenant_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(aging_event_count >= 2, "at least 2 aging events (one per refresh)");
+
+    cleanup_tenant_with_aging(&pool, &tenant_id).await;
 }

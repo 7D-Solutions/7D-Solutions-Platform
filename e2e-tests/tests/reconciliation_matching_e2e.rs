@@ -15,6 +15,11 @@
 mod common;
 
 use ar_rs::reconciliation::{run_reconciliation, RunReconOutcome, RunReconRequest};
+use ar_rs::recon_scheduler::{
+    claim_and_execute_scheduled_run, create_scheduled_run,
+    CreateScheduledRunOutcome, CreateScheduledRunRequest, ScheduledRunExecutionOutcome,
+};
+use chrono::{NaiveDateTime, Utc};
 use common::{generate_test_tenant, get_ar_pool};
 use uuid::Uuid;
 
@@ -752,4 +757,188 @@ async fn test_recon_currency_mismatch() {
     }
 
     cleanup_tenant(&pool, &tenant_id).await;
+}
+
+// ============================================================================
+// Integrated cross-domain test (bd-b6k)
+// ============================================================================
+
+/// Advisory lock key for serializing migration execution across parallel tests.
+const RECON_SCHED_MIGRATION_LOCK_KEY: i64 = 8_312_947_654_i64;
+
+/// Run the migrations for both recon matching and scheduled runs (idempotent).
+async fn run_scheduled_run_migrations(pool: &sqlx::PgPool) {
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(RECON_SCHED_MIGRATION_LOCK_KEY)
+        .execute(pool)
+        .await
+        .expect("failed to acquire migration advisory lock");
+
+    let recon_sql = include_str!("../../modules/ar/db/migrations/20260217000006_create_recon_matching.sql");
+    let _ = sqlx::raw_sql(recon_sql).execute(pool).await;
+
+    let sched_sql = include_str!("../../modules/ar/db/migrations/20260217000008_create_recon_scheduled_runs.sql");
+    let _ = sqlx::raw_sql(sched_sql).execute(pool).await;
+
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(RECON_SCHED_MIGRATION_LOCK_KEY)
+        .execute(pool)
+        .await
+        .expect("failed to release migration advisory lock");
+}
+
+/// Create a window start/end pair for testing.
+fn make_window(offset_hours: i64) -> (NaiveDateTime, NaiveDateTime) {
+    let start = Utc::now().naive_utc() - chrono::Duration::hours(offset_hours + 1);
+    let end = Utc::now().naive_utc() - chrono::Duration::hours(offset_hours);
+    (start, end)
+}
+
+/// Clean up scheduled run data in addition to recon data.
+async fn cleanup_tenant_with_scheduled_runs(pool: &sqlx::PgPool, tenant_id: &str) {
+    sqlx::query("DELETE FROM ar_recon_scheduled_runs WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    cleanup_tenant(pool, tenant_id).await;
+}
+
+/// Test 11 (bd-b6k): Integrated scheduled recon run → matching engine produces stable results.
+///
+/// Proves the full chain: create a scheduled run → worker claims and executes it →
+/// matching engine runs inside the execution → matches and exceptions are produced
+/// and visible in DB. A second scheduled run on the same data produces 0 new matches
+/// (already-matched items excluded).
+#[tokio::test]
+async fn test_integrated_scheduled_recon_produces_stable_results() {
+    let pool = get_ar_pool().await;
+    run_scheduled_run_migrations(&pool).await;
+    let tenant_id = generate_test_tenant();
+
+    // --- Setup: 2 customers, 3 invoices, 2 payments ---
+    let cust_a = create_customer(&pool, &tenant_id).await;
+    let cust_b = create_customer(&pool, &tenant_id).await;
+
+    // Customer A: $100 invoice + $100 payment → exact match
+    create_invoice(&pool, &tenant_id, cust_a, 10000, "usd").await;
+    create_charge(&pool, &tenant_id, cust_a, 10000, "usd", None).await;
+
+    // Customer B: $50 invoice, no payment → no match
+    create_invoice(&pool, &tenant_id, cust_b, 5000, "usd").await;
+
+    // Customer B: $75 payment, no matching invoice → unmatched exception
+    create_charge(&pool, &tenant_id, cust_b, 7500, "usd", None).await;
+
+    // --- Step 1: Create a scheduled run ---
+    let (window_start, window_end) = make_window(2);
+    let create_result = create_scheduled_run(
+        &pool,
+        CreateScheduledRunRequest {
+            app_id: tenant_id.clone(),
+            window_start,
+            window_end,
+            correlation_id: Uuid::new_v4().to_string(),
+        },
+    )
+    .await
+    .expect("create_scheduled_run failed");
+
+    let scheduled_run_id = match create_result {
+        CreateScheduledRunOutcome::Created(r) => {
+            assert_eq!(r.status, "pending");
+            r.scheduled_run_id
+        }
+        CreateScheduledRunOutcome::AlreadyScheduled(_) => {
+            panic!("expected Created, got AlreadyScheduled");
+        }
+    };
+
+    // --- Step 2: Worker claims and executes the run ---
+    let exec_result = claim_and_execute_scheduled_run(
+        &pool,
+        &tenant_id,
+        Uuid::new_v4().to_string(),
+    )
+    .await
+    .expect("claim_and_execute_scheduled_run failed");
+
+    match exec_result {
+        ScheduledRunExecutionOutcome::Executed(r) => {
+            assert_eq!(r.match_count, 1, "customer A's exact match");
+            assert_eq!(r.exception_count, 1, "customer B's unmatched payment");
+            assert_eq!(r.status, "completed");
+        }
+        ScheduledRunExecutionOutcome::NothingToClaim => {
+            panic!("expected Executed, got NothingToClaim");
+        }
+        ScheduledRunExecutionOutcome::Failed(r) => {
+            panic!("expected Executed, got Failed: {:?}", r.error_message);
+        }
+    }
+
+    // --- Step 3: Verify matches and exceptions in DB ---
+    let match_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ar_recon_matches WHERE app_id = $1",
+    )
+    .bind(&tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("match count query failed");
+    assert_eq!(match_count, 1, "exactly one match from scheduled run");
+
+    let exception_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ar_recon_exceptions WHERE app_id = $1",
+    )
+    .bind(&tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("exception count query failed");
+    assert_eq!(exception_count, 1, "exactly one exception from scheduled run");
+
+    // --- Step 4: Second scheduled run → 0 new matches (stability) ---
+    let (window_start2, window_end2) = make_window(4);
+    create_scheduled_run(
+        &pool,
+        CreateScheduledRunRequest {
+            app_id: tenant_id.clone(),
+            window_start: window_start2,
+            window_end: window_end2,
+            correlation_id: Uuid::new_v4().to_string(),
+        },
+    )
+    .await
+    .expect("second create_scheduled_run failed");
+
+    let exec_result2 = claim_and_execute_scheduled_run(
+        &pool,
+        &tenant_id,
+        Uuid::new_v4().to_string(),
+    )
+    .await
+    .expect("second claim_and_execute failed");
+
+    match exec_result2 {
+        ScheduledRunExecutionOutcome::Executed(r) => {
+            assert_eq!(r.match_count, 0, "already-matched items excluded from second run");
+        }
+        ScheduledRunExecutionOutcome::NothingToClaim => {
+            panic!("expected Executed, got NothingToClaim");
+        }
+        ScheduledRunExecutionOutcome::Failed(r) => {
+            panic!("expected Executed, got Failed: {:?}", r.error_message);
+        }
+    }
+
+    // Verify the scheduled run status was updated to completed
+    let run_status: String = sqlx::query_scalar(
+        "SELECT status FROM ar_recon_scheduled_runs WHERE id = $1",
+    )
+    .bind(scheduled_run_id)
+    .fetch_one(&pool)
+    .await
+    .expect("run status query failed");
+    assert_eq!(run_status, "completed");
+
+    cleanup_tenant_with_scheduled_runs(&pool, &tenant_id).await;
 }
