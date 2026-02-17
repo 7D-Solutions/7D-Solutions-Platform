@@ -1,4 +1,5 @@
 pub mod account_activity;
+pub mod accruals;
 pub mod balance_sheet;
 pub mod fx_rates;
 pub mod gl_detail;

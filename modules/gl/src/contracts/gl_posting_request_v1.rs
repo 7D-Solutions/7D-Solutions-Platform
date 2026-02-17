@@ -45,6 +45,7 @@ pub enum SourceDocType {
     InventoryReceipt,
     InventoryIssue,
     PayrollRun,
+    GlAccrual,
 }
 
 /// A single line in a journal entry

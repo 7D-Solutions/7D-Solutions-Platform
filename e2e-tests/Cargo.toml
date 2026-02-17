@@ -179,12 +179,20 @@ path = "tests/payment_allocation_fifo_e2e.rs"
 name = "reconciliation_scheduled_runs_e2e"
 path = "tests/reconciliation_scheduled_runs_e2e.rs"
 
+[[test]]
+name = "dunning_suspension_e2e"
+path = "tests/dunning_suspension_e2e.rs"
+
+[[test]]
+name = "accrual_create_e2e"
+path = "tests/accrual_create_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-uuid = { version = "1.0", features = ["v4", "serde"] }
+uuid = { version = "1.0", features = ["v4", "v5", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", features = ["json"] }
 event-bus = { path = "../platform/event-bus" }
