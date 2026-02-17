@@ -60,17 +60,6 @@ async fn setup_payments_pool() -> PgPool {
         .expect("Failed to connect to Payments database")
 }
 
-async fn setup_notifications_pool() -> PgPool {
-    let database_url = std::env::var("NOTIFICATIONS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5436/notifications_test".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&database_url)
-        .await
-        .expect("Failed to connect to Notifications database")
-}
-
 // ============================================================================
 // Event Models
 // ============================================================================
@@ -426,9 +415,11 @@ async fn start_ar_payment_consumer(
 
 /// Start mock notification consumer
 /// Listens for payment.succeeded and emits notification.delivery.succeeded
+///
+/// Notifications is a stateless module — it does not persist to a DB table.
+/// This mock only emits the NATS event; no DB writes are performed.
 async fn start_notification_consumer(
     bus: Arc<dyn EventBus>,
-    notifications_pool: PgPool,
 ) {
     tokio::spawn(async move {
         let mut stream = bus.subscribe("payments.events.payments.payment.succeeded").await
@@ -448,16 +439,7 @@ async fn start_notification_consumer(
 
             tracing::info!("📧 Notification consumer: Sending notification for payment {}", payment_id);
 
-            // Create notification record
             let notification_id = format!("notif_{}", Uuid::new_v4());
-            sqlx::query(
-                "INSERT INTO notifications (notification_id, recipient, channel, event_type, status, created_at)
-                 VALUES ($1, 'test@example.com', 'email', 'payment.succeeded', 'sent', NOW())"
-            )
-            .bind(&notification_id)
-            .execute(&notifications_pool)
-            .await
-            .ok();
 
             // Emit notification.delivery.succeeded event
             let notification_event = json!({
@@ -506,13 +488,11 @@ async fn test_bill_run_to_notification_happy_path() {
     let ar_pool = setup_ar_pool().await;
     let subscriptions_pool = setup_subscriptions_pool().await;
     let payments_pool = setup_payments_pool().await;
-    let notifications_pool = setup_notifications_pool().await;
 
     // Clean up test data from previous runs
     sqlx::query("TRUNCATE TABLE ar_invoices, ar_customers CASCADE").execute(&ar_pool).await.ok();
     sqlx::query("TRUNCATE TABLE subscriptions, subscription_plans, bill_runs CASCADE").execute(&subscriptions_pool).await.ok();
     sqlx::query("TRUNCATE TABLE payments, payments_events_outbox, payments_processed_events CASCADE").execute(&payments_pool).await.ok();
-    sqlx::query("TRUNCATE TABLE notifications, events_outbox, processed_events CASCADE").execute(&notifications_pool).await.ok();
 
     // Create shared InMemoryBus
     let bus: Arc<dyn EventBus> = Arc::new(InMemoryBus::new());
@@ -521,7 +501,7 @@ async fn test_bill_run_to_notification_happy_path() {
     tracing::info!("🔧 Starting mock consumers...");
     start_payment_consumer(bus.clone(), payments_pool.clone()).await;
     start_ar_payment_consumer(bus.clone(), ar_pool.clone()).await;
-    start_notification_consumer(bus.clone(), notifications_pool.clone()).await;
+    start_notification_consumer(bus.clone()).await;
 
     // Give consumers a moment to subscribe
     tokio::time::sleep(Duration::from_millis(100)).await;
@@ -650,16 +630,8 @@ async fn test_bill_run_to_notification_happy_path() {
     assert_eq!(payment_count, 1, "Payment record should exist");
     tracing::info!("  ✓ Payments: Payment record exists");
 
-    // Check Notifications: Notification sent
-    let notification_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM notifications WHERE status = 'sent'"
-    )
-    .fetch_one(&notifications_pool)
-    .await
-    .expect("Failed to query notifications");
-
-    assert!(notification_count > 0, "At least one notification should be sent");
-    tracing::info!("  ✓ Notifications: {} notification(s) sent", notification_count);
+    // Notifications is stateless — delivery confirmed via NATS event at STEP 5 above.
+    tracing::info!("  ✓ Notifications: delivery confirmed via NATS event (stateless module)");
 
     // Cleanup
     sqlx::query("DELETE FROM ar_customers WHERE id = $1")
