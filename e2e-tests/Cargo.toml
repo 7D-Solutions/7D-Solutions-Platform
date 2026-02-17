@@ -175,6 +175,10 @@ path = "tests/reconciliation_matching_e2e.rs"
 name = "payment_allocation_fifo_e2e"
 path = "tests/payment_allocation_fifo_e2e.rs"
 
+[[test]]
+name = "reconciliation_scheduled_runs_e2e"
+path = "tests/reconciliation_scheduled_runs_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }

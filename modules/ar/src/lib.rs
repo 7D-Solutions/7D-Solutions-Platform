@@ -16,6 +16,7 @@ pub mod metrics;
 pub mod middleware;
 pub mod models;
 pub mod payment_allocation;
+pub mod recon_scheduler;
 pub mod reconciliation;
 pub mod retry;
 pub mod routes;
