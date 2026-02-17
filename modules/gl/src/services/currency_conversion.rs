@@ -15,79 +15,9 @@
 //! 5. **Balance invariant** — sum of converted debits == sum of converted
 //!    credits (enforced by a pennies-off adjustment on the last line).
 
-use chrono::{DateTime, Utc};
-use uuid::Uuid;
-
-// ============================================================================
-// Core types
-// ============================================================================
-
-/// A specific FX rate snapshot used for conversion.
-///
-/// This is the "receipt" that ties a converted amount to the exact rate used.
-/// Every journal line that involves FX must carry this reference.
-#[derive(Debug, Clone, PartialEq)]
-pub struct RateSnapshot {
-    /// UUID of the fx_rates row
-    pub rate_id: Uuid,
-    /// The exchange rate: 1 base = rate quote
-    pub rate: f64,
-    /// The inverse rate: 1 quote = inverse_rate base
-    pub inverse_rate: f64,
-    /// When this rate became effective
-    pub effective_at: DateTime<Utc>,
-    /// Base currency (ISO 4217)
-    pub base_currency: String,
-    /// Quote currency (ISO 4217)
-    pub quote_currency: String,
-}
-
-/// Result of converting a single monetary amount.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConvertedAmount {
-    /// Original amount in transaction currency (minor units, e.g. cents)
-    pub transaction_amount_minor: i64,
-    /// Converted amount in reporting currency (minor units)
-    pub reporting_amount_minor: i64,
-}
-
-/// A journal line pair (debit + credit) after currency conversion.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConvertedLine {
-    /// Original debit in transaction currency (minor units)
-    pub txn_debit_minor: i64,
-    /// Original credit in transaction currency (minor units)
-    pub txn_credit_minor: i64,
-    /// Converted debit in reporting currency (minor units)
-    pub rpt_debit_minor: i64,
-    /// Converted credit in reporting currency (minor units)
-    pub rpt_credit_minor: i64,
-}
-
-// ============================================================================
-// Errors
-// ============================================================================
-
-/// Errors that can occur during currency conversion.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
-pub enum ConversionError {
-    #[error("Rate must be positive and finite, got {0}")]
-    InvalidRate(String),
-
-    #[error("Amount must be non-negative (minor units), got {0}")]
-    NegativeAmount(i64),
-
-    #[error("Currency mismatch: rate is {rate_base}/{rate_quote} but conversion requested {from}/{to}")]
-    CurrencyMismatch {
-        rate_base: String,
-        rate_quote: String,
-        from: String,
-        to: String,
-    },
-
-    #[error("Balance invariant violated: total debits ({debits}) != total credits ({credits}) in reporting currency")]
-    BalanceInvariant { debits: i64, credits: i64 },
-}
+// Re-export types so existing callers (e.g. fx_revaluation_service) continue
+// to import from this module without changes.
+pub use super::currency_types::{ConversionError, ConvertedAmount, ConvertedLine, RateSnapshot};
 
 // ============================================================================
 // Core conversion functions
@@ -287,6 +217,7 @@ fn find_largest_line_index(lines: &[ConvertedLine]) -> usize {
 mod tests {
     use super::*;
     use chrono::Utc;
+    use uuid::Uuid;
 
     fn eur_usd_rate(rate: f64) -> RateSnapshot {
         RateSnapshot {
@@ -298,8 +229,6 @@ mod tests {
             quote_currency: "USD".to_string(),
         }
     }
-
-    // ── convert_amount ─────────────────────────────────────────────────
 
     #[test]
     fn convert_zero_amount() {
@@ -362,8 +291,6 @@ mod tests {
         assert!(matches!(result, Err(ConversionError::CurrencyMismatch { .. })));
     }
 
-    // ── bankers_round ──────────────────────────────────────────────────
-
     #[test]
     fn bankers_round_half_to_even() {
         // 0.5 → 0 (even)
@@ -383,8 +310,6 @@ mod tests {
         assert_eq!(bankers_round(2.1), 2);
         assert_eq!(bankers_round(2.9), 3);
     }
-
-    // ── convert_journal_lines ──────────────────────────────────────────
 
     #[test]
     fn convert_balanced_journal() {
@@ -435,8 +360,6 @@ mod tests {
         assert_eq!(result[1].txn_credit_minor, 10000);
     }
 
-    // ── requires_conversion ────────────────────────────────────────────
-
     #[test]
     fn same_currency_no_conversion() {
         assert!(!requires_conversion("USD", "USD"));
@@ -448,8 +371,6 @@ mod tests {
         assert!(requires_conversion("EUR", "USD"));
         assert!(requires_conversion("GBP", "USD"));
     }
-
-    // ── resolve_rate ───────────────────────────────────────────────────
 
     #[test]
     fn resolve_rate_direct() {
@@ -478,8 +399,6 @@ mod tests {
         let result = resolve_rate(&rate, "GBP", "JPY");
         assert!(matches!(result, Err(ConversionError::CurrencyMismatch { .. })));
     }
-
-    // ── Edge cases ─────────────────────────────────────────────────────
 
     #[test]
     fn convert_1_minor_unit() {
