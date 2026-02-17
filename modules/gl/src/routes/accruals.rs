@@ -1,7 +1,8 @@
-//! Accrual HTTP routes (bd-3qa)
+//! Accrual HTTP routes (bd-3qa, bd-2ob)
 //!
-//! POST /api/gl/accruals/templates    — Create an accrual template
-//! POST /api/gl/accruals/create       — Create an accrual instance from template
+//! POST /api/gl/accruals/templates           — Create an accrual template
+//! POST /api/gl/accruals/create              — Create an accrual instance from template
+//! POST /api/gl/accruals/reversals/execute   — Execute auto-reversals for a target period
 
 use axum::{
     extract::State,
@@ -60,6 +61,26 @@ pub async fn create_accrual_handler(
             };
             (status, Json(result)).into_response()
         }
+        Err(e) => {
+            let status = match &e {
+                accruals::AccrualError::Validation(_) => StatusCode::BAD_REQUEST,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            (status, Json(ErrorBody { error: e.to_string() })).into_response()
+        }
+    }
+}
+
+// ============================================================================
+// POST /api/gl/accruals/reversals/execute
+// ============================================================================
+
+pub async fn execute_reversals_handler(
+    State(app_state): State<Arc<AppState>>,
+    Json(body): Json<accruals::ExecuteReversalsRequest>,
+) -> impl IntoResponse {
+    match accruals::execute_auto_reversals(&app_state.pool, &body).await {
+        Ok(result) => (StatusCode::OK, Json(result)).into_response(),
         Err(e) => {
             let status = match &e {
                 accruals::AccrualError::Validation(_) => StatusCode::BAD_REQUEST,

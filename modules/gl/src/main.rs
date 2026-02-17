@@ -15,7 +15,7 @@ use gl_rs::{
     routes::period_close::{close_period_handler, get_close_status, validate_close},
     routes::period_summary::get_period_summary,
     routes::fx_rates::{create_fx_rate, get_latest_rate as get_latest_fx_rate},
-    routes::accruals::{create_template_handler, create_accrual_handler},
+    routes::accruals::{create_template_handler, create_accrual_handler, execute_reversals_handler},
     routes::revrec::{create_contract, generate_schedule_handler, run_recognition_handler},
     routes::trial_balance::get_trial_balance,
     consumer::gl_writeoff_consumer::start_gl_writeoff_consumer,
@@ -129,6 +129,7 @@ async fn main() {
         .route("/api/gl/revrec/recognition-runs", post(run_recognition_handler))
         .route("/api/gl/accruals/templates", post(create_template_handler))
         .route("/api/gl/accruals/create", post(create_accrual_handler))
+        .route("/api/gl/accruals/reversals/execute", post(execute_reversals_handler))
         .with_state(app_state)
         .layer(
             CorsLayer::new()
