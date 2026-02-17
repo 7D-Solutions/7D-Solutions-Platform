@@ -12,7 +12,8 @@ use uuid::Uuid;
 
 // Re-export service auth types
 pub use service_auth::{
-    generate_service_token, verify_service_token, ServiceAuthClaims, ServiceAuthError,
+    generate_service_token, get_service_token, verify_service_token, ServiceAuthClaims,
+    ServiceAuthError,
 };
 
 /// Placeholder for token verification result
