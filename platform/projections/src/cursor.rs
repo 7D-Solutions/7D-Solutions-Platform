@@ -170,11 +170,11 @@ impl ProjectionCursor {
 /// # Example
 ///
 /// ```rust,no_run
-/// use projections::cursor::try_apply_event;
+/// use projections::cursor::{try_apply_event, CursorResult};
 /// use uuid::Uuid;
 /// use chrono::Utc;
 ///
-/// async fn example(tx: &mut sqlx::PgConnection, event_id: Uuid) -> Result<bool, Box<dyn std::error::Error>> {
+/// async fn example(tx: &mut sqlx::PgConnection, event_id: Uuid) -> CursorResult<bool> {
 ///     try_apply_event(
 ///         tx,
 ///         "customer_balance",
