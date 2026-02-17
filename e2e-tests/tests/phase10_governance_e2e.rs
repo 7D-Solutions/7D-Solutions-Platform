@@ -42,7 +42,7 @@ async fn setup_test_accounts(pool: &PgPool, tenant_id: &str) -> Result<()> {
         sqlx::query(
             r#"
             INSERT INTO accounts (id, tenant_id, code, name, type, normal_balance, is_active, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            VALUES ($1, $2, $3, $4, $5::account_type, $6::normal_balance, $7, NOW())
             ON CONFLICT (tenant_id, code) DO NOTHING
             "#,
         )
