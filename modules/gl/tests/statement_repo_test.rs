@@ -130,7 +130,7 @@ async fn test_get_trial_balance_rows_with_explain() {
     log_explain_plan(&pool, explain_query, tenant_id, period_id).await;
 
     // Execute query
-    let rows = get_trial_balance_rows(&pool, tenant_id, period_id, "USD")
+    let rows = get_trial_balance_rows(&pool, tenant_id, period_id, Some("USD"))
         .await
         .expect("Failed to get trial balance rows");
 
@@ -481,7 +481,7 @@ async fn test_get_trial_balance_rows_with_currency_filter() {
     .expect("Failed to insert balances");
 
     // Test USD currency
-    let usd_rows = get_trial_balance_rows(&pool, tenant_id, period_id, "USD")
+    let usd_rows = get_trial_balance_rows(&pool, tenant_id, period_id, Some("USD"))
         .await
         .expect("Failed to get USD rows");
 
@@ -490,7 +490,7 @@ async fn test_get_trial_balance_rows_with_currency_filter() {
     assert_eq!(usd_rows[0].debit_total_minor, 100000);
 
     // Test EUR currency
-    let eur_rows = get_trial_balance_rows(&pool, tenant_id, period_id, "EUR")
+    let eur_rows = get_trial_balance_rows(&pool, tenant_id, period_id, Some("EUR"))
         .await
         .expect("Failed to get EUR rows");
 
@@ -499,7 +499,7 @@ async fn test_get_trial_balance_rows_with_currency_filter() {
     assert_eq!(eur_rows[0].debit_total_minor, 50000);
 
     // Test GBP currency
-    let gbp_rows = get_trial_balance_rows(&pool, tenant_id, period_id, "GBP")
+    let gbp_rows = get_trial_balance_rows(&pool, tenant_id, period_id, Some("GBP"))
         .await
         .expect("Failed to get GBP rows");
 
@@ -533,7 +533,7 @@ async fn test_period_validation_not_found() {
         .expect("Failed to clean up periods");
 
     // Attempt to query with non-existent period - should fail with PeriodNotFound
-    let result = get_trial_balance_rows(&pool, tenant_id, non_existent_period_id, "USD").await;
+    let result = get_trial_balance_rows(&pool, tenant_id, non_existent_period_id, Some("USD")).await;
 
     assert!(result.is_err());
     match result.unwrap_err() {
@@ -622,7 +622,7 @@ async fn test_numeric_safety_proof_decimal_exactness() {
     .expect("Failed to insert balances");
 
     // Execute query
-    let rows = get_trial_balance_rows(&pool, tenant_id, period_id, "USD")
+    let rows = get_trial_balance_rows(&pool, tenant_id, period_id, Some("USD"))
         .await
         .expect("Failed to get trial balance rows");
 
