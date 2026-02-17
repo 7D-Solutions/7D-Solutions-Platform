@@ -18,6 +18,11 @@ use gl_rs::{
     routes::accruals::{create_template_handler, create_accrual_handler, execute_reversals_handler},
     routes::revrec::{create_contract, generate_schedule_handler, run_recognition_handler},
     routes::trial_balance::get_trial_balance,
+    routes::reporting_currency::{
+        get_reporting_trial_balance,
+        get_reporting_income_statement,
+        get_reporting_balance_sheet,
+    },
     consumer::gl_writeoff_consumer::start_gl_writeoff_consumer,
     start_gl_posting_consumer,
     start_gl_reversal_consumer,
@@ -116,6 +121,9 @@ async fn main() {
         .route("/api/gl/trial-balance", get(get_trial_balance))
         .route("/api/gl/income-statement", get(get_income_statement))
         .route("/api/gl/balance-sheet", get(get_balance_sheet))
+        .route("/api/gl/reporting/trial-balance", get(get_reporting_trial_balance))
+        .route("/api/gl/reporting/income-statement", get(get_reporting_income_statement))
+        .route("/api/gl/reporting/balance-sheet", get(get_reporting_balance_sheet))
         .route("/api/gl/periods/{period_id}/summary", get(get_period_summary))
         .route("/api/gl/periods/{period_id}/validate-close", post(validate_close))
         .route("/api/gl/periods/{period_id}/close", post(close_period_handler))
