@@ -89,11 +89,25 @@ pub async fn get_auth_pool() -> PgPool {
         .expect("Failed to connect to Auth database")
 }
 
+/// Get Projections database pool
+pub async fn get_projections_pool() -> PgPool {
+    let url = std::env::var("PROJECTIONS_DATABASE_URL")
+        .or_else(|_| std::env::var("DATABASE_URL"))
+        .unwrap_or_else(|_| "postgresql://projections_user:projections_pass@localhost:5439/projections_db".to_string());
+
+    PgPoolOptions::new()
+        .max_connections(5)
+        .min_connections(1)
+        .connect(&url)
+        .await
+        .expect("Failed to connect to Projections database")
+}
+
 /// Get Audit database pool
 pub async fn get_audit_pool() -> PgPool {
     let url = std::env::var("AUDIT_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/platform_dev".to_string());
+        .unwrap_or_else(|_| "postgresql://audit_user:audit_pass@localhost:5440/audit_db".to_string());
 
     PgPoolOptions::new()
         .max_connections(5)
@@ -101,6 +115,20 @@ pub async fn get_audit_pool() -> PgPool {
         .connect(&url)
         .await
         .expect("Failed to connect to Audit database")
+}
+
+/// Get Tenant Registry database pool
+pub async fn get_tenant_registry_pool() -> PgPool {
+    let url = std::env::var("TENANT_REGISTRY_DATABASE_URL")
+        .or_else(|_| std::env::var("DATABASE_URL"))
+        .unwrap_or_else(|_| "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db".to_string());
+
+    PgPoolOptions::new()
+        .max_connections(5)
+        .min_connections(1)
+        .connect(&url)
+        .await
+        .expect("Failed to connect to Tenant Registry database")
 }
 
 // ============================================================================

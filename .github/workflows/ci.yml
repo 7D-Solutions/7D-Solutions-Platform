@@ -785,3 +785,85 @@ jobs:
         run: |
           docker compose -f docker-compose.modules.yml down || true
           docker compose -f docker-compose.infrastructure.yml down || true
+
+  e2e-platform-spine:
+    name: E2E Test - Platform Spine (Projections, Audit, Tenant Registry)
+    runs-on: ubuntu-latest
+    services:
+      projections-postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: projections_db
+          POSTGRES_USER: projections_user
+          POSTGRES_PASSWORD: projections_pass
+        ports:
+          - 5439:5432
+        options: >-
+          --health-cmd "pg_isready -U projections_user -d projections_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      audit-postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: audit_db
+          POSTGRES_USER: audit_user
+          POSTGRES_PASSWORD: audit_pass
+        ports:
+          - 5440:5432
+        options: >-
+          --health-cmd "pg_isready -U audit_user -d audit_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      tenant-registry-postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: tenant_registry_db
+          POSTGRES_USER: tenant_registry_user
+          POSTGRES_PASSWORD: tenant_registry_pass
+        ports:
+          - 5441:5432
+        options: >-
+          --health-cmd "pg_isready -U tenant_registry_user -d tenant_registry_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-platform-spine-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-platform-spine-
+            ${{ runner.os }}-cargo-
+
+      - name: Run projection cursor contract E2E tests
+        working-directory: e2e-tests
+        run: cargo test --test projection_cursor_contract_e2e -- --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+          PROJECTIONS_DATABASE_URL: postgresql://projections_user:projections_pass@localhost:5439/projections_db
+
+      - name: Run tenant registry smoke E2E tests
+        working-directory: e2e-tests
+        run: cargo test --test tenant_registry_smoke_e2e -- --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+          TENANT_REGISTRY_DATABASE_URL: postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db
+
+      - name: Run audit append-only E2E tests
+        working-directory: e2e-tests
+        run: cargo test --test audit_append_only_e2e -- --test-threads=1 --nocapture
+        env:
+          RUST_LOG: info
+          AUDIT_DATABASE_URL: postgresql://audit_user:audit_pass@localhost:5440/audit_db
