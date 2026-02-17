@@ -1,10 +1,11 @@
-//! Subscriptions Module Configuration
+//! Payments Module Configuration
 //!
 //! Validates required environment variables at startup with clear error messages.
-//! Invariant: Subscriptions service never starts with missing/invalid configuration.
+//! Invariant: Payments service never starts with missing/invalid configuration.
 
 use std::env;
 
+/// Bus type enumeration
 #[derive(Debug, Clone, PartialEq)]
 pub enum BusType {
     Nats,
@@ -22,25 +23,16 @@ impl BusType {
             )),
         }
     }
-
-    pub fn from_env() -> Self {
-        let bus_type_str = env::var("BUS_TYPE").unwrap_or_else(|_| "inmemory".to_string());
-        // For backward compatibility, log warning but don't fail on invalid BUS_TYPE
-        match Self::from_str(&bus_type_str) {
-            Ok(bus_type) => bus_type,
-            Err(err) => {
-                tracing::warn!("{}, defaulting to inmemory", err);
-                BusType::InMemory
-            }
-        }
-    }
 }
 
+/// Payments application configuration
 #[derive(Debug, Clone)]
 pub struct Config {
-    pub bus_type: BusType,
     pub database_url: String,
+    pub bus_type: BusType,
     pub nats_url: Option<String>,
+    pub host: String,
+    pub port: u16,
 }
 
 impl Config {
@@ -52,16 +44,19 @@ impl Config {
     /// ## Optional Environment Variables (with defaults)
     /// - `BUS_TYPE`: 'nats' or 'inmemory' (default: 'inmemory')
     /// - `NATS_URL`: NATS server URL (default: 'nats://localhost:4222', required if BUS_TYPE=nats)
+    /// - `HOST`: Bind host (default: '0.0.0.0')
+    /// - `PORT`: HTTP port (default: '8088')
     ///
     /// ## Failure Modes
-    /// - Missing DATABASE_URL: Service cannot persist subscription data
+    /// - Missing DATABASE_URL: Service cannot persist payment data
     /// - Invalid BUS_TYPE: Service cannot communicate with other modules
     /// - Missing NATS_URL when BUS_TYPE=nats: Service cannot connect to event bus
+    /// - Invalid PORT: Service cannot bind to network interface
     pub fn from_env() -> Result<Self, String> {
         // Required: DATABASE_URL
         let database_url = env::var("DATABASE_URL").map_err(|_| {
             "DATABASE_URL is required but not set. \
-             Example: postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db"
+             Example: postgresql://payments_user:payments_pass@localhost:5436/payments_db"
                 .to_string()
         })?;
 
@@ -69,8 +64,11 @@ impl Config {
             return Err("DATABASE_URL cannot be empty".to_string());
         }
 
-        let bus_type = BusType::from_env();
+        // Optional: BUS_TYPE (default: inmemory)
+        let bus_type_str = env::var("BUS_TYPE").unwrap_or_else(|_| "inmemory".to_string());
+        let bus_type = BusType::from_str(&bus_type_str)?;
 
+        // Conditional: NATS_URL (required if BUS_TYPE=nats)
         let nats_url = match bus_type {
             BusType::Nats => {
                 let url = env::var("NATS_URL")
@@ -85,10 +83,26 @@ impl Config {
             BusType::InMemory => None,
         };
 
-        Ok(Self {
-            bus_type,
+        // Optional: HOST (default: 0.0.0.0)
+        let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+
+        // Optional: PORT (default: 8088)
+        let port: u16 = env::var("PORT")
+            .unwrap_or_else(|_| "8088".to_string())
+            .parse()
+            .map_err(|_| {
+                format!(
+                    "PORT must be a valid u16 (0-65535), got: '{}'",
+                    env::var("PORT").unwrap_or_default()
+                )
+            })?;
+
+        Ok(Config {
             database_url,
+            bus_type,
             nats_url,
+            host,
+            port,
         })
     }
 
@@ -137,6 +151,8 @@ mod tests {
             database_url: "".to_string(),
             bus_type: BusType::InMemory,
             nats_url: None,
+            host: "0.0.0.0".to_string(),
+            port: 8088,
         };
 
         let err = config.validate().unwrap_err();
@@ -149,6 +165,8 @@ mod tests {
             database_url: "postgresql://localhost/test".to_string(),
             bus_type: BusType::Nats,
             nats_url: None,
+            host: "0.0.0.0".to_string(),
+            port: 8088,
         };
 
         let err = config.validate().unwrap_err();
@@ -161,6 +179,8 @@ mod tests {
             database_url: "postgresql://localhost/test".to_string(),
             bus_type: BusType::InMemory,
             nats_url: None,
+            host: "0.0.0.0".to_string(),
+            port: 8088,
         };
 
         assert!(config.validate().is_ok());
@@ -169,6 +189,8 @@ mod tests {
             database_url: "postgresql://localhost/test".to_string(),
             bus_type: BusType::Nats,
             nats_url: Some("nats://localhost:4222".to_string()),
+            host: "0.0.0.0".to_string(),
+            port: 8088,
         };
 
         assert!(config_nats.validate().is_ok());

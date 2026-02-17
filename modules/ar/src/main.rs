@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
-use ar_rs::{consumer_tasks, db, events::run_publisher_task, routes, AppState};
+use ar_rs::{config::Config, consumer_tasks, db, events::run_publisher_task, routes, AppState};
 
 #[tokio::main]
 async fn main() {
@@ -15,16 +15,22 @@ async fn main() {
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
 
-    let database_url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port: u16 = std::env::var("PORT")
-        .unwrap_or_else(|_| "8086".to_string())
-        .parse()
-        .expect("PORT must be a valid u16");
+    // Load and validate configuration (fail-fast on missing/invalid config)
+    let config = Config::from_env().unwrap_or_else(|err| {
+        eprintln!("Configuration error: {}", err);
+        eprintln!("AR service cannot start without valid configuration.");
+        std::process::exit(1);
+    });
+
+    tracing::info!(
+        "Configuration loaded: bus_type={:?}, host={}, port={}",
+        config.bus_type,
+        config.host,
+        config.port
+    );
 
     // Resolve DB pool through centralized resolver (Phase 16: PDAA preparation)
-    let db = db::resolve_pool(&database_url)
+    let db = db::resolve_pool(&config.database_url)
         .await
         .expect("Failed to connect to Postgres");
 
@@ -35,19 +41,20 @@ async fn main() {
 
     tracing::info!("Database migrations applied successfully");
 
-    // Initialize event bus based on BUS_TYPE environment variable
-    let bus_type = std::env::var("BUS_TYPE").unwrap_or_else(|_| "inmemory".to_string());
-    let event_bus: Arc<dyn EventBus> = match bus_type.to_lowercase().as_str() {
-        "nats" => {
-            let nats_url = std::env::var("NATS_URL")
-                .unwrap_or_else(|_| "nats://localhost:4222".to_string());
+    // Initialize event bus based on configuration
+    let event_bus: Arc<dyn EventBus> = match config.bus_type {
+        ar_rs::config::BusType::Nats => {
+            let nats_url = config
+                .nats_url
+                .as_ref()
+                .expect("NATS_URL must be set when BUS_TYPE=nats");
             tracing::info!("Connecting to NATS at {}", nats_url);
-            let nats_client = async_nats::connect(&nats_url)
+            let nats_client = async_nats::connect(nats_url)
                 .await
                 .expect("Failed to connect to NATS");
             Arc::new(NatsBus::new(nats_client))
         }
-        "inmemory" | _ => {
+        ar_rs::config::BusType::InMemory => {
             tracing::info!("Using in-memory event bus");
             Arc::new(InMemoryBus::new())
         }
@@ -102,7 +109,7 @@ async fn main() {
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
 
-    let addr: SocketAddr = format!("{host}:{port}")
+    let addr: SocketAddr = format!("{}:{}", config.host, config.port)
         .parse()
         .expect("Invalid HOST:PORT");
 

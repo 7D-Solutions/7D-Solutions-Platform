@@ -1,3 +1,4 @@
+mod config;
 mod db;
 mod consumer;
 mod consumer_tasks;
@@ -15,6 +16,8 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
+use config::Config;
+
 #[tokio::main]
 async fn main() {
     dotenvy::dotenv().ok();
@@ -23,11 +26,22 @@ async fn main() {
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
 
-    // Database configuration
-    let database_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set");
+    // Load and validate configuration (fail-fast on missing/invalid config)
+    let config = Config::from_env().unwrap_or_else(|err| {
+        eprintln!("Configuration error: {}", err);
+        eprintln!("Notifications service cannot start without valid configuration.");
+        std::process::exit(1);
+    });
 
-    let db = db::resolver::resolve_pool(&database_url)
+    tracing::info!(
+        "Configuration loaded: bus_type={:?}, host={}, port={}",
+        config.bus_type,
+        config.host,
+        config.port
+    );
+
+    // Database configuration
+    let db = db::resolver::resolve_pool(&config.database_url)
         .await
         .expect("Failed to connect to Postgres");
 
@@ -40,21 +54,22 @@ async fn main() {
     tracing::info!("Database migrations applied successfully");
 
     // Event bus configuration
-    let bus_type = std::env::var("BUS_TYPE").unwrap_or_else(|_| "inmemory".to_string());
-    let bus: Arc<dyn EventBus> = match bus_type.as_str() {
-        "nats" => {
-            let nats_url = std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
+    let bus: Arc<dyn EventBus> = match config.bus_type {
+        config::BusType::Nats => {
+            let nats_url = config
+                .nats_url
+                .as_ref()
+                .expect("NATS_URL must be set when BUS_TYPE=nats");
             tracing::info!("Connecting to NATS at {}", nats_url);
-            let nats_client = async_nats::connect(&nats_url)
+            let nats_client = async_nats::connect(nats_url)
                 .await
                 .expect("Failed to connect to NATS");
             Arc::new(NatsBus::new(nats_client))
         }
-        "inmemory" => {
+        config::BusType::InMemory => {
             tracing::info!("Using InMemoryBus for event messaging");
             Arc::new(InMemoryBus::new())
         }
-        _ => panic!("Invalid BUS_TYPE: {}. Must be 'nats' or 'inmemory'", bus_type),
     };
 
     // Spawn outbox publisher task
@@ -66,12 +81,6 @@ async fn main() {
     consumer_tasks::start_payment_failed_consumer(bus.clone(), db.clone()).await;
 
     // HTTP server configuration
-    let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port: u16 = std::env::var("PORT")
-        .unwrap_or_else(|_| "8089".to_string())
-        .parse()
-        .expect("PORT must be a valid u16");
-
     let app = Router::new()
         .route("/api/health", get(routes::health::health))
         .route("/api/ready", get(routes::health::ready))
@@ -84,7 +93,9 @@ async fn main() {
                 .allow_headers(tower_http::cors::Any),
         );
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let addr: SocketAddr = format!("{}:{}", config.host, config.port)
+        .parse()
+        .expect("Invalid HOST:PORT");
     tracing::info!("Notifications module listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr)

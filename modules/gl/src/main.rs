@@ -32,9 +32,12 @@ async fn main() {
 
     tracing::info!("Starting GL service...");
 
-    // Load configuration from environment
-    let config = Config::from_env()
-        .expect("Failed to load configuration from environment");
+    // Load and validate configuration (fail-fast on missing/invalid config)
+    let config = Config::from_env().unwrap_or_else(|err| {
+        eprintln!("Configuration error: {}", err);
+        eprintln!("GL service cannot start without valid configuration.");
+        std::process::exit(1);
+    });
 
     tracing::info!(
         "Configuration loaded: host={}, port={}, bus_type={}",

@@ -5,10 +5,13 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
+mod config;
 mod db;
 mod events;
 mod metrics;
 mod routes;
+
+use config::Config;
 
 /// Handler for /metrics endpoint
 async fn metrics_handler() -> String {
@@ -42,20 +45,23 @@ async fn main() {
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
 
-    // Configuration
-    let database_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set");
-    let bus_type = std::env::var("BUS_TYPE")
-        .unwrap_or_else(|_| "inmemory".to_string());
-    let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
-    let port: u16 = std::env::var("PORT")
-        .unwrap_or_else(|_| "8088".to_string())
-        .parse()
-        .expect("PORT must be a valid u16");
+    // Load and validate configuration (fail-fast on missing/invalid config)
+    let config = Config::from_env().unwrap_or_else(|err| {
+        eprintln!("Configuration error: {}", err);
+        eprintln!("Payments service cannot start without valid configuration.");
+        std::process::exit(1);
+    });
+
+    tracing::info!(
+        "Configuration loaded: bus_type={:?}, host={}, port={}",
+        config.bus_type,
+        config.host,
+        config.port
+    );
 
     // Database connection
     tracing::info!("Connecting to database...");
-    let pool = db::resolver::resolve_pool(&database_url)
+    let pool = db::resolver::resolve_pool(&config.database_url)
         .await
         .expect("Failed to connect to database");
 
@@ -67,21 +73,22 @@ async fn main() {
         .expect("Failed to run migrations");
 
     // Create event bus
-    let bus: Arc<dyn EventBus> = match bus_type.to_lowercase().as_str() {
-        "inmemory" => {
+    let bus: Arc<dyn EventBus> = match config.bus_type {
+        config::BusType::InMemory => {
             tracing::info!("Using InMemory event bus");
             Arc::new(InMemoryBus::new())
         }
-        "nats" => {
-            let nats_url = std::env::var("NATS_URL")
-                .unwrap_or_else(|_| "nats://localhost:4222".to_string());
+        config::BusType::Nats => {
+            let nats_url = config
+                .nats_url
+                .as_ref()
+                .expect("NATS_URL must be set when BUS_TYPE=nats");
             tracing::info!("Connecting to NATS at {}", nats_url);
-            let client = async_nats::connect(&nats_url)
+            let client = async_nats::connect(nats_url)
                 .await
                 .expect("Failed to connect to NATS");
             Arc::new(event_bus::NatsBus::new(client))
         }
-        _ => panic!("Invalid BUS_TYPE: {}. Must be 'inmemory' or 'nats'", bus_type),
     };
 
     // Spawn outbox publisher task
@@ -112,7 +119,9 @@ async fn main() {
                 .allow_headers(tower_http::cors::Any),
         );
 
-    let addr = SocketAddr::from(([0, 0, 0, 0], port));
+    let addr: SocketAddr = format!("{}:{}", config.host, config.port)
+        .parse()
+        .expect("Invalid HOST:PORT");
     tracing::info!("Payments module listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr)

@@ -37,8 +37,13 @@ async fn main() {
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
 
-    // Load configuration
-    let config = Config::from_env().expect("Failed to load configuration");
+    // Load and validate configuration (fail-fast on missing/invalid config)
+    let config = Config::from_env().unwrap_or_else(|err| {
+        eprintln!("Configuration error: {}", err);
+        eprintln!("Subscriptions service cannot start without valid configuration.");
+        std::process::exit(1);
+    });
+
     tracing::info!("Configuration loaded: {:?}", config.bus_type);
 
     // Initialize database pool

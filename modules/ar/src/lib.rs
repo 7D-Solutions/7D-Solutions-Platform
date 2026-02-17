@@ -1,3 +1,4 @@
+pub mod config;
 pub mod consumer_tasks;
 pub mod db;
 pub mod envelope_validation;
