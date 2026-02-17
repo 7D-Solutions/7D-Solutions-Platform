@@ -99,6 +99,18 @@ path = "tests/scale_100_tenants_truth_at_scale_e2e.rs"
 name = "provisioning_api_e2e"
 path = "tests/provisioning_api_e2e.rs"
 
+[[test]]
+name = "provisioning_full_lifecycle_e2e"
+path = "tests/provisioning_full_lifecycle_e2e.rs"
+
+[[test]]
+name = "tenant_summary_api_e2e"
+path = "tests/tenant_summary_api_e2e.rs"
+
+[[test]]
+name = "demo_seed_determinism_e2e"
+path = "tests/demo_seed_determinism_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -126,6 +138,9 @@ security = { path = "../platform/security" }
 compliance-export = { path = "../tools/compliance-export" }
 anyhow = "1.0"
 sha2 = "0.10"
+hex = "0.4"
+rand = "0.8"
+rand_chacha = "0.3"
 hmac = "0.12"
 base64 = "0.22"
 
