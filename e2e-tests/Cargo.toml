@@ -211,6 +211,10 @@ path = "tests/audit_coverage_sweep_e2e.rs"
 name = "projection_replay_verification_e2e"
 path = "tests/projection_replay_verification_e2e.rs"
 
+[[test]]
+name = "tax_commit_void_e2e"
+path = "tests/tax_commit_void_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }

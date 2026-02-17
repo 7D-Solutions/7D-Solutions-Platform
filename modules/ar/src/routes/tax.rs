@@ -1,7 +1,9 @@
-//! Tax quote HTTP routes (bd-29j)
+//! Tax HTTP routes (bd-29j + bd-3fy)
 //!
-//! POST /api/ar/tax/quote — Request a tax quote for an invoice draft
-//! GET  /api/ar/tax/quote  — Look up a cached tax quote by app_id + invoice_id
+//! POST /api/ar/tax/quote  — Request a tax quote for an invoice draft
+//! GET  /api/ar/tax/quote   — Look up a cached tax quote by app_id + invoice_id
+//! POST /api/ar/tax/commit  — Commit tax when invoice is finalized
+//! POST /api/ar/tax/void    — Void committed tax on refund/cancellation
 
 use axum::{
     extract::State,
@@ -65,12 +67,50 @@ pub struct LookupQuery {
 }
 
 // ============================================================================
+// Commit/Void request/response types (bd-3fy)
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct CommitTaxHttpRequest {
+    pub app_id: String,
+    pub invoice_id: String,
+    pub customer_id: String,
+    pub correlation_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CommitTaxHttpResponse {
+    pub provider_commit_ref: String,
+    pub provider_quote_ref: String,
+    pub total_tax_minor: i64,
+    pub currency: String,
+    pub already_committed: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VoidTaxHttpRequest {
+    pub app_id: String,
+    pub invoice_id: String,
+    pub void_reason: String,
+    pub correlation_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VoidTaxHttpResponse {
+    pub provider_commit_ref: String,
+    pub total_tax_minor: i64,
+    pub already_voided: bool,
+}
+
+// ============================================================================
 // Route builder
 // ============================================================================
 
 pub fn tax_router(db: PgPool) -> Router {
     Router::new()
         .route("/api/ar/tax/quote", post(quote_tax_handler).get(lookup_cached_quote))
+        .route("/api/ar/tax/commit", post(commit_tax_handler))
+        .route("/api/ar/tax/void", post(void_tax_handler))
         .with_state(db)
 }
 
@@ -246,5 +286,94 @@ async fn lookup_cached_quote(
             }),
         )
             .into_response(),
+    }
+}
+
+// ============================================================================
+// POST /api/ar/tax/commit (bd-3fy)
+// ============================================================================
+
+async fn commit_tax_handler(
+    State(pool): State<PgPool>,
+    Json(body): Json<CommitTaxHttpRequest>,
+) -> impl IntoResponse {
+    let correlation_id = body
+        .correlation_id
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let provider = LocalTaxProvider;
+    match crate::finalization::commit_tax_for_invoice(
+        &pool,
+        &provider,
+        &body.app_id,
+        &body.invoice_id,
+        &body.customer_id,
+        &correlation_id,
+    )
+    .await
+    {
+        Ok(result) => {
+            let resp = CommitTaxHttpResponse {
+                provider_commit_ref: result.provider_commit_ref,
+                provider_quote_ref: result.provider_quote_ref,
+                total_tax_minor: result.total_tax_minor,
+                currency: result.currency,
+                already_committed: result.was_already_committed,
+            };
+            (StatusCode::OK, Json(resp)).into_response()
+        }
+        Err(e) => {
+            use crate::finalization::TaxCommitError;
+            let status = match &e {
+                TaxCommitError::NoQuote { .. } => StatusCode::NOT_FOUND,
+                TaxCommitError::AlreadyVoided { .. } => StatusCode::CONFLICT,
+                TaxCommitError::AlreadyCommitted { .. } => StatusCode::OK,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            (status, Json(ErrorBody { error: e.to_string() })).into_response()
+        }
+    }
+}
+
+// ============================================================================
+// POST /api/ar/tax/void (bd-3fy)
+// ============================================================================
+
+async fn void_tax_handler(
+    State(pool): State<PgPool>,
+    Json(body): Json<VoidTaxHttpRequest>,
+) -> impl IntoResponse {
+    let correlation_id = body
+        .correlation_id
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+    let provider = LocalTaxProvider;
+    match crate::finalization::void_tax_for_invoice(
+        &pool,
+        &provider,
+        &body.app_id,
+        &body.invoice_id,
+        &body.void_reason,
+        &correlation_id,
+    )
+    .await
+    {
+        Ok(result) => {
+            let resp = VoidTaxHttpResponse {
+                provider_commit_ref: result.provider_commit_ref,
+                total_tax_minor: result.total_tax_minor,
+                already_voided: result.was_already_voided,
+            };
+            (StatusCode::OK, Json(resp)).into_response()
+        }
+        Err(e) => {
+            use crate::finalization::TaxCommitError;
+            let status = match &e {
+                TaxCommitError::NotCommitted { .. } => StatusCode::NOT_FOUND,
+                TaxCommitError::AlreadyVoided { .. } => StatusCode::OK,
+                _ => StatusCode::INTERNAL_SERVER_ERROR,
+            };
+            (status, Json(ErrorBody { error: e.to_string() })).into_response()
+        }
     }
 }

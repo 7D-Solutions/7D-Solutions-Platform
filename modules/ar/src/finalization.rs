@@ -16,6 +16,7 @@
 
 use crate::lifecycle::{self, LifecycleError};
 use crate::idempotency_keys::generate_invoice_attempt_key;
+use crate::tax::{TaxProvider, TaxProviderError, TaxCommitRequest, TaxVoidRequest};
 use chrono::Utc;
 use sqlx::PgPool;
 use std::fmt;
@@ -308,6 +309,388 @@ pub async fn finalize_invoice(
     Ok(FinalizationResult::NewAttempt {
         attempt_id,
         idempotency_key: idempotency_key.to_string(),
+    })
+}
+
+// ============================================================================
+// Tax Commit/Void
+// ============================================================================
+
+#[derive(Debug)]
+pub enum TaxCommitError {
+    /// No cached tax quote found for this invoice
+    NoQuote { app_id: String, invoice_id: String },
+    /// Tax already committed (idempotent no-op)
+    AlreadyCommitted { provider_commit_ref: String },
+    /// Tax already voided
+    AlreadyVoided { invoice_id: String },
+    /// No committed tax to void
+    NotCommitted { invoice_id: String },
+    /// Provider error
+    ProviderError(TaxProviderError),
+    /// Database error
+    DatabaseError(String),
+}
+
+impl fmt::Display for TaxCommitError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::NoQuote { app_id, invoice_id } => {
+                write!(f, "No cached tax quote for app={} invoice={}", app_id, invoice_id)
+            }
+            Self::AlreadyCommitted { provider_commit_ref } => {
+                write!(f, "Tax already committed: {}", provider_commit_ref)
+            }
+            Self::AlreadyVoided { invoice_id } => {
+                write!(f, "Tax already voided for invoice {}", invoice_id)
+            }
+            Self::NotCommitted { invoice_id } => {
+                write!(f, "No committed tax to void for invoice {}", invoice_id)
+            }
+            Self::ProviderError(e) => write!(f, "Tax provider error: {}", e),
+            Self::DatabaseError(msg) => write!(f, "Database error: {}", msg),
+        }
+    }
+}
+
+impl std::error::Error for TaxCommitError {}
+
+impl From<sqlx::Error> for TaxCommitError {
+    fn from(e: sqlx::Error) -> Self {
+        Self::DatabaseError(e.to_string())
+    }
+}
+
+impl From<TaxProviderError> for TaxCommitError {
+    fn from(e: TaxProviderError) -> Self {
+        Self::ProviderError(e)
+    }
+}
+
+/// Result of a tax commit operation.
+#[derive(Debug, Clone)]
+pub struct TaxCommitResult {
+    pub provider_commit_ref: String,
+    pub provider_quote_ref: String,
+    pub total_tax_minor: i64,
+    pub currency: String,
+    pub was_already_committed: bool,
+}
+
+/// Result of a tax void operation.
+#[derive(Debug, Clone)]
+pub struct TaxVoidResult {
+    pub provider_commit_ref: String,
+    pub total_tax_minor: i64,
+    pub was_already_voided: bool,
+}
+
+/// Commit tax for an invoice — exactly-once via UNIQUE(app_id, invoice_id).
+///
+/// 1. Look up the most recent cached tax quote for (app_id, invoice_id)
+/// 2. Check ar_tax_commits for existing commit → idempotent no-op if found
+/// 3. Call provider.commit_tax()
+/// 4. Insert ar_tax_commits row (ON CONFLICT → idempotent)
+/// 5. Emit tax.committed event to outbox
+///
+/// Returns the commit result with provider references for audit trail.
+pub async fn commit_tax_for_invoice<P: TaxProvider>(
+    pool: &PgPool,
+    provider: &P,
+    app_id: &str,
+    invoice_id: &str,
+    customer_id: &str,
+    correlation_id: &str,
+) -> Result<TaxCommitResult, TaxCommitError> {
+    // 1. Check for existing commit (idempotent guard)
+    let existing: Option<(String, String, i64)> = sqlx::query_as(
+        r#"SELECT provider_commit_ref, status, total_tax_minor
+           FROM ar_tax_commits
+           WHERE app_id = $1 AND invoice_id = $2"#,
+    )
+    .bind(app_id)
+    .bind(invoice_id)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some((commit_ref, status, total)) = existing {
+        if status == "voided" {
+            return Err(TaxCommitError::AlreadyVoided {
+                invoice_id: invoice_id.to_string(),
+            });
+        }
+        info!(
+            app_id = app_id,
+            invoice_id = invoice_id,
+            provider_commit_ref = commit_ref.as_str(),
+            "Tax already committed — idempotent no-op"
+        );
+        return Ok(TaxCommitResult {
+            provider_commit_ref: commit_ref,
+            provider_quote_ref: String::new(),
+            total_tax_minor: total,
+            currency: "usd".to_string(),
+            was_already_committed: true,
+        });
+    }
+
+    // 2. Look up cached quote
+    let quote_row: Option<(String, i64, String)> = sqlx::query_as(
+        r#"SELECT provider_quote_ref, total_tax_minor, COALESCE(
+               (response_json->>'currency')::text, 'usd'
+           ) as currency
+           FROM ar_tax_quote_cache
+           WHERE app_id = $1 AND invoice_id = $2
+           ORDER BY created_at DESC
+           LIMIT 1"#,
+    )
+    .bind(app_id)
+    .bind(invoice_id)
+    .fetch_optional(pool)
+    .await?;
+
+    let (provider_quote_ref, total_tax_minor, currency) = quote_row.ok_or_else(|| {
+        TaxCommitError::NoQuote {
+            app_id: app_id.to_string(),
+            invoice_id: invoice_id.to_string(),
+        }
+    })?;
+
+    // 3. Call provider
+    let commit_req = TaxCommitRequest {
+        tenant_id: app_id.to_string(),
+        invoice_id: invoice_id.to_string(),
+        provider_quote_ref: provider_quote_ref.clone(),
+        correlation_id: correlation_id.to_string(),
+    };
+    let commit_resp = provider.commit_tax(commit_req).await?;
+
+    // 4. Persist commit record (ON CONFLICT for race condition safety)
+    let inserted: Option<Uuid> = sqlx::query_scalar(
+        r#"INSERT INTO ar_tax_commits (
+               app_id, invoice_id, customer_id, provider,
+               provider_quote_ref, provider_commit_ref,
+               total_tax_minor, currency, status,
+               committed_at, correlation_id
+           )
+           VALUES ($1, $2, $3, 'local', $4, $5, $6, $7, 'committed', $8, $9)
+           ON CONFLICT (app_id, invoice_id) DO NOTHING
+           RETURNING id"#,
+    )
+    .bind(app_id)
+    .bind(invoice_id)
+    .bind(customer_id)
+    .bind(&provider_quote_ref)
+    .bind(&commit_resp.provider_commit_ref)
+    .bind(total_tax_minor)
+    .bind(&currency)
+    .bind(commit_resp.committed_at)
+    .bind(correlation_id)
+    .fetch_optional(pool)
+    .await?;
+
+    if inserted.is_none() {
+        // Race: another process committed between our SELECT and INSERT
+        let existing_ref: String = sqlx::query_scalar(
+            "SELECT provider_commit_ref FROM ar_tax_commits WHERE app_id = $1 AND invoice_id = $2",
+        )
+        .bind(app_id)
+        .bind(invoice_id)
+        .fetch_one(pool)
+        .await?;
+
+        info!(
+            app_id = app_id,
+            invoice_id = invoice_id,
+            "Tax commit race — returning existing commit ref"
+        );
+        return Ok(TaxCommitResult {
+            provider_commit_ref: existing_ref,
+            provider_quote_ref,
+            total_tax_minor,
+            currency,
+            was_already_committed: true,
+        });
+    }
+
+    // 5. Emit tax.committed event
+    let event_payload = crate::events::contracts::TaxCommittedPayload {
+        tenant_id: app_id.to_string(),
+        invoice_id: invoice_id.to_string(),
+        customer_id: customer_id.to_string(),
+        total_tax_minor,
+        currency: currency.clone(),
+        provider_quote_ref: provider_quote_ref.clone(),
+        provider_commit_ref: commit_resp.provider_commit_ref.clone(),
+        provider: "local".to_string(),
+        committed_at: commit_resp.committed_at,
+    };
+
+    let envelope = crate::events::contracts::build_tax_committed_envelope(
+        Uuid::new_v4(),
+        app_id.to_string(),
+        correlation_id.to_string(),
+        None,
+        event_payload,
+    );
+
+    #[allow(deprecated)]
+    crate::events::outbox::enqueue_event(
+        pool,
+        crate::events::contracts::EVENT_TYPE_TAX_COMMITTED,
+        "invoice",
+        invoice_id,
+        &envelope,
+    )
+    .await
+    .map_err(|e| TaxCommitError::DatabaseError(format!("outbox enqueue failed: {}", e)))?;
+
+    info!(
+        app_id = app_id,
+        invoice_id = invoice_id,
+        provider_commit_ref = commit_resp.provider_commit_ref.as_str(),
+        total_tax_minor = total_tax_minor,
+        "Tax committed for invoice"
+    );
+
+    Ok(TaxCommitResult {
+        provider_commit_ref: commit_resp.provider_commit_ref,
+        provider_quote_ref,
+        total_tax_minor,
+        currency,
+        was_already_committed: false,
+    })
+}
+
+/// Void committed tax for an invoice — exactly-once via status check.
+///
+/// 1. Look up ar_tax_commits for (app_id, invoice_id)
+/// 2. If status == 'voided' → idempotent no-op
+/// 3. If status != 'committed' → error
+/// 4. Call provider.void_tax()
+/// 5. Update status to 'voided'
+/// 6. Emit tax.voided event to outbox
+pub async fn void_tax_for_invoice<P: TaxProvider>(
+    pool: &PgPool,
+    provider: &P,
+    app_id: &str,
+    invoice_id: &str,
+    void_reason: &str,
+    correlation_id: &str,
+) -> Result<TaxVoidResult, TaxCommitError> {
+    // 1. Look up existing commit
+    let commit_row: Option<(String, String, i64, String)> = sqlx::query_as(
+        r#"SELECT provider_commit_ref, status, total_tax_minor, customer_id
+           FROM ar_tax_commits
+           WHERE app_id = $1 AND invoice_id = $2"#,
+    )
+    .bind(app_id)
+    .bind(invoice_id)
+    .fetch_optional(pool)
+    .await?;
+
+    let (provider_commit_ref, status, total_tax_minor, customer_id) =
+        commit_row.ok_or_else(|| TaxCommitError::NotCommitted {
+            invoice_id: invoice_id.to_string(),
+        })?;
+
+    // 2. Idempotent guard
+    if status == "voided" {
+        info!(
+            app_id = app_id,
+            invoice_id = invoice_id,
+            "Tax already voided — idempotent no-op"
+        );
+        return Ok(TaxVoidResult {
+            provider_commit_ref,
+            total_tax_minor,
+            was_already_voided: true,
+        });
+    }
+
+    if status != "committed" {
+        return Err(TaxCommitError::NotCommitted {
+            invoice_id: invoice_id.to_string(),
+        });
+    }
+
+    // 3. Call provider
+    let void_req = TaxVoidRequest {
+        tenant_id: app_id.to_string(),
+        invoice_id: invoice_id.to_string(),
+        provider_commit_ref: provider_commit_ref.clone(),
+        void_reason: void_reason.to_string(),
+        correlation_id: correlation_id.to_string(),
+    };
+    let void_resp = provider.void_tax(void_req).await?;
+
+    // 4. Update status to voided (with WHERE status = 'committed' for safety)
+    let rows_affected = sqlx::query(
+        r#"UPDATE ar_tax_commits
+           SET status = 'voided', voided_at = $1, void_reason = $2, updated_at = NOW()
+           WHERE app_id = $3 AND invoice_id = $4 AND status = 'committed'"#,
+    )
+    .bind(void_resp.voided_at)
+    .bind(void_reason)
+    .bind(app_id)
+    .bind(invoice_id)
+    .execute(pool)
+    .await?
+    .rows_affected();
+
+    if rows_affected == 0 {
+        // Another process voided between our SELECT and UPDATE
+        return Ok(TaxVoidResult {
+            provider_commit_ref,
+            total_tax_minor,
+            was_already_voided: true,
+        });
+    }
+
+    // 5. Emit tax.voided event
+    let event_payload = crate::events::contracts::TaxVoidedPayload {
+        tenant_id: app_id.to_string(),
+        invoice_id: invoice_id.to_string(),
+        customer_id: customer_id.clone(),
+        total_tax_minor,
+        currency: "usd".to_string(),
+        provider_commit_ref: provider_commit_ref.clone(),
+        provider: "local".to_string(),
+        void_reason: void_reason.to_string(),
+        voided_at: void_resp.voided_at,
+    };
+
+    let envelope = crate::events::contracts::build_tax_voided_envelope(
+        Uuid::new_v4(),
+        app_id.to_string(),
+        correlation_id.to_string(),
+        None,
+        event_payload,
+    );
+
+    #[allow(deprecated)]
+    crate::events::outbox::enqueue_event(
+        pool,
+        crate::events::contracts::EVENT_TYPE_TAX_VOIDED,
+        "invoice",
+        invoice_id,
+        &envelope,
+    )
+    .await
+    .map_err(|e| TaxCommitError::DatabaseError(format!("outbox enqueue failed: {}", e)))?;
+
+    info!(
+        app_id = app_id,
+        invoice_id = invoice_id,
+        provider_commit_ref = provider_commit_ref.as_str(),
+        void_reason = void_reason,
+        "Tax voided for invoice"
+    );
+
+    Ok(TaxVoidResult {
+        provider_commit_ref,
+        total_tax_minor,
+        was_already_voided: false,
     })
 }
 
