@@ -15,6 +15,7 @@ use gl_rs::{
     routes::period_close::{close_period_handler, get_close_status, validate_close},
     routes::period_summary::get_period_summary,
     routes::trial_balance::get_trial_balance,
+    consumer::gl_writeoff_consumer::start_gl_writeoff_consumer,
     start_gl_posting_consumer,
     start_gl_reversal_consumer,
     AppState,
@@ -84,6 +85,11 @@ async fn main() {
     let reversal_pool = pool.clone();
     let reversal_bus = bus.clone();
     start_gl_reversal_consumer(reversal_bus, reversal_pool).await;
+
+    // Start GL write-off consumer
+    let writeoff_pool = pool.clone();
+    let writeoff_bus = bus.clone();
+    start_gl_writeoff_consumer(writeoff_bus, writeoff_pool).await;
 
     // Create metrics registry
     let metrics = Arc::new(
