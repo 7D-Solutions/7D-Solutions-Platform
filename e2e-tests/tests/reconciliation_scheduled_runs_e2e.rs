@@ -43,7 +43,7 @@ async fn run_migrations(pool: &sqlx::PgPool) {
     let recon_sql = include_str!("../../modules/ar/db/migrations/20260217000006_create_recon_matching.sql");
     let _ = sqlx::raw_sql(recon_sql).execute(pool).await;
 
-    let sched_sql = include_str!("../../modules/ar/db/migrations/20260217000008_create_recon_scheduled_runs.sql");
+    let sched_sql = include_str!("../../modules/ar/db/migrations/20260217000009_create_recon_scheduled_runs.sql");
     let _ = sqlx::raw_sql(sched_sql).execute(pool).await;
 
     sqlx::query("SELECT pg_advisory_unlock($1)")
