@@ -15,7 +15,7 @@
 
 mod common;
 
-use chrono::{NaiveDate, Utc};
+use chrono::NaiveDate;
 use common::get_gl_pool;
 use gl_rs::consumer::gl_fx_realized_consumer::{
     process_fx_realized_posting, InvoiceSettledFxPayload,
