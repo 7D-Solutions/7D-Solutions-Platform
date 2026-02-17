@@ -17,7 +17,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::repos::revrec_repo::{self, RevrecRepoError};
-use crate::revrec::{ContractCreatedPayload, PerformanceObligation, RecognitionPattern};
+use crate::revrec::{ContractCreatedPayload, PerformanceObligation};
 use crate::AppState;
 
 // ============================================================================

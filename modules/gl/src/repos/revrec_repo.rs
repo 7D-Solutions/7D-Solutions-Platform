@@ -4,12 +4,12 @@
 //! Contract creation persists contract + obligations + outbox event in a single transaction.
 
 use chrono::NaiveDate;
-use sqlx::{PgPool, Postgres, Row, Transaction};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::repos::outbox_repo;
 use crate::revrec::{
-    ContractCreatedPayload, PerformanceObligation, RecognitionPattern,
+    ContractCreatedPayload,
     EVENT_TYPE_CONTRACT_CREATED, MUTATION_CLASS_DATA_MUTATION,
 };
 

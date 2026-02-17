@@ -10,8 +10,7 @@ mod common;
 
 use common::{generate_test_tenant, get_gl_pool};
 use chrono::Utc;
-use serde_json::json;
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use gl_rs::repos::revrec_repo;
