@@ -18,6 +18,7 @@
 //! ```
 
 mod fleet_migrate;
+mod lifecycle;
 mod provision;
 mod verify;
 
@@ -70,6 +71,18 @@ enum TenantOperation {
     /// Verify tenant health via module endpoints
     Verify {
         /// Tenant ID to verify
+        #[arg(long)]
+        tenant: String,
+    },
+    /// Suspend a tenant (disable access, retain data)
+    Suspend {
+        /// Tenant ID to suspend
+        #[arg(long)]
+        tenant: String,
+    },
+    /// Deprovision a tenant (soft delete, mark for cleanup)
+    Deprovision {
+        /// Tenant ID to deprovision
         #[arg(long)]
         tenant: String,
     },
@@ -135,6 +148,16 @@ async fn main() -> Result<()> {
                     eprintln!("\n❌ Tenant {} verification failed", result.tenant_id);
                     std::process::exit(1);
                 }
+            }
+            TenantOperation::Suspend { tenant } => {
+                lifecycle::suspend_tenant(&tenant).await?;
+                println!("\n✅ Tenant {} suspended!", tenant);
+                Ok(())
+            }
+            TenantOperation::Deprovision { tenant } => {
+                lifecycle::deprovision_tenant(&tenant).await?;
+                println!("\n✅ Tenant {} deprovisioned!", tenant);
+                Ok(())
             }
         },
         Commands::Fleet { operation } => match operation {
