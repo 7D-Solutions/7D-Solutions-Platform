@@ -832,6 +832,7 @@ dependencies = [
  "audit",
  "base64 0.22.1",
  "chrono",
+ "compliance-export",
  "event-bus",
  "futures",
  "gl-rs",

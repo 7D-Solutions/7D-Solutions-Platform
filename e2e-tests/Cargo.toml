@@ -84,6 +84,7 @@ audit = { path = "../platform/audit" }
 projections = { path = "../platform/projections" }
 tenant-registry = { path = "../platform/tenant-registry" }
 security = { path = "../platform/security" }
+compliance-export = { path = "../tools/compliance-export" }
 anyhow = "1.0"
 sha2 = "0.10"
 hmac = "0.12"
