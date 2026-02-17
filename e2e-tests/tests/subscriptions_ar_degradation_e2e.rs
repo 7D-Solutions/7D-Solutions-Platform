@@ -76,18 +76,29 @@ async fn test_ar_down_graceful_failure() -> Result<()> {
     let ar_customer_id = "ar_customer_123";
     let subscription_id = uuid::Uuid::new_v4();
 
+    // Create plan first (plan_id is UUID FK)
+    let plan_id: uuid::Uuid = sqlx::query_scalar(
+        "INSERT INTO subscription_plans (tenant_id, name, schedule, price_minor, currency) \
+         VALUES ($1, 'Monthly Plan', 'monthly', 5000, 'USD') RETURNING id"
+    )
+    .bind(tenant_id)
+    .fetch_one(&subscriptions_pool)
+    .await?;
+
     // Insert test subscription
+    let next_bill_date = (Utc::now() - Duration::days(1)).date_naive();
     sqlx::query(
         r#"
-        INSERT INTO subscriptions (id, tenant_id, ar_customer_id, plan_id, status, next_bill_date, created_at, updated_at)
-        VALUES ($1, $2, $3, 'plan-monthly', 'active', $4, NOW(), NOW())
+        INSERT INTO subscriptions (id, tenant_id, ar_customer_id, plan_id, status, schedule, price_minor, currency, start_date, next_bill_date)
+        VALUES ($1, $2, $3, $4, 'active', 'monthly', 5000, 'USD', CURRENT_DATE - INTERVAL '30 days', $5)
         ON CONFLICT (id) DO NOTHING
         "#,
     )
     .bind(subscription_id)
     .bind(tenant_id)
     .bind(ar_customer_id)
-    .bind(Utc::now().naive_utc() - Duration::days(1)) // Due yesterday
+    .bind(plan_id)
+    .bind(next_bill_date)
     .execute(&subscriptions_pool)
     .await?;
 

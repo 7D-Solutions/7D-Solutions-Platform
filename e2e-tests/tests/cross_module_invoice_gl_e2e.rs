@@ -203,8 +203,8 @@ async fn test_gl_balance_validation() {
     // Assert: Manual balance check
     let (total_debits, total_credits): (i64, i64) = sqlx::query_as(
         "SELECT
-            COALESCE(SUM(debit_minor), 0) as total_debits,
-            COALESCE(SUM(credit_minor), 0) as total_credits
+            COALESCE(SUM(debit_minor), 0)::BIGINT as total_debits,
+            COALESCE(SUM(credit_minor), 0)::BIGINT as total_credits
          FROM journal_lines
          WHERE journal_entry_id = $1"
     )

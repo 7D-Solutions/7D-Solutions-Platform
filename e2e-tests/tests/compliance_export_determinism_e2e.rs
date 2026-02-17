@@ -58,7 +58,7 @@ async fn setup_test_data(
         r#"
         INSERT INTO payment_attempts (
             app_id, payment_id, invoice_id, attempt_no, status, attempted_at
-        ) VALUES ($1, $2, $3, $4, $5, NOW())
+        ) VALUES ($1, $2, $3, $4, $5::payment_attempt_status, NOW())
         "#,
     )
     .bind(tenant_id)

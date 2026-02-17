@@ -268,7 +268,7 @@ async fn test_envelope_nats_roundtrip_multiple_events_distinct_metadata() -> Res
 
     // Step 2: Create 3 events with distinct metadata
     let trace_ids: Vec<String> = (1..=3).map(|i| format!("trace-multi-{}", i)).collect();
-    let mutation_classes = vec!["DATA_MUTATION", "SIDE_EFFECT", "IDEMPOTENT"];
+    let mutation_classes = vec!["DATA_MUTATION", "SIDE_EFFECT", "LIFECYCLE"];
 
     for i in 0..3_usize {
         let envelope = EventEnvelope::new(
