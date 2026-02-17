@@ -12,6 +12,7 @@ members = [
   "modules/gl",
   "tools/contract-tests",
   "tools/simulation",
+  "tools/tenantctl",
   "e2e-tests"
 ]
 
