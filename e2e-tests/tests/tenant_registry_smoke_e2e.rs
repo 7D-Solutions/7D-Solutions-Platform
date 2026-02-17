@@ -6,24 +6,15 @@
 /// 3. Enforces deterministic provisioning sequence
 /// 4. Supports multi-tenant isolation
 
+mod common;
+
 use chrono::Utc;
+use common::get_tenant_registry_pool;
 use serial_test::serial;
 use sqlx::PgPool;
 use std::collections::HashMap;
 use tenant_registry::standard_provisioning_sequence;
 use uuid::Uuid;
-
-/// Helper to set up the tenant registry database pool
-async fn get_tenant_registry_pool() -> PgPool {
-    // Use a dedicated database URL for tenant registry or fall back to default
-    let database_url = std::env::var("TENANT_REGISTRY_DATABASE_URL")
-        .or_else(|_| std::env::var("DATABASE_URL"))
-        .expect("TENANT_REGISTRY_DATABASE_URL or DATABASE_URL must be set");
-
-    PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect to tenant registry database")
-}
 
 /// Helper to run migrations on the tenant registry database
 async fn run_tenant_registry_migrations(pool: &PgPool) {

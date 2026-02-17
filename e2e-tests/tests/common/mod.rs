@@ -60,6 +60,43 @@ pub async fn wait_for_db_ready(name: &str, url: &str) -> PgPool {
     }
 }
 
+// ============================================================================
+// DB URL helpers (with defaults) — use these instead of env::var().expect()
+// so tests don't panic when optional env vars are absent.
+// ============================================================================
+
+/// Resolve AR database URL with local-dev default.
+pub fn get_ar_db_url() -> String {
+    std::env::var("AR_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://ar_user:ar_pass@localhost:5434/ar_db".to_string())
+}
+
+/// Resolve Payments database URL with local-dev default.
+pub fn get_payments_db_url() -> String {
+    std::env::var("PAYMENTS_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string())
+}
+
+/// Resolve GL database URL with local-dev default.
+pub fn get_gl_db_url() -> String {
+    std::env::var("GL_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://gl_user:gl_pass@localhost:5438/gl_db".to_string())
+}
+
+/// Resolve Audit database URL (accepts AUDIT_DATABASE_URL or PLATFORM_AUDIT_DATABASE_URL).
+pub fn get_audit_db_url() -> String {
+    std::env::var("AUDIT_DATABASE_URL")
+        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
+        .unwrap_or_else(|_| "postgresql://audit_user:audit_pass@localhost:5440/audit_db".to_string())
+}
+
+/// Resolve Tenant Registry database URL with local-dev default.
+pub fn get_tenant_registry_db_url() -> String {
+    std::env::var("TENANT_REGISTRY_DATABASE_URL")
+        .or_else(|_| std::env::var("DATABASE_URL"))
+        .unwrap_or_else(|_| "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db".to_string())
+}
+
 /// Get AR database pool
 pub async fn get_ar_pool() -> PgPool {
     let url = std::env::var("AR_DATABASE_URL")

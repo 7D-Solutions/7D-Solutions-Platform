@@ -7,23 +7,15 @@
 /// 4. Metrics reflect stale projections correctly
 /// 5. Metrics are exposed via module /metrics endpoints
 
+mod common;
+
 use chrono::{Duration, Utc};
+use common::get_projections_pool;
 use projections::cursor::ProjectionCursor;
 use projections::metrics::ProjectionMetrics;
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
-
-/// Helper to set up the projections database pool
-async fn get_projections_pool() -> PgPool {
-    let database_url = std::env::var("PROJECTIONS_DATABASE_URL")
-        .or_else(|_| std::env::var("DATABASE_URL"))
-        .expect("PROJECTIONS_DATABASE_URL or DATABASE_URL must be set");
-
-    PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect to projections database")
-}
 
 /// Helper to run migrations on the projections database
 async fn run_projections_migrations(pool: &PgPool) {

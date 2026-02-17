@@ -5,6 +5,9 @@
 //! - Exports are tenant-scoped (no data leakage)
 //! - Manifest includes correct checksums and counts
 
+mod common;
+
+use common::{get_ar_db_url, get_audit_db_url, get_gl_db_url, get_payments_db_url};
 use compliance_export::export_compliance_data;
 use serde_json::Value;
 use sqlx::PgPool;
@@ -159,18 +162,13 @@ async fn cleanup_test_data(
 
 #[tokio::test]
 async fn test_compliance_export_determinism() {
-    // Setup: Connect to databases
-    let ar_url = std::env::var("AR_DATABASE_URL")
-        .expect("AR_DATABASE_URL not set");
-    let payments_url = std::env::var("PAYMENTS_DATABASE_URL")
-        .expect("PAYMENTS_DATABASE_URL not set");
-    let gl_url = std::env::var("GL_DATABASE_URL")
-        .expect("GL_DATABASE_URL not set");
-    let audit_url = std::env::var("AUDIT_DATABASE_URL")
-        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
-        .expect("AUDIT_DATABASE_URL or PLATFORM_AUDIT_DATABASE_URL must be set");
+    // Resolve DB URLs with local-dev defaults (no panic if env vars absent).
+    let ar_url = get_ar_db_url();
+    let payments_url = get_payments_db_url();
+    let gl_url = get_gl_db_url();
+    let audit_url = get_audit_db_url();
 
-    // Set environment variables for the export function
+    // Propagate resolved URLs so export_compliance_data() can read them.
     std::env::set_var("AR_DATABASE_URL", &ar_url);
     std::env::set_var("PAYMENTS_DATABASE_URL", &payments_url);
     std::env::set_var("GL_DATABASE_URL", &gl_url);
@@ -295,18 +293,13 @@ async fn test_compliance_export_determinism() {
 
 #[tokio::test]
 async fn test_compliance_export_tenant_isolation() {
-    // Setup: Connect to databases
-    let ar_url = std::env::var("AR_DATABASE_URL")
-        .expect("AR_DATABASE_URL not set");
-    let payments_url = std::env::var("PAYMENTS_DATABASE_URL")
-        .expect("PAYMENTS_DATABASE_URL not set");
-    let gl_url = std::env::var("GL_DATABASE_URL")
-        .expect("GL_DATABASE_URL not set");
-    let audit_url = std::env::var("AUDIT_DATABASE_URL")
-        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
-        .expect("AUDIT_DATABASE_URL or PLATFORM_AUDIT_DATABASE_URL must be set");
+    // Resolve DB URLs with local-dev defaults (no panic if env vars absent).
+    let ar_url = get_ar_db_url();
+    let payments_url = get_payments_db_url();
+    let gl_url = get_gl_db_url();
+    let audit_url = get_audit_db_url();
 
-    // Set environment variables for the export function
+    // Propagate resolved URLs so export_compliance_data() can read them.
     std::env::set_var("AR_DATABASE_URL", &ar_url);
     std::env::set_var("PAYMENTS_DATABASE_URL", &payments_url);
     std::env::set_var("GL_DATABASE_URL", &gl_url);

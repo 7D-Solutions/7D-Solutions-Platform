@@ -7,23 +7,14 @@
 /// 4. Returns correct apply status (true = applied, false = already processed)
 /// 5. Supports deterministic rebuild capability
 
+mod common;
+
 use chrono::Utc;
+use common::get_projections_pool;
 use projections::cursor::{try_apply_event, CursorError, ProjectionCursor};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
-
-/// Helper to set up the projections database pool
-async fn get_projections_pool() -> PgPool {
-    // Use a dedicated database URL for projections or fall back to default
-    let database_url = std::env::var("PROJECTIONS_DATABASE_URL")
-        .or_else(|_| std::env::var("DATABASE_URL"))
-        .expect("PROJECTIONS_DATABASE_URL or DATABASE_URL must be set");
-
-    PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect to projections database")
-}
 
 /// Helper to run migrations on the projections database
 async fn run_projections_migrations(pool: &PgPool) {

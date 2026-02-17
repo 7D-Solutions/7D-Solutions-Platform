@@ -5,6 +5,9 @@
 //! - Deprovision soft-deletes and records audit entries
 //! - State transitions are enforced correctly
 
+mod common;
+
+use common::{get_audit_db_url, get_tenant_registry_db_url};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -75,12 +78,8 @@ async fn cleanup_audit_events(audit_pool: &PgPool, tenant_id: Uuid) {
 
 #[tokio::test]
 async fn test_suspend_active_tenant_succeeds() {
-    // Setup
-    let registry_url = std::env::var("TENANT_REGISTRY_DATABASE_URL")
-        .expect("TENANT_REGISTRY_DATABASE_URL not set");
-    let audit_url = std::env::var("AUDIT_DATABASE_URL")
-        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
-        .expect("AUDIT_DATABASE_URL or PLATFORM_AUDIT_DATABASE_URL must be set");
+    let registry_url = get_tenant_registry_db_url();
+    let audit_url = get_audit_db_url();
 
     let registry_pool = PgPool::connect(&registry_url)
         .await
@@ -158,12 +157,8 @@ async fn test_suspend_active_tenant_succeeds() {
 
 #[tokio::test]
 async fn test_deprovision_active_tenant_succeeds() {
-    // Setup
-    let registry_url = std::env::var("TENANT_REGISTRY_DATABASE_URL")
-        .expect("TENANT_REGISTRY_DATABASE_URL not set");
-    let audit_url = std::env::var("AUDIT_DATABASE_URL")
-        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
-        .expect("AUDIT_DATABASE_URL or PLATFORM_AUDIT_DATABASE_URL must be set");
+    let registry_url = get_tenant_registry_db_url();
+    let audit_url = get_audit_db_url();
 
     let registry_pool = PgPool::connect(&registry_url)
         .await
@@ -241,12 +236,8 @@ async fn test_deprovision_active_tenant_succeeds() {
 
 #[tokio::test]
 async fn test_deprovision_suspended_tenant_succeeds() {
-    // Setup
-    let registry_url = std::env::var("TENANT_REGISTRY_DATABASE_URL")
-        .expect("TENANT_REGISTRY_DATABASE_URL not set");
-    let audit_url = std::env::var("AUDIT_DATABASE_URL")
-        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
-        .expect("AUDIT_DATABASE_URL or PLATFORM_AUDIT_DATABASE_URL must be set");
+    let registry_url = get_tenant_registry_db_url();
+    let audit_url = get_audit_db_url();
 
     let registry_pool = PgPool::connect(&registry_url)
         .await
@@ -327,8 +318,7 @@ async fn test_lifecycle_registry_reflects_status_accurately() {
     // This test verifies that the tenant registry accurately reflects
     // the lifecycle status after each operation
 
-    let registry_url = std::env::var("TENANT_REGISTRY_DATABASE_URL")
-        .expect("TENANT_REGISTRY_DATABASE_URL not set");
+    let registry_url = get_tenant_registry_db_url();
 
     let registry_pool = PgPool::connect(&registry_url)
         .await

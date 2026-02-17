@@ -7,7 +7,10 @@
 /// 4. Blue/green swap is atomic from reader perspective
 /// 5. Two rebuilds with same event stream produce identical digests
 
+mod common;
+
 use chrono::Utc;
+use common::get_projections_pool;
 use projections::{
     compute_digest, create_shadow_cursor_table, create_shadow_table, drop_shadow_table,
     save_shadow_cursor, swap_cursor_tables_atomic, swap_tables_atomic,
@@ -15,17 +18,6 @@ use projections::{
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
-
-/// Helper to set up the projections database pool
-async fn get_projections_pool() -> PgPool {
-    let database_url = std::env::var("PROJECTIONS_DATABASE_URL")
-        .or_else(|_| std::env::var("DATABASE_URL"))
-        .expect("PROJECTIONS_DATABASE_URL or DATABASE_URL must be set");
-
-    PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect to projections database")
-}
 
 /// Helper to run base migrations (projection_cursors)
 async fn run_base_migrations(pool: &PgPool) {
