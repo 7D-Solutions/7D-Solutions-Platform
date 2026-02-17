@@ -404,7 +404,29 @@ pub async fn cleanup_tenant_data(
         .await
         .map_err(|e| format!("Failed to cleanup subscription attempts: {}", e))?;
 
+    // AR customers (after invoices due to FK RESTRICT)
+    sqlx::query("DELETE FROM ar_customers WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(ar_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup AR customers: {}", e))?;
+
     Ok(())
+}
+
+/// Create a test AR customer and return its integer SERIAL id
+pub async fn create_ar_customer(pool: &PgPool, app_id: &str) -> i32 {
+    sqlx::query_scalar::<_, i32>(
+        "INSERT INTO ar_customers (app_id, email, name, status, retry_attempt_count, created_at, updated_at)
+         VALUES ($1, $2, $3, 'active', 0, NOW(), NOW())
+         RETURNING id"
+    )
+    .bind(app_id)
+    .bind(format!("customer-{}@test.com", Uuid::new_v4()))
+    .bind(format!("Test Customer {}", app_id))
+    .fetch_one(pool)
+    .await
+    .expect("Failed to create test AR customer")
 }
 
 /// Generate unique test tenant ID

@@ -23,17 +23,18 @@ use uuid::Uuid;
 async fn setup_test_invoice(
     ar_pool: &PgPool,
     app_id: &str,
-    customer_id: &str,
+    customer_id: i32,
     due_date: NaiveDate,
 ) -> i32 {
     sqlx::query_scalar::<_, i32>(
-        "INSERT INTO ar_invoices (app_id, ar_customer_id, status, amount_cents, currency, due_at)
-         VALUES ($1, $2, 'open', 10000, 'USD', $3)
+        "INSERT INTO ar_invoices (app_id, ar_customer_id, status, amount_cents, currency, due_at, tilled_invoice_id)
+         VALUES ($1, $2, 'open', 10000, 'USD', $3, $4)
          RETURNING id"
     )
     .bind(app_id)
     .bind(customer_id)
     .bind(due_date)
+    .bind(format!("inv-{}", Uuid::new_v4()))
     .fetch_one(ar_pool)
     .await
     .expect("Failed to create test invoice")
@@ -72,7 +73,7 @@ async fn test_no_duplicate_payment_attempts() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let app_id = &common::generate_test_tenant();
-    let customer_id = "cust-123";
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
 
     // Setup: Create invoice
@@ -160,7 +161,7 @@ async fn test_retry_window_discipline() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let app_id = &common::generate_test_tenant();
-    let customer_id = "cust-retry";
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
 
     // Setup: Create invoice with due date
@@ -264,7 +265,7 @@ async fn test_failed_retry_allows_next_attempt() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let app_id = &common::generate_test_tenant();
-    let customer_id = "cust-state";
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
 
     // Setup: Create invoice
@@ -354,7 +355,7 @@ async fn test_succeeded_is_terminal() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let app_id = &common::generate_test_tenant();
-    let customer_id = "cust-terminal";
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
 
     // Setup: Create invoice
@@ -438,7 +439,7 @@ async fn test_payment_invariants_enforcement() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let app_id = &common::generate_test_tenant();
-    let customer_id = "cust-invariant";
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
 
     // Setup: Create invoice

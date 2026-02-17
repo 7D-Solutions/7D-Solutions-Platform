@@ -23,7 +23,7 @@ use uuid::Uuid;
 async fn setup_test_invoice(
     ar_pool: &PgPool,
     app_id: &str,
-    customer_id: &str,
+    customer_id: i32,
     due_date: NaiveDate,
 ) -> i32 {
     sqlx::query_scalar::<_, i32>(
@@ -114,7 +114,7 @@ async fn test_payment_succeeded_updates_invoice_paid() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let app_id = &common::generate_test_tenant();
-    let customer_id = "cust-paid";
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
 
     // Setup: Create invoice with status=open
@@ -176,7 +176,7 @@ async fn test_payment_failed_final_keeps_invoice_open() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let app_id = &common::generate_test_tenant();
-    let customer_id = "cust-failed";
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
 
     // Setup: Create invoice with status=open
@@ -245,7 +245,7 @@ async fn test_webhook_idempotency_prevents_duplicate_updates() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let app_id = &common::generate_test_tenant();
-    let customer_id = "cust-webhook";
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
     let webhook_event_id = Uuid::new_v4();
 
@@ -324,7 +324,7 @@ async fn test_status_propagation_ordering() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let app_id = &common::generate_test_tenant();
-    let customer_id = "cust-ordering";
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
 
     // Setup: Create invoice with status=open
@@ -402,7 +402,7 @@ async fn test_no_update_during_attempting_status() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let app_id = &common::generate_test_tenant();
-    let customer_id = "cust-attempting";
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
 
     // Setup: Create invoice with status=open

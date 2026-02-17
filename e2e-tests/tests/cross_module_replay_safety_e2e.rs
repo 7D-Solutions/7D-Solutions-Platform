@@ -60,7 +60,7 @@ async fn create_subscription_invoice_attempt(
 async fn setup_invoice(
     ar_pool: &PgPool,
     app_id: &str,
-    customer_id: &str,
+    customer_id: i32,
     status: &str,
 ) -> i32 {
     sqlx::query_scalar::<_, i32>(
@@ -209,10 +209,11 @@ async fn test_payment_attempt_replay_deduplication() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let app_id = &common::generate_test_tenant();
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
 
     // Setup: Create invoice
-    let invoice_id = setup_invoice(&ar_pool, app_id, "cust-replay", "open").await;
+    let invoice_id = setup_invoice(&ar_pool, app_id, customer_id, "open").await;
 
     // Execute: First payment attempt (should succeed)
     let attempt1_result = create_payment_attempt(
@@ -347,7 +348,8 @@ async fn test_full_flow_replay_produces_identical_results() {
     assert!(sub_attempt1.is_ok(), "Subscription attempt 1 should succeed");
 
     // Create invoice (simulating invoice generation from subscription event)
-    let invoice_id = setup_invoice(&ar_pool, tenant_id, "cust-full-flow", "open").await;
+    let full_flow_customer_id = common::create_ar_customer(&ar_pool, tenant_id).await;
+    let invoice_id = setup_invoice(&ar_pool, tenant_id, full_flow_customer_id, "open").await;
 
     // **Step 2: Invoice → Payment (First Run)**
     let payment_attempt1 = create_payment_attempt(
@@ -454,10 +456,11 @@ async fn test_multiple_replays_remain_deterministic() {
     let payments_pool = common::get_payments_pool().await;
     let ar_pool = common::get_ar_pool().await;
     let app_id = &common::generate_test_tenant();
+    let customer_id = common::create_ar_customer(&ar_pool, app_id).await;
     let payment_id = Uuid::new_v4();
 
     // Setup: Create invoice
-    let invoice_id = setup_invoice(&ar_pool, app_id, "cust-multi-replay", "open").await;
+    let invoice_id = setup_invoice(&ar_pool, app_id, customer_id, "open").await;
 
     // Execute: First attempt (should succeed)
     let first_result = create_payment_attempt(
