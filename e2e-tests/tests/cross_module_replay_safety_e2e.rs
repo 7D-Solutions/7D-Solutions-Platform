@@ -23,13 +23,25 @@ use uuid::Uuid;
 async fn setup_subscription(
     subscriptions_pool: &PgPool,
     tenant_id: &str,
-) -> i32 {
-    sqlx::query_scalar::<_, i32>(
-        "INSERT INTO subscriptions (tenant_id, customer_id, status, plan_id, billing_cycle_day, next_billing_date)
-         VALUES ($1, 'cust-replay', 'active', 'plan-basic', 1, '2026-03-01')
+) -> Uuid {
+    // Create a subscription plan first (plan_id is UUID FK)
+    let plan_id = sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO subscription_plans (tenant_id, name, schedule, price_minor, currency)
+         VALUES ($1, 'Test Plan', 'monthly', 1000, 'USD')
          RETURNING id"
     )
     .bind(tenant_id)
+    .fetch_one(subscriptions_pool)
+    .await
+    .expect("Failed to create test subscription plan");
+
+    sqlx::query_scalar::<_, Uuid>(
+        "INSERT INTO subscriptions (tenant_id, ar_customer_id, plan_id, status, schedule, price_minor, currency, start_date, next_bill_date)
+         VALUES ($1, 'cust-replay', $2, 'active', 'monthly', 1000, 'USD', '2026-01-01', '2026-03-01')
+         RETURNING id"
+    )
+    .bind(tenant_id)
+    .bind(plan_id)
     .fetch_one(subscriptions_pool)
     .await
     .expect("Failed to create subscription")
@@ -38,20 +50,18 @@ async fn setup_subscription(
 async fn create_subscription_invoice_attempt(
     subscriptions_pool: &PgPool,
     tenant_id: &str,
-    subscription_id: i32,
+    subscription_id: Uuid,
     cycle_key: &str,
-    attempt_no: i32,
     status: &str,
 ) -> Result<Uuid, sqlx::Error> {
     sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO subscription_invoice_attempts (tenant_id, subscription_id, cycle_key, attempt_no, status)
-         VALUES ($1, $2, $3, $4, $5::subscription_invoice_attempt_status)
+        "INSERT INTO subscription_invoice_attempts (tenant_id, subscription_id, cycle_key, cycle_start, cycle_end, status)
+         VALUES ($1, $2, $3, '2026-02-01', '2026-02-28', $4::subscription_invoice_attempt_status)
          RETURNING id"
     )
     .bind(tenant_id)
     .bind(subscription_id)
     .bind(cycle_key)
-    .bind(attempt_no)
     .bind(status)
     .fetch_one(subscriptions_pool)
     .await
@@ -138,7 +148,6 @@ async fn test_subscription_cycle_replay_deduplication() {
         tenant_id,
         subscription_id,
         cycle_key,
-        0,
         "succeeded",
     )
     .await;
@@ -151,7 +160,6 @@ async fn test_subscription_cycle_replay_deduplication() {
         tenant_id,
         subscription_id,
         cycle_key,
-        0,
         "succeeded",
     )
     .await;
@@ -341,7 +349,6 @@ async fn test_full_flow_replay_produces_identical_results() {
         tenant_id,
         subscription_id,
         cycle_key,
-        0,
         "succeeded",
     )
     .await;
@@ -373,7 +380,6 @@ async fn test_full_flow_replay_produces_identical_results() {
         tenant_id,
         subscription_id,
         cycle_key,
-        0,
         "succeeded",
     )
     .await;

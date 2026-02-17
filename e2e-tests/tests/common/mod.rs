@@ -404,6 +404,20 @@ pub async fn cleanup_tenant_data(
         .await
         .map_err(|e| format!("Failed to cleanup subscription attempts: {}", e))?;
 
+    // Subscriptions (after attempts due to FK RESTRICT)
+    sqlx::query("DELETE FROM subscriptions WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(subscriptions_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup subscriptions: {}", e))?;
+
+    // Subscription plans (after subscriptions due to FK)
+    sqlx::query("DELETE FROM subscription_plans WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(subscriptions_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup subscription plans: {}", e))?;
+
     // AR customers (after invoices due to FK RESTRICT)
     sqlx::query("DELETE FROM ar_customers WHERE app_id = $1")
         .bind(tenant_id)
