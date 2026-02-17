@@ -27,6 +27,10 @@ pub use contracts::{
     build_dunning_state_changed_envelope, build_invoice_suspended_envelope,
     build_payment_allocated_envelope, build_recon_exception_raised_envelope,
     build_recon_match_applied_envelope, build_recon_run_started_envelope,
+    // Phase 23b tax event types
+    TaxLineDetail, TaxQuotedPayload, TaxCommittedPayload, TaxVoidedPayload,
+    EVENT_TYPE_TAX_QUOTED, EVENT_TYPE_TAX_COMMITTED, EVENT_TYPE_TAX_VOIDED,
+    build_tax_quoted_envelope, build_tax_committed_envelope, build_tax_voided_envelope,
 };
 pub use envelope::EventEnvelope;
 pub use outbox::enqueue_event;

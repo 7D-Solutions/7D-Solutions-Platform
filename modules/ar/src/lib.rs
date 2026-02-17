@@ -15,6 +15,7 @@ pub mod middleware;
 pub mod models;
 pub mod retry;
 pub mod routes;
+pub mod tax;
 pub mod tilled;
 pub mod usage_billing;
 pub mod write_offs;

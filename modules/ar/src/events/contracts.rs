@@ -647,6 +647,170 @@ pub fn build_payment_allocated_envelope(
 }
 
 // ============================================================================
+// Phase 23b Tax Event Type Constants
+// ============================================================================
+
+/// Tax was calculated for an invoice draft (pre-commit, reversible)
+pub const EVENT_TYPE_TAX_QUOTED: &str = "tax.quoted";
+
+/// Tax was committed when invoice was finalized (legally due)
+pub const EVENT_TYPE_TAX_COMMITTED: &str = "tax.committed";
+
+/// A committed tax transaction was voided (refund, write-off, or cancellation)
+pub const EVENT_TYPE_TAX_VOIDED: &str = "tax.voided";
+
+// ============================================================================
+// Payload: tax.quoted
+// ============================================================================
+
+/// Per-line tax detail included in tax.quoted payload
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaxLineDetail {
+    pub line_id: String,
+    /// Tax amount for this line in minor currency units
+    pub tax_minor: i64,
+    /// Effective rate (0.0–1.0)
+    pub rate: f64,
+    pub jurisdiction: String,
+    pub tax_type: String,
+}
+
+/// Payload for tax.quoted
+///
+/// Emitted after a successful tax quote for an invoice draft.
+/// The provider_quote_ref may be used to commit or void.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaxQuotedPayload {
+    pub tenant_id: String,
+    pub invoice_id: String,
+    pub customer_id: String,
+    /// Total tax across all lines in minor currency units
+    pub total_tax_minor: i64,
+    pub currency: String,
+    /// Per-line tax breakdown (for auditability)
+    pub tax_by_line: Vec<TaxLineDetail>,
+    /// Provider-assigned quote reference (used to commit/void)
+    pub provider_quote_ref: String,
+    /// Tax provider used (e.g. "avalara", "taxjar", "local")
+    pub provider: String,
+    pub quoted_at: DateTime<Utc>,
+}
+
+/// Build an envelope for tax.quoted
+///
+/// mutation_class: DATA_MUTATION (creates a tax quote record)
+pub fn build_tax_quoted_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: TaxQuotedPayload,
+) -> EventEnvelope<TaxQuotedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_TAX_QUOTED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: tax.committed
+// ============================================================================
+
+/// Payload for tax.committed
+///
+/// Emitted when a tax transaction is committed at invoice finalization.
+/// From this point, the tax liability is legally recorded with the provider.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaxCommittedPayload {
+    pub tenant_id: String,
+    pub invoice_id: String,
+    pub customer_id: String,
+    /// Total committed tax in minor currency units
+    pub total_tax_minor: i64,
+    pub currency: String,
+    /// Quote reference that was committed
+    pub provider_quote_ref: String,
+    /// Provider-assigned reference for the committed transaction
+    pub provider_commit_ref: String,
+    pub provider: String,
+    pub committed_at: DateTime<Utc>,
+}
+
+/// Build an envelope for tax.committed
+///
+/// mutation_class: DATA_MUTATION (records committed tax liability)
+pub fn build_tax_committed_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: TaxCommittedPayload,
+) -> EventEnvelope<TaxCommittedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_TAX_COMMITTED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: tax.voided
+// ============================================================================
+
+/// Payload for tax.voided
+///
+/// Emitted when a committed tax transaction is voided.
+/// Triggers reversal of tax liability (refund, write-off, cancellation).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaxVoidedPayload {
+    pub tenant_id: String,
+    pub invoice_id: String,
+    pub customer_id: String,
+    /// Total voided tax in minor currency units
+    pub total_tax_minor: i64,
+    pub currency: String,
+    /// Commit reference that was voided
+    pub provider_commit_ref: String,
+    pub provider: String,
+    /// Reason for void (e.g. "invoice_cancelled", "write_off", "full_refund")
+    pub void_reason: String,
+    pub voided_at: DateTime<Utc>,
+}
+
+/// Build an envelope for tax.voided
+///
+/// mutation_class: REVERSAL (compensates for the committed tax liability)
+pub fn build_tax_voided_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: TaxVoidedPayload,
+) -> EventEnvelope<TaxVoidedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_TAX_VOIDED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_REVERSAL.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -1072,5 +1236,124 @@ mod tests {
         assert!(json.contains("allocation_strategy"));
         assert!(json.contains("allocations"));
         assert!(json.contains("remaining_after_minor"));
+    }
+
+    // ============================================================================
+    // Phase 23b tax event tests
+    // ============================================================================
+
+    #[test]
+    fn tax_quoted_envelope_has_data_mutation_class() {
+        let payload = TaxQuotedPayload {
+            tenant_id: "tenant-1".to_string(),
+            invoice_id: "inv-1".to_string(),
+            customer_id: "cust-1".to_string(),
+            total_tax_minor: 850,
+            currency: "usd".to_string(),
+            tax_by_line: vec![TaxLineDetail {
+                line_id: "line-1".to_string(),
+                tax_minor: 850,
+                rate: 0.085,
+                jurisdiction: "California".to_string(),
+                tax_type: "sales_tax".to_string(),
+            }],
+            provider_quote_ref: "quote-abc".to_string(),
+            provider: "local".to_string(),
+            quoted_at: Utc::now(),
+        };
+        let envelope = build_tax_quoted_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            None,
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_TAX_QUOTED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+        assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
+        assert_eq!(envelope.source_module, "ar");
+    }
+
+    #[test]
+    fn tax_committed_envelope_has_data_mutation_class() {
+        let payload = TaxCommittedPayload {
+            tenant_id: "tenant-1".to_string(),
+            invoice_id: "inv-1".to_string(),
+            customer_id: "cust-1".to_string(),
+            total_tax_minor: 850,
+            currency: "usd".to_string(),
+            provider_quote_ref: "quote-abc".to_string(),
+            provider_commit_ref: "commit-xyz".to_string(),
+            provider: "local".to_string(),
+            committed_at: Utc::now(),
+        };
+        let envelope = build_tax_committed_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            Some("cause-finalize".to_string()),
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_TAX_COMMITTED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+        assert_eq!(envelope.causation_id.as_deref(), Some("cause-finalize"));
+        assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn tax_voided_envelope_has_reversal_class() {
+        let payload = TaxVoidedPayload {
+            tenant_id: "tenant-1".to_string(),
+            invoice_id: "inv-1".to_string(),
+            customer_id: "cust-1".to_string(),
+            total_tax_minor: 850,
+            currency: "usd".to_string(),
+            provider_commit_ref: "commit-xyz".to_string(),
+            provider: "local".to_string(),
+            void_reason: "invoice_cancelled".to_string(),
+            voided_at: Utc::now(),
+        };
+        let envelope = build_tax_voided_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            None,
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_TAX_VOIDED);
+        // Void is a REVERSAL of committed tax
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_REVERSAL)
+        );
+        assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn tax_event_type_constants_use_tax_prefix() {
+        assert!(EVENT_TYPE_TAX_QUOTED.starts_with("tax."));
+        assert!(EVENT_TYPE_TAX_COMMITTED.starts_with("tax."));
+        assert!(EVENT_TYPE_TAX_VOIDED.starts_with("tax."));
+    }
+
+    #[test]
+    fn tax_line_detail_serializes_correctly() {
+        let detail = TaxLineDetail {
+            line_id: "line-1".to_string(),
+            tax_minor: 500,
+            rate: 0.05,
+            jurisdiction: "New York".to_string(),
+            tax_type: "sales_tax".to_string(),
+        };
+        let json = serde_json::to_string(&detail).unwrap();
+        assert!(json.contains("tax_minor"));
+        assert!(json.contains("jurisdiction"));
+        assert!(json.contains("New York"));
     }
 }
