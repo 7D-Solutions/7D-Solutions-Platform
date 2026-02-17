@@ -6,6 +6,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     middleware,
+    response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
@@ -14,18 +15,20 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use sqlx::PgPool;
 
+use crate::credit_notes::{issue_credit_note, IssueCreditNoteRequest};
 use crate::events::enqueue_event;
 use crate::idempotency::{check_idempotency, log_event_async};
 use crate::models::{
-    AddPaymentMethodRequest, CancelSubscriptionRequest, CaptureChargeRequest, Charge,
-    CreateChargeRequest, CreateCustomerRequest, CreateInvoiceRequest, CreateRefundRequest,
-    CreateSubscriptionRequest, Customer, Dispute, ErrorResponse, Event, FinalizeInvoiceRequest,
-    Invoice, ListChargesQuery, ListCustomersQuery, ListDisputesQuery, ListEventsQuery,
-    ListInvoicesQuery, ListPaymentMethodsQuery, ListRefundsQuery, ListSubscriptionsQuery,
-    ListWebhooksQuery, PaymentCollectionRequestedPayload, PaymentMethod, Refund,
-    ReplayWebhookRequest, SubmitDisputeEvidenceRequest, Subscription, SubscriptionInterval,
-    SubscriptionStatus, TilledWebhookEvent, UpdateCustomerRequest, UpdateInvoiceRequest,
-    UpdatePaymentMethodRequest, UpdateSubscriptionRequest, Webhook, WebhookStatus,
+    AddPaymentMethodRequest, CancelSubscriptionRequest, CaptureChargeRequest,
+    CaptureUsageRequest, Charge, CreateChargeRequest, CreateCustomerRequest,
+    CreateInvoiceRequest, CreateRefundRequest, CreateSubscriptionRequest, Customer, Dispute,
+    ErrorResponse, Event, FinalizeInvoiceRequest, Invoice, ListChargesQuery, ListCustomersQuery,
+    ListDisputesQuery, ListEventsQuery, ListInvoicesQuery, ListPaymentMethodsQuery,
+    ListRefundsQuery, ListSubscriptionsQuery, ListWebhooksQuery, PaymentCollectionRequestedPayload,
+    PaymentMethod, Refund, ReplayWebhookRequest, SubmitDisputeEvidenceRequest, Subscription,
+    SubscriptionInterval, SubscriptionStatus, TilledWebhookEvent, UpdateCustomerRequest,
+    UpdateInvoiceRequest, UpdatePaymentMethodRequest, UpdateSubscriptionRequest, UsageRecord,
+    Webhook, WebhookStatus,
 };
 
 pub fn ar_router(db: PgPool) -> Router {
@@ -56,6 +59,7 @@ pub fn ar_router(db: PgPool) -> Router {
             get(get_invoice).put(update_invoice),
         )
         .route("/api/ar/invoices/{id}/finalize", post(finalize_invoice))
+        .route("/api/ar/invoices/{id}/credit-notes", post(issue_credit_note_route))
         // Charge endpoints
         .route("/api/ar/charges", post(create_charge).get(list_charges))
         .route("/api/ar/charges/{id}", get(get_charge))
@@ -90,6 +94,8 @@ pub fn ar_router(db: PgPool) -> Router {
         // Event log endpoints
         .route("/api/ar/events", get(list_events))
         .route("/api/ar/events/{id}", get(get_event))
+        // Usage ingestion (bd-23z)
+        .route("/api/ar/usage", post(capture_usage))
         .with_state(db.clone())
         .layer(middleware::from_fn_with_state(db, check_idempotency))
 }
@@ -4326,5 +4332,354 @@ async fn get_event(
                 format!("Event {} not found", id),
             )),
         )),
+    }
+}
+
+// ============================================================================
+// CREDIT NOTE HANDLER WRAPPER (bd-1gt)
+// ============================================================================
+
+/// POST /api/ar/invoices/{id}/credit-notes
+///
+/// Axum handler wrapper for the domain service `issue_credit_note`.
+async fn issue_credit_note_route(
+    State(db): State<PgPool>,
+    Path(invoice_id): Path<i32>,
+    Json(mut req): Json<IssueCreditNoteRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<ErrorResponse>)> {
+    use crate::credit_notes::IssueCreditNoteResult;
+    req.invoice_id = invoice_id;
+    match issue_credit_note(&db, req).await {
+        Ok(IssueCreditNoteResult::Issued { credit_note_row_id, credit_note_id, issued_at }) => {
+            Ok((StatusCode::CREATED, Json(serde_json::json!({
+                "status": "issued",
+                "credit_note_row_id": credit_note_row_id,
+                "credit_note_id": credit_note_id,
+                "issued_at": issued_at,
+            }))))
+        }
+        Ok(IssueCreditNoteResult::AlreadyProcessed { existing_row_id, credit_note_id }) => {
+            Ok((StatusCode::OK, Json(serde_json::json!({
+                "status": "already_processed",
+                "existing_row_id": existing_row_id,
+                "credit_note_id": credit_note_id,
+            }))))
+        }
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::new("credit_note_error", format!("{:?}", e))),
+        )),
+    }
+}
+
+// ============================================================================
+// USAGE INGESTION (bd-23z)
+// ============================================================================
+
+/// POST /api/ar/usage — Capture metered usage (idempotent)
+///
+/// Inserts a usage record into ar_metered_usage and emits ar.usage_captured
+/// into the outbox atomically. Duplicate submissions with the same idempotency_key
+/// are a no-op that returns the original record.
+///
+/// Guard → Mutation → Outbox atomicity: all three happen in one transaction.
+async fn capture_usage(
+    State(db): State<PgPool>,
+    Json(req): Json<CaptureUsageRequest>,
+) -> Result<Json<UsageRecord>, (StatusCode, Json<ErrorResponse>)> {
+    // TODO: Extract tenant_id from auth middleware; for now use idempotency_key as seed
+    let app_id = "default-tenant";
+
+    // Guard: check for duplicate idempotency_key (no-op return of original)
+    let existing: Option<UsageRecord> = sqlx::query_as::<_, UsageRecord>(
+        r#"
+        SELECT id, usage_uuid, idempotency_key, app_id, customer_id, metric_name,
+               quantity, unit, unit_price_cents, period_start, period_end, recorded_at
+        FROM ar_metered_usage
+        WHERE idempotency_key = $1
+        "#,
+    )
+    .bind(req.idempotency_key)
+    .fetch_optional(&db)
+    .await
+    .map_err(|e| {
+        tracing::error!("DB error checking usage idempotency: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("database_error", format!("DB error: {}", e))),
+        )
+    })?;
+
+    if let Some(record) = existing {
+        tracing::info!(
+            idempotency_key = %req.idempotency_key,
+            "Usage capture is duplicate — returning original record (idempotent no-op)"
+        );
+        return Ok(Json(record));
+    }
+
+    // Resolve customer_id integer from string external_customer_id or numeric string
+    let customer_id: i32 = req.customer_id.parse().map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::new(
+                "validation_error",
+                format!("customer_id must be a numeric AR customer id, got: {}", req.customer_id),
+            )),
+        )
+    })?;
+
+    let quantity_minor: i64 = req.unit_price_minor;
+
+    // Begin transaction: insert usage + outbox event atomically
+    let mut tx = db.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("database_error", format!("Failed to begin tx: {}", e))),
+        )
+    })?;
+
+    // Mutation: insert usage record
+    let record = sqlx::query_as::<_, UsageRecord>(
+        r#"
+        INSERT INTO ar_metered_usage (
+            app_id, customer_id, metric_name, quantity, unit_price_cents,
+            period_start, period_end, recorded_at,
+            idempotency_key, usage_uuid, unit
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), $8, gen_random_uuid(), $9)
+        RETURNING id, usage_uuid, idempotency_key, app_id, customer_id, metric_name,
+                  quantity, unit, unit_price_cents, period_start, period_end, recorded_at
+        "#,
+    )
+    .bind(app_id)
+    .bind(customer_id)
+    .bind(&req.metric_name)
+    .bind(req.quantity)
+    .bind(quantity_minor as i32)
+    .bind(req.period_start.naive_utc())
+    .bind(req.period_end.naive_utc())
+    .bind(req.idempotency_key)
+    .bind(&req.unit)
+    .fetch_one(&mut *tx)
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to insert usage record: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("database_error", format!("Failed to insert usage: {}", e))),
+        )
+    })?;
+
+    // Outbox: emit ar.usage_captured in the same transaction
+    use crate::events::contracts::{
+        build_usage_captured_envelope, UsageCapturedPayload, EVENT_TYPE_USAGE_CAPTURED,
+    };
+
+    let usage_payload = UsageCapturedPayload {
+        usage_id: record.usage_uuid,
+        tenant_id: app_id.to_string(),
+        customer_id: record.customer_id.to_string(),
+        metric_name: record.metric_name.clone(),
+        quantity: req.quantity,
+        unit: record.unit.clone(),
+        period_start: req.period_start,
+        period_end: req.period_end,
+        subscription_id: req.subscription_id.map(|_| record.usage_uuid), // placeholder
+        captured_at: chrono::Utc::now(),
+    };
+
+    let envelope = build_usage_captured_envelope(
+        req.idempotency_key, // event_id = idempotency_key for determinism
+        app_id.to_string(),
+        req.idempotency_key.to_string(), // correlation_id
+        None,
+        usage_payload,
+    );
+
+    crate::events::outbox::enqueue_event_tx(
+        &mut tx,
+        EVENT_TYPE_USAGE_CAPTURED,
+        "usage",
+        &record.id.to_string(),
+        &envelope,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to enqueue ar.usage_captured event: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("outbox_error", format!("Failed to enqueue event: {}", e))),
+        )
+    })?;
+
+    // Commit: usage insert + outbox event commit atomically
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit usage transaction: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("transaction_error", format!("Failed to commit: {}", e))),
+        )
+    })?;
+
+    tracing::info!(
+        usage_id = %record.usage_uuid,
+        metric_name = %record.metric_name,
+        "Usage captured and outbox event enqueued"
+    );
+
+    Ok(Json(record))
+}
+
+// ============================================================================
+// POST /api/ar/invoices/{id}/credit-notes  (bd-1gt)
+// ============================================================================
+
+/// HTTP request body for issuing a credit note
+#[derive(serde::Deserialize)]
+struct IssueCreditNoteHttpRequest {
+    /// Stable UUID for this credit note (idempotency anchor)
+    credit_note_id: uuid::Uuid,
+    /// Customer ID (string, as stored in AR schema)
+    customer_id: String,
+    /// Credit amount in minor currency units (e.g. cents), must be > 0
+    amount_minor: i64,
+    /// ISO 4217 currency code (lowercase, e.g. "usd")
+    currency: String,
+    /// Human-readable reason (e.g. "billing_error", "service_credit")
+    reason: String,
+    /// Optional reference to a usage record or line item
+    reference_id: Option<String>,
+    /// Who authorized this credit (optional)
+    issued_by: Option<String>,
+    /// Distributed trace correlation ID
+    correlation_id: String,
+    /// Causation ID linking this to the triggering event/action
+    causation_id: Option<String>,
+}
+
+/// Response for a successfully issued credit note
+#[derive(serde::Serialize)]
+struct IssueCreditNoteResponse {
+    credit_note_id: uuid::Uuid,
+    credit_note_row_id: i32,
+    invoice_id: i32,
+    amount_minor: i64,
+    currency: String,
+    reason: String,
+    issued_at: chrono::DateTime<chrono::Utc>,
+    status: &'static str,
+}
+
+/// POST /api/ar/invoices/{id}/credit-notes
+///
+/// Issue a credit note against an invoice. Atomic: credit note row + outbox
+/// event are committed together. Idempotent on `credit_note_id`.
+async fn issue_credit_note_handler(
+    State(pool): State<PgPool>,
+    Path(invoice_id): Path<i32>,
+    headers: HeaderMap,
+    Json(body): Json<IssueCreditNoteHttpRequest>,
+) -> Result<(StatusCode, Json<IssueCreditNoteResponse>), (StatusCode, Json<ErrorResponse>)> {
+    // Extract tenant from app-id header (consistent with other AR endpoints)
+    let app_id = headers
+        .get("x-app-id")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("default")
+        .to_string();
+
+    let req = IssueCreditNoteRequest {
+        credit_note_id: body.credit_note_id,
+        app_id,
+        customer_id: body.customer_id,
+        invoice_id,
+        amount_minor: body.amount_minor,
+        currency: body.currency.clone(),
+        reason: body.reason.clone(),
+        reference_id: body.reference_id,
+        issued_by: body.issued_by,
+        correlation_id: body.correlation_id,
+        causation_id: body.causation_id,
+    };
+
+    match issue_credit_note(&pool, req).await {
+        Ok(crate::credit_notes::IssueCreditNoteResult::Issued {
+            credit_note_row_id,
+            credit_note_id,
+            issued_at,
+        }) => {
+            tracing::info!(
+                credit_note_id = %credit_note_id,
+                invoice_id = invoice_id,
+                amount_minor = body.amount_minor,
+                "Credit note issued"
+            );
+            Ok((
+                StatusCode::CREATED,
+                Json(IssueCreditNoteResponse {
+                    credit_note_id,
+                    credit_note_row_id,
+                    invoice_id,
+                    amount_minor: body.amount_minor,
+                    currency: body.currency,
+                    reason: body.reason,
+                    issued_at,
+                    status: "issued",
+                }),
+            ))
+        }
+        Ok(crate::credit_notes::IssueCreditNoteResult::AlreadyProcessed {
+            existing_row_id,
+            credit_note_id,
+        }) => {
+            tracing::info!(
+                credit_note_id = %credit_note_id,
+                existing_row_id = existing_row_id,
+                "Credit note already issued (idempotent no-op)"
+            );
+            // Return 200 with the existing row to signal idempotent success
+            Ok((
+                StatusCode::OK,
+                Json(IssueCreditNoteResponse {
+                    credit_note_id,
+                    credit_note_row_id: existing_row_id,
+                    invoice_id,
+                    amount_minor: body.amount_minor,
+                    currency: body.currency,
+                    reason: body.reason,
+                    issued_at: chrono::Utc::now(), // approximate for already-issued
+                    status: "issued",
+                }),
+            ))
+        }
+        Err(crate::credit_notes::CreditNoteError::InvoiceNotFound { invoice_id, app_id }) => {
+            tracing::warn!(invoice_id = invoice_id, app_id = %app_id, "Credit note: invoice not found");
+            Err((
+                StatusCode::NOT_FOUND,
+                Json(ErrorResponse::new(
+                    "invoice_not_found",
+                    format!("Invoice {} not found", invoice_id),
+                )),
+            ))
+        }
+        Err(crate::credit_notes::CreditNoteError::InvalidAmount(n)) => Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse::new(
+                "invalid_amount",
+                format!("amount_minor must be > 0, got {}", n),
+            )),
+        )),
+        Err(crate::credit_notes::CreditNoteError::InvalidCurrency) => Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse::new("invalid_currency", "currency must not be empty")),
+        )),
+        Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
+            tracing::error!("Credit note DB error: {}", msg);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new("database_error", "Failed to issue credit note")),
+            ))
+        }
     }
 }

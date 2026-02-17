@@ -108,52 +108,69 @@ pub async fn service_auth_middleware(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{body::Body, http::Request};
+    use axum::{body::Body, http::StatusCode, middleware, routing::get, Router};
     use security::generate_service_token;
     use std::env;
+    use tower::ServiceExt;
+
+    async fn ok_handler() -> StatusCode {
+        StatusCode::OK
+    }
+
+    fn make_test_app() -> Router {
+        Router::new()
+            .route("/test", get(ok_handler))
+            .layer(middleware::from_fn(service_auth_middleware))
+    }
 
     #[tokio::test]
     async fn test_missing_auth_header() {
         env::set_var("SERVICE_AUTH_SECRET", "test-secret");
-
-        let headers = HeaderMap::new();
-        let request = Request::builder().body(Body::empty()).unwrap();
-        let next = Next::new(|_req: Request| async { StatusCode::OK.into_response() });
-
-        let response = service_auth_middleware(headers, request, next).await;
+        let app = make_test_app();
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/test")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
     async fn test_invalid_bearer_format() {
         env::set_var("SERVICE_AUTH_SECRET", "test-secret");
-
-        let mut headers = HeaderMap::new();
-        headers.insert("authorization", "InvalidFormat token123".parse().unwrap());
-
-        let request = Request::builder().body(Body::empty()).unwrap();
-        let next = Next::new(|_req: Request| async { StatusCode::OK.into_response() });
-
-        let response = service_auth_middleware(headers, request, next).await;
+        let app = make_test_app();
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/test")
+                    .header("authorization", "InvalidFormat token123")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     }
 
     #[tokio::test]
     async fn test_valid_token_passes() {
         env::set_var("SERVICE_AUTH_SECRET", "test-secret");
-
         let token = generate_service_token("test-service", None).unwrap();
-
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "authorization",
-            format!("Bearer {}", token).parse().unwrap(),
-        );
-
-        let request = Request::builder().body(Body::empty()).unwrap();
-        let next = Next::new(|_req: Request| async { StatusCode::OK.into_response() });
-
-        let response = service_auth_middleware(headers, request, next).await;
+        let app = make_test_app();
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/test")
+                    .header("authorization", format!("Bearer {}", token))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
     }
 }
