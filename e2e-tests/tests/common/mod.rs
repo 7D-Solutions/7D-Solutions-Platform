@@ -24,69 +24,75 @@ use uuid::Uuid;
 // Database Pool Connections
 // ============================================================================
 
+/// Wait for a database to accept connections, retrying with backoff.
+///
+/// Invariant: returns Ok only when the DB is reachable. Fails fast (5s max)
+/// with an actionable error identifying which DB was unavailable.
+pub async fn wait_for_db_ready(name: &str, url: &str) -> PgPool {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    let mut delay = Duration::from_millis(100);
+    loop {
+        match PgPoolOptions::new()
+            .max_connections(5)
+            .min_connections(0)
+            .acquire_timeout(Duration::from_secs(3))
+            .connect(url)
+            .await
+        {
+            Ok(pool) => {
+                // Verify connectivity with a lightweight query
+                if sqlx::query("SELECT 1").execute(&pool).await.is_ok() {
+                    return pool;
+                }
+            }
+            Err(e) => {
+                if tokio::time::Instant::now() >= deadline {
+                    panic!(
+                        "DB '{}' not ready after 10s. URL: {}. Last error: {}.\n\
+                         Hint: ensure the corresponding postgres service is running.",
+                        name, url, e
+                    );
+                }
+            }
+        }
+        sleep(delay).await;
+        delay = (delay * 2).min(Duration::from_secs(1));
+    }
+}
+
 /// Get AR database pool
 pub async fn get_ar_pool() -> PgPool {
     let url = std::env::var("AR_DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://ar_user:ar_pass@localhost:5434/ar_db".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .min_connections(1)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to AR database")
+    wait_for_db_ready("ar", &url).await
 }
 
 /// Get Payments database pool
 pub async fn get_payments_pool() -> PgPool {
     let url = std::env::var("PAYMENTS_DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .min_connections(1)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to Payments database")
+    wait_for_db_ready("payments", &url).await
 }
 
 /// Get Subscriptions database pool
 pub async fn get_subscriptions_pool() -> PgPool {
     let url = std::env::var("SUBSCRIPTIONS_DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .min_connections(1)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to Subscriptions database")
+    wait_for_db_ready("subscriptions", &url).await
 }
 
 /// Get GL database pool
 pub async fn get_gl_pool() -> PgPool {
     let url = std::env::var("GL_DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://gl_user:gl_pass@localhost:5438/gl_db".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .min_connections(1)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to GL database")
+    wait_for_db_ready("gl", &url).await
 }
 
 /// Get Auth database pool
 pub async fn get_auth_pool() -> PgPool {
     let url = std::env::var("AUTH_DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5434/auth".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .min_connections(1)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to Auth database")
+    wait_for_db_ready("auth", &url).await
 }
 
 /// Get Projections database pool
@@ -94,13 +100,7 @@ pub async fn get_projections_pool() -> PgPool {
     let url = std::env::var("PROJECTIONS_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
         .unwrap_or_else(|_| "postgresql://projections_user:projections_pass@localhost:5439/projections_db".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .min_connections(1)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to Projections database")
+    wait_for_db_ready("projections", &url).await
 }
 
 /// Get Audit database pool
@@ -108,13 +108,7 @@ pub async fn get_audit_pool() -> PgPool {
     let url = std::env::var("AUDIT_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
         .unwrap_or_else(|_| "postgresql://audit_user:audit_pass@localhost:5440/audit_db".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .min_connections(1)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to Audit database")
+    wait_for_db_ready("audit", &url).await
 }
 
 /// Get Tenant Registry database pool
@@ -122,13 +116,7 @@ pub async fn get_tenant_registry_pool() -> PgPool {
     let url = std::env::var("TENANT_REGISTRY_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
         .unwrap_or_else(|_| "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db".to_string());
-
-    PgPoolOptions::new()
-        .max_connections(5)
-        .min_connections(1)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to Tenant Registry database")
+    wait_for_db_ready("tenant-registry", &url).await
 }
 
 // ============================================================================
