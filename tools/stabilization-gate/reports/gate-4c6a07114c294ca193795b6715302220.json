@@ -1,0 +1,57 @@
+{
+  "run_id": "gate-4c6a07114c294ca193795b6715302220",
+  "git_sha": "dce4dfde",
+  "started_at": "2026-02-17T22:44:38.496678Z",
+  "ended_at": "2026-02-17T22:44:40.421027Z",
+  "env_snapshot": {
+    "concurrency": 4,
+    "database_host": "localhost:5434",
+    "dunning_rows": 200,
+    "duration_secs": 120,
+    "events_per_tenant": 500,
+    "nats_url": "nats://localhost:4222",
+    "recon_rows": 500,
+    "tenant_count": 10
+  },
+  "scenarios": [
+    {
+      "name": "projections",
+      "passed": true,
+      "metrics": {
+        "duration_secs": 120,
+        "events_per_tenant": 500,
+        "lag_avg_ms": 895.1101706000013,
+        "lag_max_ms": 1739.756,
+        "lag_samples": 5000,
+        "rebuild_per_projection": [
+          {
+            "events_processed": 5000,
+            "name": "invoice_summary",
+            "rebuild_secs": 0.011734708,
+            "rows_per_sec": 426086.44373596687
+          },
+          {
+            "events_processed": 5000,
+            "name": "customer_balance",
+            "rebuild_secs": 0.006208,
+            "rows_per_sec": 805412.3711340206
+          },
+          {
+            "events_processed": 5000,
+            "name": "subscription_status",
+            "rebuild_secs": 0.005228833,
+            "rows_per_sec": 956236.3150630362
+          }
+        ],
+        "rebuild_projections": 3,
+        "rebuild_total_events": 15000,
+        "rebuild_total_secs": 0.080526583,
+        "tenant_count": 10
+      },
+      "threshold_violations": [],
+      "notes": null
+    }
+  ],
+  "overall_passed": true,
+  "dry_run": false
+}

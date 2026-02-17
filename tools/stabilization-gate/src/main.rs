@@ -16,6 +16,7 @@ mod benchmarks;
 mod config;
 mod eventbus;
 mod metrics;
+mod projections;
 mod report;
 
 use anyhow::{Context, Result};
@@ -74,10 +75,19 @@ enum Commands {
         #[arg(long)]
         duration_secs: Option<u64>,
     },
-    /// Benchmark projection query and rebuild latency.
+    /// Benchmark projection rebuild time and steady-state lag (Wave 1, bd-3mzn).
     Projections {
         #[arg(long)]
         dry_run: bool,
+        /// Number of tenants (overrides TENANT_COUNT env).
+        #[arg(long)]
+        tenant_count: Option<usize>,
+        /// Events per tenant (overrides EVENTS_PER_TENANT env).
+        #[arg(long)]
+        events_per_tenant: Option<usize>,
+        /// Lag-phase drain window in seconds (overrides DURATION_SECS env).
+        #[arg(long)]
+        duration_secs: Option<u64>,
     },
     /// Benchmark AR reconciliation batch throughput.
     Recon {
@@ -165,10 +175,25 @@ async fn run() -> Result<()> {
             let s = vec![eventbus::run(&cfg2, dry).await?];
             (s, dry, cfg2)
         }
-        Commands::Projections { dry_run } => {
+        Commands::Projections {
+            dry_run,
+            tenant_count,
+            events_per_tenant,
+            duration_secs,
+        } => {
             let dry = *dry_run;
-            let s = vec![benchmarks::bench_projections(&cfg, dry).await?];
-            (s, dry, cfg.clone())
+            let mut cfg2 = cfg.clone();
+            if let Some(v) = tenant_count {
+                cfg2.tenant_count = *v;
+            }
+            if let Some(v) = events_per_tenant {
+                cfg2.events_per_tenant = *v;
+            }
+            if let Some(v) = duration_secs {
+                cfg2.duration_secs = *v;
+            }
+            let s = vec![projections::run(&cfg2, dry).await?];
+            (s, dry, cfg2)
         }
         Commands::Recon { dry_run } => {
             let dry = *dry_run;

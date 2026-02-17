@@ -1,0 +1,42 @@
+{
+  "run_id": "gate-57dd9a05be9d4f4a8a928ef0d9e207c4",
+  "git_sha": "c341b0c2",
+  "started_at": "2026-02-17T22:31:07.242231Z",
+  "ended_at": "2026-02-17T22:31:07.261224Z",
+  "env_snapshot": {
+    "concurrency": 4,
+    "database_host": "localhost:5434",
+    "dunning_rows": 200,
+    "duration_secs": 30,
+    "events_per_tenant": 100,
+    "nats_url": "nats://localhost:4222",
+    "recon_rows": 500,
+    "tenant_count": 5
+  },
+  "scenarios": [
+    {
+      "name": "eventbus",
+      "passed": true,
+      "metrics": {
+        "concurrency": 10,
+        "consumer_lag_peak_ms": 7.259,
+        "drop_count": 0,
+        "errors": 0,
+        "events_per_tenant": 50,
+        "p50_ms": 5.986,
+        "p95_ms": 7.2059999999999995,
+        "p99_ms": 7.252,
+        "recv_count": 250,
+        "sent_count": 250,
+        "tenant_count": 5,
+        "throughput_ops_per_sec": 27110.68032842529,
+        "total_ops": 250,
+        "wall_clock_ms": 9.221458
+      },
+      "threshold_violations": [],
+      "notes": null
+    }
+  ],
+  "overall_passed": true,
+  "dry_run": false
+}
