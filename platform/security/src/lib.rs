@@ -5,9 +5,15 @@
 
 pub mod rbac;
 pub mod ratelimit;
+pub mod service_auth;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+// Re-export service auth types
+pub use service_auth::{
+    generate_service_token, verify_service_token, ServiceAuthClaims, ServiceAuthError,
+};
 
 /// Placeholder for token verification result
 #[derive(Debug, Clone, Serialize, Deserialize)]
