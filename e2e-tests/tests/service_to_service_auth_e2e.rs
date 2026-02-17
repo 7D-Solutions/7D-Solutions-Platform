@@ -219,3 +219,134 @@ async fn test_http_request_simulation() {
     println!("   Header: Authorization: {}", auth_header);
     println!("   Verified service: {}", claims.service_name);
 }
+
+// ============================================================================
+// HTTP Endpoint Integration Tests
+// ============================================================================
+
+const AR_SERVICE_URL: &str = "http://localhost:8086";
+
+async fn make_request(endpoint: &str, token: Option<&str>) -> reqwest::Response {
+    let client = reqwest::Client::new();
+    let url = format!("{}{}", AR_SERVICE_URL, endpoint);
+
+    let mut request = client.get(&url);
+
+    if let Some(t) = token {
+        request = request.header("Authorization", format!("Bearer {}", t));
+    }
+
+    request.send().await.expect("Failed to send request")
+}
+
+#[tokio::test]
+async fn test_ready_endpoint_with_valid_token() {
+    setup_test_env();
+
+    let token = generate_service_token("tenantctl", None)
+        .expect("Failed to generate token");
+
+    let response = make_request("/api/ready", Some(&token)).await;
+
+    println!("✅ /api/ready with auth - Status: {}", response.status());
+
+    // If AR service is running, expect 200 OK or 503 (if DB not connected)
+    // If AR service is not running, expect connection error (handled by reqwest)
+    assert!(
+        response.status().is_success() || response.status() == 503,
+        "Expected success or service unavailable, got: {}",
+        response.status()
+    );
+}
+
+#[tokio::test]
+async fn test_ready_endpoint_without_token_fails() {
+    setup_test_env();
+
+    let response = make_request("/api/ready", None).await;
+
+    println!("✅ /api/ready without auth - Status: {}", response.status());
+
+    assert_eq!(
+        response.status(),
+        401,
+        "Expected 401 Unauthorized without token"
+    );
+
+    let body = response.text().await.unwrap();
+    assert!(
+        body.contains("unauthorized") || body.contains("Missing Authorization"),
+        "Expected error about missing authorization"
+    );
+}
+
+#[tokio::test]
+async fn test_ready_endpoint_with_invalid_token_fails() {
+    setup_test_env();
+
+    let response = make_request("/api/ready", Some("invalid.token.here")).await;
+
+    println!("✅ /api/ready with invalid token - Status: {}", response.status());
+
+    assert_eq!(
+        response.status(),
+        401,
+        "Expected 401 Unauthorized with invalid token"
+    );
+}
+
+#[tokio::test]
+async fn test_version_endpoint_with_valid_token() {
+    setup_test_env();
+
+    let token = generate_service_token("tenantctl", None)
+        .expect("Failed to generate token");
+
+    let response = make_request("/api/version", Some(&token)).await;
+
+    println!("✅ /api/version with auth - Status: {}", response.status());
+
+    assert!(
+        response.status().is_success(),
+        "Expected success with valid token, got: {}",
+        response.status()
+    );
+
+    let body = response.text().await.unwrap();
+    assert!(
+        body.contains("module_name") || body.contains("ar-rs"),
+        "Expected version response body"
+    );
+}
+
+#[tokio::test]
+async fn test_version_endpoint_without_token_fails() {
+    setup_test_env();
+
+    let response = make_request("/api/version", None).await;
+
+    println!("✅ /api/version without auth - Status: {}", response.status());
+
+    assert_eq!(
+        response.status(),
+        401,
+        "Expected 401 Unauthorized without token"
+    );
+}
+
+#[tokio::test]
+async fn test_health_endpoint_no_auth_required() {
+    setup_test_env();
+
+    // /api/health should NOT require auth (liveness probe)
+    let response = make_request("/api/health", None).await;
+
+    println!("✅ /api/health (public) - Status: {}", response.status());
+
+    // Health should be publicly accessible
+    assert!(
+        response.status().is_success(),
+        "Expected /api/health to be public, got: {}",
+        response.status()
+    );
+}

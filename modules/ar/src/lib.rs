@@ -9,6 +9,7 @@ pub mod idempotency_keys;
 pub mod invariants;
 pub mod lifecycle;
 pub mod metrics;
+pub mod middleware;
 pub mod models;
 pub mod retry;
 pub mod routes;

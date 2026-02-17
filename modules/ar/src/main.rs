@@ -1,4 +1,4 @@
-use axum::{http::Method, routing::get, Router};
+use axum::{http::Method, middleware, routing::get, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -99,12 +99,18 @@ async fn main() {
         ])
         .allow_credentials(true);
 
-    let app = Router::new()
-        .route("/api/health", get(routes::health::health))
+    // Operational endpoints with service-to-service auth
+    let ops_routes = Router::new()
         .route("/api/ready", get(routes::health::ready))
         .route("/api/version", get(routes::health::version))
+        .with_state(app_state.clone())
+        .layer(middleware::from_fn(ar_rs::middleware::service_auth_middleware));
+
+    let app = Router::new()
+        .route("/api/health", get(routes::health::health))
         .route("/metrics", get(ar_rs::metrics::metrics_handler))
         .with_state(app_state.clone())
+        .merge(ops_routes)
         .merge(routes::ar_router(db))
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
