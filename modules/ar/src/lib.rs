@@ -3,6 +3,7 @@ pub mod config;
 pub mod consumer_tasks;
 pub mod credit_notes;
 pub mod db;
+pub mod dunning;
 pub mod envelope_validation;
 pub mod events;
 pub mod finalization;
