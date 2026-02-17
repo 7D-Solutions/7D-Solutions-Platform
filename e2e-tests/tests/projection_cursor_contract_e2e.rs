@@ -9,6 +9,7 @@
 
 use chrono::Utc;
 use projections::cursor::{try_apply_event, CursorError, ProjectionCursor};
+use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -69,6 +70,7 @@ async fn create_test_read_model(pool: &PgPool) {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_cursor_load_nonexistent() {
     let pool = get_projections_pool().await;
     run_projections_migrations(&pool).await;
@@ -83,6 +85,7 @@ async fn test_cursor_load_nonexistent() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_cursor_save_and_load() {
     let pool = get_projections_pool().await;
     run_projections_migrations(&pool).await;
@@ -110,6 +113,7 @@ async fn test_cursor_save_and_load() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_cursor_save_updates_existing() {
     let pool = get_projections_pool().await;
     run_projections_migrations(&pool).await;
@@ -141,6 +145,7 @@ async fn test_cursor_save_updates_existing() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_is_processed_returns_false_for_new_event() {
     let pool = get_projections_pool().await;
     run_projections_migrations(&pool).await;
@@ -157,6 +162,7 @@ async fn test_is_processed_returns_false_for_new_event() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_is_processed_returns_true_for_same_event() {
     let pool = get_projections_pool().await;
     run_projections_migrations(&pool).await;
@@ -179,6 +185,7 @@ async fn test_is_processed_returns_true_for_same_event() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_is_processed_returns_false_for_different_event() {
     let pool = get_projections_pool().await;
     run_projections_migrations(&pool).await;
@@ -203,6 +210,7 @@ async fn test_is_processed_returns_false_for_different_event() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_try_apply_event_applies_new_event() {
     let pool = get_projections_pool().await;
     run_projections_migrations(&pool).await;
@@ -276,6 +284,7 @@ async fn test_try_apply_event_applies_new_event() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_try_apply_event_skips_duplicate() {
     let pool = get_projections_pool().await;
     run_projections_migrations(&pool).await;
@@ -368,6 +377,7 @@ async fn test_try_apply_event_skips_duplicate() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_try_apply_event_transactional_rollback() {
     let pool = get_projections_pool().await;
     run_projections_migrations(&pool).await;
@@ -440,6 +450,7 @@ async fn test_try_apply_event_transactional_rollback() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_multi_tenant_isolation() {
     let pool = get_projections_pool().await;
     run_projections_migrations(&pool).await;
@@ -481,6 +492,7 @@ async fn test_multi_tenant_isolation() {
 }
 
 #[tokio::test]
+#[serial]
 async fn test_multi_projection_isolation() {
     let pool = get_projections_pool().await;
     run_projections_migrations(&pool).await;
