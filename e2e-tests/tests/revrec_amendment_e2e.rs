@@ -826,3 +826,244 @@ async fn test_second_amendment_creates_v3() {
         .expect("get_modifications failed");
     assert_eq!(mods.len(), 2, "Two amendments must be recorded");
 }
+
+/// Test 7: Phase 24a Integrated Lifecycle
+///
+/// Proves the complete revrec chain end-to-end:
+///   create contract → build schedule → run recognition (pre-amendment)
+///   → record amendment → build v2 schedule → run recognition (post-amendment)
+///   → verify balanced journals, no double-recognition, deterministic replay
+///
+/// Scenario:
+///   - Contract: $120K ratable over 12 months = $10K/month (Jan–Dec 2026)
+///   - Recognize Jan + Feb ($10K each, $20K total)
+///   - Amend effective Mar: new total $90K for Mar–Dec (10 months = $9K/month)
+///   - Recognize Mar: should be $9K (v2), NOT $10K (v1 superseded)
+///   - Replay all periods: no double-posting
+///   - Final: 3 journals totaling $29K, all balanced
+#[tokio::test]
+async fn test_phase24a_integrated_lifecycle() {
+    let tenant_id = generate_test_tenant();
+    let pool = get_gl_pool().await;
+    run_gl_core_migrations(&pool).await;
+    run_revrec_migrations(&pool).await;
+    run_amendment_migration(&pool).await;
+    cleanup_test_data(&pool, &tenant_id).await;
+
+    // ── Step 1: Create contract ($120K / 12 months = $10K/month) ─────────────
+    let (contract_id, obligation_id, contract_payload) = ratable_contract(&tenant_id);
+    let obligation = &contract_payload.performance_obligations[0];
+
+    let original_schedule_id =
+        setup_contract_with_schedule(&pool, contract_id, obligation, &contract_payload, &tenant_id)
+            .await;
+
+    let v1 = revrec_repo::get_schedule(&pool, original_schedule_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(v1.version, 1);
+    assert_eq!(v1.total_to_recognize_minor, 120_000_00);
+    let v1_lines = revrec_repo::get_schedule_lines(&pool, original_schedule_id).await.unwrap();
+    assert_eq!(v1_lines.len(), 12, "v1 must have 12 monthly lines");
+    println!("✅ Step 1: Contract created, v1 schedule ({} lines at $10K)", v1_lines.len());
+
+    // ── Step 2: Recognize Jan 2026 ($10K from v1) ────────────────────────────
+    let jan = run_recognition(&pool, &tenant_id, "2026-01", "2026-01-31")
+        .await
+        .expect("Jan recognition failed");
+    assert_eq!(jan.lines_recognized, 1, "Jan: 1 line");
+    assert_eq!(jan.total_recognized_minor, 10_000_00, "Jan: $10K");
+    println!("✅ Step 2: Jan recognized ${}", jan.total_recognized_minor as f64 / 100.0);
+
+    // ── Step 3: Recognize Feb 2026 ($10K from v1) ────────────────────────────
+    let feb = run_recognition(&pool, &tenant_id, "2026-02", "2026-02-28")
+        .await
+        .expect("Feb recognition failed");
+    assert_eq!(feb.lines_recognized, 1, "Feb: 1 line");
+    assert_eq!(feb.total_recognized_minor, 10_000_00, "Feb: $10K");
+    println!("✅ Step 3: Feb recognized ${}", feb.total_recognized_minor as f64 / 100.0);
+
+    // Verify 2 journals exist and are balanced
+    let journal_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1 AND source_module = 'gl-revrec'",
+    )
+    .bind(&tenant_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(journal_count, 2, "2 journals after Jan+Feb recognition");
+
+    let total_debits_pre: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(jl.debit_minor), 0)::BIGINT
+         FROM journal_entries je
+         JOIN journal_lines jl ON jl.journal_entry_id = je.id
+         WHERE je.tenant_id = $1 AND je.source_module = 'gl-revrec'",
+    )
+    .bind(&tenant_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(total_debits_pre, 20_000_00, "Pre-amendment total = $20K");
+    println!("✅ Steps 2-3: Pre-amendment 2 journals, $20K total debits");
+
+    // ── Step 4: Record amendment (effective Mar 2026) ────────────────────────
+    // Old obligation: $120K, new allocation: $90K for remaining 10 months (Mar-Dec)
+    let modification_id = Uuid::new_v4();
+    let amendment_payload = price_change_amendment(
+        modification_id,
+        contract_id,
+        &tenant_id,
+        obligation_id,
+        120_000_00,
+        90_000_00,
+    );
+    revrec_repo::create_amendment(&pool, Uuid::new_v4(), &amendment_payload)
+        .await
+        .expect("Amendment recording failed");
+    println!("✅ Step 4: Amendment recorded (modification_id={})", modification_id);
+
+    // ── Step 5: Build v2 schedule (Mar-Dec, $9K/month) ───────────────────────
+    let amended_obligation = PerformanceObligation {
+        obligation_id,
+        name: obligation.name.clone(),
+        description: obligation.description.clone(),
+        allocated_amount_minor: 90_000_00,
+        recognition_pattern: RecognitionPattern::RatableOverTime { period_months: 10 },
+        satisfaction_start: "2026-03-01".to_string(),
+        satisfaction_end: Some("2026-12-31".to_string()),
+    };
+
+    let new_schedule_id = Uuid::new_v4();
+    let new_schedule_payload = generate_schedule(
+        new_schedule_id,
+        contract_id,
+        &amended_obligation,
+        &tenant_id,
+        "USD",
+        Utc::now(),
+    )
+    .expect("v2 schedule generation failed");
+
+    let supersedes_event_id = revrec_repo::find_schedule_outbox_event_id(&pool, original_schedule_id)
+        .await
+        .expect("find_schedule_outbox_event_id failed");
+
+    revrec_repo::create_schedule_with_supersession(
+        &pool,
+        Uuid::new_v4(),
+        &new_schedule_payload,
+        supersedes_event_id,
+    )
+    .await
+    .expect("v2 schedule persistence failed");
+
+    let v2 = revrec_repo::get_schedule(&pool, new_schedule_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(v2.version, 2, "v2 must be version 2");
+    assert_eq!(v2.total_to_recognize_minor, 90_000_00);
+    assert_eq!(v2.first_period, "2026-03");
+    assert_eq!(v2.last_period, "2026-12");
+    assert_eq!(v2.previous_schedule_id, Some(original_schedule_id));
+
+    let v2_lines = revrec_repo::get_schedule_lines(&pool, new_schedule_id).await.unwrap();
+    assert_eq!(v2_lines.len(), 10, "v2 must have 10 monthly lines (Mar-Dec)");
+    assert_eq!(v2_lines[0].amount_to_recognize_minor, 9_000_00, "First line must be $9K");
+    let v2_line_sum: i64 = v2_lines.iter().map(|l| l.amount_to_recognize_minor).sum();
+    assert_eq!(v2_line_sum, 90_000_00, "v2 lines must sum to $90K");
+    println!("✅ Step 5: v2 schedule created ({} lines, ${}K each)", v2_lines.len(), v2_lines[0].amount_to_recognize_minor as f64 / 10000.0);
+
+    // ── Step 6: Recognize Mar 2026 — must use v2 ($9K), not v1 ($10K) ────────
+    let mar = run_recognition(&pool, &tenant_id, "2026-03", "2026-03-31")
+        .await
+        .expect("Mar recognition failed");
+    assert_eq!(mar.lines_recognized, 1, "Mar: exactly 1 line from v2");
+    assert_eq!(mar.total_recognized_minor, 9_000_00, "Mar must be $9K from v2");
+    assert_eq!(mar.postings[0].schedule_id, new_schedule_id, "Mar posting must come from v2");
+    println!("✅ Step 6: Mar recognized ${} from v2 schedule", mar.total_recognized_minor as f64 / 100.0);
+
+    // ── Step 7: Replay — all periods idempotent ───────────────────────────────
+    let jan_replay = run_recognition(&pool, &tenant_id, "2026-01", "2026-01-31").await.unwrap();
+    assert_eq!(jan_replay.lines_recognized, 0, "Jan replay: 0 new lines");
+    assert_eq!(jan_replay.lines_skipped, 0, "Jan replay: no due lines");
+
+    let feb_replay = run_recognition(&pool, &tenant_id, "2026-02", "2026-02-28").await.unwrap();
+    assert_eq!(feb_replay.lines_recognized, 0, "Feb replay: 0 new lines");
+
+    let mar_replay = run_recognition(&pool, &tenant_id, "2026-03", "2026-03-31").await.unwrap();
+    assert_eq!(mar_replay.lines_recognized, 0, "Mar replay: 0 new lines");
+    println!("✅ Step 7: Replay confirmed — no double-recognition across Jan/Feb/Mar");
+
+    // ── Step 8: Verify final journal state ───────────────────────────────────
+    let rows = sqlx::query(
+        "SELECT je.id,
+                COALESCE(SUM(jl.debit_minor), 0)::BIGINT as total_debits,
+                COALESCE(SUM(jl.credit_minor), 0)::BIGINT as total_credits
+         FROM journal_entries je
+         JOIN journal_lines jl ON jl.journal_entry_id = je.id
+         WHERE je.tenant_id = $1 AND je.source_module = 'gl-revrec'
+         GROUP BY je.id",
+    )
+    .bind(&tenant_id)
+    .fetch_all(&pool)
+    .await
+    .expect("Final balance query failed");
+
+    assert_eq!(rows.len(), 3, "Exactly 3 journal entries (Jan + Feb + Mar)");
+    for row in &rows {
+        let debits: i64 = row.try_get("total_debits").unwrap();
+        let credits: i64 = row.try_get("total_credits").unwrap();
+        assert_eq!(debits, credits, "Every journal must be balanced (debits == credits)");
+        assert!(debits > 0, "Every journal must have non-zero debits");
+    }
+    println!("✅ Step 8: All 3 journals balanced");
+
+    let total_debits: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(jl.debit_minor), 0)::BIGINT
+         FROM journal_entries je
+         JOIN journal_lines jl ON jl.journal_entry_id = je.id
+         WHERE je.tenant_id = $1 AND je.source_module = 'gl-revrec'",
+    )
+    .bind(&tenant_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        total_debits, 29_000_00,
+        "Total recognized must be $29K ($10K Jan + $10K Feb + $9K Mar)"
+    );
+    println!("✅ Step 8: Total recognized = ${} ($10K + $10K + $9K)", total_debits as f64 / 100.0);
+
+    // ── Step 9: Verify v1 lines for Mar-Dec are NOT recognized ───────────────
+    let v1_recognized_after_mar: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM revrec_schedule_lines
+         WHERE schedule_id = $1 AND recognized = true AND period >= '2026-03'",
+    )
+    .bind(original_schedule_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        v1_recognized_after_mar, 0,
+        "v1 lines for Mar-Dec must NOT be recognized (superseded by v2)"
+    );
+    println!("✅ Step 9: v1 Mar-Dec lines untouched (0 recognized)");
+
+    // ── Step 10: Verify modifications ledger ─────────────────────────────────
+    let mods = revrec_repo::get_modifications_for_contract(&pool, contract_id)
+        .await
+        .unwrap();
+    assert_eq!(mods.len(), 1, "One amendment recorded");
+    assert_eq!(mods[0].modification_id, modification_id);
+    assert_eq!(mods[0].modification_type, "price_change");
+    println!("✅ Step 10: Modifications ledger has 1 amendment");
+
+    cleanup_test_data(&pool, &tenant_id).await;
+    println!(
+        "\n🎯 Phase 24a integrated lifecycle verified: \
+        contract creation → schedule → recognition → amendment → v2 schedule → \
+        amended recognition → no double-posting → balanced journals"
+    );
+}
