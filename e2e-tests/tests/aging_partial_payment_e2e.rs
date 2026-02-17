@@ -15,7 +15,7 @@
 mod common;
 
 use anyhow::Result;
-use ar_rs::aging::{refresh_aging, AgingSnapshot};
+use ar_rs::aging::refresh_aging;
 use ar_rs::payment_allocation::{allocate_payment_fifo, AllocatePaymentRequest};
 use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool, get_subscriptions_pool};
 use serial_test::serial;
