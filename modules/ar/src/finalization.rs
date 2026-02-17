@@ -21,6 +21,7 @@ use sqlx::PgPool;
 use std::fmt;
 use tracing::{info, warn};
 use uuid::Uuid;
+use serde_json;
 
 // ============================================================================
 // Error Types
@@ -278,9 +279,29 @@ pub async fn finalize_invoice(
         );
     }
 
-    // 5. EMIT: Side effects go here (ONLY on new attempt creation)
-    // TODO: emit_finalization_event (future bead - bd-8ev or integration)
-    // TODO: send_payment_request to PSP (future bead)
+    // 5. EMIT: Insert outbox event atomically (Guard->Mutation->Outbox in same tx)
+    let outbox_event_id = Uuid::new_v4();
+    let payload = serde_json::json!({
+        "invoice_id": invoice_id,
+        "attempt_id": attempt_id.to_string(),
+        "attempt_no": attempt_no,
+        "tenant_id": app_id,
+    });
+    sqlx::query(
+        r#"
+        INSERT INTO events_outbox (
+            event_id, event_type, aggregate_type, aggregate_id, payload,
+            tenant_id, source_module, mutation_class, occurred_at, replay_safe
+        )
+        VALUES ($1, 'ar.invoice.finalizing', 'invoice', $2, $3, $4, 'ar', 'LIFECYCLE', NOW(), true)
+        "#,
+    )
+    .bind(outbox_event_id)
+    .bind(invoice_id.to_string())
+    .bind(payload)
+    .bind(app_id)
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
 
