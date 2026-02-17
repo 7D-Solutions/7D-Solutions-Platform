@@ -20,7 +20,7 @@
 
 use chrono::{DateTime, Utc};
 use sha2::{Digest, Sha256};
-use sqlx::{PgConnection, PgExecutor, PgPool};
+use sqlx::{PgExecutor, PgPool};
 use uuid::Uuid;
 
 use crate::cursor::{CursorError, CursorResult, ProjectionCursor};
