@@ -2399,10 +2399,14 @@ name = "projection-rebuild"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
+ "projections",
+ "sqlx",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -2410,9 +2414,11 @@ name = "projections"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "futures",
  "prometheus",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
  "thiserror 2.0.18",
  "tokio",

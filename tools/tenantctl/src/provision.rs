@@ -46,7 +46,7 @@ pub const MODULES: &[ModuleConfig] = &[
         postgres_port: 5435,
         postgres_user: "subscriptions_user",
         postgres_password: "subscriptions_pass",
-        migrations_path: "./modules/subscriptions/db/migrations",
+        migrations_path: "./modules/subscriptions/migrations",
         http_port: 8087,
     },
     ModuleConfig {
@@ -201,7 +201,7 @@ async fn provision_tenant_module(tenant_id: TenantId, module: &ModuleConfig) -> 
     migrator
         .run(&pool)
         .await
-        .context("Failed to run migrations")?;
+        .context(format!("Failed to run migrations for {} module", module.name))?;
 
     info!("  Migrations applied to {}", tenant_db_name);
 

@@ -5,13 +5,9 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
-mod config;
 mod db;
-mod events;
-mod metrics;
-mod routes;
 
-use config::Config;
+use payments_rs::Config;
 
 /// Handler for /metrics endpoint
 async fn metrics_handler() -> String {
@@ -106,12 +102,17 @@ async fn main() {
     let consumer_bus = bus.clone();
     payments_rs::start_payment_collection_consumer(consumer_bus, consumer_pool).await;
 
+    // Create application state
+    let app_state = Arc::new(payments_rs::AppState {
+        pool: pool.clone(),
+    });
+
     let app = Router::new()
         .route("/api/health", get(routes::health::health))
         .route("/api/ready", get(routes::health::ready))
         .route("/api/version", get(routes::health::version))
         .route("/metrics", get(metrics_handler))
-        .with_state(pool)
+        .with_state(app_state)
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)

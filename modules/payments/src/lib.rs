@@ -11,11 +11,17 @@ pub mod models;
 pub mod processor;
 pub mod reconciliation;
 pub mod retry;
+pub mod routes;
 pub mod webhook_handler;
 pub mod webhook_signature;
 
 // Re-export config types for testing
 pub use config::Config;
+
+/// Payments application state shared across HTTP handlers
+pub struct AppState {
+    pub pool: sqlx::PgPool,
+}
 
 pub use consumer_task::start_payment_collection_consumer;
 pub use events::{enqueue_event, EventConsumer, EventEnvelope};

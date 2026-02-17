@@ -47,9 +47,15 @@
 pub mod cursor;
 pub mod fallback;
 pub mod metrics;
+pub mod rebuild;
 
 // Re-export main types for convenience
 pub use cursor::{try_apply_event, CursorError, CursorResult, ProjectionCursor};
 pub use fallback::{
     CircuitBreaker, FallbackError, FallbackMetrics, FallbackPolicy, FallbackResult,
+};
+pub use rebuild::{
+    compute_digest, create_shadow_cursor_table, create_shadow_table, drop_shadow_table,
+    load_shadow_cursor, save_shadow_cursor, swap_cursor_tables_atomic, swap_tables_atomic,
+    RebuildError, RebuildResult, RebuildSummary,
 };
