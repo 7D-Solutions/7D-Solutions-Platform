@@ -68,6 +68,10 @@ name = "subscriptions_outbox_atomicity_e2e"
 path = "tests/subscriptions_outbox_atomicity_e2e.rs"
 
 [[test]]
+name = "gl_outbox_atomicity_e2e"
+path = "tests/gl_outbox_atomicity_e2e.rs"
+
+[[test]]
 name = "release_provenance_smoke_e2e"
 path = "tests/release_provenance_smoke_e2e.rs"
 
