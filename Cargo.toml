@@ -15,6 +15,7 @@ members = [
   "tools/simulation",
   "tools/tenantctl",
   "tools/projection-rebuild",
+  "tools/compliance-export",
   "e2e-tests"
 ]
 
