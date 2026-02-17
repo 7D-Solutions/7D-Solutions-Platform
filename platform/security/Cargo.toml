@@ -18,3 +18,4 @@ dashmap = "6.1"
 prometheus = "0.13"
 
 [dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
