@@ -6,8 +6,8 @@
 //! # State Machine
 //! ```
 //! ACTIVE ──> PAST_DUE ──> SUSPENDED
-//!   ^                         |
-//!   └─────────────────────────┘
+//!   ^    └───────────────────┘  |
+//!   └───────────────────────────┘
 //! ```
 //!
 //! # Critical Invariants
@@ -105,6 +105,7 @@ pub fn transition_guard(
     let is_legal = match (from, to) {
         // ACTIVE transitions
         (Active, PastDue) => true,
+        (Active, Suspended) => true, // dunning terminal escalation
         (Active, Active) => true, // idempotent
 
         // PAST_DUE transitions
@@ -415,20 +416,14 @@ mod tests {
     }
 
     #[test]
-    fn test_guard_illegal_active_to_suspended() {
+    fn test_guard_active_to_suspended() {
+        // Active → Suspended is legal (dunning terminal escalation)
         let result = transition_guard(
             SubscriptionStatus::Active,
             SubscriptionStatus::Suspended,
-            "skip_past_due",
+            "dunning_suspension",
         );
-        assert!(result.is_err());
-        match result {
-            Err(TransitionError::IllegalTransition { from, to, .. }) => {
-                assert_eq!(from, "active");
-                assert_eq!(to, "suspended");
-            }
-            _ => panic!("Expected IllegalTransition error"),
-        }
+        assert!(result.is_ok());
     }
 
     #[test]
