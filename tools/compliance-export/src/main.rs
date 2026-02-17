@@ -16,6 +16,8 @@ use anyhow::Result;
 use clap::{Parser, Subcommand};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
+mod export;
+
 // ============================================================================
 // CLI Definition
 // ============================================================================
@@ -86,18 +88,12 @@ async fn main() -> Result<()> {
                 "Export command invoked"
             );
 
-            println!("[PLACEHOLDER] Compliance export:");
-            println!("  Tenant: {}", tenant);
-            println!("  Output: {}", output);
-            println!("  Format: {}", format);
-            if let Some(from_date) = from {
-                println!("  From: {}", from_date);
+            // Date range filtering is not yet implemented
+            if from.is_some() || to.is_some() {
+                tracing::warn!("Date range filtering (--from/--to) is not yet implemented and will be ignored");
             }
-            if let Some(to_date) = to {
-                println!("  To: {}", to_date);
-            }
-            println!();
-            println!("  → Export functionality not yet implemented (bd-18e0)");
+
+            export::export_compliance_data(&tenant, &output, &format).await?;
 
             Ok(())
         }
