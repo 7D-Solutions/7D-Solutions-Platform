@@ -187,6 +187,87 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  # =========================
+  # PLATFORM DATABASES
+  # =========================
+  projections-postgres:
+    container_name: 7d-projections-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5439:5432"
+    environment:
+      POSTGRES_DB: ${PROJECTIONS_POSTGRES_DB:-projections_db}
+      POSTGRES_USER: ${PROJECTIONS_POSTGRES_USER:-projections_user}
+      POSTGRES_PASSWORD: ${PROJECTIONS_POSTGRES_PASSWORD:-projections_pass}
+    volumes:
+      - projections_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PROJECTIONS_POSTGRES_USER:-projections_user} -d ${PROJECTIONS_POSTGRES_DB:-projections_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "projections-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  audit-postgres:
+    container_name: 7d-audit-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5440:5432"
+    environment:
+      POSTGRES_DB: ${AUDIT_POSTGRES_DB:-audit_db}
+      POSTGRES_USER: ${AUDIT_POSTGRES_USER:-audit_user}
+      POSTGRES_PASSWORD: ${AUDIT_POSTGRES_PASSWORD:-audit_pass}
+    volumes:
+      - audit_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUDIT_POSTGRES_USER:-audit_user} -d ${AUDIT_POSTGRES_DB:-audit_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "audit-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  tenant-registry-postgres:
+    container_name: 7d-tenant-registry-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5441:5432"
+    environment:
+      POSTGRES_DB: ${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}
+      POSTGRES_USER: ${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user}
+      POSTGRES_PASSWORD: ${TENANT_REGISTRY_POSTGRES_PASSWORD:-tenant_registry_pass}
+    volumes:
+      - tenant_registry_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user} -d ${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "tenant-registry-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
@@ -213,4 +294,13 @@ volumes:
     external: true
   gl_pgdata:
     name: 7d-gl-pgdata
+    external: true
+  projections_pgdata:
+    name: 7d-projections-pgdata
+    external: true
+  audit_pgdata:
+    name: 7d-audit-pgdata
+    external: true
+  tenant_registry_pgdata:
+    name: 7d-tenant-registry-pgdata
     external: true
