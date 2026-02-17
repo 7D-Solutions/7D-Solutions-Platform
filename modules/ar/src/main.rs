@@ -105,7 +105,8 @@ async fn main() {
         .route("/api/version", get(routes::health::version))
         .route("/metrics", get(ar_rs::metrics::metrics_handler))
         .with_state(app_state.clone())
-        .merge(routes::ar_router(db))
+        .merge(routes::ar_router(db.clone()))
+        .merge(routes::tax::tax_router(db))
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
 
