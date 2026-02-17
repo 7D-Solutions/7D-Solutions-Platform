@@ -190,7 +190,7 @@ pub async fn transition_to_past_due(
         "subscriptions.status.changed".to_string(),
         None,
         None,
-        "STATE_TRANSITION".to_string(),
+        "LIFECYCLE".to_string(),
         status_payload,
     );
     crate::outbox::enqueue_event_tx(&mut tx, "subscriptions.status.changed", &envelope).await?;

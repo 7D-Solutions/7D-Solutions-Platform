@@ -272,7 +272,7 @@ pub async fn transition_to_succeeded(
         "payment.succeeded".to_string(),
         None,
         None,
-        "STATE_TRANSITION".to_string(),
+        "LIFECYCLE".to_string(),
         payload,
     );
     crate::events::outbox::enqueue_event_tx(&mut tx, "payment.succeeded", &envelope).await?;
