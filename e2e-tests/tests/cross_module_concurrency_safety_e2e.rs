@@ -66,7 +66,7 @@ async fn create_subscription_invoice_attempt(
     sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO subscription_invoice_attempts \
          (tenant_id, subscription_id, cycle_key, cycle_start, cycle_end, status) \
-         VALUES ($1, $2, $3, '2026-02-01', '2026-02-28', 'succeeded') \
+         VALUES ($1, $2, $3, '2026-02-01', '2026-02-28', 'attempting') \
          RETURNING id",
     )
     .bind(tenant_id)
