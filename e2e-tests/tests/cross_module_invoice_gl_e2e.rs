@@ -26,11 +26,11 @@ async fn setup_test_accounts(
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Create Chart of Accounts entries
     sqlx::query(
-        "INSERT INTO accounts (tenant_id, code, name, type, normal_balance, is_active)
+        "INSERT INTO accounts (id, tenant_id, code, name, type, normal_balance, is_active)
          VALUES
-           ($1, 'AR', 'Accounts Receivable', 'asset', 'debit', true),
-           ($1, 'REV', 'Revenue', 'revenue', 'credit', true),
-           ($1, 'TAX', 'Sales Tax Payable', 'liability', 'credit', true)
+           (gen_random_uuid(), $1, 'AR', 'Accounts Receivable', 'asset', 'debit', true),
+           (gen_random_uuid(), $1, 'REV', 'Revenue', 'revenue', 'credit', true),
+           (gen_random_uuid(), $1, 'TAX', 'Sales Tax Payable', 'liability', 'credit', true)
          ON CONFLICT (tenant_id, code) DO NOTHING"
     )
     .bind(tenant_id)
@@ -365,10 +365,10 @@ async fn test_account_validation() {
 
     // Setup: Create accounts (AR active, REV inactive)
     sqlx::query(
-        "INSERT INTO accounts (tenant_id, code, name, type, normal_balance, is_active)
+        "INSERT INTO accounts (id, tenant_id, code, name, type, normal_balance, is_active)
          VALUES
-           ($1, 'AR', 'Accounts Receivable', 'asset', 'debit', true),
-           ($1, 'REV', 'Revenue', 'revenue', 'credit', false)"
+           (gen_random_uuid(), $1, 'AR', 'Accounts Receivable', 'asset', 'debit', true),
+           (gen_random_uuid(), $1, 'REV', 'Revenue', 'revenue', 'credit', false)"
     )
     .bind(tenant_id)
     .execute(&gl_pool)
