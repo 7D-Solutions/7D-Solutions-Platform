@@ -24,6 +24,7 @@ use chrono::Utc;
 use prometheus::{Gauge, GaugeVec, Opts, Registry};
 
 /// Projection health and freshness metrics
+#[derive(Clone)]
 pub struct ProjectionMetrics {
     /// Time difference in milliseconds between now and the last processed event
     /// Labels: projection_name, tenant_id
