@@ -200,12 +200,13 @@ async fn test_create_fx_rate_and_query_latest() {
     // ── Step 5: GET latest as-of between t1 and t2 → should return rate 1 ─
     let as_of_between = effective_t1 + Duration::minutes(30);
     let resp = client
-        .get(format!(
-            "{}/api/gl/fx-rates/latest?tenant_id={}&base_currency=EUR&quote_currency=USD&as_of={}",
-            base_url,
-            tenant_id,
-            as_of_between.to_rfc3339()
-        ))
+        .get(format!("{}/api/gl/fx-rates/latest", base_url))
+        .query(&[
+            ("tenant_id", tenant_id.as_str()),
+            ("base_currency", "EUR"),
+            ("quote_currency", "USD"),
+            ("as_of", &as_of_between.to_rfc3339()),
+        ])
         .send()
         .await
         .expect("Failed to GET rate as-of");

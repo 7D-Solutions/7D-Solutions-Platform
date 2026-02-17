@@ -8,10 +8,10 @@
 -- - Support financial reconciliation across modules
 
 ALTER TABLE journal_entries
-ADD COLUMN correlation_id UUID;
+ADD COLUMN IF NOT EXISTS correlation_id UUID;
 
 -- Index for correlation_id queries
-CREATE INDEX idx_journal_entries_correlation_id ON journal_entries(correlation_id);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_correlation_id ON journal_entries(correlation_id);
 
 -- Composite index for tenant + correlation queries
-CREATE INDEX idx_journal_entries_tenant_correlation ON journal_entries(tenant_id, correlation_id);
+CREATE INDEX IF NOT EXISTS idx_journal_entries_tenant_correlation ON journal_entries(tenant_id, correlation_id);
