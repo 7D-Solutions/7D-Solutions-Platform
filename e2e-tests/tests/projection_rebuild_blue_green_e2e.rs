@@ -518,30 +518,38 @@ async fn test_rebuild_determinism_two_runs() {
             .await
             .expect("Failed to create shadow cursor table");
 
-        // Use deterministic event IDs (based on index) for reproducibility
+        // Use deterministic event IDs and timestamps for reproducibility
         // In a real system, you'd replay from the same event stream
+        let deterministic_timestamp =
+            chrono::DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+                .unwrap()
+                .with_timezone(&Utc);
+
         for i in 0..event_count {
             let event_id = Uuid::from_u128(i as u128); // Deterministic UUID
             let customer_id = format!("cust-{}", i % 10);
 
+            // Use explicit updated_at for determinism
             sqlx::query(
                 r#"
-                INSERT INTO test_balances_shadow (customer_id, tenant_id, balance, event_count)
-                VALUES ($1, $2, $3, 1)
+                INSERT INTO test_balances_shadow (customer_id, tenant_id, balance, event_count, updated_at)
+                VALUES ($1, $2, $3, 1, $4)
                 ON CONFLICT (customer_id)
                 DO UPDATE SET
                     balance = test_balances_shadow.balance + $3,
-                    event_count = test_balances_shadow.event_count + 1
+                    event_count = test_balances_shadow.event_count + 1,
+                    updated_at = $4
                 "#,
             )
             .bind(&customer_id)
             .bind(tenant_id)
             .bind(100_i64)
+            .bind(deterministic_timestamp)
             .execute(pool)
             .await
             .expect("Failed to apply event");
 
-            save_shadow_cursor(pool, projection_name, tenant_id, event_id, Utc::now())
+            save_shadow_cursor(pool, projection_name, tenant_id, event_id, deterministic_timestamp)
                 .await
                 .expect("Failed to save shadow cursor");
         }
