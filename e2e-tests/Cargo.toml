@@ -123,6 +123,18 @@ path = "tests/ar_writeoff_e2e.rs"
 name = "writeoff_gl_posting_e2e"
 path = "tests/writeoff_gl_posting_e2e.rs"
 
+[[test]]
+name = "dunning_state_machine_e2e"
+path = "tests/dunning_state_machine_e2e.rs"
+
+[[test]]
+name = "ar_aging_base_e2e"
+path = "tests/ar_aging_base_e2e.rs"
+
+[[test]]
+name = "ar_aging_adjustments_e2e"
+path = "tests/ar_aging_adjustments_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
