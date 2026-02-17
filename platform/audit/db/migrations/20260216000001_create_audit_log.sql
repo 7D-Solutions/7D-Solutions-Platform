@@ -17,6 +17,7 @@ BEGIN
     );
 EXCEPTION
     WHEN duplicate_object THEN NULL;
+    WHEN unique_violation THEN NULL;  -- 23505: PG throws this on type name collision in some versions
 END $$;
 
 -- ============================================================
