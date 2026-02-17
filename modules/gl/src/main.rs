@@ -14,6 +14,7 @@ use gl_rs::{
     routes::income_statement::get_income_statement,
     routes::period_close::{close_period_handler, get_close_status, validate_close},
     routes::period_summary::get_period_summary,
+    routes::revrec::create_contract,
     routes::trial_balance::get_trial_balance,
     consumer::gl_writeoff_consumer::start_gl_writeoff_consumer,
     start_gl_posting_consumer,
@@ -119,6 +120,7 @@ async fn main() {
         .route("/api/gl/periods/{period_id}/close-status", get(get_close_status))
         .route("/api/gl/detail", get(get_gl_detail))
         .route("/api/gl/accounts/{account_code}/activity", get(get_account_activity))
+        .route("/api/gl/revrec/contracts", post(create_contract))
         .with_state(app_state)
         .layer(
             CorsLayer::new()

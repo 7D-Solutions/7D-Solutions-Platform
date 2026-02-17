@@ -5,4 +5,5 @@ pub mod health;
 pub mod income_statement;
 pub mod period_close;
 pub mod period_summary;
+pub mod revrec;
 pub mod trial_balance;
