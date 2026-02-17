@@ -85,7 +85,7 @@ pub async fn get_trial_balance(
 
     // Query trial balance from statement repository
     // Currency validation happens in statement_repo (ISO 4217 format check)
-    let rows = statement_repo::get_trial_balance_rows(pool, tenant_id, period_id, currency)
+    let rows = statement_repo::get_trial_balance_rows(pool, tenant_id, period_id, Some(currency))
         .await?;
 
     // Calculate totals

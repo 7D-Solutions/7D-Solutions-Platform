@@ -667,3 +667,42 @@ pub struct GlPostingLine {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub memo: Option<String>,
 }
+
+// ============================================================================
+// Usage Ingestion (bd-23z)
+// ============================================================================
+
+/// Request body for POST /api/ar/usage — capture metered usage
+#[derive(Debug, Deserialize)]
+pub struct CaptureUsageRequest {
+    /// Caller-supplied idempotency key (deterministic from business key, e.g. usage_id)
+    pub idempotency_key: Uuid,
+    pub customer_id: String,
+    pub metric_name: String,
+    pub quantity: f64,
+    /// Unit label for the quantity (e.g. "calls", "GB", "seats")
+    pub unit: String,
+    /// Price per unit in minor currency units (e.g. cents)
+    pub unit_price_minor: i64,
+    pub period_start: chrono::DateTime<chrono::Utc>,
+    pub period_end: chrono::DateTime<chrono::Utc>,
+    pub subscription_id: Option<i32>,
+}
+
+/// Response for a captured usage record
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct UsageRecord {
+    pub id: i32,
+    pub usage_uuid: Uuid,
+    pub idempotency_key: Option<Uuid>,
+    pub app_id: String,
+    pub customer_id: i32,
+    pub metric_name: String,
+    /// Stored as NUMERIC(10,2) — serialized as string to preserve precision
+    pub quantity: String,
+    pub unit: String,
+    pub unit_price_cents: i32,
+    pub period_start: NaiveDateTime,
+    pub period_end: NaiveDateTime,
+    pub recorded_at: NaiveDateTime,
+}

@@ -44,7 +44,7 @@ pub async fn get_trial_balance(
         &app_state.pool,
         &params.tenant_id,
         params.period_id,
-        params.currency.as_deref(),
+        params.currency.as_deref().unwrap_or("USD"),
     )
     .await
     .map_err(|e| {

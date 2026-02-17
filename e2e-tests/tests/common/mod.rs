@@ -436,6 +436,12 @@ pub async fn cleanup_tenant_data(
         .await
         .map_err(|e| format!("Failed to cleanup AR attempts: {}", e))?;
 
+    sqlx::query("DELETE FROM ar_metered_usage WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(ar_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup AR metered usage: {}", e))?;
+
     sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
         .bind(tenant_id)
         .execute(ar_pool)
