@@ -1,5 +1,6 @@
 pub mod health;
 pub mod invoices;
+pub mod tax;
 
 use axum::{
     body::Bytes,
@@ -104,6 +105,10 @@ pub fn ar_router(db: PgPool) -> Router {
         .route("/api/ar/aging/refresh", post(refresh_aging_route))
         // Dunning scheduler (bd-2bj)
         .route("/api/ar/dunning/poll", post(dunning_poll_route))
+        // Reconciliation matching (bd-2cn)
+        .route("/api/ar/recon/run", post(recon_run_route))
+        // Payment allocation (bd-14f)
+        .route("/api/ar/payments/allocate", post(allocate_payment_route))
         .with_state(db.clone())
         .layer(middleware::from_fn_with_state(db, check_idempotency))
 }
@@ -4929,4 +4934,81 @@ async fn dunning_poll_route(
         processed,
         outcomes,
     }))
+}
+
+// ============================================================================
+// Payment Allocation (bd-14f)
+// ============================================================================
+
+/// POST /api/ar/payments/allocate — FIFO payment allocation
+async fn allocate_payment_route(
+    State(db): State<PgPool>,
+    Json(req): Json<crate::payment_allocation::AllocatePaymentRequest>,
+) -> Result<Json<crate::payment_allocation::AllocationResult>, (StatusCode, Json<ErrorResponse>)> {
+    // TODO: Extract app_id from auth middleware
+    let app_id = "default-tenant";
+
+    let result = crate::payment_allocation::allocate_payment_fifo(&db, app_id, &req)
+        .await
+        .map_err(|e| match e {
+            crate::payment_allocation::AllocationError::Validation(msg) => (
+                StatusCode::BAD_REQUEST,
+                Json(ErrorResponse::new("validation_error", msg)),
+            ),
+            crate::payment_allocation::AllocationError::Database(db_err) => {
+                tracing::error!("Allocation DB error: {:?}", db_err);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse::new("database_error", format!("{}", db_err))),
+                )
+            }
+        })?;
+
+    Ok(Json(result))
+}
+
+// ============================================================================
+// Reconciliation Matching (bd-2cn)
+// ============================================================================
+
+/// Request body for POST /api/ar/recon/run
+#[derive(Debug, serde::Deserialize)]
+struct ReconRunRequest {
+    /// Stable ID for this reconciliation run (idempotency anchor).
+    recon_run_id: Option<uuid::Uuid>,
+}
+
+/// POST /api/ar/recon/run — trigger a reconciliation matching run
+///
+/// Matches unmatched succeeded payments against open invoices using
+/// deterministic heuristic rules. Same inputs always produce same outputs.
+async fn recon_run_route(
+    State(db): State<PgPool>,
+    Json(req): Json<ReconRunRequest>,
+) -> Result<Json<crate::reconciliation::ReconRunResult>, (StatusCode, Json<ErrorResponse>)> {
+    let recon_run_id = req.recon_run_id.unwrap_or_else(uuid::Uuid::new_v4);
+    let app_id = "test-app".to_string(); // TODO: extract from auth middleware
+
+    let result = crate::reconciliation::run_reconciliation(
+        &db,
+        crate::reconciliation::RunReconRequest {
+            recon_run_id,
+            app_id,
+            correlation_id: uuid::Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("Reconciliation run failed: {}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("recon_error", e.to_string())),
+        )
+    })?;
+
+    match result {
+        crate::reconciliation::RunReconOutcome::Executed(r) => Ok(Json(r)),
+        crate::reconciliation::RunReconOutcome::AlreadyExists(r) => Ok(Json(r)),
+    }
 }

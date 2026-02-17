@@ -15,6 +15,8 @@ pub mod lifecycle;
 pub mod metrics;
 pub mod middleware;
 pub mod models;
+pub mod payment_allocation;
+pub mod reconciliation;
 pub mod retry;
 pub mod routes;
 pub mod tax;
