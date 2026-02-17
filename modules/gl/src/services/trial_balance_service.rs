@@ -12,7 +12,7 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::domain::statements::{TrialBalanceRow, StatementTotals, CurrencyTotals};
+use crate::domain::statements::{TrialBalanceRow, StatementTotals};
 use crate::repos::statement_repo::{self, StatementError};
 
 /// Trial balance response with account balances and totals
