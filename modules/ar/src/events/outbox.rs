@@ -4,21 +4,16 @@ use serde::Serialize;
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-/// Enqueue an event into the transactional outbox
+/// Enqueue an event into the outbox (NON-TRANSACTIONAL — DEPRECATED)
 ///
-/// This function stores the event in the database as part of the same transaction
-/// as the business operation. A background publisher will pick it up and publish
-/// to the event bus asynchronously.
+/// **WARNING**: This function auto-commits to the pool outside any caller transaction.
+/// Use [`enqueue_event_tx`] instead for atomicity with domain mutations.
 ///
-/// **IMPORTANT**: This function enforces envelope validation at the boundary.
-/// No event can be enqueued without passing constitutional validation.
-///
-/// # Arguments
-/// * `db` - Database connection pool
-/// * `event_type` - Event type for NATS subject routing (e.g., "payment.collection.requested")
-/// * `aggregate_type` - Aggregate type for AR's DDD model (e.g., "invoice")
-/// * `aggregate_id` - Aggregate instance ID
-/// * `envelope` - Platform-standard event envelope
+/// Retained only for legacy tests. All production paths MUST use `enqueue_event_tx`.
+#[deprecated(
+    since = "0.1.0",
+    note = "Use enqueue_event_tx for transactional atomicity. Non-tx outbox writes violate Guard→Mutation→Outbox invariant."
+)]
 pub async fn enqueue_event<T: Serialize>(
     db: &PgPool,
     event_type: &str,

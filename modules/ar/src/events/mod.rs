@@ -36,5 +36,6 @@ pub use contracts::{
     build_invoice_settled_fx_envelope,
 };
 pub use envelope::EventEnvelope;
+#[allow(deprecated)]
 pub use outbox::enqueue_event;
 pub use publisher::run_publisher_task;

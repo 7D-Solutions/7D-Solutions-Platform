@@ -18,7 +18,6 @@ use sqlx::PgPool;
 
 use crate::credit_notes::{issue_credit_note, IssueCreditNoteRequest};
 use crate::write_offs::{write_off_invoice, WriteOffInvoiceRequest};
-use crate::events::enqueue_event;
 use crate::idempotency::{check_idempotency, log_event_async};
 use crate::models::{
     AddPaymentMethodRequest, CancelSubscriptionRequest, CaptureChargeRequest,

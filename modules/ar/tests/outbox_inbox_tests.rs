@@ -1,5 +1,6 @@
 mod common;
 
+#[allow(deprecated)] // enqueue_event is deprecated; tests retained for outbox format validation
 use ar_rs::events::{
     enqueue_event, is_event_processed, mark_event_processed, process_event_idempotent,
     envelope::create_ar_envelope,
