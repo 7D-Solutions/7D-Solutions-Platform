@@ -10,9 +10,7 @@ use chrono::Utc;
 use serial_test::serial;
 use sqlx::PgPool;
 use std::collections::HashMap;
-use tenant_registry::{
-    standard_provisioning_sequence, TenantId, TenantStatus, Environment,
-};
+use tenant_registry::standard_provisioning_sequence;
 use uuid::Uuid;
 
 /// Helper to set up the tenant registry database pool
