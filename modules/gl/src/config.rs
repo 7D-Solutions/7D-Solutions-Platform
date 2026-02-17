@@ -3,7 +3,111 @@
 //! Validates required environment variables at startup with clear error messages.
 //! Invariant: GL service never starts with missing/invalid configuration.
 
+use std::collections::HashMap;
 use std::env;
+
+use serde::{Deserialize, Serialize};
+
+// ============================================================================
+// Currency Configuration
+// ============================================================================
+
+/// Per-tenant currency configuration.
+///
+/// Every tenant (identified by `app_id`) has a **reporting currency** — the
+/// currency in which consolidated financial statements are produced. Individual
+/// transactions may be denominated in any **transaction currency** (ISO 4217);
+/// FX events translate between the two.
+///
+/// ## Semantics
+///
+/// - **transaction_currency**: The currency of the original business event
+///   (invoice, payment, journal entry). Carried on every GL line.
+/// - **reporting_currency**: The tenant's functional / presentation currency.
+///   All FX gain/loss calculations convert *from* transaction currency *to*
+///   reporting currency.
+///
+/// ## Example
+///
+/// ```rust
+/// use gl_rs::config::CurrencyConfig;
+///
+/// let cfg = CurrencyConfig::new("USD");
+/// assert_eq!(cfg.reporting_currency, "USD");
+/// assert!(cfg.is_valid());
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CurrencyConfig {
+    /// ISO 4217 currency code for the tenant's reporting (functional) currency.
+    /// All FX revaluation and realized gain/loss is measured against this.
+    pub reporting_currency: String,
+}
+
+impl CurrencyConfig {
+    /// Create a new currency config with the given reporting currency.
+    pub fn new(reporting_currency: &str) -> Self {
+        Self {
+            reporting_currency: reporting_currency.to_uppercase(),
+        }
+    }
+
+    /// Validate the currency config.
+    ///
+    /// Rules:
+    /// - reporting_currency must be exactly 3 uppercase ASCII letters (ISO 4217)
+    pub fn is_valid(&self) -> bool {
+        let rc = &self.reporting_currency;
+        rc.len() == 3 && rc.chars().all(|c| c.is_ascii_uppercase())
+    }
+
+    /// Returns true if the transaction currency differs from reporting currency.
+    pub fn requires_fx(&self, transaction_currency: &str) -> bool {
+        transaction_currency.to_uppercase() != self.reporting_currency
+    }
+}
+
+/// Default reporting currency when none is configured for a tenant.
+pub const DEFAULT_REPORTING_CURRENCY: &str = "USD";
+
+/// In-memory registry of per-tenant currency configs.
+///
+/// In production this would be loaded from the tenant registry database.
+/// For now it provides a programmatic API that downstream beads (bd-104+)
+/// will back with persistent storage.
+#[derive(Debug, Clone, Default)]
+pub struct CurrencyConfigRegistry {
+    configs: HashMap<String, CurrencyConfig>,
+}
+
+impl CurrencyConfigRegistry {
+    pub fn new() -> Self {
+        Self {
+            configs: HashMap::new(),
+        }
+    }
+
+    /// Register a reporting currency for a tenant (app_id).
+    pub fn set(&mut self, app_id: &str, config: CurrencyConfig) {
+        self.configs.insert(app_id.to_string(), config);
+    }
+
+    /// Look up the currency config for a tenant. Falls back to USD.
+    pub fn get(&self, app_id: &str) -> CurrencyConfig {
+        self.configs
+            .get(app_id)
+            .cloned()
+            .unwrap_or_else(|| CurrencyConfig::new(DEFAULT_REPORTING_CURRENCY))
+    }
+
+    /// Check if a tenant has an explicit currency config.
+    pub fn has(&self, app_id: &str) -> bool {
+        self.configs.contains_key(app_id)
+    }
+}
+
+// ============================================================================
+// Application Configuration
+// ============================================================================
 
 /// Application configuration parsed from environment variables
 #[derive(Debug, Clone)]
@@ -199,5 +303,82 @@ mod tests {
         };
 
         assert!(config_nats.validate().is_ok());
+    }
+
+    // ─── CurrencyConfig ─────────────────────────────────────────────────────
+
+    #[test]
+    fn currency_config_normalizes_to_uppercase() {
+        let cfg = CurrencyConfig::new("eur");
+        assert_eq!(cfg.reporting_currency, "EUR");
+    }
+
+    #[test]
+    fn currency_config_valid_iso_4217() {
+        assert!(CurrencyConfig::new("USD").is_valid());
+        assert!(CurrencyConfig::new("EUR").is_valid());
+        assert!(CurrencyConfig::new("GBP").is_valid());
+        assert!(CurrencyConfig::new("JPY").is_valid());
+    }
+
+    #[test]
+    fn currency_config_rejects_invalid_codes() {
+        // Too short
+        assert!(!CurrencyConfig::new("US").is_valid());
+        // Too long
+        assert!(!CurrencyConfig::new("USDD").is_valid());
+        // Contains digits
+        assert!(!CurrencyConfig { reporting_currency: "U2D".to_string() }.is_valid());
+        // Empty
+        assert!(!CurrencyConfig { reporting_currency: "".to_string() }.is_valid());
+    }
+
+    #[test]
+    fn currency_config_requires_fx_when_different() {
+        let cfg = CurrencyConfig::new("USD");
+        assert!(cfg.requires_fx("EUR"));
+        assert!(cfg.requires_fx("eur")); // case-insensitive comparison
+        assert!(!cfg.requires_fx("USD"));
+        assert!(!cfg.requires_fx("usd")); // case-insensitive
+    }
+
+    #[test]
+    fn currency_config_serializes_correctly() {
+        let cfg = CurrencyConfig::new("GBP");
+        let json = serde_json::to_string(&cfg).unwrap();
+        assert!(json.contains("\"GBP\""));
+        let roundtrip: CurrencyConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(roundtrip, cfg);
+    }
+
+    // ─── CurrencyConfigRegistry ─────────────────────────────────────────────
+
+    #[test]
+    fn registry_returns_default_for_unknown_tenant() {
+        let registry = CurrencyConfigRegistry::new();
+        let cfg = registry.get("unknown-tenant");
+        assert_eq!(cfg.reporting_currency, DEFAULT_REPORTING_CURRENCY);
+    }
+
+    #[test]
+    fn registry_stores_and_retrieves_tenant_config() {
+        let mut registry = CurrencyConfigRegistry::new();
+        registry.set("tenant-eu", CurrencyConfig::new("EUR"));
+        registry.set("tenant-uk", CurrencyConfig::new("GBP"));
+
+        assert_eq!(registry.get("tenant-eu").reporting_currency, "EUR");
+        assert_eq!(registry.get("tenant-uk").reporting_currency, "GBP");
+        assert!(registry.has("tenant-eu"));
+        assert!(!registry.has("tenant-unknown"));
+    }
+
+    #[test]
+    fn registry_overwrites_existing_config() {
+        let mut registry = CurrencyConfigRegistry::new();
+        registry.set("t1", CurrencyConfig::new("EUR"));
+        assert_eq!(registry.get("t1").reporting_currency, "EUR");
+
+        registry.set("t1", CurrencyConfig::new("GBP"));
+        assert_eq!(registry.get("t1").reporting_currency, "GBP");
     }
 }

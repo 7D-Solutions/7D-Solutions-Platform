@@ -304,6 +304,274 @@ pub fn build_accrual_reversed_envelope(
 }
 
 // ============================================================================
+// FX Event Type Constants (Phase 23a)
+// ============================================================================
+
+/// An FX rate was published or updated for a currency pair.
+///
+/// Emitted by the FX rate provider service (or admin API) whenever a new
+/// exchange rate becomes effective. Downstream consumers (GL revaluation,
+/// AR multi-currency) subscribe to this to keep their rate caches warm.
+pub const EVENT_TYPE_FX_RATE_UPDATED: &str = "fx.rate_updated";
+
+/// An unrealized FX gain/loss revaluation was posted to the GL.
+///
+/// Emitted when the GL module revalues open foreign-currency balances
+/// against current exchange rates at period end. The resulting
+/// unrealized gain or loss is posted as a journal entry.
+pub const EVENT_TYPE_FX_REVALUATION_POSTED: &str = "gl.fx_revaluation_posted";
+
+/// A realized FX gain/loss was posted to the GL.
+///
+/// Emitted when a foreign-currency transaction settles (e.g. payment received
+/// against a foreign-currency invoice) and the difference between the original
+/// booking rate and the settlement rate is crystallized into a realized
+/// gain or loss journal entry.
+pub const EVENT_TYPE_FX_REALIZED_POSTED: &str = "gl.fx_realized_posted";
+
+// ============================================================================
+// FX Schema Version
+// ============================================================================
+
+/// Schema version for all FX event payloads (v1)
+pub const GL_FX_SCHEMA_VERSION: &str = "1.0.0";
+
+// ============================================================================
+// Payload: fx.rate_updated
+// ============================================================================
+
+/// Payload for fx.rate_updated
+///
+/// Published when an exchange rate is created or updated for a currency pair.
+/// The rate expresses: 1 unit of `base_currency` = `rate` units of `quote_currency`.
+///
+/// ## Rate semantics
+///
+/// - Rates are stored as `f64` for calculation flexibility; downstream consumers
+///   should round to the appropriate precision for their use case.
+/// - `effective_at` marks when this rate becomes active. Historical rates are
+///   kept for audit trail / point-in-time revaluation.
+/// - `source` identifies the rate provider (e.g. "ecb", "openexchangerates", "manual").
+///
+/// ## Example
+///
+/// EUR/USD at 1.0850 means 1 EUR = 1.0850 USD.
+/// If reporting_currency is USD and transaction_currency is EUR,
+/// the GL converts EUR amounts to USD using this rate.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FxRateUpdatedPayload {
+    /// Unique identifier for this rate record
+    pub rate_id: Uuid,
+
+    /// ISO 4217 base currency (the "1 unit of" side)
+    pub base_currency: String,
+
+    /// ISO 4217 quote currency (the "rate units of" side)
+    pub quote_currency: String,
+
+    /// Exchange rate: 1 base_currency = rate quote_currency
+    pub rate: f64,
+
+    /// Inverse rate for convenience: 1 quote_currency = inverse_rate base_currency
+    pub inverse_rate: f64,
+
+    /// When this rate becomes effective
+    pub effective_at: DateTime<Utc>,
+
+    /// Rate source identifier (e.g. "ecb", "openexchangerates", "manual")
+    pub source: String,
+}
+
+/// Build an envelope for fx.rate_updated
+///
+/// mutation_class: DATA_MUTATION (creates/updates an FX rate record)
+pub fn build_fx_rate_updated_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: FxRateUpdatedPayload,
+) -> EventEnvelope<FxRateUpdatedPayload> {
+    create_gl_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_FX_RATE_UPDATED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(GL_FX_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: gl.fx_revaluation_posted
+// ============================================================================
+
+/// Payload for gl.fx_revaluation_posted
+///
+/// Emitted when the GL posts an unrealized FX gain/loss entry during
+/// period-end revaluation. The GL takes all open foreign-currency balances,
+/// converts them at the current rate, and posts the difference as an
+/// unrealized gain or loss.
+///
+/// ## Accounting
+///
+/// - Unrealized gain: DR Foreign-Currency Asset, CR Unrealized FX Gain
+/// - Unrealized loss: DR Unrealized FX Loss, CR Foreign-Currency Asset
+///
+/// These entries are typically reversed at the start of the next period
+/// (auto-reversal) so that subsequent revaluations start clean.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FxRevaluationPostedPayload {
+    /// Unique identifier for this revaluation run
+    pub revaluation_id: Uuid,
+
+    pub tenant_id: String,
+
+    /// Accounting period being revalued (YYYY-MM)
+    pub period: String,
+
+    /// The foreign (transaction) currency being revalued
+    pub transaction_currency: String,
+
+    /// The tenant's reporting (functional) currency
+    pub reporting_currency: String,
+
+    /// Exchange rate used for this revaluation
+    /// (1 transaction_currency = rate reporting_currency)
+    pub rate_used: f64,
+
+    /// Original balance in transaction currency (minor units)
+    pub original_amount_minor: i64,
+
+    /// Revalued balance in reporting currency (minor units)
+    pub revalued_amount_minor: i64,
+
+    /// Unrealized gain (positive) or loss (negative) in reporting currency minor units
+    pub unrealized_gain_loss_minor: i64,
+
+    /// GL account for the unrealized gain/loss posting
+    pub gain_loss_account: String,
+
+    /// GL account for the foreign-currency balance being revalued
+    pub balance_account: String,
+
+    /// GL journal entry ID created for this revaluation
+    pub journal_entry_id: Option<Uuid>,
+
+    /// Date the revaluation was performed (YYYY-MM-DD)
+    pub revaluation_date: String,
+
+    /// Whether this revaluation entry will be auto-reversed next period
+    pub auto_reverse: bool,
+}
+
+/// Build an envelope for gl.fx_revaluation_posted
+///
+/// mutation_class: DATA_MUTATION (posts unrealized FX gain/loss journal entry)
+pub fn build_fx_revaluation_posted_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: FxRevaluationPostedPayload,
+) -> EventEnvelope<FxRevaluationPostedPayload> {
+    create_gl_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_FX_REVALUATION_POSTED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(GL_FX_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: gl.fx_realized_posted
+// ============================================================================
+
+/// Payload for gl.fx_realized_posted
+///
+/// Emitted when a foreign-currency transaction settles and the realized
+/// FX gain/loss is crystallized. The difference between the original
+/// booking rate and the settlement rate is posted to the realized
+/// FX gain/loss account.
+///
+/// ## Accounting
+///
+/// - Realized gain: DR Cash/Bank, CR Realized FX Gain (plus original AR/AP offset)
+/// - Realized loss: DR Realized FX Loss, CR Cash/Bank (plus original AR/AP offset)
+///
+/// Unlike unrealized entries, realized entries are never reversed — they
+/// represent actual economic gains/losses from settled transactions.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FxRealizedPostedPayload {
+    /// Unique identifier for this realized FX posting
+    pub realized_id: Uuid,
+
+    pub tenant_id: String,
+
+    /// The original transaction that generated this FX gain/loss
+    /// (e.g. an invoice_id or payment_id)
+    pub source_transaction_id: Uuid,
+
+    /// Type of the source transaction (e.g. "invoice_payment", "ar_settlement")
+    pub source_transaction_type: String,
+
+    /// The foreign (transaction) currency
+    pub transaction_currency: String,
+
+    /// The tenant's reporting (functional) currency
+    pub reporting_currency: String,
+
+    /// Original booking rate (1 transaction_currency = rate reporting_currency)
+    pub booking_rate: f64,
+
+    /// Settlement rate (1 transaction_currency = rate reporting_currency)
+    pub settlement_rate: f64,
+
+    /// Transaction amount in transaction currency (minor units)
+    pub transaction_amount_minor: i64,
+
+    /// Realized gain (positive) or loss (negative) in reporting currency minor units
+    pub realized_gain_loss_minor: i64,
+
+    /// GL account for the realized gain/loss posting
+    pub gain_loss_account: String,
+
+    /// GL journal entry ID created for this realized posting
+    pub journal_entry_id: Option<Uuid>,
+
+    /// Date the settlement occurred (YYYY-MM-DD)
+    pub settlement_date: String,
+}
+
+/// Build an envelope for gl.fx_realized_posted
+///
+/// mutation_class: DATA_MUTATION (posts realized FX gain/loss journal entry)
+pub fn build_fx_realized_posted_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: FxRealizedPostedPayload,
+) -> EventEnvelope<FxRealizedPostedPayload> {
+    create_gl_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_FX_REALIZED_POSTED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(GL_FX_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -566,5 +834,272 @@ mod tests {
                 json
             );
         }
+    }
+
+    // ─── FX Event Type Constants (Phase 23a) ────────────────────────────────
+
+    #[test]
+    fn fx_event_type_constants_use_correct_prefix() {
+        assert!(EVENT_TYPE_FX_RATE_UPDATED.starts_with("fx."));
+        assert!(EVENT_TYPE_FX_REVALUATION_POSTED.starts_with("gl."));
+        assert!(EVENT_TYPE_FX_REALIZED_POSTED.starts_with("gl."));
+    }
+
+    #[test]
+    fn fx_schema_version_is_stable() {
+        assert_eq!(GL_FX_SCHEMA_VERSION, "1.0.0");
+    }
+
+    // ─── fx.rate_updated ────────────────────────────────────────────────────
+
+    fn sample_fx_rate_updated() -> FxRateUpdatedPayload {
+        FxRateUpdatedPayload {
+            rate_id: Uuid::new_v4(),
+            base_currency: "EUR".to_string(),
+            quote_currency: "USD".to_string(),
+            rate: 1.085,
+            inverse_rate: 0.921658986,
+            effective_at: Utc::now(),
+            source: "ecb".to_string(),
+        }
+    }
+
+    #[test]
+    fn fx_rate_updated_envelope_has_correct_type_and_class() {
+        let envelope = build_fx_rate_updated_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-fx-1".to_string(),
+            None,
+            sample_fx_rate_updated(),
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_FX_RATE_UPDATED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+        assert_eq!(envelope.schema_version, GL_FX_SCHEMA_VERSION);
+        assert_eq!(envelope.source_module, "gl");
+    }
+
+    #[test]
+    fn fx_rate_updated_payload_serializes_correctly() {
+        let payload = sample_fx_rate_updated();
+        let json = serde_json::to_string(&payload).unwrap();
+        assert!(json.contains("base_currency"));
+        assert!(json.contains("quote_currency"));
+        assert!(json.contains("rate"));
+        assert!(json.contains("inverse_rate"));
+        assert!(json.contains("source"));
+        assert!(json.contains("\"EUR\""));
+        assert!(json.contains("\"USD\""));
+    }
+
+    #[test]
+    fn fx_rate_updated_roundtrips() {
+        let payload = sample_fx_rate_updated();
+        let json = serde_json::to_string(&payload).unwrap();
+        let roundtrip: FxRateUpdatedPayload = serde_json::from_str(&json).unwrap();
+        assert_eq!(roundtrip.base_currency, "EUR");
+        assert_eq!(roundtrip.quote_currency, "USD");
+        assert!((roundtrip.rate - 1.085).abs() < f64::EPSILON);
+    }
+
+    // ─── gl.fx_revaluation_posted ───────────────────────────────────────────
+
+    fn sample_fx_revaluation() -> FxRevaluationPostedPayload {
+        FxRevaluationPostedPayload {
+            revaluation_id: Uuid::new_v4(),
+            tenant_id: "tenant-1".to_string(),
+            period: "2026-01".to_string(),
+            transaction_currency: "EUR".to_string(),
+            reporting_currency: "USD".to_string(),
+            rate_used: 1.085,
+            original_amount_minor: 100000, // 1000.00 EUR
+            revalued_amount_minor: 108500, // 1085.00 USD
+            unrealized_gain_loss_minor: 500, // 5.00 USD gain
+            gain_loss_account: "UNREALIZED_FX_GAIN_LOSS".to_string(),
+            balance_account: "AR_EUR".to_string(),
+            journal_entry_id: Some(Uuid::new_v4()),
+            revaluation_date: "2026-01-31".to_string(),
+            auto_reverse: true,
+        }
+    }
+
+    #[test]
+    fn fx_revaluation_envelope_has_correct_type_and_class() {
+        let envelope = build_fx_revaluation_posted_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-reval-1".to_string(),
+            None,
+            sample_fx_revaluation(),
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_FX_REVALUATION_POSTED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+        assert_eq!(envelope.schema_version, GL_FX_SCHEMA_VERSION);
+        assert_eq!(envelope.source_module, "gl");
+    }
+
+    #[test]
+    fn fx_revaluation_payload_carries_currency_pair() {
+        let payload = sample_fx_revaluation();
+        assert_eq!(payload.transaction_currency, "EUR");
+        assert_eq!(payload.reporting_currency, "USD");
+    }
+
+    #[test]
+    fn fx_revaluation_payload_serializes_correctly() {
+        let payload = sample_fx_revaluation();
+        let json = serde_json::to_string(&payload).unwrap();
+        assert!(json.contains("transaction_currency"));
+        assert!(json.contains("reporting_currency"));
+        assert!(json.contains("unrealized_gain_loss_minor"));
+        assert!(json.contains("gain_loss_account"));
+        assert!(json.contains("auto_reverse"));
+    }
+
+    #[test]
+    fn fx_revaluation_envelope_carries_causation_id() {
+        let envelope = build_fx_revaluation_posted_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-reval-1".to_string(),
+            Some("cause-period-close".to_string()),
+            sample_fx_revaluation(),
+        );
+        assert_eq!(
+            envelope.causation_id.as_deref(),
+            Some("cause-period-close")
+        );
+    }
+
+    // ─── gl.fx_realized_posted ──────────────────────────────────────────────
+
+    fn sample_fx_realized() -> FxRealizedPostedPayload {
+        FxRealizedPostedPayload {
+            realized_id: Uuid::new_v4(),
+            tenant_id: "tenant-1".to_string(),
+            source_transaction_id: Uuid::new_v4(),
+            source_transaction_type: "invoice_payment".to_string(),
+            transaction_currency: "EUR".to_string(),
+            reporting_currency: "USD".to_string(),
+            booking_rate: 1.08,
+            settlement_rate: 1.085,
+            transaction_amount_minor: 100000, // 1000.00 EUR
+            realized_gain_loss_minor: 500,    // 5.00 USD gain
+            gain_loss_account: "REALIZED_FX_GAIN_LOSS".to_string(),
+            journal_entry_id: Some(Uuid::new_v4()),
+            settlement_date: "2026-02-15".to_string(),
+        }
+    }
+
+    #[test]
+    fn fx_realized_envelope_has_correct_type_and_class() {
+        let envelope = build_fx_realized_posted_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-real-1".to_string(),
+            None,
+            sample_fx_realized(),
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_FX_REALIZED_POSTED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+        assert_eq!(envelope.schema_version, GL_FX_SCHEMA_VERSION);
+        assert_eq!(envelope.source_module, "gl");
+    }
+
+    #[test]
+    fn fx_realized_payload_carries_rate_pair() {
+        let payload = sample_fx_realized();
+        assert!((payload.booking_rate - 1.08).abs() < f64::EPSILON);
+        assert!((payload.settlement_rate - 1.085).abs() < f64::EPSILON);
+        // Gain = (settlement - booking) * amount = (1.085 - 1.08) * 100000 = 500
+        assert_eq!(payload.realized_gain_loss_minor, 500);
+    }
+
+    #[test]
+    fn fx_realized_payload_serializes_correctly() {
+        let payload = sample_fx_realized();
+        let json = serde_json::to_string(&payload).unwrap();
+        assert!(json.contains("source_transaction_id"));
+        assert!(json.contains("source_transaction_type"));
+        assert!(json.contains("booking_rate"));
+        assert!(json.contains("settlement_rate"));
+        assert!(json.contains("realized_gain_loss_minor"));
+        assert!(json.contains("settlement_date"));
+    }
+
+    #[test]
+    fn fx_realized_envelope_carries_causation_id() {
+        let envelope = build_fx_realized_posted_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-real-1".to_string(),
+            Some("cause-payment-received".to_string()),
+            sample_fx_realized(),
+        );
+        assert_eq!(
+            envelope.causation_id.as_deref(),
+            Some("cause-payment-received")
+        );
+    }
+
+    // ─── Envelope enforcement: all FX events are envelope-complete ──────────
+
+    #[test]
+    fn all_fx_envelopes_pass_validation() {
+        use event_bus::validate_envelope_fields;
+
+        // fx.rate_updated
+        let env1 = build_fx_rate_updated_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            None,
+            sample_fx_rate_updated(),
+        );
+        let json1 = serde_json::to_value(&env1).unwrap();
+        assert!(
+            validate_envelope_fields(&json1).is_ok(),
+            "fx.rate_updated failed envelope validation: {:?}",
+            validate_envelope_fields(&json1)
+        );
+
+        // gl.fx_revaluation_posted
+        let env2 = build_fx_revaluation_posted_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-2".to_string(),
+            None,
+            sample_fx_revaluation(),
+        );
+        let json2 = serde_json::to_value(&env2).unwrap();
+        assert!(
+            validate_envelope_fields(&json2).is_ok(),
+            "gl.fx_revaluation_posted failed envelope validation: {:?}",
+            validate_envelope_fields(&json2)
+        );
+
+        // gl.fx_realized_posted
+        let env3 = build_fx_realized_posted_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-3".to_string(),
+            None,
+            sample_fx_realized(),
+        );
+        let json3 = serde_json::to_value(&env3).unwrap();
+        assert!(
+            validate_envelope_fields(&json3).is_ok(),
+            "gl.fx_realized_posted failed envelope validation: {:?}",
+            validate_envelope_fields(&json3)
+        );
     }
 }
