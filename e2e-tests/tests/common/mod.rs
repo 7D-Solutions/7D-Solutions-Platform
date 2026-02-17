@@ -88,6 +88,13 @@ pub async fn get_gl_pool() -> PgPool {
     wait_for_db_ready("gl", &url).await
 }
 
+/// Get Notifications database pool
+pub async fn get_notifications_pool() -> PgPool {
+    let url = std::env::var("NOTIFICATIONS_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://notifications_user:notifications_pass@localhost:5437/notifications_db".to_string());
+    wait_for_db_ready("notifications", &url).await
+}
+
 /// Get Auth database pool
 pub async fn get_auth_pool() -> PgPool {
     let url = std::env::var("AUTH_DATABASE_URL")

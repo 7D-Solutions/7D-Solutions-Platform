@@ -6,8 +6,9 @@
 ///
 /// Run with: cargo test --test balance_posting_e2e -- --test-threads=1
 
+mod common;
+
 use chrono::NaiveDate;
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::process::Command;
 use std::time::Duration;
@@ -25,11 +26,7 @@ use uuid::Uuid;
 // ============================================================================
 
 async fn connect_gl_db() -> PgPool {
-    PgPoolOptions::new()
-        .max_connections(5)
-        .connect("postgresql://gl_user:gl_pass@localhost:5438/gl_db")
-        .await
-        .expect("Failed to connect to GL database")
+    common::get_gl_pool().await
 }
 
 // ============================================================================

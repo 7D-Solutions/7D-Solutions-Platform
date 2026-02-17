@@ -40,16 +40,9 @@ use chrono::{Duration, Utc};
 use serial_test::serial;
 use sqlx::PgPool;
 
-/// Get Subscriptions database pool
+/// Get Subscriptions database pool (delegates to common helper with retry logic)
 async fn get_subscriptions_pool() -> PgPool {
-    let url = std::env::var("SUBSCRIPTIONS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db".to_string());
-
-    sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to Subscriptions database")
+    common::get_subscriptions_pool().await
 }
 
 /// Test: AR service completely down (connection refused)

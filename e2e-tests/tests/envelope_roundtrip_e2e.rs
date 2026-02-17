@@ -38,17 +38,9 @@ struct TestRoundtripEvent {
     sequence: i32,
 }
 
-/// Helper: Get Subscriptions database pool
+/// Helper: Get Subscriptions database pool (delegates to common helper with retry logic)
 async fn get_subscriptions_pool() -> PgPool {
-    let url = std::env::var("SUBSCRIPTIONS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db".to_string());
-
-    sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
-        .min_connections(1)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to Subscriptions database")
+    common::get_subscriptions_pool().await
 }
 
 /// Helper: Generate unique test tenant ID

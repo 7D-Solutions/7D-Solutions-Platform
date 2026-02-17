@@ -8,9 +8,10 @@
 ///
 /// Run with: cargo test --test trial_balance_api_e2e -- --test-threads=1
 
+mod common;
+
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 use std::process::Command;
 use std::time::Duration;
@@ -53,11 +54,7 @@ struct TrialBalanceTotals {
 // ============================================================================
 
 async fn connect_gl_db() -> PgPool {
-    PgPoolOptions::new()
-        .max_connections(5)
-        .connect("postgresql://gl_user:gl_pass@localhost:5438/gl_db")
-        .await
-        .expect("Failed to connect to GL database")
+    common::get_gl_pool().await
 }
 
 async fn wait_for_service_healthy(container: &str, timeout_secs: u64) -> Result<(), String> {

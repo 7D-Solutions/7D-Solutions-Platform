@@ -58,71 +58,11 @@ async fn query_outbox_mutation_class(
     }
 }
 
-/// Get AR database pool
-async fn get_ar_pool() -> PgPool {
-    let url = std::env::var("AR_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://ar_user:ar_pass@localhost:5434/ar_db".to_string());
-
-    sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to AR database")
-}
-
-/// Get Payments database pool
-async fn get_payments_pool() -> PgPool {
-    let url = std::env::var("PAYMENTS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string());
-
-    sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to Payments database")
-}
-
-/// Get Subscriptions database pool
-async fn get_subscriptions_pool() -> PgPool {
-    let url = std::env::var("SUBSCRIPTIONS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db".to_string());
-
-    sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to Subscriptions database")
-}
-
-/// Get GL database pool
-async fn get_gl_pool() -> PgPool {
-    let url = std::env::var("GL_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://gl_user:gl_pass@localhost:5438/gl_db".to_string());
-
-    sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to GL database")
-}
-
-/// Get Notifications database pool
-async fn get_notifications_pool() -> PgPool {
-    let url = std::env::var("NOTIFICATIONS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://notifications_user:notifications_pass@localhost:5437/notifications_db".to_string());
-
-    sqlx::postgres::PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&url)
-        .await
-        .expect("Failed to connect to Notifications database")
-}
-
 /// Test that AR module emits events with mutation_class
 #[tokio::test]
 #[serial]
 async fn test_ar_module_emits_mutation_class() -> Result<()> {
-    let ar_pool = get_ar_pool().await;
+    let ar_pool = common::get_ar_pool().await;
 
     let Some(result) = query_outbox_mutation_class(&ar_pool, "AR").await? else {
         return Ok(()); // table not yet migrated — skip
@@ -147,7 +87,7 @@ async fn test_ar_module_emits_mutation_class() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_payments_module_emits_mutation_class() -> Result<()> {
-    let payments_pool = get_payments_pool().await;
+    let payments_pool = common::get_payments_pool().await;
 
     let Some(result) = query_outbox_mutation_class(&payments_pool, "Payments").await? else {
         return Ok(()); // table not yet migrated — skip
@@ -180,7 +120,7 @@ async fn test_payments_module_emits_mutation_class() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_subscriptions_module_emits_mutation_class() -> Result<()> {
-    let subscriptions_pool = get_subscriptions_pool().await;
+    let subscriptions_pool = common::get_subscriptions_pool().await;
 
     let Some(result) = query_outbox_mutation_class(&subscriptions_pool, "Subscriptions").await? else {
         return Ok(()); // table not yet migrated — skip
@@ -213,7 +153,7 @@ async fn test_subscriptions_module_emits_mutation_class() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_gl_module_emits_mutation_class() -> Result<()> {
-    let gl_pool = get_gl_pool().await;
+    let gl_pool = common::get_gl_pool().await;
 
     let Some(result) = query_outbox_mutation_class(&gl_pool, "GL").await? else {
         return Ok(()); // table not yet migrated — skip
@@ -249,7 +189,7 @@ async fn test_gl_module_emits_mutation_class() -> Result<()> {
 #[tokio::test]
 #[serial]
 async fn test_notifications_module_emits_mutation_class() -> Result<()> {
-    let notifications_pool = get_notifications_pool().await;
+    let notifications_pool = common::get_notifications_pool().await;
 
     let Some(result) = query_outbox_mutation_class(&notifications_pool, "Notifications").await? else {
         // Notifications is stateless — no persistent outbox is expected
@@ -297,11 +237,11 @@ async fn test_mutation_class_registry_compliance() -> Result<()> {
     );
 
     let pools: Vec<(&str, _)> = vec![
-        ("AR", get_ar_pool().await),
-        ("Payments", get_payments_pool().await),
-        ("Subscriptions", get_subscriptions_pool().await),
-        ("GL", get_gl_pool().await),
-        ("Notifications", get_notifications_pool().await),
+        ("AR", common::get_ar_pool().await),
+        ("Payments", common::get_payments_pool().await),
+        ("Subscriptions", common::get_subscriptions_pool().await),
+        ("GL", common::get_gl_pool().await),
+        ("Notifications", common::get_notifications_pool().await),
     ];
 
     for (module, pool) in &pools {
