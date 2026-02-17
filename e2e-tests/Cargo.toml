@@ -151,6 +151,10 @@ path = "tests/ar_aging_adjustments_e2e.rs"
 name = "revrec_contract_create_e2e"
 path = "tests/revrec_contract_create_e2e.rs"
 
+[[test]]
+name = "revrec_schedule_builder_e2e"
+path = "tests/revrec_schedule_builder_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }

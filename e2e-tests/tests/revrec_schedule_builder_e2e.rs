@@ -153,7 +153,7 @@ async fn cleanup_revrec(pool: &PgPool, tenant_id: &str) {
 /// Create a contract and return its IDs for schedule testing
 async fn setup_contract(
     pool: &PgPool,
-    tenant_id: &str,
+    _tenant_id: &str,
     contract_payload: &ContractCreatedPayload,
 ) -> Uuid {
     let event_id = Uuid::new_v4();
@@ -269,7 +269,7 @@ async fn test_point_in_time_schedule_single_line() {
     run_revrec_migrations(&gl_pool).await;
     cleanup_revrec(&gl_pool, &tenant_id).await;
 
-    let (contract_id, obligation_id, contract_payload) = point_in_time_contract(&tenant_id);
+    let (contract_id, _obligation_id, contract_payload) = point_in_time_contract(&tenant_id);
     setup_contract(&gl_pool, &tenant_id, &contract_payload).await;
 
     let obligation = &contract_payload.performance_obligations[0];
@@ -319,7 +319,7 @@ async fn test_schedule_determinism() {
     run_revrec_migrations(&gl_pool).await;
     cleanup_revrec(&gl_pool, &tenant_id).await;
 
-    let (contract_id, obligation_id, contract_payload) = ratable_contract(&tenant_id);
+    let (contract_id, _obligation_id, contract_payload) = ratable_contract(&tenant_id);
     setup_contract(&gl_pool, &tenant_id, &contract_payload).await;
 
     let obligation = &contract_payload.performance_obligations[0];
