@@ -16,8 +16,16 @@ use common::{generate_test_tenant, get_gl_pool};
 use gl_rs::contracts::gl_posting_request_v1::{GlPostingRequestV1, JournalLine, SourceDocType};
 use gl_rs::services::{journal_service, reversal_service};
 use serial_test::serial;
+use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
+
+/// Compute a deterministic SHA-256 hex string for test setup helpers.
+fn sha256_hex(input: String) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(input.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
 
 // ============================================================================
 // Test Setup Helpers
@@ -61,17 +69,27 @@ async fn setup_test_accounts(pool: &PgPool, tenant_id: &str) -> Result<()> {
 }
 
 /// Insert a closed period (Jan 2024) and an open period (Feb 2024) for this tenant.
+///
+/// The closed period uses a deterministic close_hash to satisfy chk_closed_requires_hash.
 async fn setup_test_periods(pool: &PgPool, tenant_id: &str) -> Result<()> {
+    // Deterministic close_hash: SHA-256-like hex string for test periods.
+    // Required by chk_closed_requires_hash: closed_at IS NOT NULL → close_hash IS NOT NULL.
+    let close_hash = format!(
+        "test-close-hash-{}",
+        &sha256_hex(format!("period-close:{}:2024-01", tenant_id))
+    );
+
     // Closed period: January 2024
     sqlx::query(
         r#"
-        INSERT INTO accounting_periods (id, tenant_id, period_start, period_end, is_closed, closed_at, created_at)
-        VALUES ($1, $2, '2024-01-01', '2024-01-31', true, NOW(), NOW())
+        INSERT INTO accounting_periods (id, tenant_id, period_start, period_end, is_closed, closed_at, close_hash, created_at)
+        VALUES ($1, $2, '2024-01-01', '2024-01-31', true, NOW(), $3, NOW())
         ON CONFLICT DO NOTHING
         "#,
     )
     .bind(Uuid::new_v4())
     .bind(tenant_id)
+    .bind(&close_hash)
     .execute(pool)
     .await?;
 
@@ -80,6 +98,20 @@ async fn setup_test_periods(pool: &PgPool, tenant_id: &str) -> Result<()> {
         r#"
         INSERT INTO accounting_periods (id, tenant_id, period_start, period_end, is_closed, created_at)
         VALUES ($1, $2, '2024-02-01', '2024-02-29', false, NOW())
+        ON CONFLICT DO NOTHING
+        "#,
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .execute(pool)
+    .await?;
+
+    // Open period: current year (wide range to cover reversal_date = today).
+    // reversal_service uses Utc::now().date_naive() — must have an open period for that date.
+    sqlx::query(
+        r#"
+        INSERT INTO accounting_periods (id, tenant_id, period_start, period_end, is_closed, created_at)
+        VALUES ($1, $2, '2026-01-01', '2026-12-31', false, NOW())
         ON CONFLICT DO NOTHING
         "#,
     )
