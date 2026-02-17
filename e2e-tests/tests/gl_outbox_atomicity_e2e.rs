@@ -46,9 +46,9 @@ async fn create_journal_entry(
         r#"
         INSERT INTO journal_entries (
             id, tenant_id, source_module, source_event_id, source_subject,
-            posted_at, currency, description, created_at, updated_at
+            posted_at, currency, description, created_at
         )
-        VALUES ($1, $2, 'ar', $3, 'invoice.finalized', NOW(), 'USD', 'Test entry', NOW(), NOW())
+        VALUES ($1, $2, 'ar', $3, 'invoice.finalized', NOW(), 'USD', 'Test entry', NOW())
         "#,
     )
     .bind(entry_id)

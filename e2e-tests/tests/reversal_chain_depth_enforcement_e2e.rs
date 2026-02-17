@@ -42,9 +42,9 @@ async fn test_valid_single_level_reversal() -> Result<()> {
 
     sqlx::query(
         r#"
-        INSERT INTO journal_entries (id, tenant_id, source_event_id, reverses_entry_id, posted_at)
-        VALUES ($1, $2, $3, NULL, NOW())
-        "#,
+        INSERT INTO journal_entries (id, tenant_id, source_module, source_event_id, source_subject, reverses_entry_id, posted_at, currency)
+        VALUES ($1, $2, 'ar', $3, 'test.reversal', NULL, NOW(), 'USD')
+"#,
     )
     .bind(original_entry_id)
     .bind(&tenant_id)
@@ -60,8 +60,8 @@ async fn test_valid_single_level_reversal() -> Result<()> {
 
     sqlx::query(
         r#"
-        INSERT INTO journal_entries (id, tenant_id, source_event_id, reverses_entry_id, posted_at)
-        VALUES ($1, $2, $3, $4, NOW())
+        INSERT INTO journal_entries (id, tenant_id, source_module, source_event_id, source_subject, reverses_entry_id, posted_at, currency)
+        VALUES ($1, $2, 'ar', $3, 'test.reversal', $4, NOW(), 'USD')
         "#,
     )
     .bind(reversal_entry_id)
@@ -114,9 +114,9 @@ async fn test_invalid_double_reversal_rejected() -> Result<()> {
 
     sqlx::query(
         r#"
-        INSERT INTO journal_entries (id, tenant_id, source_event_id, reverses_entry_id, posted_at)
-        VALUES ($1, $2, $3, NULL, NOW())
-        "#,
+        INSERT INTO journal_entries (id, tenant_id, source_module, source_event_id, source_subject, reverses_entry_id, posted_at, currency)
+        VALUES ($1, $2, 'ar', $3, 'test.reversal', NULL, NOW(), 'USD')
+"#,
     )
     .bind(original_entry_id)
     .bind(&tenant_id)
@@ -132,8 +132,8 @@ async fn test_invalid_double_reversal_rejected() -> Result<()> {
 
     sqlx::query(
         r#"
-        INSERT INTO journal_entries (id, tenant_id, source_event_id, reverses_entry_id, posted_at)
-        VALUES ($1, $2, $3, $4, NOW())
+        INSERT INTO journal_entries (id, tenant_id, source_module, source_event_id, source_subject, reverses_entry_id, posted_at, currency)
+        VALUES ($1, $2, 'ar', $3, 'test.reversal', $4, NOW(), 'USD')
         "#,
     )
     .bind(first_reversal_id)
@@ -151,8 +151,8 @@ async fn test_invalid_double_reversal_rejected() -> Result<()> {
 
     sqlx::query(
         r#"
-        INSERT INTO journal_entries (id, tenant_id, source_event_id, reverses_entry_id, posted_at)
-        VALUES ($1, $2, $3, $4, NOW())
+        INSERT INTO journal_entries (id, tenant_id, source_module, source_event_id, source_subject, reverses_entry_id, posted_at, currency)
+        VALUES ($1, $2, 'ar', $3, 'test.reversal', $4, NOW(), 'USD')
         "#,
     )
     .bind(second_reversal_id)
@@ -219,7 +219,7 @@ async fn test_multiple_independent_reversals_allowed() -> Result<()> {
     // Create original entry A
     let entry_a_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO journal_entries (id, tenant_id, source_event_id, reverses_entry_id, posted_at) VALUES ($1, $2, $3, NULL, NOW())"
+        "INSERT INTO journal_entries (id, tenant_id, source_module, source_event_id, source_subject, reverses_entry_id, posted_at, currency) VALUES ($1, $2, 'ar', $3, 'test.reversal', NULL, NOW(), 'USD')"
     )
     .bind(entry_a_id)
     .bind(&tenant_id)
@@ -230,7 +230,7 @@ async fn test_multiple_independent_reversals_allowed() -> Result<()> {
     // Create original entry B
     let entry_b_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO journal_entries (id, tenant_id, source_event_id, reverses_entry_id, posted_at) VALUES ($1, $2, $3, NULL, NOW())"
+        "INSERT INTO journal_entries (id, tenant_id, source_module, source_event_id, source_subject, reverses_entry_id, posted_at, currency) VALUES ($1, $2, 'ar', $3, 'test.reversal', NULL, NOW(), 'USD')"
     )
     .bind(entry_b_id)
     .bind(&tenant_id)
@@ -241,7 +241,7 @@ async fn test_multiple_independent_reversals_allowed() -> Result<()> {
     // Create reversal of A
     let reversal_a_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO journal_entries (id, tenant_id, source_event_id, reverses_entry_id, posted_at) VALUES ($1, $2, $3, $4, NOW())"
+        "INSERT INTO journal_entries (id, tenant_id, source_module, source_event_id, source_subject, reverses_entry_id, posted_at, currency) VALUES ($1, $2, 'ar', $3, 'test.reversal', $4, NOW(), 'USD')"
     )
     .bind(reversal_a_id)
     .bind(&tenant_id)
@@ -253,7 +253,7 @@ async fn test_multiple_independent_reversals_allowed() -> Result<()> {
     // Create reversal of B
     let reversal_b_id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO journal_entries (id, tenant_id, source_event_id, reverses_entry_id, posted_at) VALUES ($1, $2, $3, $4, NOW())"
+        "INSERT INTO journal_entries (id, tenant_id, source_module, source_event_id, source_subject, reverses_entry_id, posted_at, currency) VALUES ($1, $2, 'ar', $3, 'test.reversal', $4, NOW(), 'USD')"
     )
     .bind(reversal_b_id)
     .bind(&tenant_id)
