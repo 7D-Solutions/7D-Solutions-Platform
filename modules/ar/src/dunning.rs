@@ -35,8 +35,9 @@
 //! ```
 
 use crate::events::{
-    build_dunning_state_changed_envelope, DunningState, DunningStateChangedPayload,
-    EVENT_TYPE_DUNNING_STATE_CHANGED,
+    build_dunning_state_changed_envelope, build_invoice_suspended_envelope,
+    DunningState, DunningStateChangedPayload, InvoiceSuspendedPayload,
+    EVENT_TYPE_DUNNING_STATE_CHANGED, EVENT_TYPE_INVOICE_SUSPENDED,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -271,6 +272,7 @@ struct DunningStateRow {
     state: String,
     version: i32,
     attempt_count: i32,
+    customer_id: String,
 }
 
 // ============================================================================
@@ -419,7 +421,7 @@ pub async fn transition_dunning(
     // 1. Lock the dunning record for update (race-safe)
     let row: Option<DunningStateRow> = sqlx::query_as(
         r#"
-        SELECT id, dunning_id, state, version, attempt_count
+        SELECT id, dunning_id, state, version, attempt_count, customer_id
         FROM ar_dunning_states
         WHERE app_id = $1 AND invoice_id = $2
         FOR UPDATE
@@ -511,7 +513,7 @@ pub async fn transition_dunning(
     let payload = DunningStateChangedPayload {
         tenant_id: req.app_id.clone(),
         invoice_id: req.invoice_id.to_string(),
-        customer_id: String::new(), // populated from existing row in real impl; simplified here
+        customer_id: row.customer_id.clone(),
         from_state: Some(from_state.to_event_state()),
         to_state: req.to_state.to_event_state(),
         reason: req.reason.clone(),
@@ -553,6 +555,56 @@ pub async fn transition_dunning(
     .execute(&mut *tx)
     .await?;
 
+    // 6b. If transitioning to Suspended, also emit ar.invoice_suspended
+    //     This cross-module signal lets subscriptions apply suspension.
+    if req.to_state == DunningStateValue::Suspended {
+        let suspended_event_id = Uuid::new_v4();
+        let suspended_payload = InvoiceSuspendedPayload {
+            tenant_id: req.app_id.clone(),
+            invoice_id: req.invoice_id.to_string(),
+            customer_id: row.customer_id.clone(),
+            outstanding_minor: 0, // AR does not carry balance in dunning row; downstream can look it up
+            currency: String::new(),
+            dunning_attempt: new_attempt_count,
+            reason: req.reason.clone(),
+            grace_period_ends_at: None,
+            suspended_at: now,
+        };
+
+        let suspended_envelope = build_invoice_suspended_envelope(
+            suspended_event_id,
+            req.app_id.clone(),
+            req.correlation_id.clone(),
+            Some(outbox_event_id.to_string()), // causation: the dunning_state_changed event
+            suspended_payload,
+        );
+
+        let suspended_json = serde_json::to_value(&suspended_envelope)
+            .map_err(|e| DunningError::DatabaseError(e.to_string()))?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO events_outbox (
+                event_id, event_type, aggregate_type, aggregate_id, payload,
+                tenant_id, source_module, mutation_class, schema_version,
+                occurred_at, replay_safe, correlation_id, causation_id
+            )
+            VALUES ($1, $2, 'invoice', $3, $4, $5, 'ar', 'LIFECYCLE', $6, $7, true, $8, $9)
+            "#,
+        )
+        .bind(suspended_event_id)
+        .bind(EVENT_TYPE_INVOICE_SUSPENDED)
+        .bind(req.invoice_id.to_string())
+        .bind(suspended_json)
+        .bind(&req.app_id)
+        .bind(&suspended_envelope.schema_version)
+        .bind(now)
+        .bind(&req.correlation_id)
+        .bind(&outbox_event_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+    }
+
     // 7. Update outbox_event_id on the dunning record for correlation
     sqlx::query(
         "UPDATE ar_dunning_states SET outbox_event_id = $1 WHERE id = $2",
@@ -586,6 +638,7 @@ impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for DunningStateRow {
             state: row.try_get("state")?,
             version: row.try_get("version")?,
             attempt_count: row.try_get("attempt_count")?,
+            customer_id: row.try_get("customer_id")?,
         })
     }
 }

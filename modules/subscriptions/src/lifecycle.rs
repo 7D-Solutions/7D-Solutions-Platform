@@ -211,25 +211,51 @@ pub async fn transition_to_past_due(
 ///
 /// # Lifecycle Order
 /// 1. Guard: Validate transition is legal
-/// 2. Mutation: Update status in database
-/// 3. Side Effect: (Future) Emit event, trigger notifications
+/// 2. Mutation: Update status in database (atomic with outbox)
+/// 3. Side Effect: Emit subscriptions.status.changed event
 pub async fn transition_to_suspended(
     subscription_id: Uuid,
     reason: &str,
     pool: &PgPool,
 ) -> Result<(), TransitionError> {
-    // Fetch current status
-    let current_status = fetch_current_status(subscription_id, pool).await?;
+    let mut tx = pool.begin().await?;
+
+    // Fetch current status (within transaction)
+    let current_status = fetch_current_status_tx(&mut tx, subscription_id).await?;
 
     // Guard: Validate transition (ZERO side effects)
     transition_guard(current_status, SubscriptionStatus::Suspended, reason)?;
 
-    // Mutation: Update status
-    update_status(subscription_id, SubscriptionStatus::Suspended, pool).await?;
+    // Mutation: Update status (within transaction)
+    update_status_tx(&mut tx, subscription_id, SubscriptionStatus::Suspended).await?;
 
-    // Side Effect: (Future implementation)
-    // - Emit subscriptions.status.changed event
-    // - Trigger suspension notification
+    // Side Effect: Emit subscriptions.status.changed event atomically
+    let tenant_id: String = sqlx::query_scalar(
+        "SELECT tenant_id FROM subscriptions WHERE id = $1"
+    )
+    .bind(subscription_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let status_payload = crate::models::SubscriptionStatusChangedPayload {
+        subscription_id: subscription_id.to_string(),
+        tenant_id: tenant_id.clone(),
+        from_status: current_status.as_str().to_string(),
+        to_status: SubscriptionStatus::Suspended.as_str().to_string(),
+        reason: reason.to_string(),
+    };
+    let envelope = crate::envelope::create_subscriptions_envelope(
+        uuid::Uuid::new_v4(),
+        tenant_id,
+        "subscriptions.status.changed".to_string(),
+        None,
+        None,
+        "LIFECYCLE".to_string(),
+        status_payload,
+    );
+    crate::outbox::enqueue_event_tx(&mut tx, "subscriptions.status.changed", &envelope).await?;
+
+    tx.commit().await?;
+
     tracing::info!(
         subscription_id = %subscription_id,
         reason = reason,

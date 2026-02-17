@@ -4,6 +4,7 @@
 //! including lifecycle management for subscription states and cycle gating.
 
 pub mod config;
+pub mod consumer;
 pub mod cycle_gating;
 pub mod envelope;
 pub mod outbox;

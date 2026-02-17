@@ -20,8 +20,9 @@
 
 use crate::dunning::{DunningError, DunningStateValue};
 use crate::events::{
-    build_dunning_state_changed_envelope, DunningState, DunningStateChangedPayload,
-    EVENT_TYPE_DUNNING_STATE_CHANGED,
+    build_dunning_state_changed_envelope, build_invoice_suspended_envelope,
+    DunningState, DunningStateChangedPayload, InvoiceSuspendedPayload,
+    EVENT_TYPE_DUNNING_STATE_CHANGED, EVENT_TYPE_INVOICE_SUSPENDED,
 };
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -305,6 +306,55 @@ pub async fn claim_and_execute_one(
     .bind(format!("dunning-scheduler-{}", row.dunning_id))
     .execute(&mut *tx)
     .await?;
+
+    // 5b. If transitioning to Suspended, also emit ar.invoice_suspended
+    if target_state == DunningStateValue::Suspended {
+        let suspended_event_id = Uuid::new_v4();
+        let suspended_payload = InvoiceSuspendedPayload {
+            tenant_id: row.app_id.clone(),
+            invoice_id: row.invoice_id.to_string(),
+            customer_id: row.customer_id.clone(),
+            outstanding_minor: 0,
+            currency: String::new(),
+            dunning_attempt: new_attempt_count,
+            reason: format!("scheduler_auto_escalation_attempt_{}", new_attempt_count),
+            grace_period_ends_at: None,
+            suspended_at: now,
+        };
+
+        let suspended_envelope = build_invoice_suspended_envelope(
+            suspended_event_id,
+            row.app_id.clone(),
+            correlation_id.to_string(),
+            Some(outbox_event_id.to_string()),
+            suspended_payload,
+        );
+
+        let suspended_json = serde_json::to_value(&suspended_envelope)
+            .map_err(|e| DunningError::DatabaseError(e.to_string()))?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO events_outbox (
+                event_id, event_type, aggregate_type, aggregate_id, payload,
+                tenant_id, source_module, mutation_class, schema_version,
+                occurred_at, replay_safe, correlation_id, causation_id
+            )
+            VALUES ($1, $2, 'invoice', $3, $4, $5, 'ar', 'LIFECYCLE', $6, $7, true, $8, $9)
+            "#,
+        )
+        .bind(suspended_event_id)
+        .bind(EVENT_TYPE_INVOICE_SUSPENDED)
+        .bind(row.invoice_id.to_string())
+        .bind(suspended_json)
+        .bind(&row.app_id)
+        .bind(&suspended_envelope.schema_version)
+        .bind(now)
+        .bind(correlation_id)
+        .bind(&outbox_event_id.to_string())
+        .execute(&mut *tx)
+        .await?;
+    }
 
     // 6. Update outbox_event_id on the dunning record for correlation
     sqlx::query(
