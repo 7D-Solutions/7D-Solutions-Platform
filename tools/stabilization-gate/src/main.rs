@@ -14,9 +14,11 @@
 
 mod benchmarks;
 mod config;
+mod dunning;
 mod eventbus;
 mod metrics;
 mod projections;
+mod recon;
 mod report;
 
 use anyhow::{Context, Result};
@@ -89,15 +91,33 @@ enum Commands {
         #[arg(long)]
         duration_secs: Option<u64>,
     },
-    /// Benchmark AR reconciliation batch throughput.
+    /// Benchmark AR reconciliation batch throughput (Wave 1, bd-1kmq).
     Recon {
         #[arg(long)]
         dry_run: bool,
+        /// Number of tenants (overrides TENANT_COUNT env).
+        #[arg(long)]
+        tenant_count: Option<usize>,
+        /// Total rows to reconcile across all tenants (overrides RECON_ROWS env).
+        #[arg(long)]
+        recon_rows: Option<usize>,
+        /// Worker concurrency (overrides CONCURRENCY env).
+        #[arg(long)]
+        concurrency: Option<usize>,
     },
-    /// Benchmark dunning scheduler row processing.
+    /// Benchmark dunning scheduler row processing (Wave 1, bd-1kmq).
     Dunning {
         #[arg(long)]
         dry_run: bool,
+        /// Number of tenants (overrides TENANT_COUNT env).
+        #[arg(long)]
+        tenant_count: Option<usize>,
+        /// Total overdue invoice rows to process (overrides DUNNING_ROWS env).
+        #[arg(long)]
+        dunning_rows: Option<usize>,
+        /// Worker concurrency (overrides CONCURRENCY env).
+        #[arg(long)]
+        concurrency: Option<usize>,
     },
     /// Benchmark multi-tenant isolation and stress.
     Tenants {
@@ -195,15 +215,33 @@ async fn run() -> Result<()> {
             let s = vec![projections::run(&cfg2, dry).await?];
             (s, dry, cfg2)
         }
-        Commands::Recon { dry_run } => {
+        Commands::Recon {
+            dry_run,
+            tenant_count,
+            recon_rows,
+            concurrency,
+        } => {
             let dry = *dry_run;
-            let s = vec![benchmarks::bench_recon(&cfg, dry).await?];
-            (s, dry, cfg.clone())
+            let mut cfg2 = cfg.clone();
+            if let Some(v) = tenant_count { cfg2.tenant_count = *v; }
+            if let Some(v) = recon_rows { cfg2.recon_rows = *v; }
+            if let Some(v) = concurrency { cfg2.concurrency = *v; }
+            let s = vec![recon::run(&cfg2, dry).await?];
+            (s, dry, cfg2)
         }
-        Commands::Dunning { dry_run } => {
+        Commands::Dunning {
+            dry_run,
+            tenant_count,
+            dunning_rows,
+            concurrency,
+        } => {
             let dry = *dry_run;
-            let s = vec![benchmarks::bench_dunning(&cfg, dry).await?];
-            (s, dry, cfg.clone())
+            let mut cfg2 = cfg.clone();
+            if let Some(v) = tenant_count { cfg2.tenant_count = *v; }
+            if let Some(v) = dunning_rows { cfg2.dunning_rows = *v; }
+            if let Some(v) = concurrency { cfg2.concurrency = *v; }
+            let s = vec![dunning::run(&cfg2, dry).await?];
+            (s, dry, cfg2)
         }
         Commands::Tenants { dry_run } => {
             let dry = *dry_run;

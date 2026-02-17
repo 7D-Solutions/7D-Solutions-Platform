@@ -82,80 +82,20 @@ pub async fn bench_projections(cfg: &Config, dry_run: bool) -> Result<ScenarioRe
     })
 }
 
-/// AR reconciliation batch throughput.
+/// AR reconciliation batch throughput (Wave 1, bd-1kmq).
+///
+/// Delegates to the full implementation in `crate::recon`.
 pub async fn bench_recon(cfg: &Config, dry_run: bool) -> Result<ScenarioResult> {
     info!("Running scenario: recon (dry_run={})", dry_run);
-
-    let pool = pg_pool(&cfg.database_url, cfg.concurrency as u32).await?;
-    let total = if dry_run { 5 } else { cfg.recon_rows };
-
-    let mut samples = MetricsSamples::new();
-    let wall = Timer::start();
-
-    for _ in 0..total {
-        let t = Timer::start();
-        let res = sqlx::query("SELECT 1").fetch_one(&pool).await;
-        match res {
-            Ok(_) => samples.record_latency(t.elapsed()),
-            Err(_) => samples.record_error(),
-        }
-    }
-    samples.set_wall_clock(wall.elapsed());
-
-    let mut violations = Vec::new();
-    if samples.p99() > DB_PING_P99_MS && !dry_run {
-        violations.push(format!(
-            "Recon P99 latency {:.1}ms exceeds threshold {:.1}ms",
-            samples.p99(),
-            DB_PING_P99_MS
-        ));
-    }
-
-    Ok(ScenarioResult {
-        name: "recon".to_string(),
-        passed: violations.is_empty(),
-        metrics: samples.to_json(),
-        threshold_violations: violations,
-        notes: dry_note(dry_run, total, "row-probe pings (recon proxy)"),
-    })
+    crate::recon::run(cfg, dry_run).await
 }
 
-/// Dunning scheduler row processing throughput.
+/// Dunning scheduler row processing throughput (Wave 1, bd-1kmq).
+///
+/// Delegates to the full implementation in `crate::dunning`.
 pub async fn bench_dunning(cfg: &Config, dry_run: bool) -> Result<ScenarioResult> {
     info!("Running scenario: dunning (dry_run={})", dry_run);
-
-    let pool = pg_pool(&cfg.database_url, cfg.concurrency as u32).await?;
-    let total = if dry_run { 5 } else { cfg.dunning_rows };
-
-    let mut samples = MetricsSamples::new();
-    let wall = Timer::start();
-
-    for _ in 0..total {
-        let t = Timer::start();
-        let res = sqlx::query("SELECT 1").fetch_one(&pool).await;
-        match res {
-            Ok(_) => samples.record_latency(t.elapsed()),
-            Err(_) => samples.record_error(),
-        }
-    }
-    samples.set_wall_clock(wall.elapsed());
-
-    let mut violations = Vec::new();
-    if samples.p99() > DB_PING_P99_MS && !dry_run {
-        violations.push(format!(
-            "Dunning P99 latency {:.1}ms exceeds threshold {:.1}ms",
-            samples.p99(),
-            DB_PING_P99_MS
-        ));
-    }
-
-    Ok(ScenarioResult {
-        name: "dunning".to_string(),
-        passed: violations.is_empty(),
-        metrics: samples.to_json(),
-        threshold_violations: violations,
-        notes: dry_note(dry_run, total, "row-probe pings (dunning proxy)"),
-    })
+    crate::dunning::run(cfg, dry_run).await
 }
 
 /// Multi-tenant isolation and stress.
