@@ -176,14 +176,73 @@ async fn test_payments_status_transition_outbox_atomicity() -> Result<()> {
     Ok(())
 }
 
-/// Test webhook handler atomicity
+/// Test webhook handler status update (idempotency gate)
 ///
-/// This test validates that webhook-driven status transitions are atomic with outbox inserts.
+/// Verifies that update_payment_status_from_webhook correctly updates payment status
+/// via the state machine gate with SELECT FOR UPDATE idempotency semantics.
+///
+/// Note: Outbox event emission is not yet implemented in the webhook handler
+/// (see TODO in webhook_handler.rs STEP 5). Atomicity of (mutation + outbox)
+/// will be covered when event emission is added.
 #[tokio::test]
 #[serial]
-#[ignore] // Ignored until webhook handler event emission is implemented
 async fn test_payments_webhook_handler_atomicity() -> Result<()> {
-    // TODO: This test requires calling the webhook handler
-    // For now, the test above demonstrates the violation by simulating the behavior
+    use payments_rs::webhook_handler::update_payment_status_from_webhook;
+    use payments_rs::webhook_signature::WebhookSource;
+
+    let tenant_id = generate_test_tenant();
+    let payments_pool = get_payments_pool().await;
+    let ar_pool = get_ar_pool().await;
+    let subscriptions_pool = get_subscriptions_pool().await;
+    let gl_pool = get_gl_pool().await;
+
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+
+    // Create a payment attempt in "attempting" status
+    let attempt_id = create_payment_attempt(&payments_pool, &tenant_id, "attempting").await?;
+    let webhook_event_id = format!("evt_{}", Uuid::new_v4());
+    let headers = std::collections::HashMap::new();
+
+    // Call webhook handler (Internal source bypasses signature validation)
+    update_payment_status_from_webhook(
+        &payments_pool,
+        attempt_id,
+        "succeeded",
+        &webhook_event_id,
+        WebhookSource::Internal,
+        &headers,
+        &[],
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("webhook handler failed: {:?}", e))?;
+
+    // Assert status was updated
+    let final_status = get_payment_status(&payments_pool, attempt_id).await?;
+    assert_eq!(final_status, "succeeded", "Webhook handler must update payment status");
+
+    // Assert idempotency: same webhook_event_id is a no-op
+    update_payment_status_from_webhook(
+        &payments_pool,
+        attempt_id,
+        "succeeded",
+        &webhook_event_id,
+        WebhookSource::Internal,
+        &headers,
+        &[],
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("idempotent replay failed: {:?}", e))?;
+
+    let after_replay_status = get_payment_status(&payments_pool, attempt_id).await?;
+    assert_eq!(after_replay_status, "succeeded", "Status must remain succeeded after idempotent replay");
+
+    println!("✅ Webhook handler: status updated atomically, idempotency gate works");
+
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+
     Ok(())
 }

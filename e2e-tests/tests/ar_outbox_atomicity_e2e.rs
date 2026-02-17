@@ -161,14 +161,59 @@ async fn test_ar_finalize_invoice_outbox_atomicity() -> Result<()> {
     Ok(())
 }
 
-/// Test that demonstrates the EXACT bug in finalize_invoice
-///
-/// This test directly calls the AR module's finalize logic to prove the atomicity violation.
+/// Test that AR invoice finalization is idempotent: calling finalize_invoice twice
+/// returns AlreadyAttempted on the second call and does not duplicate outbox events.
 #[tokio::test]
 #[serial]
-#[ignore] // Ignored until we expose finalization logic for testing
-async fn test_ar_finalize_invoice_api_atomicity() -> Result<()> {
-    // TODO: This test requires exposing the finalize_invoice function or calling the HTTP API
-    // For now, the test above demonstrates the violation by simulating the behavior
+async fn test_ar_finalize_invoice_idempotency() -> Result<()> {
+    let tenant_id = generate_test_tenant();
+
+    let ar_pool = get_ar_pool().await;
+    let payments_pool = get_payments_pool().await;
+    let subscriptions_pool = get_subscriptions_pool().await;
+    let gl_pool = get_gl_pool().await;
+
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+
+    let customer_id = create_ar_customer(&ar_pool, &tenant_id).await?;
+    let invoice_id = create_draft_invoice(&ar_pool, &tenant_id, customer_id, 5000).await?;
+
+    // First call: must succeed with NewAttempt
+    let result1 = finalize_invoice(&ar_pool, &tenant_id, invoice_id, 0)
+        .await
+        .map_err(|e| anyhow::anyhow!("first finalize_invoice failed: {:?}", e))?;
+    assert!(
+        matches!(result1, FinalizationResult::NewAttempt { .. }),
+        "Expected NewAttempt on first call, got {:?}",
+        result1
+    );
+
+    let outbox_after_first = count_outbox_rows_for_invoice(&ar_pool, invoice_id).await?;
+    assert!(outbox_after_first >= 1, "Outbox must have >= 1 row after first finalization");
+
+    // Second call: must be idempotent (AlreadyAttempted, no new outbox rows)
+    let result2 = finalize_invoice(&ar_pool, &tenant_id, invoice_id, 0)
+        .await
+        .map_err(|e| anyhow::anyhow!("second finalize_invoice failed: {:?}", e))?;
+    assert!(
+        matches!(result2, FinalizationResult::AlreadyAttempted { .. }),
+        "Expected AlreadyAttempted on second call, got {:?}",
+        result2
+    );
+
+    let outbox_after_second = count_outbox_rows_for_invoice(&ar_pool, invoice_id).await?;
+    assert_eq!(
+        outbox_after_first, outbox_after_second,
+        "Outbox count must not increase on duplicate finalization (idempotency)"
+    );
+
+    println!("✅ Idempotency proven: second finalize returns AlreadyAttempted, outbox count unchanged");
+
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+
     Ok(())
 }
