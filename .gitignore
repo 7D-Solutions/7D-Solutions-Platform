@@ -1,5 +1,8 @@
 # Rust build artifacts
 /target/
+
+# DR drill reports (generated artifacts)
+/dr_reports/
 **/target/
 **/*.rs.bk
 *.pdb
