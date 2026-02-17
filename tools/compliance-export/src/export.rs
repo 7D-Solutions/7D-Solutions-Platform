@@ -6,7 +6,7 @@
 //! Invariant: Exports are tenant-scoped, complete, and tamper-evident with stable ordering.
 
 use anyhow::{Context, Result};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{PgPool, Row};
@@ -47,12 +47,12 @@ pub struct ArInvoice {
     pub status: String,
     pub amount_cents: i32,
     pub currency: String,
-    pub due_at: Option<DateTime<Utc>>,
-    pub paid_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-    pub billing_period_start: Option<DateTime<Utc>>,
-    pub billing_period_end: Option<DateTime<Utc>>,
+    pub due_at: Option<NaiveDateTime>,
+    pub paid_at: Option<NaiveDateTime>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
+    pub billing_period_start: Option<NaiveDateTime>,
+    pub billing_period_end: Option<NaiveDateTime>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -63,14 +63,14 @@ pub struct PaymentAttempt {
     pub invoice_id: String,
     pub attempt_no: i32,
     pub status: String,
-    pub attempted_at: DateTime<Utc>,
-    pub completed_at: Option<DateTime<Utc>>,
+    pub attempted_at: NaiveDateTime,
+    pub completed_at: Option<NaiveDateTime>,
     pub processor_payment_id: Option<String>,
     pub payment_method_ref: Option<String>,
     pub failure_code: Option<String>,
     pub failure_message: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -143,25 +143,27 @@ async fn fetch_audit_events(pool: &PgPool, tenant_id: &str) -> Result<Vec<AuditE
 
     let events = rows
         .into_iter()
-        .map(|row| AuditEvent {
-            audit_id: row.get("audit_id"),
-            occurred_at: row.get("occurred_at"),
-            actor_id: row.get("actor_id"),
-            actor_type: row.get("actor_type"),
-            action: row.get("action"),
-            mutation_class: row.get("mutation_class"),
-            entity_type: row.get("entity_type"),
-            entity_id: row.get("entity_id"),
-            before_snapshot: row.get("before_snapshot"),
-            after_snapshot: row.get("after_snapshot"),
-            before_hash: row.get("before_hash"),
-            after_hash: row.get("after_hash"),
-            causation_id: row.get("causation_id"),
-            correlation_id: row.get("correlation_id"),
-            trace_id: row.get("trace_id"),
-            metadata: row.get("metadata"),
+        .map(|row| -> Result<AuditEvent> {
+            Ok(AuditEvent {
+                audit_id: row.try_get("audit_id").context("audit_id")?,
+                occurred_at: row.try_get("occurred_at").context("occurred_at")?,
+                actor_id: row.try_get("actor_id").context("actor_id")?,
+                actor_type: row.try_get("actor_type").context("actor_type")?,
+                action: row.try_get("action").context("action")?,
+                mutation_class: row.try_get("mutation_class").context("mutation_class")?,
+                entity_type: row.try_get("entity_type").context("entity_type")?,
+                entity_id: row.try_get("entity_id").context("entity_id")?,
+                before_snapshot: row.try_get("before_snapshot").context("before_snapshot")?,
+                after_snapshot: row.try_get("after_snapshot").context("after_snapshot")?,
+                before_hash: row.try_get("before_hash").context("before_hash")?,
+                after_hash: row.try_get("after_hash").context("after_hash")?,
+                causation_id: row.try_get("causation_id").context("causation_id")?,
+                correlation_id: row.try_get("correlation_id").context("correlation_id")?,
+                trace_id: row.try_get("trace_id").context("trace_id")?,
+                metadata: row.try_get("metadata").context("metadata")?,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(events)
 }
@@ -198,23 +200,25 @@ async fn fetch_ar_invoices(pool: &PgPool, tenant_id: &str) -> Result<Vec<ArInvoi
 
     let invoices = rows
         .into_iter()
-        .map(|row| ArInvoice {
-            id: row.get("id"),
-            app_id: row.get("app_id"),
-            tilled_invoice_id: row.get("tilled_invoice_id"),
-            ar_customer_id: row.get("ar_customer_id"),
-            subscription_id: row.get("subscription_id"),
-            status: row.get("status"),
-            amount_cents: row.get("amount_cents"),
-            currency: row.get("currency"),
-            due_at: row.get("due_at"),
-            paid_at: row.get("paid_at"),
-            created_at: row.get("created_at"),
-            updated_at: row.get("updated_at"),
-            billing_period_start: row.get("billing_period_start"),
-            billing_period_end: row.get("billing_period_end"),
+        .map(|row| -> Result<ArInvoice> {
+            Ok(ArInvoice {
+                id: row.try_get("id").context("id")?,
+                app_id: row.try_get("app_id").context("app_id")?,
+                tilled_invoice_id: row.try_get("tilled_invoice_id").context("tilled_invoice_id")?,
+                ar_customer_id: row.try_get("ar_customer_id").context("ar_customer_id")?,
+                subscription_id: row.try_get("subscription_id").context("subscription_id")?,
+                status: row.try_get("status").context("status")?,
+                amount_cents: row.try_get("amount_cents").context("amount_cents")?,
+                currency: row.try_get("currency").context("currency")?,
+                due_at: row.try_get("due_at").context("due_at")?,
+                paid_at: row.try_get("paid_at").context("paid_at")?,
+                created_at: row.try_get("created_at").context("created_at")?,
+                updated_at: row.try_get("updated_at").context("updated_at")?,
+                billing_period_start: row.try_get("billing_period_start").context("billing_period_start")?,
+                billing_period_end: row.try_get("billing_period_end").context("billing_period_end")?,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(invoices)
 }
@@ -251,23 +255,25 @@ async fn fetch_payment_attempts(pool: &PgPool, tenant_id: &str) -> Result<Vec<Pa
 
     let attempts = rows
         .into_iter()
-        .map(|row| PaymentAttempt {
-            id: row.get("id"),
-            app_id: row.get("app_id"),
-            payment_id: row.get("payment_id"),
-            invoice_id: row.get("invoice_id"),
-            attempt_no: row.get("attempt_no"),
-            status: row.get("status"),
-            attempted_at: row.get("attempted_at"),
-            completed_at: row.get("completed_at"),
-            processor_payment_id: row.get("processor_payment_id"),
-            payment_method_ref: row.get("payment_method_ref"),
-            failure_code: row.get("failure_code"),
-            failure_message: row.get("failure_message"),
-            created_at: row.get("created_at"),
-            updated_at: row.get("updated_at"),
+        .map(|row| -> Result<PaymentAttempt> {
+            Ok(PaymentAttempt {
+                id: row.try_get("id").context("id")?,
+                app_id: row.try_get("app_id").context("app_id")?,
+                payment_id: row.try_get("payment_id").context("payment_id")?,
+                invoice_id: row.try_get("invoice_id").context("invoice_id")?,
+                attempt_no: row.try_get("attempt_no").context("attempt_no")?,
+                status: row.try_get("status").context("status")?,
+                attempted_at: row.try_get("attempted_at").context("attempted_at")?,
+                completed_at: row.try_get("completed_at").context("completed_at")?,
+                processor_payment_id: row.try_get("processor_payment_id").context("processor_payment_id")?,
+                payment_method_ref: row.try_get("payment_method_ref").context("payment_method_ref")?,
+                failure_code: row.try_get("failure_code").context("failure_code")?,
+                failure_message: row.try_get("failure_message").context("failure_message")?,
+                created_at: row.try_get("created_at").context("created_at")?,
+                updated_at: row.try_get("updated_at").context("updated_at")?,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(attempts)
 }
@@ -301,20 +307,22 @@ async fn fetch_journal_entries(pool: &PgPool, tenant_id: &str) -> Result<Vec<Jou
 
     let entries = rows
         .into_iter()
-        .map(|row| JournalEntry {
-            id: row.get("id"),
-            tenant_id: row.get("tenant_id"),
-            source_module: row.get("source_module"),
-            source_event_id: row.get("source_event_id"),
-            source_subject: row.get("source_subject"),
-            posted_at: row.get("posted_at"),
-            currency: row.get("currency"),
-            description: row.get("description"),
-            reference_type: row.get("reference_type"),
-            reference_id: row.get("reference_id"),
-            created_at: row.get("created_at"),
+        .map(|row| -> Result<JournalEntry> {
+            Ok(JournalEntry {
+                id: row.try_get("id").context("id")?,
+                tenant_id: row.try_get("tenant_id").context("tenant_id")?,
+                source_module: row.try_get("source_module").context("source_module")?,
+                source_event_id: row.try_get("source_event_id").context("source_event_id")?,
+                source_subject: row.try_get("source_subject").context("source_subject")?,
+                posted_at: row.try_get("posted_at").context("posted_at")?,
+                currency: row.try_get("currency").context("currency")?,
+                description: row.try_get("description").context("description")?,
+                reference_type: row.try_get("reference_type").context("reference_type")?,
+                reference_id: row.try_get("reference_id").context("reference_id")?,
+                created_at: row.try_get("created_at").context("created_at")?,
+            })
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(entries)
 }
