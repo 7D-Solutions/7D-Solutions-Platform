@@ -448,6 +448,12 @@ pub async fn cleanup_tenant_data(
         .await
         .map_err(|e| format!("Failed to cleanup AR charges: {}", e))?;
 
+    sqlx::query("DELETE FROM ar_invoice_line_items WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(ar_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup AR invoice line items: {}", e))?;
+
     sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
         .bind(tenant_id)
         .execute(ar_pool)

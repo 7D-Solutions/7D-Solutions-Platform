@@ -60,6 +60,7 @@ pub fn ar_router(db: PgPool) -> Router {
             get(get_invoice).put(update_invoice),
         )
         .route("/api/ar/invoices/{id}/finalize", post(finalize_invoice))
+        .route("/api/ar/invoices/{id}/bill-usage", post(bill_usage_route))
         .route("/api/ar/invoices/{id}/credit-notes", post(issue_credit_note_route))
         .route("/api/ar/invoices/{id}/write-off", post(write_off_invoice_route))
         // Charge endpoints
@@ -4589,6 +4590,54 @@ async fn capture_usage(
     );
 
     Ok(Json(record))
+}
+
+// ============================================================================
+// POST /api/ar/invoices/{id}/bill-usage  (bd-n9j)
+// ============================================================================
+
+#[derive(serde::Deserialize)]
+struct BillUsageHttpRequest {
+    app_id: String,
+    customer_id: i32,
+    period_start: chrono::DateTime<chrono::Utc>,
+    period_end: chrono::DateTime<chrono::Utc>,
+    correlation_id: String,
+}
+
+async fn bill_usage_route(
+    State(db): State<PgPool>,
+    Path(invoice_id): Path<i32>,
+    Json(req): Json<BillUsageHttpRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
+    use crate::usage_billing::{bill_usage_for_invoice, BillUsageRequest};
+
+    // TODO: Extract from auth middleware; placeholder for tenant context
+    let app_id = req.app_id.clone();
+
+    bill_usage_for_invoice(
+        &db,
+        BillUsageRequest {
+            app_id: app_id.clone(),
+            invoice_id,
+            customer_id: req.customer_id,
+            period_start: req.period_start,
+            period_end: req.period_end,
+            correlation_id: req.correlation_id,
+        },
+    )
+    .await
+    .map(|billing| Json(serde_json::json!({
+        "billed_count": billing.billed_count,
+        "total_amount_minor": billing.total_amount_minor,
+    })))
+    .map_err(|e| {
+        tracing::error!(invoice_id = %invoice_id, error = %e, "bill-usage failed");
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("database_error", e.to_string())),
+        )
+    })
 }
 
 // ============================================================================
