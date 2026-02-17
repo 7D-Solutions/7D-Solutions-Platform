@@ -55,6 +55,9 @@ pub const MUTATION_CLASS_DATA_MUTATION: &str = "DATA_MUTATION";
 /// REVERSAL: compensates for a prior DATA_MUTATION (write-off, void)
 pub const MUTATION_CLASS_REVERSAL: &str = "REVERSAL";
 
+/// LIFECYCLE: entity lifecycle transitions (dunning state changes, suspension)
+pub const MUTATION_CLASS_LIFECYCLE: &str = "LIFECYCLE";
+
 // ============================================================================
 // Payload: ar.usage_captured
 // ============================================================================
@@ -303,6 +306,347 @@ pub fn build_ar_aging_updated_envelope(
 }
 
 // ============================================================================
+// Phase 22 Event Type Constants
+// ============================================================================
+
+/// Dunning state machine transitioned (e.g. pending → warned → suspended → resolved)
+pub const EVENT_TYPE_DUNNING_STATE_CHANGED: &str = "ar.dunning_state_changed";
+
+/// Invoice suspended due to non-payment escalation
+pub const EVENT_TYPE_INVOICE_SUSPENDED: &str = "ar.invoice_suspended";
+
+/// A reconciliation run was initiated
+pub const EVENT_TYPE_RECON_RUN_STARTED: &str = "ar.recon_run_started";
+
+/// A reconciliation match was successfully applied (payment ↔ invoice)
+pub const EVENT_TYPE_RECON_MATCH_APPLIED: &str = "ar.recon_match_applied";
+
+/// A reconciliation exception was raised (unmatched or ambiguous)
+pub const EVENT_TYPE_RECON_EXCEPTION_RAISED: &str = "ar.recon_exception_raised";
+
+/// A payment was allocated to one or more invoices
+pub const EVENT_TYPE_PAYMENT_ALLOCATED: &str = "ar.payment_allocated";
+
+// ============================================================================
+// Payload: ar.dunning_state_changed
+// ============================================================================
+
+/// Dunning state machine values
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DunningState {
+    Pending,
+    Warned,
+    Escalated,
+    Suspended,
+    Resolved,
+    WrittenOff,
+}
+
+/// Payload for ar.dunning_state_changed
+///
+/// Emitted when the dunning state machine transitions for an invoice or customer.
+/// Idempotency: caller MUST supply a deterministic event_id derived from (invoice_id, to_state, occurred_at).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DunningStateChangedPayload {
+    pub tenant_id: String,
+    pub invoice_id: String,
+    pub customer_id: String,
+    /// Previous dunning state (None if this is the initial state)
+    pub from_state: Option<DunningState>,
+    /// New dunning state after transition
+    pub to_state: DunningState,
+    /// Human-readable reason for the transition
+    pub reason: String,
+    /// Which dunning attempt number triggered this (1-indexed)
+    pub attempt_number: i32,
+    /// Next retry scheduled at (None if terminal state)
+    pub next_retry_at: Option<DateTime<Utc>>,
+    pub transitioned_at: DateTime<Utc>,
+}
+
+/// Build an envelope for ar.dunning_state_changed
+///
+/// mutation_class: LIFECYCLE (state machine transition)
+pub fn build_dunning_state_changed_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: DunningStateChangedPayload,
+) -> EventEnvelope<DunningStateChangedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_DUNNING_STATE_CHANGED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: ar.invoice_suspended
+// ============================================================================
+
+/// Payload for ar.invoice_suspended
+///
+/// Emitted when an invoice is formally suspended due to dunning escalation.
+/// Suspension may trigger service interruption upstream.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InvoiceSuspendedPayload {
+    pub tenant_id: String,
+    pub invoice_id: String,
+    pub customer_id: String,
+    /// Outstanding balance at the time of suspension (minor currency units)
+    pub outstanding_minor: i64,
+    pub currency: String,
+    /// Which dunning attempt number triggered suspension
+    pub dunning_attempt: i32,
+    /// Reason for suspension
+    pub reason: String,
+    /// Suspension may be lifted if payment received before this date
+    pub grace_period_ends_at: Option<DateTime<Utc>>,
+    pub suspended_at: DateTime<Utc>,
+}
+
+/// Build an envelope for ar.invoice_suspended
+///
+/// mutation_class: LIFECYCLE (invoice enters suspended lifecycle state)
+pub fn build_invoice_suspended_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: InvoiceSuspendedPayload,
+) -> EventEnvelope<InvoiceSuspendedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_INVOICE_SUSPENDED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_LIFECYCLE.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: ar.recon_run_started
+// ============================================================================
+
+/// Payload for ar.recon_run_started
+///
+/// Emitted when a reconciliation run is initiated. Anchors causation chain
+/// for all match/exception events that follow in the same run.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReconRunStartedPayload {
+    pub tenant_id: String,
+    /// Stable ID for this reconciliation run (idempotency anchor)
+    pub recon_run_id: Uuid,
+    /// Number of payments included in this run
+    pub payment_count: i32,
+    /// Number of invoices considered for matching
+    pub invoice_count: i32,
+    /// Strategy used for matching (e.g. "fifo", "exact_match", "best_fit")
+    pub matching_strategy: String,
+    pub started_at: DateTime<Utc>,
+}
+
+/// Build an envelope for ar.recon_run_started
+///
+/// mutation_class: DATA_MUTATION (creates a reconciliation run record)
+pub fn build_recon_run_started_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: ReconRunStartedPayload,
+) -> EventEnvelope<ReconRunStartedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_RECON_RUN_STARTED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: ar.recon_match_applied
+// ============================================================================
+
+/// Payload for ar.recon_match_applied
+///
+/// Emitted when a reconciliation match is confirmed and applied.
+/// A single payment may generate multiple match events (partial allocations).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReconMatchAppliedPayload {
+    pub tenant_id: String,
+    pub recon_run_id: Uuid,
+    pub payment_id: String,
+    pub invoice_id: String,
+    /// Amount applied in this match (minor currency units)
+    pub matched_amount_minor: i64,
+    pub currency: String,
+    /// Confidence score 0.0–1.0 (1.0 = exact match)
+    pub confidence_score: f64,
+    /// Match method applied (e.g. "exact", "fifo", "reference")
+    pub match_method: String,
+    pub matched_at: DateTime<Utc>,
+}
+
+/// Build an envelope for ar.recon_match_applied
+///
+/// mutation_class: DATA_MUTATION (creates a reconciliation match record)
+pub fn build_recon_match_applied_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: ReconMatchAppliedPayload,
+) -> EventEnvelope<ReconMatchAppliedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_RECON_MATCH_APPLIED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: ar.recon_exception_raised
+// ============================================================================
+
+/// Classification of reconciliation exceptions
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReconExceptionKind {
+    /// Payment received but no matching invoice found
+    UnmatchedPayment,
+    /// Invoice overdue but no corresponding payment
+    UnmatchedInvoice,
+    /// Payment amount does not match any invoice amount
+    AmountMismatch,
+    /// Multiple invoices match with equal confidence
+    AmbiguousMatch,
+    /// Duplicate payment reference detected
+    DuplicateReference,
+}
+
+/// Payload for ar.recon_exception_raised
+///
+/// Emitted when a reconciliation exception cannot be automatically resolved.
+/// Requires manual review or escalation.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReconExceptionRaisedPayload {
+    pub tenant_id: String,
+    pub recon_run_id: Uuid,
+    /// Payment ID if the exception is payment-related (optional for invoice-only exceptions)
+    pub payment_id: Option<String>,
+    /// Invoice ID if the exception is invoice-related
+    pub invoice_id: Option<String>,
+    pub exception_kind: ReconExceptionKind,
+    /// Human-readable description of the exception
+    pub description: String,
+    /// Amount involved in minor currency units (if applicable)
+    pub amount_minor: Option<i64>,
+    pub currency: Option<String>,
+    pub raised_at: DateTime<Utc>,
+}
+
+/// Build an envelope for ar.recon_exception_raised
+///
+/// mutation_class: DATA_MUTATION (creates an exception record for manual review)
+pub fn build_recon_exception_raised_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: ReconExceptionRaisedPayload,
+) -> EventEnvelope<ReconExceptionRaisedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_RECON_EXCEPTION_RAISED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: ar.payment_allocated
+// ============================================================================
+
+/// A single allocation line: one invoice portion of the payment
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AllocationLine {
+    pub invoice_id: String,
+    /// Amount allocated to this invoice (minor currency units)
+    pub allocated_minor: i64,
+    /// Remaining balance on this invoice after allocation (minor currency units)
+    pub remaining_after_minor: i64,
+}
+
+/// Payload for ar.payment_allocated
+///
+/// Emitted when a payment is allocated (partially or fully) to one or more invoices.
+/// Uses FIFO by default; allocation strategy is included for auditability.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PaymentAllocatedPayload {
+    pub tenant_id: String,
+    pub payment_id: String,
+    pub customer_id: String,
+    /// Total payment amount (minor currency units)
+    pub payment_amount_minor: i64,
+    /// Amount allocated in this event (may be partial)
+    pub allocated_amount_minor: i64,
+    /// Amount remaining unallocated after this event
+    pub unallocated_amount_minor: i64,
+    pub currency: String,
+    /// Allocation strategy applied (e.g. "fifo", "specific", "proportional")
+    pub allocation_strategy: String,
+    /// Invoice allocations in this event (ordered by application)
+    pub allocations: Vec<AllocationLine>,
+    pub allocated_at: DateTime<Utc>,
+}
+
+/// Build an envelope for ar.payment_allocated
+///
+/// mutation_class: DATA_MUTATION (creates allocation records against invoices)
+pub fn build_payment_allocated_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: PaymentAllocatedPayload,
+) -> EventEnvelope<PaymentAllocatedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_PAYMENT_ALLOCATED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 
@@ -498,5 +842,235 @@ mod tests {
         let json = serde_json::to_string(&buckets).expect("serialization failed");
         assert!(json.contains("total_outstanding_minor"));
         assert!(json.contains("days_over_90_minor"));
+    }
+
+    // ============================================================================
+    // Phase 22 tests
+    // ============================================================================
+
+    #[test]
+    fn dunning_state_changed_envelope_has_lifecycle_class() {
+        let payload = DunningStateChangedPayload {
+            tenant_id: "tenant-1".to_string(),
+            invoice_id: "inv-100".to_string(),
+            customer_id: "cust-1".to_string(),
+            from_state: Some(DunningState::Pending),
+            to_state: DunningState::Warned,
+            reason: "first_overdue_notice".to_string(),
+            attempt_number: 1,
+            next_retry_at: Some(Utc::now()),
+            transitioned_at: Utc::now(),
+        };
+        let envelope = build_dunning_state_changed_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            None,
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_DUNNING_STATE_CHANGED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_LIFECYCLE)
+        );
+        assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
+        assert_eq!(envelope.source_module, "ar");
+    }
+
+    #[test]
+    fn invoice_suspended_envelope_has_lifecycle_class() {
+        let payload = InvoiceSuspendedPayload {
+            tenant_id: "tenant-1".to_string(),
+            invoice_id: "inv-101".to_string(),
+            customer_id: "cust-1".to_string(),
+            outstanding_minor: 50000,
+            currency: "usd".to_string(),
+            dunning_attempt: 3,
+            reason: "max_attempts_exceeded".to_string(),
+            grace_period_ends_at: None,
+            suspended_at: Utc::now(),
+        };
+        let envelope = build_invoice_suspended_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            Some("cause-dunning".to_string()),
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_INVOICE_SUSPENDED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_LIFECYCLE)
+        );
+        assert_eq!(envelope.causation_id.as_deref(), Some("cause-dunning"));
+    }
+
+    #[test]
+    fn recon_run_started_envelope_has_data_mutation_class() {
+        let run_id = Uuid::new_v4();
+        let payload = ReconRunStartedPayload {
+            tenant_id: "tenant-1".to_string(),
+            recon_run_id: run_id,
+            payment_count: 10,
+            invoice_count: 25,
+            matching_strategy: "fifo".to_string(),
+            started_at: Utc::now(),
+        };
+        let envelope = build_recon_run_started_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            None,
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_RECON_RUN_STARTED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+        assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn recon_match_applied_envelope_has_correct_metadata() {
+        let payload = ReconMatchAppliedPayload {
+            tenant_id: "tenant-1".to_string(),
+            recon_run_id: Uuid::new_v4(),
+            payment_id: "pay-55".to_string(),
+            invoice_id: "inv-55".to_string(),
+            matched_amount_minor: 10000,
+            currency: "usd".to_string(),
+            confidence_score: 1.0,
+            match_method: "exact".to_string(),
+            matched_at: Utc::now(),
+        };
+        let envelope = build_recon_match_applied_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            None,
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_RECON_MATCH_APPLIED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+    }
+
+    #[test]
+    fn recon_exception_raised_envelope_has_correct_metadata() {
+        let payload = ReconExceptionRaisedPayload {
+            tenant_id: "tenant-1".to_string(),
+            recon_run_id: Uuid::new_v4(),
+            payment_id: Some("pay-99".to_string()),
+            invoice_id: None,
+            exception_kind: ReconExceptionKind::UnmatchedPayment,
+            description: "No invoice found for payment reference PAY-99".to_string(),
+            amount_minor: Some(20000),
+            currency: Some("usd".to_string()),
+            raised_at: Utc::now(),
+        };
+        let envelope = build_recon_exception_raised_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            None,
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_RECON_EXCEPTION_RAISED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+        assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn payment_allocated_envelope_has_correct_metadata() {
+        let payload = PaymentAllocatedPayload {
+            tenant_id: "tenant-1".to_string(),
+            payment_id: "pay-42".to_string(),
+            customer_id: "cust-1".to_string(),
+            payment_amount_minor: 30000,
+            allocated_amount_minor: 25000,
+            unallocated_amount_minor: 5000,
+            currency: "usd".to_string(),
+            allocation_strategy: "fifo".to_string(),
+            allocations: vec![
+                AllocationLine {
+                    invoice_id: "inv-1".to_string(),
+                    allocated_minor: 15000,
+                    remaining_after_minor: 0,
+                },
+                AllocationLine {
+                    invoice_id: "inv-2".to_string(),
+                    allocated_minor: 10000,
+                    remaining_after_minor: 5000,
+                },
+            ],
+            allocated_at: Utc::now(),
+        };
+        let envelope = build_payment_allocated_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            None,
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_PAYMENT_ALLOCATED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+        assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn phase22_event_type_constants_use_ar_prefix() {
+        assert!(EVENT_TYPE_DUNNING_STATE_CHANGED.starts_with("ar."));
+        assert!(EVENT_TYPE_INVOICE_SUSPENDED.starts_with("ar."));
+        assert!(EVENT_TYPE_RECON_RUN_STARTED.starts_with("ar."));
+        assert!(EVENT_TYPE_RECON_MATCH_APPLIED.starts_with("ar."));
+        assert!(EVENT_TYPE_RECON_EXCEPTION_RAISED.starts_with("ar."));
+        assert!(EVENT_TYPE_PAYMENT_ALLOCATED.starts_with("ar."));
+    }
+
+    #[test]
+    fn dunning_state_serializes_as_snake_case() {
+        let state = DunningState::WrittenOff;
+        let json = serde_json::to_string(&state).unwrap();
+        assert_eq!(json, "\"written_off\"");
+    }
+
+    #[test]
+    fn recon_exception_kind_serializes_as_snake_case() {
+        let kind = ReconExceptionKind::UnmatchedPayment;
+        let json = serde_json::to_string(&kind).unwrap();
+        assert_eq!(json, "\"unmatched_payment\"");
+    }
+
+    #[test]
+    fn payment_allocated_payload_has_allocation_lines() {
+        let payload = PaymentAllocatedPayload {
+            tenant_id: "t".to_string(),
+            payment_id: "p".to_string(),
+            customer_id: "c".to_string(),
+            payment_amount_minor: 1000,
+            allocated_amount_minor: 1000,
+            unallocated_amount_minor: 0,
+            currency: "usd".to_string(),
+            allocation_strategy: "fifo".to_string(),
+            allocations: vec![AllocationLine {
+                invoice_id: "inv-1".to_string(),
+                allocated_minor: 1000,
+                remaining_after_minor: 0,
+            }],
+            allocated_at: Utc::now(),
+        };
+        let json = serde_json::to_string(&payload).unwrap();
+        assert!(json.contains("allocation_strategy"));
+        assert!(json.contains("allocations"));
+        assert!(json.contains("remaining_after_minor"));
     }
 }
