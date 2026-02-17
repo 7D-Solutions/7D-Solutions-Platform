@@ -234,7 +234,7 @@ async fn recognize_single_line(
     // We need to count this line's amount since it's just now being recognized.
     let previously_recognized: Option<i64> = sqlx::query_scalar(
         r#"
-        SELECT SUM(amount_to_recognize_minor)
+        SELECT COALESCE(SUM(amount_to_recognize_minor), 0)::BIGINT
         FROM revrec_schedule_lines
         WHERE schedule_id = $1
           AND recognized = true
