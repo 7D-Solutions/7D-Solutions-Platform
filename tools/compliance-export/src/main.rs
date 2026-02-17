@@ -14,9 +14,8 @@
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use compliance_export::export_compliance_data;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
-
-mod export;
 
 // ============================================================================
 // CLI Definition
@@ -93,7 +92,7 @@ async fn main() -> Result<()> {
                 tracing::warn!("Date range filtering (--from/--to) is not yet implemented and will be ignored");
             }
 
-            export::export_compliance_data(&tenant, &output, &format).await?;
+            export_compliance_data(&tenant, &output, &format).await?;
 
             Ok(())
         }

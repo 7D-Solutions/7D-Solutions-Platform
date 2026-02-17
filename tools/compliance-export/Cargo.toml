@@ -3,6 +3,10 @@ name = "compliance-export"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "compliance_export"
+path = "src/lib.rs"
+
 [[bin]]
 name = "compliance-export"
 path = "src/main.rs"

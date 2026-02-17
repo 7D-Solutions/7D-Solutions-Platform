@@ -5,11 +5,10 @@
 //! - Exports are tenant-scoped (no data leakage)
 //! - Manifest includes correct checksums and counts
 
+use compliance_export::export_compliance_data;
 use serde_json::Value;
 use sqlx::PgPool;
 use std::fs;
-use std::path::Path;
-use std::process::Command;
 use uuid::Uuid;
 
 // ============================================================================
@@ -170,6 +169,12 @@ async fn test_compliance_export_determinism() {
     let audit_url = std::env::var("PLATFORM_AUDIT_DATABASE_URL")
         .expect("PLATFORM_AUDIT_DATABASE_URL not set");
 
+    // Set environment variables for the export function
+    std::env::set_var("AR_DATABASE_URL", &ar_url);
+    std::env::set_var("PAYMENTS_DATABASE_URL", &payments_url);
+    std::env::set_var("GL_DATABASE_URL", &gl_url);
+    std::env::set_var("PLATFORM_AUDIT_DATABASE_URL", &audit_url);
+
     let ar_pool = PgPool::connect(&ar_url)
         .await
         .expect("Failed to connect to AR database");
@@ -199,52 +204,22 @@ async fn test_compliance_export_determinism() {
     let export2_dir = temp_dir.join(format!("compliance-export-2-{}", Uuid::new_v4()));
 
     // Run first export
-    let status1 = Command::new("cargo")
-        .args([
-            "run",
-            "-p",
-            "compliance-export",
-            "--",
-            "export",
-            "--tenant",
-            &tenant_id,
-            "--output",
-            export1_dir.to_str().unwrap(),
-            "--format",
-            "json",
-        ])
-        .env("AR_DATABASE_URL", &ar_url)
-        .env("PAYMENTS_DATABASE_URL", &payments_url)
-        .env("GL_DATABASE_URL", &gl_url)
-        .env("PLATFORM_AUDIT_DATABASE_URL", &audit_url)
-        .status()
-        .expect("Failed to run first export");
-
-    assert!(status1.success(), "First export failed");
+    export_compliance_data(
+        &tenant_id,
+        export1_dir.to_str().unwrap(),
+        "json",
+    )
+    .await
+    .expect("First export failed");
 
     // Run second export
-    let status2 = Command::new("cargo")
-        .args([
-            "run",
-            "-p",
-            "compliance-export",
-            "--",
-            "export",
-            "--tenant",
-            &tenant_id,
-            "--output",
-            export2_dir.to_str().unwrap(),
-            "--format",
-            "json",
-        ])
-        .env("AR_DATABASE_URL", &ar_url)
-        .env("PAYMENTS_DATABASE_URL", &payments_url)
-        .env("GL_DATABASE_URL", &gl_url)
-        .env("PLATFORM_AUDIT_DATABASE_URL", &audit_url)
-        .status()
-        .expect("Failed to run second export");
-
-    assert!(status2.success(), "Second export failed");
+    export_compliance_data(
+        &tenant_id,
+        export2_dir.to_str().unwrap(),
+        "json",
+    )
+    .await
+    .expect("Second export failed");
 
     // Read manifests
     let manifest1_path = export1_dir.join("manifest.json");
@@ -329,6 +304,12 @@ async fn test_compliance_export_tenant_isolation() {
     let audit_url = std::env::var("PLATFORM_AUDIT_DATABASE_URL")
         .expect("PLATFORM_AUDIT_DATABASE_URL not set");
 
+    // Set environment variables for the export function
+    std::env::set_var("AR_DATABASE_URL", &ar_url);
+    std::env::set_var("PAYMENTS_DATABASE_URL", &payments_url);
+    std::env::set_var("GL_DATABASE_URL", &gl_url);
+    std::env::set_var("PLATFORM_AUDIT_DATABASE_URL", &audit_url);
+
     let ar_pool = PgPool::connect(&ar_url).await
         .expect("Failed to connect to AR database");
     let payments_pool = PgPool::connect(&payments_url).await
@@ -355,28 +336,13 @@ async fn test_compliance_export_tenant_isolation() {
     let temp_dir = std::env::temp_dir();
     let export_dir = temp_dir.join(format!("compliance-export-isolation-{}", Uuid::new_v4()));
 
-    let status = Command::new("cargo")
-        .args([
-            "run",
-            "-p",
-            "compliance-export",
-            "--",
-            "export",
-            "--tenant",
-            &tenant1_id,
-            "--output",
-            export_dir.to_str().unwrap(),
-            "--format",
-            "json",
-        ])
-        .env("AR_DATABASE_URL", &ar_url)
-        .env("PAYMENTS_DATABASE_URL", &payments_url)
-        .env("GL_DATABASE_URL", &gl_url)
-        .env("PLATFORM_AUDIT_DATABASE_URL", &audit_url)
-        .status()
-        .expect("Failed to run export");
-
-    assert!(status.success(), "Export failed");
+    export_compliance_data(
+        &tenant1_id,
+        export_dir.to_str().unwrap(),
+        "json",
+    )
+    .await
+    .expect("Export failed");
 
     // Read exported data and verify tenant isolation
     let ar_invoices_path = export_dir.join("ar_invoices.jsonl");
