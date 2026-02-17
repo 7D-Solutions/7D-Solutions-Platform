@@ -5,6 +5,7 @@ members = [
   "platform/audit",
   "platform/tenant-registry",
   "platform/projections",
+  "platform/security",
   "modules/ar",
   "modules/subscriptions",
   "modules/payments",
