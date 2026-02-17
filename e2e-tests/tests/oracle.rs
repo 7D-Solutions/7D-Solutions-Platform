@@ -240,6 +240,7 @@ async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleEr
 /// 2. Payments: No duplicate attempts, attempt count limits, UNKNOWN protocol compliance
 /// 3. Subscriptions: No duplicate cycle attempts, one invoice per cycle, no attempts after terminal
 /// 4. GL: All entries balanced, no duplicate postings, valid account references
+/// 5. Audit: Exactly one audit record per mutation with proper causation linkage
 ///
 /// **Usage:** Call after every operation in E2E tests
 ///
@@ -250,6 +251,10 @@ pub async fn assert_cross_module_invariants(ctx: &TestContext<'_>) -> Result<(),
     payments_rs::invariants::assert_all_invariants(ctx.payments_pool, ctx.app_id).await?;
     subscriptions_rs::invariants::assert_all_invariants(ctx.subscriptions_pool, ctx.tenant_id).await?;
     gl_rs::invariants::assert_all_invariants(ctx.gl_pool, ctx.tenant_id).await?;
+
+    // Check audit completeness for all mutations
+    assert_audit_completeness(ctx).await?;
+
     Ok(())
 }
 

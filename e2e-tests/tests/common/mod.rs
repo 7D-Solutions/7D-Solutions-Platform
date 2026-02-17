@@ -89,6 +89,20 @@ pub async fn get_auth_pool() -> PgPool {
         .expect("Failed to connect to Auth database")
 }
 
+/// Get Audit database pool
+pub async fn get_audit_pool() -> PgPool {
+    let url = std::env::var("AUDIT_DATABASE_URL")
+        .or_else(|_| std::env::var("DATABASE_URL"))
+        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5432/platform_dev".to_string());
+
+    PgPoolOptions::new()
+        .max_connections(5)
+        .min_connections(1)
+        .connect(&url)
+        .await
+        .expect("Failed to connect to Audit database")
+}
+
 // ============================================================================
 // NATS Event Bus
 // ============================================================================
