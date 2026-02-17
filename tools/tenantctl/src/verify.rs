@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use serde::Deserialize;
+use security::get_service_token;
 use tracing::{info, warn};
 
 use crate::provision::MODULES;
@@ -91,9 +92,32 @@ async fn verify_module(module_name: &str, http_port: u16) -> ModuleVerification 
     let mut schema_version = None;
     let mut error_messages = Vec::new();
 
+    // Generate service auth token
+    let auth_token = match get_service_token() {
+        Ok(token) => token,
+        Err(e) => {
+            error_messages.push(format!("Failed to generate service token: {}", e));
+            warn!("  ✗ {} Failed to generate auth token: {}", module_name, e);
+            return ModuleVerification {
+                module_name: module_name.to_string(),
+                ready_check: false,
+                version_check: false,
+                schema_version: None,
+                error_message: Some(error_messages.join("; ")),
+            };
+        }
+    };
+
+    let client = reqwest::Client::new();
+
     // Check /ready endpoint
     let ready_url = format!("{}/api/ready", base_url);
-    match reqwest::get(&ready_url).await {
+    match client
+        .get(&ready_url)
+        .header("Authorization", format!("Bearer {}", auth_token))
+        .send()
+        .await
+    {
         Ok(response) => {
             if response.status().is_success() {
                 match response.json::<ReadyResponse>().await {
@@ -124,7 +148,12 @@ async fn verify_module(module_name: &str, http_port: u16) -> ModuleVerification 
 
     // Check /version endpoint
     let version_url = format!("{}/api/version", base_url);
-    match reqwest::get(&version_url).await {
+    match client
+        .get(&version_url)
+        .header("Authorization", format!("Bearer {}", auth_token))
+        .send()
+        .await
+    {
         Ok(response) => {
             if response.status().is_success() {
                 match response.json::<VersionResponse>().await {
