@@ -170,14 +170,98 @@ async fn test_subscriptions_lifecycle_transition_outbox_atomicity() -> Result<()
     Ok(())
 }
 
-/// Test cycle advancement atomicity
+/// Test cycle advancement atomicity: record_attempt + mark_succeeded in one transaction
 ///
-/// This test validates that billing cycle advancement is atomic with outbox inserts.
+/// Validates that billing cycle gating (record_cycle_attempt → mark_attempt_succeeded)
+/// operates atomically within a single transaction, and the UNIQUE constraint
+/// prevents double-billing for the same subscription/cycle pair.
+///
+/// Note: Outbox event emission is not yet wired to gated_invoice_creation.
+/// This test validates the DB state machine that underpins exactly-once billing.
 #[tokio::test]
 #[serial]
-#[ignore] // Ignored until cycle advancement event emission is implemented
 async fn test_subscriptions_cycle_advance_atomicity() -> Result<()> {
-    // TODO: This test requires calling gated invoice creation
-    // The critical atomicity point is mark_attempt_succeeded + event emission
+    use chrono::Local;
+    use subscriptions_rs::{
+        record_cycle_attempt, mark_attempt_succeeded, generate_cycle_key,
+        calculate_cycle_boundaries, CycleGatingError,
+    };
+
+    let tenant_id = generate_test_tenant();
+    let subscriptions_pool = get_subscriptions_pool().await;
+    let ar_pool = get_ar_pool().await;
+    let payments_pool = get_payments_pool().await;
+    let gl_pool = get_gl_pool().await;
+
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+
+    let subscription_id = create_subscription(&subscriptions_pool, &tenant_id, "active").await?;
+    println!("✅ Created subscription {}", subscription_id);
+
+    let billing_date = Local::now().date_naive();
+    let cycle_key = generate_cycle_key(billing_date);
+    let (cycle_start, cycle_end) = calculate_cycle_boundaries(billing_date);
+
+    // Step 1: Record attempt + mark succeeded atomically in one transaction
+    let mut tx = subscriptions_pool.begin().await?;
+    let attempt_id = record_cycle_attempt(
+        &mut *tx,
+        &tenant_id,
+        subscription_id,
+        &cycle_key,
+        cycle_start,
+        cycle_end,
+        None,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("record_cycle_attempt failed: {:?}", e))?;
+
+    mark_attempt_succeeded(&mut *tx, attempt_id, 42)
+        .await
+        .map_err(|e| anyhow::anyhow!("mark_attempt_succeeded failed: {:?}", e))?;
+
+    tx.commit().await?;
+    println!("✅ Committed cycle attempt {} as succeeded", attempt_id);
+
+    // Step 2: Assert DB state is correct (cast enum to text for comparison)
+    let status: String = sqlx::query_scalar(
+        "SELECT status::text FROM subscription_invoice_attempts WHERE id = $1",
+    )
+    .bind(attempt_id)
+    .fetch_one(&subscriptions_pool)
+    .await?;
+    assert_eq!(status, "succeeded", "Attempt must be succeeded after atomic commit");
+
+    // Step 3: Assert UNIQUE constraint blocks duplicate cycle attempt
+    let mut tx2 = subscriptions_pool.begin().await?;
+    let dup_result = record_cycle_attempt(
+        &mut *tx2,
+        &tenant_id,
+        subscription_id,
+        &cycle_key,
+        cycle_start,
+        cycle_end,
+        None,
+    )
+    .await;
+    tx2.rollback().await?;
+
+    assert!(
+        matches!(dup_result, Err(CycleGatingError::DuplicateCycle { .. })),
+        "Duplicate cycle attempt must be rejected by UNIQUE constraint, got: {:?}",
+        dup_result
+    );
+    println!("✅ UNIQUE constraint blocks double-billing for cycle {}", cycle_key);
+
+    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
+
+    println!("\n🎯 Cycle advance atomicity verified:");
+    println!("   - record_cycle_attempt + mark_succeeded committed atomically");
+    println!("   - UNIQUE constraint enforces exactly-once billing per cycle");
+
     Ok(())
 }

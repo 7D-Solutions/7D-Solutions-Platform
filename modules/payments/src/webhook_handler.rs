@@ -211,7 +211,7 @@ pub async fn update_payment_status_from_webhook(
     // to ensure atomic: lock → validate → mutate → update webhook_event_id
     //
     // Validate transition using lifecycle guard (manual validation within transaction)
-    let current_status: String = sqlx::query_scalar("SELECT status FROM payment_attempts WHERE id = $1")
+    let current_status: String = sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
         .bind(attempt_id)
         .fetch_one(&mut *tx)
         .await?;
@@ -273,7 +273,7 @@ pub async fn update_payment_status_from_webhook(
 
     // Update payment attempt status + webhook_event_id (atomic)
     sqlx::query(
-        "UPDATE payment_attempts SET status = $1, webhook_event_id = $2, completed_at = CURRENT_TIMESTAMP WHERE id = $3"
+        "UPDATE payment_attempts SET status = $1::payment_attempt_status, webhook_event_id = $2, completed_at = CURRENT_TIMESTAMP WHERE id = $3"
     )
     .bind(target_status)
     .bind(webhook_event_id)
