@@ -118,6 +118,40 @@ pub struct CurrencyTotals {
     pub is_balanced: bool,
 }
 
+/// Cash Flow Row
+///
+/// Represents a single account's cash flow activity classified into
+/// operating, investing, or financing category.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CashFlowRow {
+    /// Account code (e.g., "1000", "4000")
+    pub account_code: String,
+
+    /// Account name (e.g., "Cash", "Revenue")
+    pub account_name: String,
+
+    /// Cash flow category: operating, investing, or financing
+    pub category: String,
+
+    /// Currency code (ISO 4217)
+    pub currency: String,
+
+    /// Net cash flow amount in minor units (positive = inflow, negative = outflow)
+    pub amount_minor: i64,
+}
+
+/// Cash Flow Category Totals
+///
+/// Aggregated totals for a single cash flow category.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CashFlowCategoryTotal {
+    /// Category name: operating, investing, or financing
+    pub category: String,
+
+    /// Total net cash flow for this category in minor units
+    pub total_minor: i64,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

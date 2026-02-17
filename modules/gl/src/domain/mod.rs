@@ -5,5 +5,6 @@
 pub mod statements;
 
 pub use statements::{
-    BalanceSheetRow, CurrencyTotals, IncomeStatementRow, StatementTotals, TrialBalanceRow,
+    BalanceSheetRow, CashFlowCategoryTotal, CashFlowRow, CurrencyTotals, IncomeStatementRow,
+    StatementTotals, TrialBalanceRow,
 };

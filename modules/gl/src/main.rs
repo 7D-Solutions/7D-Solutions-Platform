@@ -18,6 +18,7 @@ use gl_rs::{
     routes::accruals::{create_template_handler, create_accrual_handler, execute_reversals_handler},
     routes::revrec::{create_contract, generate_schedule_handler, run_recognition_handler},
     routes::trial_balance::get_trial_balance,
+    routes::cashflow::get_cash_flow,
     routes::reporting_currency::{
         get_reporting_trial_balance,
         get_reporting_income_statement,
@@ -138,6 +139,7 @@ async fn main() {
         .route("/api/gl/accruals/templates", post(create_template_handler))
         .route("/api/gl/accruals/create", post(create_accrual_handler))
         .route("/api/gl/accruals/reversals/execute", post(execute_reversals_handler))
+        .route("/api/gl/cash-flow", get(get_cash_flow))
         .with_state(app_state)
         .layer(
             CorsLayer::new()
