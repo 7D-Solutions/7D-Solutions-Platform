@@ -1,8 +1,75 @@
 /// Tenant lifecycle management
 ///
-/// Defines deterministic provisioning sequences with verification checks
+/// Defines deterministic provisioning sequences with verification checks,
+/// provisioning state machine, and event type constants.
 
 use serde::{Deserialize, Serialize};
+
+// ============================================================================
+// Provisioning State Machine
+// ============================================================================
+
+/// State of the provisioning job for a tenant.
+///
+/// This is distinct from `TenantStatus` (which tracks operational lifecycle).
+/// `ProvisioningState` tracks the control-plane provisioning workflow:
+///
+/// ```text
+///   pending → provisioning → active
+///                         ↘ failed
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ProvisioningState {
+    /// Tenant record created; provisioning job not yet started.
+    Pending,
+    /// Databases and migrations are currently running.
+    Provisioning,
+    /// All modules provisioned successfully; tenant is operational.
+    Active,
+    /// Provisioning failed; see error details.
+    Failed,
+}
+
+impl std::fmt::Display for ProvisioningState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Pending => write!(f, "pending"),
+            Self::Provisioning => write!(f, "provisioning"),
+            Self::Active => write!(f, "active"),
+            Self::Failed => write!(f, "failed"),
+        }
+    }
+}
+
+/// Valid state transitions for the provisioning state machine.
+pub fn is_valid_provisioning_transition(from: ProvisioningState, to: ProvisioningState) -> bool {
+    matches!(
+        (from, to),
+        (ProvisioningState::Pending, ProvisioningState::Provisioning)
+            | (ProvisioningState::Provisioning, ProvisioningState::Active)
+            | (ProvisioningState::Provisioning, ProvisioningState::Failed)
+    )
+}
+
+// ============================================================================
+// Event Type Constants
+// ============================================================================
+
+/// Event type constants for tenant provisioning lifecycle events.
+///
+/// These event types appear in the `provisioning_outbox` table and are
+/// emitted as platform events when a tenant transitions through states.
+pub mod event_types {
+    /// Emitted when the provisioning job begins (pending → provisioning).
+    pub const TENANT_PROVISIONING_STARTED: &str = "tenant.provisioning_started";
+
+    /// Emitted when provisioning completes successfully (provisioning → active).
+    pub const TENANT_PROVISIONED: &str = "tenant.provisioned";
+
+    /// Emitted when provisioning fails (provisioning → failed).
+    pub const TENANT_PROVISIONING_FAILED: &str = "tenant.provisioning_failed";
+}
 
 /// Standard provisioning step names (deterministic sequence)
 pub mod step_names {

@@ -36,24 +36,34 @@ impl std::fmt::Display for TenantId {
 }
 
 /// Tenant lifecycle status
+///
+/// Mirrors the `status` column CHECK constraint in the `tenants` table.
+/// New states `Pending` and `Failed` support the control-plane HTTP API
+/// state machine (pending → provisioning → active/failed).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TenantStatus {
-    /// Tenant is being provisioned (databases, schemas, initial data)
+    /// Tenant record created; provisioning not yet started.
+    Pending,
+    /// Tenant is being provisioned (databases, schemas, initial data).
     Provisioning,
-    /// Tenant is fully provisioned and operational
+    /// Tenant is fully provisioned and operational.
     Active,
-    /// Tenant is temporarily suspended (access disabled, data retained)
+    /// Provisioning failed; tenant is not operational.
+    Failed,
+    /// Tenant is temporarily suspended (access disabled, data retained).
     Suspended,
-    /// Tenant is soft-deleted (marked for cleanup)
+    /// Tenant is soft-deleted (marked for cleanup).
     Deleted,
 }
 
 impl std::fmt::Display for TenantStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Self::Pending => write!(f, "pending"),
             Self::Provisioning => write!(f, "provisioning"),
             Self::Active => write!(f, "active"),
+            Self::Failed => write!(f, "failed"),
             Self::Suspended => write!(f, "suspended"),
             Self::Deleted => write!(f, "deleted"),
         }

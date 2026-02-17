@@ -12,7 +12,13 @@ CREATE TABLE tenants (
     tenant_id UUID PRIMARY KEY,
 
     -- Lifecycle status
-    status VARCHAR(20) NOT NULL CHECK (status IN ('provisioning', 'active', 'suspended', 'deleted')),
+    -- pending: record created, provisioning not yet started
+    -- provisioning: databases and migrations are running
+    -- active: fully provisioned and operational
+    -- failed: provisioning failed (can retry)
+    -- suspended: operationally suspended (data retained)
+    -- deleted: soft-deleted (marked for cleanup)
+    status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'provisioning', 'active', 'failed', 'suspended', 'deleted')),
     environment VARCHAR(20) NOT NULL CHECK (environment IN ('development', 'staging', 'production')),
 
     -- Module schema version tracking
