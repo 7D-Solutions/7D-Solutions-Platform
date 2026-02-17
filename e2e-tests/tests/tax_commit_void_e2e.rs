@@ -577,8 +577,8 @@ async fn test_tax_events_emitted_to_outbox() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(committed_payload["data"]["invoice_id"], invoice_id);
-    assert_eq!(committed_payload["data"]["total_tax_minor"], 850);
+    assert_eq!(committed_payload["payload"]["invoice_id"], invoice_id);
+    assert_eq!(committed_payload["payload"]["total_tax_minor"], 850);
 
     println!("PASS: tax.committed event found in outbox with correct payload");
 
@@ -611,9 +611,9 @@ async fn test_tax_events_emitted_to_outbox() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(voided_payload["data"]["invoice_id"], invoice_id);
-    assert_eq!(voided_payload["data"]["void_reason"], "full_refund");
-    assert_eq!(voided_payload["data"]["total_tax_minor"], 850);
+    assert_eq!(voided_payload["payload"]["invoice_id"], invoice_id);
+    assert_eq!(voided_payload["payload"]["void_reason"], "full_refund");
+    assert_eq!(voided_payload["payload"]["total_tax_minor"], 850);
 
     println!("PASS: tax.voided event found in outbox with correct payload");
 
