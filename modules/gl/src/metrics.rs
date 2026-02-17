@@ -10,6 +10,7 @@
 //! All counters are append-only and never decrease.
 
 use prometheus::{IntCounter, Encoder, TextEncoder, Registry};
+use projections::metrics::ProjectionMetrics;
 use std::sync::Arc;
 use axum::{extract::State, http::StatusCode};
 
@@ -18,6 +19,7 @@ use axum::{extract::State, http::StatusCode};
 pub struct GlMetrics {
     pub journal_entries_total: IntCounter,
     pub posting_errors_total: IntCounter,
+    pub projection_metrics: ProjectionMetrics,
     registry: Registry,
 }
 
@@ -39,9 +41,14 @@ impl GlMetrics {
         registry.register(Box::new(journal_entries_total.clone()))?;
         registry.register(Box::new(posting_errors_total.clone()))?;
 
+        // Initialize projection metrics
+        let projection_metrics = ProjectionMetrics::new()
+            .map_err(|e| prometheus::Error::Msg(format!("Failed to create projection metrics: {}", e)))?;
+
         Ok(Self {
             journal_entries_total,
             posting_errors_total,
+            projection_metrics,
             registry,
         })
     }
@@ -57,7 +64,11 @@ pub async fn metrics_handler(
     State(app_state): State<Arc<crate::AppState>>,
 ) -> Result<String, (StatusCode, String)> {
     let encoder = TextEncoder::new();
-    let metric_families = app_state.metrics.registry().gather();
+
+    // Gather metrics from both GL metrics and projection metrics
+    let mut metric_families = app_state.metrics.registry().gather();
+    let projection_metric_families = app_state.metrics.projection_metrics.registry().gather();
+    metric_families.extend(projection_metric_families);
 
     let mut buffer = vec![];
     encoder.encode(&metric_families, &mut buffer)

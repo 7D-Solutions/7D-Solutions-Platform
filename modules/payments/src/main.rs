@@ -14,9 +14,23 @@ mod routes;
 async fn metrics_handler() -> String {
     use prometheus_client::encoding::text::encode;
 
+    // Encode prometheus-client metrics
     let registry = metrics::METRICS_REGISTRY.lock().unwrap();
     let mut buffer = String::new();
     encode(&mut buffer, &registry).unwrap();
+
+    // Append standard prometheus metrics (projection metrics)
+    use prometheus::{Encoder, TextEncoder};
+    let encoder = TextEncoder::new();
+    let projection_families = metrics::PROJECTION_METRICS.registry().gather();
+    let mut projection_buffer = Vec::new();
+    encoder.encode(&projection_families, &mut projection_buffer)
+        .expect("Failed to encode projection metrics");
+
+    buffer.push_str("\n");
+    buffer.push_str(&String::from_utf8(projection_buffer)
+        .expect("Failed to convert projection metrics to UTF-8"));
+
     buffer
 }
 

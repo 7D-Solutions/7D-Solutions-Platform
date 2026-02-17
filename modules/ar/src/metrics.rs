@@ -8,6 +8,7 @@ use axum::{
     http::StatusCode,
 };
 use prometheus::{Encoder, Histogram, IntCounter, Registry, TextEncoder};
+use projections::metrics::ProjectionMetrics;
 use std::sync::Arc;
 
 /// AR-specific metrics registry
@@ -15,6 +16,7 @@ pub struct ArMetrics {
     pub invoices_created_total: IntCounter,
     pub invoices_paid_total: IntCounter,
     pub invoice_age_seconds: Histogram,
+    pub projection_metrics: ProjectionMetrics,
     registry: Registry,
 }
 
@@ -55,10 +57,14 @@ impl ArMetrics {
         )?;
         registry.register(Box::new(invoice_age_seconds.clone()))?;
 
+        // Projection metrics for AR projections
+        let projection_metrics = ProjectionMetrics::new()?;
+
         Ok(Self {
             invoices_created_total,
             invoices_paid_total,
             invoice_age_seconds,
+            projection_metrics,
             registry,
         })
     }
@@ -76,7 +82,11 @@ pub async fn metrics_handler(
     State(app_state): State<Arc<crate::AppState>>,
 ) -> Result<String, (StatusCode, String)> {
     let encoder = TextEncoder::new();
-    let metric_families = app_state.metrics.registry().gather();
+
+    // Gather metrics from both AR metrics and projection metrics
+    let mut metric_families = app_state.metrics.registry().gather();
+    let projection_metric_families = app_state.metrics.projection_metrics.registry().gather();
+    metric_families.extend(projection_metric_families);
 
     let mut buffer = Vec::new();
     encoder

@@ -8,6 +8,7 @@ use axum::{
     http::StatusCode,
 };
 use prometheus::{Encoder, IntCounter, Registry, TextEncoder};
+use projections::metrics::ProjectionMetrics;
 use std::sync::Arc;
 
 /// Subscriptions-specific metrics registry
@@ -15,6 +16,7 @@ pub struct SubscriptionsMetrics {
     pub cycles_attempted_total: IntCounter,
     pub cycles_completed_total: IntCounter,
     pub subscription_churn_total: IntCounter,
+    pub projection_metrics: ProjectionMetrics,
     registry: Registry,
 }
 
@@ -44,10 +46,14 @@ impl SubscriptionsMetrics {
         )?;
         registry.register(Box::new(subscription_churn_total.clone()))?;
 
+        // Initialize projection metrics
+        let projection_metrics = ProjectionMetrics::new()?;
+
         Ok(Self {
             cycles_attempted_total,
             cycles_completed_total,
             subscription_churn_total,
+            projection_metrics,
             registry,
         })
     }
@@ -65,7 +71,11 @@ pub async fn metrics_handler(
     State(app_state): State<Arc<crate::AppState>>,
 ) -> Result<String, (StatusCode, String)> {
     let encoder = TextEncoder::new();
-    let metric_families = app_state.metrics.registry().gather();
+
+    // Gather metrics from both Subscriptions metrics and projection metrics
+    let mut metric_families = app_state.metrics.registry().gather();
+    let projection_metric_families = app_state.metrics.projection_metrics.registry().gather();
+    metric_families.extend(projection_metric_families);
 
     let mut buffer = Vec::new();
     encoder

@@ -6,6 +6,7 @@
 //! - `payment_attempts_total{status}`: Counter of payment attempts by status
 //! - `unknown_duration_seconds`: Histogram of UNKNOWN state durations
 //! - `retry_attempts_total`: Counter of retry attempts
+//! - Projection metrics (lag, backlog, last_applied_age)
 //!
 //! **Invariant**: Payment outcomes must be metered accurately
 //! **Failure Mode to Avoid**: Misleading metrics or missing UNKNOWN visibility
@@ -16,6 +17,7 @@ use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
+use projections::metrics::ProjectionMetrics;
 use std::sync::Mutex;
 
 /// Label set for payment attempt status
@@ -25,7 +27,7 @@ pub struct PaymentStatusLabels {
 }
 
 lazy_static! {
-    /// Global metrics registry
+    /// Global metrics registry (prometheus-client)
     pub static ref METRICS_REGISTRY: Mutex<Registry> = {
         let mut registry = Registry::default();
 
@@ -51,6 +53,12 @@ lazy_static! {
         );
 
         Mutex::new(registry)
+    };
+
+    /// Projection metrics (using standard prometheus crate)
+    pub static ref PROJECTION_METRICS: ProjectionMetrics = {
+        ProjectionMetrics::new()
+            .expect("Failed to initialize projection metrics")
     };
 
     /// Counter: payment_attempts_total{status}
