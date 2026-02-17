@@ -3,6 +3,7 @@
 //! POST /api/gl/revrec/contracts         — Create a revenue contract with obligations
 //! POST /api/gl/revrec/schedules         — Generate and persist a recognition schedule
 //! POST /api/gl/revrec/recognition-runs  — Execute recognition run for a period
+//! POST /api/gl/revrec/amendments        — Amend a contract (mid-cycle schedule versioning)
 //!
 //! Atomically persists entities + outbox events.
 //! Idempotent on contract_id / schedule_id / (schedule, period).
@@ -13,7 +14,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -21,7 +22,10 @@ use uuid::Uuid;
 use crate::repos::revrec_repo::{self, RevrecRepoError};
 use crate::revrec::recognition_run::{self, RecognitionRunError};
 use crate::revrec::schedule_builder::{generate_schedule, ScheduleBuildError};
-use crate::revrec::{ContractCreatedPayload, PerformanceObligation, RecognitionPattern};
+use crate::revrec::{
+    AllocationChange, ContractCreatedPayload, ContractModifiedPayload, ModificationType,
+    PerformanceObligation, RecognitionPattern,
+};
 use crate::AppState;
 
 // ============================================================================
@@ -103,6 +107,18 @@ fn map_revrec_error(err: RevrecRepoError) -> Response {
                 error: format!("Invalid input: {}", msg),
             });
             (StatusCode::BAD_REQUEST, body).into_response()
+        }
+        RevrecRepoError::DuplicateModification(id) => {
+            let body = Json(ErrorResponse {
+                error: format!("Modification {} already exists (idempotent)", id),
+            });
+            (StatusCode::CONFLICT, body).into_response()
+        }
+        RevrecRepoError::ContractNotFound(id) => {
+            let body = Json(ErrorResponse {
+                error: format!("Contract {} not found", id),
+            });
+            (StatusCode::NOT_FOUND, body).into_response()
         }
         RevrecRepoError::Database(_) => {
             let body = Json(ErrorResponse {
