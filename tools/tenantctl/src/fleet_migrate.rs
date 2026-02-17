@@ -5,6 +5,7 @@
 
 use anyhow::{Context, Result};
 use futures::stream::{self, StreamExt};
+use security::{RbacPolicy, Role, Operation};
 use sqlx::{Connection, PgConnection};
 use std::sync::Arc;
 use tenant_registry::{ModuleSchemaVersions, TenantId};
@@ -79,10 +80,21 @@ pub struct TenantMigrationResult {
 type ResultsTracker = Arc<Mutex<Vec<TenantMigrationResult>>>;
 
 /// Run fleet migration for N tenants with bounded parallelism
-pub async fn run_fleet_migration(num_tenants: usize, parallelism: usize) -> Result<()> {
+pub async fn run_fleet_migration(role: Role, actor: &str, num_tenants: usize, parallelism: usize) -> Result<()> {
+    // Authorize operation
+    RbacPolicy::authorize(
+        role,
+        Operation::FleetMigrate,
+        actor,
+        &format!("{} tenants", num_tenants),
+    )?;
+
     info!(
-        "Starting fleet migration: {} tenants, parallelism={}",
-        num_tenants, parallelism
+        actor = actor,
+        role = ?role,
+        num_tenants = num_tenants,
+        parallelism = parallelism,
+        "Starting fleet migration"
     );
 
     // Generate N tenant IDs deterministically

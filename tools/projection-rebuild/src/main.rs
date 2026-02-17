@@ -20,8 +20,9 @@
 
 mod swap;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use security::{RbacPolicy, Role, Operation};
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 // ============================================================================
@@ -34,6 +35,16 @@ use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 #[command(about = "Rebuild projections from event sources", long_about = None)]
 #[command(version)]
 struct Cli {
+    /// Role for authorization (admin, operator, auditor)
+    /// Can also be set via PROJECTION_REBUILD_ROLE environment variable
+    #[arg(long, env = "PROJECTION_REBUILD_ROLE")]
+    role: Option<String>,
+
+    /// Actor identifier (e.g., username, service account)
+    /// Can also be set via PROJECTION_REBUILD_ACTOR environment variable
+    #[arg(long, env = "PROJECTION_REBUILD_ACTOR", default_value = "unknown")]
+    actor: String,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -80,11 +91,28 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
+    // Parse role for operations that require authorization
+    // Default to Admin if not specified (for now)
+    let role = if let Some(role_str) = &cli.role {
+        Role::from_str(role_str)
+            .context(format!("Invalid role: '{}'. Valid roles: admin, operator, auditor", role_str))?
+    } else {
+        Role::Admin
+    };
+
+    let actor = &cli.actor;
+
     match cli.command {
         Commands::Rebuild { projection, tenant_id } => {
+            // Authorize rebuild operation
+            let resource = format!("projection:{}", projection);
+            RbacPolicy::authorize(role, Operation::ProjectionRebuild, actor, &resource)?;
+
             tracing::info!(
                 projection = %projection,
                 tenant_id = ?tenant_id,
+                actor = actor,
+                role = ?role,
                 "Rebuild command invoked"
             );
 
@@ -109,7 +137,16 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Commands::Status { projection } => {
-            tracing::info!(projection = %projection, "Status command invoked");
+            // Authorize status check operation
+            let resource = format!("projection:{}", projection);
+            RbacPolicy::authorize(role, Operation::ProjectionStatus, actor, &resource)?;
+
+            tracing::info!(
+                projection = %projection,
+                actor = actor,
+                role = ?role,
+                "Status command invoked"
+            );
 
             println!("Check status for projection: {}", projection);
             println!("\n⚠️  Status checking requires database connection.");
@@ -118,9 +155,15 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Commands::Verify { projection, tenant_id } => {
+            // Authorize verify operation
+            let resource = format!("projection:{}", projection);
+            RbacPolicy::authorize(role, Operation::ProjectionVerify, actor, &resource)?;
+
             tracing::info!(
                 projection = %projection,
                 tenant_id = ?tenant_id,
+                actor = actor,
+                role = ?role,
                 "Verify command invoked"
             );
 
@@ -135,7 +178,14 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Commands::List => {
-            tracing::info!("List command invoked");
+            // Authorize list operation
+            RbacPolicy::authorize(role, Operation::ProjectionList, actor, "all")?;
+
+            tracing::info!(
+                actor = actor,
+                role = ?role,
+                "List command invoked"
+            );
 
             println!("List available projections:");
             println!("\n⚠️  Listing requires:");

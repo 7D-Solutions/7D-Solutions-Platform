@@ -22,8 +22,9 @@ mod lifecycle;
 mod provision;
 mod verify;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use security::Role;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 // ============================================================================
@@ -36,6 +37,16 @@ use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 #[command(about = "Tenant lifecycle management operations", long_about = None)]
 #[command(version)]
 struct Cli {
+    /// Role for authorization (admin, operator, auditor)
+    /// Can also be set via TENANTCTL_ROLE environment variable
+    #[arg(long, env = "TENANTCTL_ROLE")]
+    role: Option<String>,
+
+    /// Actor identifier (e.g., username, service account)
+    /// Can also be set via TENANTCTL_ACTOR environment variable
+    #[arg(long, env = "TENANTCTL_ACTOR", default_value = "unknown")]
+    actor: String,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -120,6 +131,18 @@ async fn main() -> Result<()> {
 
     let cli = Cli::parse();
 
+    // Parse role for operations that require authorization
+    // Default to Admin for operations that don't specify (backward compatibility)
+    let role = if let Some(role_str) = &cli.role {
+        Role::from_str(role_str)
+            .context(format!("Invalid role: '{}'. Valid roles: admin, operator, auditor", role_str))?
+    } else {
+        // Default to Admin if not specified (for now - could be changed to require explicit role)
+        Role::Admin
+    };
+
+    let actor = &cli.actor;
+
     match cli.command {
         Commands::Tenant { operation } => match operation {
             TenantOperation::Create { tenant } => {
@@ -150,12 +173,12 @@ async fn main() -> Result<()> {
                 }
             }
             TenantOperation::Suspend { tenant } => {
-                lifecycle::suspend_tenant(&tenant).await?;
+                lifecycle::suspend_tenant(role, actor, &tenant).await?;
                 println!("\n✅ Tenant {} suspended!", tenant);
                 Ok(())
             }
             TenantOperation::Deprovision { tenant } => {
-                lifecycle::deprovision_tenant(&tenant).await?;
+                lifecycle::deprovision_tenant(role, actor, &tenant).await?;
                 println!("\n✅ Tenant {} deprovisioned!", tenant);
                 Ok(())
             }
@@ -172,7 +195,7 @@ async fn main() -> Result<()> {
                 Ok(())
             }
             FleetOperation::Migrate { tenants, parallel } => {
-                fleet_migrate::run_fleet_migration(tenants, parallel).await?;
+                fleet_migrate::run_fleet_migration(role, actor, tenants, parallel).await?;
                 Ok(())
             }
         },

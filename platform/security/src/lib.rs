@@ -16,6 +16,9 @@ pub use service_auth::{
     ServiceAuthError,
 };
 
+// Re-export RBAC types
+pub use rbac::{Operation, RbacError, RbacPolicy, Role};
+
 /// Placeholder for token verification result
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenClaims {

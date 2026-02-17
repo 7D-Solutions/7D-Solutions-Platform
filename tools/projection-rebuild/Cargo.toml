@@ -10,9 +10,10 @@ path = "src/main.rs"
 [dependencies]
 # Platform dependencies
 projections = { path = "../../platform/projections" }
+security = { path = "../../platform/security" }
 
 # CLI parsing
-clap = { version = "4.5", features = ["derive"] }
+clap = { version = "4.5", features = ["derive", "env"] }
 
 # Database
 sqlx = { version = "0.8.2", features = ["runtime-tokio-native-tls", "postgres", "uuid", "chrono"] }

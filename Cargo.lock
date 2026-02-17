@@ -2447,6 +2447,7 @@ dependencies = [
  "chrono",
  "clap",
  "projections",
+ "security",
  "sqlx",
  "tokio",
  "tracing",

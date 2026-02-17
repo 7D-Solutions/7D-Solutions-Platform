@@ -9,6 +9,7 @@
 use anyhow::{Context, Result, bail};
 use audit::schema::{MutationClass, WriteAuditRequest};
 use audit::writer::AuditWriter;
+use security::{RbacPolicy, Role, Operation};
 use sqlx::{PgPool, Postgres, Transaction};
 use tenant_registry::{TenantStatus, is_valid_state_transition};
 use uuid::Uuid;
@@ -44,18 +45,23 @@ async fn get_registry_pool() -> Result<PgPool> {
 /// Suspend a tenant (disable access, retain data)
 ///
 /// This operation:
-/// 1. Verifies tenant exists and is Active
-/// 2. Updates tenant status to Suspended
-/// 3. Records audit log entry
+/// 1. Authorizes role can perform operation
+/// 2. Verifies tenant exists and is Active
+/// 3. Updates tenant status to Suspended
+/// 4. Records audit log entry
 ///
 /// Suspension is reversible - tenant can be reactivated later.
 ///
 /// # Errors
+/// - Insufficient permissions
 /// - Tenant not found
 /// - Tenant not in Active state
 /// - Database connection/transaction errors
-pub async fn suspend_tenant(tenant_id: &str) -> Result<()> {
-    tracing::info!(tenant_id, "Suspending tenant");
+pub async fn suspend_tenant(role: Role, actor: &str, tenant_id: &str) -> Result<()> {
+    // Authorize operation
+    RbacPolicy::authorize(role, Operation::TenantSuspend, actor, tenant_id)?;
+
+    tracing::info!(tenant_id, actor, role = ?role, "Suspending tenant");
 
     let registry_pool = get_registry_pool().await?;
     let audit_pool = get_audit_pool().await?;
@@ -123,20 +129,25 @@ pub async fn suspend_tenant(tenant_id: &str) -> Result<()> {
 /// Deprovision a tenant (soft delete, mark for cleanup)
 ///
 /// This operation:
-/// 1. Verifies tenant exists and is Active or Suspended
-/// 2. Updates tenant status to Deleted
-/// 3. Sets deleted_at timestamp
-/// 4. Records audit log entry
+/// 1. Authorizes role can perform operation
+/// 2. Verifies tenant exists and is Active or Suspended
+/// 3. Updates tenant status to Deleted
+/// 4. Sets deleted_at timestamp
+/// 5. Records audit log entry
 ///
 /// Deprovisioning is a soft delete - data is retained according to
 /// retention policy. Physical deletion would be a separate cleanup process.
 ///
 /// # Errors
+/// - Insufficient permissions
 /// - Tenant not found
 /// - Tenant not in Active or Suspended state
 /// - Database connection/transaction errors
-pub async fn deprovision_tenant(tenant_id: &str) -> Result<()> {
-    tracing::info!(tenant_id, "Deprovisioning tenant");
+pub async fn deprovision_tenant(role: Role, actor: &str, tenant_id: &str) -> Result<()> {
+    // Authorize operation
+    RbacPolicy::authorize(role, Operation::TenantDeprovision, actor, tenant_id)?;
+
+    tracing::info!(tenant_id, actor, role = ?role, "Deprovisioning tenant");
 
     let registry_pool = get_registry_pool().await?;
     let audit_pool = get_audit_pool().await?;
