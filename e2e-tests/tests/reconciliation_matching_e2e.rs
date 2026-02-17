@@ -832,9 +832,11 @@ async fn test_integrated_scheduled_recon_produces_stable_results() {
 
     // --- Step 1: Create a scheduled run ---
     let (window_start, window_end) = make_window(2);
+    let sched_run_id = Uuid::new_v4();
     let create_result = create_scheduled_run(
         &pool,
         CreateScheduledRunRequest {
+            scheduled_run_id: sched_run_id,
             app_id: tenant_id.clone(),
             window_start,
             window_end,
@@ -855,25 +857,28 @@ async fn test_integrated_scheduled_recon_produces_stable_results() {
     };
 
     // --- Step 2: Worker claims and executes the run ---
+    let worker_id = Uuid::new_v4().to_string();
+    let correlation_id = Uuid::new_v4().to_string();
     let exec_result = claim_and_execute_scheduled_run(
         &pool,
-        &tenant_id,
-        Uuid::new_v4().to_string(),
+        &worker_id,
+        &correlation_id,
+        Some(&tenant_id),
     )
     .await
     .expect("claim_and_execute_scheduled_run failed");
 
     match exec_result {
-        ScheduledRunExecutionOutcome::Executed(r) => {
-            assert_eq!(r.match_count, 1, "customer A's exact match");
-            assert_eq!(r.exception_count, 1, "customer B's unmatched payment");
+        ScheduledRunExecutionOutcome::Completed(r) => {
+            assert_eq!(r.match_count.unwrap_or(0), 1, "customer A's exact match");
+            assert_eq!(r.exception_count.unwrap_or(0), 1, "customer B's unmatched payment");
             assert_eq!(r.status, "completed");
         }
         ScheduledRunExecutionOutcome::NothingToClaim => {
-            panic!("expected Executed, got NothingToClaim");
+            panic!("expected Completed, got NothingToClaim");
         }
-        ScheduledRunExecutionOutcome::Failed(r) => {
-            panic!("expected Executed, got Failed: {:?}", r.error_message);
+        ScheduledRunExecutionOutcome::Failed { error, .. } => {
+            panic!("expected Completed, got Failed: {:?}", error);
         }
     }
 
@@ -901,6 +906,7 @@ async fn test_integrated_scheduled_recon_produces_stable_results() {
     create_scheduled_run(
         &pool,
         CreateScheduledRunRequest {
+            scheduled_run_id: Uuid::new_v4(),
             app_id: tenant_id.clone(),
             window_start: window_start2,
             window_end: window_end2,
@@ -910,29 +916,32 @@ async fn test_integrated_scheduled_recon_produces_stable_results() {
     .await
     .expect("second create_scheduled_run failed");
 
+    let worker_id2 = Uuid::new_v4().to_string();
+    let correlation_id2 = Uuid::new_v4().to_string();
     let exec_result2 = claim_and_execute_scheduled_run(
         &pool,
-        &tenant_id,
-        Uuid::new_v4().to_string(),
+        &worker_id2,
+        &correlation_id2,
+        Some(&tenant_id),
     )
     .await
     .expect("second claim_and_execute failed");
 
     match exec_result2 {
-        ScheduledRunExecutionOutcome::Executed(r) => {
-            assert_eq!(r.match_count, 0, "already-matched items excluded from second run");
+        ScheduledRunExecutionOutcome::Completed(r) => {
+            assert_eq!(r.match_count.unwrap_or(0), 0, "already-matched items excluded from second run");
         }
         ScheduledRunExecutionOutcome::NothingToClaim => {
-            panic!("expected Executed, got NothingToClaim");
+            panic!("expected Completed, got NothingToClaim");
         }
-        ScheduledRunExecutionOutcome::Failed(r) => {
-            panic!("expected Executed, got Failed: {:?}", r.error_message);
+        ScheduledRunExecutionOutcome::Failed { error, .. } => {
+            panic!("expected Completed, got Failed: {:?}", error);
         }
     }
 
     // Verify the scheduled run status was updated to completed
     let run_status: String = sqlx::query_scalar(
-        "SELECT status FROM ar_recon_scheduled_runs WHERE id = $1",
+        "SELECT status FROM ar_recon_scheduled_runs WHERE scheduled_run_id = $1",
     )
     .bind(scheduled_run_id)
     .fetch_one(&pool)
