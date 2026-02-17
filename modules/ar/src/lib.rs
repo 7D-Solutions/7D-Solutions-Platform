@@ -14,6 +14,9 @@ pub mod retry;
 pub mod routes;
 pub mod tilled;
 
+// Re-export config types for testing
+pub use config::Config;
+
 /// AR application state shared across HTTP handlers
 pub struct AppState {
     pub pool: sqlx::PgPool,

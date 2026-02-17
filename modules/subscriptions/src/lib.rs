@@ -3,6 +3,7 @@
 //! This module provides public APIs for the subscriptions service,
 //! including lifecycle management for subscription states and cycle gating.
 
+pub mod config;
 pub mod cycle_gating;
 pub mod outbox;
 pub mod gated_invoice_creation;
@@ -10,6 +11,9 @@ pub mod invariants;
 pub mod lifecycle;
 pub mod metrics;
 pub mod models;
+
+// Re-export config types for testing
+pub use config::Config;
 
 // Re-export commonly used types
 pub use lifecycle::{

@@ -14,6 +14,9 @@ pub mod retry;
 pub mod webhook_handler;
 pub mod webhook_signature;
 
+// Re-export config types for testing
+pub use config::Config;
+
 pub use consumer_task::start_payment_collection_consumer;
 pub use events::{enqueue_event, EventConsumer, EventEnvelope};
 pub use handlers::handle_payment_collection_requested;

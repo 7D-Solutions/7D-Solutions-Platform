@@ -13,10 +13,14 @@
 //! cargo run --bin tenantctl -- create <tenant-id>
 //! cargo run --bin tenantctl -- verify <tenant-id>
 //! cargo run --bin tenantctl -- fleet status
+//! cargo run --bin tenantctl -- fleet migrate --tenants 10 --parallel 4
 //! ```
+
+mod fleet_migrate;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 // ============================================================================
 // CLI Definition
@@ -57,13 +61,30 @@ enum FleetOperation {
     Status,
     /// List all tenants
     List,
+    /// Migrate N tenants with bounded parallelism
+    Migrate {
+        /// Number of tenants to migrate
+        #[arg(long, default_value = "10")]
+        tenants: usize,
+        /// Parallel migration workers
+        #[arg(long, default_value = "4")]
+        parallel: usize,
+    },
 }
 
 // ============================================================================
 // Main Entry Point
 // ============================================================================
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
+    // Initialize tracing
+    tracing_subscriber::registry()
+        .with(fmt::layer())
+        .with(EnvFilter::from_default_env()
+            .add_directive(tracing::Level::INFO.into()))
+        .init();
+
     let cli = Cli::parse();
 
     match cli.command {
@@ -86,6 +107,10 @@ fn main() -> Result<()> {
             FleetOperation::List => {
                 println!("[PLACEHOLDER] List tenants:");
                 println!("  → Tenant listing not yet implemented (bd-17s4 scaffolding only)");
+                Ok(())
+            }
+            FleetOperation::Migrate { tenants, parallel } => {
+                fleet_migrate::run_fleet_migration(tenants, parallel).await?;
                 Ok(())
             }
         },

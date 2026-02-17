@@ -12,6 +12,9 @@ pub mod routes;
 pub mod services;
 pub mod validation;
 
+// Re-export config types for testing
+pub use config::Config;
+
 pub use consumer::gl_posting_consumer::start_gl_posting_consumer;
 pub use consumer::gl_reversal_consumer::start_gl_reversal_consumer;
 

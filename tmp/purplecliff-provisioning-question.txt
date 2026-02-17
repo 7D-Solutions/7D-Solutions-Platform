@@ -1,0 +1,29 @@
+## Architectural Question: Tenant Provisioning CLI (bd-17c1)
+
+PurpleCliff is implementing bd-17c1 and asks about the canonical provisioning flow. The tenant-registry already defines a 7-step sequence:
+
+1. validate_tenant_id (format + uniqueness)
+2. create_tenant_databases (per-module Postgres DBs)
+3. run_schema_migrations (apply migrations to all module DBs)
+4. seed_initial_data (chart of accounts, default settings)
+5. verify_database_connectivity (ping all module DBs)
+6. verify_schema_versions (record versions)
+7. activate_tenant (transition to active status)
+
+Each step has verification checks defined in `platform/tenant-registry/src/lifecycle.rs`.
+
+**Current architecture facts:**
+- Multi-DB: each module (AR, Payments, Subscriptions, GL, Notifications) has its own Postgres DB
+- Modules use `sqlx::migrate!()` for schema migrations on startup
+- Modules expose `/api/ready` and `/api/version` endpoints
+- DB pool resolver pattern exists from Phase 16 (PDAA readiness)
+
+**PurpleCliff's specific questions:**
+1. Should tenantctl directly create DB schemas per module? Or delegate to modules?
+2. Should it use the tenant-registry to track provisioning step progress?
+3. Should it call module HTTP endpoints for initialization?
+4. Should tenantctl run migrations, or expect modules to run them on startup?
+
+**My recommendation:** tenantctl should orchestrate the 7-step sequence, using the tenant-registry to track step progress. For step 2-3, it should directly create DBs and run migrations (since modules aren't running yet for a new tenant). For step 4, call module seed endpoints if they exist. For step 5-6, verify directly. Step 7 updates the registry.
+
+What's your call?
