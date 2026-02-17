@@ -28,19 +28,29 @@ use uuid::Uuid;
 // Test helpers
 // ============================================================================
 
+/// Advisory lock key for serializing migration execution across parallel tests.
+const RECON_MIGRATION_LOCK_KEY: i64 = 8_312_947_653_i64;
+
 /// Run the migrations needed for reconciliation scheduled runs.
+/// Uses an advisory lock to prevent parallel test DDL races.
 async fn run_migrations(pool: &sqlx::PgPool) {
-    let recon_sql = include_str!("../../modules/ar/db/migrations/20260217000006_create_recon_matching.sql");
-    sqlx::raw_sql(recon_sql)
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(RECON_MIGRATION_LOCK_KEY)
         .execute(pool)
         .await
-        .expect("failed to run recon matching migration");
+        .expect("failed to acquire migration advisory lock");
+
+    let recon_sql = include_str!("../../modules/ar/db/migrations/20260217000006_create_recon_matching.sql");
+    let _ = sqlx::raw_sql(recon_sql).execute(pool).await;
 
     let sched_sql = include_str!("../../modules/ar/db/migrations/20260217000008_create_recon_scheduled_runs.sql");
-    sqlx::raw_sql(sched_sql)
+    let _ = sqlx::raw_sql(sched_sql).execute(pool).await;
+
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(RECON_MIGRATION_LOCK_KEY)
         .execute(pool)
         .await
-        .expect("failed to run scheduled runs migration");
+        .expect("failed to release migration advisory lock");
 }
 
 /// Insert a test customer and return its ID.
