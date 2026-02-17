@@ -67,7 +67,7 @@ async fn update_invoice_status(
     ar_pool: &PgPool,
     invoice_id: i32,
     status: &str,
-    paid_at: Option<chrono::DateTime<chrono::Utc>>,
+    paid_at: Option<chrono::NaiveDateTime>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(paid_time) = paid_at {
         sqlx::query(
@@ -94,8 +94,8 @@ async fn update_invoice_status(
     Ok(())
 }
 
-async fn get_invoice_status(ar_pool: &PgPool, invoice_id: i32) -> (String, Option<chrono::DateTime<chrono::Utc>>) {
-    sqlx::query_as::<_, (String, Option<chrono::DateTime<chrono::Utc>>)>(
+async fn get_invoice_status(ar_pool: &PgPool, invoice_id: i32) -> (String, Option<chrono::NaiveDateTime>) {
+    sqlx::query_as::<_, (String, Option<chrono::NaiveDateTime>)>(
         "SELECT status, paid_at FROM ar_invoices WHERE id = $1"
     )
     .bind(invoice_id)
@@ -136,7 +136,7 @@ async fn test_payment_succeeded_updates_invoice_paid() {
         .await;
 
     // Execute: Simulate payment succeeded → invoice paid status update
-    update_invoice_status(&ar_pool, invoice_id, "paid", Some(chrono::Utc::now()))
+    update_invoice_status(&ar_pool, invoice_id, "paid", Some(chrono::Utc::now().naive_utc()))
         .await
         .expect("Failed to update invoice status");
 
@@ -263,7 +263,7 @@ async fn test_webhook_idempotency_prevents_duplicate_updates() {
         .await;
 
     // Execute: First webhook processing - update invoice to paid
-    update_invoice_status(&ar_pool, invoice_id, "paid", Some(chrono::Utc::now()))
+    update_invoice_status(&ar_pool, invoice_id, "paid", Some(chrono::Utc::now().naive_utc()))
         .await
         .expect("First webhook processing should succeed");
 
@@ -273,7 +273,7 @@ async fn test_webhook_idempotency_prevents_duplicate_updates() {
     // Execute: Duplicate webhook (same webhook_event_id) - should NOT change status
     // In production, webhook handler would check webhook_event_id deduplication
     // Here we verify that duplicate updates don't break invariants
-    update_invoice_status(&ar_pool, invoice_id, "paid", Some(chrono::Utc::now()))
+    update_invoice_status(&ar_pool, invoice_id, "paid", Some(chrono::Utc::now().naive_utc()))
         .await
         .expect("Duplicate webhook should be idempotent");
 
@@ -349,7 +349,7 @@ async fn test_status_propagation_ordering() {
         .await;
 
     // Execute: Update invoice status to paid
-    update_invoice_status(&ar_pool, invoice_id, "paid", Some(chrono::Utc::now()))
+    update_invoice_status(&ar_pool, invoice_id, "paid", Some(chrono::Utc::now().naive_utc()))
         .await
         .expect("Failed to update invoice status");
 
