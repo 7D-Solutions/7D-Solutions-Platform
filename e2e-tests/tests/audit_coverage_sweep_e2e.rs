@@ -47,16 +47,21 @@ const AR_AUDITABLE_EVENT_TYPES: &[&str] = &[
 ];
 
 const GL_AUDITABLE_EVENT_TYPES: &[&str] = &[
-    "gl.journal_entry.posted",
-    "gl.reversal.posted",
-    "gl.period.closed",
-    "gl.balance.updated",
+    // Reversal service
+    "gl.events.entry.reversed",
+    // Accruals
     "gl.accrual_created",
     "gl.accrual_reversed",
-    "gl.revrec_contract.created",
-    "gl.revrec_schedule.created",
-    "gl.revrec_line.recognized",
+    // Revenue recognition
+    "revrec.contract_created",
+    "revrec.schedule_created",
+    "revrec.recognition_posted",
+    "revrec.contract_modified",
+    // FX rates
     "fx.rate_updated",
+    // FX revaluation / realized gain-loss
+    "gl.fx_revaluation_posted",
+    "gl.fx_realized_posted",
 ];
 
 const SUBSCRIPTIONS_AUDITABLE_EVENT_TYPES: &[&str] = &[
@@ -616,8 +621,10 @@ async fn test_mutation_class_consistency() {
         ("ar.invoice_written_off", MutationClass::Reversal),
         ("ar.dunning_state_changed", MutationClass::StateTransition),
         ("ar.invoice.finalizing", MutationClass::StateTransition),
-        ("gl.journal_entry.posted", MutationClass::Create),
-        ("gl.reversal.posted", MutationClass::Reversal),
+        ("gl.accrual_created", MutationClass::Create),
+        ("gl.events.entry.reversed", MutationClass::Reversal),
+        ("revrec.contract_created", MutationClass::Create),
+        ("fx.rate_updated", MutationClass::Update),
     ];
 
     for (event_type, expected_class) in &test_cases {
@@ -700,20 +707,20 @@ async fn test_mutation_path_enumeration_complete() {
 fn classify_event_type(event_type: &str) -> MutationClass {
     match event_type {
         // Reversals
-        "ar.invoice_written_off" | "gl.reversal.posted" | "gl.accrual_reversed" => {
-            MutationClass::Reversal
-        }
+        "ar.invoice_written_off"
+        | "gl.events.entry.reversed"
+        | "gl.accrual_reversed" => MutationClass::Reversal,
         // State transitions
         "ar.invoice.finalizing"
         | "ar.dunning_state_changed"
         | "ar.invoice_suspended"
-        | "gl.period.closed"
         | "subscriptions.status.changed" => MutationClass::StateTransition,
         // Updates (balance recalculations, aging, FX)
-        "gl.balance.updated"
-        | "ar.ar_aging_updated"
+        "ar.ar_aging_updated"
         | "ar.invoice_settled_fx"
-        | "fx.rate_updated" => MutationClass::Update,
+        | "fx.rate_updated"
+        | "gl.fx_revaluation_posted"
+        | "gl.fx_realized_posted" => MutationClass::Update,
         // Everything else is a Create
         _ => MutationClass::Create,
     }
