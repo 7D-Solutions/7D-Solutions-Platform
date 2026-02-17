@@ -15,8 +15,11 @@
 //! Required fields that cannot be empty:
 //! - event_id, event_type, occurred_at, tenant_id, source_module, source_version, schema_version
 //!
+//! Required field added in Phase 16:
+//! - mutation_class (must be a valid class from MUTATION-CLASSES.md)
+//!
 //! Optional fields that, if present, cannot be empty:
-//! - trace_id, mutation_class, correlation_id, causation_id, side_effect_id
+//! - trace_id, correlation_id, causation_id, side_effect_id
 
 mod common;
 
@@ -201,7 +204,7 @@ async fn test_valid_envelope_accepted() -> Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!(e))?;
 
-    // Step 1: Create VALID envelope
+    // Step 1: Create VALID envelope (mutation_class is required since Phase 16)
     let envelope = EventEnvelope::new(
         tenant_id.clone(),
         "subscriptions".to_string(),
@@ -211,7 +214,8 @@ async fn test_valid_envelope_accepted() -> Result<()> {
         },
     )
     .with_trace_id(Some("valid-trace-123".to_string()))
-    .with_correlation_id(Some("valid-corr-456".to_string()));
+    .with_correlation_id(Some("valid-corr-456".to_string()))
+    .with_mutation_class(Some("DATA_MUTATION".to_string()));
 
     // Step 2: Enqueue event - should succeed
     let result = subscriptions_rs::outbox::enqueue_event(

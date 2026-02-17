@@ -205,15 +205,22 @@ pub async fn assert_unknown_protocol_compliance(
     pool: &PgPool,
     app_id: &str,
 ) -> Result<(), InvariantViolation> {
-    // Query for UNKNOWN status attempts that would be retry-eligible
-    // (This simulates what get_payments_for_retry() would return if UNKNOWN filter was missing)
-    // Note: Cross-module query removed - UNKNOWN blocking is enforced at payment level
-    // We validate UNKNOWN attempts exist, but don't cross-reference AR invoices
+    // Query for payments where an UNKNOWN attempt coexists with a retry-eligible attempt.
+    // UNKNOWN is a valid state — the protocol violation is when a payment has both
+    // an UNKNOWN attempt (which should block retry) AND a retry-eligible attempt
+    // ('attempting' or 'failed_retry') still active for the same payment.
+    // A payment in UNKNOWN state must resolve via reconciliation before any retry.
     let unknown_in_retry: Vec<(Uuid, String)> = sqlx::query_as(
-        "SELECT payment_id, status::text
-         FROM payment_attempts
-         WHERE app_id = $1
-           AND status::text = 'unknown'"
+        "SELECT DISTINCT pa.payment_id, 'unknown'
+         FROM payment_attempts pa
+         WHERE pa.app_id = $1
+           AND pa.status::text = 'unknown'
+           AND EXISTS (
+               SELECT 1 FROM payment_attempts pa2
+               WHERE pa2.app_id = $1
+                 AND pa2.payment_id = pa.payment_id
+                 AND pa2.status::text IN ('attempting', 'failed_retry')
+           )"
     )
     .bind(app_id)
     .fetch_all(pool)
