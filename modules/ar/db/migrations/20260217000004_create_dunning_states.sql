@@ -21,7 +21,7 @@
 --   5. Terminal states: Resolved, WrittenOff — no further transitions allowed
 --   6. next_attempt_at is NULL for terminal states
 
-CREATE TABLE ar_dunning_states (
+CREATE TABLE IF NOT EXISTS ar_dunning_states (
     id                  SERIAL          PRIMARY KEY,
     -- Stable business key (idempotency anchor per dunning sequence for an invoice)
     dunning_id          UUID            NOT NULL UNIQUE,
@@ -53,9 +53,9 @@ CREATE TABLE ar_dunning_states (
 );
 
 -- Lookup by tenant + state for the scheduler (find invoices due for retry)
-CREATE INDEX ar_dunning_states_app_state ON ar_dunning_states(app_id, state);
+CREATE INDEX IF NOT EXISTS ar_dunning_states_app_state ON ar_dunning_states(app_id, state);
 -- Lookup by next_attempt_at for the dunning scheduler worker
-CREATE INDEX ar_dunning_states_next_attempt ON ar_dunning_states(next_attempt_at)
+CREATE INDEX IF NOT EXISTS ar_dunning_states_next_attempt ON ar_dunning_states(next_attempt_at)
     WHERE next_attempt_at IS NOT NULL;
 -- Temporal ordering
-CREATE INDEX ar_dunning_states_created_at ON ar_dunning_states(created_at);
+CREATE INDEX IF NOT EXISTS ar_dunning_states_created_at ON ar_dunning_states(created_at);
