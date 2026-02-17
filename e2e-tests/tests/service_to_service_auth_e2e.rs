@@ -5,6 +5,11 @@
 //! 2. Token verification correctly validates and rejects tokens
 //! 3. Expired tokens are rejected
 //! 4. Tampered tokens are rejected
+//!
+//! ## Auth Policy (Phase 19 bd-25z)
+//! - Diagnostic endpoints (/api/health, /api/ready, /api/version) are PUBLIC
+//!   - No token required; ops tooling and health checkers must not need credentials
+//! - Mutation endpoints (/api/ar/**, etc.) require valid Bearer token
 
 use security::{generate_service_token, verify_service_token, ServiceAuthError};
 use std::env;
@@ -260,38 +265,34 @@ async fn test_ready_endpoint_with_valid_token() {
 }
 
 #[tokio::test]
-async fn test_ready_endpoint_without_token_fails() {
+async fn test_ready_endpoint_without_token_succeeds() {
     setup_test_env();
 
     let response = make_request("/api/ready", None).await;
 
     println!("✅ /api/ready without auth - Status: {}", response.status());
 
-    assert_eq!(
-        response.status(),
-        401,
-        "Expected 401 Unauthorized without token"
-    );
-
-    let body = response.text().await.unwrap();
+    // Diagnostic endpoints are public (ops tooling must not need credentials)
     assert!(
-        body.contains("unauthorized") || body.contains("Missing Authorization"),
-        "Expected error about missing authorization"
+        response.status().is_success() || response.status() == 503,
+        "Expected /api/ready to be public (200/503), got: {}",
+        response.status()
     );
 }
 
 #[tokio::test]
-async fn test_ready_endpoint_with_invalid_token_fails() {
+async fn test_ready_endpoint_with_invalid_token_still_succeeds() {
     setup_test_env();
 
+    // Diagnostic endpoints are public — invalid token does not block access
     let response = make_request("/api/ready", Some("invalid.token.here")).await;
 
-    println!("✅ /api/ready with invalid token - Status: {}", response.status());
+    println!("✅ /api/ready with ignored token - Status: {}", response.status());
 
-    assert_eq!(
-        response.status(),
-        401,
-        "Expected 401 Unauthorized with invalid token"
+    assert!(
+        response.status().is_success() || response.status() == 503,
+        "Expected /api/ready to be public even with invalid token, got: {}",
+        response.status()
     );
 }
 
@@ -320,17 +321,18 @@ async fn test_version_endpoint_with_valid_token() {
 }
 
 #[tokio::test]
-async fn test_version_endpoint_without_token_fails() {
+async fn test_version_endpoint_without_token_succeeds() {
     setup_test_env();
 
     let response = make_request("/api/version", None).await;
 
     println!("✅ /api/version without auth - Status: {}", response.status());
 
-    assert_eq!(
-        response.status(),
-        401,
-        "Expected 401 Unauthorized without token"
+    // Diagnostic endpoints are public (ops tooling must not need credentials)
+    assert!(
+        response.status().is_success(),
+        "Expected /api/version to be public (200), got: {}",
+        response.status()
     );
 }
 
