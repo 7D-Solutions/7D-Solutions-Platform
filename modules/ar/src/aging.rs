@@ -1,13 +1,13 @@
-//! AR Aging Projection (bd-3cb, extended by bd-13p)
+//! AR Aging Projection (bd-3cb, extended by bd-13p, bd-17w)
 //!
 //! Computes and stores AR aging buckets per (app_id, customer_id, currency).
-//! Open balance = invoice amount − payments − credit notes − write-offs.
+//! Open balance = invoice amount − payments − credit notes − write-offs − allocations.
 //!
 //! Design:
 //! - Projection-based: results stored in ar_aging_buckets, not computed at query time.
 //! - Replayable: upsert overwrites previous snapshot deterministically.
 //! - Atomic: compute + upsert + outbox event in a single transaction.
-//! - Credit notes and write-offs are negative adjustments (reduce open balance).
+//! - Credit notes, write-offs, and payment allocations are adjustments that reduce open balance.
 //!
 //! Buckets (by days overdue relative to due_at):
 //!   current      — not yet due (due_at >= NOW() or due_at IS NULL)
@@ -81,7 +81,9 @@ pub async fn refresh_aging_tx(
 ) -> Result<AgingSnapshot, sqlx::Error> {
     // Step 1: Compute aging buckets via SQL (deterministic, uses DB clock)
     //
-    // Open balance per invoice = amount_cents − payments − credit notes − write-offs.
+    // Open balance per invoice = amount_cents − charges − credit notes − write-offs − allocations.
+    // Charges (ar_charges) are direct payment records.
+    // Allocations (ar_payment_allocations) are explicit payment-to-invoice splits (bd-14f).
     // Credit notes and write-offs are negative adjustments that reduce outstanding balance.
     // An invoice with zero or negative open balance is excluded from aging.
     let computed: Option<ComputedAging> = sqlx::query_as::<_, ComputedAging>(
@@ -100,6 +102,12 @@ pub async fn refresh_aging_tx(
                        AND c.status = 'succeeded'),
                     0
                 ) AS paid_cents,
+                COALESCE(
+                    (SELECT SUM(a.amount_cents)
+                     FROM ar_payment_allocations a
+                     WHERE a.invoice_id = i.id),
+                    0
+                ) AS allocated_cents,
                 COALESCE(
                     (SELECT SUM(cn.amount_minor)
                      FROM ar_credit_notes cn
@@ -122,7 +130,7 @@ pub async fn refresh_aging_tx(
         open_balances AS (
             SELECT
                 currency,
-                GREATEST(0, amount_cents - paid_cents - credit_note_cents - written_off_cents) AS open_balance,
+                GREATEST(0, amount_cents - paid_cents - allocated_cents - credit_note_cents - written_off_cents) AS open_balance,
                 due_at,
                 CASE
                     WHEN due_at IS NULL OR due_at >= NOW() THEN 'current'
@@ -132,7 +140,7 @@ pub async fn refresh_aging_tx(
                     ELSE 'days_over_90'
                 END AS bucket
             FROM open_invoices
-            WHERE GREATEST(0, amount_cents - paid_cents - credit_note_cents - written_off_cents) > 0
+            WHERE GREATEST(0, amount_cents - paid_cents - allocated_cents - credit_note_cents - written_off_cents) > 0
         )
         SELECT
             COALESCE(MAX(currency), 'usd') AS currency,

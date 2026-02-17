@@ -501,6 +501,13 @@ pub async fn cleanup_tenant_data(
         .await
         .map_err(|e| format!("Failed to cleanup AR metered usage: {}", e))?;
 
+    // AR payment allocations (before invoices due to FK)
+    sqlx::query("DELETE FROM ar_payment_allocations WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(ar_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup AR payment allocations: {}", e))?;
+
     // AR charges
     sqlx::query("DELETE FROM ar_charges WHERE app_id = $1")
         .bind(tenant_id)
