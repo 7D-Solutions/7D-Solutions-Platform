@@ -18,15 +18,9 @@ use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Helper to set up the audit database pool
+/// Helper to set up the audit database pool (delegates to common helper with fallback URL)
 async fn get_audit_pool() -> PgPool {
-    let database_url = std::env::var("AUDIT_DATABASE_URL")
-        .or_else(|_| std::env::var("DATABASE_URL"))
-        .expect("AUDIT_DATABASE_URL or DATABASE_URL must be set");
-
-    PgPool::connect(&database_url)
-        .await
-        .expect("Failed to connect to audit database")
+    common::get_audit_pool().await
 }
 
 // Shared migration helper with pg_advisory_lock lives in common/mod.rs.

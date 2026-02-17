@@ -20,13 +20,12 @@ use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Helper to set up the projections database pool
+/// Helper to set up the projections database pool (delegates to common helper with fallback URL)
 async fn get_projections_pool() -> PgPool {
-    let database_url = std::env::var("PROJECTIONS_DATABASE_URL")
+    let url = std::env::var("PROJECTIONS_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
-        .expect("PROJECTIONS_DATABASE_URL or DATABASE_URL must be set");
-
-    PgPool::connect(&database_url)
+        .unwrap_or_else(|_| "postgresql://projections_user:projections_pass@localhost:5439/projections_db".to_string());
+    sqlx::PgPool::connect(&url)
         .await
         .expect("Failed to connect to projections database")
 }

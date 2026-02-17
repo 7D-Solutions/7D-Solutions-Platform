@@ -45,7 +45,7 @@ const PROJECTION_NAME: &str = "scale_tenant_billing_summary";
 async fn get_projections_pool() -> PgPool {
     let url = std::env::var("PROJECTIONS_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
-        .expect("PROJECTIONS_DATABASE_URL or DATABASE_URL must be set");
+        .unwrap_or_else(|_| "postgresql://projections_user:projections_pass@localhost:5439/projections_db".to_string());
     PgPool::connect(&url)
         .await
         .expect("Failed to connect to projections database")
@@ -77,8 +77,9 @@ async fn get_gl_pool() -> PgPool {
 
 async fn get_audit_pool() -> PgPool {
     let url = std::env::var("AUDIT_DATABASE_URL")
+        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
         .or_else(|_| std::env::var("DATABASE_URL"))
-        .expect("AUDIT_DATABASE_URL or DATABASE_URL must be set");
+        .unwrap_or_else(|_| "postgresql://audit_user:audit_pass@localhost:5440/audit_db".to_string());
     PgPool::connect(&url).await.expect("Failed to connect to audit database")
 }
 
