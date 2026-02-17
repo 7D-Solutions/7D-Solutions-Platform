@@ -149,11 +149,13 @@ async fn test_parallel_subscription_cycle_attempts() {
     // Oracle: Assert all module invariants
     let payments_pool = common::get_payments_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
         subscriptions_pool: pool.as_ref(),
         gl_pool: &gl_pool,
+        audit_pool: &audit_pool,
         app_id: tenant_id,
         tenant_id,
     };
@@ -227,6 +229,7 @@ async fn test_parallel_payment_attempts() {
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: pool.as_ref(),
@@ -234,6 +237,7 @@ async fn test_parallel_payment_attempts() {
         gl_pool: &gl_pool,
         app_id,
         tenant_id: app_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
@@ -251,6 +255,7 @@ async fn test_parallel_payment_attempts() {
 #[serial]
 async fn test_parallel_gl_postings() {
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let tenant_id = &common::generate_test_tenant();
     let source_event_id = Uuid::new_v4();
 
@@ -308,6 +313,7 @@ async fn test_parallel_gl_postings() {
         payments_pool: &payments_pool,
         subscriptions_pool: &subscriptions_pool,
         gl_pool: pool.as_ref(),
+        audit_pool: &audit_pool,
         app_id: tenant_id,
         tenant_id,
     };
@@ -329,6 +335,7 @@ async fn test_mixed_concurrent_operations() {
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ar_pool = common::get_ar_pool().await;
     let tenant_id = &common::generate_test_tenant();
 
@@ -433,6 +440,7 @@ async fn test_mixed_concurrent_operations() {
         payments_pool: pay_pool.as_ref(),
         subscriptions_pool: sub_pool.as_ref(),
         gl_pool: gl_pool_arc.as_ref(),
+        audit_pool: &audit_pool,
         app_id: tenant_id,
         tenant_id,
     };
@@ -505,6 +513,7 @@ async fn test_high_concurrency_stress() {
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: pool.as_ref(),
@@ -512,6 +521,7 @@ async fn test_high_concurrency_stress() {
         gl_pool: &gl_pool,
         app_id,
         tenant_id: app_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 

@@ -132,6 +132,7 @@ async fn test_no_duplicate_payment_attempts() {
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
@@ -139,6 +140,7 @@ async fn test_no_duplicate_payment_attempts() {
         gl_pool: &gl_pool,
         app_id,
         tenant_id: app_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
@@ -234,6 +236,7 @@ async fn test_retry_window_discipline() {
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
@@ -241,6 +244,7 @@ async fn test_retry_window_discipline() {
         gl_pool: &gl_pool,
         app_id,
         tenant_id: app_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
@@ -322,6 +326,7 @@ async fn test_failed_retry_allows_next_attempt() {
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
@@ -329,6 +334,7 @@ async fn test_failed_retry_allows_next_attempt() {
         gl_pool: &gl_pool,
         app_id,
         tenant_id: app_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
@@ -404,6 +410,7 @@ async fn test_succeeded_is_terminal() {
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
@@ -411,6 +418,7 @@ async fn test_succeeded_is_terminal() {
         gl_pool: &gl_pool,
         app_id,
         tenant_id: app_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
@@ -449,6 +457,7 @@ async fn test_payment_invariants_enforcement() {
     // Oracle: Assert all module invariants (replaces manual checks and commented oracle call)
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
@@ -456,6 +465,7 @@ async fn test_payment_invariants_enforcement() {
         gl_pool: &gl_pool,
         app_id,
         tenant_id: app_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 

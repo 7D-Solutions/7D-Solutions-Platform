@@ -228,6 +228,7 @@ async fn test_unknown_blocks_retry_eligibility() {
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
@@ -235,6 +236,7 @@ async fn test_unknown_blocks_retry_eligibility() {
         gl_pool: &gl_pool,
         app_id: &tenant_id,
         tenant_id: &tenant_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
@@ -333,6 +335,7 @@ async fn test_unknown_excluded_from_retry_query() {
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
@@ -340,6 +343,7 @@ async fn test_unknown_excluded_from_retry_query() {
         gl_pool: &gl_pool,
         app_id: &tenant_id,
         tenant_id: &tenant_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
@@ -398,6 +402,7 @@ async fn test_reconciliation_resolves_unknown_to_succeeded() {
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
@@ -405,6 +410,7 @@ async fn test_reconciliation_resolves_unknown_to_succeeded() {
         gl_pool: &gl_pool,
         app_id: &tenant_id,
         tenant_id: &tenant_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
@@ -463,6 +469,7 @@ async fn test_reconciliation_resolves_unknown_to_failed() {
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
@@ -470,6 +477,7 @@ async fn test_reconciliation_resolves_unknown_to_failed() {
         gl_pool: &gl_pool,
         app_id: &tenant_id,
         tenant_id: &tenant_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 
@@ -551,6 +559,7 @@ async fn test_reconciliation_idempotency() {
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
@@ -558,6 +567,7 @@ async fn test_reconciliation_idempotency() {
         gl_pool: &gl_pool,
         app_id: &tenant_id,
         tenant_id: &tenant_id,
+        audit_pool: &audit_pool,
     };
     oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
 

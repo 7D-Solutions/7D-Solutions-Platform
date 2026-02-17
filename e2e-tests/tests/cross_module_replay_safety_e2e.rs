@@ -181,11 +181,13 @@ async fn test_subscription_cycle_replay_deduplication() {
     // Oracle: Assert all module invariants
     let payments_pool = common::get_payments_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let ctx = oracle::TestContext {
         ar_pool: &ar_pool,
         payments_pool: &payments_pool,
         subscriptions_pool: &subscriptions_pool,
         gl_pool: &gl_pool,
+        audit_pool: &audit_pool,
         app_id: tenant_id,
         tenant_id,
     };
@@ -272,6 +274,7 @@ async fn test_payment_attempt_replay_deduplication() {
 #[serial]
 async fn test_gl_posting_replay_deduplication() {
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let tenant_id = &common::generate_test_tenant();
     let source_event_id = Uuid::new_v4();
 
@@ -322,6 +325,7 @@ async fn test_full_flow_replay_produces_identical_results() {
     let ar_pool = common::get_ar_pool().await;
     let payments_pool = common::get_payments_pool().await;
     let gl_pool = common::get_gl_pool().await;
+    let audit_pool = common::get_audit_pool().await;
     let tenant_id = &common::generate_test_tenant();
     let cycle_key = "2026-02-full";
     let payment_id = Uuid::new_v4();
