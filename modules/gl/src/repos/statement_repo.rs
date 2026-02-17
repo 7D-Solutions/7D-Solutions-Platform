@@ -119,41 +119,70 @@ pub async fn get_trial_balance_rows(
     pool: &PgPool,
     tenant_id: &str,
     period_id: Uuid,
-    currency: &str,
+    currency: Option<&str>,
 ) -> Result<Vec<TrialBalanceRow>, StatementError> {
-    // Validate currency format (ISO 4217: 3 uppercase letters)
-    if currency.len() != 3 || !currency.chars().all(|c| c.is_ascii_uppercase()) {
-        return Err(StatementError::InvalidCurrency(currency.to_string()));
+    // Validate currency format if provided (ISO 4217: 3 uppercase letters)
+    if let Some(c) = currency {
+        if c.len() != 3 || !c.chars().all(|ch| ch.is_ascii_uppercase()) {
+            return Err(StatementError::InvalidCurrency(c.to_string()));
+        }
     }
 
     // Single query: JOIN account_balances + accounts + periods
     // Period join validates period exists and belongs to tenant
-    let db_rows: Vec<TrialBalanceRowDb> = sqlx::query_as(
-        r#"
-        SELECT
-            ab.account_code,
-            a.name as account_name,
-            a.type as account_type,
-            a.normal_balance,
-            ab.currency,
-            ab.debit_total_minor,
-            ab.credit_total_minor,
-            ab.net_balance_minor
-        FROM accounting_periods p
-        INNER JOIN account_balances ab ON ab.period_id = p.id AND ab.tenant_id = p.tenant_id
-        INNER JOIN accounts a ON a.tenant_id = ab.tenant_id AND a.code = ab.account_code
-        WHERE p.tenant_id = $1
-          AND p.id = $2
-          AND ab.currency = $3
-          AND a.is_active = true
-        ORDER BY ab.account_code
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(period_id)
-    .bind(currency)
-    .fetch_all(pool)
-    .await?;
+    let db_rows: Vec<TrialBalanceRowDb> = if let Some(c) = currency {
+        sqlx::query_as(
+            r#"
+            SELECT
+                ab.account_code,
+                a.name as account_name,
+                a.type as account_type,
+                a.normal_balance,
+                ab.currency,
+                ab.debit_total_minor,
+                ab.credit_total_minor,
+                ab.net_balance_minor
+            FROM accounting_periods p
+            INNER JOIN account_balances ab ON ab.period_id = p.id AND ab.tenant_id = p.tenant_id
+            INNER JOIN accounts a ON a.tenant_id = ab.tenant_id AND a.code = ab.account_code
+            WHERE p.tenant_id = $1
+              AND p.id = $2
+              AND ab.currency = $3
+              AND a.is_active = true
+            ORDER BY ab.account_code
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(period_id)
+        .bind(c)
+        .fetch_all(pool)
+        .await?
+    } else {
+        sqlx::query_as(
+            r#"
+            SELECT
+                ab.account_code,
+                a.name as account_name,
+                a.type as account_type,
+                a.normal_balance,
+                ab.currency,
+                ab.debit_total_minor,
+                ab.credit_total_minor,
+                ab.net_balance_minor
+            FROM accounting_periods p
+            INNER JOIN account_balances ab ON ab.period_id = p.id AND ab.tenant_id = p.tenant_id
+            INNER JOIN accounts a ON a.tenant_id = ab.tenant_id AND a.code = ab.account_code
+            WHERE p.tenant_id = $1
+              AND p.id = $2
+              AND a.is_active = true
+            ORDER BY ab.account_code
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(period_id)
+        .fetch_all(pool)
+        .await?
+    };
 
     // If no rows, check if period exists to provide better error message
     if db_rows.is_empty() {

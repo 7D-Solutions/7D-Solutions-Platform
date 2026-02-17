@@ -22,8 +22,8 @@ pub struct TrialBalanceQuery {
     pub tenant_id: String,
     /// Accounting period ID
     pub period_id: Uuid,
-    /// Currency code (ISO 4217, required) - e.g., "USD", "EUR"
-    pub currency: String,
+    /// Currency code (ISO 4217, optional) - e.g., "USD", "EUR". If omitted, all currencies are returned.
+    pub currency: Option<String>,
 }
 
 /// Trial balance error response
@@ -44,7 +44,7 @@ pub async fn get_trial_balance(
         &app_state.pool,
         &params.tenant_id,
         params.period_id,
-        &params.currency,  // Changed from Option<&str> to &str (required)
+        params.currency.as_deref(),
     )
     .await
     .map_err(|e| {

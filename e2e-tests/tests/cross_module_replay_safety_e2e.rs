@@ -54,17 +54,32 @@ async fn create_subscription_invoice_attempt(
     cycle_key: &str,
     status: &str,
 ) -> Result<Uuid, sqlx::Error> {
-    sqlx::query_scalar::<_, Uuid>(
-        "INSERT INTO subscription_invoice_attempts (tenant_id, subscription_id, cycle_key, cycle_start, cycle_end, status)
-         VALUES ($1, $2, $3, '2026-02-01', '2026-02-28', $4::subscription_invoice_attempt_status)
-         RETURNING id"
-    )
-    .bind(tenant_id)
-    .bind(subscription_id)
-    .bind(cycle_key)
-    .bind(status)
-    .fetch_one(subscriptions_pool)
-    .await
+    if status == "succeeded" {
+        // 'succeeded' attempts must have ar_invoice_id set (invariant: assert_succeeded_has_invoice_id)
+        sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO subscription_invoice_attempts (tenant_id, subscription_id, cycle_key, cycle_start, cycle_end, status, ar_invoice_id)
+             VALUES ($1, $2, $3, '2026-02-01', '2026-02-28', $4::subscription_invoice_attempt_status, 1)
+             RETURNING id"
+        )
+        .bind(tenant_id)
+        .bind(subscription_id)
+        .bind(cycle_key)
+        .bind(status)
+        .fetch_one(subscriptions_pool)
+        .await
+    } else {
+        sqlx::query_scalar::<_, Uuid>(
+            "INSERT INTO subscription_invoice_attempts (tenant_id, subscription_id, cycle_key, cycle_start, cycle_end, status)
+             VALUES ($1, $2, $3, '2026-02-01', '2026-02-28', $4::subscription_invoice_attempt_status)
+             RETURNING id"
+        )
+        .bind(tenant_id)
+        .bind(subscription_id)
+        .bind(cycle_key)
+        .bind(status)
+        .fetch_one(subscriptions_pool)
+        .await
+    }
 }
 
 async fn setup_invoice(

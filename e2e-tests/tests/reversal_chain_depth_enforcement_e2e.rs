@@ -175,14 +175,14 @@ async fn test_invalid_double_reversal_rejected() -> Result<()> {
     match result {
         Err(InvariantViolation::ExcessiveReversalChainDepth {
             reversal_entry_id,
-            original_entry_id,
+            original_entry_id: depth1_entry_id,
             original_reverses_id,
         }) => {
             println!("✅ Invariant correctly rejected double reversal:");
             println!("   Reversal entry: {}", reversal_entry_id);
-            println!("   Original entry: {} (which reverses {})", original_entry_id, original_reverses_id);
+            println!("   Original entry: {} (which reverses {})", depth1_entry_id, original_reverses_id);
             assert_eq!(reversal_entry_id, second_reversal_id);
-            assert_eq!(original_entry_id, first_reversal_id);
+            assert_eq!(depth1_entry_id, first_reversal_id);
             assert_eq!(original_reverses_id, original_entry_id);
         }
         Err(e) => panic!("Expected ExcessiveReversalChainDepth, got: {}", e),

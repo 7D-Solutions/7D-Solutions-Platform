@@ -367,6 +367,7 @@ pub async fn assert_max_reversal_chain_depth(
          FROM journal_entries reversal
          INNER JOIN journal_entries original ON reversal.reverses_entry_id = original.id
          WHERE reversal.tenant_id = $1
+           AND original.tenant_id = $1
            AND reversal.reverses_entry_id IS NOT NULL
            AND original.reverses_entry_id IS NOT NULL"
     )

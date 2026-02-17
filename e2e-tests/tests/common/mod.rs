@@ -317,8 +317,8 @@ pub async fn assert_journal_balanced(
 ) -> Result<(), String> {
     let row = sqlx::query(
         "SELECT
-            COALESCE(SUM(debit_minor), 0) as total_debits,
-            COALESCE(SUM(credit_minor), 0) as total_credits
+            COALESCE(SUM(debit_minor), 0)::BIGINT as total_debits,
+            COALESCE(SUM(credit_minor), 0)::BIGINT as total_credits
          FROM journal_lines
          WHERE journal_entry_id = $1"
     )
