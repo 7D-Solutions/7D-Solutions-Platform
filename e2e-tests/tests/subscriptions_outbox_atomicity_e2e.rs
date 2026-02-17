@@ -31,21 +31,30 @@ async fn create_subscription(
     status: &str,
 ) -> Result<Uuid> {
     let subscription_id = Uuid::new_v4();
-    let customer_id = Uuid::new_v4();
-    
+    let ar_customer_id = format!("cust-{}", Uuid::new_v4());
+
+    // Create plan first (plan_id is UUID FK)
+    let plan_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO subscription_plans (tenant_id, name, schedule, price_minor, currency) \
+         VALUES ($1, 'Test Plan', 'monthly', 5000, 'USD') RETURNING id"
+    )
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await?;
+
     sqlx::query(
         r#"
         INSERT INTO subscriptions (
-            id, app_id, customer_id, status, plan_id, price_minor,
-            billing_period, start_date, next_billing_date,
-            created_at, updated_at
+            id, tenant_id, ar_customer_id, plan_id, status, schedule, price_minor,
+            currency, start_date, next_bill_date
         )
-        VALUES ($1, $2, $3, $4, 'plan_test', 5000, 'monthly', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 month', NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, 'monthly', 5000, 'USD', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 month')
         "#,
     )
     .bind(subscription_id)
     .bind(tenant_id)
-    .bind(customer_id)
+    .bind(ar_customer_id)
+    .bind(plan_id)
     .bind(status)
     .execute(pool)
     .await?;

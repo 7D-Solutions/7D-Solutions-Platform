@@ -39,9 +39,9 @@ async fn create_payment_attempt(
         r#"
         INSERT INTO payment_attempts (
             id, payment_id, app_id, invoice_id, attempt_no, status,
-            amount_minor, currency, idempotency_key, created_at, updated_at
+            idempotency_key, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, 1, $5::payment_attempt_status, 5000, 'usd', $6, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, 1, $5::payment_attempt_status, $6, NOW(), NOW())
         "#,
     )
     .bind(attempt_id)
