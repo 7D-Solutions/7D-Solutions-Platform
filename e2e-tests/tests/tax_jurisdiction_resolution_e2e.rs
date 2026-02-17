@@ -36,7 +36,7 @@ use ar_rs::tax::{
 
 async fn run_jurisdiction_migration(pool: &PgPool) {
     let migration_sql = include_str!(
-        "../../modules/ar/db/migrations/20260217000009_create_tax_jurisdictions.sql"
+        "../../modules/ar/db/migrations/20260217000010_create_tax_jurisdictions.sql"
     );
     match sqlx::raw_sql(migration_sql).execute(pool).await {
         Ok(_) => {}
