@@ -198,8 +198,8 @@ async fn test_ar_finalize_invoice_idempotency() -> Result<()> {
         .await
         .map_err(|e| anyhow::anyhow!("second finalize_invoice failed: {:?}", e))?;
     assert!(
-        matches!(result2, FinalizationResult::AlreadyAttempted { .. }),
-        "Expected AlreadyAttempted on second call, got {:?}",
+        matches!(result2, FinalizationResult::AlreadyProcessed { .. }),
+        "Expected AlreadyProcessed on second call, got {:?}",
         result2
     );
 
