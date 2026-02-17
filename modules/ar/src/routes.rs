@@ -102,6 +102,8 @@ pub fn ar_router(db: PgPool) -> Router {
         // AR aging report (bd-3cb)
         .route("/api/ar/aging", get(get_aging))
         .route("/api/ar/aging/refresh", post(refresh_aging_route))
+        // Dunning scheduler (bd-2bj)
+        .route("/api/ar/dunning/poll", post(dunning_poll_route))
         .with_state(db.clone())
         .layer(middleware::from_fn_with_state(db, check_idempotency))
 }
@@ -4873,4 +4875,57 @@ async fn refresh_aging_route(
         })?;
 
     Ok(Json(snapshot))
+}
+
+// ============================================================================
+// Dunning Scheduler (bd-2bj)
+// ============================================================================
+
+/// Request body for POST /api/ar/dunning/poll
+#[derive(Debug, serde::Deserialize)]
+struct DunningPollRequest {
+    /// Maximum number of rows to process in this poll (default 10)
+    #[serde(default = "default_batch_size")]
+    batch_size: usize,
+}
+
+fn default_batch_size() -> usize {
+    10
+}
+
+/// Response body for POST /api/ar/dunning/poll
+#[derive(Debug, serde::Serialize)]
+struct DunningPollResponse {
+    processed: usize,
+    outcomes: Vec<crate::dunning_scheduler::DunningExecutionOutcome>,
+}
+
+/// POST /api/ar/dunning/poll — poll and execute due dunning rows
+///
+/// Claims due rows using FOR UPDATE SKIP LOCKED and executes the next
+/// dunning action for each. Safe for concurrent workers — each row is
+/// claimed exclusively.
+async fn dunning_poll_route(
+    State(db): State<PgPool>,
+    Json(req): Json<DunningPollRequest>,
+) -> Result<Json<DunningPollResponse>, (StatusCode, Json<ErrorResponse>)> {
+    let batch_size = req.batch_size.min(100); // Cap at 100
+    let correlation_id = uuid::Uuid::new_v4().to_string();
+
+    let outcomes = crate::dunning_scheduler::poll_and_execute_batch(
+        &db,
+        batch_size,
+        &correlation_id,
+    )
+    .await;
+
+    let processed = outcomes
+        .iter()
+        .filter(|o| matches!(o, crate::dunning_scheduler::DunningExecutionOutcome::Transitioned { .. }))
+        .count();
+
+    Ok(Json(DunningPollResponse {
+        processed,
+        outcomes,
+    }))
 }
