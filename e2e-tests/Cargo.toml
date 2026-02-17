@@ -63,6 +63,10 @@ path = "tests/tenant_registry_smoke_e2e.rs"
 name = "service_to_service_auth_e2e"
 path = "tests/service_to_service_auth_e2e.rs"
 
+[[test]]
+name = "scale_100_tenants_truth_at_scale_e2e"
+path = "tests/scale_100_tenants_truth_at_scale_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
