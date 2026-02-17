@@ -19,18 +19,20 @@ use serde_json::Value;
 #[tokio::test]
 #[serial_test::serial]
 async fn test_version_endpoints_all_modules() -> Result<(), Box<dyn std::error::Error>> {
-    // Module configurations: (name, port, expected_schema_version)
+    // Module configurations: (name, port)
+    // Note: exact schema_version values are not asserted here — they advance with each migration.
+    // Format is validated below (14 digits: YYYYMMDDNNNNNN).
     let modules = vec![
-        ("ar-rs", 8086, "20260216000002"),
-        ("gl-rs", 8085, "20260216000001"),
-        ("payments-rs", 8088, "20260216000002"),
-        ("subscriptions-rs", 8087, "20260216000001"),
-        ("notifications-rs", 8089, "20260216000001"),
+        ("ar-rs", 8086),
+        ("gl-rs", 8085),
+        ("payments-rs", 8088),
+        ("subscriptions-rs", 8087),
+        ("notifications-rs", 8089),
     ];
 
     let client = reqwest::Client::new();
 
-    for (module_name, port, expected_schema_version) in modules {
+    for (module_name, port) in modules {
         let url = format!("http://localhost:{}/api/version", port);
 
         println!("Testing {} at {}", module_name, url);
@@ -80,11 +82,6 @@ async fn test_version_endpoints_all_modules() -> Result<(), Box<dyn std::error::
         let schema_version = json["schema_version"]
             .as_str()
             .ok_or_else(|| format!("{} missing schema_version field", module_name))?;
-        assert_eq!(
-            schema_version, expected_schema_version,
-            "{} schema_version should match latest migration",
-            module_name
-        );
 
         // Verify schema_version format (14 digits: YYYYMMDDNNNNNN)
         assert_eq!(

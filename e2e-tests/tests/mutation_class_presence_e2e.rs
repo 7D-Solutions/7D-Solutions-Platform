@@ -27,7 +27,7 @@ use sqlx::PgPool;
 /// Get AR database pool
 async fn get_ar_pool() -> PgPool {
     let url = std::env::var("AR_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://ar_user:ar_pass@localhost:5433/ar_db".to_string());
+        .unwrap_or_else(|_| "postgresql://ar_user:ar_pass@localhost:5434/ar_db".to_string());
 
     sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
@@ -39,7 +39,7 @@ async fn get_ar_pool() -> PgPool {
 /// Get Payments database pool
 async fn get_payments_pool() -> PgPool {
     let url = std::env::var("PAYMENTS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://payments_user:payments_pass@localhost:5434/payments_db".to_string());
+        .unwrap_or_else(|_| "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string());
 
     sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
@@ -63,7 +63,7 @@ async fn get_subscriptions_pool() -> PgPool {
 /// Get GL database pool
 async fn get_gl_pool() -> PgPool {
     let url = std::env::var("GL_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://gl_user:gl_pass@localhost:5436/gl_db".to_string());
+        .unwrap_or_else(|_| "postgresql://gl_user:gl_pass@localhost:5438/gl_db".to_string());
 
     sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)
