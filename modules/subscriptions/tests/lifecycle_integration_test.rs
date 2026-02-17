@@ -256,17 +256,19 @@ async fn test_lifecycle_function_past_due_to_active() {
 
 #[tokio::test]
 async fn test_illegal_transition_active_to_suspended() {
+    // NOTE: Active → Suspended IS legal (dunning terminal escalation).
+    // Test an actually illegal transition instead: Suspended → PastDue.
     let result = transition_guard(
-        SubscriptionStatus::Active,
         SubscriptionStatus::Suspended,
-        "skip_past_due",
+        SubscriptionStatus::PastDue,
+        "backwards",
     );
 
-    assert!(result.is_err(), "Active → Suspended should be rejected");
+    assert!(result.is_err(), "Suspended → PastDue should be rejected");
     match result {
         Err(TransitionError::IllegalTransition { from, to, .. }) => {
-            assert_eq!(from, "active");
-            assert_eq!(to, "suspended");
+            assert_eq!(from, "suspended");
+            assert_eq!(to, "past_due");
         }
         _ => panic!("Expected IllegalTransition error"),
     }
@@ -295,10 +297,15 @@ async fn test_lifecycle_function_rejects_illegal_transition() {
     let pool = setup_test_pool().await;
     let subscription_id = create_test_subscription(&pool, "active").await;
 
-    // Attempt illegal transition: Active → Suspended
-    let result = transition_to_suspended(
+    // Attempt illegal transition: Active → PastDue → then try Suspended → PastDue (backwards)
+    // First set the subscription to suspended state
+    transition_to_past_due(subscription_id, "payment_failed", &pool).await.unwrap();
+    transition_to_suspended(subscription_id, "grace_expired", &pool).await.unwrap();
+
+    // Now attempt illegal Suspended → PastDue (backwards)
+    let result = transition_to_past_due(
         subscription_id,
-        "skip_past_due",
+        "backwards",
         &pool,
     )
     .await;
@@ -307,7 +314,7 @@ async fn test_lifecycle_function_rejects_illegal_transition() {
 
     // Verify status was NOT updated
     let status = get_subscription_status(&pool, subscription_id).await;
-    assert_eq!(status, "active", "Status should remain unchanged");
+    assert_eq!(status, "suspended", "Status should remain unchanged");
 
     // Clean up
     sqlx::query("DELETE FROM subscriptions WHERE id = $1")
