@@ -2977,11 +2977,14 @@ version = "0.1.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
+ "dashmap 6.1.0",
  "hmac",
+ "prometheus",
  "serde",
  "serde_json",
  "sha2",
  "thiserror 2.0.18",
+ "tokio",
  "tracing",
  "uuid",
 ]

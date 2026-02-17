@@ -13,5 +13,8 @@ tracing = "0.1"
 hmac = "0.12"
 sha2 = "0.10"
 base64 = "0.22"
+tokio = { version = "1", features = ["sync", "time"] }
+dashmap = "6.1"
+prometheus = "0.13"
 
 [dev-dependencies]
