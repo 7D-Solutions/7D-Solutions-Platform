@@ -229,7 +229,7 @@ async fn test_boundary_http_trial_balance_returns_correct_json() {
     // Assert: Correct tenant_id and period_id in response
     assert_eq!(trial_balance.tenant_id, tenant_id);
     assert_eq!(trial_balance.period_id, period_id);
-    assert_eq!(trial_balance.currency, Some("USD".to_string()));
+    assert_eq!(trial_balance.currency, "USD".to_string());
 
     // Assert: Rows present and correct totals
     assert_eq!(trial_balance.rows.len(), 2, "Should have 2 account rows");
