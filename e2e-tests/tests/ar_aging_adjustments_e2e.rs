@@ -787,7 +787,7 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
     println!("  ✅ Aging: 0 outstanding, 0 invoices, idempotent");
 
     println!("=== STEP 8: Verify GL trial balance is balanced ===");
-    let tb = get_trial_balance(&gl_pool, &tenant_id, period_id, "usd").await
+    let tb = get_trial_balance(&gl_pool, &tenant_id, period_id, "USD").await
         .map_err(|e| anyhow::anyhow!("Trial balance failed: {:?}", e))?;
 
     assert!(tb.totals.is_balanced, "GL trial balance must be balanced");
@@ -932,7 +932,7 @@ async fn test_integrated_lifecycle_replay_safe() -> Result<()> {
         assert_eq!(aging.total_outstanding_minor, 2500);
 
         // GL check: balanced at 1500
-        let tb = get_trial_balance(&gl_pool, &tenant_id, period_id, "usd").await
+        let tb = get_trial_balance(&gl_pool, &tenant_id, period_id, "USD").await
             .map_err(|e| anyhow::anyhow!("Trial balance failed pass {}: {:?}", pass, e))?;
         assert!(tb.totals.is_balanced, "Pass {}: GL must be balanced", pass);
         assert_eq!(tb.totals.total_debits, 1500, "Pass {}: debits = 1500", pass);
