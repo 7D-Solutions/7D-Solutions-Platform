@@ -166,8 +166,9 @@ async fn test_compliance_export_determinism() {
         .expect("PAYMENTS_DATABASE_URL not set");
     let gl_url = std::env::var("GL_DATABASE_URL")
         .expect("GL_DATABASE_URL not set");
-    let audit_url = std::env::var("PLATFORM_AUDIT_DATABASE_URL")
-        .expect("PLATFORM_AUDIT_DATABASE_URL not set");
+    let audit_url = std::env::var("AUDIT_DATABASE_URL")
+        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
+        .expect("AUDIT_DATABASE_URL or PLATFORM_AUDIT_DATABASE_URL must be set");
 
     // Set environment variables for the export function
     std::env::set_var("AR_DATABASE_URL", &ar_url);
@@ -301,8 +302,9 @@ async fn test_compliance_export_tenant_isolation() {
         .expect("PAYMENTS_DATABASE_URL not set");
     let gl_url = std::env::var("GL_DATABASE_URL")
         .expect("GL_DATABASE_URL not set");
-    let audit_url = std::env::var("PLATFORM_AUDIT_DATABASE_URL")
-        .expect("PLATFORM_AUDIT_DATABASE_URL not set");
+    let audit_url = std::env::var("AUDIT_DATABASE_URL")
+        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
+        .expect("AUDIT_DATABASE_URL or PLATFORM_AUDIT_DATABASE_URL must be set");
 
     // Set environment variables for the export function
     std::env::set_var("AR_DATABASE_URL", &ar_url);

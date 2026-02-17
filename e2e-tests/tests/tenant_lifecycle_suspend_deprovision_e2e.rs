@@ -78,8 +78,9 @@ async fn test_suspend_active_tenant_succeeds() {
     // Setup
     let registry_url = std::env::var("TENANT_REGISTRY_DATABASE_URL")
         .expect("TENANT_REGISTRY_DATABASE_URL not set");
-    let audit_url = std::env::var("PLATFORM_AUDIT_DATABASE_URL")
-        .expect("PLATFORM_AUDIT_DATABASE_URL not set");
+    let audit_url = std::env::var("AUDIT_DATABASE_URL")
+        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
+        .expect("AUDIT_DATABASE_URL or PLATFORM_AUDIT_DATABASE_URL must be set");
 
     let registry_pool = PgPool::connect(&registry_url)
         .await
@@ -160,8 +161,9 @@ async fn test_deprovision_active_tenant_succeeds() {
     // Setup
     let registry_url = std::env::var("TENANT_REGISTRY_DATABASE_URL")
         .expect("TENANT_REGISTRY_DATABASE_URL not set");
-    let audit_url = std::env::var("PLATFORM_AUDIT_DATABASE_URL")
-        .expect("PLATFORM_AUDIT_DATABASE_URL not set");
+    let audit_url = std::env::var("AUDIT_DATABASE_URL")
+        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
+        .expect("AUDIT_DATABASE_URL or PLATFORM_AUDIT_DATABASE_URL must be set");
 
     let registry_pool = PgPool::connect(&registry_url)
         .await
@@ -242,8 +244,9 @@ async fn test_deprovision_suspended_tenant_succeeds() {
     // Setup
     let registry_url = std::env::var("TENANT_REGISTRY_DATABASE_URL")
         .expect("TENANT_REGISTRY_DATABASE_URL not set");
-    let audit_url = std::env::var("PLATFORM_AUDIT_DATABASE_URL")
-        .expect("PLATFORM_AUDIT_DATABASE_URL not set");
+    let audit_url = std::env::var("AUDIT_DATABASE_URL")
+        .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
+        .expect("AUDIT_DATABASE_URL or PLATFORM_AUDIT_DATABASE_URL must be set");
 
     let registry_pool = PgPool::connect(&registry_url)
         .await
