@@ -197,6 +197,26 @@ async fn test_balances_posting_once() {
     let gl_pool = connect_gl_db().await;
     let tenant_id = "test_tenant_balance";
 
+    // Clean up any stale data from previous test runs (tenant uses fixed ID)
+    sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&gl_pool)
+        .await
+        .ok();
+    sqlx::query(
+        "DELETE FROM journal_lines WHERE journal_entry_id IN \
+         (SELECT id FROM journal_entries WHERE tenant_id = $1)",
+    )
+    .bind(tenant_id)
+    .execute(&gl_pool)
+    .await
+    .ok();
+    sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&gl_pool)
+        .await
+        .ok();
+
     // Setup: Create accounting period and COA
     let period_id = create_accounting_period(&gl_pool, tenant_id)
         .await
