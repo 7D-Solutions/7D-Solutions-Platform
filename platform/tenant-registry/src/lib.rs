@@ -8,6 +8,8 @@ pub mod lifecycle;
 pub mod schema;
 pub mod summary;
 pub mod routes;
+pub mod seed;
+pub mod health;
 
 // Re-export commonly used types
 pub use schema::{
@@ -18,10 +20,13 @@ pub use schema::{
 
 pub use lifecycle::{
     ProvisioningStepDefinition,
+    ProvisioningState,
     standard_provisioning_sequence,
     get_step_definition,
     validate_step_sequence,
     step_names,
+    event_types,
+    is_valid_provisioning_transition,
 };
 
 pub use registry::{
@@ -42,4 +47,22 @@ pub use summary::{
 pub use routes::{
     SummaryState,
     summary_router,
+};
+
+pub use seed::{
+    seed_gl_module,
+    seed_ar_module,
+    seed_subscriptions_module,
+    seed_identity_module,
+    seed_all_modules,
+    SeedError,
+    SeedResult,
+};
+
+pub use health::{
+    check_all_modules_ready,
+    activate_tenant_atomic,
+    verify_and_activate_tenant,
+    HealthCheckResult,
+    ActivationError,
 };

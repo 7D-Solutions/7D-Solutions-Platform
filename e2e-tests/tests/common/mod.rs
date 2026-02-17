@@ -135,7 +135,8 @@ pub async fn get_notifications_pool() -> PgPool {
 /// Get Auth database pool
 pub async fn get_auth_pool() -> PgPool {
     let url = std::env::var("AUTH_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://postgres:postgres@localhost:5434/auth".to_string());
+        .or_else(|_| std::env::var("IDENTITY_DATABASE_URL"))
+        .unwrap_or_else(|_| "postgresql://auth_user:auth_pass@localhost:5433/auth_db".to_string());
     wait_for_db_ready("auth", &url).await
 }
 
