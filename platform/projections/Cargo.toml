@@ -11,5 +11,6 @@ uuid = { version = "1", features = ["serde", "v4"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono", "uuid"] }
 tokio = { version = "1", features = ["full"] }
 thiserror = "2"
+prometheus = "0.13"
 
 [dev-dependencies]
