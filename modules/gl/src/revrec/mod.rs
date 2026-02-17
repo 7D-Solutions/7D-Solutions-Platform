@@ -21,8 +21,10 @@
 //! - `ModificationType`         — price_change | term_extension | obligation_added | etc.
 
 pub mod contracts;
+pub mod recognition_run;
 pub mod schedule_builder;
 
+pub use recognition_run::{run_recognition, RecognitionRunError, RecognitionRunResult};
 pub use schedule_builder::{generate_schedule, ScheduleBuildError};
 
 pub use contracts::{

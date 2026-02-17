@@ -494,3 +494,113 @@ pub struct ScheduleLineRow {
     pub recognized: bool,
     pub recognized_at: Option<chrono::DateTime<chrono::Utc>>,
 }
+
+// ============================================================================
+// Recognition Run Support
+// ============================================================================
+
+/// A due schedule line enriched with contract/obligation context for recognition posting.
+#[derive(Debug, sqlx::FromRow)]
+pub struct DueScheduleLine {
+    pub line_id: i64,
+    pub schedule_id: Uuid,
+    pub contract_id: Uuid,
+    pub obligation_id: Uuid,
+    pub tenant_id: String,
+    pub period: String,
+    pub amount_to_recognize_minor: i64,
+    pub currency: String,
+    pub deferred_revenue_account: String,
+    pub recognized_revenue_account: String,
+}
+
+/// Find unrecognized schedule lines due for a given period.
+///
+/// Only returns lines from the **latest** schedule version for each obligation,
+/// preventing double-recognition when schedules are re-versioned.
+///
+/// The query:
+/// 1. Finds the max version per obligation_id
+/// 2. Joins to schedule_lines WHERE recognized = false AND period = target
+/// 3. Returns enriched rows with contract/obligation context
+pub async fn find_due_lines_for_period(
+    pool: &PgPool,
+    tenant_id: &str,
+    period: &str,
+) -> Result<Vec<DueScheduleLine>, RevrecRepoError> {
+    let rows = sqlx::query_as::<_, DueScheduleLine>(
+        r#"
+        SELECT
+            sl.id AS line_id,
+            s.schedule_id,
+            s.contract_id,
+            s.obligation_id,
+            s.tenant_id,
+            sl.period,
+            sl.amount_to_recognize_minor,
+            s.currency,
+            sl.deferred_revenue_account,
+            sl.recognized_revenue_account
+        FROM revrec_schedule_lines sl
+        JOIN revrec_schedules s ON sl.schedule_id = s.schedule_id
+        JOIN (
+            SELECT obligation_id, MAX(version) AS max_version
+            FROM revrec_schedules
+            WHERE tenant_id = $1
+            GROUP BY obligation_id
+        ) latest ON s.obligation_id = latest.obligation_id AND s.version = latest.max_version
+        WHERE s.tenant_id = $1
+          AND sl.period = $2
+          AND sl.recognized = false
+        ORDER BY sl.id
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(period)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}
+
+/// Mark a schedule line as recognized within an existing transaction.
+///
+/// Sets `recognized = true` and `recognized_at = NOW()`.
+/// Returns the number of rows affected (0 if already recognized — idempotent).
+pub async fn mark_line_recognized(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    line_id: i64,
+) -> Result<u64, RevrecRepoError> {
+    let result = sqlx::query(
+        r#"
+        UPDATE revrec_schedule_lines
+        SET recognized = true, recognized_at = NOW()
+        WHERE id = $1 AND recognized = false
+        "#,
+    )
+    .bind(line_id)
+    .execute(&mut **tx)
+    .await?;
+    Ok(result.rows_affected())
+}
+
+/// Get cumulative recognized amount for a schedule up to and including a period.
+pub async fn get_cumulative_recognized(
+    pool: &PgPool,
+    schedule_id: Uuid,
+    up_to_period: &str,
+) -> Result<i64, RevrecRepoError> {
+    let sum: Option<i64> = sqlx::query_scalar(
+        r#"
+        SELECT SUM(amount_to_recognize_minor)
+        FROM revrec_schedule_lines
+        WHERE schedule_id = $1
+          AND recognized = true
+          AND period <= $2
+        "#,
+    )
+    .bind(schedule_id)
+    .bind(up_to_period)
+    .fetch_one(pool)
+    .await?;
+    Ok(sum.unwrap_or(0))
+}

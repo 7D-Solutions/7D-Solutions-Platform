@@ -1,10 +1,11 @@
 //! Revenue Recognition (Revrec) API Routes — Phase 24a
 //!
-//! POST /api/gl/revrec/contracts  — Create a revenue contract with obligations
-//! POST /api/gl/revrec/schedules  — Generate and persist a recognition schedule
+//! POST /api/gl/revrec/contracts         — Create a revenue contract with obligations
+//! POST /api/gl/revrec/schedules         — Generate and persist a recognition schedule
+//! POST /api/gl/revrec/recognition-runs  — Execute recognition run for a period
 //!
 //! Atomically persists entities + outbox events.
-//! Idempotent on contract_id / schedule_id.
+//! Idempotent on contract_id / schedule_id / (schedule, period).
 
 use axum::{
     extract::State,
@@ -18,6 +19,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::repos::revrec_repo::{self, RevrecRepoError};
+use crate::revrec::recognition_run::{self, RecognitionRunError};
 use crate::revrec::schedule_builder::{generate_schedule, ScheduleBuildError};
 use crate::revrec::{ContractCreatedPayload, PerformanceObligation, RecognitionPattern};
 use crate::AppState;
@@ -289,6 +291,110 @@ pub async fn generate_schedule_handler(
             first_period,
             last_period,
             created_at: now,
+        }),
+    ))
+}
+
+// ============================================================================
+// Recognition Run
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct RecognitionRunRequest {
+    pub tenant_id: String,
+    /// Target accounting period (YYYY-MM)
+    pub period: String,
+    /// Posting date for GL journal entries (YYYY-MM-DD)
+    pub posting_date: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RecognitionRunResponse {
+    pub period: String,
+    pub tenant_id: String,
+    pub lines_recognized: usize,
+    pub lines_skipped: usize,
+    pub total_recognized_minor: i64,
+    pub postings: Vec<RecognitionPostingResponse>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RecognitionPostingResponse {
+    pub run_id: Uuid,
+    pub schedule_id: Uuid,
+    pub contract_id: Uuid,
+    pub obligation_id: Uuid,
+    pub journal_entry_id: Uuid,
+    pub amount_minor: i64,
+    pub currency: String,
+}
+
+fn map_recognition_run_error(err: RecognitionRunError) -> Response {
+    match &err {
+        RecognitionRunError::InvalidPostingDate(msg) => {
+            let body = Json(ErrorResponse {
+                error: format!("Invalid posting_date: {}", msg),
+            });
+            (StatusCode::BAD_REQUEST, body).into_response()
+        }
+        RecognitionRunError::Database(_) | RecognitionRunError::Repo(_) => {
+            let body = Json(ErrorResponse {
+                error: "Internal database error".to_string(),
+            });
+            (StatusCode::INTERNAL_SERVER_ERROR, body).into_response()
+        }
+    }
+}
+
+/// POST /api/gl/revrec/recognition-runs
+///
+/// Executes a recognition run for a tenant and period.
+/// Finds all unrecognized schedule lines due for the period (from latest
+/// schedule versions), posts balanced journal entries, and emits outbox events.
+///
+/// Idempotent: re-running for the same period skips already-recognized lines.
+pub async fn run_recognition_handler(
+    State(app_state): State<Arc<AppState>>,
+    Json(request): Json<RecognitionRunRequest>,
+) -> Result<(StatusCode, Json<RecognitionRunResponse>), Response> {
+    let result = recognition_run::run_recognition(
+        &app_state.pool,
+        &request.tenant_id,
+        &request.period,
+        &request.posting_date,
+    )
+    .await
+    .map_err(map_recognition_run_error)?;
+
+    let postings = result
+        .postings
+        .iter()
+        .map(|p| RecognitionPostingResponse {
+            run_id: p.run_id,
+            schedule_id: p.schedule_id,
+            contract_id: p.contract_id,
+            obligation_id: p.obligation_id,
+            journal_entry_id: p.journal_entry_id,
+            amount_minor: p.amount_minor,
+            currency: p.currency.clone(),
+        })
+        .collect();
+
+    let status = if result.lines_recognized > 0 {
+        StatusCode::CREATED
+    } else {
+        StatusCode::OK
+    };
+
+    Ok((
+        status,
+        Json(RecognitionRunResponse {
+            period: result.period,
+            tenant_id: result.tenant_id,
+            lines_recognized: result.lines_recognized,
+            lines_skipped: result.lines_skipped,
+            total_recognized_minor: result.total_recognized_minor,
+            postings,
         }),
     ))
 }
