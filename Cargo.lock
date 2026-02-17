@@ -3738,6 +3738,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "stabilization-gate"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-nats 0.38.0",
+ "chrono",
+ "clap",
+ "event-bus",
+ "futures",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

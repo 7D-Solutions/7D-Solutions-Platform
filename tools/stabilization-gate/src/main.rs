@@ -14,6 +14,7 @@
 
 mod benchmarks;
 mod config;
+mod eventbus;
 mod metrics;
 mod report;
 
@@ -60,6 +61,18 @@ enum Commands {
     Eventbus {
         #[arg(long)]
         dry_run: bool,
+        /// Number of tenants (overrides TENANT_COUNT env).
+        #[arg(long)]
+        tenant_count: Option<usize>,
+        /// Events per tenant (overrides EVENTS_PER_TENANT env).
+        #[arg(long)]
+        events_per_tenant: Option<usize>,
+        /// Publisher concurrency (overrides CONCURRENCY env).
+        #[arg(long)]
+        concurrency: Option<usize>,
+        /// Drain deadline in seconds (overrides DURATION_SECS env).
+        #[arg(long)]
+        duration_secs: Option<u64>,
     },
     /// Benchmark projection query and rebuild latency.
     Projections {
@@ -122,43 +135,62 @@ async fn run() -> Result<()> {
     let git_sha = current_git_sha();
     let started_at = Utc::now();
 
-    let (scenarios, dry_run) = match &cli.command {
+    let (scenarios, dry_run, effective_cfg) = match &cli.command {
         Commands::RunAll { dry_run } => {
             let dry = *dry_run;
             let s = benchmarks::run_all(&cfg, dry).await?;
-            (s, dry)
+            (s, dry, cfg.clone())
         }
-        Commands::Eventbus { dry_run } => {
+        Commands::Eventbus {
+            dry_run,
+            tenant_count,
+            events_per_tenant,
+            concurrency,
+            duration_secs,
+        } => {
             let dry = *dry_run;
-            let s = vec![benchmarks::bench_eventbus(&cfg, dry).await?];
-            (s, dry)
+            let mut cfg2 = cfg.clone();
+            if let Some(v) = tenant_count {
+                cfg2.tenant_count = *v;
+            }
+            if let Some(v) = events_per_tenant {
+                cfg2.events_per_tenant = *v;
+            }
+            if let Some(v) = concurrency {
+                cfg2.concurrency = *v;
+            }
+            if let Some(v) = duration_secs {
+                cfg2.duration_secs = *v;
+            }
+            let s = vec![eventbus::run(&cfg2, dry).await?];
+            (s, dry, cfg2)
         }
         Commands::Projections { dry_run } => {
             let dry = *dry_run;
             let s = vec![benchmarks::bench_projections(&cfg, dry).await?];
-            (s, dry)
+            (s, dry, cfg.clone())
         }
         Commands::Recon { dry_run } => {
             let dry = *dry_run;
             let s = vec![benchmarks::bench_recon(&cfg, dry).await?];
-            (s, dry)
+            (s, dry, cfg.clone())
         }
         Commands::Dunning { dry_run } => {
             let dry = *dry_run;
             let s = vec![benchmarks::bench_dunning(&cfg, dry).await?];
-            (s, dry)
+            (s, dry, cfg.clone())
         }
         Commands::Tenants { dry_run } => {
             let dry = *dry_run;
             let s = vec![benchmarks::bench_tenants(&cfg, dry).await?];
-            (s, dry)
+            (s, dry, cfg.clone())
         }
         Commands::E2eBench { duration_secs, dry_run } => {
             let dry = *dry_run;
             let mut cfg2 = cfg.clone();
             cfg2.duration_secs = *duration_secs;
             let s = benchmarks::run_all(&cfg2, dry).await?;
-            (s, dry)
+            (s, dry, cfg2)
         }
     };
 
@@ -166,7 +198,7 @@ async fn run() -> Result<()> {
         run_id.clone(),
         git_sha,
         started_at,
-        cfg.env_snapshot(),
+        effective_cfg.env_snapshot(),
         dry_run,
     );
 

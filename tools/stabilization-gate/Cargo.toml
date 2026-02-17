@@ -17,6 +17,8 @@ sqlx = { version = "0.8.2", features = ["runtime-tokio-rustls", "postgres", "uui
 
 # Event bus
 async-nats = "0.38"
+event-bus = { path = "../../platform/event-bus" }
+futures = "0.3"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }

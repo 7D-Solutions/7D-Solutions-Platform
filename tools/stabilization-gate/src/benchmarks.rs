@@ -17,8 +17,7 @@ use crate::report::ScenarioResult;
 
 /// Maximum allowed P99 latency for a Postgres ping (ms).
 const DB_PING_P99_MS: f64 = 200.0;
-/// Maximum allowed P99 latency for a NATS publish (ms).
-const NATS_PUBLISH_P99_MS: f64 = 50.0;
+// NATS_PUBLISH_P99_MS threshold moved to eventbus.rs (Wave 1, bd-3oio).
 
 // ── Aggregate runner ─────────────────────────────────────────────────────────
 
@@ -36,44 +35,11 @@ pub async fn run_all(cfg: &Config, dry_run: bool) -> Result<Vec<ScenarioResult>>
 // ── Individual scenarios ─────────────────────────────────────────────────────
 
 /// NATS event bus publish/consume throughput.
+///
+/// Delegates to the full Wave-1 implementation in `crate::eventbus`.
 pub async fn bench_eventbus(cfg: &Config, dry_run: bool) -> Result<ScenarioResult> {
     info!("Running scenario: eventbus (dry_run={})", dry_run);
-
-    let nc = async_nats::connect(&cfg.nats_url).await?;
-
-    let total = if dry_run { 10 } else { cfg.events_per_tenant * cfg.tenant_count };
-    let subject = "stabilization-gate.bench";
-
-    let mut samples = MetricsSamples::new();
-    let wall = Timer::start();
-
-    for _ in 0..total {
-        let t = Timer::start();
-        match nc.publish(subject, b"ping".as_ref().into()).await {
-            Ok(_) => samples.record_latency(t.elapsed()),
-            Err(_) => samples.record_error(),
-        }
-    }
-    // Flush to ensure all messages are dispatched.
-    let _ = nc.flush().await;
-    samples.set_wall_clock(wall.elapsed());
-
-    let mut violations = Vec::new();
-    if samples.p99() > NATS_PUBLISH_P99_MS && !dry_run {
-        violations.push(format!(
-            "P99 publish latency {:.1}ms exceeds threshold {:.1}ms",
-            samples.p99(),
-            NATS_PUBLISH_P99_MS
-        ));
-    }
-
-    Ok(ScenarioResult {
-        name: "eventbus".to_string(),
-        passed: violations.is_empty(),
-        metrics: samples.to_json(),
-        threshold_violations: violations,
-        notes: dry_note(dry_run, total, "NATS publishes"),
-    })
+    crate::eventbus::run(cfg, dry_run).await
 }
 
 /// Projection table query latency.
