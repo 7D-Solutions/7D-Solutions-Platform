@@ -16,6 +16,7 @@ use sha2::Sha256;
 use sqlx::PgPool;
 
 use crate::credit_notes::{issue_credit_note, IssueCreditNoteRequest};
+use crate::write_offs::{write_off_invoice, WriteOffInvoiceRequest};
 use crate::events::enqueue_event;
 use crate::idempotency::{check_idempotency, log_event_async};
 use crate::models::{
@@ -60,6 +61,7 @@ pub fn ar_router(db: PgPool) -> Router {
         )
         .route("/api/ar/invoices/{id}/finalize", post(finalize_invoice))
         .route("/api/ar/invoices/{id}/credit-notes", post(issue_credit_note_route))
+        .route("/api/ar/invoices/{id}/write-off", post(write_off_invoice_route))
         // Charge endpoints
         .route("/api/ar/charges", post(create_charge).get(list_charges))
         .route("/api/ar/charges/{id}", get(get_charge))
@@ -96,6 +98,9 @@ pub fn ar_router(db: PgPool) -> Router {
         .route("/api/ar/events/{id}", get(get_event))
         // Usage ingestion (bd-23z)
         .route("/api/ar/usage", post(capture_usage))
+        // AR aging report (bd-3cb)
+        .route("/api/ar/aging", get(get_aging))
+        .route("/api/ar/aging/refresh", post(refresh_aging_route))
         .with_state(db.clone())
         .layer(middleware::from_fn_with_state(db, check_idempotency))
 }
@@ -4373,6 +4378,60 @@ async fn issue_credit_note_route(
 }
 
 // ============================================================================
+// WRITE-OFF HANDLER (bd-2f2)
+// ============================================================================
+
+/// POST /api/ar/invoices/{id}/write-off
+///
+/// Write off an invoice as uncollectable bad debt. Idempotent on `write_off_id`.
+/// Emits ar.invoice_written_off (REVERSAL) into the outbox atomically.
+async fn write_off_invoice_route(
+    State(db): State<PgPool>,
+    Path(invoice_id): Path<i32>,
+    Json(mut req): Json<WriteOffInvoiceRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<ErrorResponse>)> {
+    use crate::write_offs::WriteOffInvoiceResult;
+    req.invoice_id = invoice_id;
+    match write_off_invoice(&db, req).await {
+        Ok(WriteOffInvoiceResult::WrittenOff {
+            write_off_row_id,
+            write_off_id,
+            written_off_at,
+        }) => Ok((
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "status": "written_off",
+                "write_off_row_id": write_off_row_id,
+                "write_off_id": write_off_id,
+                "written_off_at": written_off_at,
+            })),
+        )),
+        Ok(WriteOffInvoiceResult::AlreadyProcessed {
+            existing_row_id,
+            write_off_id,
+        }) => Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "already_processed",
+                "existing_row_id": existing_row_id,
+                "write_off_id": write_off_id,
+            })),
+        )),
+        Ok(WriteOffInvoiceResult::AlreadyWrittenOff { invoice_id }) => Err((
+            StatusCode::CONFLICT,
+            Json(ErrorResponse::new(
+                "already_written_off",
+                format!("Invoice {} already has a write-off applied", invoice_id),
+            )),
+        )),
+        Err(e) => Err((
+            StatusCode::BAD_REQUEST,
+            Json(ErrorResponse::new("write_off_error", format!("{:?}", e))),
+        )),
+    }
+}
+
+// ============================================================================
 // USAGE INGESTION (bd-23z)
 // ============================================================================
 
@@ -4682,4 +4741,87 @@ async fn issue_credit_note_handler(
             ))
         }
     }
+}
+
+// ============================================================================
+// AR AGING REPORT (bd-3cb)
+// ============================================================================
+
+/// Query parameters for the aging endpoint
+#[derive(serde::Deserialize)]
+struct AgingQuery {
+    customer_id: Option<i32>,
+}
+
+/// GET /api/ar/aging — return pre-computed aging buckets
+///
+/// Returns the stored projection. Callers must POST /api/ar/aging/refresh
+/// first to ensure the projection is current.
+async fn get_aging(
+    State(db): State<PgPool>,
+    Query(params): Query<AgingQuery>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
+    let app_id = "default-tenant"; // TODO: extract from auth middleware
+
+    match params.customer_id {
+        Some(customer_id) => {
+            let snapshot = crate::aging::get_aging_for_customer(&db, app_id, customer_id)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to fetch aging for customer {}: {:?}", customer_id, e);
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ErrorResponse::new("database_error", format!("{}", e))),
+                    )
+                })?;
+
+            match snapshot {
+                Some(s) => Ok(Json(serde_json::json!({ "aging": [s] }))),
+                None => Ok(Json(serde_json::json!({ "aging": [] }))),
+            }
+        }
+        None => {
+            let snapshots = crate::aging::get_aging_for_app(&db, app_id)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to fetch aging for app: {:?}", e);
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        Json(ErrorResponse::new("database_error", format!("{}", e))),
+                    )
+                })?;
+
+            Ok(Json(serde_json::json!({ "aging": snapshots })))
+        }
+    }
+}
+
+/// Request body for POST /api/ar/aging/refresh
+#[derive(serde::Deserialize)]
+struct RefreshAgingRequest {
+    customer_id: i32,
+}
+
+/// POST /api/ar/aging/refresh — recompute aging for a customer
+///
+/// Recomputes aging buckets from invoices minus payments and upserts the
+/// projection. Returns the updated snapshot. Emits ar.ar_aging_updated
+/// into the outbox in the same transaction.
+async fn refresh_aging_route(
+    State(db): State<PgPool>,
+    Json(req): Json<RefreshAgingRequest>,
+) -> Result<Json<crate::aging::AgingSnapshot>, (StatusCode, Json<ErrorResponse>)> {
+    let app_id = "default-tenant"; // TODO: extract from auth middleware
+
+    let snapshot = crate::aging::refresh_aging(&db, app_id, req.customer_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to refresh aging for customer {}: {:?}", req.customer_id, e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new("database_error", format!("Failed to refresh aging: {}", e))),
+            )
+        })?;
+
+    Ok(Json(snapshot))
 }

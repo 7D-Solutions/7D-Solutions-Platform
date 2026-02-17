@@ -442,11 +442,23 @@ pub async fn cleanup_tenant_data(
         .await
         .map_err(|e| format!("Failed to cleanup AR metered usage: {}", e))?;
 
+    sqlx::query("DELETE FROM ar_charges WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(ar_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup AR charges: {}", e))?;
+
     sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
         .bind(tenant_id)
         .execute(ar_pool)
         .await
         .map_err(|e| format!("Failed to cleanup AR invoices: {}", e))?;
+
+    sqlx::query("DELETE FROM ar_aging_buckets WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(ar_pool)
+        .await
+        .map_err(|e| format!("Failed to cleanup AR aging buckets: {}", e))?;
 
     // Subscriptions
     sqlx::query("DELETE FROM subscription_invoice_attempts WHERE tenant_id = $1")
