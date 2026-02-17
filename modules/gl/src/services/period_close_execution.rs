@@ -1,0 +1,256 @@
+//! Period Close Execution
+//!
+//! Atomic close command orchestrator for accounting periods.
+//! Coordinates validation, FX revaluation, snapshot sealing, and DB update.
+
+use super::period_close_snapshot::create_close_snapshot;
+use super::period_close_validation::{
+    has_blocking_errors, validate_period_can_close, PeriodCloseError,
+};
+use crate::contracts::period_close_v1::{CloseStatus, ValidationIssue, ValidationReport, ValidationSeverity};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use sqlx::PgPool;
+use uuid::Uuid;
+
+/// Response from close_period operation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClosePeriodResult {
+    /// Period ID that was closed (or attempted to close)
+    pub period_id: Uuid,
+
+    /// Tenant ID
+    pub tenant_id: String,
+
+    /// Whether the close succeeded
+    pub success: bool,
+
+    /// Close status (if successful)
+    pub close_status: Option<CloseStatus>,
+
+    /// Validation report (if close failed validation)
+    pub validation_report: Option<ValidationReport>,
+
+    /// Timestamp when operation completed
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Period data with close fields for idempotency check
+#[derive(Debug, sqlx::FromRow)]
+struct PeriodForClose {
+    pub id: Uuid,
+    pub tenant_id: String,
+    pub period_start: chrono::NaiveDate,
+    pub period_end: chrono::NaiveDate,
+    pub closed_at: Option<DateTime<Utc>>,
+    pub closed_by: Option<String>,
+    pub close_reason: Option<String>,
+    pub close_hash: Option<String>,
+    pub close_requested_at: Option<DateTime<Utc>>,
+}
+
+/// Atomically close an accounting period
+///
+/// This function implements the complete period close workflow:
+/// 1. Locks the period row (FOR UPDATE) to prevent concurrent closes
+/// 2. Checks if already closed (idempotency)
+/// 3. Runs pre-close validation defensively
+/// 3b. Revalue foreign-currency balances (Phase 23a)
+/// 4. Creates sealed snapshot with hash (includes revaluation entries)
+/// 5. Updates period with close fields
+///
+/// All operations occur in a single database transaction for atomicity.
+///
+/// **Idempotency:** If period.closed_at is already set, returns existing close status
+/// without mutation. This is determined AFTER acquiring the row lock to prevent race conditions.
+///
+/// **Locking:** Uses FOR UPDATE to acquire row-level lock at transaction start.
+/// This prevents two concurrent close requests from both seeing closed_at=NULL.
+///
+/// # Arguments
+/// * `pool` - Database connection pool
+/// * `tenant_id` - Tenant identifier
+/// * `period_id` - Accounting period UUID
+/// * `closed_by` - User or system identifier performing the close
+/// * `close_reason` - Optional reason/notes for closing the period
+/// * `dlq_validation_enabled` - Enable DLQ validation (default: false)
+/// * `reporting_currency` - Reporting currency for FX revaluation (e.g. "USD")
+///
+/// # Returns
+/// ClosePeriodResult with success status, close status, or validation errors
+pub async fn close_period(
+    pool: &PgPool,
+    tenant_id: &str,
+    period_id: Uuid,
+    closed_by: &str,
+    close_reason: Option<&str>,
+    dlq_validation_enabled: bool,
+    reporting_currency: &str,
+) -> Result<ClosePeriodResult, PeriodCloseError> {
+    // BEGIN transaction
+    let mut tx = pool.begin().await?;
+
+    // ========================================
+    // STEP 1: Lock period row with FOR UPDATE (BEFORE any other operations)
+    // ========================================
+    // This prevents race conditions where two concurrent close requests
+    // both see closed_at=NULL and both proceed to close.
+    let period = sqlx::query_as::<_, PeriodForClose>(
+        r#"
+        SELECT id, tenant_id, period_start, period_end,
+               closed_at, closed_by, close_reason, close_hash, close_requested_at
+        FROM accounting_periods
+        WHERE id = $1 AND tenant_id = $2
+        FOR UPDATE
+        "#,
+    )
+    .bind(period_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let period = match period {
+        Some(p) => p,
+        None => {
+            tx.rollback().await?;
+            return Ok(ClosePeriodResult {
+                period_id,
+                tenant_id: tenant_id.to_string(),
+                success: false,
+                close_status: None,
+                validation_report: Some(ValidationReport {
+                    issues: vec![ValidationIssue {
+                        severity: ValidationSeverity::Error,
+                        code: "PERIOD_NOT_FOUND".to_string(),
+                        message: format!(
+                            "Period {} not found for tenant {}",
+                            period_id, tenant_id
+                        ),
+                        metadata: None,
+                    }],
+                }),
+                timestamp: Utc::now(),
+            });
+        }
+    };
+
+    // ========================================
+    // STEP 2: Check idempotency (AFTER acquiring lock)
+    // ========================================
+    // If period is already closed, return existing close status without mutation.
+    // This check happens AFTER the lock to prevent TOCTOU (time-of-check-time-of-use) race.
+    if period.closed_at.is_some() {
+        tx.commit().await?;
+
+        return Ok(ClosePeriodResult {
+            period_id,
+            tenant_id: tenant_id.to_string(),
+            success: true,
+            close_status: Some(CloseStatus::Closed {
+                closed_at: period.closed_at.unwrap(),
+                closed_by: period.closed_by.clone().unwrap_or_default(),
+                close_reason: period.close_reason.clone(),
+                close_hash: period.close_hash.clone().unwrap_or_default(),
+                requested_at: period.close_requested_at,
+            }),
+            validation_report: None,
+            timestamp: Utc::now(),
+        });
+    }
+
+    // ========================================
+    // STEP 3: Run pre-close validation (defensive)
+    // ========================================
+    // Always re-validate before close, even if client pre-validated.
+    // ChatGPT guardrail: validation MUST re-run on every close attempt.
+    let validation_report = validate_period_can_close(&mut tx, tenant_id, period_id, dlq_validation_enabled).await?;
+
+    if has_blocking_errors(&validation_report) {
+        tx.rollback().await?;
+
+        return Ok(ClosePeriodResult {
+            period_id,
+            tenant_id: tenant_id.to_string(),
+            success: false,
+            close_status: None,
+            validation_report: Some(validation_report),
+            timestamp: Utc::now(),
+        });
+    }
+
+    // ========================================
+    // STEP 3b: FX Revaluation (Phase 23a, bd-1yu)
+    // ========================================
+    // Revalue foreign-currency balances BEFORE the snapshot so revaluation
+    // journal entries are included in the sealed hash.
+    let reval_result = super::fx_revaluation_service::revalue_foreign_balances(
+        &mut tx,
+        tenant_id,
+        period_id,
+        period.period_start,
+        period.period_end,
+        reporting_currency,
+    )
+    .await?;
+
+    if let Some(ref entry_id) = reval_result.journal_entry_id {
+        tracing::info!(
+            tenant_id = %tenant_id,
+            period_id = %period_id,
+            journal_entry_id = %entry_id,
+            adjustment_count = reval_result.adjustments.len(),
+            "FX revaluation posted during period close"
+        );
+    }
+
+    // ========================================
+    // STEP 4: Create sealed snapshot with hash
+    // ========================================
+    let snapshot = create_close_snapshot(&mut tx, tenant_id, period_id).await?;
+
+    // ========================================
+    // STEP 5: Update accounting_periods with close fields
+    // ========================================
+    let now = Utc::now();
+
+    sqlx::query(
+        r#"
+        UPDATE accounting_periods
+        SET close_requested_at = COALESCE(close_requested_at, $1),
+            closed_at = $2,
+            closed_by = $3,
+            close_reason = $4,
+            close_hash = $5
+        WHERE id = $6 AND tenant_id = $7
+        "#,
+    )
+    .bind(now)
+    .bind(now)
+    .bind(closed_by)
+    .bind(close_reason)
+    .bind(&snapshot.close_hash)
+    .bind(period_id)
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    // ========================================
+    // STEP 6: COMMIT transaction
+    // ========================================
+    tx.commit().await?;
+
+    Ok(ClosePeriodResult {
+        period_id,
+        tenant_id: tenant_id.to_string(),
+        success: true,
+        close_status: Some(CloseStatus::Closed {
+            closed_at: now,
+            closed_by: closed_by.to_string(),
+            close_reason: close_reason.map(|s| s.to_string()),
+            close_hash: snapshot.close_hash,
+            requested_at: Some(now),
+        }),
+        validation_report: None,
+        timestamp: now,
+    })
+}
