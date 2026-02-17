@@ -1,5 +1,6 @@
 pub mod account_activity;
 pub mod balance_sheet;
+pub mod fx_rates;
 pub mod gl_detail;
 pub mod health;
 pub mod income_statement;

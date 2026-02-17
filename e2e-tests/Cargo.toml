@@ -159,6 +159,10 @@ path = "tests/revrec_schedule_builder_e2e.rs"
 name = "dunning_scheduler_concurrency_e2e"
 path = "tests/dunning_scheduler_concurrency_e2e.rs"
 
+[[test]]
+name = "fx_rates_e2e"
+path = "tests/fx_rates_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }

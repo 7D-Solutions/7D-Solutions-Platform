@@ -14,6 +14,7 @@ use gl_rs::{
     routes::income_statement::get_income_statement,
     routes::period_close::{close_period_handler, get_close_status, validate_close},
     routes::period_summary::get_period_summary,
+    routes::fx_rates::{create_fx_rate, get_latest_rate as get_latest_fx_rate},
     routes::revrec::{create_contract, generate_schedule_handler},
     routes::trial_balance::get_trial_balance,
     consumer::gl_writeoff_consumer::start_gl_writeoff_consumer,
@@ -120,6 +121,8 @@ async fn main() {
         .route("/api/gl/periods/{period_id}/close-status", get(get_close_status))
         .route("/api/gl/detail", get(get_gl_detail))
         .route("/api/gl/accounts/{account_code}/activity", get(get_account_activity))
+        .route("/api/gl/fx-rates", post(create_fx_rate))
+        .route("/api/gl/fx-rates/latest", get(get_latest_fx_rate))
         .route("/api/gl/revrec/contracts", post(create_contract))
         .route("/api/gl/revrec/schedules", post(generate_schedule_handler))
         .with_state(app_state)
