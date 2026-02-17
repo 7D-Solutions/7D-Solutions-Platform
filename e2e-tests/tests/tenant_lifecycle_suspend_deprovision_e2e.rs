@@ -126,7 +126,7 @@ async fn test_suspend_active_tenant_succeeds() {
             before_snapshot, after_snapshot,
             metadata
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9
+            $1, $2, $3, $4::mutation_class, $5, $6, $7, $8, $9
         )
         "#
     )
@@ -209,7 +209,7 @@ async fn test_deprovision_active_tenant_succeeds() {
             before_snapshot, after_snapshot,
             metadata
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9
+            $1, $2, $3, $4::mutation_class, $5, $6, $7, $8, $9
         )
         "#
     )
@@ -292,7 +292,7 @@ async fn test_deprovision_suspended_tenant_succeeds() {
             before_snapshot, after_snapshot,
             metadata
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9
+            $1, $2, $3, $4::mutation_class, $5, $6, $7, $8, $9
         )
         "#
     )

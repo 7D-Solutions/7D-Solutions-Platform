@@ -96,7 +96,7 @@ async fn setup_test_data(
             entity_type, entity_id,
             before_snapshot, after_snapshot,
             metadata
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ) VALUES ($1, $2, $3, $4::mutation_class, $5, $6, $7, $8, $9)
         "#,
     )
     .bind(Uuid::nil())
