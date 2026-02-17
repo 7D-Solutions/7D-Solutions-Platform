@@ -21,7 +21,7 @@
 
 use crate::cursor::ProjectionCursor;
 use chrono::Utc;
-use prometheus::{Gauge, GaugeVec, Opts, Registry};
+use prometheus::{GaugeVec, Opts, Registry};
 
 /// Projection health and freshness metrics
 #[derive(Clone)]
