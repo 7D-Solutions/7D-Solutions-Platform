@@ -127,7 +127,7 @@ pub async fn get_payment(
 ///
 /// This is the fast path - queries the denormalized projection table.
 async fn query_projection(
-    pool: &sqlx::PgPool,
+    _pool: &sqlx::PgPool,
     tenant_id: &str,
     payment_id: Uuid,
 ) -> Result<PaymentResponse, Box<dyn std::error::Error + Send + Sync>> {

@@ -49,7 +49,6 @@ use crate::cursor::ProjectionCursor;
 use chrono::Utc;
 use prometheus::{CounterVec, HistogramVec, Opts, Registry};
 use std::future::Future;
-use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::timeout;

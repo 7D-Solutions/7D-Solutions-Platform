@@ -127,7 +127,7 @@ pub async fn get_invoice(
 ///
 /// This is the fast path - queries the denormalized projection table.
 async fn query_projection(
-    pool: &sqlx::PgPool,
+    _pool: &sqlx::PgPool,
     tenant_id: &str,
     invoice_id: Uuid,
 ) -> Result<InvoiceResponse, Box<dyn std::error::Error + Send + Sync>> {
