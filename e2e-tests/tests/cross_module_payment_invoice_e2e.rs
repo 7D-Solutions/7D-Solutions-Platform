@@ -27,7 +27,7 @@ async fn setup_test_invoice(
     due_date: NaiveDate,
 ) -> i32 {
     sqlx::query_scalar::<_, i32>(
-        "INSERT INTO ar.ar_invoices (app_id, ar_customer_id, status, amount_cents, currency, due_at, tilled_invoice_id)
+        "INSERT INTO ar_invoices (app_id, ar_customer_id, status, amount_cents, currency, due_at, tilled_invoice_id)
          VALUES ($1, $2, 'open', 10000, 'USD', $3, $4)
          RETURNING id"
     )
@@ -71,7 +71,7 @@ async fn update_invoice_status(
 ) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(paid_time) = paid_at {
         sqlx::query(
-            "UPDATE ar.ar_invoices
+            "UPDATE ar_invoices
              SET status = $1, paid_at = $2, updated_at = CURRENT_TIMESTAMP
              WHERE id = $3"
         )
@@ -82,7 +82,7 @@ async fn update_invoice_status(
         .await?;
     } else {
         sqlx::query(
-            "UPDATE ar.ar_invoices
+            "UPDATE ar_invoices
              SET status = $1, updated_at = CURRENT_TIMESTAMP
              WHERE id = $2"
         )
@@ -96,7 +96,7 @@ async fn update_invoice_status(
 
 async fn get_invoice_status(ar_pool: &PgPool, invoice_id: i32) -> (String, Option<chrono::DateTime<chrono::Utc>>) {
     sqlx::query_as::<_, (String, Option<chrono::DateTime<chrono::Utc>>)>(
-        "SELECT status, paid_at FROM ar.ar_invoices WHERE id = $1"
+        "SELECT status, paid_at FROM ar_invoices WHERE id = $1"
     )
     .bind(invoice_id)
     .fetch_one(ar_pool)

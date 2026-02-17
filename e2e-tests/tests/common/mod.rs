@@ -199,7 +199,7 @@ pub async fn poll_for_invoice(
     poll_for_record(
         || async {
             sqlx::query_scalar::<_, i32>(
-                "SELECT id FROM ar.ar_invoices
+                "SELECT id FROM ar_invoices
                  WHERE app_id = $1 AND ar_customer_id = $2
                  ORDER BY created_at DESC LIMIT 1"
             )
@@ -375,7 +375,7 @@ pub async fn cleanup_tenant_data(
         .await
         .map_err(|e| format!("Failed to cleanup AR attempts: {}", e))?;
 
-    sqlx::query("DELETE FROM ar.ar_invoices WHERE app_id = $1")
+    sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
         .bind(tenant_id)
         .execute(ar_pool)
         .await
