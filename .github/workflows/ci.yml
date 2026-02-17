@@ -405,6 +405,15 @@ jobs:
       - name: Check for cross-module imports
         run: bash tools/ci/lint-no-cross-module-imports.sh
 
+  lint-no-ignored-tests:
+    name: Lint - Forbid Unapproved #[ignore] in E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for unapproved ignored E2E tests
+        run: bash tools/ci/lint-no-ignored-tests.sh
+
   check-dlq-migrations:
     name: Check DLQ Migrations Exist
     runs-on: ubuntu-latest
