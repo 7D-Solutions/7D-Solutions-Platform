@@ -29,33 +29,13 @@ async fn get_audit_pool() -> PgPool {
         .expect("Failed to connect to audit database")
 }
 
-/// Helper to run migrations on the audit database
-async fn run_audit_migrations(pool: &PgPool) {
-    // Read and execute the migration file
-    let migration_sql = include_str!("../../platform/audit/db/migrations/20260216000001_create_audit_log.sql");
-
-    // Drop existing objects if they exist (for test idempotency)
-    sqlx::query("DROP TABLE IF EXISTS audit_events CASCADE")
-        .execute(pool)
-        .await
-        .expect("Failed to drop audit_events table");
-
-    sqlx::query("DROP TYPE IF EXISTS mutation_class CASCADE")
-        .execute(pool)
-        .await
-        .expect("Failed to drop mutation_class type");
-
-    // Execute the migration
-    sqlx::raw_sql(migration_sql)
-        .execute(pool)
-        .await
-        .expect("Failed to run audit migrations");
-}
+// Shared migration helper with pg_advisory_lock lives in common/mod.rs.
+// Use common::run_audit_migrations(pool) to avoid 40P01 catalog deadlocks.
 
 #[tokio::test]
 async fn test_user_actor_in_audit() {
     let pool = get_audit_pool().await;
-    run_audit_migrations(&pool).await;
+    common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
 
@@ -93,7 +73,7 @@ async fn test_user_actor_in_audit() {
 #[tokio::test]
 async fn test_service_actor_deterministic_id() {
     let pool = get_audit_pool().await;
-    run_audit_migrations(&pool).await;
+    common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
 
@@ -136,7 +116,7 @@ async fn test_service_actor_deterministic_id() {
 #[tokio::test]
 async fn test_system_actor() {
     let pool = get_audit_pool().await;
-    run_audit_migrations(&pool).await;
+    common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
 
@@ -194,7 +174,7 @@ async fn test_actor_propagation_to_event_envelope() {
 #[tokio::test]
 async fn test_multiple_actor_types_in_correlation() {
     let pool = get_audit_pool().await;
-    run_audit_migrations(&pool).await;
+    common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
     let correlation_id = Uuid::new_v4();
@@ -255,7 +235,7 @@ async fn test_multiple_actor_types_in_correlation() {
 #[tokio::test]
 async fn test_actor_required_for_mutations() {
     let pool = get_audit_pool().await;
-    run_audit_migrations(&pool).await;
+    common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
 

@@ -449,6 +449,71 @@ pub fn generate_test_tenant() -> String {
 }
 
 // ============================================================================
+// Audit Migrations
+// ============================================================================
+
+/// Advisory lock key for serializing audit migration execution.
+///
+/// Value chosen to avoid collision with any other advisory locks in the system.
+/// Same key across all test processes ensures mutual exclusion even under
+/// RUST_TEST_THREADS > 1 or multi-process test runs.
+const AUDIT_MIGRATION_LOCK_KEY: i64 = 7_419_283_561_i64;
+
+/// Run audit migrations with a pg_advisory_lock to prevent 40P01 catalog deadlocks.
+///
+/// ## Problem
+/// Parallel tests all call `CREATE OR REPLACE FUNCTION` and `CREATE OR REPLACE TRIGGER`
+/// on the same `pg_proc` rows simultaneously. PostgreSQL takes an exclusive row lock
+/// on `pg_proc` for each `CREATE OR REPLACE FUNCTION`, and when two sessions each hold
+/// part of what the other needs, a deadlock (40P01) is thrown.
+///
+/// ## Fix
+/// Acquire a session-level advisory lock before any DDL. Only one session at a time
+/// can run the migration; others wait. The lock is released after migration completes
+/// (or on connection loss). This is multi-process safe — works with any number of
+/// RUST_TEST_THREADS or separate test binary invocations.
+pub async fn run_audit_migrations(pool: &PgPool) {
+    // Acquire advisory lock — blocks until the previous holder releases.
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(AUDIT_MIGRATION_LOCK_KEY)
+        .execute(pool)
+        .await
+        .expect("Failed to acquire audit migration advisory lock");
+
+    // Run DROP + CREATE inside the lock window.
+    let result = run_audit_migrations_inner(pool).await;
+
+    // Always release, even on failure, to prevent starvation.
+    sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(AUDIT_MIGRATION_LOCK_KEY)
+        .execute(pool)
+        .await
+        .expect("Failed to release audit migration advisory lock");
+
+    result.expect("Audit migration failed");
+}
+
+async fn run_audit_migrations_inner(pool: &PgPool) -> Result<(), sqlx::Error> {
+    let migration_sql = include_str!("../../../platform/audit/db/migrations/20260216000001_create_audit_log.sql");
+
+    // Drop existing objects (idempotent reset for test isolation)
+    sqlx::query("DROP TABLE IF EXISTS audit_events CASCADE")
+        .execute(pool)
+        .await?;
+
+    sqlx::query("DROP TYPE IF EXISTS mutation_class CASCADE")
+        .execute(pool)
+        .await?;
+
+    // Execute the full migration (CREATE TABLE, FUNCTION, TRIGGERs)
+    sqlx::raw_sql(migration_sql)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+// ============================================================================
 // Tests
 // ============================================================================
 

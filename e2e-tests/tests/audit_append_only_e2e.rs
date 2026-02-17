@@ -25,33 +25,13 @@ async fn get_audit_pool() -> PgPool {
         .expect("Failed to connect to audit database")
 }
 
-/// Helper to run migrations on the audit database
-async fn run_audit_migrations(pool: &PgPool) {
-    // Read and execute the migration file
-    let migration_sql = include_str!("../../platform/audit/db/migrations/20260216000001_create_audit_log.sql");
-
-    // Drop existing objects if they exist (for test idempotency)
-    sqlx::query("DROP TABLE IF EXISTS audit_events CASCADE")
-        .execute(pool)
-        .await
-        .expect("Failed to drop audit_events table");
-
-    sqlx::query("DROP TYPE IF EXISTS mutation_class CASCADE")
-        .execute(pool)
-        .await
-        .expect("Failed to drop mutation_class type");
-
-    // Execute the migration
-    sqlx::raw_sql(migration_sql)
-        .execute(pool)
-        .await
-        .expect("Failed to run audit migrations");
-}
+// Shared migration helper with pg_advisory_lock lives in common/mod.rs.
+// Use common::run_audit_migrations(pool) to avoid 40P01 catalog deadlocks.
 
 #[tokio::test]
 async fn test_audit_write_success() {
     let pool = get_audit_pool().await;
-    run_audit_migrations(&pool).await;
+    common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
 
@@ -100,7 +80,7 @@ async fn test_audit_write_success() {
 #[tokio::test]
 async fn test_audit_update_rejected() {
     let pool = get_audit_pool().await;
-    run_audit_migrations(&pool).await;
+    common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
 
@@ -144,7 +124,7 @@ async fn test_audit_update_rejected() {
 #[tokio::test]
 async fn test_audit_delete_rejected() {
     let pool = get_audit_pool().await;
-    run_audit_migrations(&pool).await;
+    common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
 
@@ -187,7 +167,7 @@ async fn test_audit_delete_rejected() {
 #[tokio::test]
 async fn test_audit_correlation_query() {
     let pool = get_audit_pool().await;
-    run_audit_migrations(&pool).await;
+    common::run_audit_migrations(&pool).await;
 
     let writer = AuditWriter::new(pool.clone());
 
@@ -228,7 +208,7 @@ async fn test_audit_correlation_query() {
 #[tokio::test]
 async fn test_audit_write_in_transaction() {
     let pool = get_audit_pool().await;
-    run_audit_migrations(&pool).await;
+    common::run_audit_migrations(&pool).await;
 
     let mut tx = pool.begin().await.expect("Failed to begin transaction");
 
@@ -262,7 +242,7 @@ async fn test_audit_write_in_transaction() {
 #[tokio::test]
 async fn test_audit_transaction_rollback() {
     let pool = get_audit_pool().await;
-    run_audit_migrations(&pool).await;
+    common::run_audit_migrations(&pool).await;
 
     let mut tx = pool.begin().await.expect("Failed to begin transaction");
 
