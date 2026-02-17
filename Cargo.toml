@@ -18,6 +18,7 @@ members = [
   "tools/projection-rebuild",
   "tools/compliance-export",
   "tools/demo-seed",
+  "tools/stabilization-gate",
   "e2e-tests"
 ]
 

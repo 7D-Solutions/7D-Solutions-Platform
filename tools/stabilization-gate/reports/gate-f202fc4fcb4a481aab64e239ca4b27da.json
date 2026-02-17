@@ -1,0 +1,95 @@
+{
+  "run_id": "gate-f202fc4fcb4a481aab64e239ca4b27da",
+  "git_sha": "2869524e",
+  "started_at": "2026-02-17T22:20:08.745787Z",
+  "ended_at": "2026-02-17T22:20:09.050386Z",
+  "env_snapshot": {
+    "concurrency": 4,
+    "database_host": "localhost:5434",
+    "dunning_rows": 200,
+    "duration_secs": 30,
+    "events_per_tenant": 100,
+    "nats_url": "nats://localhost:4222",
+    "recon_rows": 500,
+    "tenant_count": 5
+  },
+  "scenarios": [
+    {
+      "name": "eventbus",
+      "passed": true,
+      "metrics": {
+        "errors": 0,
+        "p50_ms": 0.000375,
+        "p95_ms": 0.0020829999999999998,
+        "p99_ms": 0.0020829999999999998,
+        "throughput_ops_per_sec": 210899.27450649568,
+        "total_ops": 10,
+        "wall_clock_ms": 0.047416
+      },
+      "threshold_violations": [],
+      "notes": "dry-run: 10 NATS publishes (connectivity check only)"
+    },
+    {
+      "name": "projections",
+      "passed": true,
+      "metrics": {
+        "errors": 0,
+        "p50_ms": 1.3334169999999999,
+        "p95_ms": 36.450792,
+        "p99_ms": 36.450792,
+        "throughput_ops_per_sec": 122.63230136780145,
+        "total_ops": 5,
+        "wall_clock_ms": 40.772292
+      },
+      "threshold_violations": [],
+      "notes": "dry-run: 5 DB pings (projection proxy) (connectivity check only)"
+    },
+    {
+      "name": "recon",
+      "passed": true,
+      "metrics": {
+        "errors": 0,
+        "p50_ms": 0.66925,
+        "p95_ms": 35.539542,
+        "p99_ms": 35.539542,
+        "throughput_ops_per_sec": 128.21252508157522,
+        "total_ops": 5,
+        "wall_clock_ms": 38.997749999999996
+      },
+      "threshold_violations": [],
+      "notes": "dry-run: 5 row-probe pings (recon proxy) (connectivity check only)"
+    },
+    {
+      "name": "dunning",
+      "passed": true,
+      "metrics": {
+        "errors": 0,
+        "p50_ms": 0.931458,
+        "p95_ms": 35.940166000000005,
+        "p99_ms": 35.940166000000005,
+        "throughput_ops_per_sec": 127.07234019928906,
+        "total_ops": 5,
+        "wall_clock_ms": 39.347666000000004
+      },
+      "threshold_violations": [],
+      "notes": "dry-run: 5 row-probe pings (dunning proxy) (connectivity check only)"
+    },
+    {
+      "name": "tenants",
+      "passed": true,
+      "metrics": {
+        "errors": 0,
+        "p50_ms": 1.620334,
+        "p95_ms": 36.533375,
+        "p99_ms": 36.533375,
+        "throughput_ops_per_sec": 77.08919623437778,
+        "total_ops": 3,
+        "wall_clock_ms": 38.915959
+      },
+      "threshold_violations": [],
+      "notes": "dry-run: 3 tenant pings (connectivity check only)"
+    }
+  ],
+  "overall_passed": true,
+  "dry_run": true
+}
