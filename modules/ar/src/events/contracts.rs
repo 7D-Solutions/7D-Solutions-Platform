@@ -660,6 +660,13 @@ pub const EVENT_TYPE_TAX_COMMITTED: &str = "tax.committed";
 pub const EVENT_TYPE_TAX_VOIDED: &str = "tax.voided";
 
 // ============================================================================
+// Phase 23a FX Settlement Event Type Constants
+// ============================================================================
+
+/// A foreign-currency receivable was settled at a different rate than recognition
+pub const EVENT_TYPE_INVOICE_SETTLED_FX: &str = "ar.invoice_settled_fx";
+
+// ============================================================================
 // Payload: tax.quoted
 // ============================================================================
 
@@ -805,6 +812,69 @@ pub fn build_tax_voided_envelope(
         correlation_id,
         causation_id,
         MUTATION_CLASS_REVERSAL.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: ar.invoice_settled_fx (Phase 23a)
+// ============================================================================
+
+/// Payload for ar.invoice_settled_fx
+///
+/// Emitted when a foreign-currency receivable is settled at a different FX rate
+/// than the rate used at invoice recognition. Carries both the transaction-currency
+/// amount and the reporting-currency amounts at recognition and settlement rates,
+/// plus rate references for audit trail.
+///
+/// The GL consumer uses this to post a balanced realized FX gain/loss journal entry.
+/// No entry is posted when recognition and settlement amounts are equal (same rate).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InvoiceSettledFxPayload {
+    pub tenant_id: String,
+    pub invoice_id: String,
+    pub customer_id: String,
+    /// Transaction (foreign) currency code (ISO 4217)
+    pub txn_currency: String,
+    /// Transaction amount in minor units (the invoiced amount in foreign currency)
+    pub txn_amount_minor: i64,
+    /// Reporting (functional) currency code (ISO 4217)
+    pub rpt_currency: String,
+    /// Reporting-currency amount at invoice recognition rate (minor units)
+    pub recognition_rpt_amount_minor: i64,
+    /// UUID of the FX rate snapshot used at recognition
+    pub recognition_rate_id: Uuid,
+    /// The recognition FX rate (1 txn = rate rpt)
+    pub recognition_rate: f64,
+    /// Reporting-currency amount at settlement rate (minor units)
+    pub settlement_rpt_amount_minor: i64,
+    /// UUID of the FX rate snapshot used at settlement
+    pub settlement_rate_id: Uuid,
+    /// The settlement FX rate (1 txn = rate rpt)
+    pub settlement_rate: f64,
+    /// Realized gain/loss in reporting-currency minor units (positive = gain, negative = loss)
+    pub realized_gain_loss_minor: i64,
+    pub settled_at: DateTime<Utc>,
+}
+
+/// Build an envelope for ar.invoice_settled_fx
+///
+/// mutation_class: DATA_MUTATION (posts FX gain/loss adjustment)
+pub fn build_invoice_settled_fx_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: InvoiceSettledFxPayload,
+) -> EventEnvelope<InvoiceSettledFxPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_INVOICE_SETTLED_FX.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
         payload,
     )
     .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
@@ -1355,5 +1425,74 @@ mod tests {
         assert!(json.contains("tax_minor"));
         assert!(json.contains("jurisdiction"));
         assert!(json.contains("New York"));
+    }
+
+    // ============================================================================
+    // Phase 23a FX settlement event tests
+    // ============================================================================
+
+    #[test]
+    fn invoice_settled_fx_envelope_has_data_mutation_class() {
+        let payload = InvoiceSettledFxPayload {
+            tenant_id: "tenant-1".to_string(),
+            invoice_id: "inv-fx-1".to_string(),
+            customer_id: "cust-1".to_string(),
+            txn_currency: "EUR".to_string(),
+            txn_amount_minor: 100000,
+            rpt_currency: "USD".to_string(),
+            recognition_rpt_amount_minor: 110000,
+            recognition_rate_id: Uuid::new_v4(),
+            recognition_rate: 1.10,
+            settlement_rpt_amount_minor: 112000,
+            settlement_rate_id: Uuid::new_v4(),
+            settlement_rate: 1.12,
+            realized_gain_loss_minor: 2000,
+            settled_at: Utc::now(),
+        };
+        let envelope = build_invoice_settled_fx_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            None,
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_INVOICE_SETTLED_FX);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+        assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
+        assert_eq!(envelope.source_module, "ar");
+    }
+
+    #[test]
+    fn invoice_settled_fx_event_type_uses_ar_prefix() {
+        assert!(EVENT_TYPE_INVOICE_SETTLED_FX.starts_with("ar."));
+    }
+
+    #[test]
+    fn invoice_settled_fx_payload_serializes_correctly() {
+        let payload = InvoiceSettledFxPayload {
+            tenant_id: "tenant-1".to_string(),
+            invoice_id: "inv-fx-2".to_string(),
+            customer_id: "cust-1".to_string(),
+            txn_currency: "GBP".to_string(),
+            txn_amount_minor: 50000,
+            rpt_currency: "USD".to_string(),
+            recognition_rpt_amount_minor: 63000,
+            recognition_rate_id: Uuid::new_v4(),
+            recognition_rate: 1.26,
+            settlement_rpt_amount_minor: 62500,
+            settlement_rate_id: Uuid::new_v4(),
+            settlement_rate: 1.25,
+            realized_gain_loss_minor: -500,
+            settled_at: Utc::now(),
+        };
+        let json = serde_json::to_string(&payload).unwrap();
+        assert!(json.contains("txn_currency"));
+        assert!(json.contains("rpt_currency"));
+        assert!(json.contains("recognition_rate_id"));
+        assert!(json.contains("settlement_rate_id"));
+        assert!(json.contains("realized_gain_loss_minor"));
     }
 }

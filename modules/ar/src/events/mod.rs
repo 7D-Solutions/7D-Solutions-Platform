@@ -31,6 +31,9 @@ pub use contracts::{
     TaxLineDetail, TaxQuotedPayload, TaxCommittedPayload, TaxVoidedPayload,
     EVENT_TYPE_TAX_QUOTED, EVENT_TYPE_TAX_COMMITTED, EVENT_TYPE_TAX_VOIDED,
     build_tax_quoted_envelope, build_tax_committed_envelope, build_tax_voided_envelope,
+    // Phase 23a FX settlement event types
+    InvoiceSettledFxPayload, EVENT_TYPE_INVOICE_SETTLED_FX,
+    build_invoice_settled_fx_envelope,
 };
 pub use envelope::EventEnvelope;
 pub use outbox::enqueue_event;
