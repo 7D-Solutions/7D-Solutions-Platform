@@ -405,6 +405,15 @@ jobs:
       - name: Check for cross-module imports
         run: bash tools/ci/lint-no-cross-module-imports.sh
 
+  lint-file-size:
+    name: Lint - Max File Size (500 LOC)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check source file sizes
+        run: bash scripts/lint-file-size.sh
+
   lint-no-ignored-tests:
     name: Lint - Forbid Unapproved #[ignore] in E2E Tests
     runs-on: ubuntu-latest

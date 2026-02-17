@@ -6,6 +6,10 @@
 - Do NOT ask the user what to do. Work autonomously.
 - Keep commits small and focused.
 
+## File Size Limit
+
+Keep source files under 500 LOC. If a file would exceed 500 LOC after your changes, split it into logical modules first. Files over 500 LOC without an entry in `.file-size-allowlist` will fail CI.
+
 ## Agent Mail
 
 **First time:** Register in the mail system:

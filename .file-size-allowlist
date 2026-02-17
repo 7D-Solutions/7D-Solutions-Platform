@@ -1,0 +1,18 @@
+# File Size Allowlist
+# Files listed here are exempt from the >500 LOC error threshold.
+# Each entry must be a path relative to the project root.
+#
+# This list should SHRINK over time as refactoring beads close.
+# When splitting a file, remove its entry here.
+#
+# Format: relative/path/to/file.rs  # optional tracking note
+
+modules/gl/src/repos/revrec_repo.rs       # 951 LOC — revrec repository
+modules/gl/src/accruals.rs                # 778 LOC — accrual engine
+modules/ar/src/routes/webhooks.rs         # 746 LOC — webhook handlers
+modules/ar/src/routes/payment_methods.rs  # 743 LOC — payment method routes
+modules/gl/src/routes/revrec.rs           # 740 LOC — revrec HTTP routes
+modules/ar/src/finalization.rs            # 734 LOC — invoice finalization
+modules/ar/src/routes/invoices.rs         # 689 LOC — invoice routes
+modules/ar/src/routes/subscriptions.rs    # 562 LOC — subscription routes
+modules/ar/src/routes/charges.rs          # 511 LOC — charge routes
