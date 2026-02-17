@@ -15,6 +15,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::AppState;
+use crate::config::DEFAULT_REPORTING_CURRENCY;
 use crate::contracts::period_close_v1::{
     CloseStatus, ClosePeriodRequest, ClosePeriodResponse, CloseStatusRequest,
     CloseStatusResponse, ValidateCloseRequest, ValidateCloseResponse,
@@ -67,6 +68,10 @@ fn map_error(error: PeriodCloseError) -> PeriodCloseHttpError {
         PeriodCloseError::Database(_) => PeriodCloseHttpError {
             status: StatusCode::INTERNAL_SERVER_ERROR,
             message: "Database error".to_string(), // Don't leak internal details
+        },
+        PeriodCloseError::FxRevaluation(_) => PeriodCloseHttpError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: "FX revaluation failed during period close".to_string(),
         },
     }
 }
@@ -142,6 +147,7 @@ pub async fn close_period_handler(
         &request.closed_by,
         request.close_reason.as_deref(),
         app_state.dlq_validation_enabled,
+        DEFAULT_REPORTING_CURRENCY,
     )
     .await
     .map_err(map_error)?;

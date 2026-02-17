@@ -55,6 +55,9 @@ pub enum PeriodCloseError {
 
     #[error("Hash verification failed - computed: {computed}, expected: {expected}")]
     HashMismatch { computed: String, expected: String },
+
+    #[error("FX revaluation failed: {0}")]
+    FxRevaluation(#[from] super::fx_revaluation_service::FxRevaluationError),
 }
 
 /// Response from close_period operation
@@ -643,7 +646,8 @@ struct PeriodForClose {
 /// 1. Locks the period row (FOR UPDATE) to prevent concurrent closes
 /// 2. Checks if already closed (idempotency)
 /// 3. Runs pre-close validation defensively
-/// 4. Creates sealed snapshot with hash
+/// 3b. Revalue foreign-currency balances (Phase 23a)
+/// 4. Creates sealed snapshot with hash (includes revaluation entries)
 /// 5. Updates period with close fields
 ///
 /// All operations occur in a single database transaction for atomicity.
@@ -661,6 +665,7 @@ struct PeriodForClose {
 /// * `closed_by` - User or system identifier performing the close
 /// * `close_reason` - Optional reason/notes for closing the period
 /// * `dlq_validation_enabled` - Enable DLQ validation (default: false)
+/// * `reporting_currency` - Reporting currency for FX revaluation (e.g. "USD")
 ///
 /// # Returns
 /// ClosePeriodResult with success status, close status, or validation errors
@@ -671,6 +676,7 @@ pub async fn close_period(
     closed_by: &str,
     close_reason: Option<&str>,
     dlq_validation_enabled: bool,
+    reporting_currency: &str,
 ) -> Result<ClosePeriodResult, PeriodCloseError> {
     // BEGIN transaction
     let mut tx = pool.begin().await?;
@@ -761,6 +767,31 @@ pub async fn close_period(
             validation_report: Some(validation_report),
             timestamp: Utc::now(),
         });
+    }
+
+    // ========================================
+    // STEP 3b: FX Revaluation (Phase 23a, bd-1yu)
+    // ========================================
+    // Revalue foreign-currency balances BEFORE the snapshot so revaluation
+    // journal entries are included in the sealed hash.
+    let reval_result = super::fx_revaluation_service::revalue_foreign_balances(
+        &mut tx,
+        tenant_id,
+        period_id,
+        period.period_start,
+        period.period_end,
+        reporting_currency,
+    )
+    .await?;
+
+    if let Some(ref entry_id) = reval_result.journal_entry_id {
+        tracing::info!(
+            tenant_id = %tenant_id,
+            period_id = %period_id,
+            journal_entry_id = %entry_id,
+            adjustment_count = reval_result.adjustments.len(),
+            "FX revaluation posted during period close"
+        );
     }
 
     // ========================================

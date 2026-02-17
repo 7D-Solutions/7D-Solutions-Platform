@@ -43,6 +43,7 @@ async fn test_close_period_empty_success() {
         "admin",
         Some("Month-end close"),
         false, // DLQ validation disabled
+        "USD",
     )
     .await
     .unwrap();
@@ -99,7 +100,7 @@ async fn test_close_period_idempotent() {
     .await;
 
     // First close
-    let result1 = close_period(&pool, tenant_id, period_id, "user1", Some("First close"), false)
+    let result1 = close_period(&pool, tenant_id, period_id, "user1", Some("First close"), false, "USD")
         .await
         .unwrap();
 
@@ -112,7 +113,7 @@ async fn test_close_period_idempotent() {
     };
 
     // Second close (idempotent call)
-    let result2 = close_period(&pool, tenant_id, period_id, "user2", Some("Second close"), false)
+    let result2 = close_period(&pool, tenant_id, period_id, "user2", Some("Second close"), false, "USD")
         .await
         .unwrap();
 
@@ -188,7 +189,7 @@ async fn test_close_period_validation_failure() {
     .unwrap();
 
     // Try to close - should fail validation
-    let result = close_period(&pool, tenant_id, period_id, "admin", None, false)
+    let result = close_period(&pool, tenant_id, period_id, "admin", None, false, "USD")
         .await
         .unwrap();
 
@@ -228,7 +229,7 @@ async fn test_close_period_not_found() {
     let fake_period_id = Uuid::new_v4();
 
     // Try to close non-existent period
-    let result = close_period(&pool, tenant_id, fake_period_id, "admin", None, false)
+    let result = close_period(&pool, tenant_id, fake_period_id, "admin", None, false, "USD")
         .await
         .unwrap();
 
@@ -261,7 +262,7 @@ async fn test_close_period_tenant_isolation() {
     .await;
 
     // Try to close tenant A's period as tenant B
-    let result = close_period(&pool, tenant_b, period_id, "admin", None, false)
+    let result = close_period(&pool, tenant_b, period_id, "admin", None, false, "USD")
         .await
         .unwrap();
 
@@ -339,7 +340,7 @@ async fn test_close_period_with_balanced_entries() {
     .unwrap();
 
     // Close the period
-    let result = close_period(&pool, tenant_id, period_id, "system", Some("EOD close"), false)
+    let result = close_period(&pool, tenant_id, period_id, "system", Some("EOD close"), false, "USD")
         .await
         .unwrap();
 
@@ -427,19 +428,19 @@ async fn test_close_period_concurrency() {
     let tenant3 = tenant_id.to_string();
 
     let handle1 = tokio::spawn(async move {
-        close_period(&pool1, &tenant1, period_id, "user1", Some("Close 1"), false)
+        close_period(&pool1, &tenant1, period_id, "user1", Some("Close 1"), false, "USD")
             .await
             .unwrap()
     });
 
     let handle2 = tokio::spawn(async move {
-        close_period(&pool2, &tenant2, period_id, "user2", Some("Close 2"), false)
+        close_period(&pool2, &tenant2, period_id, "user2", Some("Close 2"), false, "USD")
             .await
             .unwrap()
     });
 
     let handle3 = tokio::spawn(async move {
-        close_period(&pool3, &tenant3, period_id, "user3", Some("Close 3"), false)
+        close_period(&pool3, &tenant3, period_id, "user3", Some("Close 3"), false, "USD")
             .await
             .unwrap()
     });

@@ -187,6 +187,14 @@ path = "tests/dunning_suspension_e2e.rs"
 name = "accrual_create_e2e"
 path = "tests/accrual_create_e2e.rs"
 
+[[test]]
+name = "fx_revaluation_e2e"
+path = "tests/fx_revaluation_e2e.rs"
+
+[[test]]
+name = "tax_jurisdiction_resolution_e2e"
+path = "tests/tax_jurisdiction_resolution_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
