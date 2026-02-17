@@ -249,13 +249,33 @@ pub async fn transition_to_succeeded(
         .execute(&mut *tx)
         .await?;
 
-    // 3. EMIT: Side effects go here (after mutation succeeds)
-    // 3. EMIT: Event emission (future bead - bd-1wg)
-    // When implemented, use enqueue_event_tx() for atomicity:
-    // use crate::events::outbox::enqueue_event_tx;
-    // let envelope = create_payments_envelope(...payment_succeeded_payload);
-    // enqueue_event_tx(&mut tx, "payment.succeeded", &envelope).await?;
-    // CRITICAL: Emit BEFORE tx.commit() to ensure atomicity
+    // 3. EMIT: Enqueue payment.succeeded event atomically within the same TX
+    let row: (String, Uuid, String) = sqlx::query_as(
+        "SELECT app_id, payment_id, invoice_id FROM payment_attempts WHERE id = $1"
+    )
+    .bind(attempt_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let (app_id, payment_id_val, invoice_id) = row;
+    let payload = crate::models::PaymentSucceededPayload {
+        payment_id: payment_id_val.to_string(),
+        invoice_id,
+        ar_customer_id: app_id.clone(),
+        amount_minor: 0,
+        currency: "USD".to_string(),
+        processor_payment_id: None,
+        payment_method_ref: None,
+    };
+    let envelope = crate::events::envelope::create_payments_envelope(
+        Uuid::new_v4(),
+        app_id,
+        "payment.succeeded".to_string(),
+        None,
+        None,
+        "STATE_TRANSITION".to_string(),
+        payload,
+    );
+    crate::events::outbox::enqueue_event_tx(&mut tx, "payment.succeeded", &envelope).await?;
 
     tx.commit().await?;
 

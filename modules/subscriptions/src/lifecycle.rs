@@ -170,11 +170,30 @@ pub async fn transition_to_past_due(
     // Mutation: Update status (within transaction)
     update_status_tx(&mut tx, subscription_id, SubscriptionStatus::PastDue).await?;
 
-    // Side Effect: Event emission (future implementation)
-    // When implemented, use crate::outbox::enqueue_event_tx(&mut tx, ...) BEFORE tx.commit()
-    // CRITICAL: Emit BEFORE tx.commit() to ensure atomicity
-    // - Emit subscriptions.status.changed event
-    // - Trigger payment retry notification
+    // Side Effect: Emit subscriptions.status.changed event atomically within the same TX
+    let tenant_id: String = sqlx::query_scalar(
+        "SELECT tenant_id FROM subscriptions WHERE id = $1"
+    )
+    .bind(subscription_id)
+    .fetch_one(&mut *tx)
+    .await?;
+    let status_payload = crate::models::SubscriptionStatusChangedPayload {
+        subscription_id: subscription_id.to_string(),
+        tenant_id: tenant_id.clone(),
+        from_status: current_status.as_str().to_string(),
+        to_status: SubscriptionStatus::PastDue.as_str().to_string(),
+        reason: reason.to_string(),
+    };
+    let envelope = crate::envelope::create_subscriptions_envelope(
+        uuid::Uuid::new_v4(),
+        tenant_id,
+        "subscriptions.status.changed".to_string(),
+        None,
+        None,
+        "STATE_TRANSITION".to_string(),
+        status_payload,
+    );
+    crate::outbox::enqueue_event_tx(&mut tx, "subscriptions.status.changed", &envelope).await?;
 
     tx.commit().await?;
     // - Emit subscriptions.status.changed event

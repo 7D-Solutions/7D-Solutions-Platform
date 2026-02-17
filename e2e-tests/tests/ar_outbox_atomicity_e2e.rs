@@ -19,6 +19,7 @@
 mod common;
 
 use anyhow::Result;
+use ar_rs::finalization::{finalize_invoice, FinalizationResult};
 use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_payments_pool, get_subscriptions_pool, get_gl_pool};
 use serial_test::serial;
 use sqlx::PgPool;
@@ -97,19 +98,14 @@ async fn count_outbox_rows_for_invoice(pool: &PgPool, invoice_id: i32) -> Result
     Ok(count)
 }
 
-/// Test current atomicity violation: Invoice finalization without outbox guarantee
+/// Test that AR invoice finalization atomically enqueues outbox events.
 ///
-/// **Expected Behavior (BEFORE FIX):**
-/// This test documents the current bug where invoice finalization can succeed
-/// while outbox event emission fails, violating the atomicity guarantee.
-///
-/// **Expected Behavior (AFTER FIX):**
-/// This test will verify that invoice finalization and outbox insert happen
-/// atomically in a single transaction.
+/// Calls the production `finalize_invoice()` function (bd-umnu fix) which wraps
+/// both the invoice status mutation and the outbox insert in a single transaction.
+/// If either fails, both roll back — no orphaned invoice state without events.
 #[tokio::test]
 #[serial]
 async fn test_ar_finalize_invoice_outbox_atomicity() -> Result<()> {
-    let test_id = "ar_outbox_atomicity";
     let tenant_id = generate_test_tenant();
 
     let ar_pool = get_ar_pool().await;
@@ -117,90 +113,50 @@ async fn test_ar_finalize_invoice_outbox_atomicity() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    // Clean up tenant data before test
     cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
         .await
         .map_err(|e| anyhow::anyhow!(e))?;
 
-    // Step 1: Create test customer
+    // Step 1: Create test customer + draft invoice
     let customer_id = create_ar_customer(&ar_pool, &tenant_id).await?;
-    println!("✅ Created customer {}", customer_id);
-
-    // Step 2: Create draft invoice
     let invoice_id = create_draft_invoice(&ar_pool, &tenant_id, customer_id, 5000).await?;
-    println!("✅ Created draft invoice {}", invoice_id);
+    println!("✅ Created customer {} + draft invoice {}", customer_id, invoice_id);
 
-    // Step 3: Verify initial state
-    let initial_status = get_invoice_status(&ar_pool, invoice_id).await?;
-    assert_eq!(initial_status, "draft", "Invoice should start in draft status");
+    // Verify initial state
+    assert_eq!(get_invoice_status(&ar_pool, invoice_id).await?, "draft");
+    assert_eq!(count_outbox_rows_for_invoice(&ar_pool, invoice_id).await?, 0,
+        "No outbox rows should exist before finalization");
 
-    let initial_outbox_count = count_outbox_rows_for_invoice(&ar_pool, invoice_id).await?;
-    assert_eq!(
-        initial_outbox_count, 0,
-        "No outbox rows should exist initially"
+    // Step 2: Call the production finalize_invoice() — atomically updates invoice + enqueues events
+    let result = finalize_invoice(&ar_pool, &tenant_id, invoice_id, 0)
+        .await
+        .map_err(|e| anyhow::anyhow!("finalize_invoice failed: {:?}", e))?;
+
+    assert!(
+        matches!(result, FinalizationResult::NewAttempt { .. }),
+        "Expected NewAttempt from first finalization, got {:?}", result
     );
+    println!("✅ finalize_invoice() succeeded (NewAttempt)");
 
-    // Step 4: Finalize invoice via HTTP API
-    // Note: We're directly updating the database here to simulate the finalization
-    // In a real E2E test, we'd call the HTTP API, but for simplicity we'll update directly
-    
-    // Simulate what finalize_invoice CURRENTLY does (without transaction):
-    // 1. Update invoice status
-    sqlx::query(
-        r#"
-        UPDATE ar_invoices 
-        SET status = 'open', updated_at = NOW()
-        WHERE id = $1
-        "#,
-    )
-    .bind(invoice_id)
-    .execute(&ar_pool)
-    .await?;
-
-    println!("✅ Finalized invoice {} (status updated to 'open')", invoice_id);
-
-    // 2. Try to insert outbox event (this happens AFTER, not atomically)
-    // For this test, we'll just check if an outbox row exists after finalization
-    
-    // Step 5: Check final state
-    let final_status = get_invoice_status(&ar_pool, invoice_id).await?;
+    // Step 3: Assert atomicity — both domain state and outbox must reflect finalization
     let final_outbox_count = count_outbox_rows_for_invoice(&ar_pool, invoice_id).await?;
 
     println!("\n📊 Atomicity Check:");
-    println!("  Invoice Status: {} -> {}", initial_status, final_status);
-    println!("  Outbox Rows: {} -> {}", initial_outbox_count, final_outbox_count);
+    println!("  Invoice status: draft -> attempting (finalized)");
+    println!("  Outbox rows: 0 -> {}", final_outbox_count);
 
-    // Step 6: Assert atomicity
-    // CURRENT BUG: Invoice is finalized (status='open') but outbox has no events
-    // AFTER FIX: If invoice is finalized, outbox MUST have corresponding events
-    
-    if final_status == "open" {
-        // Invoice was finalized - outbox MUST have events (payment.collection.requested + gl.posting.requested)
-        assert!(
-            final_outbox_count >= 1,
-            "❌ ATOMICITY VIOLATION: Invoice finalized but outbox has {} events (expected >= 1). \
-             This proves the bug: invoice mutation committed without outbox insert.",
-            final_outbox_count
-        );
-        println!("✅ Atomicity preserved: Invoice finalized AND outbox events created");
-    } else {
-        // Invoice was NOT finalized - outbox should have no events
-        assert_eq!(
-            final_outbox_count, 0,
-            "If invoice not finalized, outbox should have 0 events, found {}",
-            final_outbox_count
-        );
-        println!("✅ Atomicity preserved: Invoice not finalized AND no outbox events");
-    }
+    assert!(
+        final_outbox_count >= 1,
+        "❌ ATOMICITY VIOLATION: finalize_invoice() succeeded but outbox has {} events (expected >= 1). \
+         Guard->Mutation->Outbox must all commit atomically.",
+        final_outbox_count
+    );
 
-    // Clean up
+    println!("✅ Atomicity proven: invoice finalized AND {} outbox event(s) present", final_outbox_count);
+
     cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
         .await
         .map_err(|e| anyhow::anyhow!(e))?;
-
-    println!("\n🎯 Test Result: Atomicity verified!");
-    println!("   - Domain state and outbox are consistent");
-    println!("   - No orphaned invoice mutations");
 
     Ok(())
 }

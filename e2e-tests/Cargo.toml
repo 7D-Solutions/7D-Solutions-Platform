@@ -48,6 +48,26 @@ name = "audit_append_only_e2e"
 path = "tests/audit_append_only_e2e.rs"
 
 [[test]]
+name = "audit_actor_propagation_e2e"
+path = "tests/audit_actor_propagation_e2e.rs"
+
+[[test]]
+name = "audit_field_diff_e2e"
+path = "tests/audit_field_diff_e2e.rs"
+
+[[test]]
+name = "ar_outbox_atomicity_e2e"
+path = "tests/ar_outbox_atomicity_e2e.rs"
+
+[[test]]
+name = "payments_outbox_atomicity_e2e"
+path = "tests/payments_outbox_atomicity_e2e.rs"
+
+[[test]]
+name = "subscriptions_outbox_atomicity_e2e"
+path = "tests/subscriptions_outbox_atomicity_e2e.rs"
+
+[[test]]
 name = "release_provenance_smoke_e2e"
 path = "tests/release_provenance_smoke_e2e.rs"
 

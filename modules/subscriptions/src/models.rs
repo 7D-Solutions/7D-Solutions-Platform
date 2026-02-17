@@ -137,6 +137,15 @@ pub struct FinalizeInvoiceRequest {
 // ============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubscriptionStatusChangedPayload {
+    pub subscription_id: String,
+    pub tenant_id: String,
+    pub from_status: String,
+    pub to_status: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BillRunCompletedPayload {
     pub bill_run_id: String,
     pub subscriptions_processed: i32,

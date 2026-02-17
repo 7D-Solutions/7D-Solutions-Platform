@@ -93,7 +93,7 @@ async fn count_outbox_rows_for_subscription(pool: &PgPool, tenant_id: &str) -> R
 #[tokio::test]
 #[serial]
 async fn test_subscriptions_lifecycle_transition_outbox_atomicity() -> Result<()> {
-    let test_id = "subs_lifecycle_atomicity";
+    let _test_id = "subs_lifecycle_atomicity";
     let tenant_id = generate_test_tenant();
 
     let subscriptions_pool = get_subscriptions_pool().await;
@@ -120,17 +120,10 @@ async fn test_subscriptions_lifecycle_transition_outbox_atomicity() -> Result<()
         "No outbox rows should exist initially"
     );
 
-    // Step 3: Simulate subscription status transition (what lifecycle functions DO)
-    // Note: In real implementation, this would call transition_to_past_due()
-    // For this test, we simulate the CURRENT behavior (without transaction)
-    
-    sqlx::query(
-        "UPDATE subscriptions SET status = $1, updated_at = NOW() WHERE id = $2"
-    )
-    .bind("past_due")
-    .bind(subscription_id)
-    .execute(&subscriptions_pool)
-    .await?;
+    // Step 3: Call production lifecycle function — atomically transitions status + enqueues outbox event
+    subscriptions_rs::lifecycle::transition_to_past_due(subscription_id, "test past_due", &subscriptions_pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("transition_to_past_due failed: {:?}", e))?;
 
     println!("✅ Transitioned subscription {} to 'past_due'", subscription_id);
 

@@ -5,6 +5,7 @@
 
 pub mod config;
 pub mod cycle_gating;
+pub mod envelope;
 pub mod outbox;
 pub mod gated_invoice_creation;
 pub mod invariants;

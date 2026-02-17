@@ -91,7 +91,7 @@ async fn count_outbox_rows_for_payment(pool: &PgPool, payment_id: Uuid) -> Resul
 #[tokio::test]
 #[serial]
 async fn test_payments_status_transition_outbox_atomicity() -> Result<()> {
-    let test_id = "payments_outbox_atomicity";
+    let _test_id = "payments_outbox_atomicity";
     let tenant_id = generate_test_tenant();
 
     let payments_pool = get_payments_pool().await;
@@ -126,20 +126,10 @@ async fn test_payments_status_transition_outbox_atomicity() -> Result<()> {
         "No outbox rows should exist initially"
     );
 
-    // Step 3: Simulate payment status transition (what lifecycle functions DO)
-    // Note: In real implementation, this would call transition_to_succeeded()
-    // For this test, we simulate the CURRENT behavior (without transaction)
-    
-    sqlx::query(
-        r#"
-        UPDATE payment_attempts 
-        SET status = 'succeeded'::payment_attempt_status, completed_at = NOW()
-        WHERE id = $1
-        "#,
-    )
-    .bind(attempt_id)
-    .execute(&payments_pool)
-    .await?;
+    // Step 3: Call production lifecycle function — atomically transitions status + enqueues outbox event
+    payments_rs::lifecycle::transition_to_succeeded(&payments_pool, attempt_id, "test succeeded")
+        .await
+        .map_err(|e| anyhow::anyhow!("transition_to_succeeded failed: {:?}", e))?;
 
     println!("✅ Transitioned payment {} to 'succeeded'", attempt_id);
 
