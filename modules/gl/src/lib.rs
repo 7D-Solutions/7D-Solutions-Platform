@@ -9,6 +9,7 @@ pub mod health;
 pub mod invariants;
 pub mod metrics;
 pub mod repos;
+pub mod revrec;
 pub mod routes;
 pub mod services;
 pub mod validation;
