@@ -45,7 +45,11 @@
 //! ```
 
 pub mod cursor;
+pub mod fallback;
 pub mod metrics;
 
 // Re-export main types for convenience
 pub use cursor::{try_apply_event, CursorError, CursorResult, ProjectionCursor};
+pub use fallback::{
+    CircuitBreaker, FallbackError, FallbackMetrics, FallbackPolicy, FallbackResult,
+};
