@@ -1,3 +1,5 @@
+pub mod close_calendar;
+
 use event_bus::BusMessage;
 use serde::de::DeserializeOwned;
 use sqlx::PgPool;
