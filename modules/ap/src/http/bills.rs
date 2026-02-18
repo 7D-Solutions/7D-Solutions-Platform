@@ -1,8 +1,9 @@
-//! HTTP handlers for vendor bill CRUD.
+//! HTTP handlers for vendor bill CRUD and 3-way match.
 //!
-//! POST /api/ap/bills        — create a vendor bill
-//! GET  /api/ap/bills        — list bills for tenant (filter by vendor, voided)
-//! GET  /api/ap/bills/:id    — get a single bill with its line items
+//! POST /api/ap/bills              — create a vendor bill
+//! GET  /api/ap/bills              — list bills for tenant (filter by vendor, voided)
+//! GET  /api/ap/bills/:id          — get a single bill with its line items
+//! POST /api/ap/bills/:id/match    — run 3-way match engine for a bill
 
 use axum::{
     extract::{Path, Query, State},
@@ -16,6 +17,7 @@ use uuid::Uuid;
 use crate::domain::bills::{
     service, BillError, CreateBillRequest, VendorBill, VendorBillWithLines,
 };
+use crate::domain::r#match::{engine, MatchError, MatchOutcome, RunMatchRequest};
 use crate::http::vendors::ErrorBody;
 use crate::AppState;
 
@@ -165,4 +167,60 @@ pub async fn list_bills(
     .map_err(bill_error_response)?;
 
     Ok(Json(bills))
+}
+
+// ============================================================================
+// 3-way match
+// ============================================================================
+
+fn match_error_response(e: MatchError) -> (StatusCode, Json<ErrorBody>) {
+    match e {
+        MatchError::BillNotFound(id) => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorBody::new("bill_not_found", &format!("Bill {} not found", id))),
+        ),
+        MatchError::PoNotFound(id) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorBody::new("po_not_found", &format!("PO {} not found", id))),
+        ),
+        MatchError::InvalidBillStatus(s) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorBody::new(
+                "invalid_bill_status",
+                &format!("Bill status '{}' cannot be matched; must be 'open' or 'matched'", s),
+            )),
+        ),
+        MatchError::NoMatchableLines => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorBody::new("no_matchable_lines", "Bill has no lines")),
+        ),
+        MatchError::Validation(msg) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorBody::new("validation_error", &msg)),
+        ),
+        MatchError::Database(e) => {
+            tracing::error!("AP match DB error: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorBody::new("database_error", "Internal database error")),
+            )
+        }
+    }
+}
+
+/// POST /api/ap/bills/:bill_id/match — run 3-way match engine for a bill
+pub async fn match_bill(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(bill_id): Path<Uuid>,
+    Json(req): Json<RunMatchRequest>,
+) -> Result<(StatusCode, Json<MatchOutcome>), (StatusCode, Json<ErrorBody>)> {
+    let tenant_id = tenant_from_headers(&headers)?;
+    let correlation_id = correlation_from_headers(&headers);
+
+    let outcome = engine::run_match(&state.pool, &tenant_id, bill_id, &req, correlation_id)
+        .await
+        .map_err(match_error_response)?;
+
+    Ok((StatusCode::OK, Json(outcome)))
 }

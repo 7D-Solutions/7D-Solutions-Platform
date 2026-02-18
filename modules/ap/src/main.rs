@@ -129,6 +129,7 @@ async fn main() {
             post(http::bills::create_bill).get(http::bills::list_bills),
         )
         .route("/api/ap/bills/{bill_id}", get(http::bills::get_bill))
+        .route("/api/ap/bills/{bill_id}/match", post(http::bills::match_bill))
         .with_state(app_state)
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
