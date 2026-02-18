@@ -6,6 +6,18 @@
 - Do NOT ask the user what to do. Work autonomously.
 - Keep commits small and focused.
 
+## Cargo Build Slots (MANDATORY)
+
+**Never call `cargo` directly.** Use the slot system to avoid build lock contention:
+
+```bash
+./scripts/cargo-slot.sh test -p inventory-rs    # instead of: cargo test -p inventory-rs
+./scripts/cargo-slot.sh build -p inventory-rs   # instead of: cargo build -p inventory-rs
+./scripts/cargo-slot.sh test --workspace         # instead of: cargo test --workspace
+```
+
+This routes through 2 independent build slots so multiple agents can compile in parallel. If both slots are busy, the script waits automatically.
+
 ## File Size Limit
 
 Keep source files under 500 LOC. If a file would exceed 500 LOC after your changes, split it into logical modules first. Files over 500 LOC without an entry in `.file-size-allowlist` will fail CI.

@@ -1,0 +1,11 @@
+#!/bin/bash
+# Cargo shim — transparently routes all cargo commands through the slot system.
+# Agents and scripts call `cargo test ...` as normal; this shim redirects
+# through cargo-slot.sh so two compiles can run in parallel.
+#
+# Activated by prepending this directory to PATH in agent-runner.sh.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+exec "$WORKSPACE_ROOT/scripts/cargo-slot.sh" "$@"
