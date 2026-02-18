@@ -5,7 +5,7 @@
 
 use super::period_close_snapshot::create_close_snapshot;
 use super::period_close_validation::{
-    has_blocking_errors, validate_period_can_close, PeriodCloseError,
+    check_close_checklist_gate, has_blocking_errors, validate_period_can_close, PeriodCloseError,
 };
 use crate::contracts::period_close_v1::{CloseStatus, ValidationIssue, ValidationReport, ValidationSeverity};
 use chrono::{DateTime, NaiveDate, Utc};
@@ -154,6 +154,27 @@ pub async fn close_period(
                 requested_at: period.close_requested_at,
             }),
             validation_report: None,
+            timestamp: Utc::now(),
+        });
+    }
+
+    // ========================================
+    // STEP 2b: Check pre-close checklist gate (Phase 31, bd-bfa3)
+    // ========================================
+    // If checklist items exist, ALL must be complete/waived and at least
+    // one approval signoff must be recorded. If no items → gate passes.
+    let gate_issues = check_close_checklist_gate(&mut tx, tenant_id, period_id).await?;
+    if !gate_issues.is_empty() {
+        tx.rollback().await?;
+
+        return Ok(ClosePeriodResult {
+            period_id,
+            tenant_id: tenant_id.to_string(),
+            success: false,
+            close_status: None,
+            validation_report: Some(ValidationReport {
+                issues: gate_issues,
+            }),
             timestamp: Utc::now(),
         });
     }

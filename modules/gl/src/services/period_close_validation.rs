@@ -250,3 +250,78 @@ pub fn has_blocking_errors(report: &ValidationReport) -> bool {
         .iter()
         .any(|issue| matches!(issue.severity, ValidationSeverity::Error))
 }
+
+// ============================================================
+// Pre-Close Checklist Gate (Phase 31, bd-bfa3)
+// ============================================================
+
+/// Checklist gate status for pre-close validation
+#[derive(Debug, sqlx::FromRow)]
+struct ChecklistGateCounts {
+    pub total_items: i64,
+    pub pending_items: i64,
+    pub approval_count: i64,
+}
+
+/// Check the pre-close checklist gate for a period.
+///
+/// Gate logic:
+/// - If no checklist items exist → gate passes (no checklist configured)
+/// - If checklist items exist → ALL must be 'complete' or 'waived'
+/// - If checklist items exist → at least one approval signoff required
+///
+/// Returns validation issues (empty if gate passes).
+pub async fn check_close_checklist_gate(
+    tx: &mut Transaction<'_, Postgres>,
+    tenant_id: &str,
+    period_id: Uuid,
+) -> Result<Vec<ValidationIssue>, PeriodCloseError> {
+    let mut issues = Vec::new();
+
+    let counts = sqlx::query_as::<_, ChecklistGateCounts>(
+        r#"
+        SELECT
+            (SELECT COUNT(*) FROM close_checklist_items
+             WHERE tenant_id = $1 AND period_id = $2) AS total_items,
+            (SELECT COUNT(*) FROM close_checklist_items
+             WHERE tenant_id = $1 AND period_id = $2 AND status = 'pending') AS pending_items,
+            (SELECT COUNT(*) FROM close_approvals
+             WHERE tenant_id = $1 AND period_id = $2) AS approval_count
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(period_id)
+    .fetch_one(&mut **tx)
+    .await?;
+
+    // No checklist configured → gate passes
+    if counts.total_items == 0 {
+        return Ok(issues);
+    }
+
+    if counts.pending_items > 0 {
+        issues.push(ValidationIssue {
+            severity: ValidationSeverity::Error,
+            code: "CHECKLIST_INCOMPLETE".to_string(),
+            message: format!(
+                "Pre-close checklist has {} pending item(s) out of {} total",
+                counts.pending_items, counts.total_items
+            ),
+            metadata: Some(serde_json::json!({
+                "total_items": counts.total_items,
+                "pending_items": counts.pending_items,
+            })),
+        });
+    }
+
+    if counts.approval_count == 0 {
+        issues.push(ValidationIssue {
+            severity: ValidationSeverity::Error,
+            code: "APPROVAL_MISSING".to_string(),
+            message: "No approval signoffs recorded — at least one required when checklist is configured".to_string(),
+            metadata: None,
+        });
+    }
+
+    Ok(issues)
+}
