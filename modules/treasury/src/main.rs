@@ -117,6 +117,11 @@ async fn main() {
             "/api/treasury/accounts/:id/deactivate",
             post(http::accounts::deactivate_account),
         )
+        // Statement import
+        .route(
+            "/api/treasury/statements/import",
+            post(http::import::import_statement),
+        )
         .with_state(app_state)
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.8"
+axum = { version = "0.8", features = ["multipart"] }
 tokio = { version = "1", features = ["full"] }
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "chrono", "migrate", "uuid"] }
 serde = { version = "1", features = ["derive"] }
@@ -20,6 +20,7 @@ uuid = { version = "1", features = ["v4", "v5", "serde"] }
 event-bus = { path = "../../platform/event-bus" }
 async-nats = "0.33"
 futures = "0.3"
+csv = "1"
 prometheus = "0.13"
 
 [dev-dependencies]
