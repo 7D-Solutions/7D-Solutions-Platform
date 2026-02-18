@@ -1,6 +1,7 @@
 pub mod config;
 pub mod consolidate;
 pub mod intercompany;
+pub mod statements;
 
 use axum::{
     routing::{delete, get, post, put},
@@ -112,6 +113,15 @@ pub fn router() -> Router<Arc<AppState>> {
         .route(
             "/api/consolidation/groups/{group_id}/eliminations",
             post(intercompany::post_eliminations),
+        )
+        // Consolidated financial statements
+        .route(
+            "/api/consolidation/groups/{group_id}/pl",
+            get(statements::get_consolidated_pl),
+        )
+        .route(
+            "/api/consolidation/groups/{group_id}/balance-sheet",
+            get(statements::get_consolidated_bs),
         )
         // Validation
         .route(
