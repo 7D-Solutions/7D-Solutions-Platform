@@ -151,6 +151,10 @@ async fn main() {
             "/api/ap/payment-runs/{run_id}",
             get(http::payment_runs::get_run),
         )
+        .route(
+            "/api/ap/payment-runs/{run_id}/execute",
+            post(http::payment_runs::execute_run),
+        )
         // Reports
         .route("/api/ap/aging", get(http::reports::aging_report))
         .with_state(app_state)

@@ -15,7 +15,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::payment_runs::{
-    builder::create_payment_run, CreatePaymentRunRequest, PaymentRunError,
+    builder::create_payment_run,
+    execute::execute_payment_run,
+    CreatePaymentRunRequest, PaymentRunError,
 };
 use crate::http::vendors::ErrorBody;
 use crate::AppState;
@@ -70,6 +72,20 @@ fn run_error_response(e: PaymentRunError) -> (StatusCode, Json<ErrorBody>) {
             Json(ErrorBody::new(
                 "duplicate_run_id",
                 &format!("Payment run {} already exists for a different tenant", id),
+            )),
+        ),
+        PaymentRunError::RunNotFound(id) => (
+            StatusCode::NOT_FOUND,
+            Json(ErrorBody::new(
+                "not_found",
+                &format!("Payment run {} not found", id),
+            )),
+        ),
+        PaymentRunError::RunNotPending(status) => (
+            StatusCode::CONFLICT,
+            Json(ErrorBody::new(
+                "invalid_status",
+                &format!("Payment run cannot be executed in status '{}'", status),
             )),
         ),
         PaymentRunError::Validation(msg) => (
@@ -230,5 +246,48 @@ pub async fn get_run(
         "created_at": run.created_at,
         "executed_at": run.executed_at,
         "items": items_json,
+    })))
+}
+
+/// POST /api/ap/payment-runs/:run_id/execute
+///
+/// Execute a payment run: submit payments to the disbursement layer,
+/// record allocations, mark bills paid, and emit `ap.payment_executed` events.
+///
+/// Idempotent: calling this endpoint on an already-completed run returns the
+/// existing execution state with 200 OK.
+pub async fn execute_run(
+    State(state): State<Arc<AppState>>,
+    Path(run_id): Path<Uuid>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorBody>)> {
+    let tenant_id = tenant_from_headers(&headers)?;
+
+    let result = execute_payment_run(&state.pool, &tenant_id, run_id)
+        .await
+        .map_err(run_error_response)?;
+
+    let executions_json: Vec<serde_json::Value> = result
+        .executions
+        .iter()
+        .map(|e| {
+            json!({
+                "id": e.id,
+                "item_id": e.item_id,
+                "payment_id": e.payment_id,
+                "vendor_id": e.vendor_id,
+                "amount_minor": e.amount_minor,
+                "currency": e.currency,
+                "status": e.status,
+                "executed_at": e.executed_at,
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({
+        "run_id": result.run.run_id,
+        "status": result.run.status,
+        "executed_at": result.run.executed_at,
+        "executions": executions_json,
     })))
 }

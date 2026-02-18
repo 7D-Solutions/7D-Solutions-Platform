@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 pub mod builder;
+pub mod execute;
 
 // ============================================================================
 // Domain types
@@ -108,6 +109,12 @@ pub enum PaymentRunError {
 
     #[error("payment run {0} already exists")]
     DuplicateRunId(Uuid),
+
+    #[error("payment run {0} not found")]
+    RunNotFound(Uuid),
+
+    #[error("payment run cannot be executed in status '{0}'")]
+    RunNotPending(String),
 
     #[error("validation error: {0}")]
     Validation(String),
