@@ -11,6 +11,7 @@ use inventory_rs::{
         health::{health, ready, version},
         items::{create_item, deactivate_item, update_item},
         receipts::post_receipt,
+        reservations::{post_release, post_reserve},
     },
     AppState, Config,
 };
@@ -58,13 +59,22 @@ async fn main() {
         .route("/metrics", get(metrics_handler))
         // Item master
         .route("/api/inventory/items", axum::routing::post(create_item))
-        .route("/api/inventory/items/:id", axum::routing::put(update_item))
+        .route("/api/inventory/items/{id}", axum::routing::put(update_item))
         .route(
-            "/api/inventory/items/:id/deactivate",
+            "/api/inventory/items/{id}/deactivate",
             axum::routing::post(deactivate_item),
         )
         // Stock receipts
         .route("/api/inventory/receipts", axum::routing::post(post_receipt))
+        // Reservations (compensating model: reserve + release)
+        .route(
+            "/api/inventory/reservations/reserve",
+            axum::routing::post(post_reserve),
+        )
+        .route(
+            "/api/inventory/reservations/release",
+            axum::routing::post(post_release),
+        )
         .with_state(app_state)
         .layer(
             CorsLayer::new()
