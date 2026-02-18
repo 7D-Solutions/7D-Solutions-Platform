@@ -1,4 +1,4 @@
-//! HTTP handlers for vendor bill CRUD, 3-way match, approval, and void.
+//! HTTP handlers for vendor bill CRUD, 3-way match, approval, void, and tax.
 //!
 //! POST /api/ap/bills              — create a vendor bill
 //! GET  /api/ap/bills              — list bills for tenant (filter by vendor, voided)
@@ -6,6 +6,7 @@
 //! POST /api/ap/bills/:id/match    — run 3-way match engine for a bill
 //! POST /api/ap/bills/:id/approve  — approve a bill (enforces match policy)
 //! POST /api/ap/bills/:id/void     — void a bill (requires reason)
+//! POST /api/ap/bills/:id/tax-quote — quote tax for a bill draft
 
 use axum::{
     extract::{Path, Query, State},
@@ -21,6 +22,7 @@ use crate::domain::bills::{
     VendorBillWithLines, VoidBillRequest,
 };
 use crate::domain::r#match::{engine, MatchError, MatchOutcome, RunMatchRequest};
+use crate::domain::tax::{self, ApTaxSnapshot, ZeroTaxProvider};
 use crate::http::vendors::ErrorBody;
 use crate::AppState;
 
@@ -88,6 +90,10 @@ fn bill_error_response(e: BillError) -> (StatusCode, Json<ErrorBody>) {
         BillError::MatchPolicyViolation(msg) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorBody::new("match_policy_violation", &msg)),
+        ),
+        BillError::TaxError(msg) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorBody::new("tax_error", &msg)),
         ),
         BillError::Database(e) => {
             tracing::error!("AP bills DB error: {}", e);
@@ -189,10 +195,18 @@ pub async fn approve_bill(
 ) -> Result<Json<VendorBill>, (StatusCode, Json<ErrorBody>)> {
     let tenant_id = tenant_from_headers(&headers)?;
     let correlation_id = correlation_from_headers(&headers);
+    let provider = ZeroTaxProvider;
 
-    let bill = approve::approve_bill(&state.pool, &tenant_id, bill_id, &req, correlation_id)
-        .await
-        .map_err(bill_error_response)?;
+    let bill = approve::approve_bill(
+        &state.pool,
+        &provider,
+        &tenant_id,
+        bill_id,
+        &req,
+        correlation_id,
+    )
+    .await
+    .map_err(bill_error_response)?;
 
     Ok(Json(bill))
 }
@@ -206,12 +220,86 @@ pub async fn void_bill(
 ) -> Result<Json<VendorBill>, (StatusCode, Json<ErrorBody>)> {
     let tenant_id = tenant_from_headers(&headers)?;
     let correlation_id = correlation_from_headers(&headers);
+    let provider = ZeroTaxProvider;
 
-    let bill = void::void_bill(&state.pool, &tenant_id, bill_id, &req, correlation_id)
-        .await
-        .map_err(bill_error_response)?;
+    let bill =
+        void::void_bill(&state.pool, &provider, &tenant_id, bill_id, &req, correlation_id)
+            .await
+            .map_err(bill_error_response)?;
 
     Ok(Json(bill))
+}
+
+// ============================================================================
+// Tax quote
+// ============================================================================
+
+/// Request body for quoting tax on a bill draft.
+#[derive(Debug, Deserialize)]
+pub struct BillTaxQuoteRequest {
+    /// Destination address (company's receiving location)
+    pub ship_to: tax_core::TaxAddress,
+    /// Origin address (vendor's shipping location)
+    pub ship_from: tax_core::TaxAddress,
+}
+
+/// POST /api/ap/bills/:bill_id/tax-quote — quote tax for a bill draft
+pub async fn quote_bill_tax(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(bill_id): Path<Uuid>,
+    Json(req): Json<BillTaxQuoteRequest>,
+) -> Result<Json<ApTaxSnapshot>, (StatusCode, Json<ErrorBody>)> {
+    let tenant_id = tenant_from_headers(&headers)?;
+    let correlation_id = correlation_from_headers(&headers);
+
+    // Fetch the bill and its lines to build the tax quote request
+    let bill_with_lines = service::get_bill(&state.pool, &tenant_id, bill_id)
+        .await
+        .map_err(bill_error_response)?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(ErrorBody::new("bill_not_found", &format!("Bill {} not found", bill_id))),
+            )
+        })?;
+
+    let line_items: Vec<tax_core::TaxLineItem> = bill_with_lines
+        .lines
+        .iter()
+        .map(|l| tax_core::TaxLineItem {
+            line_id: l.line_id.to_string(),
+            description: l.description.clone(),
+            amount_minor: l.line_total_minor,
+            currency: bill_with_lines.bill.currency.clone(),
+            tax_code: None,
+            quantity: l.quantity,
+        })
+        .collect();
+
+    let tax_req = tax_core::TaxQuoteRequest {
+        tenant_id: tenant_id.clone(),
+        invoice_id: bill_id.to_string(),
+        customer_id: bill_with_lines.bill.vendor_id.to_string(),
+        ship_to: req.ship_to,
+        ship_from: req.ship_from,
+        line_items,
+        currency: bill_with_lines.bill.currency.clone(),
+        invoice_date: bill_with_lines.bill.invoice_date,
+        correlation_id,
+    };
+
+    let provider = ZeroTaxProvider;
+    let snapshot = tax::quote_bill_tax(&state.pool, &provider, "zero", &tenant_id, bill_id, tax_req)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(ErrorBody::new("tax_error", &e.to_string())),
+            )
+        })?;
+
+    Ok(Json(snapshot))
 }
 
 // ============================================================================

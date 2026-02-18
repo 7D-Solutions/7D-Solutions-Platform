@@ -45,6 +45,9 @@ pub enum BillError {
     #[error("Match policy violation: {0}")]
     MatchPolicyViolation(String),
 
+    #[error("Tax error: {0}")]
+    TaxError(String),
+
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 }

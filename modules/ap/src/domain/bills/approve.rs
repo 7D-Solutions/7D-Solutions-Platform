@@ -18,6 +18,9 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use tax_core::{TaxCommitRequest, TaxProvider};
+
+use crate::domain::tax::models::ApTaxSnapshot;
 use crate::events::{
     build_vendor_bill_approved_envelope, ApprovedGlLine, VendorBillApprovedPayload,
     EVENT_TYPE_VENDOR_BILL_APPROVED,
@@ -41,6 +44,7 @@ use super::{ApproveBillRequest, BillError, VendorBill};
 /// Idempotent: if already 'approved', returns the current bill state (no re-emit).
 pub async fn approve_bill(
     pool: &PgPool,
+    tax_provider: &(impl TaxProvider + ?Sized),
     tenant_id: &str,
     bill_id: Uuid,
     req: &ApproveBillRequest,
@@ -96,6 +100,46 @@ pub async fn approve_bill(
 
     // Guard: enforce match policy (read against pool; bill lock prevents concurrent match)
     check_match_policy(pool, bill_id, &row.status, &req.override_reason).await?;
+
+    // Tax: commit any quoted tax snapshot for this bill.
+    // If no snapshot exists, the bill is non-taxable — proceed normally.
+    // If a snapshot is already committed, this is idempotent.
+    let tax_snap: Option<ApTaxSnapshot> = sqlx::query_as(
+        "SELECT id, bill_id, tenant_id, provider, provider_quote_ref, provider_commit_ref, \
+         quote_hash, total_tax_minor, tax_by_line, status, quoted_at, committed_at, \
+         voided_at, void_reason, created_at, updated_at \
+         FROM ap_tax_snapshots WHERE bill_id = $1 AND status != 'voided' LIMIT 1",
+    )
+    .bind(bill_id)
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    if let Some(snap) = &tax_snap {
+        if snap.status == "quoted" {
+            let commit_req = TaxCommitRequest {
+                tenant_id: tenant_id.to_string(),
+                invoice_id: bill_id.to_string(),
+                provider_quote_ref: snap.provider_quote_ref.clone(),
+                correlation_id: correlation_id.clone(),
+            };
+            let commit_resp = tax_provider
+                .commit_tax(commit_req)
+                .await
+                .map_err(|e| BillError::TaxError(format!("tax commit failed: {}", e)))?;
+
+            sqlx::query(
+                "UPDATE ap_tax_snapshots \
+                 SET status = 'committed', provider_commit_ref = $1, \
+                     committed_at = $2, updated_at = NOW() \
+                 WHERE id = $3",
+            )
+            .bind(&commit_resp.provider_commit_ref)
+            .bind(commit_resp.committed_at)
+            .bind(snap.id)
+            .execute(&mut *tx)
+            .await?;
+        }
+    }
 
     let now = Utc::now();
     let event_id = Uuid::new_v4();
@@ -189,6 +233,7 @@ mod tests {
         approve_req, cleanup, create_bill_with_line, create_vendor, insert_match_record,
         make_pool,
     };
+    use crate::domain::tax::ZeroTaxProvider;
     use serial_test::serial;
 
     const TEST_TENANT: &str = "test-tenant-approve-bill";
@@ -202,7 +247,7 @@ mod tests {
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "matched").await;
         insert_match_record(&db, bill_id, true).await;
 
-        let result = approve_bill(&db, TEST_TENANT, bill_id, &approve_req(None), "corr-1".to_string())
+        let result = approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-1".to_string())
             .await
             .expect("approve failed");
 
@@ -231,7 +276,7 @@ mod tests {
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "matched").await;
         insert_match_record(&db, bill_id, true).await;
 
-        approve_bill(&db, TEST_TENANT, bill_id, &approve_req(None), "corr-gllines".to_string())
+        approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-gllines".to_string())
             .await
             .expect("approve failed");
 
@@ -263,7 +308,7 @@ mod tests {
         let vendor_id = create_vendor(&db, TEST_TENANT).await;
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "open").await;
 
-        let result = approve_bill(&db, TEST_TENANT, bill_id, &approve_req(None), "corr-2".to_string()).await;
+        let result = approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-2".to_string()).await;
 
         assert!(
             matches!(result, Err(BillError::MatchPolicyViolation(_))),
@@ -284,6 +329,7 @@ mod tests {
 
         let result = approve_bill(
             &db,
+            &ZeroTaxProvider,
             TEST_TENANT,
             bill_id,
             &approve_req(Some("spot purchase, no PO required")),
@@ -306,7 +352,7 @@ mod tests {
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "matched").await;
         insert_match_record(&db, bill_id, false).await; // within_tolerance = false
 
-        let result = approve_bill(&db, TEST_TENANT, bill_id, &approve_req(None), "corr-4".to_string()).await;
+        let result = approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-4".to_string()).await;
 
         assert!(
             matches!(result, Err(BillError::MatchPolicyViolation(_))),
@@ -328,6 +374,7 @@ mod tests {
 
         let result = approve_bill(
             &db,
+            &ZeroTaxProvider,
             TEST_TENANT,
             bill_id,
             &approve_req(Some("price variance pre-approved by CFO")),
@@ -350,11 +397,11 @@ mod tests {
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "matched").await;
         insert_match_record(&db, bill_id, true).await;
 
-        approve_bill(&db, TEST_TENANT, bill_id, &approve_req(None), "corr-6a".to_string())
+        approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-6a".to_string())
             .await
             .expect("first approve");
 
-        let second = approve_bill(&db, TEST_TENANT, bill_id, &approve_req(None), "corr-6b".to_string())
+        let second = approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-6b".to_string())
             .await
             .expect("second approve must succeed (idempotent)");
 
@@ -382,7 +429,7 @@ mod tests {
         let vendor_id = create_vendor(&db, TEST_TENANT).await;
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "paid").await;
 
-        let result = approve_bill(&db, TEST_TENANT, bill_id, &approve_req(None), "corr-7".to_string()).await;
+        let result = approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-7".to_string()).await;
 
         assert!(
             matches!(result, Err(BillError::InvalidTransition { .. })),
@@ -402,7 +449,7 @@ mod tests {
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "matched").await;
         insert_match_record(&db, bill_id, true).await;
 
-        let result = approve_bill(&db, "wrong-tenant", bill_id, &approve_req(None), "corr-8".to_string()).await;
+        let result = approve_bill(&db, &ZeroTaxProvider, "wrong-tenant", bill_id, &approve_req(None), "corr-8".to_string()).await;
 
         assert!(
             matches!(result, Err(BillError::NotFound(_))),

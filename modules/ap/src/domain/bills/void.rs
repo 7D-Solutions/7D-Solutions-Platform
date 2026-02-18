@@ -18,6 +18,8 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use tax_core::TaxProvider;
+
 use crate::events::{
     build_vendor_bill_voided_envelope, VendorBillVoidedPayload,
     EVENT_TYPE_VENDOR_BILL_VOIDED, EVENT_TYPE_VENDOR_BILL_CREATED,
@@ -52,6 +54,7 @@ struct BillHeaderRow {
 /// Idempotent: if already 'voided', returns the current bill state (no re-emit).
 pub async fn void_bill(
     pool: &PgPool,
+    tax_provider: &(impl TaxProvider + ?Sized),
     tenant_id: &str,
     bill_id: Uuid,
     req: &VoidBillRequest,
@@ -103,6 +106,19 @@ pub async fn void_bill(
             to: "voided".to_string(),
         });
     }
+
+    // Tax: void any active tax snapshot for this bill.
+    // If no snapshot exists, the bill is non-taxable — proceed normally.
+    crate::domain::tax::void_bill_tax(
+        pool,
+        tax_provider,
+        tenant_id,
+        bill_id,
+        req.void_reason.trim(),
+        &correlation_id,
+    )
+    .await
+    .map_err(|e| BillError::TaxError(format!("tax void failed: {}", e)))?;
 
     let now = Utc::now();
     let event_id = Uuid::new_v4();
@@ -185,6 +201,7 @@ pub async fn void_bill(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::domain::tax::ZeroTaxProvider;
     use serial_test::serial;
 
     const TEST_TENANT: &str = "test-tenant-void-bill";
@@ -262,7 +279,7 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "open").await;
 
-        let result = void_bill(&db, TEST_TENANT, bill_id, &void_req(), "corr-v1".to_string())
+        let result = void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v1".to_string())
             .await
             .expect("void_bill failed");
 
@@ -290,7 +307,7 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "approved").await;
 
-        let result = void_bill(&db, TEST_TENANT, bill_id, &void_req(), "corr-v2".to_string())
+        let result = void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v2".to_string())
             .await
             .expect("void approved bill failed");
 
@@ -307,7 +324,7 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "paid").await;
 
-        let result = void_bill(&db, TEST_TENANT, bill_id, &void_req(), "corr-v3".to_string()).await;
+        let result = void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v3".to_string()).await;
 
         assert!(
             matches!(result, Err(BillError::InvalidTransition { .. })),
@@ -326,11 +343,11 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "open").await;
 
-        void_bill(&db, TEST_TENANT, bill_id, &void_req(), "corr-v4a".to_string())
+        void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v4a".to_string())
             .await
             .expect("first void");
 
-        let second = void_bill(&db, TEST_TENANT, bill_id, &void_req(), "corr-v4b".to_string())
+        let second = void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v4b".to_string())
             .await
             .expect("second void must succeed (idempotent)");
 
@@ -358,7 +375,7 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "open").await;
 
-        let result = void_bill(&db, "wrong-tenant", bill_id, &void_req(), "corr-v5".to_string()).await;
+        let result = void_bill(&db, &ZeroTaxProvider, "wrong-tenant", bill_id, &void_req(), "corr-v5".to_string()).await;
 
         assert!(
             matches!(result, Err(BillError::NotFound(_))),
@@ -377,7 +394,7 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "open").await;
 
-        void_bill(&db, TEST_TENANT, bill_id, &void_req(), "corr-v6".to_string())
+        void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v6".to_string())
             .await
             .expect("void failed");
 

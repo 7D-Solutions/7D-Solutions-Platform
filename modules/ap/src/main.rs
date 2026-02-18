@@ -132,6 +132,7 @@ async fn main() {
         .route("/api/ap/bills/{bill_id}/match", post(http::bills::match_bill))
         .route("/api/ap/bills/{bill_id}/approve", post(http::bills::approve_bill))
         .route("/api/ap/bills/{bill_id}/void", post(http::bills::void_bill))
+        .route("/api/ap/bills/{bill_id}/tax-quote", post(http::bills::quote_bill_tax))
         // Bill allocations (append-only payment application)
         .route(
             "/api/ap/bills/{bill_id}/allocations",
