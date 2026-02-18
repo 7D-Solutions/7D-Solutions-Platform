@@ -109,6 +109,12 @@ async fn main() {
             "/api/ap/vendors/:vendor_id/deactivate",
             post(http::vendors::deactivate_vendor),
         )
+        // Vendor bills
+        .route(
+            "/api/ap/bills",
+            post(http::bills::create_bill).get(http::bills::list_bills),
+        )
+        .route("/api/ap/bills/:bill_id", get(http::bills::get_bill))
         .with_state(app_state)
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();

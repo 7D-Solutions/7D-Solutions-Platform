@@ -77,7 +77,7 @@ pub struct ErrorBody {
 }
 
 impl ErrorBody {
-    fn new(error: &str, message: &str) -> Self {
+    pub fn new(error: &str, message: &str) -> Self {
         Self {
             error: error.to_string(),
             message: message.to_string(),

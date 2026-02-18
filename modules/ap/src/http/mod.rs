@@ -1,3 +1,4 @@
+pub mod bills;
 pub mod vendors;
 
 use axum::{extract::State, http::StatusCode, Json};
