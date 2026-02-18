@@ -1,5 +1,6 @@
 pub mod config;
 pub mod db;
+pub mod domain;
 pub mod events;
 pub mod metrics;
 pub mod routes;

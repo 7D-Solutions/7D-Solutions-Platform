@@ -7,7 +7,10 @@ use tracing_subscriber::EnvFilter;
 use inventory_rs::{
     db::resolver::resolve_pool,
     metrics::{metrics_handler, InventoryMetrics},
-    routes::health::{health, ready, version},
+    routes::{
+        health::{health, ready, version},
+        items::{create_item, deactivate_item, update_item},
+    },
     AppState, Config,
 };
 
@@ -52,6 +55,13 @@ async fn main() {
         .route("/api/ready", get(ready))
         .route("/api/version", get(version))
         .route("/metrics", get(metrics_handler))
+        // Item master
+        .route("/api/inventory/items", axum::routing::post(create_item))
+        .route("/api/inventory/items/:id", axum::routing::put(update_item))
+        .route(
+            "/api/inventory/items/:id/deactivate",
+            axum::routing::post(deactivate_item),
+        )
         .with_state(app_state)
         .layer(
             CorsLayer::new()
