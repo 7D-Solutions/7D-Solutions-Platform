@@ -1,4 +1,4 @@
-use axum::{http::Method, routing::get, Router};
+use axum::{http::Method, routing::{get, post}, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -96,6 +96,19 @@ async fn main() {
         .route("/api/ready", get(http::ready))
         .route("/api/version", get(http::version))
         .route("/metrics", get(metrics::metrics_handler))
+        // Bank accounts
+        .route(
+            "/api/treasury/accounts",
+            post(http::accounts::create_account).get(http::accounts::list_accounts),
+        )
+        .route(
+            "/api/treasury/accounts/:id",
+            get(http::accounts::get_account).put(http::accounts::update_account),
+        )
+        .route(
+            "/api/treasury/accounts/:id/deactivate",
+            post(http::accounts::deactivate_account),
+        )
         .with_state(app_state)
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
