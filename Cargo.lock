@@ -97,6 +97,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5f0e0fee31ef5ed1ba1316088939cea399010ed7731dba877ed44aeb407a75ea"
 
 [[package]]
+name = "ap"
+version = "0.1.0"
+dependencies = [
+ "async-nats 0.33.0",
+ "axum 0.8.8",
+ "chrono",
+ "dotenvy",
+ "event-bus",
+ "futures",
+ "prometheus",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "ar-rs"
 version = "0.1.0"
 dependencies = [
@@ -978,6 +1002,7 @@ name = "e2e-tests"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ap",
  "ar-rs",
  "async-nats 0.33.0",
  "audit",
@@ -992,6 +1017,7 @@ dependencies = [
  "hex",
  "hmac",
  "inventory-rs",
+ "notifications-rs",
  "payments-rs",
  "projections",
  "rand 0.8.5",
@@ -4364,6 +4390,30 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-serde",
+]
+
+[[package]]
+name = "treasury"
+version = "0.1.0"
+dependencies = [
+ "async-nats 0.33.0",
+ "axum 0.8.8",
+ "chrono",
+ "dotenvy",
+ "event-bus",
+ "futures",
+ "prometheus",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
