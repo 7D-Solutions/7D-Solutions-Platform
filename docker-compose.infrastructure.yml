@@ -268,6 +268,32 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  inventory-postgres:
+    container_name: 7d-inventory-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5442:5432"
+    environment:
+      POSTGRES_DB: ${INVENTORY_POSTGRES_DB:-inventory_db}
+      POSTGRES_USER: ${INVENTORY_POSTGRES_USER:-inventory_user}
+      POSTGRES_PASSWORD: ${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}
+    volumes:
+      - inventory_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${INVENTORY_POSTGRES_USER:-inventory_user} -d ${INVENTORY_POSTGRES_DB:-inventory_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "inventory-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
@@ -303,4 +329,7 @@ volumes:
     external: true
   tenant_registry_pgdata:
     name: 7d-tenant-registry-pgdata
+    external: true
+  inventory_pgdata:
+    name: 7d-inventory-pgdata
     external: true

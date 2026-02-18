@@ -172,6 +172,40 @@ services:
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
 
+  # =========================
+  # INVENTORY MODULE
+  # =========================
+  inventory:
+    container_name: 7d-inventory
+    build:
+      context: .
+      dockerfile: modules/inventory/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8092
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8092:8092"
+    networks:
+      - 7d-platform
+    # Depends on inventory-postgres and nats from 7d-infrastructure
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8092/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "inventory"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
