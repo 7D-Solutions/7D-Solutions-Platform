@@ -7,8 +7,9 @@ use tracing_subscriber::EnvFilter;
 use inventory_rs::{
     db::resolver::resolve_pool,
     http::{
-        cycle_counts::{post_cycle_count_submit, post_cycle_count_task},
+        cycle_counts::post_cycle_count_task,
         lots::get_lots_for_item,
+        reorder::{get_reorder_policy, list_reorder_policies, post_reorder_policy, put_reorder_policy},
         serials::get_serials_for_item,
         status::post_status_transfer,
         trace::{trace_lot_handler, trace_serial_handler},
@@ -140,9 +141,18 @@ async fn main() {
             "/api/inventory/cycle-count-tasks",
             axum::routing::post(post_cycle_count_task),
         )
+        // Reorder policies (low-stock configuration)
         .route(
-            "/api/inventory/cycle-count-tasks/{task_id}/submit",
-            axum::routing::post(post_cycle_count_submit),
+            "/api/inventory/reorder-policies",
+            axum::routing::post(post_reorder_policy),
+        )
+        .route(
+            "/api/inventory/reorder-policies/{id}",
+            axum::routing::get(get_reorder_policy).put(put_reorder_policy),
+        )
+        .route(
+            "/api/inventory/items/{item_id}/reorder-policies",
+            axum::routing::get(list_reorder_policies),
         )
         // Locations (warehouse bins/shelves)
         .route("/api/inventory/locations", axum::routing::post(create_location))

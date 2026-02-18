@@ -8,6 +8,7 @@ pub mod locations;
 pub mod lots_serials;
 pub mod projections;
 pub mod receipt_service;
+pub mod reorder;
 pub mod reservation_service;
 pub mod status;
 pub mod transfer_service;
