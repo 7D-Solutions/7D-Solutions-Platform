@@ -24,7 +24,10 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{
-    domain::guards::{GuardError, guard_item_active},
+    domain::{
+        guards::{GuardError, guard_item_active},
+        reorder::evaluator,
+    },
     events::{
         AdjustedPayload, EVENT_TYPE_ADJUSTED, build_adjusted_envelope,
     },
@@ -307,6 +310,18 @@ pub async fn process_adjustment(
     .await?;
 
     tx.commit().await?;
+
+    // Best-effort low-stock signal evaluation (errors do not fail the adjustment).
+    let _ = evaluator::evaluate_low_stock(
+        pool,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        req.location_id,
+        &correlation_id,
+        req.causation_id.clone(),
+    )
+    .await;
 
     Ok((result, false))
 }

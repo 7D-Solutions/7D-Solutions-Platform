@@ -28,6 +28,7 @@ use crate::{
         items::TrackingMode,
         lots_serials::issue::{self as ls_issue, LotSerialError},
         projections::on_hand,
+        reorder::evaluator,
     },
     events::{
         contracts::{ConsumedLayer, ItemIssuedPayload, SourceRef, build_item_issued_envelope},
@@ -667,6 +668,18 @@ pub async fn process_issue(
     .await?;
 
     tx.commit().await?;
+
+    // Best-effort low-stock signal evaluation (errors do not fail the issue).
+    let _ = evaluator::evaluate_low_stock(
+        pool,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        req.location_id,
+        &correlation_id,
+        req.causation_id.clone(),
+    )
+    .await;
 
     Ok((result, false))
 }

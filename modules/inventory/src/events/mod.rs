@@ -47,7 +47,9 @@
 
 pub mod contracts;
 pub mod cycle_count_submitted;
+pub mod low_stock_triggered;
 pub mod status_changed;
+pub mod valuation_snapshot_created;
 
 // ============================================================================
 // Shared Constants
@@ -77,8 +79,18 @@ pub use cycle_count_submitted::{
     EVENT_TYPE_CYCLE_COUNT_SUBMITTED, build_cycle_count_submitted_envelope,
 };
 
+pub use low_stock_triggered::{
+    LowStockTriggeredPayload,
+    EVENT_TYPE_LOW_STOCK_TRIGGERED, build_low_stock_triggered_envelope,
+};
+
 pub use status_changed::{
     StatusChangedPayload, EVENT_TYPE_STATUS_CHANGED, build_status_changed_envelope,
+};
+
+pub use valuation_snapshot_created::{
+    ValuationSnapshotCreatedLine, ValuationSnapshotCreatedPayload,
+    EVENT_TYPE_VALUATION_SNAPSHOT_CREATED, build_valuation_snapshot_created_envelope,
 };
 
 // ============================================================================

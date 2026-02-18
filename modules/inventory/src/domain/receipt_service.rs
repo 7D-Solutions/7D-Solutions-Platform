@@ -19,6 +19,7 @@ use crate::{
         items::TrackingMode,
         lots_serials::receipt::{insert_serial_instances, upsert_lot},
         projections::on_hand,
+        reorder::evaluator,
     },
     events::{
         contracts::{ItemReceivedPayload, build_item_received_envelope},
@@ -385,6 +386,19 @@ pub async fn process_receipt(
     .await?;
 
     tx.commit().await?;
+
+    // Best-effort low-stock state evaluation — a receipt may push stock back above the
+    // reorder_point, re-arming the dedup state for future crossings.
+    let _ = evaluator::evaluate_low_stock(
+        pool,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        req.location_id,
+        &correlation_id,
+        req.causation_id.clone(),
+    )
+    .await;
 
     Ok((result, false))
 }
