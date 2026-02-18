@@ -50,3 +50,17 @@ panes/*.identity
 panes/*.lock
 panes/.*.lock
 .no-clear
+
+# Flywheel ephemeral runtime state
+.flywheel/browser-ready.txt
+.flywheel/browser-response.json
+.flywheel/browser-worker-pid.txt
+
+# Browser profiles (Chrome session data)
+.browser-profiles/
+
+# Logs directory
+logs/
+
+# Temporary planning files
+tmp/
