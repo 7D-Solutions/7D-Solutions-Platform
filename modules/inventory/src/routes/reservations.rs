@@ -47,6 +47,17 @@ fn reservation_error_response(err: ReservationError) -> impl IntoResponse {
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({ "error": "validation_error", "message": msg })),
         ),
+        ReservationError::Guard(GuardError::NoBaseUom) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "error": "no_base_uom",
+                "message": "Item has no base_uom configured; cannot convert input UoM"
+            })),
+        ),
+        ReservationError::Guard(GuardError::UomConversion(e)) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "error": "uom_conversion_error", "message": e.to_string() })),
+        ),
         ReservationError::Guard(GuardError::Database(e)) => {
             tracing::error!(error = %e, "guard database error");
             (

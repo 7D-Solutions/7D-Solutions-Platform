@@ -78,6 +78,8 @@ fn make_receipt_req(
         idempotency_key: idem.to_string(),
         correlation_id: None,
         causation_id: None,
+        lot_code: None,
+        serial_codes: None,
     }
 }
 
@@ -108,6 +110,7 @@ async fn cleanup_tenant(pool: &sqlx::PgPool, tenant_id: &str) {
     sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM layer_consumptions WHERE layer_id IN (SELECT id FROM inventory_layers WHERE tenant_id = $1)").bind(tenant_id).execute(pool).await.ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();

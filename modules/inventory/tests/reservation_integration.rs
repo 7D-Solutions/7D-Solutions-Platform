@@ -15,7 +15,7 @@
 //! 9. Available = on_hand - reserved (projection correctness)
 
 use inventory_rs::domain::{
-    items::{CreateItemRequest, ItemRepo},
+    items::{CreateItemRequest, ItemRepo, TrackingMode},
     reservation_service::{
         process_release, process_reserve, ReleaseRequest, ReservationError, ReserveRequest,
     },
@@ -57,6 +57,7 @@ fn make_item_req(tenant_id: &str, sku: &str) -> CreateItemRequest {
         cogs_account_ref: "5000".to_string(),
         variance_account_ref: "5010".to_string(),
         uom: None,
+        tracking_mode: TrackingMode::None,
     }
 }
 
@@ -79,6 +80,7 @@ async fn cleanup_tenant(pool: &sqlx::PgPool, tenant_id: &str) {
     sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM inventory_reservations WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
@@ -441,13 +443,14 @@ async fn available_equals_on_hand_minus_reserved() {
         .await
         .expect("create item");
 
-    // Seed: manually set on-hand = 100.
+    // Seed: manually set on-hand = 100 (all in 'available' status).
     sqlx::query(
         r#"
-        INSERT INTO item_on_hand (tenant_id, item_id, warehouse_id, quantity_on_hand, projected_at)
-        VALUES ($1, $2, $3, 100, NOW())
+        INSERT INTO item_on_hand
+            (tenant_id, item_id, warehouse_id, quantity_on_hand, available_status_on_hand, projected_at)
+        VALUES ($1, $2, $3, 100, 100, NOW())
         ON CONFLICT (tenant_id, item_id, warehouse_id) DO UPDATE
-            SET quantity_on_hand = 100, projected_at = NOW()
+            SET quantity_on_hand = 100, available_status_on_hand = 100, projected_at = NOW()
         "#,
     )
     .bind(&tenant_id)

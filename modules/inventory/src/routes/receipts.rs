@@ -67,6 +67,34 @@ fn receipt_error_response(err: ReceiptError) -> impl IntoResponse {
                 Json(json!({ "error": "internal_error", "message": "Database error" })),
             )
         }
+        ReceiptError::LotCodeRequired => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "error": "lot_code_required",
+                "message": "lot_code is required for lot-tracked items"
+            })),
+        ),
+        ReceiptError::SerialCodesRequired => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "error": "serial_codes_required",
+                "message": "serial_codes is required for serial-tracked items"
+            })),
+        ),
+        ReceiptError::SerialCountMismatch { expected, got } => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "error": "serial_count_mismatch",
+                "message": format!("serial_codes length {} must equal quantity {}", got, expected)
+            })),
+        ),
+        ReceiptError::DuplicateSerialCode => (
+            StatusCode::CONFLICT,
+            Json(json!({
+                "error": "duplicate_serial_code",
+                "message": "One or more serial codes already exist for this tenant/item"
+            })),
+        ),
         ReceiptError::ConflictingIdempotencyKey => (
             StatusCode::CONFLICT,
             Json(json!({

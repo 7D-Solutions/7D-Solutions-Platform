@@ -11,7 +11,7 @@
 //! 5. Guard: zero cost rejected
 
 use inventory_rs::domain::{
-    items::{CreateItemRequest, ItemRepo},
+    items::{CreateItemRequest, ItemRepo, TrackingMode},
     receipt_service::{process_receipt, ReceiptError, ReceiptRequest},
 };
 use serial_test::serial;
@@ -51,6 +51,7 @@ fn create_item_req(tenant_id: &str, sku: &str) -> CreateItemRequest {
         cogs_account_ref: "5000".to_string(),
         variance_account_ref: "5010".to_string(),
         uom: None,
+        tracking_mode: TrackingMode::None,
     }
 }
 
@@ -66,6 +67,8 @@ fn receipt_req(tenant_id: &str, item_id: Uuid, idem_key: &str) -> ReceiptRequest
         idempotency_key: idem_key.to_string(),
         correlation_id: Some("corr-test".to_string()),
         causation_id: None,
+        lot_code: None,
+        serial_codes: None,
     }
 }
 
@@ -143,6 +146,8 @@ async fn receipt_creates_ledger_layer_outbox_atomically() {
     sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
     sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
     sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
     sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
 }
 
@@ -188,6 +193,8 @@ async fn receipt_idempotency_replay_returns_stored_result() {
     sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
     sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
     sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
     sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
 }
 
@@ -257,4 +264,217 @@ async fn receipt_guard_rejects_zero_cost() {
 
     let err = process_receipt(&pool, &req).await.expect_err("zero cost must fail");
     assert!(matches!(err, ReceiptError::Guard(_)), "{:?}", err);
+}
+
+// ============================================================================
+// Lot tracking: receipt creates lot row and associates lot_id to FIFO layer
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn receipt_lot_tracked_creates_lot_and_associates_layer() {
+    let pool = setup_db().await;
+    let tenant_id = format!("test-{}", Uuid::new_v4());
+
+    // Create lot-tracked item
+    let item_req = CreateItemRequest {
+        tenant_id: tenant_id.clone(),
+        sku: "SKU-LOT-001".to_string(),
+        name: "Lot Widget".to_string(),
+        description: None,
+        inventory_account_ref: "1200".to_string(),
+        cogs_account_ref: "5000".to_string(),
+        variance_account_ref: "5010".to_string(),
+        uom: None,
+        tracking_mode: TrackingMode::Lot,
+    };
+    let item = ItemRepo::create(&pool, &item_req).await.expect("create lot item");
+
+    let lot_code = "LOT-2026-001";
+    let idem_key = format!("idem-{}", Uuid::new_v4());
+    let req = ReceiptRequest {
+        lot_code: Some(lot_code.to_string()),
+        ..receipt_req(&tenant_id, item.id, &idem_key)
+    };
+
+    let (result, is_replay) = process_receipt(&pool, &req).await.expect("lot receipt must succeed");
+    assert!(!is_replay);
+
+    // lot_id must be set on the result
+    let lot_id = result.lot_id.expect("lot_id must be set for lot-tracked receipt");
+
+    // Verify lot row exists
+    let lot_code_db: String = sqlx::query_scalar(
+        "SELECT lot_code FROM inventory_lots WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(lot_id)
+    .bind(&tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("lot row must exist");
+    assert_eq!(lot_code_db, lot_code);
+
+    // Verify FIFO layer has lot_id set
+    let layer_lot_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT lot_id FROM inventory_layers WHERE id = $1",
+    )
+    .bind(result.layer_id)
+    .fetch_one(&pool)
+    .await
+    .expect("layer query");
+    assert_eq!(layer_lot_id, Some(lot_id), "layer.lot_id must match the upserted lot");
+
+    // Cleanup (serial instances first, then layers, lots, ledger, items)
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inventory_lots WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+}
+
+// ============================================================================
+// Lot tracking: receipt without lot_code rejected
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn receipt_lot_tracked_rejects_missing_lot_code() {
+    let pool = setup_db().await;
+    let tenant_id = format!("test-{}", Uuid::new_v4());
+
+    let item_req = CreateItemRequest {
+        tenant_id: tenant_id.clone(),
+        sku: "SKU-LOT-GUARD-001".to_string(),
+        name: "Lot Guard Widget".to_string(),
+        description: None,
+        inventory_account_ref: "1200".to_string(),
+        cogs_account_ref: "5000".to_string(),
+        variance_account_ref: "5010".to_string(),
+        uom: None,
+        tracking_mode: TrackingMode::Lot,
+    };
+    let item = ItemRepo::create(&pool, &item_req).await.expect("create lot item");
+
+    // No lot_code provided
+    let req = receipt_req(&tenant_id, item.id, &format!("idem-{}", Uuid::new_v4()));
+    let err = process_receipt(&pool, &req).await.expect_err("must fail without lot_code");
+
+    assert!(
+        matches!(err, ReceiptError::LotCodeRequired),
+        "expected LotCodeRequired, got: {:?}", err
+    );
+
+    // Cleanup
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+}
+
+// ============================================================================
+// Serial tracking: receipt creates serial instances tied to layer
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn receipt_serial_tracked_creates_serial_instances() {
+    let pool = setup_db().await;
+    let tenant_id = format!("test-{}", Uuid::new_v4());
+
+    // Create serial-tracked item
+    let item_req = CreateItemRequest {
+        tenant_id: tenant_id.clone(),
+        sku: "SKU-SN-001".to_string(),
+        name: "Serial Widget".to_string(),
+        description: None,
+        inventory_account_ref: "1200".to_string(),
+        cogs_account_ref: "5000".to_string(),
+        variance_account_ref: "5010".to_string(),
+        uom: None,
+        tracking_mode: TrackingMode::Serial,
+    };
+    let item = ItemRepo::create(&pool, &item_req).await.expect("create serial item");
+
+    let quantity: i64 = 3;
+    let serial_codes: Vec<String> = (0..quantity)
+        .map(|i| format!("SN-{}-{:04}", Uuid::new_v4().simple(), i))
+        .collect();
+
+    let idem_key = format!("idem-{}", Uuid::new_v4());
+    let req = ReceiptRequest {
+        quantity,
+        serial_codes: Some(serial_codes.clone()),
+        ..receipt_req(&tenant_id, item.id, &idem_key)
+    };
+
+    let (result, is_replay) = process_receipt(&pool, &req)
+        .await
+        .expect("serial receipt must succeed");
+    assert!(!is_replay);
+    assert_eq!(result.serial_instance_ids.len(), quantity as usize);
+    assert!(result.lot_id.is_none(), "serial items must not set lot_id");
+
+    // Verify serial instances exist and are tied to the layer
+    for (i, sn_id) in result.serial_instance_ids.iter().enumerate() {
+        let (code, layer_id_db, status): (String, Uuid, String) = sqlx::query_as(
+            "SELECT serial_code, layer_id, status FROM inventory_serial_instances WHERE id = $1",
+        )
+        .bind(sn_id)
+        .fetch_one(&pool)
+        .await
+        .expect("serial instance must exist");
+
+        assert_eq!(code, serial_codes[i]);
+        assert_eq!(layer_id_db, result.layer_id);
+        assert_eq!(status, "on_hand");
+    }
+
+    // Cleanup (serial instances before layers due to FK)
+    sqlx::query("DELETE FROM inventory_serial_instances WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+}
+
+// ============================================================================
+// Serial tracking: mismatched serial_codes count rejected
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn receipt_serial_tracked_rejects_count_mismatch() {
+    let pool = setup_db().await;
+    let tenant_id = format!("test-{}", Uuid::new_v4());
+
+    let item_req = CreateItemRequest {
+        tenant_id: tenant_id.clone(),
+        sku: "SKU-SN-GUARD-001".to_string(),
+        name: "Serial Guard Widget".to_string(),
+        description: None,
+        inventory_account_ref: "1200".to_string(),
+        cogs_account_ref: "5000".to_string(),
+        variance_account_ref: "5010".to_string(),
+        uom: None,
+        tracking_mode: TrackingMode::Serial,
+    };
+    let item = ItemRepo::create(&pool, &item_req).await.expect("create serial item");
+
+    // quantity=50 but only 2 serial codes
+    let req = ReceiptRequest {
+        serial_codes: Some(vec!["SN-A".to_string(), "SN-B".to_string()]),
+        ..receipt_req(&tenant_id, item.id, &format!("idem-{}", Uuid::new_v4()))
+    };
+    let err = process_receipt(&pool, &req).await.expect_err("count mismatch must fail");
+
+    assert!(
+        matches!(err, ReceiptError::SerialCountMismatch { expected: 50, got: 2 }),
+        "expected SerialCountMismatch, got: {:?}", err
+    );
+
+    // Cleanup
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
 }
