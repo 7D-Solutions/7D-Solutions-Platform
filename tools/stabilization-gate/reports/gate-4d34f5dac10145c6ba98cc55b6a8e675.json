@@ -1,0 +1,44 @@
+{
+  "run_id": "gate-4d34f5dac10145c6ba98cc55b6a8e675",
+  "git_sha": "c7d3a21d",
+  "started_at": "2026-02-18T17:59:34.617837Z",
+  "ended_at": "2026-02-18T17:59:34.797709Z",
+  "env_snapshot": {
+    "concurrency": 4,
+    "database_host": "localhost:5434",
+    "dunning_rows": 200,
+    "duration_secs": 30,
+    "events_per_tenant": 100,
+    "nats_url": "nats://localhost:4222",
+    "recon_rows": 25,
+    "tenant_count": 5
+  },
+  "scenarios": [
+    {
+      "name": "recon",
+      "passed": true,
+      "metrics": {
+        "concurrency": 4,
+        "errors": 0,
+        "exception_rate": 0.0,
+        "invariant_duplicate_matches": 0,
+        "invariant_passed": true,
+        "matches_per_sec": 322.6972325485337,
+        "p50_run_ms": 46.65775,
+        "p95_run_ms": 77.404042,
+        "p99_run_ms": 77.404042,
+        "recon_rows": 25,
+        "rows_per_tenant": 5,
+        "tenant_count": 5,
+        "total_exceptions": 0,
+        "total_matches": 25,
+        "total_ops": 5,
+        "wall_secs": 0.077472
+      },
+      "threshold_violations": [],
+      "notes": null
+    }
+  ],
+  "overall_passed": true,
+  "dry_run": false
+}

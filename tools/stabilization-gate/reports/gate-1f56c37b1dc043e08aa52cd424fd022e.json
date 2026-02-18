@@ -1,0 +1,41 @@
+{
+  "run_id": "gate-1f56c37b1dc043e08aa52cd424fd022e",
+  "git_sha": "70a6cd1d",
+  "started_at": "2026-02-18T18:08:21.841170Z",
+  "ended_at": "2026-02-18T18:08:22.037025Z",
+  "env_snapshot": {
+    "concurrency": 4,
+    "database_host": "localhost:5434",
+    "dunning_rows": 25,
+    "duration_secs": 30,
+    "events_per_tenant": 100,
+    "nats_url": "nats://localhost:4222",
+    "recon_rows": 500,
+    "tenant_count": 5
+  },
+  "scenarios": [
+    {
+      "name": "dunning",
+      "passed": true,
+      "metrics": {
+        "concurrency": 4,
+        "dunning_rows": 25,
+        "errors": 0,
+        "invariant_duplicate_transitions": 0,
+        "invariant_passed": true,
+        "p50_cycle_ms": 4.914083,
+        "p95_cycle_ms": 48.52075,
+        "p99_cycle_ms": 78.777333,
+        "processed": 25,
+        "rows_per_tenant": 5,
+        "tenant_count": 5,
+        "throughput_per_sec": 291.65601538898466,
+        "wall_secs": 0.085717416
+      },
+      "threshold_violations": [],
+      "notes": null
+    }
+  ],
+  "overall_passed": true,
+  "dry_run": false
+}
