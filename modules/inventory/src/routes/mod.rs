@@ -5,4 +5,5 @@ pub mod items;
 pub mod locations;
 pub mod receipts;
 pub mod reservations;
+pub mod transfers;
 pub mod uom;

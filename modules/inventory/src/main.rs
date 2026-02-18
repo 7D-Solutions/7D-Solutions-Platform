@@ -6,7 +6,13 @@ use tracing_subscriber::EnvFilter;
 
 use inventory_rs::{
     db::resolver::resolve_pool,
-    http::{cycle_counts::post_cycle_count_task, status::post_status_transfer},
+    http::{
+        cycle_counts::post_cycle_count_task,
+        lots::get_lots_for_item,
+        serials::get_serials_for_item,
+        status::post_status_transfer,
+        trace::{trace_lot_handler, trace_serial_handler},
+    },
     metrics::{metrics_handler, InventoryMetrics},
     routes::{
         adjustments::post_adjustment,
@@ -18,6 +24,7 @@ use inventory_rs::{
         },
         receipts::post_receipt,
         reservations::{post_release, post_reserve},
+        transfers::post_transfer,
         uom::{create_conversion, create_uom, list_conversions, list_uoms},
     },
     AppState, Config,
@@ -101,10 +108,32 @@ async fn main() {
             "/api/inventory/adjustments",
             axum::routing::post(post_adjustment),
         )
+        // Inter-warehouse transfers (paired ledger entries, FIFO consumption)
+        .route(
+            "/api/inventory/transfers",
+            axum::routing::post(post_transfer),
+        )
         // Status bucket transfers (available ↔ quarantine ↔ damaged)
         .route(
             "/api/inventory/status-transfers",
             axum::routing::post(post_status_transfer),
+        )
+        // Lot / serial queries and traceability
+        .route(
+            "/api/inventory/items/{item_id}/lots",
+            axum::routing::get(get_lots_for_item),
+        )
+        .route(
+            "/api/inventory/items/{item_id}/serials",
+            axum::routing::get(get_serials_for_item),
+        )
+        .route(
+            "/api/inventory/items/{item_id}/lots/{lot_code}/trace",
+            axum::routing::get(trace_lot_handler),
+        )
+        .route(
+            "/api/inventory/items/{item_id}/serials/{serial_code}/trace",
+            axum::routing::get(trace_serial_handler),
         )
         // Cycle count tasks
         .route(
