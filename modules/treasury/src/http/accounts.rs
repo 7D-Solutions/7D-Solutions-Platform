@@ -13,7 +13,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::accounts::{
-    service, AccountError, BankAccount, CreateAccountRequest, UpdateAccountRequest,
+    service, AccountError, CreateBankAccountRequest, CreateCreditCardAccountRequest,
+    TreasuryAccount, UpdateAccountRequest,
 };
 use crate::AppState;
 
@@ -106,17 +107,17 @@ pub struct ListAccountsQuery {
 // Handlers
 // ============================================================================
 
-/// POST /api/treasury/accounts — create a bank account
-pub async fn create_account(
+/// POST /api/treasury/accounts/bank — create a bank account
+pub async fn create_bank_account(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(req): Json<CreateAccountRequest>,
-) -> Result<(StatusCode, Json<BankAccount>), (StatusCode, Json<ErrorBody>)> {
+    Json(req): Json<CreateBankAccountRequest>,
+) -> Result<(StatusCode, Json<TreasuryAccount>), (StatusCode, Json<ErrorBody>)> {
     let app_id = app_id_from_headers(&headers)?;
     let correlation_id = correlation_from_headers(&headers);
     let idempotency_key = idempotency_key_from_headers(&headers);
 
-    match service::create_account(
+    match service::create_bank_account(
         &state.pool,
         &app_id,
         &req,
@@ -127,27 +128,59 @@ pub async fn create_account(
     {
         Ok(account) => Ok((StatusCode::CREATED, Json(account))),
         Err(AccountError::IdempotentReplay { status_code, body }) => {
-            // Replay: return cached response with original status code
-            let account: BankAccount = serde_json::from_value(body).map_err(|_| {
+            let account: TreasuryAccount = serde_json::from_value(body).map_err(|_| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ErrorBody::new("replay_error", "Failed to deserialize cached response")),
                 )
             })?;
-            let status = StatusCode::from_u16(status_code)
-                .unwrap_or(StatusCode::OK);
+            let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::OK);
             Ok((status, Json(account)))
         }
         Err(e) => Err(account_error_response(e)),
     }
 }
 
-/// GET /api/treasury/accounts — list bank accounts for app
+/// POST /api/treasury/accounts/credit-card — create a credit card account
+pub async fn create_credit_card_account(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Json(req): Json<CreateCreditCardAccountRequest>,
+) -> Result<(StatusCode, Json<TreasuryAccount>), (StatusCode, Json<ErrorBody>)> {
+    let app_id = app_id_from_headers(&headers)?;
+    let correlation_id = correlation_from_headers(&headers);
+    let idempotency_key = idempotency_key_from_headers(&headers);
+
+    match service::create_credit_card_account(
+        &state.pool,
+        &app_id,
+        &req,
+        idempotency_key.as_deref(),
+        correlation_id,
+    )
+    .await
+    {
+        Ok(account) => Ok((StatusCode::CREATED, Json(account))),
+        Err(AccountError::IdempotentReplay { status_code, body }) => {
+            let account: TreasuryAccount = serde_json::from_value(body).map_err(|_| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorBody::new("replay_error", "Failed to deserialize cached response")),
+                )
+            })?;
+            let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::OK);
+            Ok((status, Json(account)))
+        }
+        Err(e) => Err(account_error_response(e)),
+    }
+}
+
+/// GET /api/treasury/accounts — list accounts for app
 pub async fn list_accounts(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Query(query): Query<ListAccountsQuery>,
-) -> Result<Json<Vec<BankAccount>>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<Vec<TreasuryAccount>>, (StatusCode, Json<ErrorBody>)> {
     let app_id = app_id_from_headers(&headers)?;
 
     let accounts = service::list_accounts(&state.pool, &app_id, query.include_inactive)
@@ -157,12 +190,12 @@ pub async fn list_accounts(
     Ok(Json(accounts))
 }
 
-/// GET /api/treasury/accounts/:id — get a single bank account
+/// GET /api/treasury/accounts/:id — get a single account
 pub async fn get_account(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
-) -> Result<Json<BankAccount>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<TreasuryAccount>, (StatusCode, Json<ErrorBody>)> {
     let app_id = app_id_from_headers(&headers)?;
 
     let account = service::get_account(&state.pool, &app_id, id)
@@ -181,13 +214,13 @@ pub async fn get_account(
     Ok(Json(account))
 }
 
-/// PUT /api/treasury/accounts/:id — update bank account fields
+/// PUT /api/treasury/accounts/:id — update account fields
 pub async fn update_account(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateAccountRequest>,
-) -> Result<Json<BankAccount>, (StatusCode, Json<ErrorBody>)> {
+) -> Result<Json<TreasuryAccount>, (StatusCode, Json<ErrorBody>)> {
     let app_id = app_id_from_headers(&headers)?;
     let correlation_id = correlation_from_headers(&headers);
 

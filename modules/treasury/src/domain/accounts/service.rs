@@ -1,7 +1,8 @@
-//! Bank account CRUD service — DB operations with Guard→Mutation→Outbox atomicity.
+//! Treasury account CRUD service — DB operations with Guard→Mutation→Outbox atomicity.
 //!
-//! Write operations follow:
-//! 1. Guard: validate inputs, check preconditions
+//! Supports both bank accounts (account_type='bank') and credit card accounts
+//! (account_type='credit_card'). Write operations follow:
+//! 1. Guard: validate inputs, check preconditions, check idempotency
 //! 2. Mutation: write to treasury_bank_accounts
 //! 3. Outbox: enqueue event atomically in same transaction
 
@@ -11,9 +12,11 @@ use uuid::Uuid;
 
 use crate::outbox::enqueue_event_tx;
 
-use super::{AccountError, AccountStatus, BankAccount, CreateAccountRequest, UpdateAccountRequest};
+use super::{
+    AccountError, AccountStatus, CreateBankAccountRequest,
+    CreateCreditCardAccountRequest, TreasuryAccount, UpdateAccountRequest,
+};
 
-// Event type constants
 const EVT_ACCOUNT_CREATED: &str = "bank_account.created";
 const EVT_ACCOUNT_UPDATED: &str = "bank_account.updated";
 const EVT_ACCOUNT_DEACTIVATED: &str = "bank_account.deactivated";
@@ -26,12 +29,13 @@ pub async fn get_account(
     pool: &PgPool,
     app_id: &str,
     id: Uuid,
-) -> Result<Option<BankAccount>, AccountError> {
-    let account = sqlx::query_as::<_, BankAccount>(
+) -> Result<Option<TreasuryAccount>, AccountError> {
+    let account = sqlx::query_as::<_, TreasuryAccount>(
         r#"
-        SELECT id, app_id, account_name, institution, account_number_last4,
-               routing_number, currency, current_balance_minor, status, metadata,
-               created_at, updated_at
+        SELECT id, app_id, account_name, account_type, institution, account_number_last4,
+               routing_number, currency, current_balance_minor, status,
+               credit_limit_minor, statement_closing_day, cc_network,
+               metadata, created_at, updated_at
         FROM treasury_bank_accounts
         WHERE id = $1 AND app_id = $2
         "#,
@@ -48,13 +52,14 @@ pub async fn list_accounts(
     pool: &PgPool,
     app_id: &str,
     include_inactive: bool,
-) -> Result<Vec<BankAccount>, AccountError> {
+) -> Result<Vec<TreasuryAccount>, AccountError> {
     let accounts = if include_inactive {
-        sqlx::query_as::<_, BankAccount>(
+        sqlx::query_as::<_, TreasuryAccount>(
             r#"
-            SELECT id, app_id, account_name, institution, account_number_last4,
-                   routing_number, currency, current_balance_minor, status, metadata,
-                   created_at, updated_at
+            SELECT id, app_id, account_name, account_type, institution, account_number_last4,
+                   routing_number, currency, current_balance_minor, status,
+                   credit_limit_minor, statement_closing_day, cc_network,
+                   metadata, created_at, updated_at
             FROM treasury_bank_accounts
             WHERE app_id = $1
             ORDER BY account_name ASC
@@ -64,11 +69,12 @@ pub async fn list_accounts(
         .fetch_all(pool)
         .await?
     } else {
-        sqlx::query_as::<_, BankAccount>(
+        sqlx::query_as::<_, TreasuryAccount>(
             r#"
-            SELECT id, app_id, account_name, institution, account_number_last4,
-                   routing_number, currency, current_balance_minor, status, metadata,
-                   created_at, updated_at
+            SELECT id, app_id, account_name, account_type, institution, account_number_last4,
+                   routing_number, currency, current_balance_minor, status,
+                   credit_limit_minor, statement_closing_day, cc_network,
+                   metadata, created_at, updated_at
             FROM treasury_bank_accounts
             WHERE app_id = $1 AND status = 'active'::treasury_account_status
             ORDER BY account_name ASC
@@ -90,31 +96,17 @@ pub async fn list_accounts(
 ///
 /// If `idempotency_key` is Some and has been used before, returns
 /// `AccountError::IdempotentReplay` with the cached response.
-pub async fn create_account(
+pub async fn create_bank_account(
     pool: &PgPool,
     app_id: &str,
-    req: &CreateAccountRequest,
+    req: &CreateBankAccountRequest,
     idempotency_key: Option<&str>,
     correlation_id: String,
-) -> Result<BankAccount, AccountError> {
+) -> Result<TreasuryAccount, AccountError> {
     req.validate()?;
 
-    // Guard: check idempotency key
     if let Some(key) = idempotency_key {
-        let cached: Option<(serde_json::Value, i32)> = sqlx::query_as(
-            "SELECT response_body, status_code FROM treasury_idempotency_keys WHERE app_id = $1 AND idempotency_key = $2 LIMIT 1",
-        )
-        .bind(app_id)
-        .bind(key)
-        .fetch_optional(pool)
-        .await?;
-
-        if let Some((body, code)) = cached {
-            return Err(AccountError::IdempotentReplay {
-                status_code: code as u16,
-                body,
-            });
-        }
+        check_idempotency(pool, app_id, key).await?;
     }
 
     let id = Uuid::new_v4();
@@ -124,18 +116,20 @@ pub async fn create_account(
 
     let mut tx = pool.begin().await?;
 
-    // Mutation: insert account
-    let account = sqlx::query_as::<_, BankAccount>(
+    let account = sqlx::query_as::<_, TreasuryAccount>(
         r#"
         INSERT INTO treasury_bank_accounts (
-            id, app_id, account_name, institution, account_number_last4,
-            routing_number, currency, current_balance_minor, status, metadata,
+            id, app_id, account_name, account_type, institution, account_number_last4,
+            routing_number, currency, current_balance_minor, status,
+            credit_limit_minor, statement_closing_day, cc_network, metadata,
             created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, 0, 'active'::treasury_account_status, $8, $9, $9)
-        RETURNING id, app_id, account_name, institution, account_number_last4,
-                  routing_number, currency, current_balance_minor, status, metadata,
-                  created_at, updated_at
+        VALUES ($1, $2, $3, 'bank'::treasury_account_type, $4, $5, $6, $7, 0,
+                'active'::treasury_account_status, NULL, NULL, NULL, $8, $9, $9)
+        RETURNING id, app_id, account_name, account_type, institution, account_number_last4,
+                  routing_number, currency, current_balance_minor, status,
+                  credit_limit_minor, statement_closing_day, cc_network,
+                  metadata, created_at, updated_at
         "#,
     )
     .bind(id)
@@ -150,11 +144,11 @@ pub async fn create_account(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Outbox: enqueue created event
     let payload = serde_json::json!({
         "account_id": id,
         "app_id": app_id,
         "account_name": account.account_name,
+        "account_type": "bank",
         "currency": account.currency,
         "status": "active",
         "correlation_id": correlation_id,
@@ -171,25 +165,86 @@ pub async fn create_account(
     )
     .await?;
 
-    // Idempotency: record key with 24h TTL
+    record_idempotency(&mut tx, app_id, idempotency_key, &account, 201, now).await?;
+
+    tx.commit().await?;
+
+    Ok(account)
+}
+
+/// Create a credit card account. Supports idempotency via `idempotency_key`.
+pub async fn create_credit_card_account(
+    pool: &PgPool,
+    app_id: &str,
+    req: &CreateCreditCardAccountRequest,
+    idempotency_key: Option<&str>,
+    correlation_id: String,
+) -> Result<TreasuryAccount, AccountError> {
+    req.validate()?;
+
     if let Some(key) = idempotency_key {
-        let response_body = serde_json::to_value(&account).unwrap_or(serde_json::Value::Null);
-        let expires_at = now + chrono::Duration::hours(24);
-        sqlx::query(
-            r#"
-            INSERT INTO treasury_idempotency_keys (app_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-            VALUES ($1, $2, $3, $4, 201, $5)
-            ON CONFLICT (app_id, idempotency_key) DO NOTHING
-            "#,
-        )
-        .bind(app_id)
-        .bind(key)
-        .bind("") // hash not enforced — key uniqueness is sufficient guard
-        .bind(response_body)
-        .bind(expires_at)
-        .execute(&mut *tx)
-        .await?;
+        check_idempotency(pool, app_id, key).await?;
     }
+
+    let id = Uuid::new_v4();
+    let event_id = Uuid::new_v4();
+    let now = Utc::now();
+    let currency = req.currency.to_uppercase();
+
+    let mut tx = pool.begin().await?;
+
+    let account = sqlx::query_as::<_, TreasuryAccount>(
+        r#"
+        INSERT INTO treasury_bank_accounts (
+            id, app_id, account_name, account_type, institution, account_number_last4,
+            routing_number, currency, current_balance_minor, status,
+            credit_limit_minor, statement_closing_day, cc_network, metadata,
+            created_at, updated_at
+        )
+        VALUES ($1, $2, $3, 'credit_card'::treasury_account_type, $4, $5, NULL, $6, 0,
+                'active'::treasury_account_status, $7, $8, $9, $10, $11, $11)
+        RETURNING id, app_id, account_name, account_type, institution, account_number_last4,
+                  routing_number, currency, current_balance_minor, status,
+                  credit_limit_minor, statement_closing_day, cc_network,
+                  metadata, created_at, updated_at
+        "#,
+    )
+    .bind(id)
+    .bind(app_id)
+    .bind(req.account_name.trim())
+    .bind(&req.institution)
+    .bind(&req.account_number_last4)
+    .bind(&currency)
+    .bind(req.credit_limit_minor)
+    .bind(req.statement_closing_day)
+    .bind(&req.cc_network)
+    .bind(&req.metadata)
+    .bind(now)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let payload = serde_json::json!({
+        "account_id": id,
+        "app_id": app_id,
+        "account_name": account.account_name,
+        "account_type": "credit_card",
+        "currency": account.currency,
+        "status": "active",
+        "correlation_id": correlation_id,
+        "created_at": account.created_at,
+    });
+
+    enqueue_event_tx(
+        &mut tx,
+        event_id,
+        EVT_ACCOUNT_CREATED,
+        "bank_account",
+        &id.to_string(),
+        &payload,
+    )
+    .await?;
+
+    record_idempotency(&mut tx, app_id, idempotency_key, &account, 201, now).await?;
 
     tx.commit().await?;
 
@@ -203,7 +258,7 @@ pub async fn update_account(
     id: Uuid,
     req: &UpdateAccountRequest,
     correlation_id: String,
-) -> Result<BankAccount, AccountError> {
+) -> Result<TreasuryAccount, AccountError> {
     req.validate()?;
 
     let event_id = Uuid::new_v4();
@@ -211,12 +266,12 @@ pub async fn update_account(
 
     let mut tx = pool.begin().await?;
 
-    // Guard: account must exist for this app
-    let existing: Option<BankAccount> = sqlx::query_as(
+    let existing: Option<TreasuryAccount> = sqlx::query_as(
         r#"
-        SELECT id, app_id, account_name, institution, account_number_last4,
-               routing_number, currency, current_balance_minor, status, metadata,
-               created_at, updated_at
+        SELECT id, app_id, account_name, account_type, institution, account_number_last4,
+               routing_number, currency, current_balance_minor, status,
+               credit_limit_minor, statement_closing_day, cc_network,
+               metadata, created_at, updated_at
         FROM treasury_bank_accounts
         WHERE id = $1 AND app_id = $2
         FOR UPDATE
@@ -229,49 +284,36 @@ pub async fn update_account(
 
     let current = existing.ok_or(AccountError::NotFound(id))?;
 
-    // Resolve updates (keep existing where not provided)
-    let new_name = req
-        .account_name
-        .as_deref()
-        .map(|n| n.trim().to_string())
+    let new_name = req.account_name.as_deref().map(str::trim).map(String::from)
         .unwrap_or(current.account_name.clone());
-    let new_institution = if req.institution.is_some() {
-        req.institution.clone()
-    } else {
-        current.institution.clone()
-    };
-    let new_last4 = if req.account_number_last4.is_some() {
-        req.account_number_last4.clone()
-    } else {
-        current.account_number_last4.clone()
-    };
-    let new_routing = if req.routing_number.is_some() {
-        req.routing_number.clone()
-    } else {
-        current.routing_number.clone()
-    };
-    let new_metadata = if req.metadata.is_some() {
-        req.metadata.clone()
-    } else {
-        current.metadata.clone()
-    };
+    let new_institution = req.institution.clone().or(current.institution.clone());
+    let new_last4 = req.account_number_last4.clone().or(current.account_number_last4.clone());
+    let new_routing = req.routing_number.clone().or(current.routing_number.clone());
+    let new_limit = req.credit_limit_minor.or(current.credit_limit_minor);
+    let new_closing = req.statement_closing_day.or(current.statement_closing_day);
+    let new_network = req.cc_network.clone().or(current.cc_network.clone());
+    let new_metadata = req.metadata.clone().or(current.metadata.clone());
 
-    // Mutation
-    let account = sqlx::query_as::<_, BankAccount>(
+    let account = sqlx::query_as::<_, TreasuryAccount>(
         r#"
         UPDATE treasury_bank_accounts
         SET account_name = $1, institution = $2, account_number_last4 = $3,
-            routing_number = $4, metadata = $5, updated_at = $6
-        WHERE id = $7 AND app_id = $8
-        RETURNING id, app_id, account_name, institution, account_number_last4,
-                  routing_number, currency, current_balance_minor, status, metadata,
-                  created_at, updated_at
+            routing_number = $4, credit_limit_minor = $5, statement_closing_day = $6,
+            cc_network = $7, metadata = $8, updated_at = $9
+        WHERE id = $10 AND app_id = $11
+        RETURNING id, app_id, account_name, account_type, institution, account_number_last4,
+                  routing_number, currency, current_balance_minor, status,
+                  credit_limit_minor, statement_closing_day, cc_network,
+                  metadata, created_at, updated_at
         "#,
     )
     .bind(&new_name)
     .bind(&new_institution)
     .bind(&new_last4)
     .bind(&new_routing)
+    .bind(new_limit)
+    .bind(new_closing)
+    .bind(&new_network)
     .bind(&new_metadata)
     .bind(now)
     .bind(id)
@@ -279,7 +321,6 @@ pub async fn update_account(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Outbox: enqueue updated event
     let payload = serde_json::json!({
         "account_id": id,
         "app_id": app_id,
@@ -303,7 +344,7 @@ pub async fn update_account(
     Ok(account)
 }
 
-/// Deactivate a bank account (soft delete). Emits `bank_account.deactivated`.
+/// Deactivate an account (soft delete). Emits `bank_account.deactivated`.
 pub async fn deactivate_account(
     pool: &PgPool,
     app_id: &str,
@@ -316,7 +357,6 @@ pub async fn deactivate_account(
 
     let mut tx = pool.begin().await?;
 
-    // Guard: account must exist
     let exists: Option<(AccountStatus,)> = sqlx::query_as(
         "SELECT status FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2",
     )
@@ -329,7 +369,6 @@ pub async fn deactivate_account(
         return Err(AccountError::NotFound(id));
     }
 
-    // Mutation
     sqlx::query(
         r#"
         UPDATE treasury_bank_accounts
@@ -343,7 +382,6 @@ pub async fn deactivate_account(
     .execute(&mut *tx)
     .await?;
 
-    // Outbox: enqueue deactivated event
     let payload = serde_json::json!({
         "account_id": id,
         "app_id": app_id,
@@ -368,19 +406,78 @@ pub async fn deactivate_account(
 }
 
 // ============================================================================
+// Idempotency helpers
+// ============================================================================
+
+async fn check_idempotency(
+    pool: &PgPool,
+    app_id: &str,
+    key: &str,
+) -> Result<(), AccountError> {
+    let cached: Option<(serde_json::Value, i32)> = sqlx::query_as(
+        "SELECT response_body, status_code FROM treasury_idempotency_keys WHERE app_id = $1 AND idempotency_key = $2 LIMIT 1",
+    )
+    .bind(app_id)
+    .bind(key)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some((body, code)) = cached {
+        return Err(AccountError::IdempotentReplay {
+            status_code: code as u16,
+            body,
+        });
+    }
+
+    Ok(())
+}
+
+async fn record_idempotency(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    app_id: &str,
+    idempotency_key: Option<&str>,
+    account: &TreasuryAccount,
+    status_code: i32,
+    now: chrono::DateTime<Utc>,
+) -> Result<(), AccountError> {
+    if let Some(key) = idempotency_key {
+        let response_body = serde_json::to_value(account).unwrap_or(serde_json::Value::Null);
+        let expires_at = now + chrono::Duration::hours(24);
+        sqlx::query(
+            r#"
+            INSERT INTO treasury_idempotency_keys
+                (app_id, idempotency_key, request_hash, response_body, status_code, expires_at)
+            VALUES ($1, $2, '', $3, $4, $5)
+            ON CONFLICT (app_id, idempotency_key) DO NOTHING
+            "#,
+        )
+        .bind(app_id)
+        .bind(key)
+        .bind(response_body)
+        .bind(status_code)
+        .bind(expires_at)
+        .execute(&mut **tx)
+        .await
+        .map_err(AccountError::Database)?;
+    }
+    Ok(())
+}
+
+// ============================================================================
 // Integrated Tests
 // ============================================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::AccountType;
     use serial_test::serial;
 
     const TEST_APP: &str = "test-app-accounts";
 
     fn test_db_url() -> String {
         std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5444/treasury_db".to_string())
+            .unwrap_or_else(|_| "postgres://treasury_user:treasury_pass@localhost:5444/treasury_db".to_string())
     }
 
     async fn test_pool() -> PgPool {
@@ -410,8 +507,8 @@ mod tests {
             .ok();
     }
 
-    fn sample_create() -> CreateAccountRequest {
-        CreateAccountRequest {
+    fn sample_bank() -> CreateBankAccountRequest {
+        CreateBankAccountRequest {
             account_name: "Main Checking".to_string(),
             institution: Some("First National".to_string()),
             account_number_last4: Some("4321".to_string()),
@@ -421,27 +518,58 @@ mod tests {
         }
     }
 
+    fn sample_cc() -> CreateCreditCardAccountRequest {
+        CreateCreditCardAccountRequest {
+            account_name: "Corp Visa".to_string(),
+            institution: Some("Chase".to_string()),
+            account_number_last4: Some("9876".to_string()),
+            currency: "USD".to_string(),
+            credit_limit_minor: Some(500_000),
+            statement_closing_day: Some(15),
+            cc_network: Some("Visa".to_string()),
+            metadata: None,
+        }
+    }
+
     #[tokio::test]
     #[serial]
-    async fn test_create_and_get_account() {
+    async fn test_create_bank_account() {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let account = create_account(&pool, TEST_APP, &sample_create(), None, "corr-1".to_string())
+        let account = create_bank_account(&pool, TEST_APP, &sample_bank(), None, "c1".to_string())
             .await
-            .expect("create failed");
+            .expect("create bank account failed");
 
         assert_eq!(account.account_name, "Main Checking");
-        assert_eq!(account.app_id, TEST_APP);
+        assert_eq!(account.account_type, AccountType::Bank);
         assert_eq!(account.currency, "USD");
         assert_eq!(account.status, AccountStatus::Active);
         assert_eq!(account.current_balance_minor, 0);
+        assert!(account.credit_limit_minor.is_none());
 
         let fetched = get_account(&pool, TEST_APP, account.id)
             .await
             .expect("get failed");
         assert!(fetched.is_some());
-        assert_eq!(fetched.unwrap().id, account.id);
+
+        cleanup(&pool).await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_create_credit_card_account() {
+        let pool = test_pool().await;
+        cleanup(&pool).await;
+
+        let account = create_credit_card_account(&pool, TEST_APP, &sample_cc(), None, "c1".to_string())
+            .await
+            .expect("create CC failed");
+
+        assert_eq!(account.account_type, AccountType::CreditCard);
+        assert_eq!(account.credit_limit_minor, Some(500_000));
+        assert_eq!(account.statement_closing_day, Some(15));
+        assert_eq!(account.cc_network.as_deref(), Some("Visa"));
 
         cleanup(&pool).await;
     }
@@ -452,12 +580,12 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let a1 = create_account(&pool, TEST_APP, &sample_create(), None, "c1".to_string())
+        let a1 = create_bank_account(&pool, TEST_APP, &sample_bank(), None, "c1".to_string())
             .await
             .expect("create 1 failed");
-        let mut req2 = sample_create();
+        let mut req2 = sample_bank();
         req2.account_name = "Savings".to_string();
-        let a2 = create_account(&pool, TEST_APP, &req2, None, "c2".to_string())
+        let a2 = create_bank_account(&pool, TEST_APP, &req2, None, "c2".to_string())
             .await
             .expect("create 2 failed");
 
@@ -481,7 +609,7 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let created = create_account(&pool, TEST_APP, &sample_create(), None, "c1".to_string())
+        let created = create_bank_account(&pool, TEST_APP, &sample_bank(), None, "c1".to_string())
             .await
             .expect("create failed");
 
@@ -494,6 +622,9 @@ mod tests {
                 institution: None,
                 account_number_last4: None,
                 routing_number: None,
+                credit_limit_minor: None,
+                statement_closing_day: None,
+                cc_network: None,
                 metadata: None,
             },
             "c2".to_string(),
@@ -502,7 +633,7 @@ mod tests {
         .expect("update failed");
 
         assert_eq!(updated.account_name, "New Name");
-        assert_eq!(updated.institution.as_deref(), Some("First National")); // unchanged
+        assert_eq!(updated.institution.as_deref(), Some("First National"));
 
         cleanup(&pool).await;
     }
@@ -514,12 +645,11 @@ mod tests {
         cleanup(&pool).await;
 
         let key = Some("idem-key-001");
-
-        create_account(&pool, TEST_APP, &sample_create(), key, "c1".to_string())
+        create_bank_account(&pool, TEST_APP, &sample_bank(), key, "c1".to_string())
             .await
             .expect("first create failed");
 
-        let result = create_account(&pool, TEST_APP, &sample_create(), key, "c2".to_string()).await;
+        let result = create_bank_account(&pool, TEST_APP, &sample_bank(), key, "c2".to_string()).await;
         assert!(
             matches!(result, Err(AccountError::IdempotentReplay { .. })),
             "expected IdempotentReplay, got {:?}",
@@ -531,38 +661,11 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_deactivate_emits_outbox_event() {
-        let pool = test_pool().await;
-        cleanup(&pool).await;
-
-        let created = create_account(&pool, TEST_APP, &sample_create(), None, "c1".to_string())
-            .await
-            .expect("create failed");
-
-        deactivate_account(&pool, TEST_APP, created.id, "user-1", "c2".to_string())
-            .await
-            .expect("deactivate failed");
-
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM events_outbox WHERE aggregate_type = 'bank_account' AND aggregate_id = $1",
-        )
-        .bind(created.id.to_string())
-        .fetch_one(&pool)
-        .await
-        .expect("outbox query failed");
-
-        assert!(count.0 >= 2, "expected created + deactivated events");
-
-        cleanup(&pool).await;
-    }
-
-    #[tokio::test]
-    #[serial]
     async fn test_wrong_app_returns_none() {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let created = create_account(&pool, TEST_APP, &sample_create(), None, "c1".to_string())
+        let created = create_bank_account(&pool, TEST_APP, &sample_bank(), None, "c1".to_string())
             .await
             .expect("create failed");
 

@@ -96,10 +96,18 @@ async fn main() {
         .route("/api/ready", get(http::ready))
         .route("/api/version", get(http::version))
         .route("/metrics", get(metrics::metrics_handler))
-        // Bank accounts
+        // Treasury accounts
         .route(
             "/api/treasury/accounts",
-            post(http::accounts::create_account).get(http::accounts::list_accounts),
+            get(http::accounts::list_accounts),
+        )
+        .route(
+            "/api/treasury/accounts/bank",
+            post(http::accounts::create_bank_account),
+        )
+        .route(
+            "/api/treasury/accounts/credit-card",
+            post(http::accounts::create_credit_card_account),
         )
         .route(
             "/api/treasury/accounts/:id",
