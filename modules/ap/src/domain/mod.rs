@@ -4,4 +4,5 @@ pub mod r#match;
 pub mod payment_runs;
 pub mod po;
 pub mod receipts_link;
+pub mod reports;
 pub mod vendors;

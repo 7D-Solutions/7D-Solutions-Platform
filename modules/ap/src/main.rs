@@ -151,6 +151,8 @@ async fn main() {
             "/api/ap/payment-runs/{run_id}",
             get(http::payment_runs::get_run),
         )
+        // Reports
+        .route("/api/ap/aging", get(http::reports::aging_report))
         .with_state(app_state)
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
