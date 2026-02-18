@@ -414,3 +414,40 @@ pub async fn run_recognition_handler(
         }),
     ))
 }
+
+// ============================================================================
+// Amendment handler
+// ============================================================================
+
+#[derive(Debug, Serialize)]
+pub struct AmendContractResponse {
+    pub modification_id: Uuid,
+    pub contract_id: Uuid,
+    pub event_id: Uuid,
+}
+
+/// POST /api/gl/revrec/amendments
+///
+/// Record a contract modification. The body is a `ContractModifiedPayload`.
+/// Returns 201 on success, 409 if modification_id already exists.
+pub async fn amend_contract(
+    State(app_state): State<Arc<AppState>>,
+    Json(payload): Json<ContractModifiedPayload>,
+) -> Result<(StatusCode, Json<AmendContractResponse>), Response> {
+    let event_id = Uuid::new_v4();
+    let modification_id = payload.modification_id;
+    let contract_id = payload.contract_id;
+
+    revrec_repo::create_amendment(&app_state.pool, event_id, &payload)
+        .await
+        .map_err(map_revrec_error)?;
+
+    Ok((
+        StatusCode::CREATED,
+        Json(AmendContractResponse {
+            modification_id,
+            contract_id,
+            event_id,
+        }),
+    ))
+}

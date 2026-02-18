@@ -13,6 +13,7 @@ use inventory_rs::{
         serials::get_serials_for_item,
         status::post_status_transfer,
         trace::{trace_lot_handler, trace_serial_handler},
+        valuation::post_valuation_snapshot,
     },
     metrics::{metrics_handler, InventoryMetrics},
     routes::{
@@ -157,6 +158,11 @@ async fn main() {
         .route(
             "/api/inventory/items/{item_id}/reorder-policies",
             axum::routing::get(list_reorder_policies),
+        )
+        // Valuation snapshots (FIFO-derived point-in-time value)
+        .route(
+            "/api/inventory/valuation-snapshots",
+            axum::routing::post(post_valuation_snapshot),
         )
         // Locations (warehouse bins/shelves)
         .route("/api/inventory/locations", axum::routing::post(create_location))
