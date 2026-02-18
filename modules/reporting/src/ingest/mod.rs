@@ -26,6 +26,7 @@
 
 pub mod checkpoints;
 pub mod gl;
+pub mod payments;
 pub mod runner;
 
 use std::sync::Arc;

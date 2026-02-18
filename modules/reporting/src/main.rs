@@ -68,6 +68,7 @@ async fn main() {
         .route("/api/version", get(http::version))
         .route("/api/reporting/pl", get(http::statements::get_pl))
         .route("/api/reporting/balance-sheet", get(http::statements::get_balance_sheet))
+        .route("/api/reporting/cashflow", get(http::cashflow::get_cashflow))
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state)
         .layer(cors)
