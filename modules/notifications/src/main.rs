@@ -1,22 +1,10 @@
-mod config;
-mod db;
-mod consumer;
-mod consumer_tasks;
-mod dlq;
-mod envelope_validation;
-mod event_bus;
-mod handlers;
-mod models;
-mod routes;
-
-use axum::{routing::get, Json, Router};
+use axum::{routing::get, Router};
 use ::event_bus::{EventBus, InMemoryBus, NatsBus};
+use notifications_rs::{config, config::Config, db, event_bus, consumer_tasks, routes};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
-
-use config::Config;
 
 #[tokio::main]
 async fn main() {

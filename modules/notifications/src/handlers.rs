@@ -3,8 +3,8 @@ use uuid::Uuid;
 
 use crate::event_bus::{enqueue_event, EventEnvelope};
 use crate::models::{
-    EnvelopeMetadata, InvoiceIssuedPayload, NotificationDeliverySucceededPayload,
-    PaymentFailedPayload, PaymentSucceededPayload,
+    EnvelopeMetadata, InvoiceIssuedPayload, LowStockTriggeredPayload,
+    NotificationDeliverySucceededPayload, PaymentFailedPayload, PaymentSucceededPayload,
 };
 
 /// Handle ar.invoice.issued event
@@ -215,6 +215,64 @@ pub async fn handle_payment_failed(
         payment_id = %payload.payment_id,
         event_id = %envelope.event_id,
         "Payment failed notification delivery event enqueued"
+    );
+
+    Ok(())
+}
+
+/// Handle inventory.low_stock_triggered event.
+///
+/// When inventory stock crosses below the reorder point, this handler:
+/// 1. Logs the low-stock signal for the item/warehouse.
+/// 2. Enqueues a `notifications.low_stock.alert.created` outbox event so the
+///    downstream channel (email / webhook) can pick it up.
+pub async fn handle_low_stock_triggered(
+    pool: &PgPool,
+    payload: LowStockTriggeredPayload,
+    metadata: EnvelopeMetadata,
+) -> Result<(), Box<dyn std::error::Error>> {
+    tracing::info!(
+        item_id = %payload.item_id,
+        warehouse_id = %payload.warehouse_id,
+        available_qty = payload.available_qty,
+        reorder_point = payload.reorder_point,
+        tenant_id = %payload.tenant_id,
+        "Handling low-stock triggered notification"
+    );
+
+    let notification_id = Uuid::new_v4().to_string();
+    let channel = "internal";
+    let template_id = "low_stock_alert";
+
+    let success_payload = NotificationDeliverySucceededPayload {
+        notification_id: notification_id.clone(),
+        channel: channel.to_string(),
+        to: None,
+        template_id: Some(template_id.to_string()),
+        status: "queued".to_string(),
+        provider_message_id: None,
+        attempts: 1,
+    };
+
+    let envelope = crate::event_bus::create_notifications_envelope(
+        Uuid::new_v4(),
+        metadata.tenant_id.clone(),
+        "notifications.low_stock.alert.created".to_string(),
+        metadata.correlation_id.clone(),
+        Some(metadata.event_id.to_string()),
+        "SIDE_EFFECT".to_string(),
+        serde_json::to_value(success_payload)?,
+    );
+
+    let mut tx = pool.begin().await?;
+    enqueue_event(&mut tx, "notifications.low_stock.alert.created", &envelope).await?;
+    tx.commit().await?;
+
+    tracing::info!(
+        notification_id = %notification_id,
+        item_id = %payload.item_id,
+        event_id = %envelope.event_id,
+        "Low-stock alert notification enqueued"
     );
 
     Ok(())

@@ -1,8 +1,24 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 // ============================================================================
 // INCOMING EVENT PAYLOADS
 // ============================================================================
+
+/// Payload for inventory.low_stock_triggered event.
+/// Mirrors `inventory_rs::events::low_stock_triggered::LowStockTriggeredPayload`
+/// (duplicated here to avoid a cross-crate dependency on the inventory library).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LowStockTriggeredPayload {
+    pub tenant_id: String,
+    pub item_id: Uuid,
+    pub warehouse_id: Uuid,
+    pub location_id: Option<Uuid>,
+    pub reorder_point: i64,
+    pub available_qty: i64,
+    pub triggered_at: DateTime<Utc>,
+}
 
 /// Payload for ar.invoice.issued event
 #[derive(Debug, Clone, Serialize, Deserialize)]
