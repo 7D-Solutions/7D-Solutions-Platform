@@ -1,4 +1,5 @@
 pub mod adjust_service;
+pub mod cycle_count;
 pub mod fifo;
 pub mod guards;
 pub mod issue_service;
