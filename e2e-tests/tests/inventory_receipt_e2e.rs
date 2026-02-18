@@ -11,7 +11,7 @@
 //! Set INVENTORY_DATABASE_URL (or DATABASE_URL) to the inventory DB connection string.
 
 use inventory_rs::domain::{
-    items::{CreateItemRequest, ItemRepo},
+    items::{CreateItemRequest, ItemRepo, TrackingMode},
     receipt_service::{process_receipt, ReceiptError, ReceiptRequest},
 };
 use serial_test::serial;
@@ -53,6 +53,7 @@ fn test_item_req(tenant_id: &str, sku: &str) -> CreateItemRequest {
         cogs_account_ref: "5000".to_string(),
         variance_account_ref: "5010".to_string(),
         uom: None,
+        tracking_mode: TrackingMode::None,
     }
 }
 
@@ -61,6 +62,7 @@ fn test_receipt_req(tenant_id: &str, item_id: Uuid) -> ReceiptRequest {
         tenant_id: tenant_id.to_string(),
         item_id,
         warehouse_id: Uuid::new_v4(),
+        location_id: None,
         quantity: 100,
         unit_cost_minor: 25_00, // $25.00
         currency: "usd".to_string(),
@@ -68,6 +70,9 @@ fn test_receipt_req(tenant_id: &str, item_id: Uuid) -> ReceiptRequest {
         idempotency_key: format!("e2e-idem-{}", Uuid::new_v4()),
         correlation_id: Some("e2e-corr".to_string()),
         causation_id: None,
+        lot_code: None,
+        serial_codes: None,
+        uom_id: None,
     }
 }
 

@@ -12,7 +12,7 @@
 //! Set INVENTORY_DATABASE_URL (or DATABASE_URL) to the inventory DB connection string.
 
 use inventory_rs::domain::{
-    items::{CreateItemRequest, ItemRepo},
+    items::{CreateItemRequest, ItemRepo, TrackingMode},
     reservation_service::{
         process_release, process_reserve, ReleaseRequest, ReservationError, ReserveRequest,
     },
@@ -56,6 +56,7 @@ fn test_item_req(tenant_id: &str, sku: &str) -> CreateItemRequest {
         cogs_account_ref: "5000".to_string(),
         variance_account_ref: "5010".to_string(),
         uom: None,
+        tracking_mode: TrackingMode::None,
     }
 }
 

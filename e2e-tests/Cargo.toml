@@ -231,6 +231,22 @@ path = "tests/inventory_reservation_e2e.rs"
 name = "inventory_gl_e2e"
 path = "tests/inventory_gl_e2e.rs"
 
+[[test]]
+name = "inventory_receipt_issue_gl"
+path = "tests/inventory_receipt_issue_gl.rs"
+
+[[test]]
+name = "inventory_fifo_determinism"
+path = "tests/inventory_fifo_determinism.rs"
+
+[[test]]
+name = "inventory_concurrency"
+path = "tests/inventory_concurrency.rs"
+
+[[test]]
+name = "inventory_idempotency"
+path = "tests/inventory_idempotency.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }

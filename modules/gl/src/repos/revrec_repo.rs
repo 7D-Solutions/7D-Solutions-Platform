@@ -36,6 +36,12 @@ pub enum RevrecRepoError {
 
     #[error("Schedule lines sum {sum} does not match total {expected}")]
     ScheduleSumMismatch { sum: i64, expected: i64 },
+
+    #[error("Modification already exists: {0}")]
+    DuplicateModification(Uuid),
+
+    #[error("Contract not found: {0}")]
+    ContractNotFound(Uuid),
 }
 
 /// Check if a contract already exists (idempotency check)
