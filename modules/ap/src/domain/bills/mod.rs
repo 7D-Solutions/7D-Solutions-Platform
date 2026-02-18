@@ -9,6 +9,7 @@
 //!                  open -> matched (3-way match engine)
 
 pub mod approve;
+pub mod models;
 pub mod service;
 pub mod void;
 

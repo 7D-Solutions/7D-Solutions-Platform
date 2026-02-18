@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::events::envelope::{create_ap_envelope, EventEnvelope};
+use crate::events::vendor_bill_approved::ApprovedGlLine;
 use super::{AP_EVENT_SCHEMA_VERSION, MUTATION_CLASS_DATA_MUTATION, MUTATION_CLASS_REVERSAL};
 
 // ============================================================================
@@ -164,6 +165,8 @@ pub fn build_vendor_bill_matched_envelope(
 /// Payload for ap.vendor_bill_approved
 ///
 /// Emitted when an approver signs off on a bill, queuing it for payment.
+/// Carries all information needed by the GL consumer for posting without
+/// re-reading the AP database (replay-safe).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VendorBillApprovedPayload {
     pub bill_id: Uuid,
@@ -177,6 +180,12 @@ pub struct VendorBillApprovedPayload {
     pub due_date: DateTime<Utc>,
     pub approved_by: String,
     pub approved_at: DateTime<Utc>,
+    /// Phase 23a FX infrastructure identifier: UUID of the fx_rates row used
+    /// when the bill was entered. None when bill currency == functional currency.
+    pub fx_rate_id: Option<Uuid>,
+    /// Per-line GL expense account allocations for replay-safe GL posting.
+    /// Empty when the approval service could not populate line data.
+    pub gl_lines: Vec<ApprovedGlLine>,
 }
 
 /// Build an envelope for ap.vendor_bill_approved

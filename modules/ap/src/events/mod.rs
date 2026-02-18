@@ -19,6 +19,7 @@ pub mod envelope;
 pub mod payment;
 pub mod po;
 pub mod vendor;
+pub mod vendor_bill_approved;
 
 // ============================================================================
 // Shared Constants
@@ -64,6 +65,8 @@ pub use bill::{
     build_vendor_bill_created_envelope, build_vendor_bill_matched_envelope,
     build_vendor_bill_approved_envelope, build_vendor_bill_voided_envelope,
 };
+
+pub use vendor_bill_approved::ApprovedGlLine;
 
 pub use payment::{
     PaymentRunItem, ApPaymentRunCreatedPayload, ApPaymentExecutedPayload,
