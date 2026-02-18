@@ -1,4 +1,5 @@
 pub mod employees;
+pub mod entries;
 pub mod projects;
 
 use axum::{
@@ -38,6 +39,23 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(projects::get_project)
                 .put(projects::update_project)
                 .delete(projects::deactivate_project),
+        )
+        // Timesheet Entries
+        .route(
+            "/api/timekeeping/entries",
+            post(entries::create_entry).get(entries::list_entries),
+        )
+        .route(
+            "/api/timekeeping/entries/correct",
+            post(entries::correct_entry),
+        )
+        .route(
+            "/api/timekeeping/entries/void",
+            post(entries::void_entry),
+        )
+        .route(
+            "/api/timekeeping/entries/{entry_id}/history",
+            get(entries::entry_history),
         )
         // Tasks (nested under projects for listing, flat for direct access)
         .route(
