@@ -2,6 +2,7 @@ pub mod allocations;
 pub mod approvals;
 pub mod employees;
 pub mod entries;
+pub mod export;
 pub mod projects;
 
 use axum::{
@@ -130,6 +131,15 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/timekeeping/rollups/by-task/{project_id}",
             get(allocations::rollup_by_task),
+        )
+        // Exports
+        .route(
+            "/api/timekeeping/exports",
+            post(export::create_export).get(export::list_exports),
+        )
+        .route(
+            "/api/timekeeping/exports/{id}",
+            get(export::get_export),
         )
         .with_state(state)
 }
