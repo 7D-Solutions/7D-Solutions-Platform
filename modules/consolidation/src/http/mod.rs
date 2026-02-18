@@ -1,5 +1,6 @@
 pub mod config;
 pub mod consolidate;
+pub mod intercompany;
 
 use axum::{
     routing::{delete, get, post, put},
@@ -102,6 +103,15 @@ pub fn router() -> Router<Arc<AppState>> {
         .route(
             "/api/consolidation/fx-policies/{id}",
             delete(config::delete_fx_policy),
+        )
+        // Intercompany matching + eliminations
+        .route(
+            "/api/consolidation/groups/{group_id}/intercompany-match",
+            post(intercompany::run_intercompany_match),
+        )
+        .route(
+            "/api/consolidation/groups/{group_id}/eliminations",
+            post(intercompany::post_eliminations),
         )
         // Validation
         .route(

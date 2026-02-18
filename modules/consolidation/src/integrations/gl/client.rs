@@ -159,4 +159,73 @@ impl GlClient {
             _ => Ok(None),
         }
     }
+
+    /// Post an elimination journal entry to GL.
+    ///
+    /// Uses source_module = "consolidation-elimination" for audit trail.
+    /// The source_doc_id acts as an idempotency reference within GL.
+    /// Returns the journal entry ID from GL.
+    pub async fn post_elimination_journal(
+        &self,
+        tenant_id: &str,
+        posting_date: &str,
+        currency: &str,
+        debit_account: &str,
+        credit_account: &str,
+        amount_minor: i64,
+        description: &str,
+        source_doc_id: &str,
+    ) -> Result<Uuid, GlClientError> {
+        let amount_major = amount_minor as f64 / 100.0;
+
+        let body = serde_json::json!({
+            "tenant_id": tenant_id,
+            "source_module": "consolidation-elimination",
+            "posting_date": posting_date,
+            "currency": currency,
+            "source_doc_type": "GL_ACCRUAL",
+            "source_doc_id": source_doc_id,
+            "description": description,
+            "lines": [
+                {
+                    "account_ref": debit_account,
+                    "debit": amount_major,
+                    "credit": 0,
+                    "memo": format!("Elimination DR: {}", description)
+                },
+                {
+                    "account_ref": credit_account,
+                    "debit": 0,
+                    "credit": amount_major,
+                    "memo": format!("Elimination CR: {}", description)
+                }
+            ]
+        });
+
+        let url = format!("{}/api/gl/journal-entries", self.base_url);
+        let resp = self
+            .client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status().as_u16();
+            let body_text = resp.text().await.unwrap_or_default();
+            return Err(GlClientError::Api {
+                status,
+                body: body_text,
+            });
+        }
+
+        let result: PostJournalResponse = resp.json().await?;
+        Ok(result.journal_entry_id)
+    }
+}
+
+/// Response from GL journal entry creation endpoint.
+#[derive(Debug, Clone, Deserialize)]
+pub struct PostJournalResponse {
+    pub journal_entry_id: Uuid,
 }
