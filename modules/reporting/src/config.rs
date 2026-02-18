@@ -39,17 +39,21 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     #[test]
+    #[serial]
     fn test_config_requires_database_url() {
         // Remove DATABASE_URL to confirm error
         unsafe { std::env::remove_var("DATABASE_URL"); }
         let result = Config::from_env();
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("DATABASE_URL is required"));
+        unsafe { std::env::remove_var("DATABASE_URL"); }
     }
 
     #[test]
+    #[serial]
     fn test_config_default_port_is_8096() {
         unsafe {
             std::env::set_var("DATABASE_URL", "postgres://user:pass@localhost/reporting_test_db");
