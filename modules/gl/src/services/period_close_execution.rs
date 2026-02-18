@@ -8,7 +8,7 @@ use super::period_close_validation::{
     has_blocking_errors, validate_period_can_close, PeriodCloseError,
 };
 use crate::contracts::period_close_v1::{CloseStatus, ValidationIssue, ValidationReport, ValidationSeverity};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -253,4 +253,86 @@ pub async fn close_period(
         validation_report: None,
         timestamp: now,
     })
+}
+
+// ============================================================
+// Close Calendar — read-only status reflecting actual GL state
+// ============================================================
+
+/// Close calendar entry with actual GL close state merged in
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloseCalendarEntry {
+    pub id: Uuid,
+    pub tenant_id: String,
+    pub period_id: Uuid,
+    pub period_start: NaiveDate,
+    pub period_end: NaiveDate,
+    pub expected_close_date: NaiveDate,
+    pub owner_role: String,
+    pub reminder_offset_days: Vec<i32>,
+    pub overdue_reminder_interval_days: i32,
+    pub gl_closed: bool,
+    pub gl_closed_at: Option<DateTime<Utc>>,
+    pub notes: Option<String>,
+}
+
+/// Row type for the calendar + period join query
+#[derive(Debug, sqlx::FromRow)]
+struct CalendarPeriodRow {
+    id: Uuid,
+    tenant_id: String,
+    period_id: Uuid,
+    period_start: NaiveDate,
+    period_end: NaiveDate,
+    expected_close_date: NaiveDate,
+    owner_role: String,
+    reminder_offset_days: Vec<i32>,
+    overdue_reminder_interval_days: i32,
+    notes: Option<String>,
+    closed_at: Option<DateTime<Utc>>,
+}
+
+/// Get close calendar entries for a tenant, with actual GL close state.
+///
+/// Joins close_calendar with accounting_periods to reflect whether each
+/// period is actually closed in GL. This is a read-only check — the
+/// calendar never stores its own open/closed status.
+pub async fn get_close_calendar_status(
+    pool: &PgPool,
+    tenant_id: &str,
+) -> Result<Vec<CloseCalendarEntry>, PeriodCloseError> {
+    let rows = sqlx::query_as::<_, CalendarPeriodRow>(
+        r#"
+        SELECT cc.id, cc.tenant_id, cc.period_id,
+               ap.period_start, ap.period_end,
+               cc.expected_close_date, cc.owner_role,
+               cc.reminder_offset_days, cc.overdue_reminder_interval_days,
+               cc.notes, ap.closed_at
+        FROM close_calendar cc
+        JOIN accounting_periods ap ON ap.id = cc.period_id AND ap.tenant_id = cc.tenant_id
+        WHERE cc.tenant_id = $1
+        ORDER BY cc.expected_close_date ASC
+        "#,
+    )
+    .bind(tenant_id)
+    .fetch_all(pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|r| CloseCalendarEntry {
+            id: r.id,
+            tenant_id: r.tenant_id,
+            period_id: r.period_id,
+            period_start: r.period_start,
+            period_end: r.period_end,
+            expected_close_date: r.expected_close_date,
+            owner_role: r.owner_role,
+            reminder_offset_days: r.reminder_offset_days,
+            overdue_reminder_interval_days: r.overdue_reminder_interval_days,
+            gl_closed: r.closed_at.is_some(),
+            gl_closed_at: r.closed_at,
+            notes: r.notes,
+        })
+        .collect())
 }
