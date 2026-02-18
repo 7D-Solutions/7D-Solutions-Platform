@@ -24,6 +24,7 @@ use gl_rs::{
         get_reporting_income_statement,
         get_reporting_balance_sheet,
     },
+    consumer::ar_tax_liability::{start_ar_tax_committed_consumer, start_ar_tax_voided_consumer},
     consumer::gl_inventory_consumer::start_gl_inventory_consumer,
     consumer::gl_writeoff_consumer::start_gl_writeoff_consumer,
     start_gl_posting_consumer,
@@ -105,6 +106,15 @@ async fn main() {
     let inventory_pool = pool.clone();
     let inventory_bus = bus.clone();
     start_gl_inventory_consumer(inventory_bus, inventory_pool).await;
+
+    // Start AR tax liability consumers (tax.committed + tax.voided)
+    let tax_committed_pool = pool.clone();
+    let tax_committed_bus = bus.clone();
+    start_ar_tax_committed_consumer(tax_committed_bus, tax_committed_pool).await;
+
+    let tax_voided_pool = pool.clone();
+    let tax_voided_bus = bus.clone();
+    start_ar_tax_voided_consumer(tax_voided_bus, tax_voided_pool).await;
 
     // Create metrics registry
     let metrics = Arc::new(

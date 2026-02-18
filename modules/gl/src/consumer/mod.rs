@@ -1,4 +1,5 @@
 pub mod ap_vendor_bill_approved_consumer;
+pub mod ar_tax_liability;
 pub mod gl_credit_note_consumer;
 pub mod gl_fx_realized_consumer;
 pub mod gl_inventory_consumer;
