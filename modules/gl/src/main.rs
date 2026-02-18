@@ -12,6 +12,10 @@ use gl_rs::{
     routes::gl_detail::get_gl_detail,
     routes::health::{health, ready, version},
     routes::income_statement::get_income_statement,
+    routes::close_checklist::{
+        complete_checklist_item, create_approval, create_checklist_item,
+        get_approvals, get_checklist_status, waive_checklist_item,
+    },
     routes::period_close::{close_period_handler, get_close_status, validate_close},
     routes::period_summary::get_period_summary,
     routes::fx_rates::{create_fx_rate, get_latest_rate as get_latest_fx_rate},
@@ -145,6 +149,10 @@ async fn main() {
         .route("/api/gl/periods/{period_id}/validate-close", post(validate_close))
         .route("/api/gl/periods/{period_id}/close", post(close_period_handler))
         .route("/api/gl/periods/{period_id}/close-status", get(get_close_status))
+        .route("/api/gl/periods/{period_id}/checklist", get(get_checklist_status).post(create_checklist_item))
+        .route("/api/gl/periods/{period_id}/checklist/{item_id}/complete", post(complete_checklist_item))
+        .route("/api/gl/periods/{period_id}/checklist/{item_id}/waive", post(waive_checklist_item))
+        .route("/api/gl/periods/{period_id}/approvals", get(get_approvals).post(create_approval))
         .route("/api/gl/detail", get(get_gl_detail))
         .route("/api/gl/accounts/{account_code}/activity", get(get_account_activity))
         .route("/api/gl/fx-rates", post(create_fx_rate))
