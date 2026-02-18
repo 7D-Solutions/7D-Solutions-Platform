@@ -5,12 +5,65 @@
 //! - inventory_account_ref, cogs_account_ref, variance_account_ref are required
 //! - SKU and name must be non-empty
 //! - Deactivate is idempotent (already-inactive items return Ok)
+//! - tracking_mode is set on creation and is immutable (none|lot|serial)
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
+
+// ============================================================================
+// Tracking mode
+// ============================================================================
+
+/// How stock movements are tracked for this SKU.
+///
+/// Set at item creation; immutable thereafter (changing tracking_mode after
+/// stock exists would invalidate historical layer associations).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TrackingMode {
+    /// No lot/serial tracking. Quantities move freely.
+    None,
+    /// Stock moves in named lots. lot_code is required on receipt/issue.
+    Lot,
+    /// Each unit has a unique serial number. serial_codes required on movement.
+    /// Serial items must always move in positive integer units.
+    Serial,
+}
+
+impl TrackingMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Lot => "lot",
+            Self::Serial => "serial",
+        }
+    }
+}
+
+impl std::fmt::Display for TrackingMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl TryFrom<String> for TrackingMode {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        match s.as_str() {
+            "none" => Ok(Self::None),
+            "lot" => Ok(Self::Lot),
+            "serial" => Ok(Self::Serial),
+            other => Err(format!(
+                "invalid tracking_mode '{}': expected none|lot|serial",
+                other
+            )),
+        }
+    }
+}
 
 // ============================================================================
 // Domain model
@@ -28,6 +81,12 @@ pub struct Item {
     pub cogs_account_ref: String,
     pub variance_account_ref: String,
     pub uom: String,
+    /// FK into `uoms` catalog — the item's canonical stock unit.
+    /// None until assigned via the UoM catalog.
+    pub base_uom_id: Option<Uuid>,
+    /// How stock movements are tracked. Immutable after creation.
+    #[sqlx(try_from = "String")]
+    pub tracking_mode: TrackingMode,
     pub active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -52,6 +111,8 @@ pub struct CreateItemRequest {
     pub variance_account_ref: String,
     /// Unit of measure, defaults to "ea"
     pub uom: Option<String>,
+    /// Lot/serial tracking mode. Required; immutable after creation.
+    pub tracking_mode: TrackingMode,
 }
 
 /// Input for PUT /api/inventory/items/:id
@@ -156,9 +217,9 @@ impl ItemRepo {
             INSERT INTO items
                 (id, tenant_id, sku, name, description,
                  inventory_account_ref, cogs_account_ref, variance_account_ref,
-                 uom, active, created_at, updated_at)
+                 uom, tracking_mode, active, created_at, updated_at)
             VALUES
-                ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, $10, $10)
+                ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, TRUE, $11, $11)
             RETURNING *
             "#,
         )
@@ -171,6 +232,7 @@ impl ItemRepo {
         .bind(req.cogs_account_ref.trim())
         .bind(req.variance_account_ref.trim())
         .bind(uom)
+        .bind(req.tracking_mode.as_str())
         .bind(now)
         .fetch_one(pool)
         .await
@@ -294,6 +356,7 @@ mod tests {
             cogs_account_ref: "5000".to_string(),
             variance_account_ref: "5010".to_string(),
             uom: None,
+            tracking_mode: TrackingMode::None,
         }
     }
 
@@ -356,5 +419,20 @@ mod tests {
             uom: None,
         };
         assert!(r.validate().is_ok());
+    }
+
+    #[test]
+    fn tracking_mode_roundtrip() {
+        assert_eq!(TrackingMode::try_from("none".to_string()), Ok(TrackingMode::None));
+        assert_eq!(TrackingMode::try_from("lot".to_string()), Ok(TrackingMode::Lot));
+        assert_eq!(TrackingMode::try_from("serial".to_string()), Ok(TrackingMode::Serial));
+        assert!(TrackingMode::try_from("unknown".to_string()).is_err());
+    }
+
+    #[test]
+    fn tracking_mode_display() {
+        assert_eq!(TrackingMode::None.as_str(), "none");
+        assert_eq!(TrackingMode::Lot.as_str(), "lot");
+        assert_eq!(TrackingMode::Serial.as_str(), "serial");
     }
 }

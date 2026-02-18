@@ -9,7 +9,7 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::domain::items::Item;
+use crate::domain::items::{Item, TrackingMode};
 
 // ============================================================================
 // Errors
@@ -81,6 +81,23 @@ pub fn guard_cost_present(unit_cost_minor: i64) -> Result<(), GuardError> {
     Ok(())
 }
 
+/// Guard: serial-tracked items must move in positive integer units.
+///
+/// Since quantity is already i64, integer is guaranteed. This guard enforces
+/// that serial-tracked items have quantity > 0, which is required for
+/// deterministic serial number assignment in downstream beads.
+///
+/// For none/lot items this guard is a no-op; `guard_quantity_positive` handles
+/// the general positive-quantity requirement.
+pub fn guard_serial_quantity(tracking_mode: TrackingMode, quantity: i64) -> Result<(), GuardError> {
+    if tracking_mode == TrackingMode::Serial && quantity <= 0 {
+        return Err(GuardError::Validation(
+            "serial-tracked items must move in positive integer units (quantity > 0)".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 // ============================================================================
 // Unit tests
 // ============================================================================
@@ -131,5 +148,37 @@ mod tests {
     fn cost_present_accepts_positive() {
         assert!(guard_cost_present(1).is_ok());
         assert!(guard_cost_present(50_000).is_ok());
+    }
+
+    #[test]
+    fn serial_quantity_rejects_zero_for_serial() {
+        assert!(matches!(
+            guard_serial_quantity(TrackingMode::Serial, 0),
+            Err(GuardError::Validation(_))
+        ));
+    }
+
+    #[test]
+    fn serial_quantity_rejects_negative_for_serial() {
+        assert!(matches!(
+            guard_serial_quantity(TrackingMode::Serial, -5),
+            Err(GuardError::Validation(_))
+        ));
+    }
+
+    #[test]
+    fn serial_quantity_accepts_positive_for_serial() {
+        assert!(guard_serial_quantity(TrackingMode::Serial, 1).is_ok());
+        assert!(guard_serial_quantity(TrackingMode::Serial, 100).is_ok());
+    }
+
+    #[test]
+    fn serial_quantity_noop_for_none_and_lot() {
+        // For none/lot items, guard_quantity_positive handles the requirement.
+        // guard_serial_quantity is a no-op so callers can apply it unconditionally.
+        assert!(guard_serial_quantity(TrackingMode::None, 0).is_ok());
+        assert!(guard_serial_quantity(TrackingMode::None, -1).is_ok());
+        assert!(guard_serial_quantity(TrackingMode::Lot, 0).is_ok());
+        assert!(guard_serial_quantity(TrackingMode::Lot, -1).is_ok());
     }
 }

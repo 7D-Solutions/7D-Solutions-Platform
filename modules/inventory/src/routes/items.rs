@@ -2,15 +2,17 @@
 //!
 //! Endpoints:
 //!   POST  /api/inventory/items            — create item
+//!   GET   /api/inventory/items/:id        — get item (includes tracking_mode)
 //!   PUT   /api/inventory/items/:id        — update item
 //!   POST  /api/inventory/items/:id/deactivate — soft-delete item
 
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
     Json,
 };
+use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -19,6 +21,11 @@ use crate::{
     domain::items::{CreateItemRequest, ItemError, ItemRepo, UpdateItemRequest},
     AppState,
 };
+
+#[derive(Debug, Deserialize)]
+pub struct TenantQuery {
+    pub tenant_id: String,
+}
 
 // ============================================================================
 // Error mapping
@@ -66,6 +73,34 @@ pub async fn create_item(
 ) -> impl IntoResponse {
     match ItemRepo::create(&state.pool, &req).await {
         Ok(item) => (StatusCode::CREATED, Json(json!(item))).into_response(),
+        Err(e) => item_error_response(e).into_response(),
+    }
+}
+
+/// GET /api/inventory/items/:id?tenant_id=...
+///
+/// Fetch an item by id scoped to tenant. Returns 200 OK with full item
+/// (including tracking_mode) on success, 404 Not Found if not found.
+pub async fn get_item(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+    Query(query): Query<TenantQuery>,
+) -> impl IntoResponse {
+    if query.tenant_id.trim().is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
+        )
+            .into_response();
+    }
+
+    match ItemRepo::find_by_id(&state.pool, id, &query.tenant_id).await {
+        Ok(Some(item)) => (StatusCode::OK, Json(json!(item))).into_response(),
+        Ok(None) => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "not_found", "message": "Item not found" })),
+        )
+            .into_response(),
         Err(e) => item_error_response(e).into_response(),
     }
 }

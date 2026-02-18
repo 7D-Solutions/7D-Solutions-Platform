@@ -9,9 +9,11 @@ use inventory_rs::{
     metrics::{metrics_handler, InventoryMetrics},
     routes::{
         health::{health, ready, version},
-        items::{create_item, deactivate_item, update_item},
+        issues::post_issue,
+        items::{create_item, deactivate_item, get_item, update_item},
         receipts::post_receipt,
         reservations::{post_release, post_reserve},
+        uom::{create_conversion, create_uom, list_conversions, list_uoms},
     },
     AppState, Config,
 };
@@ -59,13 +61,18 @@ async fn main() {
         .route("/metrics", get(metrics_handler))
         // Item master
         .route("/api/inventory/items", axum::routing::post(create_item))
-        .route("/api/inventory/items/{id}", axum::routing::put(update_item))
+        .route(
+            "/api/inventory/items/{id}",
+            axum::routing::get(get_item).put(update_item),
+        )
         .route(
             "/api/inventory/items/{id}/deactivate",
             axum::routing::post(deactivate_item),
         )
         // Stock receipts
         .route("/api/inventory/receipts", axum::routing::post(post_receipt))
+        // Stock issues (FIFO consumption)
+        .route("/api/inventory/issues", axum::routing::post(post_issue))
         // Reservations (compensating model: reserve + release)
         .route(
             "/api/inventory/reservations/reserve",
@@ -74,6 +81,15 @@ async fn main() {
         .route(
             "/api/inventory/reservations/release",
             axum::routing::post(post_release),
+        )
+        // UoM catalog + item conversions
+        .route(
+            "/api/inventory/uoms",
+            axum::routing::post(create_uom).get(list_uoms),
+        )
+        .route(
+            "/api/inventory/items/{id}/uom-conversions",
+            axum::routing::post(create_conversion).get(list_conversions),
         )
         .with_state(app_state)
         .layer(
