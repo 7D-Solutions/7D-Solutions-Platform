@@ -6,8 +6,8 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::models::*;
-use super::TaxProviderError;
+use tax_core::models::*;
+use tax_core::TaxProviderError;
 
 // ============================================================================
 // Resolution hash

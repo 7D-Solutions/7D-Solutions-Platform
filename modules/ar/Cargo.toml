@@ -26,6 +26,7 @@ hex = "0.4"
 base64 = "0.22"
 http-body-util = "0.1"
 event-bus = { path = "../../platform/event-bus" }
+tax-core = { path = "../../platform/tax-core" }
 projections = { path = "../../platform/projections" }
 async-nats = "0.33"
 futures = "0.3"

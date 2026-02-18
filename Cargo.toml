@@ -7,6 +7,7 @@ members = [
   "platform/control-plane",
   "platform/projections",
   "platform/security",
+  "platform/tax-core",
   "modules/ar",
   "modules/subscriptions",
   "modules/payments",

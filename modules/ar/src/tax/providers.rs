@@ -3,8 +3,8 @@
 use chrono::Utc;
 use uuid::Uuid;
 
-use super::models::*;
-use super::{TaxProvider, TaxProviderError};
+use tax_core::{TaxProvider, TaxProviderError};
+use tax_core::models::*;
 
 // ============================================================================
 // Stub implementation for testing

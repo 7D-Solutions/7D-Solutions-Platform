@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::models::*;
+use tax_core::models::*;
+use tax_core::{TaxProvider, TaxProviderError};
 use super::providers::LocalTaxProvider;
-use super::{TaxProvider, TaxProviderError};
 
 // ============================================================================
 // Cached quote row
