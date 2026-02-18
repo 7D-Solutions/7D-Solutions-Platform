@@ -13,3 +13,4 @@ pub mod reservation_service;
 pub mod status;
 pub mod transfer_service;
 pub mod uom;
+pub mod valuation;
