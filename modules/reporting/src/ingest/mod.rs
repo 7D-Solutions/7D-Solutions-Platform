@@ -25,6 +25,7 @@
 //!    unique constraint, ensuring replays from a checkpoint reset are safe.
 
 pub mod checkpoints;
+pub mod gl;
 pub mod runner;
 
 use std::sync::Arc;
