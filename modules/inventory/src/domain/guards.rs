@@ -10,6 +10,8 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::domain::items::{Item, TrackingMode};
+use crate::domain::uom::convert::{self, ConvertError};
+use crate::domain::uom::models::ItemUomConversion;
 
 // ============================================================================
 // Errors
@@ -25,6 +27,12 @@ pub enum GuardError {
 
     #[error("Validation error: {0}")]
     Validation(String),
+
+    #[error("Item has no base_uom configured; cannot convert input UoM")]
+    NoBaseUom,
+
+    #[error("UoM conversion failed: {0}")]
+    UomConversion(ConvertError),
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -79,6 +87,65 @@ pub fn guard_cost_present(unit_cost_minor: i64) -> Result<(), GuardError> {
         ));
     }
     Ok(())
+}
+
+/// Guard: resolve an input quantity to base_uom units.
+///
+/// Call this **before** writing any ledger row or FIFO layer so that all
+/// persisted quantities are in the item's canonical unit.
+///
+/// | `from_uom_id`              | Outcome                                        |
+/// |----------------------------|------------------------------------------------|
+/// | `None`                     | Quantity assumed to be in base units; returned as-is |
+/// | `Some(id) == base_uom_id`  | Identity; returned as-is                      |
+/// | `Some(id) != base_uom_id`  | Loads conversions from DB and applies factor   |
+///
+/// Returns `NoBaseUom` when `from_uom_id` is `Some(...)` but the item has no
+/// `base_uom_id` configured (i.e. conversion target is unknown).
+pub async fn guard_convert_to_base(
+    pool: &PgPool,
+    item_id: Uuid,
+    tenant_id: &str,
+    quantity: i64,
+    from_uom_id: Option<Uuid>,
+    base_uom_id: Option<Uuid>,
+) -> Result<i64, GuardError> {
+    let from = match from_uom_id {
+        // Caller asserts quantity is already in base units.
+        None => return Ok(quantity),
+        Some(id) => id,
+    };
+
+    let base = match base_uom_id {
+        // Cannot convert when the item has no base_uom set.
+        None => return Err(GuardError::NoBaseUom),
+        Some(id) => id,
+    };
+
+    // Identity: from_uom == base_uom — no conversion needed.
+    if from == base {
+        return Ok(quantity);
+    }
+
+    // Load item-level conversion table and convert.
+    let conversions = load_item_conversions(pool, item_id, tenant_id).await?;
+    convert::to_base_uom(quantity, from, base, &conversions)
+        .map_err(GuardError::UomConversion)
+}
+
+async fn load_item_conversions(
+    pool: &PgPool,
+    item_id: Uuid,
+    tenant_id: &str,
+) -> Result<Vec<ItemUomConversion>, GuardError> {
+    sqlx::query_as::<_, ItemUomConversion>(
+        "SELECT * FROM item_uom_conversions WHERE item_id = $1 AND tenant_id = $2",
+    )
+    .bind(item_id)
+    .bind(tenant_id)
+    .fetch_all(pool)
+    .await
+    .map_err(GuardError::Database)
 }
 
 /// Guard: serial-tracked items must move in positive integer units.
