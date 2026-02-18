@@ -19,7 +19,10 @@ if [ ! -w "$PROJECT_ROOT" ]; then
 fi
 
 # Set mail project key to current project (for agent isolation)
-MAIL_PROJECT_KEY="${MAIL_PROJECT_KEY:-$PROJECT_ROOT}"
+# ALWAYS derive from PROJECT_ROOT — do NOT use ${MAIL_PROJECT_KEY:-...} pattern.
+# Spoke projects inherit the parent's MAIL_PROJECT_KEY when launched from AgentCore's
+# ./start, causing monitors to query the wrong project's inbox.
+MAIL_PROJECT_KEY="$PROJECT_ROOT"
 
 # Derived directories
 PIDS_DIR="$PROJECT_ROOT/pids"
