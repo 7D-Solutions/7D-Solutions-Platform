@@ -1,5 +1,6 @@
 pub mod allocations;
 pub mod bills;
+pub mod payment_runs;
 pub mod purchase_orders;
 pub mod vendors;
 

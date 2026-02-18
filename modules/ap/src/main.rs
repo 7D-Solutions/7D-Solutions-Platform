@@ -142,6 +142,15 @@ async fn main() {
             "/api/ap/bills/{bill_id}/balance",
             get(http::allocations::get_balance),
         )
+        // Payment runs
+        .route(
+            "/api/ap/payment-runs",
+            post(http::payment_runs::create_run),
+        )
+        .route(
+            "/api/ap/payment-runs/{run_id}",
+            get(http::payment_runs::get_run),
+        )
         .with_state(app_state)
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
