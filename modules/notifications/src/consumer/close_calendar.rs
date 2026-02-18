@@ -8,7 +8,7 @@
 //! The reminder_key encodes the type and trigger date so the same reminder
 //! is never emitted twice.
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -51,7 +51,7 @@ struct CalendarRow {
     owner_role: String,
     reminder_offset_days: Vec<i32>,
     overdue_reminder_interval_days: i32,
-    closed_at: Option<DateTime<Utc>>,
+    // closed_at is filtered in SQL (WHERE closed_at IS NULL) so not needed on struct
 }
 
 /// Evaluate which reminders are due for all tenants.
@@ -67,8 +67,7 @@ pub async fn evaluate_due_reminders(
         r#"
         SELECT cc.id, cc.tenant_id, cc.period_id,
                cc.expected_close_date, cc.owner_role,
-               cc.reminder_offset_days, cc.overdue_reminder_interval_days,
-               ap.closed_at
+               cc.reminder_offset_days, cc.overdue_reminder_interval_days
         FROM close_calendar cc
         JOIN accounting_periods ap ON ap.id = cc.period_id AND ap.tenant_id = cc.tenant_id
         WHERE ap.closed_at IS NULL
