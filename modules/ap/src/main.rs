@@ -109,6 +109,16 @@ async fn main() {
             "/api/ap/vendors/{vendor_id}/deactivate",
             post(http::vendors::deactivate_vendor),
         )
+        // Purchase orders
+        .route(
+            "/api/ap/pos",
+            post(http::purchase_orders::create_po).get(http::purchase_orders::list_pos),
+        )
+        .route("/api/ap/pos/{po_id}", get(http::purchase_orders::get_po))
+        .route(
+            "/api/ap/pos/{po_id}/lines",
+            axum::routing::put(http::purchase_orders::update_po_lines),
+        )
         // Vendor bills
         .route(
             "/api/ap/bills",
