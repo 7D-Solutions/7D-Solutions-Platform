@@ -45,6 +45,7 @@ pub enum SourceDocType {
     InventoryReceipt,
     InventoryIssue,
     PayrollRun,
+    LaborCostAccrual,
     GlAccrual,
 }
 
@@ -187,6 +188,7 @@ mod tests {
             ("INVENTORY_RECEIPT", SourceDocType::InventoryReceipt),
             ("INVENTORY_ISSUE", SourceDocType::InventoryIssue),
             ("PAYROLL_RUN", SourceDocType::PayrollRun),
+            ("LABOR_COST_ACCRUAL", SourceDocType::LaborCostAccrual),
         ];
 
         for (json_val, expected) in types {

@@ -171,6 +171,13 @@ pub async fn get_ap_pool() -> PgPool {
     wait_for_db_ready("ap", &url).await
 }
 
+/// Get Timekeeping database pool
+pub async fn get_timekeeping_pool() -> PgPool {
+    let url = std::env::var("TIMEKEEPING_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://timekeeping_user:timekeeping_pass@localhost:5447/timekeeping_db".to_string());
+    wait_for_db_ready("timekeeping", &url).await
+}
+
 /// Get Reporting database pool (shares AP postgres instance on port 5443)
 pub async fn get_reporting_pool() -> PgPool {
     let url = std::env::var("REPORTING_DATABASE_URL")

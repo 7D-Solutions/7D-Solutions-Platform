@@ -6,3 +6,4 @@ pub mod gl_inventory_consumer;
 pub mod gl_posting_consumer;
 pub mod gl_reversal_consumer;
 pub mod gl_writeoff_consumer;
+pub mod timekeeping_labor_cost;
