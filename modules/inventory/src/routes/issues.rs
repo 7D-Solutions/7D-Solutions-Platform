@@ -109,6 +109,34 @@ fn issue_error_response(err: IssueError) -> impl IntoResponse {
                 Json(json!({ "error": "internal_error", "message": "Database error" })),
             )
         }
+        IssueError::LotRequired => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "error": "lot_code_required",
+                "message": "lot_code is required for lot-tracked items"
+            })),
+        ),
+        IssueError::LotNotFound(code) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "error": "lot_not_found",
+                "message": format!("Lot '{}' not found for this item/tenant", code)
+            })),
+        ),
+        IssueError::SerialRequired => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "error": "serial_codes_required",
+                "message": "serial_codes is required (non-empty) for serial-tracked items"
+            })),
+        ),
+        IssueError::SerialNotAvailable(code) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "error": "serial_not_available",
+                "message": format!("Serial '{}' is not available (not found or not on_hand)", code)
+            })),
+        ),
     }
 }
 

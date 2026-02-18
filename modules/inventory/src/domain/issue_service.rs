@@ -8,6 +8,11 @@
 //!   created in a single transaction.
 //! - Idempotency key prevents double-processing on retry.
 //!
+//! ## Lot/Serial Tracking Policy
+//! - Lot-tracked items MUST supply `lot_code`. FIFO is restricted to layers in that lot.
+//! - Serial-tracked items MUST supply `serial_codes`. Quantity is derived from the list.
+//! - None-tracked items use warehouse-wide FIFO (existing behavior).
+//!
 //! Pattern: Guard → Lock → FIFO → Mutation → Outbox (all in one transaction).
 
 use chrono::{Duration, Utc};
@@ -20,6 +25,8 @@ use crate::{
     domain::{
         fifo::{self, AvailableLayer, FifoError},
         guards::{GuardError, guard_convert_to_base, guard_item_active, guard_quantity_positive},
+        items::TrackingMode,
+        lots_serials::issue::{self as ls_issue, LotSerialError},
         projections::on_hand,
     },
     events::{
@@ -43,7 +50,8 @@ pub struct IssueRequest {
     /// availability is derived from warehouse-level FIFO layers (existing behavior).
     #[serde(default)]
     pub location_id: Option<Uuid>,
-    /// Quantity to issue (must be > 0)
+    /// Quantity to issue (must be > 0 for None/Lot-tracked items).
+    /// For Serial-tracked items, quantity is derived from serial_codes.len().
     pub quantity: i64,
     pub currency: String,
     // Source reference (maps to SourceRef in event payload)
@@ -60,6 +68,13 @@ pub struct IssueRequest {
     /// When absent, `quantity` is assumed to already be in base_uom units.
     #[serde(default)]
     pub uom_id: Option<Uuid>,
+    /// Required for Lot-tracked items. FIFO consumption is restricted to this lot only.
+    #[serde(default)]
+    pub lot_code: Option<String>,
+    /// Required for Serial-tracked items. Each code must be on_hand for this item.
+    /// Quantity is derived from this list; the `quantity` field is ignored.
+    #[serde(default)]
+    pub serial_codes: Option<Vec<String>>,
 }
 
 /// Result returned on successful or replayed issue
@@ -106,6 +121,27 @@ pub enum IssueError {
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+
+    #[error("lot_code is required for lot-tracked items")]
+    LotRequired,
+
+    #[error("Lot '{0}' not found for this item/tenant")]
+    LotNotFound(String),
+
+    #[error("serial_codes is required (non-empty) for serial-tracked items")]
+    SerialRequired,
+
+    #[error("Serial '{0}' is not available (not found or not on_hand)")]
+    SerialNotAvailable(String),
+}
+
+impl From<LotSerialError> for IssueError {
+    fn from(e: LotSerialError) -> Self {
+        match e {
+            LotSerialError::SerialNotAvailable(code) => IssueError::SerialNotAvailable(code),
+            LotSerialError::Database(e) => IssueError::Database(e),
+        }
+    }
 }
 
 // ============================================================================
@@ -161,16 +197,57 @@ pub async fn process_issue(
     // --- Guard: item must exist and be active ---
     let item = guard_item_active(pool, req.item_id, &req.tenant_id).await?;
 
+    // --- Tracking mode pre-checks (outside transaction, read-only) ---
+    // For lot-tracked: resolve lot_id from the pool (lots are immutable once created).
+    // For serial-tracked: validate serial_codes is non-empty and deduplicate.
+    let lot_id: Option<Uuid> = match item.tracking_mode {
+        TrackingMode::Lot => {
+            let code = req.lot_code.as_deref().unwrap_or("").trim();
+            if code.is_empty() {
+                return Err(IssueError::LotRequired);
+            }
+            let id = ls_issue::find_lot_id(pool, &req.tenant_id, req.item_id, code)
+                .await
+                .map_err(IssueError::Database)?
+                .ok_or_else(|| IssueError::LotNotFound(code.to_string()))?;
+            Some(id)
+        }
+        TrackingMode::Serial => {
+            let codes = req.serial_codes.as_deref().unwrap_or(&[]);
+            if codes.is_empty() {
+                return Err(IssueError::SerialRequired);
+            }
+            // Reject duplicate codes in the same request.
+            let unique_count = codes
+                .iter()
+                .collect::<std::collections::HashSet<_>>()
+                .len();
+            if unique_count != codes.len() {
+                return Err(IssueError::Guard(GuardError::Validation(
+                    "serial_codes must be unique within a single issue request".to_string(),
+                )));
+            }
+            None
+        }
+        TrackingMode::None => None,
+    };
+
     // --- UoM conversion: canonicalize quantity to base_uom units ---
-    let quantity = guard_convert_to_base(
-        pool,
-        req.item_id,
-        &req.tenant_id,
-        req.quantity,
-        req.uom_id,
-        item.base_uom_id,
-    )
-    .await?;
+    // For serial-tracked items, quantity = number of serial codes; ignore req.quantity.
+    let quantity = match item.tracking_mode {
+        TrackingMode::Serial => req.serial_codes.as_deref().unwrap_or(&[]).len() as i64,
+        _ => {
+            guard_convert_to_base(
+                pool,
+                req.item_id,
+                &req.tenant_id,
+                req.quantity,
+                req.uom_id,
+                item.base_uom_id,
+            )
+            .await?
+        }
+    };
 
     let event_id = Uuid::new_v4();
     let issued_at = Utc::now();
@@ -181,97 +258,205 @@ pub async fn process_issue(
 
     let mut tx = pool.begin().await?;
 
-    // --- Lock FIFO layers (warehouse-level) for deterministic FIFO cost consumption.
-    // ORDER BY received_at ASC, ledger_entry_id ASC: deterministic FIFO.
-    // FOR UPDATE: serialises concurrent issues for the same (tenant, item, warehouse).
-    let layer_rows = sqlx::query_as::<_, LayerRow>(
-        r#"
-        SELECT id, quantity_remaining, unit_cost_minor
-        FROM inventory_layers
-        WHERE tenant_id = $1
-          AND item_id   = $2
-          AND warehouse_id = $3
-          AND quantity_remaining > 0
-        ORDER BY received_at ASC, ledger_entry_id ASC
-        FOR UPDATE
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.warehouse_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    // --- Lock FIFO layers and compute consumed layers ---
+    // Branching by tracking mode determines which layers are locked and how
+    // the consumed slice is built.
+    let (consumed, sum_remaining, pre_issue_total_cost, serial_ids_to_mark) =
+        match item.tracking_mode {
+            TrackingMode::Serial => {
+                let codes = req.serial_codes.as_deref().unwrap_or(&[]);
+                let locked =
+                    ls_issue::validate_and_lock_serials(&mut tx, &req.tenant_id, req.item_id, codes)
+                        .await?;
+                let serial_ids: Vec<Uuid> = locked.iter().map(|s| s.serial_id).collect();
+                let consumed_layers = build_consumed_from_serials(&locked);
 
-    let available_layers: Vec<AvailableLayer> = layer_rows
-        .iter()
-        .map(|r| AvailableLayer {
-            layer_id: r.id,
-            quantity_remaining: r.quantity_remaining,
-            unit_cost_minor: r.unit_cost_minor,
-        })
-        .collect();
+                // Warehouse-level totals for on-hand projection (consistent snapshot inside tx).
+                let (wh_remaining, wh_cost): (i64, i64) = sqlx::query_as(
+                    r#"
+                    SELECT COALESCE(SUM(quantity_remaining), 0)::BIGINT,
+                           COALESCE(SUM(quantity_remaining * unit_cost_minor), 0)::BIGINT
+                    FROM inventory_layers
+                    WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
+                      AND quantity_remaining > 0
+                    "#,
+                )
+                .bind(&req.tenant_id)
+                .bind(req.item_id)
+                .bind(req.warehouse_id)
+                .fetch_one(&mut *tx)
+                .await?;
 
-    let sum_remaining: i64 = available_layers.iter().map(|l| l.quantity_remaining).sum();
+                (consumed_layers, wh_remaining, wh_cost, serial_ids)
+            }
+            TrackingMode::Lot => {
+                let lid = lot_id.expect("lot_id must be Some for Lot-tracked path");
+                let layer_rows = sqlx::query_as::<_, LayerRow>(
+                    r#"
+                    SELECT id, quantity_remaining, unit_cost_minor
+                    FROM inventory_layers
+                    WHERE tenant_id = $1
+                      AND item_id   = $2
+                      AND warehouse_id = $3
+                      AND lot_id    = $4
+                      AND quantity_remaining > 0
+                    ORDER BY received_at ASC, ledger_entry_id ASC
+                    FOR UPDATE
+                    "#,
+                )
+                .bind(&req.tenant_id)
+                .bind(req.item_id)
+                .bind(req.warehouse_id)
+                .bind(lid)
+                .fetch_all(&mut *tx)
+                .await?;
 
-    // --- Availability check varies by whether a location is specified ---
-    // quantity is already in base_uom units after guard_convert_to_base.
-    let net_available: i64 = if let Some(loc_id) = req.location_id {
-        // Location-aware path: use the location-specific on-hand projection.
-        // available_status_on_hand on the location row is the authoritative
-        // quantity for that bin/shelf (reservations not yet location-aware in v1).
-        sqlx::query_scalar::<_, i64>(
-            r#"
-            SELECT COALESCE(available_status_on_hand, 0)
-            FROM item_on_hand
-            WHERE tenant_id    = $1
-              AND item_id      = $2
-              AND warehouse_id = $3
-              AND location_id  = $4
-            "#,
-        )
-        .bind(&req.tenant_id)
-        .bind(req.item_id)
-        .bind(req.warehouse_id)
-        .bind(loc_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .unwrap_or(0i64)
-    } else {
-        // Null-location path (existing behavior): compute from FIFO layer sum minus reservations.
-        let quantity_reserved: i64 = sqlx::query_scalar(
-            r#"
-            SELECT COALESCE(quantity_reserved, 0)
-            FROM item_on_hand
-            WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
-              AND location_id IS NULL
-            "#,
-        )
-        .bind(&req.tenant_id)
-        .bind(req.item_id)
-        .bind(req.warehouse_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .unwrap_or(0i64);
+                if layer_rows.is_empty() {
+                    return Err(IssueError::NoLayersAvailable);
+                }
 
-        sum_remaining - quantity_reserved
-    };
+                let available_layers: Vec<AvailableLayer> = layer_rows
+                    .iter()
+                    .map(|r| AvailableLayer {
+                        layer_id: r.id,
+                        quantity_remaining: r.quantity_remaining,
+                        unit_cost_minor: r.unit_cost_minor,
+                    })
+                    .collect();
 
-    if net_available < quantity {
-        return Err(IssueError::InsufficientQuantity {
-            requested: quantity,
-            available: net_available,
-        });
-    }
+                let lot_sum: i64 = available_layers.iter().map(|l| l.quantity_remaining).sum();
 
-    // --- Deterministic FIFO consumption (warehouse-level for cost) ---
-    let consumed = fifo::consume_fifo(&available_layers, quantity)?;
+                // Conservative availability: lot-layer sum minus warehouse reservations.
+                let quantity_reserved: i64 = sqlx::query_scalar(
+                    r#"
+                    SELECT COALESCE(quantity_reserved, 0)
+                    FROM item_on_hand
+                    WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
+                      AND location_id IS NULL
+                    "#,
+                )
+                .bind(&req.tenant_id)
+                .bind(req.item_id)
+                .bind(req.warehouse_id)
+                .fetch_optional(&mut *tx)
+                .await?
+                .unwrap_or(0i64);
+
+                let net_available = lot_sum - quantity_reserved;
+                if net_available < quantity {
+                    return Err(IssueError::InsufficientQuantity {
+                        requested: quantity,
+                        available: net_available,
+                    });
+                }
+
+                let consumed_layers = fifo::consume_fifo(&available_layers, quantity)?;
+
+                // Warehouse-level totals for on-hand projection.
+                let (wh_remaining, wh_cost): (i64, i64) = sqlx::query_as(
+                    r#"
+                    SELECT COALESCE(SUM(quantity_remaining), 0)::BIGINT,
+                           COALESCE(SUM(quantity_remaining * unit_cost_minor), 0)::BIGINT
+                    FROM inventory_layers
+                    WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
+                      AND quantity_remaining > 0
+                    "#,
+                )
+                .bind(&req.tenant_id)
+                .bind(req.item_id)
+                .bind(req.warehouse_id)
+                .fetch_one(&mut *tx)
+                .await?;
+
+                (consumed_layers, wh_remaining, wh_cost, vec![])
+            }
+            TrackingMode::None => {
+                // Existing behavior: warehouse-wide FIFO.
+                let layer_rows = sqlx::query_as::<_, LayerRow>(
+                    r#"
+                    SELECT id, quantity_remaining, unit_cost_minor
+                    FROM inventory_layers
+                    WHERE tenant_id = $1
+                      AND item_id   = $2
+                      AND warehouse_id = $3
+                      AND quantity_remaining > 0
+                    ORDER BY received_at ASC, ledger_entry_id ASC
+                    FOR UPDATE
+                    "#,
+                )
+                .bind(&req.tenant_id)
+                .bind(req.item_id)
+                .bind(req.warehouse_id)
+                .fetch_all(&mut *tx)
+                .await?;
+
+                let available_layers: Vec<AvailableLayer> = layer_rows
+                    .iter()
+                    .map(|r| AvailableLayer {
+                        layer_id: r.id,
+                        quantity_remaining: r.quantity_remaining,
+                        unit_cost_minor: r.unit_cost_minor,
+                    })
+                    .collect();
+
+                let sum_remaining: i64 =
+                    available_layers.iter().map(|l| l.quantity_remaining).sum();
+                let pre_issue_total_cost: i64 = available_layers
+                    .iter()
+                    .map(|l| l.quantity_remaining * l.unit_cost_minor)
+                    .sum();
+
+                // --- Availability check varies by whether a location is specified ---
+                let net_available: i64 = if let Some(loc_id) = req.location_id {
+                    sqlx::query_scalar::<_, i64>(
+                        r#"
+                        SELECT COALESCE(available_status_on_hand, 0)
+                        FROM item_on_hand
+                        WHERE tenant_id    = $1
+                          AND item_id      = $2
+                          AND warehouse_id = $3
+                          AND location_id  = $4
+                        "#,
+                    )
+                    .bind(&req.tenant_id)
+                    .bind(req.item_id)
+                    .bind(req.warehouse_id)
+                    .bind(loc_id)
+                    .fetch_optional(&mut *tx)
+                    .await?
+                    .unwrap_or(0i64)
+                } else {
+                    let quantity_reserved: i64 = sqlx::query_scalar(
+                        r#"
+                        SELECT COALESCE(quantity_reserved, 0)
+                        FROM item_on_hand
+                        WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
+                          AND location_id IS NULL
+                        "#,
+                    )
+                    .bind(&req.tenant_id)
+                    .bind(req.item_id)
+                    .bind(req.warehouse_id)
+                    .fetch_optional(&mut *tx)
+                    .await?
+                    .unwrap_or(0i64);
+
+                    sum_remaining - quantity_reserved
+                };
+
+                if net_available < quantity {
+                    return Err(IssueError::InsufficientQuantity {
+                        requested: quantity,
+                        available: net_available,
+                    });
+                }
+
+                let consumed = fifo::consume_fifo(&available_layers, quantity)?;
+                (consumed, sum_remaining, pre_issue_total_cost, vec![])
+            }
+        };
+
     let total_cost_minor: i64 = consumed.iter().map(|c| c.extended_cost_minor).sum();
-
-    // Pre/post totals for null-location on-hand absolute set.
-    let pre_issue_total_cost: i64 = available_layers
-        .iter()
-        .map(|l| l.quantity_remaining * l.unit_cost_minor)
-        .sum();
     let post_issue_total_cost = (pre_issue_total_cost - total_cost_minor).max(0);
     let new_on_hand = sum_remaining - quantity;
 
@@ -339,9 +524,15 @@ pub async fn process_issue(
         .await?;
     }
 
+    // --- Step 2b: Mark serial instances as issued (after layer writes) ---
+    if !serial_ids_to_mark.is_empty() {
+        ls_issue::mark_serials_issued(&mut tx, &serial_ids_to_mark)
+            .await
+            .map_err(IssueError::Database)?;
+    }
+
     // --- Step 3: Update on-hand projection ---
     if let Some(loc_id) = req.location_id {
-        // Location-aware path: delta decrement on the location-specific row.
         on_hand::decrement_for_issue(
             &mut tx,
             &req.tenant_id,
@@ -355,7 +546,6 @@ pub async fn process_issue(
         .await
         .map_err(IssueError::Database)?;
 
-        // Also decrement the warehouse-level status bucket.
         on_hand::decrement_available_bucket(
             &mut tx,
             &req.tenant_id,
@@ -366,7 +556,6 @@ pub async fn process_issue(
         .await
         .map_err(IssueError::Database)?;
     } else {
-        // Null-location path: absolute set from FIFO layer sums (existing behavior).
         on_hand::upsert_after_issue(
             &mut tx,
             &req.tenant_id,
@@ -380,7 +569,6 @@ pub async fn process_issue(
         .await
         .map_err(IssueError::Database)?;
 
-        // Set 'available' status bucket to post-issue quantity.
         on_hand::set_available_bucket(
             &mut tx,
             &req.tenant_id,
@@ -503,13 +691,39 @@ fn validate_request(req: &IssueRequest) -> Result<(), IssueError> {
             "currency is required".to_string(),
         )));
     }
-    if req.source_module.trim().is_empty() || req.source_type.trim().is_empty() || req.source_id.trim().is_empty() {
+    if req.source_module.trim().is_empty()
+        || req.source_type.trim().is_empty()
+        || req.source_id.trim().is_empty()
+    {
         return Err(IssueError::Guard(GuardError::Validation(
             "source_module, source_type, and source_id are required".to_string(),
         )));
     }
-    guard_quantity_positive(req.quantity)?;
+    // Skip quantity check for serial-tracked items (quantity derived from serial_codes).
+    if req.serial_codes.is_none() {
+        guard_quantity_positive(req.quantity)?;
+    }
     Ok(())
+}
+
+/// Aggregate locked serials by layer_id to build `ConsumedLayer` slices.
+///
+/// Uses BTreeMap to produce deterministic ordering by layer_id.
+fn build_consumed_from_serials(locked: &[ls_issue::LockedSerial]) -> Vec<ConsumedLayer> {
+    let mut by_layer: std::collections::BTreeMap<Uuid, (i64, i64)> = Default::default();
+    for s in locked {
+        let entry = by_layer.entry(s.layer_id).or_insert((0, s.unit_cost_minor));
+        entry.0 += 1;
+    }
+    by_layer
+        .into_iter()
+        .map(|(layer_id, (qty, unit_cost))| ConsumedLayer {
+            layer_id,
+            quantity: qty,
+            unit_cost_minor: unit_cost,
+            extended_cost_minor: qty * unit_cost,
+        })
+        .collect()
 }
 
 async fn find_idempotency_key(
@@ -554,6 +768,8 @@ mod tests {
             correlation_id: None,
             causation_id: None,
             uom_id: None,
+            lot_code: None,
+            serial_codes: None,
         }
     }
 
@@ -602,5 +818,45 @@ mod tests {
     #[test]
     fn validate_accepts_valid_request() {
         assert!(validate_request(&valid_req()).is_ok());
+    }
+
+    #[test]
+    fn validate_skips_quantity_check_for_serial_items() {
+        let mut r = valid_req();
+        r.quantity = 0; // would normally fail
+        r.serial_codes = Some(vec!["SN-001".to_string()]);
+        // serial_codes present => quantity check skipped => should pass
+        assert!(validate_request(&r).is_ok());
+    }
+
+    #[test]
+    fn build_consumed_from_serials_groups_by_layer() {
+        let layer_a = Uuid::new_v4();
+        let layer_b = Uuid::new_v4();
+        let locked = vec![
+            ls_issue::LockedSerial {
+                serial_id: Uuid::new_v4(),
+                layer_id: layer_a,
+                unit_cost_minor: 1000,
+            },
+            ls_issue::LockedSerial {
+                serial_id: Uuid::new_v4(),
+                layer_id: layer_b,
+                unit_cost_minor: 2000,
+            },
+            ls_issue::LockedSerial {
+                serial_id: Uuid::new_v4(),
+                layer_id: layer_a,
+                unit_cost_minor: 1000,
+            },
+        ];
+        let consumed = build_consumed_from_serials(&locked);
+        assert_eq!(consumed.len(), 2);
+        let entry_a = consumed.iter().find(|c| c.layer_id == layer_a).unwrap();
+        assert_eq!(entry_a.quantity, 2);
+        assert_eq!(entry_a.extended_cost_minor, 2000);
+        let entry_b = consumed.iter().find(|c| c.layer_id == layer_b).unwrap();
+        assert_eq!(entry_b.quantity, 1);
+        assert_eq!(entry_b.extended_cost_minor, 2000);
     }
 }
