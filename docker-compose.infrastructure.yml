@@ -320,6 +320,110 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  treasury-postgres:
+    container_name: 7d-treasury-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5444:5432"
+    environment:
+      POSTGRES_DB: ${TREASURY_POSTGRES_DB:-treasury_db}
+      POSTGRES_USER: ${TREASURY_POSTGRES_USER:-treasury_user}
+      POSTGRES_PASSWORD: ${TREASURY_POSTGRES_PASSWORD:-treasury_pass}
+    volumes:
+      - treasury_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TREASURY_POSTGRES_USER:-treasury_user} -d ${TREASURY_POSTGRES_DB:-treasury_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "treasury-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  fixed-assets-postgres:
+    container_name: 7d-fixed-assets-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5445:5432"
+    environment:
+      POSTGRES_DB: ${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}
+      POSTGRES_USER: ${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}
+      POSTGRES_PASSWORD: ${FIXED_ASSETS_POSTGRES_PASSWORD:-fixed_assets_pass}
+    volumes:
+      - fixed_assets_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user} -d ${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "fixed-assets-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  consolidation-postgres:
+    container_name: 7d-consolidation-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5446:5432"
+    environment:
+      POSTGRES_DB: ${CONSOLIDATION_POSTGRES_DB:-consolidation_db}
+      POSTGRES_USER: ${CONSOLIDATION_POSTGRES_USER:-consolidation_user}
+      POSTGRES_PASSWORD: ${CONSOLIDATION_POSTGRES_PASSWORD:-consolidation_pass}
+    volumes:
+      - consolidation_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CONSOLIDATION_POSTGRES_USER:-consolidation_user} -d ${CONSOLIDATION_POSTGRES_DB:-consolidation_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "consolidation-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  timekeeping-postgres:
+    container_name: 7d-timekeeping-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5447:5432"
+    environment:
+      POSTGRES_DB: ${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}
+      POSTGRES_USER: ${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}
+      POSTGRES_PASSWORD: ${TIMEKEEPING_POSTGRES_PASSWORD:-timekeeping_pass}
+    volumes:
+      - timekeeping_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TIMEKEEPING_POSTGRES_USER:-timekeeping_user} -d ${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "timekeeping-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
@@ -361,4 +465,16 @@ volumes:
     external: true
   ap_pgdata:
     name: 7d-ap-pgdata
+    external: true
+  treasury_pgdata:
+    name: 7d-treasury-pgdata
+    external: true
+  fixed_assets_pgdata:
+    name: 7d-fixed-assets-pgdata
+    external: true
+  consolidation_pgdata:
+    name: 7d-consolidation-pgdata
+    external: true
+  timekeeping_pgdata:
+    name: 7d-timekeeping-pgdata
     external: true
