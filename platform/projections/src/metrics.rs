@@ -38,6 +38,14 @@ pub struct ProjectionMetrics {
     /// Labels: projection_name, tenant_id
     pub projection_backlog_count: GaugeVec,
 
+    /// Number of overdue close calendar entries (period not closed past expected date)
+    /// Labels: tenant_id
+    pub close_calendar_overdue_count: GaugeVec,
+
+    /// Total close calendar reminders emitted in the current evaluation cycle
+    /// Labels: tenant_id, reminder_type
+    pub close_calendar_reminders_emitted: GaugeVec,
+
     registry: Registry,
 }
 
@@ -80,10 +88,32 @@ impl ProjectionMetrics {
         )?;
         registry.register(Box::new(projection_backlog_count.clone()))?;
 
+        // Gauge: Close calendar overdue periods
+        let close_calendar_overdue_count = GaugeVec::new(
+            Opts::new(
+                "close_calendar_overdue_count",
+                "Number of overdue close calendar entries (period not closed past expected date)",
+            ),
+            &["tenant_id"],
+        )?;
+        registry.register(Box::new(close_calendar_overdue_count.clone()))?;
+
+        // Gauge: Close calendar reminders emitted per cycle
+        let close_calendar_reminders_emitted = GaugeVec::new(
+            Opts::new(
+                "close_calendar_reminders_emitted",
+                "Close calendar reminders emitted in the current evaluation cycle",
+            ),
+            &["tenant_id", "reminder_type"],
+        )?;
+        registry.register(Box::new(close_calendar_reminders_emitted.clone()))?;
+
         Ok(Self {
             projection_lag_ms,
             projection_last_applied_age_seconds,
             projection_backlog_count,
+            close_calendar_overdue_count,
+            close_calendar_reminders_emitted,
             registry,
         })
     }
@@ -133,6 +163,25 @@ impl ProjectionMetrics {
     pub fn record_backlog(&self, projection_name: &str, tenant_id: &str, count: i64) {
         self.projection_backlog_count
             .with_label_values(&[projection_name, tenant_id])
+            .set(count as f64);
+    }
+
+    /// Record the number of overdue close calendar entries for a tenant
+    pub fn record_close_calendar_overdue(&self, tenant_id: &str, count: i64) {
+        self.close_calendar_overdue_count
+            .with_label_values(&[tenant_id])
+            .set(count as f64);
+    }
+
+    /// Record close calendar reminders emitted in a cycle
+    pub fn record_close_calendar_reminders(
+        &self,
+        tenant_id: &str,
+        reminder_type: &str,
+        count: i64,
+    ) {
+        self.close_calendar_reminders_emitted
+            .with_label_values(&[tenant_id, reminder_type])
             .set(count as f64);
     }
 
