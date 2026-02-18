@@ -187,31 +187,9 @@ fn apply_eliminations(
     ledger: &mut BTreeMap<String, (i64, i64, String)>,
     rules: &[EliminationRule],
 ) {
-    use crate::domain::intercompany::EntityAccountBalance;
-
-    // Build entity-account balances from the current ledger state
-    // For in-pipeline elimination, we use the aggregated ledger entries
-    // that correspond to elimination rule accounts
-    let mut balances: Vec<EntityAccountBalance> = Vec::new();
-    for (code, (debit, credit, name)) in ledger.iter() {
-        for rule in rules {
-            if rule.debit_account_code == *code || rule.credit_account_code == *code {
-                // In the consolidated ledger, entries are already aggregated
-                // across entities, so we use "consolidated" as the entity
-                balances.push(EntityAccountBalance {
-                    entity_tenant_id: "consolidated".to_string(),
-                    account_code: code.clone(),
-                    account_name: name.clone(),
-                    debit_minor: *debit,
-                    credit_minor: *credit,
-                    net_minor: *debit - *credit,
-                });
-                break;
-            }
-        }
-    }
-
-    // Apply rule-based eliminations directly to the ledger
+    // Apply rule-based eliminations directly to the ledger.
+    // For each rule, match the debit-side balance against the credit-side
+    // balance and eliminate the minimum of the two.
     for rule in rules {
         if !rule.is_active {
             continue;
