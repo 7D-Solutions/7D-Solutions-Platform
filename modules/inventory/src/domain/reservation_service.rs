@@ -199,14 +199,16 @@ pub async fn process_reserve(
     .await?;
 
     // Step 2: Upsert on-hand projection — increment quantity_reserved.
-    //   quantity_available is GENERATED ALWAYS AS (on_hand - reserved), so only
-    //   quantity_reserved is written here.
+    //   Reservations operate on the null-location row (warehouse-level) in v1.
+    //   quantity_available is GENERATED ALWAYS AS (available_status_on_hand - reserved).
     sqlx::query(
         r#"
         INSERT INTO item_on_hand
-            (tenant_id, item_id, warehouse_id, quantity_reserved, projected_at)
-        VALUES ($1, $2, $3, $4, NOW())
-        ON CONFLICT (tenant_id, item_id, warehouse_id) DO UPDATE
+            (tenant_id, item_id, warehouse_id, location_id, quantity_reserved, projected_at)
+        VALUES ($1, $2, $3, NULL, $4, NOW())
+        ON CONFLICT (tenant_id, item_id, warehouse_id)
+        WHERE location_id IS NULL
+        DO UPDATE
             SET quantity_reserved = item_on_hand.quantity_reserved + EXCLUDED.quantity_reserved,
                 projected_at = NOW()
         "#,
@@ -370,15 +372,16 @@ pub async fn process_release(
     .fetch_one(&mut *tx)
     .await?;
 
-    // Step 2: Decrement quantity_reserved on the on-hand projection.
-    //   GREATEST(0, ...) is a safety floor in case of projection skew; correct
-    //   data will never go below zero here.
+    // Step 2: Decrement quantity_reserved on the null-location on-hand row.
+    //   Reservations are warehouse-level in v1 (location_id IS NULL).
+    //   GREATEST(0, ...) is a safety floor in case of projection skew.
     sqlx::query(
         r#"
         UPDATE item_on_hand
         SET quantity_reserved = GREATEST(0, quantity_reserved - $1),
             projected_at = NOW()
         WHERE tenant_id = $2 AND item_id = $3 AND warehouse_id = $4
+          AND location_id IS NULL
         "#,
     )
     .bind(original.quantity)

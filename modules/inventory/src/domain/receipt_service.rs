@@ -14,7 +14,12 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{
-    domain::guards::{GuardError, guard_cost_present, guard_item_active, guard_quantity_positive},
+    domain::{
+        guards::{GuardError, guard_cost_present, guard_item_active, guard_quantity_positive},
+        items::TrackingMode,
+        lots_serials::receipt::{insert_serial_instances, upsert_lot},
+        projections::on_hand,
+    },
     events::{
         contracts::{ItemReceivedPayload, build_item_received_envelope},
         EVENT_TYPE_ITEM_RECEIVED,
@@ -31,6 +36,10 @@ pub struct ReceiptRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
     pub warehouse_id: Uuid,
+    /// Optional storage location within the warehouse (bin, shelf, zone).
+    /// When absent, the receipt is location-agnostic — existing behavior.
+    #[serde(default)]
+    pub location_id: Option<Uuid>,
     /// Quantity received (must be > 0)
     pub quantity: i64,
     /// Unit cost in minor currency units, e.g. cents (must be > 0)
@@ -42,6 +51,12 @@ pub struct ReceiptRequest {
     /// Distributed trace correlation ID (optional; generated if absent)
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
+    /// Required when item.tracking_mode == Lot.
+    /// Identifies the lot; creates the lot row if it does not exist yet.
+    pub lot_code: Option<String>,
+    /// Required when item.tracking_mode == Serial.
+    /// Length MUST equal `quantity`; each code must be unique per tenant+item.
+    pub serial_codes: Option<Vec<String>>,
 }
 
 /// Result returned on successful or replayed receipt
@@ -58,16 +73,37 @@ pub struct ReceiptResult {
     pub tenant_id: String,
     pub item_id: Uuid,
     pub warehouse_id: Uuid,
+    #[serde(default)]
+    pub location_id: Option<Uuid>,
     pub quantity: i64,
     pub unit_cost_minor: i64,
     pub currency: String,
     pub received_at: chrono::DateTime<Utc>,
+    /// Lot id, present when item.tracking_mode == Lot.
+    #[serde(default)]
+    pub lot_id: Option<Uuid>,
+    /// Serial instance ids created, in the same order as request.serial_codes.
+    /// Empty for non-serial items.
+    #[serde(default)]
+    pub serial_instance_ids: Vec<Uuid>,
 }
 
 #[derive(Debug, Error)]
 pub enum ReceiptError {
     #[error("Guard failed: {0}")]
     Guard(#[from] GuardError),
+
+    #[error("lot_code is required for lot-tracked items")]
+    LotCodeRequired,
+
+    #[error("serial_codes is required for serial-tracked items")]
+    SerialCodesRequired,
+
+    #[error("serial_codes length {got} must equal quantity {expected}")]
+    SerialCountMismatch { expected: i64, got: usize },
+
+    #[error("duplicate serial code: a serial code already exists for this tenant/item")]
+    DuplicateSerialCode,
 
     #[error("Idempotency key conflict: same key used with a different request body")]
     ConflictingIdempotencyKey,
@@ -126,7 +162,10 @@ pub async fn process_receipt(
     // --- DB guard: item must exist and be active ---
     let item = guard_item_active(pool, req.item_id, &req.tenant_id).await?;
 
-    // --- Atomic transaction: ledger + FIFO layer + outbox + idempotency key ---
+    // --- Tracking requirements guard (requires item.tracking_mode from DB) ---
+    validate_tracking_requirements(item.tracking_mode, req)?;
+
+    // --- Atomic transaction: ledger + lot/serial + FIFO layer + outbox + idempotency key ---
     let event_id = Uuid::new_v4();
     let received_at = Utc::now();
     let correlation_id = req
@@ -140,17 +179,18 @@ pub async fn process_receipt(
     let ledger_row = sqlx::query_as::<_, LedgerRow>(
         r#"
         INSERT INTO inventory_ledger
-            (tenant_id, item_id, warehouse_id, entry_type, quantity,
+            (tenant_id, item_id, warehouse_id, location_id, entry_type, quantity,
              unit_cost_minor, currency, source_event_id, source_event_type,
              reference_type, reference_id, posted_at)
         VALUES
-            ($1, $2, $3, 'received', $4, $5, $6, $7, $8, $9, $10, $11)
+            ($1, $2, $3, $4, 'received', $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id, entry_id
         "#,
     )
     .bind(&req.tenant_id)
     .bind(req.item_id)
     .bind(req.warehouse_id)
+    .bind(req.location_id)
     .bind(req.quantity)
     .bind(req.unit_cost_minor)
     .bind(&req.currency)
@@ -165,14 +205,24 @@ pub async fn process_receipt(
     let ledger_entry_id = ledger_row.id;
     let receipt_line_id = ledger_row.entry_id;
 
-    // Step 2: Insert FIFO layer
+    // Step 2: Upsert lot if lot-tracked (must precede layer insert to get lot_id)
+    let lot_id: Option<Uuid> = if item.tracking_mode == TrackingMode::Lot {
+        // validated above: lot_code is Some and non-empty
+        let code = req.lot_code.as_deref().unwrap();
+        let id = upsert_lot(&mut tx, &req.tenant_id, req.item_id, code, None).await?;
+        Some(id)
+    } else {
+        None
+    };
+
+    // Step 3: Insert FIFO layer (with lot_id association when lot-tracked)
     let layer_id = sqlx::query_scalar::<_, Uuid>(
         r#"
         INSERT INTO inventory_layers
             (tenant_id, item_id, warehouse_id, ledger_entry_id, received_at,
-             quantity_received, quantity_remaining, unit_cost_minor, currency)
+             quantity_received, quantity_remaining, unit_cost_minor, currency, lot_id)
         VALUES
-            ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         RETURNING id
         "#,
     )
@@ -185,10 +235,60 @@ pub async fn process_receipt(
     .bind(req.quantity) // quantity_remaining = quantity_received on insert
     .bind(req.unit_cost_minor)
     .bind(&req.currency)
+    .bind(lot_id)
     .fetch_one(&mut *tx)
     .await?;
 
-    // Step 3: Build event envelope and enqueue in outbox
+    // Step 3b: Insert serial instances if serial-tracked
+    let serial_instance_ids: Vec<Uuid> = if item.tracking_mode == TrackingMode::Serial {
+        // validated above: serial_codes is Some and len == quantity
+        let codes = req.serial_codes.as_deref().unwrap();
+        insert_serial_instances(
+            &mut tx,
+            &req.tenant_id,
+            req.item_id,
+            codes,
+            ledger_entry_id,
+            layer_id,
+        )
+        .await
+        .map_err(|e| {
+            if let sqlx::Error::Database(ref dbe) = e {
+                if dbe.code().as_deref() == Some("23505") {
+                    return ReceiptError::DuplicateSerialCode;
+                }
+            }
+            ReceiptError::Database(e)
+        })?
+    } else {
+        vec![]
+    };
+
+    // Step 4: Upsert on-hand projection (quantity_on_hand + available_status_on_hand)
+    on_hand::upsert_after_receipt(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        req.location_id,
+        req.quantity,
+        req.unit_cost_minor,
+        &req.currency,
+        ledger_entry_id,
+    )
+    .await?;
+
+    // Step 4b: Increment 'available' status bucket
+    on_hand::add_to_available_bucket(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        req.quantity,
+    )
+    .await?;
+
+    // Step 5: Build event envelope and enqueue in outbox
     let payload = ItemReceivedPayload {
         receipt_line_id,
         tenant_id: req.tenant_id.clone(),
@@ -230,7 +330,7 @@ pub async fn process_receipt(
     .execute(&mut *tx)
     .await?;
 
-    // Step 4: Build result
+    // Step 6: Build result
     let result = ReceiptResult {
         receipt_line_id,
         ledger_entry_id,
@@ -239,13 +339,16 @@ pub async fn process_receipt(
         tenant_id: req.tenant_id.clone(),
         item_id: req.item_id,
         warehouse_id: req.warehouse_id,
+        location_id: req.location_id,
         quantity: req.quantity,
         unit_cost_minor: req.unit_cost_minor,
         currency: req.currency.clone(),
         received_at,
+        lot_id,
+        serial_instance_ids,
     };
 
-    // Step 5: Store idempotency key with response (expires in 7 days)
+    // Step 7: Store idempotency key with response (expires in 7 days)
     let response_json = serde_json::to_string(&result)?;
     let expires_at = received_at + Duration::days(7);
 
@@ -295,6 +398,33 @@ fn validate_request(req: &ReceiptRequest) -> Result<(), ReceiptError> {
     Ok(())
 }
 
+/// Validate lot/serial tracking requirements against the item's tracking_mode.
+///
+/// Called after `guard_item_active` since tracking_mode comes from the item row.
+fn validate_tracking_requirements(
+    tracking_mode: TrackingMode,
+    req: &ReceiptRequest,
+) -> Result<(), ReceiptError> {
+    match tracking_mode {
+        TrackingMode::Lot => {
+            if req.lot_code.as_deref().unwrap_or("").trim().is_empty() {
+                return Err(ReceiptError::LotCodeRequired);
+            }
+        }
+        TrackingMode::Serial => {
+            let codes = req.serial_codes.as_ref().ok_or(ReceiptError::SerialCodesRequired)?;
+            if codes.len() as i64 != req.quantity {
+                return Err(ReceiptError::SerialCountMismatch {
+                    expected: req.quantity,
+                    got: codes.len(),
+                });
+            }
+        }
+        TrackingMode::None => {}
+    }
+    Ok(())
+}
+
 async fn find_idempotency_key(
     pool: &PgPool,
     tenant_id: &str,
@@ -326,6 +456,7 @@ mod tests {
             tenant_id: "tenant-1".to_string(),
             item_id: Uuid::new_v4(),
             warehouse_id: Uuid::new_v4(),
+            location_id: None,
             quantity: 10,
             unit_cost_minor: 5000,
             currency: "usd".to_string(),
@@ -333,6 +464,8 @@ mod tests {
             idempotency_key: "idem-001".to_string(),
             correlation_id: None,
             causation_id: None,
+            lot_code: None,
+            serial_codes: None,
         }
     }
 
@@ -374,5 +507,53 @@ mod tests {
     #[test]
     fn validate_accepts_valid_request() {
         assert!(validate_request(&valid_req()).is_ok());
+    }
+
+    #[test]
+    fn tracking_lot_requires_lot_code() {
+        let req = valid_req();
+        assert!(matches!(
+            validate_tracking_requirements(TrackingMode::Lot, &req),
+            Err(ReceiptError::LotCodeRequired)
+        ));
+    }
+
+    #[test]
+    fn tracking_lot_accepts_lot_code() {
+        let mut req = valid_req();
+        req.lot_code = Some("LOT-001".to_string());
+        assert!(validate_tracking_requirements(TrackingMode::Lot, &req).is_ok());
+    }
+
+    #[test]
+    fn tracking_serial_requires_serial_codes() {
+        let req = valid_req();
+        assert!(matches!(
+            validate_tracking_requirements(TrackingMode::Serial, &req),
+            Err(ReceiptError::SerialCodesRequired)
+        ));
+    }
+
+    #[test]
+    fn tracking_serial_rejects_count_mismatch() {
+        let mut req = valid_req(); // quantity = 10
+        req.serial_codes = Some(vec!["SN-001".to_string(), "SN-002".to_string()]); // len=2 != 10
+        assert!(matches!(
+            validate_tracking_requirements(TrackingMode::Serial, &req),
+            Err(ReceiptError::SerialCountMismatch { expected: 10, got: 2 })
+        ));
+    }
+
+    #[test]
+    fn tracking_serial_accepts_matching_count() {
+        let mut req = valid_req(); // quantity = 10
+        req.serial_codes = Some((0..10).map(|i| format!("SN-{:03}", i)).collect());
+        assert!(validate_tracking_requirements(TrackingMode::Serial, &req).is_ok());
+    }
+
+    #[test]
+    fn tracking_none_is_a_noop() {
+        let req = valid_req();
+        assert!(validate_tracking_requirements(TrackingMode::None, &req).is_ok());
     }
 }

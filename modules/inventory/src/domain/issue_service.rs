@@ -20,6 +20,7 @@ use crate::{
     domain::{
         fifo::{self, AvailableLayer, FifoError},
         guards::{GuardError, guard_item_active, guard_quantity_positive},
+        projections::on_hand,
     },
     events::{
         contracts::{ConsumedLayer, ItemIssuedPayload, SourceRef, build_item_issued_envelope},
@@ -37,6 +38,11 @@ pub struct IssueRequest {
     pub tenant_id: String,
     pub item_id: Uuid,
     pub warehouse_id: Uuid,
+    /// Optional storage location to issue from. When set, availability is
+    /// checked against this location's on-hand projection. When absent,
+    /// availability is derived from warehouse-level FIFO layers (existing behavior).
+    #[serde(default)]
+    pub location_id: Option<Uuid>,
     /// Quantity to issue (must be > 0)
     pub quantity: i64,
     pub currency: String,
@@ -63,6 +69,8 @@ pub struct IssueResult {
     pub tenant_id: String,
     pub item_id: Uuid,
     pub warehouse_id: Uuid,
+    #[serde(default)]
+    pub location_id: Option<Uuid>,
     pub quantity: i64,
     pub total_cost_minor: i64,
     pub currency: String,
@@ -157,7 +165,7 @@ pub async fn process_issue(
 
     let mut tx = pool.begin().await?;
 
-    // --- Lock FIFO layers and read available stock ---
+    // --- Lock FIFO layers (warehouse-level) for deterministic FIFO cost consumption.
     // ORDER BY received_at ASC, ledger_entry_id ASC: deterministic FIFO.
     // FOR UPDATE: serialises concurrent issues for the same (tenant, item, warehouse).
     let layer_rows = sqlx::query_as::<_, LayerRow>(
@@ -189,22 +197,47 @@ pub async fn process_issue(
 
     let sum_remaining: i64 = available_layers.iter().map(|l| l.quantity_remaining).sum();
 
-    // Read reserved quantity from on-hand projection (may not exist yet → 0).
-    let quantity_reserved: i64 = sqlx::query_scalar(
-        r#"
-        SELECT COALESCE(quantity_reserved, 0)
-        FROM item_on_hand
-        WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.warehouse_id)
-    .fetch_optional(&mut *tx)
-    .await?
-    .unwrap_or(0i64);
+    // --- Availability check varies by whether a location is specified ---
+    let net_available: i64 = if let Some(loc_id) = req.location_id {
+        // Location-aware path: use the location-specific on-hand projection.
+        // available_status_on_hand on the location row is the authoritative
+        // quantity for that bin/shelf (reservations not yet location-aware in v1).
+        sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COALESCE(available_status_on_hand, 0)
+            FROM item_on_hand
+            WHERE tenant_id    = $1
+              AND item_id      = $2
+              AND warehouse_id = $3
+              AND location_id  = $4
+            "#,
+        )
+        .bind(&req.tenant_id)
+        .bind(req.item_id)
+        .bind(req.warehouse_id)
+        .bind(loc_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .unwrap_or(0i64)
+    } else {
+        // Null-location path (existing behavior): compute from FIFO layer sum minus reservations.
+        let quantity_reserved: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COALESCE(quantity_reserved, 0)
+            FROM item_on_hand
+            WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
+              AND location_id IS NULL
+            "#,
+        )
+        .bind(&req.tenant_id)
+        .bind(req.item_id)
+        .bind(req.warehouse_id)
+        .fetch_optional(&mut *tx)
+        .await?
+        .unwrap_or(0i64);
 
-    let net_available = sum_remaining - quantity_reserved;
+        sum_remaining - quantity_reserved
+    };
 
     if net_available < req.quantity {
         return Err(IssueError::InsufficientQuantity {
@@ -213,11 +246,11 @@ pub async fn process_issue(
         });
     }
 
-    // --- Deterministic FIFO consumption ---
+    // --- Deterministic FIFO consumption (warehouse-level for cost) ---
     let consumed = fifo::consume_fifo(&available_layers, req.quantity)?;
     let total_cost_minor: i64 = consumed.iter().map(|c| c.extended_cost_minor).sum();
 
-    // Pre-issue total cost for on-hand projection update.
+    // Pre/post totals for null-location on-hand absolute set.
     let pre_issue_total_cost: i64 = available_layers
         .iter()
         .map(|l| l.quantity_remaining * l.unit_cost_minor)
@@ -229,17 +262,18 @@ pub async fn process_issue(
     let ledger_row = sqlx::query_as::<_, LedgerRow>(
         r#"
         INSERT INTO inventory_ledger
-            (tenant_id, item_id, warehouse_id, entry_type, quantity,
+            (tenant_id, item_id, warehouse_id, location_id, entry_type, quantity,
              unit_cost_minor, currency, source_event_id, source_event_type,
              reference_type, reference_id, posted_at)
         VALUES
-            ($1, $2, $3, 'issued', $4, 0, $5, $6, $7, $8, $9, $10)
+            ($1, $2, $3, $4, 'issued', $5, 0, $6, $7, $8, $9, $10, $11)
         RETURNING id, entry_id
         "#,
     )
     .bind(&req.tenant_id)
     .bind(req.item_id)
     .bind(req.warehouse_id)
+    .bind(req.location_id)
     .bind(-req.quantity) // signed: negative = stock out
     .bind(&req.currency)
     .bind(event_id)
@@ -288,29 +322,58 @@ pub async fn process_issue(
         .await?;
     }
 
-    // --- Step 3: Upsert on-hand projection ---
-    sqlx::query(
-        r#"
-        INSERT INTO item_on_hand
-            (tenant_id, item_id, warehouse_id, quantity_on_hand,
-             total_cost_minor, currency, last_ledger_entry_id, projected_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-        ON CONFLICT (tenant_id, item_id, warehouse_id) DO UPDATE
-            SET quantity_on_hand      = $4,
-                total_cost_minor      = $5,
-                last_ledger_entry_id  = $7,
-                projected_at          = NOW()
-        "#,
-    )
-    .bind(&req.tenant_id)
-    .bind(req.item_id)
-    .bind(req.warehouse_id)
-    .bind(new_on_hand)
-    .bind(post_issue_total_cost)
-    .bind(&req.currency)
-    .bind(ledger_id)
-    .execute(&mut *tx)
-    .await?;
+    // --- Step 3: Update on-hand projection ---
+    if let Some(loc_id) = req.location_id {
+        // Location-aware path: delta decrement on the location-specific row.
+        on_hand::decrement_for_issue(
+            &mut tx,
+            &req.tenant_id,
+            req.item_id,
+            req.warehouse_id,
+            loc_id,
+            req.quantity,
+            total_cost_minor,
+            ledger_id,
+        )
+        .await
+        .map_err(IssueError::Database)?;
+
+        // Also decrement the warehouse-level status bucket.
+        on_hand::decrement_available_bucket(
+            &mut tx,
+            &req.tenant_id,
+            req.item_id,
+            req.warehouse_id,
+            req.quantity,
+        )
+        .await
+        .map_err(IssueError::Database)?;
+    } else {
+        // Null-location path: absolute set from FIFO layer sums (existing behavior).
+        on_hand::upsert_after_issue(
+            &mut tx,
+            &req.tenant_id,
+            req.item_id,
+            req.warehouse_id,
+            new_on_hand,
+            post_issue_total_cost,
+            &req.currency,
+            ledger_id,
+        )
+        .await
+        .map_err(IssueError::Database)?;
+
+        // Set 'available' status bucket to post-issue quantity.
+        on_hand::set_available_bucket(
+            &mut tx,
+            &req.tenant_id,
+            req.item_id,
+            req.warehouse_id,
+            new_on_hand,
+        )
+        .await
+        .map_err(IssueError::Database)?;
+    }
 
     // --- Step 4: Build and enqueue outbox event ---
     let source_ref = SourceRef {
@@ -370,6 +433,7 @@ pub async fn process_issue(
         tenant_id: req.tenant_id.clone(),
         item_id: req.item_id,
         warehouse_id: req.warehouse_id,
+        location_id: req.location_id,
         quantity: req.quantity,
         total_cost_minor,
         currency: req.currency.clone(),
@@ -462,6 +526,7 @@ mod tests {
             tenant_id: "tenant-1".to_string(),
             item_id: Uuid::new_v4(),
             warehouse_id: Uuid::new_v4(),
+            location_id: None,
             quantity: 5,
             currency: "usd".to_string(),
             source_module: "orders".to_string(),

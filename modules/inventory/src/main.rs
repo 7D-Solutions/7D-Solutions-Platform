@@ -11,6 +11,9 @@ use inventory_rs::{
         health::{health, ready, version},
         issues::post_issue,
         items::{create_item, deactivate_item, get_item, update_item},
+        locations::{
+            create_location, deactivate_location, get_location, list_locations, update_location,
+        },
         receipts::post_receipt,
         reservations::{post_release, post_reserve},
         uom::{create_conversion, create_uom, list_conversions, list_uoms},
@@ -90,6 +93,20 @@ async fn main() {
         .route(
             "/api/inventory/items/{id}/uom-conversions",
             axum::routing::post(create_conversion).get(list_conversions),
+        )
+        // Locations (warehouse bins/shelves)
+        .route("/api/inventory/locations", axum::routing::post(create_location))
+        .route(
+            "/api/inventory/locations/{id}",
+            axum::routing::get(get_location).put(update_location),
+        )
+        .route(
+            "/api/inventory/locations/{id}/deactivate",
+            axum::routing::post(deactivate_location),
+        )
+        .route(
+            "/api/inventory/warehouses/{warehouse_id}/locations",
+            axum::routing::get(list_locations),
         )
         .with_state(app_state)
         .layer(
