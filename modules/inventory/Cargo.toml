@@ -18,6 +18,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "serde"] }
 prometheus = "0.13"
+event-bus = { path = "../../platform/event-bus" }
 
 [dev-dependencies]
 serial_test = "3.3.1"
