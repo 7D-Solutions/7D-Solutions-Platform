@@ -20,6 +20,7 @@ pub struct OutboxEvent {
 /// this function only inserts into the outbox table.
 pub async fn enqueue_event_tx<T: Serialize>(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: &str,
     event_id: Uuid,
     event_type: &str,
     aggregate_type: &str,
@@ -36,8 +37,8 @@ pub async fn enqueue_event_tx<T: Serialize>(
     sqlx::query(
         r#"
         INSERT INTO fa_events_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, payload, created_at)
-        VALUES ($1, $2, $3, $4, $5, NOW())
+            (event_id, event_type, aggregate_type, aggregate_id, tenant_id, payload, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
         ON CONFLICT (event_id) DO NOTHING
         "#,
     )
@@ -45,6 +46,7 @@ pub async fn enqueue_event_tx<T: Serialize>(
     .bind(event_type)
     .bind(aggregate_type)
     .bind(aggregate_id)
+    .bind(tenant_id)
     .bind(payload_json)
     .execute(&mut **tx)
     .await?;
