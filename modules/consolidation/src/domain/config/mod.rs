@@ -4,6 +4,8 @@
 pub mod models;
 pub mod service;
 pub mod service_rules;
+#[cfg(test)]
+mod tests;
 
 use thiserror::Error;
 use uuid::Uuid;
