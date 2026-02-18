@@ -16,6 +16,7 @@
 //! Vendor validation is ID-only (no cross-DB reads).
 //! Item IDs in line requests are validated as UUIDs; stored as description.
 
+pub mod approve;
 pub mod service;
 
 use chrono::{DateTime, Utc};
@@ -277,6 +278,22 @@ impl UpdatePoLinesRequest {
         }
         for (i, line) in self.lines.iter().enumerate() {
             line.validate(i)?;
+        }
+        Ok(())
+    }
+}
+
+/// Request body to approve a purchase order.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ApprovePoRequest {
+    /// Actor performing the approval (for event attribution and audit)
+    pub approved_by: String,
+}
+
+impl ApprovePoRequest {
+    pub fn validate(&self) -> Result<(), PoError> {
+        if self.approved_by.trim().is_empty() {
+            return Err(PoError::Validation("approved_by cannot be empty".to_string()));
         }
         Ok(())
     }

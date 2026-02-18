@@ -1,9 +1,10 @@
-//! HTTP handlers for purchase order CRUD.
+//! HTTP handlers for purchase order CRUD and lifecycle.
 //!
-//! POST /api/ap/pos               — create a draft PO with line items
-//! GET  /api/ap/pos               — list POs for tenant
-//! GET  /api/ap/pos/:po_id        — get a single PO with its lines
-//! PUT  /api/ap/pos/:po_id/lines  — replace all lines on a draft PO (idempotent)
+//! POST /api/ap/pos                    — create a draft PO with line items
+//! GET  /api/ap/pos                    — list POs for tenant
+//! GET  /api/ap/pos/:po_id             — get a single PO with its lines
+//! PUT  /api/ap/pos/:po_id/lines       — replace all lines on a draft PO (idempotent)
+//! POST /api/ap/pos/:po_id/approve     — approve a draft PO (idempotent)
 
 use axum::{
     extract::{Path, Query, State},
@@ -15,8 +16,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::po::{
-    service, CreatePoRequest, PoError, PurchaseOrder, PurchaseOrderWithLines,
-    UpdatePoLinesRequest,
+    approve, service, ApprovePoRequest, CreatePoRequest, PoError, PurchaseOrder,
+    PurchaseOrderWithLines, UpdatePoLinesRequest,
 };
 use crate::http::vendors::ErrorBody;
 use crate::AppState;
@@ -175,6 +176,27 @@ pub async fn update_po_lines(
     let tenant_id = tenant_from_headers(&headers)?;
 
     let po = service::update_po_lines(&state.pool, &tenant_id, po_id, &req)
+        .await
+        .map_err(po_error_response)?;
+
+    Ok(Json(po))
+}
+
+/// POST /api/ap/pos/:po_id/approve — approve a draft PO (idempotent)
+///
+/// Transitions the PO from draft → approved and emits ap.po_approved.
+/// If the PO is already approved, returns 200 with the current state (no re-emit).
+/// Returns 422 if the PO is in a terminal state that cannot be approved.
+pub async fn approve_po(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(po_id): Path<Uuid>,
+    Json(req): Json<ApprovePoRequest>,
+) -> Result<Json<PurchaseOrder>, (StatusCode, Json<ErrorBody>)> {
+    let tenant_id = tenant_from_headers(&headers)?;
+    let correlation_id = correlation_from_headers(&headers);
+
+    let po = approve::approve_po(&state.pool, &tenant_id, po_id, &req, correlation_id)
         .await
         .map_err(po_error_response)?;
 

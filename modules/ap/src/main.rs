@@ -119,6 +119,10 @@ async fn main() {
             "/api/ap/pos/{po_id}/lines",
             axum::routing::put(http::purchase_orders::update_po_lines),
         )
+        .route(
+            "/api/ap/pos/{po_id}/approve",
+            post(http::purchase_orders::approve_po),
+        )
         // Vendor bills
         .route(
             "/api/ap/bills",
