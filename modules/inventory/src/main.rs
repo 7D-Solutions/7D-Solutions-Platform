@@ -8,6 +8,7 @@ use inventory_rs::{
     db::resolver::resolve_pool,
     http::{
         cycle_counts::{post_cycle_count_approve, post_cycle_count_submit, post_cycle_count_task},
+        history::get_movement_history,
         lots::get_lots_for_item,
         reorder::{get_reorder_policy, list_reorder_policies, post_reorder_policy, put_reorder_policy},
         serials::get_serials_for_item,
@@ -119,6 +120,11 @@ async fn main() {
         .route(
             "/api/inventory/status-transfers",
             axum::routing::post(post_status_transfer),
+        )
+        // Movement history (ledger audit by item / optional location)
+        .route(
+            "/api/inventory/items/{item_id}/history",
+            axum::routing::get(get_movement_history),
         )
         // Lot / serial queries and traceability
         .route(
