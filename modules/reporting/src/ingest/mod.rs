@@ -24,6 +24,7 @@
 //!    `ON CONFLICT DO UPDATE` / `DO NOTHING` on its target cache table's
 //!    unique constraint, ensuring replays from a checkpoint reset are safe.
 
+pub mod ap;
 pub mod checkpoints;
 pub mod gl;
 pub mod payments;
