@@ -16,6 +16,7 @@ pub mod period_close_execution;
 pub mod period_close_service;
 pub mod period_close_snapshot;
 pub mod period_close_validation;
+pub mod period_reopen_service;
 pub mod period_summary_service;
 pub mod reversal_service;
 pub mod trial_balance_service;
