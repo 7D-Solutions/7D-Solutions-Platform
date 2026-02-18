@@ -715,6 +715,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "consolidation"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.8",
+ "chrono",
+ "dotenvy",
+ "prometheus",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4130,6 +4151,30 @@ checksum = "2e70e4c5a0e0a8a4823ad65dfe1a6930e4f4d756dcd9dd7939022b5e8c501215"
 dependencies = [
  "num-conv",
  "time-core",
+]
+
+[[package]]
+name = "timekeeping"
+version = "0.1.0"
+dependencies = [
+ "async-nats 0.33.0",
+ "axum 0.8.8",
+ "chrono",
+ "dotenvy",
+ "event-bus",
+ "futures",
+ "prometheus",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
