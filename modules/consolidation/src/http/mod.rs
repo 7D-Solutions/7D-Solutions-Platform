@@ -1,4 +1,5 @@
 pub mod config;
+pub mod consolidate;
 
 use axum::{
     routing::{delete, get, post, put},
@@ -16,6 +17,15 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/api/ready", get(ops::ready::ready))
         .route("/api/version", get(ops::version::version))
         .route("/metrics", get(metrics::metrics_handler))
+        // Consolidation engine
+        .route(
+            "/api/consolidation/groups/{group_id}/consolidate",
+            post(consolidate::run_consolidation),
+        )
+        .route(
+            "/api/consolidation/groups/{group_id}/trial-balance",
+            get(consolidate::get_consolidated_tb),
+        )
         // Groups
         .route("/api/consolidation/groups", post(config::create_group))
         .route("/api/consolidation/groups", get(config::list_groups))

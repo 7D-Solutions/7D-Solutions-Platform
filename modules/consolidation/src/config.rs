@@ -5,6 +5,7 @@ pub struct Config {
     pub database_url: String,
     pub host: String,
     pub port: u16,
+    pub gl_base_url: String,
 }
 
 impl Config {
@@ -22,6 +23,9 @@ impl Config {
             return Err("DATABASE_URL cannot be empty".to_string());
         }
 
+        let gl_base_url = env::var("GL_BASE_URL")
+            .unwrap_or_else(|_| "http://localhost:8080".to_string());
+
         let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
         let port: u16 = env::var("PORT")
             .unwrap_or_else(|_| "8096".to_string())
@@ -32,6 +36,7 @@ impl Config {
             database_url,
             host,
             port,
+            gl_base_url,
         })
     }
 }

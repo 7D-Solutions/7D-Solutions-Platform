@@ -41,6 +41,7 @@ async fn main() {
     let app_state = Arc::new(AppState {
         pool,
         metrics: consolidation_metrics,
+        gl_base_url: config.gl_base_url,
     });
 
     let cors = CorsLayer::new()
