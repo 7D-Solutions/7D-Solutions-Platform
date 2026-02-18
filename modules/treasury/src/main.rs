@@ -122,6 +122,23 @@ async fn main() {
             "/api/treasury/cash-position",
             get(http::reports::cash_position),
         )
+        // Reconciliation
+        .route(
+            "/api/treasury/recon/auto-match",
+            post(http::recon::auto_match),
+        )
+        .route(
+            "/api/treasury/recon/manual-match",
+            post(http::recon::manual_match),
+        )
+        .route(
+            "/api/treasury/recon/matches",
+            get(http::recon::list_matches),
+        )
+        .route(
+            "/api/treasury/recon/unmatched",
+            get(http::recon::list_unmatched),
+        )
         // Statement import
         .route(
             "/api/treasury/statements/import",
