@@ -23,6 +23,7 @@ use uuid::Uuid;
 
 use crate::{
     domain::cycle_count::{
+        approve_service::{approve_cycle_count, ApproveError, ApproveRequest},
         submit_service::{submit_cycle_count, SubmitError, SubmitLineInput, SubmitRequest},
         task_service::{create_cycle_count_task, CreateTaskRequest, TaskError},
     },
@@ -192,5 +193,94 @@ pub async fn post_cycle_count_submit(
         Ok((result, false)) => (StatusCode::CREATED, Json(result)).into_response(),
         Ok((result, true)) => (StatusCode::OK, Json(result)).into_response(),
         Err(err) => submit_error_response(err).into_response(),
+    }
+}
+
+// ============================================================================
+// Approve error mapping
+// ============================================================================
+
+fn approve_error_response(err: ApproveError) -> impl IntoResponse {
+    match err {
+        ApproveError::MissingTenant | ApproveError::MissingIdempotencyKey => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "error": "validation_error", "message": err.to_string() })),
+        )
+            .into_response(),
+
+        ApproveError::TaskNotFound => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "task_not_found", "message": err.to_string() })),
+        )
+            .into_response(),
+
+        ApproveError::TaskNotSubmitted { .. } => (
+            StatusCode::CONFLICT,
+            Json(json!({ "error": "task_not_submitted", "message": err.to_string() })),
+        )
+            .into_response(),
+
+        ApproveError::ConflictingIdempotencyKey => (
+            StatusCode::CONFLICT,
+            Json(json!({ "error": "idempotency_conflict", "message": err.to_string() })),
+        )
+            .into_response(),
+
+        ApproveError::Serialization(e) => {
+            tracing::error!(error = %e, "serialization error in cycle count approve");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
+            )
+                .into_response()
+        }
+
+        ApproveError::Database(e) => {
+            tracing::error!(error = %e, "database error approving cycle count");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": "Database error" })),
+            )
+                .into_response()
+        }
+    }
+}
+
+// ============================================================================
+// Approve request body (task_id comes from URL path)
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct ApproveBody {
+    pub tenant_id: String,
+    pub idempotency_key: String,
+    pub correlation_id: Option<String>,
+    pub causation_id: Option<String>,
+}
+
+// ============================================================================
+// Approve handler
+// ============================================================================
+
+/// POST /api/inventory/cycle-count-tasks/{task_id}/approve
+///
+/// Approves a submitted cycle count task, creating adjustment ledger entries
+/// for all non-zero variances. Returns 201 on first approve; 200 on replay.
+pub async fn post_cycle_count_approve(
+    Path(task_id): Path<Uuid>,
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<ApproveBody>,
+) -> impl IntoResponse {
+    let req = ApproveRequest {
+        task_id,
+        tenant_id: body.tenant_id,
+        idempotency_key: body.idempotency_key,
+        correlation_id: body.correlation_id,
+        causation_id: body.causation_id,
+    };
+    match approve_cycle_count(&state.pool, &req).await {
+        Ok((result, false)) => (StatusCode::CREATED, Json(result)).into_response(),
+        Ok((result, true)) => (StatusCode::OK, Json(result)).into_response(),
+        Err(err) => approve_error_response(err).into_response(),
     }
 }
