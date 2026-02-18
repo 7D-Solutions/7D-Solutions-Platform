@@ -1,3 +1,4 @@
+pub mod approvals;
 pub mod employees;
 pub mod entries;
 pub mod projects;
@@ -71,6 +72,39 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(projects::get_task)
                 .put(projects::update_task)
                 .delete(projects::deactivate_task),
+        )
+        // Approvals
+        .route(
+            "/api/timekeeping/approvals",
+            get(approvals::list_approvals),
+        )
+        .route(
+            "/api/timekeeping/approvals/pending",
+            get(approvals::list_pending),
+        )
+        .route(
+            "/api/timekeeping/approvals/submit",
+            post(approvals::submit_approval),
+        )
+        .route(
+            "/api/timekeeping/approvals/approve",
+            post(approvals::approve_approval),
+        )
+        .route(
+            "/api/timekeeping/approvals/reject",
+            post(approvals::reject_approval),
+        )
+        .route(
+            "/api/timekeeping/approvals/recall",
+            post(approvals::recall_approval),
+        )
+        .route(
+            "/api/timekeeping/approvals/{id}",
+            get(approvals::get_approval),
+        )
+        .route(
+            "/api/timekeeping/approvals/{id}/actions",
+            get(approvals::approval_actions),
         )
         .with_state(state)
 }
