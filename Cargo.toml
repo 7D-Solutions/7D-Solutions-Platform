@@ -17,6 +17,8 @@ members = [
   "modules/ap",
   "modules/treasury",
   "modules/fixed-assets",
+  "modules/consolidation",
+  "modules/timekeeping",
   "modules/reporting",
   "tools/contract-tests",
   "tools/simulation",
