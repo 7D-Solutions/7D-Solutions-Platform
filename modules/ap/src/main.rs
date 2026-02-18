@@ -132,6 +132,16 @@ async fn main() {
         .route("/api/ap/bills/{bill_id}/match", post(http::bills::match_bill))
         .route("/api/ap/bills/{bill_id}/approve", post(http::bills::approve_bill))
         .route("/api/ap/bills/{bill_id}/void", post(http::bills::void_bill))
+        // Bill allocations (append-only payment application)
+        .route(
+            "/api/ap/bills/{bill_id}/allocations",
+            post(http::allocations::create_allocation)
+                .get(http::allocations::list_allocations),
+        )
+        .route(
+            "/api/ap/bills/{bill_id}/balance",
+            get(http::allocations::get_balance),
+        )
         .with_state(app_state)
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
