@@ -229,42 +229,46 @@ async fn seed_tenants(
         .await
         .with_context(|| format!("seed customer for tenant {}", app_id))?;
 
+        // Batch seed invoices and charges for this tenant (2 round-trips instead of 2×N).
+        let mut tilled_invoice_ids: Vec<String> = Vec::with_capacity(rows_per_tenant);
+        let mut amounts: Vec<i32> = Vec::with_capacity(rows_per_tenant);
         for j in 0..rows_per_tenant {
-            let amount_cents = 10_000 + (j as i32) * 100;
-            let tilled_invoice_id =
-                format!("bench-rc-inv-{}-{:04}-{:06}", run_prefix, i, j);
-
-            sqlx::query(
-                r#"
-                INSERT INTO ar_invoices (
-                    app_id, tilled_invoice_id, ar_customer_id,
-                    status, amount_cents, currency, updated_at
-                ) VALUES ($1, $2, $3, 'open', $4, 'usd', NOW())
-                "#,
-            )
-            .bind(&app_id)
-            .bind(&tilled_invoice_id)
-            .bind(customer_id)
-            .bind(amount_cents)
-            .execute(pool)
-            .await
-            .with_context(|| format!("seed invoice {} for {}", j, app_id))?;
-
-            sqlx::query(
-                r#"
-                INSERT INTO ar_charges (
-                    app_id, ar_customer_id,
-                    status, amount_cents, currency, updated_at
-                ) VALUES ($1, $2, 'succeeded', $3, 'usd', NOW())
-                "#,
-            )
-            .bind(&app_id)
-            .bind(customer_id)
-            .bind(amount_cents)
-            .execute(pool)
-            .await
-            .with_context(|| format!("seed charge {} for {}", j, app_id))?;
+            tilled_invoice_ids.push(format!("bench-rc-inv-{}-{:04}-{:06}", run_prefix, i, j));
+            amounts.push(10_000 + (j as i32) * 100);
         }
+
+        sqlx::query(
+            r#"
+            INSERT INTO ar_invoices (
+                app_id, tilled_invoice_id, ar_customer_id,
+                status, amount_cents, currency, updated_at
+            )
+            SELECT $1, unnest($2::text[]), $3, 'open', unnest($4::int4[]), 'usd', NOW()
+            "#,
+        )
+        .bind(&app_id)
+        .bind(&tilled_invoice_ids)
+        .bind(customer_id)
+        .bind(&amounts)
+        .execute(pool)
+        .await
+        .with_context(|| format!("batch seed invoices for {}", app_id))?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO ar_charges (
+                app_id, ar_customer_id,
+                status, amount_cents, currency, updated_at
+            )
+            SELECT $1, $2, 'succeeded', unnest($3::int4[]), 'usd', NOW()
+            "#,
+        )
+        .bind(&app_id)
+        .bind(customer_id)
+        .bind(&amounts)
+        .execute(pool)
+        .await
+        .with_context(|| format!("batch seed charges for {}", app_id))?;
 
         seeds.push((app_id, rows_per_tenant));
     }
