@@ -104,6 +104,8 @@ fn issue_req(
         correlation_id: None,
         causation_id: None,
         uom_id: None,
+        lot_code: None,
+        serial_codes: None,
     }
 }
 

@@ -107,6 +107,8 @@ fn make_issue_req(
         causation_id: None,
         location_id: None,
         uom_id: None,
+        lot_code: None,
+        serial_codes: None,
     }
 }
 

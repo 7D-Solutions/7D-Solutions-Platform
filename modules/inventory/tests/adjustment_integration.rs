@@ -327,7 +327,8 @@ async fn test_inactive_item_rejected() {
         .await
         .expect("create item");
 
-    sqlx::query!("UPDATE items SET active = false WHERE id = $1", item.id)
+    sqlx::query("UPDATE items SET active = false WHERE id = $1")
+        .bind(item.id)
         .execute(&pool)
         .await
         .expect("deactivate item");
