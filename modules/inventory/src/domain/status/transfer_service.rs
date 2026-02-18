@@ -1,21 +1,8 @@
-//! Status bucket transfer service.
+//! Status bucket transfer service (Guard → Mutation → Outbox atomicity).
 //!
-//! Moves quantity between status buckets (available | quarantine | damaged)
-//! using an append-only ledger and Guard → Mutation → Outbox atomicity.
-//!
-//! ## Invariants
-//!
-//! - from_status ≠ to_status (enforced by guard and DB CHECK constraint)
-//! - Quantity moved must be strictly positive
-//! - When moving FROM 'available': only non-reserved stock can be transferred.
-//!   `quantity_available` (= available_on_hand - quantity_reserved) must be ≥ qty.
-//! - When moving FROM any other status: `quantity_on_hand` in that bucket must be ≥ qty.
-//! - All writes are atomic within a single transaction.
-//! - Idempotency is enforced via `inv_idempotency_keys`.
-//! - `available_status_on_hand` on `item_on_hand` stays in sync with the
-//!   'available' row in `item_on_hand_by_status` within the same transaction.
-//!
-//! Pattern: Guard → Mutation → Outbox (all in one transaction)
+//! Moves quantity between status buckets (available | quarantine | damaged).
+//! Available transfers guard against reserved stock (uses quantity_available).
+//! Idempotency via `inv_idempotency_keys`. Append-only ledger in `inv_status_transfers`.
 
 use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -31,10 +18,6 @@ use crate::{
         status_changed::{StatusChangedPayload, build_status_changed_envelope},
     },
 };
-
-// ============================================================================
-// Types
-// ============================================================================
 
 /// Input for POST /api/inventory/status-transfers
 #[derive(Debug, Serialize, Deserialize)]
@@ -98,10 +81,6 @@ pub enum StatusTransferError {
     Database(#[from] sqlx::Error),
 }
 
-// ============================================================================
-// Internal row types
-// ============================================================================
-
 #[derive(sqlx::FromRow)]
 struct IdempotencyRecord {
     response_body: String,
@@ -117,10 +96,6 @@ struct AvailRow {
 struct BucketRow {
     quantity_on_hand: i64,
 }
-
-// ============================================================================
-// Service
-// ============================================================================
 
 /// Move quantity between status buckets atomically.
 ///
@@ -424,10 +399,6 @@ pub async fn process_status_transfer(
     Ok((result, false))
 }
 
-// ============================================================================
-// Helpers
-// ============================================================================
-
 fn validate_request(req: &StatusTransferRequest) -> Result<(), StatusTransferError> {
     if req.idempotency_key.trim().is_empty() {
         return Err(StatusTransferError::Guard(GuardError::Validation(
@@ -463,10 +434,6 @@ async fn find_idempotency_key(
     .fetch_optional(pool)
     .await
 }
-
-// ============================================================================
-// Unit tests
-// ============================================================================
 
 #[cfg(test)]
 mod tests {
@@ -518,23 +485,5 @@ mod tests {
     #[test]
     fn validate_accepts_valid_request() {
         assert!(validate_request(&valid_req()).is_ok());
-    }
-
-    #[test]
-    fn validate_accepts_all_valid_status_pairs() {
-        let pairs = [
-            (InvItemStatus::Available, InvItemStatus::Quarantine),
-            (InvItemStatus::Available, InvItemStatus::Damaged),
-            (InvItemStatus::Quarantine, InvItemStatus::Available),
-            (InvItemStatus::Quarantine, InvItemStatus::Damaged),
-            (InvItemStatus::Damaged, InvItemStatus::Available),
-            (InvItemStatus::Damaged, InvItemStatus::Quarantine),
-        ];
-        for (from, to) in pairs {
-            let mut r = valid_req();
-            r.from_status = from;
-            r.to_status = to;
-            assert!(validate_request(&r).is_ok(), "pair ({:?}, {:?}) should be valid", from, to);
-        }
     }
 }

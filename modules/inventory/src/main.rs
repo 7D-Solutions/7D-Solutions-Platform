@@ -6,8 +6,10 @@ use tracing_subscriber::EnvFilter;
 
 use inventory_rs::{
     db::resolver::resolve_pool,
+    http::status::post_status_transfer,
     metrics::{metrics_handler, InventoryMetrics},
     routes::{
+        adjustments::post_adjustment,
         health::{health, ready, version},
         issues::post_issue,
         items::{create_item, deactivate_item, get_item, update_item},
@@ -93,6 +95,16 @@ async fn main() {
         .route(
             "/api/inventory/items/{id}/uom-conversions",
             axum::routing::post(create_conversion).get(list_conversions),
+        )
+        // Stock adjustments (compensating ledger entries)
+        .route(
+            "/api/inventory/adjustments",
+            axum::routing::post(post_adjustment),
+        )
+        // Status bucket transfers (available ↔ quarantine ↔ damaged)
+        .route(
+            "/api/inventory/status-transfers",
+            axum::routing::post(post_status_transfer),
         )
         // Locations (warehouse bins/shelves)
         .route("/api/inventory/locations", axum::routing::post(create_location))

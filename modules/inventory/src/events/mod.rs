@@ -16,11 +16,12 @@
 //!
 //! ```rust,no_run
 //! use inventory_rs::events::contracts::{
-//!     ItemIssuedPayload, build_item_issued_envelope,
+//!     ConsumedLayer, ItemIssuedPayload, SourceRef, build_item_issued_envelope,
 //! };
 //! use uuid::Uuid;
 //! use chrono::Utc;
 //!
+//! let layer = ConsumedLayer { layer_id: Uuid::new_v4(), quantity: 5, unit_cost_minor: 2000, extended_cost_minor: 10000 };
 //! let payload = ItemIssuedPayload {
 //!     issue_line_id: Uuid::new_v4(),
 //!     tenant_id: "tenant-1".to_string(),
@@ -28,11 +29,10 @@
 //!     sku: "SKU-001".to_string(),
 //!     warehouse_id: Uuid::new_v4(),
 //!     quantity: 5,
-//!     unit_cost_minor: 2000,
 //!     total_cost_minor: 10000,
 //!     currency: "usd".to_string(),
-//!     order_id: None,
-//!     customer_id: None,
+//!     consumed_layers: vec![layer],
+//!     source_ref: SourceRef { source_module: "orders".to_string(), source_type: "sales_order".to_string(), source_id: "SO-1".to_string(), source_line_id: None },
 //!     issued_at: Utc::now(),
 //! };
 //! let envelope = build_item_issued_envelope(
@@ -46,6 +46,7 @@
 //! ```
 
 pub mod contracts;
+pub mod status_changed;
 
 // ============================================================================
 // Shared Constants
@@ -62,11 +63,16 @@ pub const MUTATION_CLASS_DATA_MUTATION: &str = "DATA_MUTATION";
 // ============================================================================
 
 pub use contracts::{
-    AdjustedPayload, ItemIssuedPayload, ItemReceivedPayload, TransferCompletedPayload,
+    AdjustedPayload, ConsumedLayer, ItemIssuedPayload, ItemReceivedPayload,
+    SourceRef, TransferCompletedPayload,
     EVENT_TYPE_ADJUSTED, EVENT_TYPE_ITEM_ISSUED, EVENT_TYPE_ITEM_RECEIVED,
     EVENT_TYPE_TRANSFER_COMPLETED,
     build_adjusted_envelope, build_item_issued_envelope, build_item_received_envelope,
     build_transfer_completed_envelope,
+};
+
+pub use status_changed::{
+    StatusChangedPayload, EVENT_TYPE_STATUS_CHANGED, build_status_changed_envelope,
 };
 
 // ============================================================================
