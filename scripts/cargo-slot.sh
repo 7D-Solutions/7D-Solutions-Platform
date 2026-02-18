@@ -12,6 +12,23 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# Resolve the real cargo binary, bypassing the workspace bin/ shim.
+# The bin/cargo shim calls this script, so we must not call it back.
+REAL_CARGO=$(PATH="${PATH//"$WORKSPACE_ROOT/bin:"/}" which cargo 2>/dev/null || true)
+if [ -z "$REAL_CARGO" ] || [ "$REAL_CARGO" = "$WORKSPACE_ROOT/bin/cargo" ]; then
+    # Fallback: try well-known locations
+    for candidate in "$HOME/.cargo/bin/cargo" /usr/local/bin/cargo /usr/bin/cargo; do
+        if [ -x "$candidate" ] && [ "$candidate" != "$WORKSPACE_ROOT/bin/cargo" ]; then
+            REAL_CARGO="$candidate"
+            break
+        fi
+    done
+fi
+if [ -z "$REAL_CARGO" ]; then
+    echo "[cargo-slot] ERROR: Cannot find real cargo binary (all candidates are the bin/ shim)." >&2
+    exit 1
+fi
+
 # Workspace-unique lock root (hash of workspace path)
 WORKSPACE_HASH=$(echo -n "$WORKSPACE_ROOT" | shasum -a 256 | cut -c1-12)
 LOCK_ROOT="/tmp/cargo-build-slots/$WORKSPACE_HASH"
@@ -116,7 +133,7 @@ warm_slots() {
         local tdir
         tdir="$(slot_target_dir "$i")"
         echo "  Warming slot $i → $tdir" >&2
-        CARGO_TARGET_DIR="$tdir" cargo build -p inventory-rs -q 2>&1
+        CARGO_TARGET_DIR="$tdir" "$REAL_CARGO" build -p inventory-rs -q 2>&1
         echo "  Slot $i warm." >&2
     done
     echo "All slots warmed." >&2
@@ -172,6 +189,6 @@ export CARGO_TARGET_DIR="$TARGET_DIR"
 
 echo "[cargo-slot] Using slot $SLOT → $TARGET_DIR" >&2
 
-# Run cargo with all arguments
+# Run cargo with all arguments (use resolved binary to avoid calling the bin/ shim recursively)
 cd "$WORKSPACE_ROOT"
-cargo "$@"
+"$REAL_CARGO" "$@"
