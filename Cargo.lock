@@ -1897,6 +1897,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "inventory-rs"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.8",
+ "chrono",
+ "dotenvy",
+ "prometheus",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "ipnet"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3742,6 +3763,7 @@ name = "stabilization-gate"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ar-rs",
  "async-nats 0.38.0",
  "chrono",
  "clap",
