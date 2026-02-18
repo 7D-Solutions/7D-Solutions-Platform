@@ -87,6 +87,33 @@ pub fn build_item_received_envelope(
 }
 
 // ============================================================================
+// Payload: inventory.item_issued — supporting types (locked schema)
+// ============================================================================
+
+/// One FIFO layer consumed during an issue.
+///
+/// `extended_cost_minor` is precomputed: `quantity * unit_cost_minor`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConsumedLayer {
+    pub layer_id: Uuid,
+    /// Units drawn from this layer (always > 0)
+    pub quantity: i64,
+    /// Cost per unit from this layer, minor currency units
+    pub unit_cost_minor: i64,
+    /// Precomputed: quantity × unit_cost_minor
+    pub extended_cost_minor: i64,
+}
+
+/// Source reference: who triggered this issue.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourceRef {
+    pub source_module: String,
+    pub source_type: String,
+    pub source_id: String,
+    pub source_line_id: Option<String>,
+}
+
+// ============================================================================
 // Payload: inventory.item_issued
 // ============================================================================
 
@@ -94,6 +121,12 @@ pub fn build_item_received_envelope(
 ///
 /// Emitted when stock is issued (consumed, shipped to a customer, etc.).
 /// GL module subscribes to this event to post the COGS journal entry.
+///
+/// Locked schema:
+/// - `consumed_layers` MUST be non-empty.
+/// - `source_ref` MUST be present.
+/// - `total_cost_minor` MUST equal sum of consumed_layers.extended_cost_minor.
+///
 /// Idempotency: caller MUST supply a deterministic event_id from the issue line key.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ItemIssuedPayload {
@@ -103,17 +136,15 @@ pub struct ItemIssuedPayload {
     pub item_id: Uuid,
     pub sku: String,
     pub warehouse_id: Uuid,
-    /// Quantity issued (always positive)
+    /// Total quantity issued (always positive)
     pub quantity: i64,
-    /// Unit cost at the time of issue (FIFO layer cost), minor currency units
-    pub unit_cost_minor: i64,
-    /// Total COGS value for this issue line (quantity × unit_cost_minor)
+    /// Total COGS value = sum of consumed_layers.extended_cost_minor
     pub total_cost_minor: i64,
     pub currency: String,
-    /// Sales order or fulfillment order this issue belongs to
-    pub order_id: Option<Uuid>,
-    /// End customer, if applicable
-    pub customer_id: Option<String>,
+    /// FIFO layer breakdown — REQUIRED, non-empty
+    pub consumed_layers: Vec<ConsumedLayer>,
+    /// Source document reference — REQUIRED
+    pub source_ref: SourceRef,
     pub issued_at: DateTime<Utc>,
 }
 
@@ -269,8 +300,28 @@ mod tests {
 
     // ---- inventory.item_issued ----
 
+    fn make_consumed_layer(qty: i64, cost: i64) -> ConsumedLayer {
+        ConsumedLayer {
+            layer_id: Uuid::new_v4(),
+            quantity: qty,
+            unit_cost_minor: cost,
+            extended_cost_minor: qty * cost,
+        }
+    }
+
+    fn make_source_ref() -> SourceRef {
+        SourceRef {
+            source_module: "orders".to_string(),
+            source_type: "sales_order".to_string(),
+            source_id: "SO-001".to_string(),
+            source_line_id: Some("SO-001-L1".to_string()),
+        }
+    }
+
     #[test]
     fn item_issued_envelope_has_correct_metadata() {
+        let layer = make_consumed_layer(10, 5000);
+        let total_cost = layer.extended_cost_minor;
         let payload = ItemIssuedPayload {
             issue_line_id: Uuid::new_v4(),
             tenant_id: "tenant-1".to_string(),
@@ -278,11 +329,10 @@ mod tests {
             sku: "SKU-001".to_string(),
             warehouse_id: Uuid::new_v4(),
             quantity: 10,
-            unit_cost_minor: 5000,
-            total_cost_minor: 50000,
+            total_cost_minor: total_cost,
             currency: "usd".to_string(),
-            order_id: Some(Uuid::new_v4()),
-            customer_id: Some("cust-42".to_string()),
+            consumed_layers: vec![layer],
+            source_ref: make_source_ref(),
             issued_at: Utc::now(),
         };
         let envelope = build_item_issued_envelope(
@@ -386,6 +436,8 @@ mod tests {
 
     #[test]
     fn item_issued_payload_serializes_correctly() {
+        let layer = make_consumed_layer(3, 2000);
+        let total_cost = layer.extended_cost_minor;
         let payload = ItemIssuedPayload {
             issue_line_id: Uuid::new_v4(),
             tenant_id: "tenant-1".to_string(),
@@ -393,16 +445,16 @@ mod tests {
             sku: "SKU-001".to_string(),
             warehouse_id: Uuid::new_v4(),
             quantity: 3,
-            unit_cost_minor: 2000,
-            total_cost_minor: 6000,
+            total_cost_minor: total_cost,
             currency: "usd".to_string(),
-            order_id: None,
-            customer_id: None,
+            consumed_layers: vec![layer],
+            source_ref: make_source_ref(),
             issued_at: Utc::now(),
         };
         let json = serde_json::to_string(&payload).expect("serialization failed");
         assert!(json.contains("issue_line_id"));
         assert!(json.contains("SKU-001"));
         assert!(json.contains("total_cost_minor"));
+        assert!(json.contains("consumed_layers"));
     }
 }
