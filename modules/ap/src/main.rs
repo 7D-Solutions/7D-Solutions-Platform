@@ -102,11 +102,11 @@ async fn main() {
             post(http::vendors::create_vendor).get(http::vendors::list_vendors),
         )
         .route(
-            "/api/ap/vendors/:vendor_id",
+            "/api/ap/vendors/{vendor_id}",
             get(http::vendors::get_vendor).put(http::vendors::update_vendor),
         )
         .route(
-            "/api/ap/vendors/:vendor_id/deactivate",
+            "/api/ap/vendors/{vendor_id}/deactivate",
             post(http::vendors::deactivate_vendor),
         )
         // Vendor bills
@@ -114,7 +114,7 @@ async fn main() {
             "/api/ap/bills",
             post(http::bills::create_bill).get(http::bills::list_bills),
         )
-        .route("/api/ap/bills/:bill_id", get(http::bills::get_bill))
+        .route("/api/ap/bills/{bill_id}", get(http::bills::get_bill))
         .with_state(app_state)
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
