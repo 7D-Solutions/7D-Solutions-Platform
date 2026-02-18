@@ -70,6 +70,7 @@ fn receipt_req(tenant_id: &str, item_id: Uuid, idem_key: &str) -> ReceiptRequest
         lot_code: None,
         serial_codes: None,
         location_id: None,
+        uom_id: None,
     }
 }
 

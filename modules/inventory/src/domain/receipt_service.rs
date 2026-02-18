@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::{
     domain::{
-        guards::{GuardError, guard_cost_present, guard_item_active, guard_quantity_positive},
+        guards::{GuardError, guard_convert_to_base, guard_cost_present, guard_item_active, guard_quantity_positive},
         items::TrackingMode,
         lots_serials::receipt::{insert_serial_instances, upsert_lot},
         projections::on_hand,
@@ -57,6 +57,11 @@ pub struct ReceiptRequest {
     /// Required when item.tracking_mode == Serial.
     /// Length MUST equal `quantity`; each code must be unique per tenant+item.
     pub serial_codes: Option<Vec<String>>,
+    /// UoM id for the input `quantity`. When present, `quantity` is in this unit
+    /// and will be converted to the item's base_uom before writing to the ledger.
+    /// When absent, `quantity` is assumed to already be in base_uom units.
+    #[serde(default)]
+    pub uom_id: Option<Uuid>,
 }
 
 /// Result returned on successful or replayed receipt
@@ -162,6 +167,17 @@ pub async fn process_receipt(
     // --- DB guard: item must exist and be active ---
     let item = guard_item_active(pool, req.item_id, &req.tenant_id).await?;
 
+    // --- UoM conversion: canonicalize quantity to base_uom units ---
+    let quantity = guard_convert_to_base(
+        pool,
+        req.item_id,
+        &req.tenant_id,
+        req.quantity,
+        req.uom_id,
+        item.base_uom_id,
+    )
+    .await?;
+
     // --- Tracking requirements guard (requires item.tracking_mode from DB) ---
     validate_tracking_requirements(item.tracking_mode, req)?;
 
@@ -191,7 +207,7 @@ pub async fn process_receipt(
     .bind(req.item_id)
     .bind(req.warehouse_id)
     .bind(req.location_id)
-    .bind(req.quantity)
+    .bind(quantity)
     .bind(req.unit_cost_minor)
     .bind(&req.currency)
     .bind(event_id)
@@ -231,8 +247,8 @@ pub async fn process_receipt(
     .bind(req.warehouse_id)
     .bind(ledger_entry_id)
     .bind(received_at)
-    .bind(req.quantity) // quantity_received
-    .bind(req.quantity) // quantity_remaining = quantity_received on insert
+    .bind(quantity) // quantity_received (base_uom units)
+    .bind(quantity) // quantity_remaining = quantity_received on insert
     .bind(req.unit_cost_minor)
     .bind(&req.currency)
     .bind(lot_id)
@@ -271,7 +287,7 @@ pub async fn process_receipt(
         req.item_id,
         req.warehouse_id,
         req.location_id,
-        req.quantity,
+        quantity,
         req.unit_cost_minor,
         &req.currency,
         ledger_entry_id,
@@ -284,7 +300,7 @@ pub async fn process_receipt(
         &req.tenant_id,
         req.item_id,
         req.warehouse_id,
-        req.quantity,
+        quantity,
     )
     .await?;
 
@@ -295,7 +311,7 @@ pub async fn process_receipt(
         item_id: req.item_id,
         sku: item.sku,
         warehouse_id: req.warehouse_id,
-        quantity: req.quantity,
+        quantity,
         unit_cost_minor: req.unit_cost_minor,
         currency: req.currency.clone(),
         purchase_order_id: req.purchase_order_id,
@@ -340,7 +356,7 @@ pub async fn process_receipt(
         item_id: req.item_id,
         warehouse_id: req.warehouse_id,
         location_id: req.location_id,
-        quantity: req.quantity,
+        quantity,
         unit_cost_minor: req.unit_cost_minor,
         currency: req.currency.clone(),
         received_at,
@@ -466,6 +482,7 @@ mod tests {
             causation_id: None,
             lot_code: None,
             serial_codes: None,
+            uom_id: None,
         }
     }
 

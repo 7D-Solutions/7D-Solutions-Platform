@@ -77,6 +77,7 @@ fn receipt_req(
         causation_id: None,
         lot_code: None,
         serial_codes: None,
+        uom_id: None,
     }
 }
 
@@ -102,6 +103,7 @@ fn issue_req(
         idempotency_key: idem_key.to_string(),
         correlation_id: None,
         causation_id: None,
+        uom_id: None,
     }
 }
 

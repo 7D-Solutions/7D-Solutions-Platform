@@ -19,7 +19,7 @@ use uuid::Uuid;
 use crate::{
     domain::{
         fifo::{self, AvailableLayer, FifoError},
-        guards::{GuardError, guard_item_active, guard_quantity_positive},
+        guards::{GuardError, guard_convert_to_base, guard_item_active, guard_quantity_positive},
         projections::on_hand,
     },
     events::{
@@ -55,6 +55,11 @@ pub struct IssueRequest {
     pub idempotency_key: String,
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
+    /// UoM id for the input `quantity`. When present, `quantity` is in this unit
+    /// and will be converted to the item's base_uom before writing to the ledger.
+    /// When absent, `quantity` is assumed to already be in base_uom units.
+    #[serde(default)]
+    pub uom_id: Option<Uuid>,
 }
 
 /// Result returned on successful or replayed issue
@@ -156,6 +161,17 @@ pub async fn process_issue(
     // --- Guard: item must exist and be active ---
     let item = guard_item_active(pool, req.item_id, &req.tenant_id).await?;
 
+    // --- UoM conversion: canonicalize quantity to base_uom units ---
+    let quantity = guard_convert_to_base(
+        pool,
+        req.item_id,
+        &req.tenant_id,
+        req.quantity,
+        req.uom_id,
+        item.base_uom_id,
+    )
+    .await?;
+
     let event_id = Uuid::new_v4();
     let issued_at = Utc::now();
     let correlation_id = req
@@ -198,6 +214,7 @@ pub async fn process_issue(
     let sum_remaining: i64 = available_layers.iter().map(|l| l.quantity_remaining).sum();
 
     // --- Availability check varies by whether a location is specified ---
+    // quantity is already in base_uom units after guard_convert_to_base.
     let net_available: i64 = if let Some(loc_id) = req.location_id {
         // Location-aware path: use the location-specific on-hand projection.
         // available_status_on_hand on the location row is the authoritative
@@ -239,15 +256,15 @@ pub async fn process_issue(
         sum_remaining - quantity_reserved
     };
 
-    if net_available < req.quantity {
+    if net_available < quantity {
         return Err(IssueError::InsufficientQuantity {
-            requested: req.quantity,
+            requested: quantity,
             available: net_available,
         });
     }
 
     // --- Deterministic FIFO consumption (warehouse-level for cost) ---
-    let consumed = fifo::consume_fifo(&available_layers, req.quantity)?;
+    let consumed = fifo::consume_fifo(&available_layers, quantity)?;
     let total_cost_minor: i64 = consumed.iter().map(|c| c.extended_cost_minor).sum();
 
     // Pre/post totals for null-location on-hand absolute set.
@@ -256,7 +273,7 @@ pub async fn process_issue(
         .map(|l| l.quantity_remaining * l.unit_cost_minor)
         .sum();
     let post_issue_total_cost = (pre_issue_total_cost - total_cost_minor).max(0);
-    let new_on_hand = sum_remaining - req.quantity;
+    let new_on_hand = sum_remaining - quantity;
 
     // --- Step 1: Insert ledger row (negative quantity = stock out) ---
     let ledger_row = sqlx::query_as::<_, LedgerRow>(
@@ -274,7 +291,7 @@ pub async fn process_issue(
     .bind(req.item_id)
     .bind(req.warehouse_id)
     .bind(req.location_id)
-    .bind(-req.quantity) // signed: negative = stock out
+    .bind(-quantity) // signed: negative = stock out (base_uom units)
     .bind(&req.currency)
     .bind(event_id)
     .bind(EVENT_TYPE_ITEM_ISSUED)
@@ -331,7 +348,7 @@ pub async fn process_issue(
             req.item_id,
             req.warehouse_id,
             loc_id,
-            req.quantity,
+            quantity,
             total_cost_minor,
             ledger_id,
         )
@@ -344,7 +361,7 @@ pub async fn process_issue(
             &req.tenant_id,
             req.item_id,
             req.warehouse_id,
-            req.quantity,
+            quantity,
         )
         .await
         .map_err(IssueError::Database)?;
@@ -389,7 +406,7 @@ pub async fn process_issue(
         item_id: req.item_id,
         sku: item.sku,
         warehouse_id: req.warehouse_id,
-        quantity: req.quantity,
+        quantity,
         total_cost_minor,
         currency: req.currency.clone(),
         consumed_layers: consumed.clone(),
@@ -434,7 +451,7 @@ pub async fn process_issue(
         item_id: req.item_id,
         warehouse_id: req.warehouse_id,
         location_id: req.location_id,
-        quantity: req.quantity,
+        quantity,
         total_cost_minor,
         currency: req.currency.clone(),
         consumed_layers: consumed,
@@ -536,6 +553,7 @@ mod tests {
             idempotency_key: "idem-001".to_string(),
             correlation_id: None,
             causation_id: None,
+            uom_id: None,
         }
     }
 

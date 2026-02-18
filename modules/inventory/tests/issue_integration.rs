@@ -81,6 +81,7 @@ fn make_receipt_req(
         lot_code: None,
         serial_codes: None,
         location_id: None,
+        uom_id: None,
     }
 }
 
@@ -105,6 +106,7 @@ fn make_issue_req(
         correlation_id: Some("corr-issue-test".to_string()),
         causation_id: None,
         location_id: None,
+        uom_id: None,
     }
 }
 
