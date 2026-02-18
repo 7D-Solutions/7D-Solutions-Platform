@@ -14,7 +14,7 @@ use inventory_rs::{
         serials::get_serials_for_item,
         status::post_status_transfer,
         trace::{trace_lot_handler, trace_serial_handler},
-        valuation::post_valuation_snapshot,
+        valuation::{get_valuation_snapshot, list_valuation_snapshots, post_valuation_snapshot},
     },
     metrics::{metrics_handler, InventoryMetrics},
     routes::{
@@ -172,7 +172,11 @@ async fn main() {
         // Valuation snapshots (FIFO-derived point-in-time value)
         .route(
             "/api/inventory/valuation-snapshots",
-            axum::routing::post(post_valuation_snapshot),
+            axum::routing::post(post_valuation_snapshot).get(list_valuation_snapshots),
+        )
+        .route(
+            "/api/inventory/valuation-snapshots/{id}",
+            axum::routing::get(get_valuation_snapshot),
         )
         // Locations (warehouse bins/shelves)
         .route("/api/inventory/locations", axum::routing::post(create_location))

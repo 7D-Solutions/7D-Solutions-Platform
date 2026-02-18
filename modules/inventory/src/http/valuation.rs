@@ -1,18 +1,30 @@
 //! Valuation snapshot HTTP handlers.
 //!
-//! Endpoint:
+//! Endpoints:
 //!   POST /api/inventory/valuation-snapshots
 //!     — build a point-in-time valuation snapshot from FIFO layers
 //!
-//! Returns 201 Created on first call; 200 OK on idempotent replay.
+//!   GET /api/inventory/valuation-snapshots?tenant_id=...&warehouse_id=...
+//!     — list snapshots (newest first), optionally filtered by warehouse
+//!
+//!   GET /api/inventory/valuation-snapshots/{id}?tenant_id=...
+//!     — snapshot header + per-item lines
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+    Json,
+};
+use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::{
-    domain::valuation::snapshot_service::{
-        create_valuation_snapshot, CreateSnapshotRequest, SnapshotError,
+    domain::valuation::{
+        queries::{get_snapshot, get_snapshot_lines, list_snapshots},
+        snapshot_service::{create_valuation_snapshot, CreateSnapshotRequest, SnapshotError},
     },
     AppState,
 };
@@ -68,7 +80,30 @@ fn snapshot_error_response(err: SnapshotError) -> impl IntoResponse {
 }
 
 // ============================================================================
-// Handler
+// Query params
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct ListSnapshotsQuery {
+    pub tenant_id: String,
+    pub warehouse_id: Option<Uuid>,
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+    #[serde(default)]
+    pub offset: i64,
+}
+
+fn default_limit() -> i64 {
+    50
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TenantQuery {
+    pub tenant_id: String,
+}
+
+// ============================================================================
+// Handlers
 // ============================================================================
 
 /// POST /api/inventory/valuation-snapshots
@@ -84,4 +119,118 @@ pub async fn post_valuation_snapshot(
         Ok((result, true)) => (StatusCode::OK, Json(result)).into_response(),
         Err(err) => snapshot_error_response(err).into_response(),
     }
+}
+
+/// GET /api/inventory/valuation-snapshots?tenant_id=...&warehouse_id=...&limit=...&offset=...
+///
+/// Lists snapshots for the tenant, newest first.  Optional `warehouse_id`
+/// narrows to one warehouse.  `limit` defaults to 50 (max 200); `offset`
+/// defaults to 0.
+///
+/// Returns `{ "tenant_id", "snapshots": [...] }`.
+pub async fn list_valuation_snapshots(
+    State(state): State<Arc<AppState>>,
+    Query(q): Query<ListSnapshotsQuery>,
+) -> impl IntoResponse {
+    if q.tenant_id.trim().is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
+        )
+            .into_response();
+    }
+
+    let limit = q.limit.clamp(1, 200);
+    let offset = q.offset.max(0);
+
+    match list_snapshots(&state.pool, &q.tenant_id, q.warehouse_id, limit, offset).await {
+        Ok(snapshots) => (
+            StatusCode::OK,
+            Json(json!({
+                "tenant_id": q.tenant_id,
+                "warehouse_id": q.warehouse_id,
+                "limit": limit,
+                "offset": offset,
+                "count": snapshots.len(),
+                "snapshots": snapshots,
+            })),
+        )
+            .into_response(),
+        Err(e) => {
+            tracing::error!(error = %e, tenant_id = %q.tenant_id, "database error listing valuation snapshots");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": "Database error" })),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// GET /api/inventory/valuation-snapshots/{id}?tenant_id=...
+///
+/// Returns the snapshot header and all per-item lines, tenant-scoped.
+/// Returns 404 when the snapshot does not exist or belongs to another tenant.
+///
+/// Response: `{ snapshot header fields..., "lines": [...] }`.
+pub async fn get_valuation_snapshot(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+    Query(q): Query<TenantQuery>,
+) -> impl IntoResponse {
+    if q.tenant_id.trim().is_empty() {
+        return (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
+        )
+            .into_response();
+    }
+
+    let snapshot = match get_snapshot(&state.pool, &q.tenant_id, id).await {
+        Ok(Some(s)) => s,
+        Ok(None) => {
+            return (
+                StatusCode::NOT_FOUND,
+                Json(json!({ "error": "not_found", "message": "Valuation snapshot not found" })),
+            )
+                .into_response();
+        }
+        Err(e) => {
+            tracing::error!(error = %e, snapshot_id = %id, "database error fetching valuation snapshot");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": "Database error" })),
+            )
+                .into_response();
+        }
+    };
+
+    let lines = match get_snapshot_lines(&state.pool, id).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::error!(error = %e, snapshot_id = %id, "database error fetching valuation lines");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": "Database error" })),
+            )
+                .into_response();
+        }
+    };
+
+    (
+        StatusCode::OK,
+        Json(json!({
+            "id": snapshot.id,
+            "tenant_id": snapshot.tenant_id,
+            "warehouse_id": snapshot.warehouse_id,
+            "location_id": snapshot.location_id,
+            "as_of": snapshot.as_of,
+            "total_value_minor": snapshot.total_value_minor,
+            "currency": snapshot.currency,
+            "created_at": snapshot.created_at,
+            "line_count": lines.len(),
+            "lines": lines,
+        })),
+    )
+        .into_response()
 }
