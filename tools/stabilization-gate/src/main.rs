@@ -1,11 +1,12 @@
-//! Stabilization Gate Benchmark Harness (bd-jsko, Wave 0)
+//! Stabilization Gate Benchmark Harness
 //!
 //! Measures platform performance against real Postgres and NATS services.
 //! Produces versioned JSON + Markdown reports under tools/stabilization-gate/reports/.
 //!
 //! Usage:
-//!   cargo run -p stabilization-gate -- run-all --dry-run
-//!   cargo run -p stabilization-gate -- e2e-bench --duration-secs 1
+//!   cargo run -p stabilization-gate -- run-all --tenant-count 25 --events-per-tenant 200 \
+//!       --recon-rows 2000 --dunning-rows 1000 --concurrency 50 --duration-secs 120
+//!   cargo run -p stabilization-gate -- e2e-bench --runs 2
 //!   cargo run -p stabilization-gate -- eventbus
 //!   cargo run -p stabilization-gate -- projections
 //!   cargo run -p stabilization-gate -- recon
@@ -15,11 +16,13 @@
 mod benchmarks;
 mod config;
 mod dunning;
+mod e2e_bench;
 mod eventbus;
 mod metrics;
 mod projections;
 mod recon;
 mod report;
+mod run_all;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
@@ -54,11 +57,32 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Run all benchmark scenarios and write a combined report.
+    /// Run all benchmark scenarios in parallel and write a combined report.
+    ///
+    /// Launches eventbus + projections + recon + dunning concurrently, then
+    /// validates cross-tenant data isolation invariants.
     RunAll {
         /// Check connectivity and config only — do not run actual benchmarks.
         #[arg(long)]
         dry_run: bool,
+        /// Number of tenants to simulate (overrides TENANT_COUNT env).
+        #[arg(long)]
+        tenant_count: Option<usize>,
+        /// Events per tenant (overrides EVENTS_PER_TENANT env).
+        #[arg(long)]
+        events_per_tenant: Option<usize>,
+        /// Total rows for reconciliation benchmark (overrides RECON_ROWS env).
+        #[arg(long)]
+        recon_rows: Option<usize>,
+        /// Total rows for dunning benchmark (overrides DUNNING_ROWS env).
+        #[arg(long)]
+        dunning_rows: Option<usize>,
+        /// Worker concurrency (overrides CONCURRENCY env).
+        #[arg(long)]
+        concurrency: Option<usize>,
+        /// Duration in seconds for timed scenarios (overrides DURATION_SECS env).
+        #[arg(long)]
+        duration_secs: Option<u64>,
     },
     /// Benchmark NATS event bus publish/consume throughput.
     Eventbus {
@@ -124,11 +148,15 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
-    /// End-to-end timed benchmark combining all scenarios.
+    /// Run `cargo test -p e2e-tests --no-fail-fast` N times and baseline timing.
+    ///
+    /// Captures per-run wall-clock duration, validates variance across runs,
+    /// and persists a baseline in reports/e2e-baseline.json for regression detection.
     E2eBench {
-        /// Duration in seconds to run each timed scenario.
-        #[arg(long, default_value_t = 30)]
-        duration_secs: u64,
+        /// Number of full e2e test suite runs to execute.
+        #[arg(long, default_value_t = 2)]
+        runs: u32,
+        /// Skip actual cargo test execution (connectivity check only).
         #[arg(long)]
         dry_run: bool,
     },
@@ -166,10 +194,25 @@ async fn run() -> Result<()> {
     let started_at = Utc::now();
 
     let (scenarios, dry_run, effective_cfg) = match &cli.command {
-        Commands::RunAll { dry_run } => {
+        Commands::RunAll {
+            dry_run,
+            tenant_count,
+            events_per_tenant,
+            recon_rows,
+            dunning_rows,
+            concurrency,
+            duration_secs,
+        } => {
             let dry = *dry_run;
-            let s = benchmarks::run_all(&cfg, dry).await?;
-            (s, dry, cfg.clone())
+            let mut cfg2 = cfg.clone();
+            if let Some(v) = tenant_count { cfg2.tenant_count = *v; }
+            if let Some(v) = events_per_tenant { cfg2.events_per_tenant = *v; }
+            if let Some(v) = recon_rows { cfg2.recon_rows = *v; }
+            if let Some(v) = dunning_rows { cfg2.dunning_rows = *v; }
+            if let Some(v) = concurrency { cfg2.concurrency = *v; }
+            if let Some(v) = duration_secs { cfg2.duration_secs = *v; }
+            let s = run_all::run(&cfg2, dry).await?;
+            (s, dry, cfg2)
         }
         Commands::Eventbus {
             dry_run,
@@ -248,12 +291,14 @@ async fn run() -> Result<()> {
             let s = vec![benchmarks::bench_tenants(&cfg, dry).await?];
             (s, dry, cfg.clone())
         }
-        Commands::E2eBench { duration_secs, dry_run } => {
+        Commands::E2eBench { runs, dry_run } => {
             let dry = *dry_run;
-            let mut cfg2 = cfg.clone();
-            cfg2.duration_secs = *duration_secs;
-            let s = benchmarks::run_all(&cfg2, dry).await?;
-            (s, dry, cfg2)
+            let scenario = if dry {
+                e2e_bench::e2e_dry_run()
+            } else {
+                e2e_bench::run_e2e_bench(*runs, &cli.reports_dir).await?
+            };
+            (vec![scenario], dry, cfg.clone())
         }
     };
 

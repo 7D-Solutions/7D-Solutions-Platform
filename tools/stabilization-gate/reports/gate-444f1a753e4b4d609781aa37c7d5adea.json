@@ -1,0 +1,139 @@
+{
+  "run_id": "gate-444f1a753e4b4d609781aa37c7d5adea",
+  "git_sha": "a7389ed6",
+  "started_at": "2026-02-18T01:22:10.768009Z",
+  "ended_at": "2026-02-18T01:22:13.813759Z",
+  "env_snapshot": {
+    "concurrency": 4,
+    "database_host": "localhost:5434",
+    "dunning_rows": 25,
+    "duration_secs": 15,
+    "events_per_tenant": 50,
+    "nats_url": "nats://localhost:4222",
+    "recon_rows": 25,
+    "tenant_count": 5
+  },
+  "scenarios": [
+    {
+      "name": "eventbus",
+      "passed": true,
+      "metrics": {
+        "concurrency": 4,
+        "consumer_lag_peak_ms": 6.061,
+        "drop_count": 0,
+        "errors": 0,
+        "events_per_tenant": 50,
+        "p50_ms": 3.143,
+        "p95_ms": 5.5649999999999995,
+        "p99_ms": 6.042,
+        "recv_count": 250,
+        "sent_count": 250,
+        "tenant_count": 5,
+        "throughput_ops_per_sec": 3806.5124159223246,
+        "total_ops": 250,
+        "wall_clock_ms": 65.676917
+      },
+      "threshold_violations": [],
+      "notes": null
+    },
+    {
+      "name": "projections",
+      "passed": true,
+      "metrics": {
+        "duration_secs": 15,
+        "events_per_tenant": 50,
+        "lag_avg_ms": 1348.2657479999996,
+        "lag_max_ms": 1862.635,
+        "lag_samples": 250,
+        "rebuild_per_projection": [
+          {
+            "events_processed": 250,
+            "name": "invoice_summary",
+            "rebuild_secs": 0.045912959,
+            "rows_per_sec": 5445.0857763273325
+          },
+          {
+            "events_processed": 250,
+            "name": "customer_balance",
+            "rebuild_secs": 0.122206042,
+            "rows_per_sec": 2045.7253660175002
+          },
+          {
+            "events_processed": 250,
+            "name": "subscription_status",
+            "rebuild_secs": 0.261377625,
+            "rows_per_sec": 956.4705471633235
+          }
+        ],
+        "rebuild_projections": 3,
+        "rebuild_total_events": 750,
+        "rebuild_total_secs": 0.766215666,
+        "tenant_count": 5
+      },
+      "threshold_violations": [],
+      "notes": null
+    },
+    {
+      "name": "recon",
+      "passed": false,
+      "metrics": {
+        "concurrency": 4,
+        "errors": 0,
+        "exception_rate": 0.0,
+        "invariant_duplicate_matches": 0,
+        "invariant_passed": true,
+        "matches_per_sec": 42.479704637186344,
+        "p50_run_ms": 334.906625,
+        "p95_run_ms": 540.225583,
+        "p99_run_ms": 540.225583,
+        "recon_rows": 25,
+        "rows_per_tenant": 5,
+        "tenant_count": 5,
+        "total_exceptions": 0,
+        "total_matches": 25,
+        "total_ops": 5,
+        "wall_secs": 0.588516333
+      },
+      "threshold_violations": [
+        "throughput 42.5 matches/s < threshold 50.0 matches/s"
+      ],
+      "notes": null
+    },
+    {
+      "name": "dunning",
+      "passed": false,
+      "metrics": {
+        "concurrency": 4,
+        "dunning_rows": 25,
+        "errors": 0,
+        "invariant_duplicate_transitions": 0,
+        "invariant_passed": true,
+        "p50_cycle_ms": 101.60975,
+        "p95_cycle_ms": 332.895333,
+        "p99_cycle_ms": 481.432209,
+        "processed": 25,
+        "rows_per_tenant": 5,
+        "tenant_count": 5,
+        "throughput_per_sec": 29.597198431484394,
+        "wall_secs": 0.844674541
+      },
+      "threshold_violations": [
+        "throughput 29.6 rows/s < threshold 50.0 rows/s"
+      ],
+      "notes": null
+    },
+    {
+      "name": "cross_tenant_isolation",
+      "passed": true,
+      "metrics": {
+        "dunning_cross_tenant_bleed": 0,
+        "recon_cross_tenant_bleed": 0,
+        "total_contamination_count": 0
+      },
+      "threshold_violations": [],
+      "notes": null
+    }
+  ],
+  "overall_passed": false,
+  "dry_run": false
+}
