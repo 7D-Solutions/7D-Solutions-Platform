@@ -1,3 +1,4 @@
+pub mod allocations;
 pub mod approvals;
 pub mod employees;
 pub mod entries;
@@ -105,6 +106,30 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route(
             "/api/timekeeping/approvals/{id}/actions",
             get(approvals::approval_actions),
+        )
+        // Allocations
+        .route(
+            "/api/timekeeping/allocations",
+            post(allocations::create_allocation).get(allocations::list_allocations),
+        )
+        .route(
+            "/api/timekeeping/allocations/{id}",
+            get(allocations::get_allocation)
+                .put(allocations::update_allocation)
+                .delete(allocations::deactivate_allocation),
+        )
+        // Rollups (actual time aggregation)
+        .route(
+            "/api/timekeeping/rollups/by-project",
+            get(allocations::rollup_by_project),
+        )
+        .route(
+            "/api/timekeeping/rollups/by-employee",
+            get(allocations::rollup_by_employee),
+        )
+        .route(
+            "/api/timekeeping/rollups/by-task/{project_id}",
+            get(allocations::rollup_by_task),
         )
         .with_state(state)
 }
