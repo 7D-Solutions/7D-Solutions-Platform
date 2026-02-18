@@ -1,9 +1,11 @@
-//! HTTP handlers for vendor bill CRUD and 3-way match.
+//! HTTP handlers for vendor bill CRUD, 3-way match, approval, and void.
 //!
 //! POST /api/ap/bills              — create a vendor bill
 //! GET  /api/ap/bills              — list bills for tenant (filter by vendor, voided)
 //! GET  /api/ap/bills/:id          — get a single bill with its line items
 //! POST /api/ap/bills/:id/match    — run 3-way match engine for a bill
+//! POST /api/ap/bills/:id/approve  — approve a bill (enforces match policy)
+//! POST /api/ap/bills/:id/void     — void a bill (requires reason)
 
 use axum::{
     extract::{Path, Query, State},
@@ -15,7 +17,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::bills::{
-    service, BillError, CreateBillRequest, VendorBill, VendorBillWithLines,
+    approve, service, void, ApproveBillRequest, BillError, CreateBillRequest, VendorBill,
+    VendorBillWithLines, VoidBillRequest,
 };
 use crate::domain::r#match::{engine, MatchError, MatchOutcome, RunMatchRequest};
 use crate::http::vendors::ErrorBody;
@@ -81,6 +84,10 @@ fn bill_error_response(e: BillError) -> (StatusCode, Json<ErrorBody>) {
         BillError::Validation(msg) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorBody::new("validation_error", &msg)),
+        ),
+        BillError::MatchPolicyViolation(msg) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorBody::new("match_policy_violation", &msg)),
         ),
         BillError::Database(e) => {
             tracing::error!("AP bills DB error: {}", e);
@@ -167,6 +174,44 @@ pub async fn list_bills(
     .map_err(bill_error_response)?;
 
     Ok(Json(bills))
+}
+
+// ============================================================================
+// Approve / Void
+// ============================================================================
+
+/// POST /api/ap/bills/:bill_id/approve — approve a bill (enforces match policy)
+pub async fn approve_bill(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(bill_id): Path<Uuid>,
+    Json(req): Json<ApproveBillRequest>,
+) -> Result<Json<VendorBill>, (StatusCode, Json<ErrorBody>)> {
+    let tenant_id = tenant_from_headers(&headers)?;
+    let correlation_id = correlation_from_headers(&headers);
+
+    let bill = approve::approve_bill(&state.pool, &tenant_id, bill_id, &req, correlation_id)
+        .await
+        .map_err(bill_error_response)?;
+
+    Ok(Json(bill))
+}
+
+/// POST /api/ap/bills/:bill_id/void — void a bill (requires reason)
+pub async fn void_bill(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    Path(bill_id): Path<Uuid>,
+    Json(req): Json<VoidBillRequest>,
+) -> Result<Json<VendorBill>, (StatusCode, Json<ErrorBody>)> {
+    let tenant_id = tenant_from_headers(&headers)?;
+    let correlation_id = correlation_from_headers(&headers);
+
+    let bill = void::void_bill(&state.pool, &tenant_id, bill_id, &req, correlation_id)
+        .await
+        .map_err(bill_error_response)?;
+
+    Ok(Json(bill))
 }
 
 // ============================================================================

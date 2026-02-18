@@ -6,9 +6,11 @@
 //! explicitly provided.
 //!
 //! Status machine: open -> approved -> partially_paid -> paid -> voided
-//!                  open -> matched (3-way match engine, future bead)
+//!                  open -> matched (3-way match engine)
 
+pub mod approve;
 pub mod service;
+pub mod void;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -38,6 +40,9 @@ pub enum BillError {
 
     #[error("Validation error: {0}")]
     Validation(String),
+
+    #[error("Match policy violation: {0}")]
+    MatchPolicyViolation(String),
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
@@ -203,6 +208,54 @@ pub struct CreateBillRequest {
     /// Reuses GL FX infrastructure; do not pass a raw rate value here.
     pub fx_rate_id: Option<Uuid>,
     pub lines: Vec<CreateBillLineRequest>,
+}
+
+/// Request body to approve a vendor bill.
+///
+/// Match policy is enforced unless `override_reason` is provided:
+///   - Bills in 'open' status (never matched) require an override.
+///   - Bills in 'matched' status with tolerance violations require an override.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApproveBillRequest {
+    /// Actor approving the bill (for audit attribution)
+    pub approved_by: String,
+    /// Override reason to bypass match policy. Required when the bill is
+    /// unmatched or has tolerance violations.
+    pub override_reason: Option<String>,
+}
+
+impl ApproveBillRequest {
+    pub fn validate(&self) -> Result<(), BillError> {
+        if self.approved_by.trim().is_empty() {
+            return Err(BillError::Validation("approved_by cannot be empty".to_string()));
+        }
+        Ok(())
+    }
+}
+
+/// Request body to void a vendor bill.
+///
+/// Voiding is append-only: the void_reason is persisted in the outbox event
+/// and serves as the immutable audit record. Void is allowed from any active
+/// status (open, matched, approved, partially_paid).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VoidBillRequest {
+    /// Actor performing the void
+    pub voided_by: String,
+    /// Required reason for voiding (forms the auditable justification)
+    pub void_reason: String,
+}
+
+impl VoidBillRequest {
+    pub fn validate(&self) -> Result<(), BillError> {
+        if self.voided_by.trim().is_empty() {
+            return Err(BillError::Validation("voided_by cannot be empty".to_string()));
+        }
+        if self.void_reason.trim().is_empty() {
+            return Err(BillError::Validation("void_reason cannot be empty".to_string()));
+        }
+        Ok(())
+    }
 }
 
 // ============================================================================
@@ -404,5 +457,47 @@ mod tests {
     #[test]
     fn validate_accepts_valid_request() {
         assert!(sample_create().validate().is_ok());
+    }
+
+    #[test]
+    fn approve_request_rejects_empty_approved_by() {
+        let req = ApproveBillRequest { approved_by: "  ".to_string(), override_reason: None };
+        assert!(req.validate().is_err());
+    }
+
+    #[test]
+    fn approve_request_accepts_with_override() {
+        let req = ApproveBillRequest {
+            approved_by: "manager-1".to_string(),
+            override_reason: Some("spot purchase".to_string()),
+        };
+        assert!(req.validate().is_ok());
+    }
+
+    #[test]
+    fn void_request_rejects_empty_voided_by() {
+        let req = VoidBillRequest {
+            voided_by: "".to_string(),
+            void_reason: "duplicate entry".to_string(),
+        };
+        assert!(req.validate().is_err());
+    }
+
+    #[test]
+    fn void_request_rejects_empty_void_reason() {
+        let req = VoidBillRequest {
+            voided_by: "user-1".to_string(),
+            void_reason: "  ".to_string(),
+        };
+        assert!(req.validate().is_err());
+    }
+
+    #[test]
+    fn void_request_accepts_valid() {
+        let req = VoidBillRequest {
+            voided_by: "user-1".to_string(),
+            void_reason: "duplicate entry".to_string(),
+        };
+        assert!(req.validate().is_ok());
     }
 }
