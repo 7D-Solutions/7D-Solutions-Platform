@@ -7,7 +7,7 @@ use tracing_subscriber::EnvFilter;
 use inventory_rs::{
     db::resolver::resolve_pool,
     http::{
-        cycle_counts::post_cycle_count_task,
+        cycle_counts::{post_cycle_count_submit, post_cycle_count_task},
         lots::get_lots_for_item,
         serials::get_serials_for_item,
         status::post_status_transfer,
@@ -139,6 +139,10 @@ async fn main() {
         .route(
             "/api/inventory/cycle-count-tasks",
             axum::routing::post(post_cycle_count_task),
+        )
+        .route(
+            "/api/inventory/cycle-count-tasks/{task_id}/submit",
+            axum::routing::post(post_cycle_count_submit),
         )
         // Locations (warehouse bins/shelves)
         .route("/api/inventory/locations", axum::routing::post(create_location))

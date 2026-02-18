@@ -46,6 +46,7 @@
 //! ```
 
 pub mod contracts;
+pub mod cycle_count_submitted;
 pub mod status_changed;
 
 // ============================================================================
@@ -69,6 +70,11 @@ pub use contracts::{
     EVENT_TYPE_TRANSFER_COMPLETED,
     build_adjusted_envelope, build_item_issued_envelope, build_item_received_envelope,
     build_transfer_completed_envelope,
+};
+
+pub use cycle_count_submitted::{
+    CycleCountSubmittedLine, CycleCountSubmittedPayload,
+    EVENT_TYPE_CYCLE_COUNT_SUBMITTED, build_cycle_count_submitted_envelope,
 };
 
 pub use status_changed::{

@@ -1,21 +1,30 @@
-//! Cycle count task HTTP handler.
+//! Cycle count task HTTP handlers.
 //!
-//! Endpoint:
-//!   POST /api/inventory/cycle-count-tasks — create a task + snapshot lines
+//! Endpoints:
+//!   POST /api/inventory/cycle-count-tasks              — create a task + snapshot lines
+//!   POST /api/inventory/cycle-count-tasks/{id}/submit  — submit counted quantities
 //!
 //! Full scope:   lines auto-populated from on-hand projection at the location.
 //! Partial scope: lines built from caller-specified item_ids.
 //!
-//! Stock changes are NOT applied here. The submit endpoint (bd-1q0j) applies
-//! adjustments after the counted_qty is filled in.
+//! Stock changes are NOT applied on submit. The approve endpoint (bd-opin) applies
+//! adjustments after manager review.
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+    Json,
+};
+use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::{
-    domain::cycle_count::task_service::{
-        create_cycle_count_task, CreateTaskRequest, TaskError,
+    domain::cycle_count::{
+        submit_service::{submit_cycle_count, SubmitError, SubmitLineInput, SubmitRequest},
+        task_service::{create_cycle_count_task, CreateTaskRequest, TaskError},
     },
     AppState,
 };
@@ -79,5 +88,109 @@ pub async fn post_cycle_count_task(
     match create_cycle_count_task(&state.pool, &req).await {
         Ok(result) => (StatusCode::CREATED, Json(result)).into_response(),
         Err(err) => task_error_response(err).into_response(),
+    }
+}
+
+// ============================================================================
+// Submit error mapping
+// ============================================================================
+
+fn submit_error_response(err: SubmitError) -> impl IntoResponse {
+    match err {
+        SubmitError::MissingTenant | SubmitError::MissingIdempotencyKey => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "error": "validation_error", "message": err.to_string() })),
+        )
+            .into_response(),
+
+        SubmitError::TaskNotFound => (
+            StatusCode::NOT_FOUND,
+            Json(json!({ "error": "task_not_found", "message": err.to_string() })),
+        )
+            .into_response(),
+
+        SubmitError::TaskNotOpen { .. } => (
+            StatusCode::CONFLICT,
+            Json(json!({ "error": "task_not_open", "message": err.to_string() })),
+        )
+            .into_response(),
+
+        SubmitError::LineNotFound { .. } => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "error": "line_not_found", "message": err.to_string() })),
+        )
+            .into_response(),
+
+        SubmitError::NegativeCountedQty { .. } => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "error": "validation_error", "message": err.to_string() })),
+        )
+            .into_response(),
+
+        SubmitError::ConflictingIdempotencyKey => (
+            StatusCode::CONFLICT,
+            Json(json!({ "error": "idempotency_conflict", "message": err.to_string() })),
+        )
+            .into_response(),
+
+        SubmitError::Serialization(e) => {
+            tracing::error!(error = %e, "serialization error in cycle count submit");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
+            )
+                .into_response()
+        }
+
+        SubmitError::Database(e) => {
+            tracing::error!(error = %e, "database error submitting cycle count");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": "Database error" })),
+            )
+                .into_response()
+        }
+    }
+}
+
+// ============================================================================
+// Submit request body (task_id comes from URL path)
+// ============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct SubmitBody {
+    pub tenant_id: String,
+    pub idempotency_key: String,
+    #[serde(default)]
+    pub lines: Vec<SubmitLineInput>,
+    pub correlation_id: Option<String>,
+    pub causation_id: Option<String>,
+}
+
+// ============================================================================
+// Submit handler
+// ============================================================================
+
+/// POST /api/inventory/cycle-count-tasks/{task_id}/submit
+///
+/// Submits counted quantities for an open cycle count task.
+/// Returns 201 on first submit; 200 on idempotent replay.
+pub async fn post_cycle_count_submit(
+    Path(task_id): Path<Uuid>,
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<SubmitBody>,
+) -> impl IntoResponse {
+    let req = SubmitRequest {
+        task_id,
+        tenant_id: body.tenant_id,
+        idempotency_key: body.idempotency_key,
+        lines: body.lines,
+        correlation_id: body.correlation_id,
+        causation_id: body.causation_id,
+    };
+    match submit_cycle_count(&state.pool, &req).await {
+        Ok((result, false)) => (StatusCode::CREATED, Json(result)).into_response(),
+        Ok((result, true)) => (StatusCode::OK, Json(result)).into_response(),
+        Err(err) => submit_error_response(err).into_response(),
     }
 }
