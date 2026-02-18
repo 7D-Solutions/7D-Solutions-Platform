@@ -25,7 +25,7 @@ impl Config {
     pub fn from_env() -> Result<Self, String> {
         let database_url = env::var("DATABASE_URL").map_err(|_| {
             "DATABASE_URL is required but not set. \
-             Example: postgresql://inventory_user:inventory_pass@localhost:5439/inventory_db"
+             Example: postgresql://inventory_user:inventory_pass@localhost:5442/inventory_db"
                 .to_string()
         })?;
 

@@ -23,7 +23,6 @@ use uuid::Uuid;
 // ============================================================================
 
 async fn get_inventory_pool() -> sqlx::PgPool {
-    dotenvy::dotenv().ok();
     let url = std::env::var("INVENTORY_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
         .unwrap_or_else(|_| {
