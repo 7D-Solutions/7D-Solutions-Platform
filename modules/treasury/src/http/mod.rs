@@ -1,5 +1,6 @@
 pub mod accounts;
 pub mod import;
+pub mod reports;
 
 use axum::{extract::State, http::StatusCode, Json};
 use std::sync::Arc;

@@ -117,6 +117,11 @@ async fn main() {
             "/api/treasury/accounts/:id/deactivate",
             post(http::accounts::deactivate_account),
         )
+        // Reports
+        .route(
+            "/api/treasury/cash-position",
+            get(http::reports::cash_position),
+        )
         // Statement import
         .route(
             "/api/treasury/statements/import",
