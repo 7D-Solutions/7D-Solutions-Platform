@@ -1,3 +1,5 @@
+pub mod vendors;
+
 use axum::{extract::State, http::StatusCode, Json};
 use std::sync::Arc;
 

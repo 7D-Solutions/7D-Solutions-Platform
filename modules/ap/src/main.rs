@@ -1,4 +1,4 @@
-use axum::{http::Method, routing::get, Router};
+use axum::{http::Method, routing::{get, post}, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -96,6 +96,19 @@ async fn main() {
         .route("/api/ready", get(http::ready))
         .route("/api/version", get(http::version))
         .route("/metrics", get(metrics::metrics_handler))
+        // Vendor management
+        .route(
+            "/api/ap/vendors",
+            post(http::vendors::create_vendor).get(http::vendors::list_vendors),
+        )
+        .route(
+            "/api/ap/vendors/:vendor_id",
+            get(http::vendors::get_vendor).put(http::vendors::update_vendor),
+        )
+        .route(
+            "/api/ap/vendors/:vendor_id/deactivate",
+            post(http::vendors::deactivate_vendor),
+        )
         .with_state(app_state)
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
