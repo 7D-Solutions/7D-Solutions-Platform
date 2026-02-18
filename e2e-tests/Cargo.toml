@@ -256,6 +256,10 @@ name = "inventory_extensions_integrated"
 path = "tests/inventory_extensions_integrated.rs"
 
 [[test]]
+name = "reporting_gl_statements"
+path = "tests/reporting_gl_statements.rs"
+
+[[test]]
 name = "ap_multicurrency_gl"
 path = "tests/ap_multicurrency_gl.rs"
 
@@ -282,6 +286,7 @@ ar-rs = { path = "../modules/ar" }
 gl-rs = { path = "../modules/gl" }
 ap = { path = "../modules/ap" }
 inventory-rs = { path = "../modules/inventory" }
+reporting = { path = "../modules/reporting" }
 notifications-rs = { path = "../modules/notifications" }
 tower = { version = "0.5", features = ["util"] }
 axum = "0.8"

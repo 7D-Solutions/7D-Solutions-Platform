@@ -171,6 +171,13 @@ pub async fn get_ap_pool() -> PgPool {
     wait_for_db_ready("ap", &url).await
 }
 
+/// Get Reporting database pool (shares AP postgres instance on port 5443)
+pub async fn get_reporting_pool() -> PgPool {
+    let url = std::env::var("REPORTING_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://ap_user:ap_pass@localhost:5443/reporting_test".to_string());
+    wait_for_db_ready("reporting", &url).await
+}
+
 // ============================================================================
 // NATS Event Bus
 // ============================================================================
