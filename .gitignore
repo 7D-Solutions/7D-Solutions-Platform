@@ -59,6 +59,56 @@ panes/.*.lock
 # Browser profiles (Chrome session data)
 .browser-profiles/
 
+# AgentCore symlinked scripts (created by create-symlinks.sh)
+# Only track scripts that are actual project files, not AgentCore symlinks.
+# The symlinks are created at runtime and point outside this repo.
+scripts/*.mjs
+scripts/assign-tasks.sh
+scripts/bead-quality-scorer.sh
+scripts/bv-all-open.sh
+scripts/bv-all.sh
+scripts/bv-open.sh
+scripts/bv-sync.sh
+scripts/check-worker.sh
+scripts/create-symlinks.sh
+scripts/doctor.sh
+scripts/expiry-notify-monitor.sh
+scripts/file-picker.sh
+scripts/fleet-core.sh
+scripts/fleet-metrics.sh
+scripts/fleet-status.sh
+scripts/fleet-tmux-status.sh
+scripts/generate-task-graph.sh
+scripts/inc-version.sh
+scripts/launch-persistent-browser.sh
+scripts/launcher.sh
+scripts/macro-helpers.sh
+scripts/metrics-summary.sh
+scripts/ntm-dashboard.sh
+scripts/pane-init.sh
+scripts/prepare-for-fresh-start.sh
+scripts/project-config.sh
+scripts/reservation-metrics.sh
+scripts/reservation-status.sh
+scripts/search-history.sh
+scripts/search-metrics.sh
+scripts/self-review.sh
+scripts/set-conversation.sh
+scripts/setup-codex-oauth.sh
+scripts/start-mail-server.sh
+scripts/start-worker.sh
+scripts/stop-mail-server.sh
+scripts/stop-worker.sh
+scripts/summarize-session.sh
+scripts/swarm-metrics.sh
+scripts/swarm-status.sh
+scripts/task-analyzer.sh
+scripts/task-lifecycle-tracker.sh
+scripts/test.sh
+scripts/transpile.sh
+scripts/validate-agent-session.sh
+scripts/wake-agents.sh
+
 # Logs directory
 logs/
 
