@@ -53,6 +53,7 @@ pub struct ReopenRequestRow {
 
 /// Row type for period close fields query
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 struct PeriodCloseFields {
     id: Uuid,
     closed_at: Option<DateTime<Utc>>,

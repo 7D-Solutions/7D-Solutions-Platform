@@ -215,6 +215,7 @@ impl std::fmt::Display for crate::contracts::gl_posting_request_v1::SourceDocTyp
             Self::InventoryIssue => write!(f, "INVENTORY_ISSUE"),
             Self::PayrollRun => write!(f, "PAYROLL_RUN"),
             Self::GlAccrual => write!(f, "GL_ACCRUAL"),
+            Self::LaborCostAccrual => write!(f, "LABOR_COST_ACCRUAL"),
         }
     }
 }
