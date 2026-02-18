@@ -69,6 +69,7 @@ fn receipt_req(tenant_id: &str, item_id: Uuid, idem_key: &str) -> ReceiptRequest
         causation_id: None,
         lot_code: None,
         serial_codes: None,
+        location_id: None,
     }
 }
 

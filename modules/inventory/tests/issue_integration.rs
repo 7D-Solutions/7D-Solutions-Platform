@@ -80,6 +80,7 @@ fn make_receipt_req(
         causation_id: None,
         lot_code: None,
         serial_codes: None,
+        location_id: None,
     }
 }
 
@@ -103,6 +104,7 @@ fn make_issue_req(
         idempotency_key: idem.to_string(),
         correlation_id: Some("corr-issue-test".to_string()),
         causation_id: None,
+        location_id: None,
     }
 }
 
