@@ -13,19 +13,21 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Resolve the real cargo binary, bypassing the workspace bin/ shim.
-# The bin/cargo shim calls this script, so we must not call it back.
-REAL_CARGO=$(PATH="${PATH//"$WORKSPACE_ROOT/bin:"/}" which cargo 2>/dev/null || true)
-if [ -z "$REAL_CARGO" ] || [ "$REAL_CARGO" = "$WORKSPACE_ROOT/bin/cargo" ]; then
-    # Fallback: try well-known locations
-    for candidate in "$HOME/.cargo/bin/cargo" /usr/local/bin/cargo /usr/bin/cargo; do
-        if [ -x "$candidate" ] && [ "$candidate" != "$WORKSPACE_ROOT/bin/cargo" ]; then
-            REAL_CARGO="$candidate"
-            break
-        fi
-    done
-fi
+# The bin/cargo shim calls this script — do NOT use `cargo` directly or we recurse.
+# Try known locations in priority order, skipping the workspace shim.
+REAL_CARGO=""
+for _candidate in \
+    "$HOME/.cargo/bin/cargo" \
+    /usr/local/bin/cargo \
+    /opt/homebrew/bin/cargo \
+    /usr/bin/cargo; do
+    if [ -x "$_candidate" ]; then
+        REAL_CARGO="$_candidate"
+        break
+    fi
+done
 if [ -z "$REAL_CARGO" ]; then
-    echo "[cargo-slot] ERROR: Cannot find real cargo binary (all candidates are the bin/ shim)." >&2
+    echo "[cargo-slot] ERROR: Cannot find real cargo binary (tried ~/.cargo/bin, /usr/local/bin, etc.)." >&2
     exit 1
 fi
 
