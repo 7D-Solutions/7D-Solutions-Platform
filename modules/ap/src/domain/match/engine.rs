@@ -276,8 +276,8 @@ async fn load_receipt_aggs(
         let row: Option<(f64, Uuid)> = sqlx::query_as(
             r#"
             SELECT
-                SUM(quantity_received::FLOAT8) AS total_received,
-                MIN(receipt_id)               AS first_receipt_id
+                SUM(quantity_received::FLOAT8)     AS total_received,
+                MIN(receipt_id::TEXT)::UUID        AS first_receipt_id
             FROM po_receipt_links
             WHERE po_line_id = $1
             GROUP BY po_line_id
@@ -386,7 +386,6 @@ fn compute_line_match(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use serial_test::serial;
 
     const TEST_TENANT: &str = "test-tenant-match-engine";
