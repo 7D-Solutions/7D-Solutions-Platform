@@ -164,6 +164,13 @@ pub async fn get_tenant_registry_pool() -> PgPool {
     wait_for_db_ready("tenant-registry", &url).await
 }
 
+/// Get AP database pool
+pub async fn get_ap_pool() -> PgPool {
+    let url = std::env::var("AP_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://ap_user:ap_pass@localhost:5443/ap_db".to_string());
+    wait_for_db_ready("ap", &url).await
+}
+
 // ============================================================================
 // NATS Event Bus
 // ============================================================================

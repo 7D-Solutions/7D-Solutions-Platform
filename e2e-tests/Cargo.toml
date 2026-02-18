@@ -255,6 +255,14 @@ path = "tests/inventory_low_stock_notifications.rs"
 name = "inventory_extensions_integrated"
 path = "tests/inventory_extensions_integrated.rs"
 
+[[test]]
+name = "ap_multicurrency_gl"
+path = "tests/ap_multicurrency_gl.rs"
+
+[[test]]
+name = "ap_po_receipt_bill_gl"
+path = "tests/ap_po_receipt_bill_gl.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -272,6 +280,7 @@ subscriptions-rs = { path = "../modules/subscriptions" }
 payments-rs = { path = "../modules/payments" }
 ar-rs = { path = "../modules/ar" }
 gl-rs = { path = "../modules/gl" }
+ap = { path = "../modules/ap" }
 inventory-rs = { path = "../modules/inventory" }
 notifications-rs = { path = "../modules/notifications" }
 tower = { version = "0.5", features = ["util"] }
