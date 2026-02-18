@@ -19,8 +19,9 @@ use super::{
 
 /// Initialize dunning for an invoice (creates the Pending state record).
 ///
-/// **Idempotency**: duplicate `dunning_id` returns `AlreadyExists` without error.
-/// The unique constraint on (app_id, invoice_id) also prevents duplicates.
+/// **Idempotency**: duplicate `dunning_id` or duplicate `(app_id, invoice_id)` returns
+/// `AlreadyExists` without error. Uses `INSERT ON CONFLICT DO NOTHING` to avoid two
+/// pre-flight SELECT checks — unique constraints enforce idempotency atomically.
 ///
 /// **Atomicity**: dunning record + outbox event (LIFECYCLE) are inserted in
 /// a single transaction.
@@ -31,42 +32,24 @@ pub async fn init_dunning(
     let mut tx = pool.begin().await?;
     let now = Utc::now();
 
-    // 1. Idempotency check: has this dunning_id already been used?
-    let existing: Option<i32> = sqlx::query_scalar(
-        "SELECT id FROM ar_dunning_states WHERE dunning_id = $1",
-    )
-    .bind(req.dunning_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    // Pre-generate outbox_event_id so it can be set in the INSERT itself,
+    // eliminating the trailing UPDATE that previously correlated the two rows.
+    let outbox_event_id = Uuid::new_v4();
 
-    if let Some(existing_row_id) = existing {
-        tx.rollback().await?;
-        return Ok(InitDunningResult::AlreadyExists { existing_row_id });
-    }
-
-    // 2. Also check by (app_id, invoice_id) — different dunning_id but same invoice
-    let existing_by_invoice: Option<i32> = sqlx::query_scalar(
-        "SELECT id FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2",
-    )
-    .bind(&req.app_id)
-    .bind(req.invoice_id)
-    .fetch_optional(&mut *tx)
-    .await?;
-
-    if let Some(existing_row_id) = existing_by_invoice {
-        tx.rollback().await?;
-        return Ok(InitDunningResult::AlreadyExists { existing_row_id });
-    }
-
-    // 3. Insert the initial Pending state record
-    let dunning_row_id: i32 = sqlx::query_scalar(
+    // 1. Insert the initial Pending state record.
+    //    ON CONFLICT DO NOTHING handles both idempotency cases atomically:
+    //      - duplicate dunning_id (UNIQUE on dunning_id)
+    //      - duplicate (app_id, invoice_id) (UNIQUE on ar_dunning_states_unique_invoice)
+    //    This replaces two pre-flight SELECT checks with a single INSERT attempt.
+    let maybe_dunning_row_id: Option<i32> = sqlx::query_scalar(
         r#"
         INSERT INTO ar_dunning_states (
             dunning_id, app_id, invoice_id, customer_id,
             state, version, attempt_count, next_attempt_at,
-            created_at, updated_at
+            outbox_event_id, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, 'pending', 1, 0, $5, $6, $6)
+        VALUES ($1, $2, $3, $4, 'pending', 1, 0, $5, $6, $7, $7)
+        ON CONFLICT DO NOTHING
         RETURNING id
         "#,
     )
@@ -75,12 +58,35 @@ pub async fn init_dunning(
     .bind(req.invoice_id)
     .bind(&req.customer_id)
     .bind(req.next_attempt_at)
+    .bind(outbox_event_id)
     .bind(now)
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
 
-    // 4. Build and enqueue the outbox event (LIFECYCLE)
-    let outbox_event_id = Uuid::new_v4();
+    let dunning_row_id = match maybe_dunning_row_id {
+        Some(id) => id,
+        None => {
+            // A unique constraint was violated — record already exists.
+            // Rollback and return AlreadyExists with the existing row id.
+            tx.rollback().await?;
+            let existing_row_id: i32 = sqlx::query_scalar(
+                r#"
+                SELECT id FROM ar_dunning_states
+                WHERE dunning_id = $1 OR (app_id = $2 AND invoice_id = $3)
+                LIMIT 1
+                "#,
+            )
+            .bind(req.dunning_id)
+            .bind(&req.app_id)
+            .bind(req.invoice_id)
+            .fetch_one(pool)
+            .await
+            .map_err(|e| DunningError::DatabaseError(e.to_string()))?;
+            return Ok(InitDunningResult::AlreadyExists { existing_row_id });
+        }
+    };
+
+    // 2. Build and enqueue the outbox event (LIFECYCLE)
     let payload = DunningStateChangedPayload {
         tenant_id: req.app_id.clone(),
         invoice_id: req.invoice_id.to_string(),
@@ -126,14 +132,7 @@ pub async fn init_dunning(
     .execute(&mut *tx)
     .await?;
 
-    // 5. Update outbox_event_id back on the dunning record for correlation
-    sqlx::query(
-        "UPDATE ar_dunning_states SET outbox_event_id = $1 WHERE id = $2",
-    )
-    .bind(outbox_event_id)
-    .bind(dunning_row_id)
-    .execute(&mut *tx)
-    .await?;
+    // outbox_event_id was already set in the INSERT above — no trailing UPDATE needed.
 
     tx.commit().await?;
 
@@ -211,7 +210,11 @@ pub async fn transition_dunning(
     };
     let new_version = row.version + 1;
 
-    // 5. Apply the transition (optimistic lock: version must match)
+    // Pre-generate outbox_event_id so it can be merged into the UPDATE itself,
+    // eliminating the trailing UPDATE that previously correlated the two rows.
+    let outbox_event_id = Uuid::new_v4();
+
+    // 5. Apply the transition and set outbox_event_id in one UPDATE (optimistic lock: version must match)
     let rows_updated = sqlx::query(
         r#"
         UPDATE ar_dunning_states
@@ -221,7 +224,8 @@ pub async fn transition_dunning(
             attempt_count   = $2,
             next_attempt_at = $3,
             last_error      = $4,
-            updated_at      = $5
+            updated_at      = $5,
+            outbox_event_id = $9
         WHERE
             app_id      = $6
             AND invoice_id  = $7
@@ -236,6 +240,7 @@ pub async fn transition_dunning(
     .bind(&req.app_id)
     .bind(req.invoice_id)
     .bind(row.version)
+    .bind(outbox_event_id)
     .execute(&mut *tx)
     .await?;
 
@@ -247,7 +252,6 @@ pub async fn transition_dunning(
     }
 
     // 6. Build and enqueue the outbox event (LIFECYCLE)
-    let outbox_event_id = Uuid::new_v4();
     let payload = DunningStateChangedPayload {
         tenant_id: req.app_id.clone(),
         invoice_id: req.invoice_id.to_string(),
@@ -343,14 +347,7 @@ pub async fn transition_dunning(
         .await?;
     }
 
-    // 7. Update outbox_event_id on the dunning record for correlation
-    sqlx::query(
-        "UPDATE ar_dunning_states SET outbox_event_id = $1 WHERE id = $2",
-    )
-    .bind(outbox_event_id)
-    .bind(row.id)
-    .execute(&mut *tx)
-    .await?;
+    // outbox_event_id was already set in the UPDATE above — no trailing UPDATE needed.
 
     tx.commit().await?;
 
