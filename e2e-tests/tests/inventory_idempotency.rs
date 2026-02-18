@@ -304,7 +304,7 @@ async fn inventory_idempotency_duplicate_reserve_is_replay() {
 
     // quantity_reserved must not be doubled
     let qty_reserved: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(quantity_reserved), 0) FROM item_on_hand WHERE tenant_id = $1 AND item_id = $2",
+        "SELECT COALESCE(SUM(quantity_reserved), 0)::bigint FROM item_on_hand WHERE tenant_id = $1 AND item_id = $2",
     )
     .bind(&tenant_id)
     .bind(item.id)
@@ -430,7 +430,7 @@ async fn inventory_idempotency_duplicate_issue_is_replay() {
 
     // Layer remaining = 100 - 25 = 75 (not 100 - 50 = 50 if double-consumed)
     let remaining: i64 = sqlx::query_scalar(
-        "SELECT SUM(quantity_remaining) FROM inventory_layers WHERE tenant_id = $1",
+        "SELECT SUM(quantity_remaining)::bigint FROM inventory_layers WHERE tenant_id = $1",
     )
     .bind(&tenant_id)
     .fetch_one(&pool)
@@ -519,7 +519,7 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
         serial_codes: None,
     };
     let (issue1, _) = process_issue(&inv_pool, &issue_req).await.expect("issue");
-    assert_eq!(issue1.total_cost_minor, 300_000, "10 × $30 = $300");
+    assert_eq!(issue1.total_cost_minor, 30_000, "10 × $30 = $300 (30000 minor units)");
 
     // --- Step 3: GL COGS post (first time) ---
     let gl_payload = to_gl_payload(&issue1, sku);
@@ -593,7 +593,7 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
 
     // Stock not double-consumed: remaining = 100 - 10 = 90 (not 80)
     let layer_remaining: i64 = sqlx::query_scalar(
-        "SELECT SUM(quantity_remaining) FROM inventory_layers WHERE tenant_id = $1",
+        "SELECT SUM(quantity_remaining)::bigint FROM inventory_layers WHERE tenant_id = $1",
     )
     .bind(&tenant_id)
     .fetch_one(&inv_pool)
@@ -811,7 +811,7 @@ async fn inventory_idempotency_issue_then_gl_no_double() -> Result<()> {
 
     // Layer remaining = 50 - 20 = 30 (not 50 - 40 = 10 if double-issued)
     let remaining: i64 = sqlx::query_scalar(
-        "SELECT SUM(quantity_remaining) FROM inventory_layers WHERE tenant_id = $1",
+        "SELECT SUM(quantity_remaining)::bigint FROM inventory_layers WHERE tenant_id = $1",
     )
     .bind(&tenant_id)
     .fetch_one(&inv_pool)

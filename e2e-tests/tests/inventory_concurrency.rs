@@ -213,7 +213,7 @@ async fn inventory_concurrency_no_oversell_10_way() {
 
     // Layer fully consumed
     let layer_remaining: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(quantity_remaining), 0) FROM inventory_layers WHERE tenant_id = $1 AND item_id = $2",
+        "SELECT COALESCE(SUM(quantity_remaining), 0)::bigint FROM inventory_layers WHERE tenant_id = $1 AND item_id = $2",
     )
     .bind((*tenant_id).as_str())
     .bind(item_id)
