@@ -219,6 +219,10 @@ path = "tests/tax_commit_void_e2e.rs"
 name = "revrec_amendment_e2e"
 path = "tests/revrec_amendment_e2e.rs"
 
+[[test]]
+name = "inventory_receipt_e2e"
+path = "tests/inventory_receipt_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -236,6 +240,7 @@ subscriptions-rs = { path = "../modules/subscriptions" }
 payments-rs = { path = "../modules/payments" }
 ar-rs = { path = "../modules/ar" }
 gl-rs = { path = "../modules/gl" }
+inventory-rs = { path = "../modules/inventory" }
 tower = { version = "0.5", features = ["util"] }
 axum = "0.8"
 audit = { path = "../platform/audit" }

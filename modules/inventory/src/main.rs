@@ -10,6 +10,7 @@ use inventory_rs::{
     routes::{
         health::{health, ready, version},
         items::{create_item, deactivate_item, update_item},
+        receipts::post_receipt,
     },
     AppState, Config,
 };
@@ -62,6 +63,8 @@ async fn main() {
             "/api/inventory/items/:id/deactivate",
             axum::routing::post(deactivate_item),
         )
+        // Stock receipts
+        .route("/api/inventory/receipts", axum::routing::post(post_receipt))
         .with_state(app_state)
         .layer(
             CorsLayer::new()
