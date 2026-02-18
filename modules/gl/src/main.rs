@@ -16,7 +16,7 @@ use gl_rs::{
     routes::period_summary::get_period_summary,
     routes::fx_rates::{create_fx_rate, get_latest_rate as get_latest_fx_rate},
     routes::accruals::{create_template_handler, create_accrual_handler, execute_reversals_handler},
-    routes::revrec::{create_contract, generate_schedule_handler, run_recognition_handler},
+    routes::revrec::{amend_contract, create_contract, generate_schedule_handler, run_recognition_handler},
     routes::trial_balance::get_trial_balance,
     routes::cashflow::get_cash_flow,
     routes::reporting_currency::{
@@ -24,6 +24,7 @@ use gl_rs::{
         get_reporting_income_statement,
         get_reporting_balance_sheet,
     },
+    consumer::gl_inventory_consumer::start_gl_inventory_consumer,
     consumer::gl_writeoff_consumer::start_gl_writeoff_consumer,
     start_gl_posting_consumer,
     start_gl_reversal_consumer,
@@ -100,6 +101,11 @@ async fn main() {
     let writeoff_bus = bus.clone();
     start_gl_writeoff_consumer(writeoff_bus, writeoff_pool).await;
 
+    // Start GL inventory COGS consumer
+    let inventory_pool = pool.clone();
+    let inventory_bus = bus.clone();
+    start_gl_inventory_consumer(inventory_bus, inventory_pool).await;
+
     // Create metrics registry
     let metrics = Arc::new(
         gl_rs::metrics::GlMetrics::new()
@@ -136,6 +142,7 @@ async fn main() {
         .route("/api/gl/revrec/contracts", post(create_contract))
         .route("/api/gl/revrec/schedules", post(generate_schedule_handler))
         .route("/api/gl/revrec/recognition-runs", post(run_recognition_handler))
+        .route("/api/gl/revrec/amendments", post(amend_contract))
         .route("/api/gl/accruals/templates", post(create_template_handler))
         .route("/api/gl/accruals/create", post(create_accrual_handler))
         .route("/api/gl/accruals/reversals/execute", post(execute_reversals_handler))
