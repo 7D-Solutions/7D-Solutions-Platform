@@ -449,7 +449,7 @@ async fn available_equals_on_hand_minus_reserved() {
         INSERT INTO item_on_hand
             (tenant_id, item_id, warehouse_id, quantity_on_hand, available_status_on_hand, projected_at)
         VALUES ($1, $2, $3, 100, 100, NOW())
-        ON CONFLICT (tenant_id, item_id, warehouse_id) DO UPDATE
+        ON CONFLICT (tenant_id, item_id, warehouse_id) WHERE location_id IS NULL DO UPDATE
             SET quantity_on_hand = 100, available_status_on_hand = 100, projected_at = NOW()
         "#,
     )
