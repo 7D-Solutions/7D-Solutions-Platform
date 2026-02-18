@@ -60,12 +60,22 @@ git commit -m "[bd-xxx] Your commit message"
 br close bd-xxx
 ```
 
+## When No Beads Are Available
+
+If `./scripts/bv-claim.sh` returns nothing claimable:
+
+1. **Do NOT manually browse beads** with `br show` or `br list`. The pool is managed — if bv-claim found nothing, there is nothing for you.
+2. **Check your inbox:** `./scripts/agent-mail-helper.sh inbox` — the orchestrator may have sent you direction.
+3. **If no inbox messages:** send a single message to the orchestrator reporting idle status. Include which beads are blocking the pool (bv-claim output will show this).
+4. **Wait for a response.** Do not loop or retry bv-claim repeatedly.
+5. **Never claim a blocked bead** (one with unfinished dependencies) — `br` will reject it anyway.
+
 ## Autonomous Work Loop
 
 If running inside `scripts/agent-runner.sh`:
 
 1. Check inbox: `./scripts/agent-mail-helper.sh inbox`
-2. Work on your assigned bead (shown at startup)
+2. Claim a bead: `./scripts/bv-claim.sh` — if nothing returned, follow **When No Beads Are Available** above.
 3. Commit with `[bd-xxx]` prefix
 4. Side issues: Create child beads, fix them, close them
 5. When done: `br close bd-xxx`
