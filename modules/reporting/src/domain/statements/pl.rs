@@ -105,19 +105,16 @@ pub async fn compute_pl(
     let cogs_totals = sum_by_currency(&cogs);
     let exp_totals = sum_by_currency(&expenses);
 
-    // Net income per currency
+    // Net income per currency: revenue − cogs − expenses
     let mut net: HashMap<String, i64> = HashMap::new();
     for (cur, &rev) in &rev_totals {
-        let cost = cogs_totals.get(cur).copied().unwrap_or(0);
-        let exp = exp_totals.get(cur).copied().unwrap_or(0);
-        net.insert(cur.clone(), rev - cost - exp);
+        *net.entry(cur.clone()).or_insert(0) += rev;
     }
-    // Currencies that only appear in expense/cogs but not revenue
     for (cur, &cost) in &cogs_totals {
-        net.entry(cur.clone()).or_insert(-cost);
+        *net.entry(cur.clone()).or_insert(0) -= cost;
     }
     for (cur, &exp) in &exp_totals {
-        net.entry(cur.clone()).and_modify(|v| *v -= exp).or_insert(-exp);
+        *net.entry(cur.clone()).or_insert(0) -= exp;
     }
 
     let sections = vec![
