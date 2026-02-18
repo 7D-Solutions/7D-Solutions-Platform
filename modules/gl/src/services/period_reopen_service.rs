@@ -34,7 +34,7 @@ pub struct ReopenDecisionResult {
 }
 
 /// Row type for reopen request queries
-#[derive(Debug, sqlx::FromRow)]
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ReopenRequestRow {
     pub id: Uuid,
     pub tenant_id: String,

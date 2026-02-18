@@ -16,7 +16,10 @@ use gl_rs::{
         complete_checklist_item, create_approval, create_checklist_item,
         get_approvals, get_checklist_status, waive_checklist_item,
     },
-    routes::period_close::{close_period_handler, get_close_status, validate_close},
+    routes::period_close::{
+        close_period_handler, get_close_status, validate_close,
+        request_reopen, approve_reopen, reject_reopen, list_reopen_requests,
+    },
     routes::period_summary::get_period_summary,
     routes::fx_rates::{create_fx_rate, get_latest_rate as get_latest_fx_rate},
     routes::accruals::{create_template_handler, create_accrual_handler, execute_reversals_handler},
@@ -153,6 +156,9 @@ async fn main() {
         .route("/api/gl/periods/{period_id}/checklist/{item_id}/complete", post(complete_checklist_item))
         .route("/api/gl/periods/{period_id}/checklist/{item_id}/waive", post(waive_checklist_item))
         .route("/api/gl/periods/{period_id}/approvals", get(get_approvals).post(create_approval))
+        .route("/api/gl/periods/{period_id}/reopen", get(list_reopen_requests).post(request_reopen))
+        .route("/api/gl/periods/{period_id}/reopen/{request_id}/approve", post(approve_reopen))
+        .route("/api/gl/periods/{period_id}/reopen/{request_id}/reject", post(reject_reopen))
         .route("/api/gl/detail", get(get_gl_detail))
         .route("/api/gl/accounts/{account_code}/activity", get(get_account_activity))
         .route("/api/gl/fx-rates", post(create_fx_rate))

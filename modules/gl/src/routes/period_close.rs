@@ -23,6 +23,7 @@ use crate::contracts::period_close_v1::{
 use crate::services::period_close_service::{
     close_period, has_blocking_errors, validate_period_can_close, PeriodCloseError,
 };
+use crate::services::period_reopen_service;
 
 /// Error response wrapper
 #[derive(Debug, serde::Serialize)]
@@ -241,4 +242,112 @@ pub async fn get_close_status(
         close_status,
         timestamp: chrono::Utc::now(),
     }))
+}
+
+// ============================================================
+// REOPEN ENDPOINTS (Phase 31, bd-2rl9)
+// ============================================================
+
+/// Reopen request payload
+#[derive(Debug, serde::Deserialize)]
+pub struct ReopenRequestPayload {
+    pub tenant_id: String,
+    pub requested_by: String,
+    pub reason: String,
+}
+
+/// Reopen approve payload
+#[derive(Debug, serde::Deserialize)]
+pub struct ReopenApprovePayload {
+    pub tenant_id: String,
+    pub approved_by: String,
+}
+
+/// Reopen reject payload
+#[derive(Debug, serde::Deserialize)]
+pub struct ReopenRejectPayload {
+    pub tenant_id: String,
+    pub rejected_by: String,
+    pub reject_reason: String,
+}
+
+/// Reopen list query
+#[derive(Debug, serde::Deserialize)]
+pub struct ReopenListQuery {
+    pub tenant_id: String,
+}
+
+/// POST /api/gl/periods/{period_id}/reopen — request a controlled reopen
+pub async fn request_reopen(
+    State(app_state): State<Arc<AppState>>,
+    Path(period_id): Path<Uuid>,
+    Json(request): Json<ReopenRequestPayload>,
+) -> Result<(StatusCode, Json<serde_json::Value>), PeriodCloseHttpError> {
+    let result = period_reopen_service::request_reopen(
+        &app_state.pool,
+        &request.tenant_id,
+        period_id,
+        &request.requested_by,
+        &request.reason,
+    )
+    .await
+    .map_err(map_error)?;
+
+    Ok((StatusCode::CREATED, Json(serde_json::to_value(result).unwrap())))
+}
+
+/// POST /api/gl/periods/{period_id}/reopen/{request_id}/approve
+pub async fn approve_reopen(
+    State(app_state): State<Arc<AppState>>,
+    Path((period_id, request_id)): Path<(Uuid, Uuid)>,
+    Json(request): Json<ReopenApprovePayload>,
+) -> Result<Json<serde_json::Value>, PeriodCloseHttpError> {
+    let result = period_reopen_service::approve_reopen(
+        &app_state.pool,
+        &request.tenant_id,
+        period_id,
+        request_id,
+        &request.approved_by,
+    )
+    .await
+    .map_err(map_error)?;
+
+    Ok(Json(serde_json::to_value(result).unwrap()))
+}
+
+/// POST /api/gl/periods/{period_id}/reopen/{request_id}/reject
+pub async fn reject_reopen(
+    State(app_state): State<Arc<AppState>>,
+    Path((period_id, request_id)): Path<(Uuid, Uuid)>,
+    Json(request): Json<ReopenRejectPayload>,
+) -> Result<Json<serde_json::Value>, PeriodCloseHttpError> {
+    let result = period_reopen_service::reject_reopen(
+        &app_state.pool,
+        &request.tenant_id,
+        period_id,
+        request_id,
+        &request.rejected_by,
+        &request.reject_reason,
+    )
+    .await
+    .map_err(map_error)?;
+
+    Ok(Json(serde_json::to_value(result).unwrap()))
+}
+
+/// GET /api/gl/periods/{period_id}/reopen?tenant_id=...
+pub async fn list_reopen_requests(
+    State(app_state): State<Arc<AppState>>,
+    Path(period_id): Path<Uuid>,
+    axum::extract::Query(query): axum::extract::Query<ReopenListQuery>,
+) -> Result<Json<serde_json::Value>, PeriodCloseHttpError> {
+    let rows = period_reopen_service::list_reopen_requests(
+        &app_state.pool,
+        &query.tenant_id,
+        period_id,
+    )
+    .await
+    .map_err(map_error)?;
+
+    Ok(Json(serde_json::to_value(rows).unwrap()))
 }
