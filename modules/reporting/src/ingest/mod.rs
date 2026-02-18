@@ -25,6 +25,7 @@
 //!    unique constraint, ensuring replays from a checkpoint reset are safe.
 
 pub mod ap;
+pub mod ar;
 pub mod checkpoints;
 pub mod gl;
 pub mod payments;

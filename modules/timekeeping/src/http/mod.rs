@@ -1,14 +1,58 @@
-use axum::{routing::get, Router};
+pub mod employees;
+pub mod projects;
+
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use std::sync::Arc;
 
 use crate::{metrics, ops, AppState};
 
-/// Build the Timekeeping HTTP router with all operational endpoints.
+/// Build the Timekeeping HTTP router with all endpoints.
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
+        // Ops
         .route("/api/health", get(ops::health::health))
         .route("/api/ready", get(ops::ready::ready))
         .route("/api/version", get(ops::version::version))
         .route("/metrics", get(metrics::metrics_handler))
+        // Employees
+        .route(
+            "/api/timekeeping/employees",
+            post(employees::create_employee).get(employees::list_employees),
+        )
+        .route(
+            "/api/timekeeping/employees/{id}",
+            get(employees::get_employee)
+                .put(employees::update_employee)
+                .delete(employees::deactivate_employee),
+        )
+        // Projects
+        .route(
+            "/api/timekeeping/projects",
+            post(projects::create_project).get(projects::list_projects),
+        )
+        .route(
+            "/api/timekeeping/projects/{id}",
+            get(projects::get_project)
+                .put(projects::update_project)
+                .delete(projects::deactivate_project),
+        )
+        // Tasks (nested under projects for listing, flat for direct access)
+        .route(
+            "/api/timekeeping/projects/{project_id}/tasks",
+            get(projects::list_tasks),
+        )
+        .route(
+            "/api/timekeeping/tasks",
+            post(projects::create_task),
+        )
+        .route(
+            "/api/timekeeping/tasks/{id}",
+            get(projects::get_task)
+                .put(projects::update_task)
+                .delete(projects::deactivate_task),
+        )
         .with_state(state)
 }
