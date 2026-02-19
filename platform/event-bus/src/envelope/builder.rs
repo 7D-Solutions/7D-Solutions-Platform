@@ -2,6 +2,7 @@
 //!
 //! Provides fluent API for setting optional envelope fields after construction.
 
+use super::tracing_context::TracingContext;
 use super::EventEnvelope;
 use uuid::Uuid;
 
@@ -77,6 +78,34 @@ impl<T> EventEnvelope<T> {
     pub fn with_actor_from(mut self, actor_id: Option<Uuid>, actor_type: Option<String>) -> Self {
         self.actor_id = actor_id;
         self.actor_type = actor_type;
+        self
+    }
+
+    /// Apply a [`TracingContext`] to this envelope.
+    ///
+    /// Propagates trace_id, correlation_id, causation_id, and actor fields
+    /// from the context into the envelope. Only non-None fields are applied;
+    /// fields already set on the envelope are overwritten.
+    ///
+    /// This is the primary propagation mechanism across module boundaries:
+    /// - HTTP handler: extract headers → TracingContext → apply to envelope
+    /// - NATS consumer: incoming envelope → TracingContext → apply to downstream
+    pub fn with_tracing_context(mut self, ctx: &TracingContext) -> Self {
+        if ctx.trace_id.is_some() {
+            self.trace_id = ctx.trace_id.clone();
+        }
+        if ctx.correlation_id.is_some() {
+            self.correlation_id = ctx.correlation_id.clone();
+        }
+        if ctx.causation_id.is_some() {
+            self.causation_id = ctx.causation_id.clone();
+        }
+        if ctx.actor_id.is_some() {
+            self.actor_id = ctx.actor_id;
+        }
+        if ctx.actor_type.is_some() {
+            self.actor_type = ctx.actor_type.clone();
+        }
         self
     }
 }

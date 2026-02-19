@@ -8,6 +8,7 @@ pub mod middleware;
 pub mod rbac;
 pub mod ratelimit;
 pub mod service_auth;
+pub mod tracing;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

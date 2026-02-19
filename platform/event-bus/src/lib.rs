@@ -51,7 +51,7 @@ mod inmemory_bus;
 mod nats_bus;
 pub mod outbox;
 
-pub use envelope::{validate_envelope_fields, EventEnvelope};
+pub use envelope::{validate_envelope_fields, EventEnvelope, TracingContext};
 pub use inmemory_bus::InMemoryBus;
 pub use nats_bus::NatsBus;
 

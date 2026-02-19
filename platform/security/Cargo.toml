@@ -19,6 +19,7 @@ prometheus = "0.13"
 axum = "0.8"
 http = "1"
 tower = "0.5"
+event-bus = { path = "../event-bus" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt"] }

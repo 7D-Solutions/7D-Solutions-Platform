@@ -31,11 +31,13 @@
 //! - `payload`: Event-specific data (generic type parameter)
 
 mod builder;
+pub mod tracing_context;
 mod validation;
 
 #[cfg(test)]
 mod tests;
 
+pub use tracing_context::TracingContext;
 pub use validation::validate_envelope_fields;
 
 use chrono::{DateTime, Utc};
