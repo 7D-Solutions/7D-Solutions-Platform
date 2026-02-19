@@ -1,6 +1,6 @@
 use axum::{routing::get, Router};
 use ::event_bus::{EventBus, InMemoryBus, NatsBus};
-use notifications_rs::{config, config::Config, db, event_bus, consumer_tasks, routes};
+use notifications_rs::{config, config::Config, db, event_bus, consumer_tasks, metrics, routes};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -73,6 +73,7 @@ async fn main() {
         .route("/api/health", get(routes::health::health))
         .route("/api/ready", get(routes::health::ready))
         .route("/api/version", get(routes::health::version))
+        .route("/metrics", get(metrics::metrics_handler))
         .with_state(db)
         .layer(
             CorsLayer::new()

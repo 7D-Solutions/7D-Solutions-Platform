@@ -18,17 +18,23 @@ async fn metrics_handler() -> String {
     let mut buffer = String::new();
     encode(&mut buffer, &registry).unwrap();
 
-    // Append standard prometheus metrics (projection metrics)
+    // Append standard prometheus metrics (projection + SLO metrics)
     use prometheus::{Encoder, TextEncoder};
     let encoder = TextEncoder::new();
+
     let projection_families = payments_rs::metrics::PROJECTION_METRICS.registry().gather();
-    let mut projection_buffer = Vec::new();
-    encoder.encode(&projection_families, &mut projection_buffer)
+    let mut prometheus_buffer = Vec::new();
+    encoder.encode(&projection_families, &mut prometheus_buffer)
         .expect("Failed to encode projection metrics");
 
+    // SLO metrics (latency, error rate, consumer lag)
+    let slo_families = payments_rs::metrics::SLO_REGISTRY.gather();
+    encoder.encode(&slo_families, &mut prometheus_buffer)
+        .expect("Failed to encode SLO metrics");
+
     buffer.push_str("\n");
-    buffer.push_str(&String::from_utf8(projection_buffer)
-        .expect("Failed to convert projection metrics to UTF-8"));
+    buffer.push_str(&String::from_utf8(prometheus_buffer)
+        .expect("Failed to convert metrics to UTF-8"));
 
     buffer
 }

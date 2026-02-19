@@ -11,5 +11,6 @@ pub mod dlq;
 pub mod envelope_validation;
 pub mod event_bus;
 pub mod handlers;
+pub mod metrics;
 pub mod models;
 pub mod routes;

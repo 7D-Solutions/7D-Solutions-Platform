@@ -7,7 +7,8 @@
 
 use axum::{extract::State, http::StatusCode};
 use prometheus::{
-    Encoder, Gauge, HistogramOpts, HistogramVec, IntCounter, IntGauge, Registry, TextEncoder,
+    Encoder, Gauge, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge,
+    IntGaugeVec, Opts, Registry, TextEncoder,
 };
 use std::sync::Arc;
 
@@ -36,6 +37,11 @@ pub struct TreasuryMetrics {
 
     // -- Endpoint latency --
     pub endpoint_latency: HistogramVec,
+
+    // SLO: standardized request counter (error rate derived from status label)
+    pub http_requests_total: IntCounterVec,
+    // SLO: event consumer lag
+    pub event_consumer_lag_messages: IntGaugeVec,
 
     registry: Registry,
 }
@@ -123,6 +129,20 @@ impl TreasuryMetrics {
         let endpoint_latency = HistogramVec::new(latency_opts, &["method", "endpoint"])?;
         registry.register(Box::new(endpoint_latency.clone()))?;
 
+        // SLO: request counter (method/route/status for error rate)
+        let http_requests_total = IntCounterVec::new(
+            Opts::new("treasury_http_requests_total", "Total HTTP requests"),
+            &["method", "route", "status"],
+        )?;
+        registry.register(Box::new(http_requests_total.clone()))?;
+
+        // SLO: event consumer lag
+        let event_consumer_lag_messages = IntGaugeVec::new(
+            Opts::new("treasury_event_consumer_lag_messages", "Event consumer lag in messages"),
+            &["consumer_group"],
+        )?;
+        registry.register(Box::new(event_consumer_lag_messages.clone()))?;
+
         Ok(Self {
             accounts_created_total,
             transactions_recorded_total,
@@ -136,6 +156,8 @@ impl TreasuryMetrics {
             recon_unmatched_txns,
             recon_match_rate,
             endpoint_latency,
+            http_requests_total,
+            event_consumer_lag_messages,
             registry,
         })
     }
@@ -153,6 +175,23 @@ impl TreasuryMetrics {
     /// Convenience: record a failed import.
     pub fn record_import_fail(&self) {
         self.import_fail_total.inc();
+    }
+
+    /// Record an HTTP request for SLO tracking. Labels must not contain PII.
+    pub fn record_http_request(&self, method: &str, route: &str, status: &str, duration_secs: f64) {
+        self.endpoint_latency
+            .with_label_values(&[method, route])
+            .observe(duration_secs);
+        self.http_requests_total
+            .with_label_values(&[method, route, status])
+            .inc();
+    }
+
+    /// Record event consumer lag.
+    pub fn record_consumer_lag(&self, consumer_group: &str, lag: i64) {
+        self.event_consumer_lag_messages
+            .with_label_values(&[consumer_group])
+            .set(lag);
     }
 }
 
@@ -278,5 +317,33 @@ mod tests {
         assert_eq!(m.import_success_total.get(), 2);
         assert_eq!(m.import_fail_total.get(), 1);
         assert_eq!(m.statements_imported_total.get(), 2);
+    }
+
+    #[test]
+    fn metrics_slo_exports_request_latency() {
+        let m = TreasuryMetrics::new().expect("metrics init");
+        m.record_http_request("GET", "/api/treasury/accounts", "200", 0.022);
+        let families = m.registry().gather();
+        let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
+        assert!(
+            names.iter().any(|n| n.contains("http_request_duration_seconds")),
+            "request latency histogram missing: {:?}", names
+        );
+        assert!(
+            names.iter().any(|n| n.contains("treasury_http_requests_total")),
+            "request count counter missing: {:?}", names
+        );
+    }
+
+    #[test]
+    fn metrics_slo_exports_consumer_lag() {
+        let m = TreasuryMetrics::new().expect("metrics init");
+        m.record_consumer_lag("treasury_payments_consumer", 0);
+        let families = m.registry().gather();
+        let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
+        assert!(
+            names.iter().any(|n| n.contains("event_consumer_lag_messages")),
+            "consumer lag metric missing: {:?}", names
+        );
     }
 }

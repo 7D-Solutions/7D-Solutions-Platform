@@ -14,6 +14,7 @@ pub mod refunds;
 pub mod subscriptions;
 pub mod tax;
 pub mod tax_config;
+pub mod tax_config_rules;
 pub mod usage;
 pub mod webhooks;
 pub mod write_offs;
@@ -117,11 +118,11 @@ pub fn ar_router(db: PgPool) -> Router {
         )
         .route(
             "/api/ar/tax/config/rules",
-            post(tax_config::create_rule).get(tax_config::list_rules),
+            post(tax_config_rules::create_rule).get(tax_config_rules::list_rules),
         )
         .route(
             "/api/ar/tax/config/rules/{id}",
-            get(tax_config::get_rule).put(tax_config::update_rule),
+            get(tax_config_rules::get_rule).put(tax_config_rules::update_rule),
         )
         .with_state(db.clone())
         .layer(middleware::from_fn_with_state(db, check_idempotency))

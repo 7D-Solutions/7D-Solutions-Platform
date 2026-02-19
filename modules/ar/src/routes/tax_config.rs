@@ -1,9 +1,9 @@
-//! Tax configuration CRUD routes (bd-1m3c)
+//! Tax configuration CRUD routes — jurisdictions (bd-1m3c)
 //!
-//! Provides management endpoints for tax jurisdictions and rules backed by
-//! the existing `ar_tax_jurisdictions` and `ar_tax_rules` tables.
+//! Provides management endpoints for tax jurisdictions backed by
+//! the existing `ar_tax_jurisdictions` table.
 //!
-//! All endpoints are tenant-scoped via `app_id`.
+//! Rule endpoints live in [`tax_config_rules`].
 
 use axum::{
     extract::{Path, Query, State},
@@ -60,30 +60,8 @@ pub struct ListJurisdictionsQuery {
 }
 
 // ============================================================================
-// Request / Response types — Rules
+// Shared types (used by tax_config_rules too)
 // ============================================================================
-
-#[derive(Debug, Deserialize)]
-pub struct CreateRuleRequest {
-    pub app_id: String,
-    pub jurisdiction_id: Uuid,
-    pub tax_code: Option<String>,
-    pub rate: f64,
-    pub flat_amount_minor: Option<i64>,
-    pub is_exempt: Option<bool>,
-    pub effective_from: NaiveDate,
-    pub effective_to: Option<NaiveDate>,
-    pub priority: Option<i32>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateRuleRequest {
-    pub rate: Option<f64>,
-    pub flat_amount_minor: Option<i64>,
-    pub is_exempt: Option<bool>,
-    pub effective_to: Option<NaiveDate>,
-    pub priority: Option<i32>,
-}
 
 #[derive(Debug, Serialize)]
 pub struct RuleResponse {
@@ -101,16 +79,9 @@ pub struct RuleResponse {
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ListRulesQuery {
-    pub app_id: String,
-    pub jurisdiction_id: Option<Uuid>,
-    pub effective_on: Option<NaiveDate>,
-}
-
 #[derive(Debug, Serialize)]
-struct ErrorBody {
-    error: String,
+pub(crate) struct ErrorBody {
+    pub error: String,
 }
 
 // ============================================================================
@@ -146,20 +117,17 @@ pub async fn create_jurisdiction(
     .await;
 
     match id {
-        Ok(id) => {
-            // Fetch the full row to return
-            match get_jurisdiction_by_id(&pool, id).await {
-                Ok(Some(j)) => (StatusCode::CREATED, Json(j)).into_response(),
-                Ok(None) => (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorBody {
-                        error: "Created but could not fetch jurisdiction".into(),
-                    }),
-                )
-                    .into_response(),
-                Err(e) => db_error(e),
-            }
-        }
+        Ok(id) => match get_jurisdiction_by_id(&pool, id).await {
+            Ok(Some(j)) => (StatusCode::CREATED, Json(j)).into_response(),
+            Ok(None) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorBody {
+                    error: "Created but could not fetch jurisdiction".into(),
+                }),
+            )
+                .into_response(),
+            Err(e) => db_error(e),
+        },
         Err(e) => db_error(e),
     }
 }
@@ -206,7 +174,8 @@ pub async fn list_jurisdictions(
 
     match rows {
         Ok(rows) => {
-            let jurisdictions: Vec<JurisdictionResponse> = rows.into_iter().map(row_to_jurisdiction).collect();
+            let jurisdictions: Vec<JurisdictionResponse> =
+                rows.into_iter().map(row_to_jurisdiction).collect();
             (StatusCode::OK, Json(jurisdictions)).into_response()
         }
         Err(e) => db_error(e),
@@ -278,240 +247,10 @@ pub async fn update_jurisdiction(
 }
 
 // ============================================================================
-// Rule handlers
+// Shared helpers
 // ============================================================================
 
-/// POST /api/ar/tax/config/rules
-pub async fn create_rule(
-    State(pool): State<PgPool>,
-    Json(body): Json<CreateRuleRequest>,
-) -> impl IntoResponse {
-    if body.app_id.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: "app_id is required".into(),
-            }),
-        )
-            .into_response();
-    }
-
-    if body.rate < 0.0 || body.rate > 1.0 {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: "rate must be between 0.0 and 1.0".into(),
-            }),
-        )
-            .into_response();
-    }
-
-    // Validate effective_to > effective_from if set
-    if let Some(to) = body.effective_to {
-        if to <= body.effective_from {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody {
-                    error: "effective_to must be after effective_from".into(),
-                }),
-            )
-                .into_response();
-        }
-    }
-
-    // Verify jurisdiction exists and belongs to the same app_id
-    let owner = sqlx::query_scalar::<_, String>(
-        "SELECT app_id FROM ar_tax_jurisdictions WHERE id = $1",
-    )
-    .bind(body.jurisdiction_id)
-    .fetch_optional(&pool)
-    .await;
-
-    match owner {
-        Ok(None) => {
-            return (
-                StatusCode::NOT_FOUND,
-                Json(ErrorBody {
-                    error: "Jurisdiction not found".into(),
-                }),
-            )
-                .into_response();
-        }
-        Ok(Some(owner_app)) if owner_app != body.app_id => {
-            return (
-                StatusCode::FORBIDDEN,
-                Json(ErrorBody {
-                    error: "Jurisdiction belongs to a different tenant".into(),
-                }),
-            )
-                .into_response();
-        }
-        Err(e) => return db_error(e),
-        _ => {}
-    }
-
-    let id = crate::tax::insert_tax_rule(
-        &pool,
-        body.jurisdiction_id,
-        &body.app_id,
-        body.tax_code.as_deref(),
-        body.rate,
-        body.flat_amount_minor.unwrap_or(0),
-        body.is_exempt.unwrap_or(false),
-        body.effective_from,
-        body.effective_to,
-        body.priority.unwrap_or(0),
-    )
-    .await;
-
-    match id {
-        Ok(id) => match get_rule_by_id(&pool, id).await {
-            Ok(Some(r)) => (StatusCode::CREATED, Json(r)).into_response(),
-            Ok(None) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody {
-                    error: "Created but could not fetch rule".into(),
-                }),
-            )
-                .into_response(),
-            Err(e) => db_error(e),
-        },
-        Err(e) => db_error(e),
-    }
-}
-
-/// GET /api/ar/tax/config/rules
-pub async fn list_rules(
-    State(pool): State<PgPool>,
-    Query(q): Query<ListRulesQuery>,
-) -> impl IntoResponse {
-    if q.app_id.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: "app_id is required".into(),
-            }),
-        )
-            .into_response();
-    }
-
-    let rows = sqlx::query_as::<_, (
-        Uuid, Uuid, String, Option<String>, f64,
-        i64, bool, NaiveDate, Option<NaiveDate>, i32,
-        chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>,
-    )>(
-        r#"
-        SELECT id, jurisdiction_id, app_id, tax_code, rate::FLOAT8,
-               flat_amount_minor, is_exempt, effective_from, effective_to, priority,
-               created_at, updated_at
-        FROM ar_tax_rules
-        WHERE app_id = $1
-          AND ($2::UUID IS NULL OR jurisdiction_id = $2)
-          AND ($3::DATE IS NULL OR (effective_from <= $3 AND (effective_to IS NULL OR effective_to > $3)))
-        ORDER BY jurisdiction_id, priority DESC, effective_from
-        "#,
-    )
-    .bind(&q.app_id)
-    .bind(q.jurisdiction_id)
-    .bind(q.effective_on)
-    .fetch_all(&pool)
-    .await;
-
-    match rows {
-        Ok(rows) => {
-            let rules: Vec<RuleResponse> = rows.into_iter().map(row_to_rule).collect();
-            (StatusCode::OK, Json(rules)).into_response()
-        }
-        Err(e) => db_error(e),
-    }
-}
-
-/// GET /api/ar/tax/config/rules/:id
-pub async fn get_rule(
-    State(pool): State<PgPool>,
-    Path(id): Path<Uuid>,
-) -> impl IntoResponse {
-    match get_rule_by_id(&pool, id).await {
-        Ok(Some(r)) => (StatusCode::OK, Json(r)).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody {
-                error: "Rule not found".into(),
-            }),
-        )
-            .into_response(),
-        Err(e) => db_error(e),
-    }
-}
-
-/// PUT /api/ar/tax/config/rules/:id
-pub async fn update_rule(
-    State(pool): State<PgPool>,
-    Path(id): Path<Uuid>,
-    Json(body): Json<UpdateRuleRequest>,
-) -> impl IntoResponse {
-    // Validate rate if provided
-    if let Some(rate) = body.rate {
-        if rate < 0.0 || rate > 1.0 {
-            return (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody {
-                    error: "rate must be between 0.0 and 1.0".into(),
-                }),
-            )
-                .into_response();
-        }
-    }
-
-    let result = sqlx::query(
-        r#"
-        UPDATE ar_tax_rules SET
-            rate = COALESCE($2, rate),
-            flat_amount_minor = COALESCE($3, flat_amount_minor),
-            is_exempt = COALESCE($4, is_exempt),
-            effective_to = COALESCE($5, effective_to),
-            priority = COALESCE($6, priority),
-            updated_at = NOW()
-        WHERE id = $1
-        "#,
-    )
-    .bind(id)
-    .bind(body.rate)
-    .bind(body.flat_amount_minor)
-    .bind(body.is_exempt)
-    .bind(body.effective_to)
-    .bind(body.priority)
-    .execute(&pool)
-    .await;
-
-    match result {
-        Ok(r) if r.rows_affected() == 0 => (
-            StatusCode::NOT_FOUND,
-            Json(ErrorBody {
-                error: "Rule not found".into(),
-            }),
-        )
-            .into_response(),
-        Ok(_) => match get_rule_by_id(&pool, id).await {
-            Ok(Some(r)) => (StatusCode::OK, Json(r)).into_response(),
-            Ok(None) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody {
-                    error: "Updated but could not fetch rule".into(),
-                }),
-            )
-                .into_response(),
-            Err(e) => db_error(e),
-        },
-        Err(e) => db_error(e),
-    }
-}
-
-// ============================================================================
-// Helpers
-// ============================================================================
-
-async fn get_jurisdiction_by_id(
+pub(crate) async fn get_jurisdiction_by_id(
     pool: &PgPool,
     id: Uuid,
 ) -> Result<Option<JurisdictionResponse>, sqlx::Error> {
@@ -534,7 +273,7 @@ async fn get_jurisdiction_by_id(
     Ok(row.map(row_to_jurisdiction))
 }
 
-async fn get_rule_by_id(
+pub(crate) async fn get_rule_by_id(
     pool: &PgPool,
     id: Uuid,
 ) -> Result<Option<RuleResponse>, sqlx::Error> {
@@ -577,7 +316,7 @@ fn row_to_jurisdiction(
     }
 }
 
-fn row_to_rule(
+pub(crate) fn row_to_rule(
     r: (Uuid, Uuid, String, Option<String>, f64,
         i64, bool, NaiveDate, Option<NaiveDate>, i32,
         chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>),
@@ -598,7 +337,7 @@ fn row_to_rule(
     }
 }
 
-fn db_error(e: sqlx::Error) -> axum::response::Response {
+pub(crate) fn db_error(e: sqlx::Error) -> axum::response::Response {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
         Json(ErrorBody {
