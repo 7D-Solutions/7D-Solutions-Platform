@@ -280,6 +280,10 @@ name = "treasury_bank_recon_cash_position"
 path = "tests/treasury_bank_recon_cash_position.rs"
 
 [[test]]
+name = "treasury_cc_recon_liability"
+path = "tests/treasury_cc_recon_liability.rs"
+
+[[test]]
 name = "timekeeping_end_to_end"
 path = "tests/timekeeping_end_to_end.rs"
 
