@@ -339,6 +339,10 @@ path = "tests/subscriptions_lifecycle.rs"
 name = "treasury_forecast_e2e"
 path = "tests/treasury_forecast_e2e.rs"
 
+[[test]]
+name = "ap_vendor_party_link_e2e"
+path = "tests/ap_vendor_party_link_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
