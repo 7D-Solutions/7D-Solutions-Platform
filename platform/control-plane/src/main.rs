@@ -3,8 +3,9 @@
 /// Exposes the tenant lifecycle control API:
 ///   POST /api/control/tenants                       — Provision a new tenant
 ///   GET  /api/control/tenants/:tenant_id/summary    — Tenant readiness summary
+///   POST /api/control/platform-billing-runs         — Platform billing cycle runner
 ///
-/// Connects to the tenant-registry database.
+/// Connects to the tenant-registry database (required) and the AR database (optional).
 /// Runs SQLx migrations on startup.
 
 use control_plane::routes;
@@ -43,7 +44,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("Migrations applied");
 
-    let app_state = Arc::new(state::AppState::new(pool.clone()));
+    // AR pool is optional — billing runs will fail gracefully if unavailable.
+    let ar_db_url = std::env::var("AR_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://ar_user:ar_pass@localhost:5434/ar_db".to_string()
+    });
+    let ar_pool = match PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&ar_db_url)
+        .await
+    {
+        Ok(p) => {
+            tracing::info!("AR database pool connected");
+            Some(p)
+        }
+        Err(e) => {
+            tracing::warn!("AR database unavailable — platform billing runs will be disabled: {}", e);
+            None
+        }
+    };
+
+    let app_state = Arc::new(state::AppState::new(pool.clone(), ar_pool));
     let summary_state = Arc::new(SummaryState::new_local(pool));
 
     let app = routes::build_router(app_state, summary_state);
