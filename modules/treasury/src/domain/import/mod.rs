@@ -1,9 +1,14 @@
-//! Bank statement CSV import — types, errors, and public API.
+//! Statement CSV import — types, errors, and public API.
 //!
 //! Supports deterministic CSV ingestion: raw file bytes are hashed (UUID v5)
 //! to produce a stable `statement_hash`. Re-importing the same file returns
 //! the existing statement without creating duplicate lines.
+//!
+//! Credit card statements are handled via issuer-specific adapters (Chase,
+//! Amex) that normalise proprietary CSV layouts into the shared
+//! [`ParsedLine`](parser::ParsedLine) format used by the import pipeline.
 
+pub mod adapters;
 pub mod parser;
 pub mod service;
 

@@ -1,9 +1,11 @@
-//! CSV parser for bank statement transaction lines.
+//! CSV parser for statement transaction lines.
 //!
-//! Expects a header row with at least: date, description, amount.
-//! Optional column: reference.
-//! Column matching is case-insensitive. Amount is parsed from decimal strings
-//! (supports $ prefix, comma separators, negative via leading `-`).
+//! The generic parser expects a header row with at least: date, description,
+//! amount. Optional column: reference. Column matching is case-insensitive.
+//!
+//! For CC issuer-specific formats (Chase, Amex), use
+//! [`parse_csv_with_format`] which dispatches to the appropriate adapter.
+//! If no format is specified, the function auto-detects from CSV headers.
 
 use chrono::NaiveDate;
 
@@ -212,6 +214,27 @@ pub fn parse_csv(data: &[u8]) -> ParseOutput {
     }
 
     ParseOutput { lines, errors }
+}
+
+// ============================================================================
+// Format-aware entry point
+// ============================================================================
+
+/// Parse statement CSV bytes with an optional format hint.
+///
+/// When `format` is `None`, the function auto-detects from CSV headers
+/// and falls back to the generic parser if no issuer pattern matches.
+pub fn parse_csv_with_format(
+    data: &[u8],
+    format: Option<super::adapters::CsvFormat>,
+) -> ParseOutput {
+    use super::adapters::{self, CsvFormat};
+
+    let resolved = format.unwrap_or_else(|| {
+        adapters::detect_format(data).unwrap_or(CsvFormat::Generic)
+    });
+
+    adapters::parse_with_format(data, resolved)
 }
 
 // ============================================================================

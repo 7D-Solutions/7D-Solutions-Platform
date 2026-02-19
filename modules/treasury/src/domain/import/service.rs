@@ -10,6 +10,7 @@ use chrono::{NaiveDate, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use super::adapters::CsvFormat;
 use super::{parser, ImportError, ImportResult, LineError};
 use crate::domain::accounts::AccountStatus;
 use crate::outbox::enqueue_event_tx;
@@ -34,6 +35,9 @@ pub struct ImportRequest {
     pub closing_balance_minor: i64,
     pub csv_data: Vec<u8>,
     pub filename: Option<String>,
+    /// Optional CSV format hint. When `None`, the parser auto-detects
+    /// from the CSV headers, falling back to the generic bank format.
+    pub format: Option<CsvFormat>,
 }
 
 // ============================================================================
@@ -59,8 +63,8 @@ pub async fn import_statement(
         });
     }
 
-    // 4. Parse CSV
-    let parsed = parser::parse_csv(&req.csv_data);
+    // 4. Parse CSV (auto-detects format if not specified)
+    let parsed = parser::parse_csv_with_format(&req.csv_data, req.format);
     if parsed.lines.is_empty() {
         if parsed.errors.is_empty() {
             return Err(ImportError::EmptyImport);
@@ -318,6 +322,7 @@ mod tests {
             closing_balance_minor: 591320,
             csv_data: sample_csv(),
             filename: Some("jan-2024.csv".to_string()),
+            format: None,
         };
 
         let result = import_statement(&pool, TEST_APP, req, "c1".to_string())
@@ -367,6 +372,7 @@ mod tests {
             closing_balance_minor: 591320,
             csv_data: csv.clone(),
             filename: Some("jan-2024.csv".to_string()),
+            format: None,
         };
 
         let first = import_statement(&pool, TEST_APP, req1, "c1".to_string())
@@ -381,6 +387,7 @@ mod tests {
             closing_balance_minor: 591320,
             csv_data: csv,
             filename: Some("jan-2024.csv".to_string()),
+            format: None,
         };
 
         let second = import_statement(&pool, TEST_APP, req2, "c2".to_string()).await;
@@ -424,6 +431,7 @@ mod tests {
             closing_balance_minor: 0,
             csv_data: csv.to_vec(),
             filename: None,
+            format: None,
         };
 
         let result = import_statement(&pool, TEST_APP, req, "c1".to_string())
@@ -452,9 +460,207 @@ mod tests {
             closing_balance_minor: 0,
             csv_data: sample_csv(),
             filename: None,
+            format: None,
         };
 
         let result = import_statement(&pool, TEST_APP, req, "c1".to_string()).await;
         assert!(matches!(result, Err(ImportError::AccountNotFound(_))));
+    }
+
+    // ================================================================
+    // CC adapter integration tests
+    // ================================================================
+
+    async fn create_test_cc_account(pool: &PgPool) -> Uuid {
+        use crate::domain::accounts::{
+            service as acct_svc, CreateCreditCardAccountRequest,
+        };
+        let req = CreateCreditCardAccountRequest {
+            account_name: "CC Import Test".to_string(),
+            institution: Some("Test Issuer".to_string()),
+            account_number_last4: Some("5555".to_string()),
+            currency: "USD".to_string(),
+            credit_limit_minor: Some(500_000),
+            statement_closing_day: Some(15),
+            cc_network: Some("Visa".to_string()),
+            metadata: None,
+        };
+        acct_svc::create_credit_card_account(pool, TEST_APP, &req, None, "test".to_string())
+            .await
+            .expect("create CC test account")
+            .id
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_import_chase_cc_statement() {
+        let pool = test_pool().await;
+        cleanup(&pool).await;
+        let account_id = create_test_cc_account(&pool).await;
+
+        let csv = b"Transaction Date,Post Date,Description,Category,Type,Amount,Memo\n\
+                     01/15/2024,01/16/2024,STARBUCKS,Food & Drink,Sale,-4.50,\n\
+                     01/18/2024,01/19/2024,AMAZON.COM,Shopping,Sale,-89.99,\n\
+                     01/20/2024,01/20/2024,PAYMENT,,Payment,250.00,\n";
+
+        let req = ImportRequest {
+            account_id,
+            period_start: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            period_end: NaiveDate::from_ymd_opt(2024, 1, 31).unwrap(),
+            opening_balance_minor: 0,
+            closing_balance_minor: 0,
+            csv_data: csv.to_vec(),
+            filename: Some("chase-jan-2024.csv".to_string()),
+            format: Some(CsvFormat::ChaseCredit),
+        };
+
+        let result = import_statement(&pool, TEST_APP, req, "c1".to_string())
+            .await
+            .expect("Chase CC import failed");
+
+        assert_eq!(result.lines_imported, 3);
+        assert!(result.errors.is_empty());
+
+        // Verify amounts stored correctly
+        let amounts: Vec<(i64,)> = sqlx::query_as(
+            "SELECT amount_minor FROM treasury_bank_transactions \
+             WHERE statement_id = $1 ORDER BY transaction_date",
+        )
+        .bind(result.statement_id)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(amounts[0].0, -450);   // charge
+        assert_eq!(amounts[1].0, -8999);  // charge
+        assert_eq!(amounts[2].0, 25000);  // payment
+
+        cleanup(&pool).await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_import_amex_cc_statement() {
+        let pool = test_pool().await;
+        cleanup(&pool).await;
+        let account_id = create_test_cc_account(&pool).await;
+
+        // Amex: charges positive, credits negative
+        let csv = b"Date,Description,Amount\n\
+                     01/15/2024,STARBUCKS,4.50\n\
+                     01/18/2024,AMAZON.COM,89.99\n\
+                     01/20/2024,PAYMENT RECEIVED,-250.00\n";
+
+        let req = ImportRequest {
+            account_id,
+            period_start: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            period_end: NaiveDate::from_ymd_opt(2024, 1, 31).unwrap(),
+            opening_balance_minor: 0,
+            closing_balance_minor: 0,
+            csv_data: csv.to_vec(),
+            filename: Some("amex-jan-2024.csv".to_string()),
+            format: Some(CsvFormat::AmexCredit),
+        };
+
+        let result = import_statement(&pool, TEST_APP, req, "c1".to_string())
+            .await
+            .expect("Amex CC import failed");
+
+        assert_eq!(result.lines_imported, 3);
+        assert!(result.errors.is_empty());
+
+        // Verify sign normalisation: Amex positive charges → negative stored
+        let amounts: Vec<(i64,)> = sqlx::query_as(
+            "SELECT amount_minor FROM treasury_bank_transactions \
+             WHERE statement_id = $1 ORDER BY transaction_date",
+        )
+        .bind(result.statement_id)
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+
+        assert_eq!(amounts[0].0, -450);   // charge (was +4.50)
+        assert_eq!(amounts[1].0, -8999);  // charge (was +89.99)
+        assert_eq!(amounts[2].0, 25000);  // payment (was -250.00)
+
+        cleanup(&pool).await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_cc_reimport_idempotent() {
+        let pool = test_pool().await;
+        cleanup(&pool).await;
+        let account_id = create_test_cc_account(&pool).await;
+
+        let csv = b"Transaction Date,Post Date,Description,Category,Type,Amount\n\
+                     01/15/2024,01/16/2024,STARBUCKS,Food,Sale,-4.50\n";
+
+        let req1 = ImportRequest {
+            account_id,
+            period_start: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            period_end: NaiveDate::from_ymd_opt(2024, 1, 31).unwrap(),
+            opening_balance_minor: 0,
+            closing_balance_minor: 0,
+            csv_data: csv.to_vec(),
+            filename: None,
+            format: Some(CsvFormat::ChaseCredit),
+        };
+
+        let first = import_statement(&pool, TEST_APP, req1, "c1".to_string())
+            .await
+            .expect("first CC import failed");
+
+        let req2 = ImportRequest {
+            account_id,
+            period_start: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            period_end: NaiveDate::from_ymd_opt(2024, 1, 31).unwrap(),
+            opening_balance_minor: 0,
+            closing_balance_minor: 0,
+            csv_data: csv.to_vec(),
+            filename: None,
+            format: Some(CsvFormat::ChaseCredit),
+        };
+
+        let second = import_statement(&pool, TEST_APP, req2, "c2".to_string()).await;
+        assert!(
+            matches!(second, Err(ImportError::DuplicateImport { statement_id }) if statement_id == first.statement_id),
+            "expected DuplicateImport, got {:?}",
+            second
+        );
+
+        cleanup(&pool).await;
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_auto_detect_chase_format() {
+        let pool = test_pool().await;
+        cleanup(&pool).await;
+        let account_id = create_test_cc_account(&pool).await;
+
+        // No format specified — should auto-detect Chase from headers
+        let csv = b"Transaction Date,Post Date,Description,Category,Type,Amount\n\
+                     01/15/2024,01/16/2024,STARBUCKS,Food,Sale,-4.50\n";
+
+        let req = ImportRequest {
+            account_id,
+            period_start: NaiveDate::from_ymd_opt(2024, 1, 1).unwrap(),
+            period_end: NaiveDate::from_ymd_opt(2024, 1, 31).unwrap(),
+            opening_balance_minor: 0,
+            closing_balance_minor: 0,
+            csv_data: csv.to_vec(),
+            filename: None,
+            format: None, // auto-detect
+        };
+
+        let result = import_statement(&pool, TEST_APP, req, "c1".to_string())
+            .await
+            .expect("auto-detect Chase import failed");
+
+        assert_eq!(result.lines_imported, 1);
+        assert!(result.errors.is_empty());
+
+        cleanup(&pool).await;
     }
 }
