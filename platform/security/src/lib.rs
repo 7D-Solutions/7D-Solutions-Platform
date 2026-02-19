@@ -23,6 +23,13 @@ pub mod ratelimit;
 pub mod redaction;
 pub mod service_auth;
 pub mod tracing;
+pub mod webhook_verify;
+
+// Re-export webhook verifier types
+pub use webhook_verify::{
+    GenericHmacVerifier, NoopVerifier, StripeVerifier, VerifyError, WebhookVerifier,
+    STRIPE_TIMESTAMP_TOLERANCE_SECS,
+};
 
 // Re-export service auth types
 pub use service_auth::{
