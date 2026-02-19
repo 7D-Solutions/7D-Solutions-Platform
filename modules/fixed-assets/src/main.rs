@@ -146,7 +146,21 @@ async fn main() {
             "/api/fixed-assets/depreciation/runs/:tenant_id/:id",
             get(http::depreciation::get_run),
         )
+        // Disposals
+        .route(
+            "/api/fixed-assets/disposals",
+            post(http::disposals::dispose_asset),
+        )
+        .route(
+            "/api/fixed-assets/disposals/:tenant_id",
+            get(http::disposals::list_disposals),
+        )
+        .route(
+            "/api/fixed-assets/disposals/:tenant_id/:id",
+            get(http::disposals::get_disposal),
+        )
         .with_state(app_state)
+        .merge(http::admin::admin_router(pool.clone()))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))

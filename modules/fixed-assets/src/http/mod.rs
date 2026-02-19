@@ -1,5 +1,7 @@
+pub mod admin;
 pub mod assets;
 pub mod depreciation;
+pub mod disposals;
 
 use axum::{extract::State, http::StatusCode, Json};
 use std::sync::Arc;

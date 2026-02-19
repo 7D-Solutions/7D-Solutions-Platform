@@ -291,6 +291,10 @@ path = "tests/timekeeping_end_to_end.rs"
 name = "consolidation_end_to_end"
 path = "tests/consolidation_end_to_end.rs"
 
+[[test]]
+name = "fixed_assets_end_to_end"
+path = "tests/fixed_assets_end_to_end.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -313,6 +317,7 @@ inventory-rs = { path = "../modules/inventory" }
 reporting = { path = "../modules/reporting" }
 treasury = { path = "../modules/treasury" }
 consolidation = { path = "../modules/consolidation" }
+fixed-assets = { path = "../modules/fixed-assets" }
 timekeeping = { path = "../modules/timekeeping" }
 notifications-rs = { path = "../modules/notifications" }
 tower = { version = "0.5", features = ["util"] }
