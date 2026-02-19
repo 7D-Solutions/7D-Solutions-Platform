@@ -106,9 +106,10 @@ impl CreateAllocationRequest {
                 "amount_minor must be > 0".to_string(),
             ));
         }
-        if self.currency.trim().len() != 3 {
+        let c = self.currency.trim();
+        if c.len() != 3 || !c.chars().all(|ch| ch.is_ascii_alphabetic()) {
             return Err(AllocationError::Validation(
-                "currency must be a 3-character ISO 4217 code".to_string(),
+                "currency must be a 3-letter ISO 4217 code (e.g. USD)".to_string(),
             ));
         }
         Ok(())

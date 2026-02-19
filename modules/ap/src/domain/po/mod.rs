@@ -241,9 +241,10 @@ pub struct CreatePoRequest {
 
 impl CreatePoRequest {
     pub fn validate(&self) -> Result<(), PoError> {
-        if self.currency.trim().len() != 3 {
+        let c = self.currency.trim();
+        if c.len() != 3 || !c.chars().all(|ch| ch.is_ascii_alphabetic()) {
             return Err(PoError::Validation(
-                "currency must be a 3-character ISO 4217 code".to_string(),
+                "currency must be a 3-letter ISO 4217 code (e.g. USD)".to_string(),
             ));
         }
         if self.created_by.trim().is_empty() {

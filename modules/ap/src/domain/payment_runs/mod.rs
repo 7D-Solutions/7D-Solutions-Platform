@@ -70,9 +70,10 @@ pub struct CreatePaymentRunRequest {
 
 impl CreatePaymentRunRequest {
     pub fn validate(&self) -> Result<(), PaymentRunError> {
-        if self.currency.len() != 3 {
+        let c = self.currency.trim();
+        if c.len() != 3 || !c.chars().all(|ch| ch.is_ascii_alphabetic()) {
             return Err(PaymentRunError::Validation(format!(
-                "currency must be ISO 4217 (3 chars), got {:?}",
+                "currency must be a 3-letter ISO 4217 code (e.g. USD), got {:?}",
                 self.currency
             )));
         }

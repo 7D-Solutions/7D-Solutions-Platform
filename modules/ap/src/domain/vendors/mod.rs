@@ -144,11 +144,7 @@ impl CreateVendorRequest {
         if self.name.trim().is_empty() {
             return Err(VendorError::Validation("name cannot be empty".to_string()));
         }
-        if self.currency.trim().len() != 3 {
-            return Err(VendorError::Validation(
-                "currency must be a 3-character ISO 4217 code".to_string(),
-            ));
-        }
+        validate_currency_code(&self.currency)?;
         if self.payment_terms_days < 0 {
             return Err(VendorError::Validation(
                 "payment_terms_days must be >= 0".to_string(),
@@ -166,11 +162,7 @@ impl UpdateVendorRequest {
             }
         }
         if let Some(ref currency) = self.currency {
-            if currency.trim().len() != 3 {
-                return Err(VendorError::Validation(
-                    "currency must be a 3-character ISO 4217 code".to_string(),
-                ));
-            }
+            validate_currency_code(currency)?;
         }
         if let Some(days) = self.payment_terms_days {
             if days < 0 {
@@ -181,6 +173,16 @@ impl UpdateVendorRequest {
         }
         Ok(())
     }
+}
+
+fn validate_currency_code(currency: &str) -> Result<(), VendorError> {
+    let trimmed = currency.trim();
+    if trimmed.len() != 3 || !trimmed.chars().all(|c| c.is_ascii_alphabetic()) {
+        return Err(VendorError::Validation(
+            "currency must be a 3-letter ISO 4217 code (e.g. USD)".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 // ============================================================================
@@ -255,6 +257,33 @@ mod tests {
             payment_terms_days: 30,
             payment_method: None,
             remittance_email: None,
+        };
+        assert!(req.validate().is_err());
+    }
+
+    #[test]
+    fn create_vendor_validation_rejects_numeric_currency() {
+        let req = CreateVendorRequest {
+            name: "Acme".to_string(),
+            tax_id: None,
+            currency: "123".to_string(),
+            payment_terms_days: 30,
+            payment_method: None,
+            remittance_email: None,
+        };
+        assert!(req.validate().is_err());
+    }
+
+    #[test]
+    fn update_vendor_validation_rejects_numeric_currency() {
+        let req = UpdateVendorRequest {
+            name: None,
+            tax_id: None,
+            currency: Some("9$D".to_string()),
+            payment_terms_days: None,
+            payment_method: None,
+            remittance_email: None,
+            updated_by: None,
         };
         assert!(req.validate().is_err());
     }

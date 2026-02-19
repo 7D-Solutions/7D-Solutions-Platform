@@ -273,11 +273,7 @@ impl CreateBillRequest {
                 "vendor_invoice_ref cannot be empty".to_string(),
             ));
         }
-        if self.currency.trim().len() != 3 {
-            return Err(BillError::Validation(
-                "currency must be a 3-character ISO 4217 code".to_string(),
-            ));
-        }
+        validate_currency_code(&self.currency)?;
         if self.entered_by.trim().is_empty() {
             return Err(BillError::Validation("entered_by cannot be empty".to_string()));
         }
@@ -289,6 +285,16 @@ impl CreateBillRequest {
         }
         Ok(())
     }
+}
+
+fn validate_currency_code(currency: &str) -> Result<(), BillError> {
+    let trimmed = currency.trim();
+    if trimmed.len() != 3 || !trimmed.chars().all(|c| c.is_ascii_alphabetic()) {
+        return Err(BillError::Validation(
+            "currency must be a 3-letter ISO 4217 code (e.g. USD)".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 impl CreateBillLineRequest {
@@ -434,6 +440,13 @@ mod tests {
     fn validate_rejects_short_currency() {
         let mut req = sample_create();
         req.currency = "US".to_string();
+        assert!(req.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_numeric_currency() {
+        let mut req = sample_create();
+        req.currency = "123".to_string();
         assert!(req.validate().is_err());
     }
 

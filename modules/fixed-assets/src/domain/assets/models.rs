@@ -257,6 +257,16 @@ fn require_non_empty(value: &str, field: &str) -> Result<(), AssetError> {
     Ok(())
 }
 
+fn validate_currency(currency: &str) -> Result<(), AssetError> {
+    let trimmed = currency.trim();
+    if trimmed.len() != 3 || !trimmed.chars().all(|c| c.is_ascii_alphabetic()) {
+        return Err(AssetError::Validation(
+            "currency must be a 3-letter ISO 4217 code (e.g. USD)".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 fn validate_life_months(months: Option<i32>) -> Result<(), AssetError> {
     if let Some(m) = months {
         if m <= 0 {
@@ -305,6 +315,9 @@ impl CreateAssetRequest {
         require_non_empty(&self.tenant_id, "tenant_id")?;
         require_non_empty(&self.asset_tag, "asset_tag")?;
         require_non_empty(&self.name, "name")?;
+        if let Some(ref c) = self.currency {
+            validate_currency(c)?;
+        }
         if self.acquisition_cost_minor < 0 {
             return Err(AssetError::Validation("acquisition_cost_minor must be non-negative".into()));
         }
@@ -379,6 +392,27 @@ mod tests {
     fn asset_negative_cost_rejected() {
         let mut r = valid_create_asset(); r.acquisition_cost_minor = -100;
         assert!(matches!(r.validate(), Err(AssetError::Validation(_))));
+    }
+
+    #[test]
+    fn asset_validation_rejects_numeric_currency() {
+        let mut r = valid_create_asset();
+        r.currency = Some("123".to_string());
+        assert!(matches!(r.validate(), Err(AssetError::Validation(_))));
+    }
+
+    #[test]
+    fn asset_validation_rejects_short_currency() {
+        let mut r = valid_create_asset();
+        r.currency = Some("US".to_string());
+        assert!(matches!(r.validate(), Err(AssetError::Validation(_))));
+    }
+
+    #[test]
+    fn asset_validation_accepts_valid_currency() {
+        let mut r = valid_create_asset();
+        r.currency = Some("USD".to_string());
+        assert!(r.validate().is_ok());
     }
 
     #[test]
