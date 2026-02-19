@@ -82,6 +82,61 @@ pub async fn query_payments_outbox_events(
         .collect())
 }
 
+/// Query outbox events from the subscriptions module.
+///
+/// Subscriptions outbox has event_id/event_type (Phase 16) but no aggregate columns.
+/// Rows with NULL event_id (pre-Phase 16) are skipped.
+pub async fn query_subscriptions_outbox_events(
+    module_pool: &PgPool,
+) -> Result<Vec<OutboxEventMeta>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, (Uuid, Option<String>, String)>(
+        "SELECT event_id, event_type, subject FROM events_outbox \
+         WHERE event_id IS NOT NULL ORDER BY created_at",
+    )
+    .fetch_all(module_pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|(event_id, event_type, subject)| {
+            let etype = event_type.unwrap_or_else(|| subject.clone());
+            OutboxEventMeta {
+                event_id,
+                event_type: etype,
+                aggregate_type: "Subscription".to_string(),
+                aggregate_id: event_id.to_string(),
+            }
+        })
+        .collect())
+}
+
+/// Query outbox events from the notifications module.
+///
+/// Notifications outbox has event_id (base) and event_type (Phase 16, nullable)
+/// but no aggregate columns.
+pub async fn query_notifications_outbox_events(
+    module_pool: &PgPool,
+) -> Result<Vec<OutboxEventMeta>, sqlx::Error> {
+    let rows = sqlx::query_as::<_, (Uuid, Option<String>, String)>(
+        "SELECT event_id, event_type, subject FROM events_outbox ORDER BY created_at",
+    )
+    .fetch_all(module_pool)
+    .await?;
+
+    Ok(rows
+        .into_iter()
+        .map(|(event_id, event_type, subject)| {
+            let etype = event_type.unwrap_or_else(|| subject.clone());
+            OutboxEventMeta {
+                event_id,
+                event_type: etype,
+                aggregate_type: "Notification".to_string(),
+                aggregate_id: event_id.to_string(),
+            }
+        })
+        .collect())
+}
+
 /// Check audit completeness for a module: for each outbox event, verify
 /// exactly one audit record exists with causation_id = event_id.
 ///

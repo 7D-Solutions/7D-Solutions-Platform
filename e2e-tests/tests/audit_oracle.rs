@@ -22,8 +22,9 @@
 mod common;
 
 use audit::outbox_bridge::{
-    backfill_missing_audit_records, check_module_audit_completeness, query_outbox_events,
-    query_payments_outbox_events, ModuleAuditResult, OutboxEventMeta,
+    backfill_missing_audit_records, check_module_audit_completeness,
+    query_notifications_outbox_events, query_outbox_events, query_payments_outbox_events,
+    query_subscriptions_outbox_events, ModuleAuditResult, OutboxEventMeta,
 };
 use common::{run_audit_migrations, wait_for_db_ready};
 use sqlx::PgPool;
@@ -67,54 +68,6 @@ fn fixed_assets_db_url() -> String {
             .to_string()
     })
 }
-
-// ============================================================================
-// Module Outbox Configuration
-// ============================================================================
-
-struct ModuleOutbox {
-    name: &'static str,
-    table: &'static str,
-}
-
-const STANDARD_MODULES: &[ModuleOutbox] = &[
-    ModuleOutbox {
-        name: "AR",
-        table: "events_outbox",
-    },
-    ModuleOutbox {
-        name: "Subscriptions",
-        table: "events_outbox",
-    },
-    ModuleOutbox {
-        name: "GL",
-        table: "events_outbox",
-    },
-    ModuleOutbox {
-        name: "Notifications",
-        table: "events_outbox",
-    },
-    ModuleOutbox {
-        name: "AP",
-        table: "events_outbox",
-    },
-    ModuleOutbox {
-        name: "Inventory",
-        table: "inv_outbox",
-    },
-    ModuleOutbox {
-        name: "Treasury",
-        table: "events_outbox",
-    },
-    ModuleOutbox {
-        name: "FixedAssets",
-        table: "fa_events_outbox",
-    },
-    ModuleOutbox {
-        name: "Timekeeping",
-        table: "events_outbox",
-    },
-];
 
 // ============================================================================
 // Core Oracle Logic
@@ -256,11 +209,10 @@ async fn audit_oracle_all_modules() {
     )
     .await;
 
+    // Standard modules have event_id, event_type, aggregate_type, aggregate_id
     let module_pools: Vec<(&str, &str, Option<&PgPool>)> = vec![
         ("AR", "events_outbox", ar_pool.as_ref()),
-        ("Subscriptions", "events_outbox", subs_pool.as_ref()),
         ("GL", "events_outbox", gl_pool.as_ref()),
-        ("Notifications", "events_outbox", notif_pool.as_ref()),
         ("AP", "events_outbox", ap_pool.as_ref()),
         ("Inventory", "inv_outbox", inv_pool.as_ref()),
         ("Treasury", "events_outbox", treasury_pool.as_ref()),
@@ -290,7 +242,7 @@ async fn audit_oracle_all_modules() {
         all_results.push(result);
     }
 
-    // Payments module (different schema)
+    // Payments module (no aggregate columns)
     if let Some(pool) = payments_pool.as_ref() {
         modules_checked += 1;
         let events = match query_payments_outbox_events(pool).await {
@@ -305,6 +257,42 @@ async fn audit_oracle_all_modules() {
             all_results.push(result);
         } else {
             eprintln!("  [OK] Payments — outbox empty (0 events)");
+        }
+    }
+
+    // Subscriptions module (no aggregate columns)
+    if let Some(pool) = subs_pool.as_ref() {
+        modules_checked += 1;
+        let events = match query_subscriptions_outbox_events(pool).await {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("  [SKIP] Subscriptions — outbox query failed: {}", e);
+                Vec::new()
+            }
+        };
+        if !events.is_empty() {
+            let result = oracle_for_module(&audit_pool, pool, "Subscriptions", events).await;
+            all_results.push(result);
+        } else {
+            eprintln!("  [OK] Subscriptions — outbox empty (0 events)");
+        }
+    }
+
+    // Notifications module (no aggregate columns)
+    if let Some(pool) = notif_pool.as_ref() {
+        modules_checked += 1;
+        let events = match query_notifications_outbox_events(pool).await {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("  [SKIP] Notifications — outbox query failed: {}", e);
+                Vec::new()
+            }
+        };
+        if !events.is_empty() {
+            let result = oracle_for_module(&audit_pool, pool, "Notifications", events).await;
+            all_results.push(result);
+        } else {
+            eprintln!("  [OK] Notifications — outbox empty (0 events)");
         }
     }
 
