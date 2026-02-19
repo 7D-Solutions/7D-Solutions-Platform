@@ -80,6 +80,36 @@ pub async fn get_tenant_entitlements(
 }
 
 // ============================================================
+// TENANT STATUS (lightweight — for identity-auth gating)
+// ============================================================
+
+/// Lightweight status response for identity-auth lifecycle gating.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TenantStatusRow {
+    pub tenant_id: Uuid,
+    /// Lifecycle status as a lowercase string (mirrors `tenants.status` column).
+    pub status: String,
+}
+
+/// Fetch just the lifecycle status for a tenant.
+///
+/// Returns `Ok(Some(row))` if the tenant exists.
+/// Returns `Ok(None)` if the tenant does not exist.
+pub async fn get_tenant_status_row(
+    pool: &PgPool,
+    tenant_id: Uuid,
+) -> Result<Option<TenantStatusRow>, sqlx::Error> {
+    let row: Option<(String,)> = sqlx::query_as(
+        "SELECT status FROM tenants WHERE tenant_id = $1",
+    )
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|(status,)| TenantStatusRow { tenant_id, status }))
+}
+
+// ============================================================
 // APP-ID MAPPING
 // ============================================================
 

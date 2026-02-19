@@ -20,7 +20,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::summary::{fetch_tenant_summary, ModuleUrl, SummaryError, TenantSummary};
-use crate::registry::{get_tenant_app_id, get_tenant_entitlements, EntitlementRow, TenantAppIdRow};
+use crate::registry::{get_tenant_app_id, get_tenant_entitlements, get_tenant_status_row, EntitlementRow, TenantAppIdRow, TenantStatusRow};
 
 /// Shared application state for summary routes
 #[derive(Clone)]
@@ -213,6 +213,47 @@ async fn get_app_id(
 pub fn app_id_router(state: Arc<SummaryState>) -> Router {
     Router::new()
         .route("/api/tenants/{tenant_id}/app-id", get(get_app_id))
+        .with_state(state)
+}
+
+// ============================================================
+// Tenant status endpoint (lightweight — for identity-auth gating)
+// ============================================================
+
+/// GET /api/tenants/:tenant_id/status
+///
+/// Returns the lifecycle status for a tenant (no module fanout).
+/// Consumed by identity-auth to gate login/refresh by tenant lifecycle.
+///
+/// - 200 + `{ tenant_id, status }` if tenant exists
+/// - 404 if tenant does not exist
+async fn get_tenant_status(
+    State(state): State<Arc<SummaryState>>,
+    Path(tenant_id): Path<Uuid>,
+) -> Result<Json<TenantStatusRow>, (StatusCode, Json<ErrorBody>)> {
+    match get_tenant_status_row(&state.pool, tenant_id).await {
+        Ok(Some(row)) => Ok(Json(row)),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorBody {
+                error: format!("Tenant not found: {tenant_id}"),
+            }),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorBody {
+                error: format!("Database error: {e}"),
+            }),
+        )),
+    }
+}
+
+/// Build the tenant status router.
+///
+/// Exposes: GET /api/tenants/:tenant_id/status
+pub fn status_router(state: Arc<SummaryState>) -> Router {
+    Router::new()
+        .route("/api/tenants/{tenant_id}/status", get(get_tenant_status))
         .with_state(state)
 }
 
