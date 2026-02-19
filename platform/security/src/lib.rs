@@ -20,6 +20,7 @@ pub mod middleware;
 pub mod permissions;
 pub mod rbac;
 pub mod ratelimit;
+pub mod redaction;
 pub mod service_auth;
 pub mod tracing;
 
