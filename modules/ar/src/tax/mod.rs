@@ -22,6 +22,7 @@ pub mod cache;
 pub mod jurisdiction;
 pub mod models;
 pub mod providers;
+pub mod reporting;
 
 // Re-export all public types for backward-compatible `crate::tax::Foo` paths
 pub use cache::{
@@ -33,6 +34,9 @@ pub use jurisdiction::{
 };
 pub use models::*;
 pub use providers::{LocalTaxProvider, ZeroTaxProvider};
+pub use reporting::{
+    render_csv, resolve_stacked_jurisdictions, tax_summary_by_period, TaxSummaryRow,
+};
 
 // Re-export shared types from tax-core so callers use `crate::tax::TaxProvider` etc.
 pub use tax_core::{TaxProvider, TaxProviderError};
