@@ -1,0 +1,78 @@
+# =============================================================================
+# Rust build artifacts — biggest offenders for build context bloat
+# =============================================================================
+target/
+target-slot-1/
+target-slot-2/
+
+# Each module's local target dir (in case any exist)
+modules/*/target/
+platform/*/target/
+tools/*/target/
+e2e-tests/target/
+
+# =============================================================================
+# Git & CI
+# =============================================================================
+.git/
+.github/
+
+# =============================================================================
+# Node / JS
+# =============================================================================
+node_modules/
+package-lock.json
+
+# =============================================================================
+# Agent coordination & tooling (not needed in containers)
+# =============================================================================
+.active-agents/
+.agent-coordination/
+.agent-profiles/
+.agent-workflows/
+.beads/
+.browser-profiles/
+.playwright-mcp/
+.session-state/
+.flywheel/
+.ntm/
+.current_bead
+.claude/
+bin/
+
+# =============================================================================
+# Logs, temp, runtime state
+# =============================================================================
+logs/
+tmp/
+pids/
+panes/
+dr_reports/
+review-for-delete/
+state/
+workflows/
+archive/
+planning/
+
+# =============================================================================
+# Local dev secrets (never in containers)
+# =============================================================================
+.env
+
+# =============================================================================
+# Screenshots, images, docs at root (large, never needed in containers)
+# =============================================================================
+*.png
+*.rtf
+*.md
+docs/
+contracts/
+infra/
+scripts/
+pids/
+
+# =============================================================================
+# macOS noise
+# =============================================================================
+.DS_Store
+**/.DS_Store
