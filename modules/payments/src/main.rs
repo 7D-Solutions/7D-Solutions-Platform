@@ -123,6 +123,7 @@ async fn main() {
         .route("/metrics", get(metrics_handler))
         .with_state(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
+        .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))

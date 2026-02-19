@@ -113,6 +113,7 @@ async fn main() {
         .merge(routes::ar_router(db.clone()))
         .merge(routes::tax::tax_router(db))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
+        .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(rate_limiter))
