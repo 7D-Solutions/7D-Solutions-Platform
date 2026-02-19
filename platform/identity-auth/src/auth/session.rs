@@ -149,8 +149,33 @@ pub async fn refresh(
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?;
 
+    // Resolve current RBAC roles + permissions for the refreshed token
+    let roles = crate::db::rbac::list_roles_for_user(&state.db, req.tenant_id, user_id)
+        .await
+        .map_err(|e| {
+            state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
+            err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac roles: {e}"))
+        })?
+        .into_iter()
+        .map(|r| r.name)
+        .collect::<Vec<_>>();
+
+    let perms = crate::db::rbac::effective_permissions_for_user(&state.db, req.tenant_id, user_id)
+        .await
+        .map_err(|e| {
+            state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
+            err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac perms: {e}"))
+        })?;
+
     let access = state.jwt
-        .sign_access_token(req.tenant_id, user_id, state.access_ttl_minutes)
+        .sign_access_token(
+            req.tenant_id,
+            user_id,
+            roles,
+            perms,
+            super::jwt::actor_type::USER,
+            state.access_ttl_minutes,
+        )
         .map_err(|e| {
             state.metrics.auth_refresh_total.with_label_values(&["failure", "token_sign_error"]).inc();
             err(StatusCode::INTERNAL_SERVER_ERROR, e)

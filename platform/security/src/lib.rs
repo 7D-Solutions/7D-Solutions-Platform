@@ -2,16 +2,24 @@
 //!
 //! This crate provides shared security utilities for authentication,
 //! authorization (RBAC), and rate limiting across platform modules.
+//!
+//! ## JWT verification
+//!
+//! Use [`JwtVerifier`] to validate access tokens issued by identity-auth:
+//!
+//! ```ignore
+//! let verifier = JwtVerifier::from_public_pem(&public_key_pem)?;
+//! let claims = verifier.verify(bearer_token)?;
+//! println!("user={} tenant={}", claims.user_id, claims.tenant_id);
+//! ```
 
 pub mod authz;
+pub mod claims;
 pub mod middleware;
 pub mod rbac;
 pub mod ratelimit;
 pub mod service_auth;
 pub mod tracing;
-
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 // Re-export service auth types
 pub use service_auth::{
@@ -25,15 +33,10 @@ pub use rbac::{Operation, RbacError, RbacPolicy, Role};
 // Re-export authz middleware types
 pub use authz::{AuthzConfig, AuthzLayer, AuthzMiddleware, AuthzStatus};
 
-/// Placeholder for token verification result
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TokenClaims {
-    pub user_id: Uuid,
-    pub tenant_id: Uuid,
-    pub expires_at: chrono::DateTime<chrono::Utc>,
-}
+// Re-export JWT claims types
+pub use claims::{ActorType, JwtVerifier, VerifiedClaims};
 
-/// Placeholder error type for security operations
+/// Error type for security operations
 #[derive(Debug, thiserror::Error)]
 pub enum SecurityError {
     #[error("Invalid token")]
@@ -44,22 +47,4 @@ pub enum SecurityError {
     InsufficientPermissions,
     #[error("Rate limit exceeded")]
     RateLimitExceeded,
-}
-
-/// Placeholder for auth token verification
-pub fn verify_token(_token: &str) -> Result<TokenClaims, SecurityError> {
-    // Placeholder - actual implementation in subsequent beads
-    Err(SecurityError::InvalidToken)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_placeholder() {
-        // Placeholder test to ensure crate compiles
-        let result = verify_token("placeholder");
-        assert!(result.is_err());
-    }
 }
