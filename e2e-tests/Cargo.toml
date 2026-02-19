@@ -331,6 +331,10 @@ path = "tests/ttp_billing_monthly_one_time.rs"
 name = "platform_billing_invoices_tenant"
 path = "tests/platform_billing_invoices_tenant.rs"
 
+[[test]]
+name = "subscriptions_lifecycle"
+path = "tests/subscriptions_lifecycle.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
