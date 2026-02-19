@@ -31,6 +31,14 @@ pub struct Metrics {
     pub auth_entitlement_fetch_total: IntCounterVec,
     /// Login denied because entitlement could not be determined: label `reason`.
     pub auth_entitlement_denied_total: IntCounterVec,
+
+    // Tenant status gating observability
+    /// Cache hit for tenant status (fresh TTL).
+    pub auth_tenant_status_cache_hit_total: IntCounter,
+    /// Status fetch attempt result: label `result` ∈ {ok, fail}.
+    pub auth_tenant_status_fetch_total: IntCounterVec,
+    /// Auth denied due to tenant lifecycle status: label `status` ∈ {suspended, canceled, past_due, ...}.
+    pub auth_tenant_status_denied_total: IntCounterVec,
 }
 
 impl Metrics {
@@ -124,6 +132,30 @@ impl Metrics {
         )
         .expect("metric");
 
+        let auth_tenant_status_cache_hit_total = IntCounter::new(
+            "auth_tenant_status_cache_hit_total",
+            "Tenant status cache hits (within TTL)",
+        )
+        .expect("metric");
+
+        let auth_tenant_status_fetch_total = IntCounterVec::new(
+            Opts::new(
+                "auth_tenant_status_fetch_total",
+                "Tenant status fetch attempts from tenant-registry",
+            ),
+            &["result"], // ok|fail
+        )
+        .expect("metric");
+
+        let auth_tenant_status_denied_total = IntCounterVec::new(
+            Opts::new(
+                "auth_tenant_status_denied_total",
+                "Auth denied due to tenant lifecycle status",
+            ),
+            &["status"], // suspended|deleted|past_due|unavailable
+        )
+        .expect("metric");
+
         registry
             .register(Box::new(auth_login_total.clone()))
             .unwrap();
@@ -161,6 +193,15 @@ impl Metrics {
         registry
             .register(Box::new(auth_entitlement_denied_total.clone()))
             .unwrap();
+        registry
+            .register(Box::new(auth_tenant_status_cache_hit_total.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(auth_tenant_status_fetch_total.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(auth_tenant_status_denied_total.clone()))
+            .unwrap();
 
         Self {
             registry,
@@ -177,6 +218,9 @@ impl Metrics {
             auth_entitlement_cache_hit_total,
             auth_entitlement_fetch_total,
             auth_entitlement_denied_total,
+            auth_tenant_status_cache_hit_total,
+            auth_tenant_status_fetch_total,
+            auth_tenant_status_denied_total,
         }
     }
 

@@ -1,4 +1,5 @@
 use crate::{
+    clients::tenant_registry::TenantGate,
     events::envelope::EventEnvelope,
     middleware::tracing::get_trace_id_from_extensions,
 };
@@ -106,6 +107,39 @@ pub async fn refresh(
     if expires_at < Utc::now() {
         state.metrics.auth_refresh_total.with_label_values(&["failure", "expired"]).inc();
         return Err(err(StatusCode::UNAUTHORIZED, "refresh token expired"));
+    }
+
+    // Tenant lifecycle gate: deny refresh for suspended/deleted tenants.
+    // past_due tenants may still refresh (grace period — deny new logins only).
+    if let Some(client) = &state.tenant_registry {
+        match client.get_tenant_gate(req.tenant_id, &state.metrics).await {
+            Ok(TenantGate::Allow) | Ok(TenantGate::DenyNewLogin { .. }) => {
+                // Allow: active/trial/past_due may refresh
+            }
+            Ok(TenantGate::Deny { status }) => {
+                state.metrics.auth_tenant_status_denied_total.with_label_values(&[&status]).inc();
+                tracing::warn!(
+                    tenant_id = %req.tenant_id,
+                    user_id = %user_id,
+                    status = %status,
+                    trace_id = %trace_id,
+                    "auth.tenant_status_denied_refresh"
+                );
+                let _ = tx.rollback().await;
+                return Err(err(StatusCode::FORBIDDEN, "tenant account inactive"));
+            }
+            Err(_) => {
+                state.metrics.auth_tenant_status_denied_total.with_label_values(&["unavailable"]).inc();
+                tracing::warn!(
+                    tenant_id = %req.tenant_id,
+                    user_id = %user_id,
+                    trace_id = %trace_id,
+                    "auth.tenant_status_unavailable_deny_refresh"
+                );
+                let _ = tx.rollback().await;
+                return Err(err(StatusCode::SERVICE_UNAVAILABLE, "tenant status service unavailable"));
+            }
+        }
     }
 
     sqlx::query(

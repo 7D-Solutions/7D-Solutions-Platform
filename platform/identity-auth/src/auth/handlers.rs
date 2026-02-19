@@ -1,5 +1,5 @@
 use crate::{
-    clients::tenant_registry::TenantRegistryClient,
+    clients::tenant_registry::{TenantGate, TenantRegistryClient},
     events::{envelope::EventEnvelope, publisher::EventPublisher},
     metrics::Metrics,
     middleware::tracing::get_trace_id_from_extensions,
@@ -378,6 +378,48 @@ pub async fn login(
             state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
             err(StatusCode::INTERNAL_SERVER_ERROR, format!("advisory lock: {e}"))
         })?;
+
+    // Tenant lifecycle gate: deny login for suspended/canceled tenants; deny new login for past_due.
+    if let Some(client) = &state.tenant_registry {
+        match client.get_tenant_gate(req.tenant_id, &state.metrics).await {
+            Ok(TenantGate::Allow) => {}
+            Ok(TenantGate::DenyNewLogin { status }) => {
+                state.metrics.auth_tenant_status_denied_total.with_label_values(&[&status]).inc();
+                tracing::warn!(
+                    tenant_id = %req.tenant_id,
+                    user_id = %user_id,
+                    status = %status,
+                    trace_id = %trace_id,
+                    "auth.tenant_status_deny_new_login"
+                );
+                let _ = tx.rollback().await;
+                return Err(err(StatusCode::FORBIDDEN, "tenant account past due"));
+            }
+            Ok(TenantGate::Deny { status }) => {
+                state.metrics.auth_tenant_status_denied_total.with_label_values(&[&status]).inc();
+                tracing::warn!(
+                    tenant_id = %req.tenant_id,
+                    user_id = %user_id,
+                    status = %status,
+                    trace_id = %trace_id,
+                    "auth.tenant_status_denied"
+                );
+                let _ = tx.rollback().await;
+                return Err(err(StatusCode::FORBIDDEN, "tenant account inactive"));
+            }
+            Err(_) => {
+                state.metrics.auth_tenant_status_denied_total.with_label_values(&["unavailable"]).inc();
+                tracing::warn!(
+                    tenant_id = %req.tenant_id,
+                    user_id = %user_id,
+                    trace_id = %trace_id,
+                    "auth.tenant_status_unavailable_deny"
+                );
+                let _ = tx.rollback().await;
+                return Err(err(StatusCode::SERVICE_UNAVAILABLE, "tenant status service unavailable"));
+            }
+        }
+    }
 
     let active = super::concurrency::count_active_leases_in_tx(&mut tx, req.tenant_id)
         .await
