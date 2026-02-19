@@ -264,6 +264,10 @@ name = "reporting_aging_reconcile"
 path = "tests/reporting_aging_reconcile.rs"
 
 [[test]]
+name = "reporting_kpis"
+path = "tests/reporting_kpis.rs"
+
+[[test]]
 name = "ap_multicurrency_gl"
 path = "tests/ap_multicurrency_gl.rs"
 
