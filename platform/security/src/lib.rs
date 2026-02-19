@@ -3,6 +3,8 @@
 //! This crate provides shared security utilities for authentication,
 //! authorization (RBAC), and rate limiting across platform modules.
 
+pub mod authz;
+pub mod middleware;
 pub mod rbac;
 pub mod ratelimit;
 pub mod service_auth;
@@ -18,6 +20,9 @@ pub use service_auth::{
 
 // Re-export RBAC types
 pub use rbac::{Operation, RbacError, RbacPolicy, Role};
+
+// Re-export authz middleware types
+pub use authz::{AuthzConfig, AuthzLayer, AuthzMiddleware, AuthzStatus};
 
 /// Placeholder for token verification result
 #[derive(Debug, Clone, Serialize, Deserialize)]
