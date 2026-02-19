@@ -20,6 +20,7 @@
 mod fleet_migrate;
 mod lifecycle;
 mod provision;
+mod retention;
 mod verify;
 
 use anyhow::{Context, Result};
@@ -108,6 +109,15 @@ enum TenantOperation {
         /// AR module base URL for demo seeding
         #[arg(long, env = "AR_BASE_URL", default_value = "http://localhost:8086")]
         ar_url: String,
+    },
+    /// Export tenant data to a deterministic JSONL artifact (retention framework)
+    Export {
+        /// Tenant ID to export
+        #[arg(long)]
+        tenant: String,
+        /// Output file path; if omitted, only the digest is printed
+        #[arg(long)]
+        output: Option<String>,
     },
 }
 
@@ -200,6 +210,14 @@ async fn main() -> Result<()> {
                 println!("   Tenant UUID:    {}", result.tenant_id);
                 println!("   Dataset digest: {}", result.dataset_digest);
                 println!("   Seed:           {}", seed);
+                Ok(())
+            }
+            TenantOperation::Export { tenant, output } => {
+                let result = retention::export_tenant(&tenant, output.as_deref()).await?;
+                println!("\n✅ Tenant {} exported!", tenant);
+                println!("   Artifact:  {}", result.artifact_path);
+                println!("   SHA-256:   {}", result.sha256_digest);
+                println!("   Lines:     {}", result.line_count);
                 Ok(())
             }
         },

@@ -1,5 +1,6 @@
 /// Request and response types for the control-plane API
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -51,6 +52,43 @@ pub struct CreateTenantResponse {
 
     /// Echoed idempotency key
     pub idempotency_key: String,
+}
+
+// ============================================================================
+// Retention policy
+// ============================================================================
+
+/// Retention configuration for a tenant (stored in cp_retention_policies)
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct RetentionConfig {
+    pub tenant_id: Uuid,
+    /// Days data must be retained after deletion (default 2555 ≈ 7 years)
+    pub data_retention_days: i32,
+    /// Export artifact format (currently only "jsonl")
+    pub export_format: String,
+    /// Grace window between export_ready_at and permitted tombstone (days)
+    pub auto_tombstone_days: i32,
+    /// When a deterministic export artifact was last produced; null if never
+    pub export_ready_at: Option<DateTime<Utc>>,
+    /// When tenant data was tombstoned; null if not yet tombstoned
+    pub data_tombstoned_at: Option<DateTime<Utc>>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// PUT body to upsert retention config for a tenant
+#[derive(Debug, Deserialize)]
+pub struct SetRetentionRequest {
+    pub data_retention_days: Option<i32>,
+    pub auto_tombstone_days: Option<i32>,
+}
+
+/// Response for the tombstone operation
+#[derive(Debug, Serialize)]
+pub struct TombstoneResponse {
+    pub tenant_id: Uuid,
+    pub data_tombstoned_at: DateTime<Utc>,
+    pub audit_note: String,
 }
 
 // ============================================================================
