@@ -14,6 +14,7 @@ use serde::Serialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::domain::import::adapters::CsvFormat;
 use crate::domain::import::{service, ImportError, ImportResult, LineError};
 use crate::AppState;
 
@@ -59,6 +60,7 @@ struct ImportFields {
     closing_balance_minor: i64,
     csv_data: Vec<u8>,
     filename: Option<String>,
+    format: Option<CsvFormat>,
 }
 
 async fn collect_fields(
@@ -71,6 +73,7 @@ async fn collect_fields(
     let mut closing_balance: Option<i64> = None;
     let mut csv_data: Option<Vec<u8>> = None;
     let mut filename: Option<String> = None;
+    let mut format: Option<CsvFormat> = None;
 
     while let Ok(Some(field)) = multipart.next_field().await {
         let name = field.name().unwrap_or("").to_string();
@@ -107,6 +110,16 @@ async fn collect_fields(
                     bad_request("closing_balance_minor must be an integer")
                 })?);
             }
+            "format" => {
+                let text = field_text(field).await?;
+                format = Some(serde_json::from_value::<CsvFormat>(
+                    serde_json::Value::String(text.trim().to_string()),
+                ).map_err(|_| {
+                    bad_request(
+                        "format must be one of: generic, chase_credit, amex_credit",
+                    )
+                })?);
+            }
             _ => {} // Ignore unknown fields
         }
     }
@@ -126,6 +139,7 @@ async fn collect_fields(
             .ok_or_else(|| bad_request("closing_balance_minor is required"))?,
         csv_data,
         filename,
+        format,
     })
 }
 
@@ -186,6 +200,7 @@ pub async fn import_statement(
         closing_balance_minor: fields.closing_balance_minor,
         csv_data: fields.csv_data,
         filename: fields.filename,
+        format: fields.format,
     };
 
     match service::import_statement(&state.pool, &app_id, req, correlation_id).await {

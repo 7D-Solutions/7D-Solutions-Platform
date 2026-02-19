@@ -197,14 +197,20 @@ pub async fn unmatched_bank_txns_for_gl(
         r#"
         SELECT t.id, t.account_id, t.transaction_date, t.amount_minor,
                t.currency, t.description, t.reference,
-               CASE WHEN m.id IS NOT NULL THEN true ELSE false END AS has_statement_match
+               EXISTS(
+                   SELECT 1 FROM treasury_recon_matches sm
+                   WHERE sm.bank_transaction_id = t.id
+                     AND sm.superseded_by IS NULL
+                     AND sm.statement_line_id IS NOT NULL
+               ) AS has_statement_match
         FROM treasury_bank_transactions t
-        LEFT JOIN treasury_recon_matches m
-            ON m.bank_transaction_id = t.id
-            AND m.superseded_by IS NULL
-            AND m.gl_entry_id IS NOT NULL
         WHERE t.app_id = $1 AND t.account_id = $2
-          AND m.id IS NULL
+          AND NOT EXISTS(
+              SELECT 1 FROM treasury_recon_matches gl
+              WHERE gl.bank_transaction_id = t.id
+                AND gl.superseded_by IS NULL
+                AND gl.gl_entry_id IS NOT NULL
+          )
         ORDER BY t.transaction_date, t.id
         "#,
     )
@@ -287,3 +293,7 @@ pub async fn unmatched_gl_entries(
         unmatched_gl_entry_ids: unmatched,
     })
 }
+
+#[cfg(test)]
+#[path = "gl_link_tests.rs"]
+mod tests;
