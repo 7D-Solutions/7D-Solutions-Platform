@@ -40,8 +40,9 @@ impl std::fmt::Display for TenantId {
 /// Mirrors the `status` column CHECK constraint in the `tenants` table.
 /// New states `Pending` and `Failed` support the control-plane HTTP API
 /// state machine (pending → provisioning → active/failed).
+/// `Trial` and `PastDue` support billing-aware lifecycle gating.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum TenantStatus {
     /// Tenant record created; provisioning not yet started.
     Pending,
@@ -55,6 +56,10 @@ pub enum TenantStatus {
     Suspended,
     /// Tenant is soft-deleted (marked for cleanup).
     Deleted,
+    /// Tenant is on a free trial period (access allowed, billing not yet started).
+    Trial,
+    /// Tenant has an overdue payment; access gated by downstream IAM.
+    PastDue,
 }
 
 impl std::fmt::Display for TenantStatus {
@@ -66,6 +71,8 @@ impl std::fmt::Display for TenantStatus {
             Self::Failed => write!(f, "failed"),
             Self::Suspended => write!(f, "suspended"),
             Self::Deleted => write!(f, "deleted"),
+            Self::Trial => write!(f, "trial"),
+            Self::PastDue => write!(f, "past_due"),
         }
     }
 }
@@ -103,6 +110,12 @@ pub struct TenantRecord {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
+    /// Product identifier (e.g. "starter", "professional", "enterprise")
+    pub product_code: Option<String>,
+    /// Billing plan within the product (e.g. "monthly", "annual")
+    pub plan_code: Option<String>,
+    /// Bridge to AR module app namespace; AR is app_id-based
+    pub app_id: Option<String>,
 }
 
 /// Provisioning step status
@@ -171,6 +184,44 @@ mod tests {
     fn tenant_status_serialization() {
         let json = serde_json::to_string(&TenantStatus::Active).unwrap();
         assert_eq!(json, r#""active""#);
+    }
+
+    #[test]
+    fn tenant_status_trial_serialization() {
+        let json = serde_json::to_string(&TenantStatus::Trial).unwrap();
+        assert_eq!(json, r#""trial""#);
+    }
+
+    #[test]
+    fn tenant_status_past_due_serialization() {
+        let json = serde_json::to_string(&TenantStatus::PastDue).unwrap();
+        assert_eq!(json, r#""past_due""#);
+    }
+
+    #[test]
+    fn tenant_status_past_due_display() {
+        assert_eq!(TenantStatus::PastDue.to_string(), "past_due");
+    }
+
+    #[test]
+    fn tenant_record_includes_new_fields() {
+        use chrono::Utc;
+        use std::collections::HashMap;
+        let record = TenantRecord {
+            tenant_id: TenantId::new(),
+            status: TenantStatus::Trial,
+            environment: Environment::Development,
+            module_schema_versions: HashMap::new(),
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            deleted_at: None,
+            product_code: Some("starter".to_string()),
+            plan_code: Some("monthly".to_string()),
+            app_id: Some("app_abc123".to_string()),
+        };
+        assert_eq!(record.product_code.as_deref(), Some("starter"));
+        assert_eq!(record.plan_code.as_deref(), Some("monthly"));
+        assert_eq!(record.app_id.as_deref(), Some("app_abc123"));
     }
 
     #[test]

@@ -31,13 +31,26 @@ pub fn is_valid_state_transition(from: TenantStatus, to: TenantStatus) -> bool {
     use TenantStatus::*;
 
     match (from, to) {
-        // Provisioning can go to active or deleted (if provisioning fails)
+        // Provisioning can go to active, trial, or deleted
         (Provisioning, Active) => true,
+        (Provisioning, Trial) => true,
         (Provisioning, Deleted) => true,
 
-        // Active can be suspended or deleted
+        // Trial tenants can convert to active (paid), go past_due, be suspended or deleted
+        (Trial, Active) => true,
+        (Trial, PastDue) => true,
+        (Trial, Suspended) => true,
+        (Trial, Deleted) => true,
+
+        // Active can be suspended, go past_due, or be deleted
         (Active, Suspended) => true,
+        (Active, PastDue) => true,
         (Active, Deleted) => true,
+
+        // PastDue can recover to active, be suspended, or deleted
+        (PastDue, Active) => true,
+        (PastDue, Suspended) => true,
+        (PastDue, Deleted) => true,
 
         // Suspended can be reactivated or deleted
         (Suspended, Active) => true,
@@ -135,6 +148,54 @@ mod tests {
         assert!(!is_valid_state_transition(
             TenantStatus::Provisioning,
             TenantStatus::Suspended
+        ));
+    }
+
+    #[test]
+    fn provisioning_to_trial_is_valid() {
+        assert!(is_valid_state_transition(
+            TenantStatus::Provisioning,
+            TenantStatus::Trial
+        ));
+    }
+
+    #[test]
+    fn trial_to_active_is_valid() {
+        assert!(is_valid_state_transition(
+            TenantStatus::Trial,
+            TenantStatus::Active
+        ));
+    }
+
+    #[test]
+    fn trial_to_past_due_is_valid() {
+        assert!(is_valid_state_transition(
+            TenantStatus::Trial,
+            TenantStatus::PastDue
+        ));
+    }
+
+    #[test]
+    fn past_due_to_active_is_valid() {
+        assert!(is_valid_state_transition(
+            TenantStatus::PastDue,
+            TenantStatus::Active
+        ));
+    }
+
+    #[test]
+    fn past_due_to_suspended_is_valid() {
+        assert!(is_valid_state_transition(
+            TenantStatus::PastDue,
+            TenantStatus::Suspended
+        ));
+    }
+
+    #[test]
+    fn active_to_past_due_is_valid() {
+        assert!(is_valid_state_transition(
+            TenantStatus::Active,
+            TenantStatus::PastDue
         ));
     }
 }
