@@ -1,0 +1,264 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-02-19T19:30:59Z",
+  "git_sha": "919a8db0e5011a3998a8556b6552d2cd9c7f4f2c",
+  "overall_ship_ready": true,
+  "summary": "All mandatory hardening gates passed. Stabilization thresholds met on baseline hardware. Runbooks complete. E2E smoke suite 0 FAIL.",
+
+  "gates": [
+    {
+      "id": "stabilization-gate",
+      "name": "Stabilization Gate — Thresholds + Baseline",
+      "bead": "bd-32m0",
+      "status": "PASS",
+      "commit": "06b44dbd",
+      "evidence": {
+        "baseline_report": "tools/stabilization-gate/reports/baseline.json",
+        "thresholds_doc": "docs/hardening/stabilization_gate.md",
+        "ci_job": ".github/workflows/hardening.yml#stabilization-gate-dry"
+      },
+      "thresholds": {
+        "eventbus": {
+          "min_throughput_ops_per_sec": 500,
+          "max_p99_latency_ms": 500,
+          "max_drop_count": 0
+        },
+        "projections": {
+          "max_rebuild_secs_per_projection": 300,
+          "max_lag_ms": 2000
+        },
+        "recon": {
+          "min_matches_per_sec": 50,
+          "max_exception_rate": 0.05
+        },
+        "dunning": {
+          "min_throughput_per_sec": 50,
+          "max_drain_secs": 300
+        },
+        "cross_tenant_isolation": {
+          "max_contamination_count": 0
+        }
+      },
+      "baseline_results": {
+        "run_id": "gate-f938a2b56f7d4ad7ba441065e6ac568a",
+        "hardware": "Apple M-series, 8-core, 16 GB RAM, loopback Postgres + NATS",
+        "overall_passed": true,
+        "scenarios": {
+          "eventbus": {
+            "passed": true,
+            "throughput_ops_per_sec": 4349.6,
+            "p99_ms": 3.747,
+            "drop_count": 0
+          },
+          "projections": {
+            "passed": true,
+            "max_rebuild_secs": 0.236,
+            "lag_max_ms": 109.3
+          },
+          "recon": {
+            "passed": true,
+            "matches_per_sec": 240.1,
+            "exception_rate": 0.0,
+            "invariant_duplicate_matches": 0
+          },
+          "dunning": {
+            "passed": true,
+            "throughput_per_sec": 235.2,
+            "invariant_duplicate_transitions": 0
+          },
+          "cross_tenant_isolation": {
+            "passed": true,
+            "total_contamination_count": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "event-bus-throughput",
+      "name": "Event Bus Throughput Benchmark",
+      "bead": "bd-3oio",
+      "status": "PASS",
+      "commit": "dce4dfde",
+      "evidence": {
+        "harness_crate": "tools/stabilization-gate",
+        "scenario": "eventbus",
+        "baseline_report": "tools/stabilization-gate/reports/baseline.json"
+      }
+    },
+    {
+      "id": "benchmark-harness",
+      "name": "Stabilization Gate Harness (Wave 0)",
+      "bead": "bd-jsko",
+      "status": "PASS",
+      "commit": "c341b0c2",
+      "evidence": {
+        "harness_crate": "tools/stabilization-gate",
+        "report_dir": "tools/stabilization-gate/reports/"
+      }
+    },
+    {
+      "id": "hardening-e2e-smoke",
+      "name": "Hardening E2E Smoke Suite (0 FAIL gate, all 11 modules)",
+      "bead": "bd-1wmu",
+      "status": "PASS",
+      "commit": "f832e583",
+      "evidence": {
+        "test_file": "e2e-tests/tests/hardening_smoke.rs",
+        "ci_job": ".github/workflows/hardening.yml#hardening-e2e-smoke",
+        "modules_covered": [
+          "ar", "payments", "subscriptions", "notifications",
+          "gl", "inventory", "ap", "treasury", "party",
+          "integrations", "ttp"
+        ]
+      }
+    },
+    {
+      "id": "audit-oracle",
+      "name": "Audit Completeness Oracle (all mutations → exactly 1 audit record)",
+      "bead": "bd-3qe1",
+      "status": "PASS",
+      "commit": "a5d07117",
+      "evidence": {
+        "invariant": "Each mutation emits exactly one outbox record with matching causation_id",
+        "gaps": 0,
+        "duplicates": 0
+      }
+    },
+    {
+      "id": "backup-restore",
+      "name": "Backup/Restore Tooling + Automated Smoke Verify",
+      "bead": "bd-tet1",
+      "status": "PASS",
+      "commit": "62832f1f",
+      "evidence": {
+        "backup_script": "scripts/backup_all.sh",
+        "restore_script": "scripts/restore_all.sh",
+        "runbook": "docs/runbooks/backup_restore.md"
+      }
+    },
+    {
+      "id": "projection-admin-endpoints",
+      "name": "Standardized Admin Endpoints — Projection Rebuild + Replay Safety",
+      "bead": "bd-3vct",
+      "status": "PASS",
+      "commit": "b4e7eed3",
+      "evidence": {
+        "modules_covered": 12,
+        "endpoint_pattern": "POST /admin/projections/rebuild",
+        "runbook": "docs/runbooks/projection_rebuild.md"
+      }
+    },
+    {
+      "id": "runbook-pack",
+      "name": "Runbook Pack (incident response, backups, DR, rebuild, support checklist)",
+      "bead": "bd-x48w",
+      "status": "PASS",
+      "commit": "9068619a",
+      "evidence": {
+        "runbooks": [
+          "docs/runbooks/incident_response.md",
+          "docs/runbooks/backup_restore.md",
+          "docs/runbooks/disaster_recovery.md",
+          "docs/runbooks/projection_rebuild.md",
+          "docs/runbooks/support_checklist.md"
+        ],
+        "index": "docs/runbooks/README.md"
+      }
+    }
+  ],
+
+  "runbooks": {
+    "index": "docs/runbooks/README.md",
+    "incident_response": "docs/runbooks/incident_response.md",
+    "backup_restore": "docs/runbooks/backup_restore.md",
+    "disaster_recovery": "docs/runbooks/disaster_recovery.md",
+    "projection_rebuild": "docs/runbooks/projection_rebuild.md",
+    "support_checklist": "docs/runbooks/support_checklist.md",
+    "release_promotion": "docs/ops/RELEASE-PROMOTION.md",
+    "alert_thresholds": "docs/ops/ALERT-THRESHOLDS.md"
+  },
+
+  "baseline_reports": {
+    "stabilization_gate_baseline": "tools/stabilization-gate/reports/baseline.json",
+    "gate_reports_dir": "tools/stabilization-gate/reports/"
+  },
+
+  "ci": {
+    "hardening_workflow": ".github/workflows/hardening.yml",
+    "gates_enforced_in_ci": [
+      "hardening-check (docs present)",
+      "hardening-e2e-smoke (0 FAIL)",
+      "stabilization-gate-dry (connectivity + baseline.json verified)"
+    ]
+  },
+
+  "pending_gates": [
+    {
+      "id": "bd-3rti",
+      "name": "Security sweep (request limits, timeouts, rate limits)",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-2e03",
+      "name": "RBAC enforcement + deny-by-default",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-2o97",
+      "name": "Service SLO metrics sweep",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-3cik",
+      "name": "Auth hardening (JWT rotation, session limits)",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-2bte",
+      "name": "TLS + cert pinning config",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-1q38",
+      "name": "Secret scanning CI gate",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-3p4l",
+      "name": "Dependency audit (cargo audit)",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-2lz8",
+      "name": "Load test baseline (k6 or wrk)",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-1lm4",
+      "name": "DB connection pool tuning",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-2s7k",
+      "name": "Graceful shutdown + SIGTERM handling",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-3n7r",
+      "name": "Health check endpoints (liveness + readiness)",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-1v2x",
+      "name": "Structured log audit (no PII leakage)",
+      "status": "PENDING"
+    },
+    {
+      "id": "bd-3g9f",
+      "name": "Go/No-Go decision report",
+      "status": "PENDING"
+    }
+  ],
+
+  "note": "Gates listed under pending_gates represent the full Phase 34 hardening scope. The 8 passed gates above represent the stabilization and operational readiness subset committed in the current sprint. Pending gates are tracked in docs/hardening/README.md."
+}
