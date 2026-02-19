@@ -37,7 +37,16 @@ pub struct Config {
     pub hash_acquire_timeout_ms: u64,
 
     // Concurrent seat limit per tenant (DB-backed session leases)
+    // Used as a local fallback when TENANT_REGISTRY_URL is not configured.
     pub max_concurrent_sessions: i64,
+
+    // Tenant-registry entitlement client
+    /// Base URL of the tenant-registry / control-plane HTTP API.
+    /// e.g. http://localhost:8092
+    /// Leave blank to disable live entitlement fetching (uses max_concurrent_sessions).
+    pub tenant_registry_url: Option<String>,
+    /// TTL in seconds for the per-tenant entitlement cache. Default: 60.
+    pub entitlement_ttl_secs: u64,
 }
 
 impl Config {
@@ -80,6 +89,9 @@ impl Config {
             hash_acquire_timeout_ms: env::var("HASH_ACQUIRE_TIMEOUT_MS").unwrap_or_else(|_| "5000".to_string()).parse()?,
 
             max_concurrent_sessions: env::var("MAX_CONCURRENT_SESSIONS").unwrap_or_else(|_| "5".to_string()).parse()?,
+
+            tenant_registry_url: env::var("TENANT_REGISTRY_URL").ok().filter(|s| !s.is_empty()),
+            entitlement_ttl_secs: env::var("ENTITLEMENT_TTL_SECS").unwrap_or_else(|_| "60".to_string()).parse()?,
         })
     }
 }

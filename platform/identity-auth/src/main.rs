@@ -1,3 +1,4 @@
+mod clients;
 mod config;
 mod db;
 mod middleware;
@@ -72,6 +73,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         cfg.hash_acquire_timeout_ms,
     );
 
+    // Entitlement client (optional — only when TENANT_REGISTRY_URL is set)
+    let tenant_registry = cfg.tenant_registry_url.as_deref().map(|url| {
+        tracing::info!(url = %url, ttl_secs = cfg.entitlement_ttl_secs, "entitlement client configured");
+        crate::clients::tenant_registry::TenantRegistryClient::new(
+            url.to_string(),
+            cfg.entitlement_ttl_secs,
+        )
+    });
+    if tenant_registry.is_none() {
+        tracing::warn!(
+            fallback_limit = cfg.max_concurrent_sessions,
+            "TENANT_REGISTRY_URL not set; using static max_concurrent_sessions fallback"
+        );
+    }
+
     let auth_state = Arc::new(crate::auth::handlers::AuthState {
         db: pool.clone(),
         jwt: jwt.clone(),
@@ -89,6 +105,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         register_per_min_per_email: cfg.register_per_min_per_email,
         refresh_per_min_per_token: cfg.refresh_per_min_per_token,
         max_concurrent_sessions: cfg.max_concurrent_sessions,
+        tenant_registry,
     });
 
     // Health + Metrics states

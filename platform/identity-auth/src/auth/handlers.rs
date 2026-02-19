@@ -1,4 +1,5 @@
 use crate::{
+    clients::tenant_registry::TenantRegistryClient,
     events::{envelope::EventEnvelope, publisher::EventPublisher},
     metrics::Metrics,
     middleware::tracing::get_trace_id_from_extensions,
@@ -46,8 +47,12 @@ pub struct AuthState {
     pub register_per_min_per_email: u32,
     pub refresh_per_min_per_token: u32,
 
-    // DB-backed concurrent seat limit per tenant
+    // DB-backed concurrent seat limit per tenant (static fallback when registry unavailable)
     pub max_concurrent_sessions: i64,
+
+    // Entitlement client — fetches concurrent_user_limit from tenant-registry with TTL cache.
+    // None means use max_concurrent_sessions unconditionally.
+    pub tenant_registry: Option<TenantRegistryClient>,
 }
 
 pub(super) type ApiErr = (StatusCode, HeaderMap, String);
@@ -381,13 +386,37 @@ pub async fn login(
             err(StatusCode::INTERNAL_SERVER_ERROR, format!("seat count: {e}"))
         })?;
 
-    if active >= state.max_concurrent_sessions {
+    // Resolve the per-tenant concurrent session limit from the entitlement client
+    // (with TTL cache).  Fall back to the static config limit when the client is
+    // not configured.  Fail-closed: if the client cannot determine the limit and
+    // has no usable cached value, deny the login.
+    let seat_limit = match &state.tenant_registry {
+        Some(client) => {
+            match client.get_concurrent_user_limit(req.tenant_id, &state.metrics).await {
+                Ok(limit) => limit,
+                Err(_) => {
+                    state.metrics.auth_login_total.with_label_values(&["failure", "entitlement_unavailable"]).inc();
+                    tracing::warn!(
+                        tenant_id = %req.tenant_id,
+                        user_id = %user_id,
+                        trace_id = %trace_id,
+                        "auth.entitlement_unavailable_deny"
+                    );
+                    let _ = tx.rollback().await;
+                    return Err(err(StatusCode::SERVICE_UNAVAILABLE, "entitlement service unavailable"));
+                }
+            }
+        }
+        None => state.max_concurrent_sessions,
+    };
+
+    if active >= seat_limit {
         state.metrics.auth_login_total.with_label_values(&["failure", "seat_limit"]).inc();
         tracing::warn!(
             tenant_id = %req.tenant_id,
             user_id = %user_id,
             active_seats = active,
-            limit = state.max_concurrent_sessions,
+            limit = seat_limit,
             trace_id = %trace_id,
             "auth.seat_limit_exceeded"
         );

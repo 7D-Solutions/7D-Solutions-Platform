@@ -1,5 +1,6 @@
 use prometheus::{
-    Encoder, HistogramOpts, HistogramVec, IntCounterVec, IntGaugeVec, Opts, Registry, TextEncoder,
+    Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGaugeVec, Opts, Registry,
+    TextEncoder,
 };
 use std::time::Instant;
 
@@ -22,6 +23,14 @@ pub struct Metrics {
 
     // Dependency gauges
     pub dep_up: IntGaugeVec,
+
+    // Entitlement client observability
+    /// Cache hit (fresh TTL).
+    pub auth_entitlement_cache_hit_total: IntCounter,
+    /// Fetch attempt result: label `result` ∈ {ok, fail}.
+    pub auth_entitlement_fetch_total: IntCounterVec,
+    /// Login denied because entitlement could not be determined: label `reason`.
+    pub auth_entitlement_denied_total: IntCounterVec,
 }
 
 impl Metrics {
@@ -91,6 +100,30 @@ impl Metrics {
         )
         .expect("metric");
 
+        let auth_entitlement_cache_hit_total = IntCounter::new(
+            "auth_entitlement_cache_hit_total",
+            "Entitlement cache hits (within TTL)",
+        )
+        .expect("metric");
+
+        let auth_entitlement_fetch_total = IntCounterVec::new(
+            Opts::new(
+                "auth_entitlement_fetch_total",
+                "Entitlement fetch attempts from tenant-registry",
+            ),
+            &["result"], // ok|fail
+        )
+        .expect("metric");
+
+        let auth_entitlement_denied_total = IntCounterVec::new(
+            Opts::new(
+                "auth_entitlement_denied_total",
+                "Logins denied due to missing/unavailable entitlement",
+            ),
+            &["reason"], // no_cache|stale_expired
+        )
+        .expect("metric");
+
         registry
             .register(Box::new(auth_login_total.clone()))
             .unwrap();
@@ -119,6 +152,15 @@ impl Metrics {
             .register(Box::new(auth_password_verify_duration_seconds.clone()))
             .unwrap();
         registry.register(Box::new(dep_up.clone())).unwrap();
+        registry
+            .register(Box::new(auth_entitlement_cache_hit_total.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(auth_entitlement_fetch_total.clone()))
+            .unwrap();
+        registry
+            .register(Box::new(auth_entitlement_denied_total.clone()))
+            .unwrap();
 
         Self {
             registry,
@@ -132,6 +174,9 @@ impl Metrics {
             http_request_duration_seconds,
             auth_password_verify_duration_seconds,
             dep_up,
+            auth_entitlement_cache_hit_total,
+            auth_entitlement_fetch_total,
+            auth_entitlement_denied_total,
         }
     }
 
