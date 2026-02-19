@@ -21,15 +21,8 @@ pub fn billing_correlation_id(tenant_id: Uuid, period: &str) -> String {
     format!("plat-{}-{}", tenant_id, period)
 }
 
-/// Return the plan fee in cents for a given plan_code (v1 hardcoded schedule).
-/// bd-pxo5 will introduce a proper pricing table — this is a temporary lookup.
-pub fn plan_fee_cents(plan_code: &str) -> i32 {
-    match plan_code {
-        "monthly" => 2_900,  // $29.00/month
-        "annual" => 29_000,  // $290.00/year
-        _ => 0,
-    }
-}
+// Plan fee pricing is sourced from cp_plans in tenant-registry via
+// clients::tenant_registry::fetch_plan_fee_minor (bd-pxo5).
 
 /// Find the existing AR customer for a tenant under the PLATFORM app_id, or create one.
 ///
@@ -168,14 +161,6 @@ mod tests {
         let cid = billing_correlation_id(id, "2026-02");
         assert_eq!(cid, "plat-550e8400-e29b-41d4-a716-446655440000-2026-02");
         assert_eq!(billing_correlation_id(id, "2026-02"), cid);
-    }
-
-    #[test]
-    fn plan_fee_cents_returns_expected_values() {
-        assert_eq!(plan_fee_cents("monthly"), 2_900);
-        assert_eq!(plan_fee_cents("annual"), 29_000);
-        assert_eq!(plan_fee_cents("unknown"), 0);
-        assert_eq!(plan_fee_cents(""), 0);
     }
 
     #[test]

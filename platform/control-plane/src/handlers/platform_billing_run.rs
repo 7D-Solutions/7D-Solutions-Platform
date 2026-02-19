@@ -16,10 +16,10 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::clients::ar::{
-    create_platform_invoice_idempotent, find_or_create_platform_customer, plan_fee_cents,
+    create_platform_invoice_idempotent, find_or_create_platform_customer,
     InvoiceResult, PLATFORM_APP_ID,
 };
-use crate::clients::tenant_registry::fetch_eligible_tenants;
+use crate::clients::tenant_registry::{fetch_eligible_tenants, fetch_plan_fee_minor};
 use crate::models::ErrorBody;
 use crate::state::AppState;
 
@@ -108,7 +108,30 @@ pub async fn platform_billing_run(
     let mut skipped = Vec::new();
 
     for tenant in tenants {
-        let amount_cents = plan_fee_cents(&tenant.plan_code);
+        // Look up monthly fee from cp_plans using the tenant's product tier.
+        // Returns 0 if the product_code is not found in cp_plans (logs a warning).
+        let amount_cents: i32 = match fetch_plan_fee_minor(&state.pool, &tenant.product_code).await {
+            Ok(Some(fee)) => fee as i32,
+            Ok(None) => {
+                tracing::warn!(
+                    tenant_id = %tenant.tenant_id,
+                    product_code = %tenant.product_code,
+                    "No cp_plans entry for product_code — billing $0"
+                );
+                0
+            }
+            Err(e) => {
+                tracing::error!(
+                    tenant_id = %tenant.tenant_id,
+                    "Failed to fetch plan fee: {}", e
+                );
+                skipped.push(SkippedEntry {
+                    tenant_id: tenant.tenant_id,
+                    reason: format!("plan_fee_lookup_failed: {e}"),
+                });
+                continue;
+            }
+        };
 
         // Find or create AR customer under PLATFORM app_id
         let customer_id = match find_or_create_platform_customer(ar_pool, tenant.tenant_id).await {
@@ -330,8 +353,11 @@ mod tests {
 
         let (status, Json(resp)) = result;
         assert_eq!(status, StatusCode::OK);
-        assert!(resp.processed.iter().any(|e| e.tenant_id == tenant_id));
         assert_eq!(resp.merchant_context, "PLATFORM");
+        let entry = resp.processed.iter().find(|e| e.tenant_id == tenant_id)
+            .expect("tenant should appear in processed list");
+        // Pricing sourced from cp_plans: starter = 2900 minor units
+        assert_eq!(entry.amount_cents, 2900, "starter plan fee should be 2900 (from cp_plans)");
 
         // Second run (same period): should skip — idempotent
         let result2 = platform_billing_run(
