@@ -2,6 +2,15 @@
 //!
 //! Validates serialized event envelopes against platform contract rules.
 
+/// Financial source modules that must carry a merchant_context on financial mutations.
+///
+/// These modules handle money movement and must declare whether events belong to
+/// a tenant's bucket or the platform operator's bucket to prevent money mixing.
+const FINANCIAL_MODULES: &[&str] = &["ar", "gl", "payments", "ap", "treasury", "billing", "ttp"];
+
+/// Mutation classes that represent financial mutations requiring merchant_context.
+const FINANCIAL_MUTATION_CLASSES: &[&str] = &["DATA_MUTATION", "REVERSAL", "CORRECTION"];
+
 /// Validate an event envelope (generic payload)
 ///
 /// # Validation Rules
@@ -169,4 +178,76 @@ pub fn validate_envelope_fields(envelope: &serde_json::Value) -> Result<(), Stri
 
     // reverses_event_id and supersedes_event_id are optional UUIDs
     Ok(())
+}
+
+/// Validate that financial events carry a valid merchant_context.
+///
+/// This is the money-mixing prevention gate. Call this in addition to
+/// `validate_envelope_fields` for financial event producers.
+///
+/// # Rules
+///
+/// Events from financial modules (ar, gl, payments, ap, treasury, billing, ttp)
+/// with financial mutation classes (DATA_MUTATION, REVERSAL, CORRECTION) MUST
+/// include a `merchant_context` field with either:
+/// - `{"type": "Tenant", "id": "<tenant_id>"}` — tenant-scoped event
+/// - `{"type": "Platform"}` — platform-operator event
+///
+/// Non-financial modules and non-financial mutation classes are not checked.
+///
+/// # Errors
+///
+/// Returns a descriptive error if the merchant_context is missing or malformed
+/// for a financial event.
+pub fn validate_merchant_context_for_financial(envelope: &serde_json::Value) -> Result<(), String> {
+    let source_module = envelope
+        .get("source_module")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    let mutation_class = envelope
+        .get("mutation_class")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    // Only enforce for financial modules with financial mutation classes
+    let is_financial = FINANCIAL_MODULES.contains(&source_module)
+        && FINANCIAL_MUTATION_CLASSES.contains(&mutation_class);
+
+    if !is_financial {
+        return Ok(());
+    }
+
+    // merchant_context is required for financial events
+    let ctx = envelope
+        .get("merchant_context")
+        .ok_or_else(|| format!(
+            "merchant_context is required for financial module '{}' with mutation_class '{}'",
+            source_module, mutation_class
+        ))?;
+
+    // Must have a "type" field
+    let ctx_type = ctx
+        .get("type")
+        .and_then(|v| v.as_str())
+        .ok_or("merchant_context.type must be a string ('Tenant' or 'Platform')")?;
+
+    match ctx_type {
+        "Tenant" => {
+            // Must have a non-empty "id" field with the tenant_id
+            let id = ctx
+                .get("id")
+                .and_then(|v| v.as_str())
+                .ok_or("merchant_context.id is required for Tenant context")?;
+            if id.is_empty() {
+                return Err("merchant_context.id cannot be empty for Tenant context".to_string());
+            }
+            Ok(())
+        }
+        "Platform" => Ok(()),
+        other => Err(format!(
+            "Invalid merchant_context.type '{}': must be 'Tenant' or 'Platform'",
+            other
+        )),
+    }
 }

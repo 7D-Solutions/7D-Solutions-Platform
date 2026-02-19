@@ -38,11 +38,32 @@ mod validation;
 mod tests;
 
 pub use tracing_context::TracingContext;
-pub use validation::validate_envelope_fields;
+pub use validation::{validate_envelope_fields, validate_merchant_context_for_financial};
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+/// Identifies the billing/money context of an event.
+///
+/// This is a structural guard against money-mixing: financial events MUST
+/// declare whether they belong to a tenant's money bucket or the platform's
+/// own revenue bucket. The two must never be commingled.
+///
+/// # Variants
+///
+/// * `Tenant(String)` — Event belongs to a specific tenant's financial context.
+///   The inner string is the tenant_id (must match `envelope.tenant_id`).
+/// * `Platform` — Event belongs to the platform operator's own revenue/billing
+///   context (e.g. SaaS subscription fees, platform-level charges).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", content = "id")]
+pub enum MerchantContext {
+    /// Tenant-scoped financial event. Inner value is the tenant_id.
+    Tenant(String),
+    /// Platform-operator-scoped financial event.
+    Platform,
+}
 
 /// Standard event envelope following platform event contract
 ///
@@ -142,6 +163,14 @@ pub struct EventEnvelope<T> {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub actor_type: Option<String>,
 
+    /// Money-mixing prevention: declares whether this event belongs to a tenant
+    /// or to the platform operator. Required for all financial events.
+    ///
+    /// Financial modules (ar, gl, payments, ap, treasury, billing, ttp) MUST
+    /// set this field. Non-financial modules may omit it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub merchant_context: Option<MerchantContext>,
+
     /// Event-specific payload
     pub payload: T,
 }
@@ -184,6 +213,7 @@ impl<T> EventEnvelope<T> {
             mutation_class: None,
             actor_id: None,
             actor_type: None,
+            merchant_context: None,
             payload,
         }
     }
@@ -214,6 +244,7 @@ impl<T> EventEnvelope<T> {
             mutation_class: None,
             actor_id: None,
             actor_type: None,
+            merchant_context: None,
             payload,
         }
     }

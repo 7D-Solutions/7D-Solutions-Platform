@@ -3,7 +3,7 @@
 //! Provides fluent API for setting optional envelope fields after construction.
 
 use super::tracing_context::TracingContext;
-use super::EventEnvelope;
+use super::{EventEnvelope, MerchantContext};
 use uuid::Uuid;
 
 impl<T> EventEnvelope<T> {
@@ -78,6 +78,16 @@ impl<T> EventEnvelope<T> {
     pub fn with_actor_from(mut self, actor_id: Option<Uuid>, actor_type: Option<String>) -> Self {
         self.actor_id = actor_id;
         self.actor_type = actor_type;
+        self
+    }
+
+    /// Set the merchant context (money-mixing prevention guard).
+    ///
+    /// Financial modules MUST call this with the appropriate context:
+    /// - `MerchantContext::Tenant(tenant_id)` for tenant-scoped financial events
+    /// - `MerchantContext::Platform` for platform-operator billing events
+    pub fn with_merchant_context(mut self, merchant_context: Option<MerchantContext>) -> Self {
+        self.merchant_context = merchant_context;
         self
     }
 

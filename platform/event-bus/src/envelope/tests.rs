@@ -1,5 +1,6 @@
 use super::*;
 use serde_json::json;
+use crate::envelope::validation::validate_merchant_context_for_financial;
 
 #[test]
 fn test_envelope_creation() {
@@ -392,4 +393,241 @@ fn test_validate_envelope_fields_empty_actor_type() {
     let result = validate_envelope_fields(&envelope);
     assert!(result.is_err());
     assert!(result.unwrap_err().contains("actor_type cannot be empty"));
+}
+
+// ── MerchantContext: struct tests ──────────────────────────────────────────
+
+#[test]
+fn test_merchant_context_serializes_tenant() {
+    let ctx = MerchantContext::Tenant("tenant-abc".to_string());
+    let json = serde_json::to_value(&ctx).unwrap();
+    assert_eq!(json["type"], "Tenant");
+    assert_eq!(json["id"], "tenant-abc");
+}
+
+#[test]
+fn test_merchant_context_serializes_platform() {
+    let ctx = MerchantContext::Platform;
+    let json = serde_json::to_value(&ctx).unwrap();
+    assert_eq!(json["type"], "Platform");
+    assert!(json.get("id").is_none());
+}
+
+#[test]
+fn test_merchant_context_deserializes_tenant() {
+    let json = json!({"type": "Tenant", "id": "tenant-xyz"});
+    let ctx: MerchantContext = serde_json::from_value(json).unwrap();
+    assert_eq!(ctx, MerchantContext::Tenant("tenant-xyz".to_string()));
+}
+
+#[test]
+fn test_merchant_context_deserializes_platform() {
+    let json = json!({"type": "Platform"});
+    let ctx: MerchantContext = serde_json::from_value(json).unwrap();
+    assert_eq!(ctx, MerchantContext::Platform);
+}
+
+#[test]
+fn test_envelope_carries_merchant_context() {
+    let envelope = EventEnvelope::new(
+        "tenant-123".to_string(),
+        "ar".to_string(),
+        "invoice.created".to_string(),
+        json!({"invoice_id": "inv_001"}),
+    )
+    .with_merchant_context(Some(MerchantContext::Tenant("tenant-123".to_string())));
+
+    assert_eq!(
+        envelope.merchant_context,
+        Some(MerchantContext::Tenant("tenant-123".to_string()))
+    );
+
+    // Verify round-trip serialization preserves the field
+    let json = serde_json::to_value(&envelope).unwrap();
+    let mc = &json["merchant_context"];
+    assert_eq!(mc["type"], "Tenant");
+    assert_eq!(mc["id"], "tenant-123");
+}
+
+#[test]
+fn test_envelope_merchant_context_omitted_when_none() {
+    let envelope = EventEnvelope::new(
+        "tenant-123".to_string(),
+        "notifications".to_string(),
+        "notification.sent".to_string(),
+        json!({}),
+    );
+    // merchant_context is None by default
+    assert!(envelope.merchant_context.is_none());
+
+    // When serialized, the field is omitted (skip_serializing_if = None)
+    let json = serde_json::to_value(&envelope).unwrap();
+    assert!(json.get("merchant_context").is_none());
+}
+
+// ── validate_merchant_context_for_financial: enforcement tests ─────────────
+
+#[test]
+fn test_financial_event_requires_merchant_context() {
+    // AR module + DATA_MUTATION = financial event requiring merchant_context
+    let envelope = json!({
+        "event_id": "550e8400-e29b-41d4-a716-446655440000",
+        "event_type": "invoice.created",
+        "occurred_at": "2024-01-01T00:00:00Z",
+        "tenant_id": "tenant-123",
+        "source_module": "ar",
+        "source_version": "1.0.0",
+        "schema_version": "1.0.0",
+        "replay_safe": true,
+        "mutation_class": "DATA_MUTATION",
+        "payload": {}
+    });
+
+    let result = validate_merchant_context_for_financial(&envelope);
+    assert!(result.is_err(), "Financial event without merchant_context should be rejected");
+    let err = result.unwrap_err();
+    assert!(err.contains("merchant_context is required"), "Error was: {}", err);
+}
+
+#[test]
+fn test_financial_event_accepts_tenant_merchant_context() {
+    let envelope = json!({
+        "event_id": "550e8400-e29b-41d4-a716-446655440000",
+        "event_type": "invoice.created",
+        "occurred_at": "2024-01-01T00:00:00Z",
+        "tenant_id": "tenant-123",
+        "source_module": "ar",
+        "source_version": "1.0.0",
+        "schema_version": "1.0.0",
+        "replay_safe": true,
+        "mutation_class": "DATA_MUTATION",
+        "merchant_context": {"type": "Tenant", "id": "tenant-123"},
+        "payload": {}
+    });
+
+    assert!(validate_merchant_context_for_financial(&envelope).is_ok());
+}
+
+#[test]
+fn test_financial_event_accepts_platform_merchant_context() {
+    let envelope = json!({
+        "event_id": "550e8400-e29b-41d4-a716-446655440000",
+        "event_type": "billing.charge_posted",
+        "occurred_at": "2024-01-01T00:00:00Z",
+        "tenant_id": "platform",
+        "source_module": "billing",
+        "source_version": "1.0.0",
+        "schema_version": "1.0.0",
+        "replay_safe": true,
+        "mutation_class": "DATA_MUTATION",
+        "merchant_context": {"type": "Platform"},
+        "payload": {}
+    });
+
+    assert!(validate_merchant_context_for_financial(&envelope).is_ok());
+}
+
+#[test]
+fn test_non_financial_module_skips_merchant_context_check() {
+    // notifications is not a financial module — no merchant_context needed
+    let envelope = json!({
+        "event_id": "550e8400-e29b-41d4-a716-446655440000",
+        "event_type": "notification.sent",
+        "occurred_at": "2024-01-01T00:00:00Z",
+        "tenant_id": "tenant-123",
+        "source_module": "notifications",
+        "source_version": "1.0.0",
+        "schema_version": "1.0.0",
+        "replay_safe": true,
+        "mutation_class": "DATA_MUTATION",
+        "payload": {}
+    });
+
+    assert!(validate_merchant_context_for_financial(&envelope).is_ok());
+}
+
+#[test]
+fn test_non_financial_mutation_class_skips_merchant_context_check() {
+    // ADMINISTRATIVE mutation class is not financial
+    let envelope = json!({
+        "event_id": "550e8400-e29b-41d4-a716-446655440000",
+        "event_type": "config.updated",
+        "occurred_at": "2024-01-01T00:00:00Z",
+        "tenant_id": "tenant-123",
+        "source_module": "ar",
+        "source_version": "1.0.0",
+        "schema_version": "1.0.0",
+        "replay_safe": true,
+        "mutation_class": "ADMINISTRATIVE",
+        "payload": {}
+    });
+
+    assert!(validate_merchant_context_for_financial(&envelope).is_ok());
+}
+
+#[test]
+fn test_financial_event_rejects_empty_tenant_id_in_merchant_context() {
+    let envelope = json!({
+        "event_id": "550e8400-e29b-41d4-a716-446655440000",
+        "event_type": "invoice.created",
+        "occurred_at": "2024-01-01T00:00:00Z",
+        "tenant_id": "tenant-123",
+        "source_module": "payments",
+        "source_version": "1.0.0",
+        "schema_version": "1.0.0",
+        "replay_safe": true,
+        "mutation_class": "DATA_MUTATION",
+        "merchant_context": {"type": "Tenant", "id": ""},
+        "payload": {}
+    });
+
+    let result = validate_merchant_context_for_financial(&envelope);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("cannot be empty"));
+}
+
+#[test]
+fn test_financial_event_rejects_invalid_merchant_context_type() {
+    let envelope = json!({
+        "event_id": "550e8400-e29b-41d4-a716-446655440000",
+        "event_type": "invoice.created",
+        "occurred_at": "2024-01-01T00:00:00Z",
+        "tenant_id": "tenant-123",
+        "source_module": "gl",
+        "source_version": "1.0.0",
+        "schema_version": "1.0.0",
+        "replay_safe": true,
+        "mutation_class": "DATA_MUTATION",
+        "merchant_context": {"type": "Unknown"},
+        "payload": {}
+    });
+
+    let result = validate_merchant_context_for_financial(&envelope);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().contains("Invalid merchant_context.type"));
+}
+
+#[test]
+fn test_all_financial_modules_require_merchant_context() {
+    let financial_modules = ["ar", "gl", "payments", "ap", "treasury", "billing", "ttp"];
+    for module in financial_modules {
+        let envelope = json!({
+            "event_id": "550e8400-e29b-41d4-a716-446655440000",
+            "event_type": "test.event",
+            "occurred_at": "2024-01-01T00:00:00Z",
+            "tenant_id": "tenant-123",
+            "source_module": module,
+            "source_version": "1.0.0",
+            "schema_version": "1.0.0",
+            "replay_safe": true,
+            "mutation_class": "DATA_MUTATION",
+            "payload": {}
+        });
+        let result = validate_merchant_context_for_financial(&envelope);
+        assert!(
+            result.is_err(),
+            "Module '{}' should require merchant_context but validation passed",
+            module
+        );
+    }
 }
