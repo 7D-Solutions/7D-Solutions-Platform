@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [[test]]
+name = "hardening_smoke"
+path = "tests/hardening_smoke.rs"
+
+[[test]]
 name = "bill_run_e2e"
 path = "tests/bill_run_e2e.rs"
 

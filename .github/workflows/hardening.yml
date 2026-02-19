@@ -61,6 +61,53 @@ jobs:
   #     - name: Generate go/no-go report
   #       run: cargo run -p stabilization-gate -- go-no-go
 
+  # Hardening E2E smoke suite (bd-1wmu)
+  # Calls in-process health and version handlers for all 11 library modules.
+  # No services required — always passes in CI.
+  hardening-e2e-smoke:
+    name: Hardening E2E Smoke (all modules)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ar_db
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-hardening-smoke-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-hardening-smoke-
+
+      - name: Run hardening smoke suite (0 FAIL gate)
+        env:
+          AR_DATABASE_URL: postgres://postgres:postgres@localhost:5432/ar_db
+          AUDIT_DATABASE_URL: postgres://postgres:postgres@localhost:5432/ar_db
+          PROJECTIONS_DATABASE_URL: postgres://postgres:postgres@localhost:5432/ar_db
+          TENANT_REGISTRY_DATABASE_URL: postgres://postgres:postgres@localhost:5432/ar_db
+        run: |
+          cargo test --test hardening_smoke -p e2e-tests --no-fail-fast -- --nocapture
+          echo "✓ Hardening smoke: 0 FAIL"
+
   # Stabilization gate — reduced (dry-run) mode (bd-32m0)
   # Verifies the binary compiles and can reach Postgres + NATS.
   # No threshold enforcement in dry-run mode; full benchmarks run nightly.
