@@ -355,6 +355,14 @@ path = "tests/ap_vendor_party_link_e2e.rs"
 name = "business_day_one_e2e"
 path = "tests/business_day_one_e2e.rs"
 
+[[test]]
+name = "ar_dunning_workflow_e2e"
+path = "tests/ar_dunning_workflow_e2e.rs"
+
+[[test]]
+name = "ar_gl_journal_entries_e2e"
+path = "tests/ar_gl_journal_entries_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
