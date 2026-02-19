@@ -1,4 +1,4 @@
-use axum::{http::Method, routing::get, Router};
+use axum::{http::Method, routing::{get, post, put}, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -96,6 +96,28 @@ async fn main() {
         .route("/api/ready", get(http::ready))
         .route("/api/version", get(http::version))
         .route("/metrics", get(metrics::metrics_handler))
+        // Category CRUD
+        .route("/api/fixed-assets/categories", post(http::assets::create_category))
+        .route("/api/fixed-assets/categories/:id", put(http::assets::update_category))
+        .route(
+            "/api/fixed-assets/categories/:tenant_id/:id",
+            get(http::assets::get_category).delete(http::assets::deactivate_category),
+        )
+        .route(
+            "/api/fixed-assets/categories/:tenant_id",
+            get(http::assets::list_categories),
+        )
+        // Asset CRUD
+        .route("/api/fixed-assets/assets", post(http::assets::create_asset))
+        .route("/api/fixed-assets/assets/:id", put(http::assets::update_asset))
+        .route(
+            "/api/fixed-assets/assets/:tenant_id/:id",
+            get(http::assets::get_asset).delete(http::assets::deactivate_asset),
+        )
+        .route(
+            "/api/fixed-assets/assets/:tenant_id",
+            get(http::assets::list_assets),
+        )
         .with_state(app_state)
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
