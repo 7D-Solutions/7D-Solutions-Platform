@@ -1,0 +1,62 @@
+name: Hardening Gates
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Gates run after primary CI passes.
+# Each job corresponds to a hardening bead (Phase 34).
+# Jobs are placeholders — they will be filled in as beads close.
+
+jobs:
+  hardening-check:
+    name: Hardening Gate Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify hardening docs exist
+        run: |
+          test -f docs/hardening/README.md || (echo "❌ docs/hardening/README.md missing" && exit 1)
+          test -f docs/runbooks/README.md   || (echo "❌ docs/runbooks/README.md missing" && exit 1)
+          echo "✓ Hardening scaffold present"
+
+  # Placeholder: Security sweep (bd-3rti)
+  # security-sweep:
+  #   name: Security Sweep
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Run security sweep
+  #       run: cargo run -p hardening-tools -- security-sweep
+
+  # Placeholder: Dependency audit (bd-3p4l)
+  # dependency-audit:
+  #   name: Dependency Audit
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Run cargo audit
+  #       run: cargo audit
+
+  # Placeholder: Secret scanning (bd-1q38)
+  # secret-scan:
+  #   name: Secret Scanning
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Scan for secrets
+  #       run: ./scripts/secret-scan.sh
+
+  # Placeholder: Go/No-Go report (bd-3g9f)
+  # go-no-go:
+  #   name: Go/No-Go Decision
+  #   runs-on: ubuntu-latest
+  #   needs: [security-sweep, dependency-audit, secret-scan]
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - name: Generate go/no-go report
+  #       run: cargo run -p stabilization-gate -- go-no-go
