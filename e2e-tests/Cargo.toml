@@ -336,12 +336,20 @@ name = "subscriptions_lifecycle"
 path = "tests/subscriptions_lifecycle.rs"
 
 [[test]]
+name = "notifications_e2e"
+path = "tests/notifications_e2e.rs"
+
+[[test]]
 name = "treasury_forecast_e2e"
 path = "tests/treasury_forecast_e2e.rs"
 
 [[test]]
 name = "ap_vendor_party_link_e2e"
 path = "tests/ap_vendor_party_link_e2e.rs"
+
+[[test]]
+name = "business_day_one_e2e"
+path = "tests/business_day_one_e2e.rs"
 
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
