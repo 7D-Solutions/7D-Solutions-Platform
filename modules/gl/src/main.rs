@@ -1,4 +1,5 @@
 use axum::{extract::DefaultBodyLimit, routing::{get, post}, Extension, Router};
+use security::{permissions, optional_claims_mw, JwtVerifier, RequirePermissionsLayer};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::middleware::{
     default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
@@ -145,33 +146,21 @@ async fn main() {
         metrics: metrics.clone(),
     });
 
-    // Build the application router
-    let app = Router::new()
-        .route("/api/health", get(health))
-        .route("/api/ready", get(ready))
-        .route("/api/version", get(version))
-        .route("/metrics", get(gl_rs::metrics::metrics_handler))
-        .route("/api/gl/trial-balance", get(get_trial_balance))
-        .route("/api/gl/income-statement", get(get_income_statement))
-        .route("/api/gl/balance-sheet", get(get_balance_sheet))
-        .route("/api/gl/reporting/trial-balance", get(get_reporting_trial_balance))
-        .route("/api/gl/reporting/income-statement", get(get_reporting_income_statement))
-        .route("/api/gl/reporting/balance-sheet", get(get_reporting_balance_sheet))
-        .route("/api/gl/periods/{period_id}/summary", get(get_period_summary))
+    // Optional JWT verifier for claims extraction (requires JWT_PUBLIC_KEY env var).
+    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+
+    // GL mutation routes — require gl.post permission.
+    let gl_mutations = Router::new()
         .route("/api/gl/periods/{period_id}/validate-close", post(validate_close))
         .route("/api/gl/periods/{period_id}/close", post(close_period_handler))
-        .route("/api/gl/periods/{period_id}/close-status", get(get_close_status))
-        .route("/api/gl/periods/{period_id}/checklist", get(get_checklist_status).post(create_checklist_item))
+        .route("/api/gl/periods/{period_id}/checklist", post(create_checklist_item))
         .route("/api/gl/periods/{period_id}/checklist/{item_id}/complete", post(complete_checklist_item))
         .route("/api/gl/periods/{period_id}/checklist/{item_id}/waive", post(waive_checklist_item))
-        .route("/api/gl/periods/{period_id}/approvals", get(get_approvals).post(create_approval))
-        .route("/api/gl/periods/{period_id}/reopen", get(list_reopen_requests).post(request_reopen))
+        .route("/api/gl/periods/{period_id}/approvals", post(create_approval))
+        .route("/api/gl/periods/{period_id}/reopen", post(request_reopen))
         .route("/api/gl/periods/{period_id}/reopen/{request_id}/approve", post(approve_reopen))
         .route("/api/gl/periods/{period_id}/reopen/{request_id}/reject", post(reject_reopen))
-        .route("/api/gl/detail", get(get_gl_detail))
-        .route("/api/gl/accounts/{account_code}/activity", get(get_account_activity))
         .route("/api/gl/fx-rates", post(create_fx_rate))
-        .route("/api/gl/fx-rates/latest", get(get_latest_fx_rate))
         .route("/api/gl/revrec/contracts", post(create_contract))
         .route("/api/gl/revrec/schedules", post(generate_schedule_handler))
         .route("/api/gl/revrec/recognition-runs", post(run_recognition_handler))
@@ -179,13 +168,41 @@ async fn main() {
         .route("/api/gl/accruals/templates", post(create_template_handler))
         .route("/api/gl/accruals/create", post(create_accrual_handler))
         .route("/api/gl/accruals/reversals/execute", post(execute_reversals_handler))
+        .route_layer(RequirePermissionsLayer::new(&[permissions::GL_POST]))
+        .with_state(app_state.clone());
+
+    // Build the application router
+    let app = Router::new()
+        // Ops
+        .route("/api/health", get(health))
+        .route("/api/ready", get(ready))
+        .route("/api/version", get(version))
+        .route("/metrics", get(gl_rs::metrics::metrics_handler))
+        // GL read routes
+        .route("/api/gl/trial-balance", get(get_trial_balance))
+        .route("/api/gl/income-statement", get(get_income_statement))
+        .route("/api/gl/balance-sheet", get(get_balance_sheet))
+        .route("/api/gl/reporting/trial-balance", get(get_reporting_trial_balance))
+        .route("/api/gl/reporting/income-statement", get(get_reporting_income_statement))
+        .route("/api/gl/reporting/balance-sheet", get(get_reporting_balance_sheet))
+        .route("/api/gl/periods/{period_id}/summary", get(get_period_summary))
+        .route("/api/gl/periods/{period_id}/close-status", get(get_close_status))
+        .route("/api/gl/periods/{period_id}/checklist", get(get_checklist_status))
+        .route("/api/gl/periods/{period_id}/approvals", get(get_approvals))
+        .route("/api/gl/periods/{period_id}/reopen", get(list_reopen_requests))
+        .route("/api/gl/detail", get(get_gl_detail))
+        .route("/api/gl/accounts/{account_code}/activity", get(get_account_activity))
+        .route("/api/gl/fx-rates/latest", get(get_latest_fx_rate))
         .route("/api/gl/cash-flow", get(get_cash_flow))
         .with_state(app_state)
+        .merge(gl_mutations)
+        .merge(gl_rs::routes::admin::admin_router(pool.clone()))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
+        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
         .layer(security::AuthzLayer::from_env())
         .layer(
             CorsLayer::new()

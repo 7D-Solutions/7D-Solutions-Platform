@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod cycle_counts;
 pub mod history;
 pub mod lots;

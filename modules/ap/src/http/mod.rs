@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod allocations;
 pub mod bills;
 pub mod payment_runs;

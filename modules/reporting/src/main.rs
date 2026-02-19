@@ -1,6 +1,7 @@
-use axum::{extract::DefaultBodyLimit, http::Method, routing::get, Extension, Router};
-use security::middleware::{
-    default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+use axum::{extract::DefaultBodyLimit, http::Method, routing::{get, post}, Extension, Router};
+use security::{
+    middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
+    optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -65,24 +66,35 @@ async fn main() {
         ])
         .allow_credentials(true);
 
+    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+
+    let reporting_mutations = Router::new()
+        // Rebuild trigger — write
+        .route("/api/reporting/rebuild", post(http::admin::rebuild))
+        .route_layer(RequirePermissionsLayer::new(&[permissions::REPORTING_MUTATE]))
+        .with_state(app_state.clone());
+
     let app = Router::new()
         .route("/api/health", get(http::health))
         .route("/api/ready", get(http::ready))
         .route("/api/version", get(http::version))
+        .route("/metrics", get(metrics::metrics_handler))
+        // Reports — read
         .route("/api/reporting/pl", get(http::statements::get_pl))
         .route("/api/reporting/balance-sheet", get(http::statements::get_balance_sheet))
         .route("/api/reporting/cashflow", get(http::cashflow::get_cashflow))
         .route("/api/reporting/ar-aging", get(http::aging::get_ar_aging))
         .route("/api/reporting/ap-aging", get(http::aging::get_ap_aging))
         .route("/api/reporting/kpis", get(http::kpis::get_kpis))
-        .route("/api/reporting/rebuild", axum::routing::post(http::admin::rebuild))
-        .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state)
+        .merge(reporting_mutations)
+        .merge(http::admin::admin_router(pool.clone()))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
+        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
         .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();

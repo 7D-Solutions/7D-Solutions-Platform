@@ -19,6 +19,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 event-bus = { path = "../../platform/event-bus" }
+projections = { path = "../../platform/projections" }
 tax-core = { path = "../../platform/tax-core" }
 sha2 = "0.10"
 hex = "0.4"

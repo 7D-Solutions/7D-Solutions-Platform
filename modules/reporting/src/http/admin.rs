@@ -183,8 +183,8 @@ pub fn admin_router(pool: PgPool) -> Router {
 mod tests {
     use super::*;
 
-    #[test]
-    fn test_admin_router_builds() {
+    #[tokio::test]
+    async fn test_admin_router_builds() {
         let pool = PgPool::connect_lazy("postgres://localhost/fake").unwrap();
         let _router = admin_router(pool);
     }

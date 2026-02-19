@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod account_activity;
 pub mod accruals;
 pub mod balance_sheet;

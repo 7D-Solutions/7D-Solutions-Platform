@@ -19,6 +19,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
 uuid = { version = "1", features = ["v4", "v5", "serde"] }
 event-bus = { path = "../../platform/event-bus" }
+projections = { path = "../../platform/projections" }
 async-nats = "0.33"
 futures = "0.3"
 csv = "1"

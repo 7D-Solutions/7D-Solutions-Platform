@@ -44,6 +44,7 @@
 //! }
 //! ```
 
+pub mod admin;
 pub mod cursor;
 pub mod digest;
 pub mod fallback;

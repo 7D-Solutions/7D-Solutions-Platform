@@ -23,10 +23,10 @@ pub mod write_offs;
 
 use axum::{
     middleware,
-    routing::{get, post},
+    routing::{delete, get, post, put},
     Router,
 };
-use security::ratelimit::WebhookRateLimiter;
+use security::{permissions, ratelimit::WebhookRateLimiter, RequirePermissionsLayer};
 use sqlx::PgPool;
 use std::sync::Arc;
 
@@ -34,14 +34,12 @@ use crate::idempotency::check_idempotency;
 use crate::middleware::{webhook_ratelimit_middleware, WebhookRateLimitState};
 
 pub fn ar_router(db: PgPool) -> Router {
-    // Shared IP-based rate limiter for all inbound webhook endpoints.
+    // Shared IP-based rate limiter for inbound webhook endpoints.
     let webhook_rl_state = Arc::new(WebhookRateLimitState {
         limiter: Arc::new(WebhookRateLimiter::new()),
     });
 
-    // Inbound webhook sub-router — rate-limited by source IP.
-    // This is separate from authenticated routes so the rate limit layer
-    // only wraps public webhook ingestion, not admin or listing endpoints.
+    // Inbound webhook sub-router — rate-limited by source IP (no auth needed).
     let webhook_inbound = Router::new()
         .route("/api/ar/webhooks/tilled", post(webhooks::receive_tilled_webhook))
         .layer(middleware::from_fn_with_state(
@@ -50,105 +48,109 @@ pub fn ar_router(db: PgPool) -> Router {
         ))
         .with_state(db.clone());
 
-    Router::new()
-        // Customer endpoints
-        .route("/api/ar/customers", post(customers::create_customer).get(customers::list_customers))
-        .route(
-            "/api/ar/customers/{id}",
-            get(customers::get_customer).put(customers::update_customer),
-        )
-        // Subscription endpoints
-        .route(
-            "/api/ar/subscriptions",
-            post(subscriptions::create_subscription).get(subscriptions::list_subscriptions),
-        )
-        .route(
-            "/api/ar/subscriptions/{id}",
-            get(subscriptions::get_subscription).put(subscriptions::update_subscription),
-        )
-        .route(
-            "/api/ar/subscriptions/{id}/cancel",
-            post(subscriptions::cancel_subscription),
-        )
-        // Invoice endpoints
-        .route("/api/ar/invoices", post(invoices::create_invoice).get(invoices::list_invoices))
-        .route(
-            "/api/ar/invoices/{id}",
-            get(invoices::get_invoice).put(invoices::update_invoice),
-        )
+    // Mutation routes — require ar.mutate permission.
+    let mutations = Router::new()
+        // Customers — write
+        .route("/api/ar/customers", post(customers::create_customer))
+        .route("/api/ar/customers/{id}", put(customers::update_customer))
+        // Subscriptions — write
+        .route("/api/ar/subscriptions", post(subscriptions::create_subscription))
+        .route("/api/ar/subscriptions/{id}", put(subscriptions::update_subscription))
+        .route("/api/ar/subscriptions/{id}/cancel", post(subscriptions::cancel_subscription))
+        // Invoices — write
+        .route("/api/ar/invoices", post(invoices::create_invoice))
+        .route("/api/ar/invoices/{id}", put(invoices::update_invoice))
         .route("/api/ar/invoices/{id}/finalize", post(invoices::finalize_invoice))
         .route("/api/ar/invoices/{id}/bill-usage", post(usage::bill_usage_route))
-        .route("/api/ar/invoices/{id}/credit-notes", post(credit_notes::issue_credit_note_route))
-        .route("/api/ar/invoices/{id}/write-off", post(write_offs::write_off_invoice_route))
-        // Charge endpoints
-        .route("/api/ar/charges", post(charges::create_charge).get(charges::list_charges))
-        .route("/api/ar/charges/{id}", get(charges::get_charge))
-        .route("/api/ar/charges/{id}/capture", post(charges::capture_charge))
-        // Refund endpoints
-        .route("/api/ar/refunds", post(refunds::create_refund).get(refunds::list_refunds))
-        .route("/api/ar/refunds/{id}", get(refunds::get_refund))
-        // Dispute endpoints
-        .route("/api/ar/disputes", get(disputes::list_disputes))
-        .route("/api/ar/disputes/{id}", get(disputes::get_dispute))
-        .route("/api/ar/disputes/{id}/evidence", post(disputes::submit_dispute_evidence))
-        // Payment method endpoints
         .route(
-            "/api/ar/payment-methods",
-            post(payment_methods::add_payment_method).get(payment_methods::list_payment_methods),
+            "/api/ar/invoices/{id}/credit-notes",
+            post(credit_notes::issue_credit_note_route),
         )
+        .route("/api/ar/invoices/{id}/write-off", post(write_offs::write_off_invoice_route))
+        // Charges — write
+        .route("/api/ar/charges", post(charges::create_charge))
+        .route("/api/ar/charges/{id}/capture", post(charges::capture_charge))
+        // Refunds — write
+        .route("/api/ar/refunds", post(refunds::create_refund))
+        // Disputes — write
+        .route("/api/ar/disputes/{id}/evidence", post(disputes::submit_dispute_evidence))
+        // Payment methods — write
+        .route("/api/ar/payment-methods", post(payment_methods::add_payment_method))
         .route(
             "/api/ar/payment-methods/{id}",
-            get(payment_methods::get_payment_method)
-                .put(payment_methods::update_payment_method)
+            put(payment_methods::update_payment_method)
                 .delete(payment_methods::delete_payment_method),
         )
         .route(
             "/api/ar/payment-methods/{id}/set-default",
             post(payment_methods::set_default_payment_method),
         )
-        // Webhook management endpoints (admin, not inbound ingestion)
-        .route("/api/ar/webhooks", get(webhooks::list_webhooks))
-        .route("/api/ar/webhooks/{id}", get(webhooks::get_webhook))
+        // Webhook management — write
         .route("/api/ar/webhooks/{id}/replay", post(webhooks::replay_webhook))
-        // Event log endpoints
-        .route("/api/ar/events", get(events::list_events))
-        .route("/api/ar/events/{id}", get(events::get_event))
-        // Usage ingestion (bd-23z)
+        // Usage ingestion — write
         .route("/api/ar/usage", post(usage::capture_usage))
-        // AR aging report (bd-3cb)
-        .route("/api/ar/aging", get(aging::get_aging))
+        // Aging refresh — write
         .route("/api/ar/aging/refresh", post(aging::refresh_aging_route))
-        // Dunning scheduler (bd-2bj)
+        // Dunning — write
         .route("/api/ar/dunning/poll", post(dunning_routes::dunning_poll_route))
-        // Reconciliation matching (bd-2cn)
+        // Reconciliation — write
         .route("/api/ar/recon/run", post(reconciliation_routes::recon_run_route))
-        // Scheduled reconciliation runs (bd-1kl)
         .route("/api/ar/recon/schedule", post(reconciliation_routes::schedule_recon_route))
         .route("/api/ar/recon/poll", post(reconciliation_routes::recon_poll_route))
-        // Payment allocation (bd-14f)
+        // Payment allocation — write
         .route("/api/ar/payments/allocate", post(allocation::allocate_payment_route))
-        // Tax config CRUD (bd-1m3c)
-        .route(
-            "/api/ar/tax/config/jurisdictions",
-            post(tax_config::create_jurisdiction).get(tax_config::list_jurisdictions),
-        )
-        .route(
-            "/api/ar/tax/config/jurisdictions/{id}",
-            get(tax_config::get_jurisdiction).put(tax_config::update_jurisdiction),
-        )
-        .route(
-            "/api/ar/tax/config/rules",
-            post(tax_config_rules::create_rule).get(tax_config_rules::list_rules),
-        )
-        .route(
-            "/api/ar/tax/config/rules/{id}",
-            get(tax_config_rules::get_rule).put(tax_config_rules::update_rule),
-        )
-        // Tax reporting / filing summaries (bd-1ai1)
+        // Tax config — write
+        .route("/api/ar/tax/config/jurisdictions", post(tax_config::create_jurisdiction))
+        .route("/api/ar/tax/config/jurisdictions/{id}", put(tax_config::update_jurisdiction))
+        .route("/api/ar/tax/config/rules", post(tax_config_rules::create_rule))
+        .route("/api/ar/tax/config/rules/{id}", put(tax_config_rules::update_rule))
+        .route_layer(RequirePermissionsLayer::new(&[permissions::AR_MUTATE]))
+        .with_state(db.clone());
+
+    // Read routes — no permission required at this stage.
+    let reads = Router::new()
+        // Customers — read
+        .route("/api/ar/customers", get(customers::list_customers))
+        .route("/api/ar/customers/{id}", get(customers::get_customer))
+        // Subscriptions — read
+        .route("/api/ar/subscriptions", get(subscriptions::list_subscriptions))
+        .route("/api/ar/subscriptions/{id}", get(subscriptions::get_subscription))
+        // Invoices — read
+        .route("/api/ar/invoices", get(invoices::list_invoices))
+        .route("/api/ar/invoices/{id}", get(invoices::get_invoice))
+        // Charges — read
+        .route("/api/ar/charges", get(charges::list_charges))
+        .route("/api/ar/charges/{id}", get(charges::get_charge))
+        // Refunds — read
+        .route("/api/ar/refunds", get(refunds::list_refunds))
+        .route("/api/ar/refunds/{id}", get(refunds::get_refund))
+        // Disputes — read
+        .route("/api/ar/disputes", get(disputes::list_disputes))
+        .route("/api/ar/disputes/{id}", get(disputes::get_dispute))
+        // Payment methods — read
+        .route("/api/ar/payment-methods", get(payment_methods::list_payment_methods))
+        .route("/api/ar/payment-methods/{id}", get(payment_methods::get_payment_method))
+        // Webhook management — read
+        .route("/api/ar/webhooks", get(webhooks::list_webhooks))
+        .route("/api/ar/webhooks/{id}", get(webhooks::get_webhook))
+        // Event log — read
+        .route("/api/ar/events", get(events::list_events))
+        .route("/api/ar/events/{id}", get(events::get_event))
+        // Aging report — read
+        .route("/api/ar/aging", get(aging::get_aging))
+        // Tax config — read
+        .route("/api/ar/tax/config/jurisdictions", get(tax_config::list_jurisdictions))
+        .route("/api/ar/tax/config/jurisdictions/{id}", get(tax_config::get_jurisdiction))
+        .route("/api/ar/tax/config/rules", get(tax_config_rules::list_rules))
+        .route("/api/ar/tax/config/rules/{id}", get(tax_config_rules::get_rule))
+        // Tax reports — read
         .route("/api/ar/tax/reports/summary", get(tax_reports::tax_report_summary))
         .route("/api/ar/tax/reports/export", get(tax_reports::tax_report_export))
-        .with_state(db.clone())
+        .with_state(db.clone());
+
+    Router::new()
+        .merge(mutations)
+        .merge(reads)
         .layer(middleware::from_fn_with_state(db, check_idempotency))
-        // Merge the rate-limited inbound webhook router
         .merge(webhook_inbound)
 }
