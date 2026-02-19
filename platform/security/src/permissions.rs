@@ -66,6 +66,11 @@ pub const TIMEKEEPING_READ: &str = "timekeeping.read";
 pub const FIXED_ASSETS_MUTATE: &str = "fixed_assets.mutate";
 pub const FIXED_ASSETS_READ: &str = "fixed_assets.read";
 
+// ── TrashTech Pro (vertical product) ─────────────────────────────────────────
+
+pub const TRASHTECH_MUTATE: &str = "trashtech.mutate";
+pub const TRASHTECH_READ: &str = "trashtech.read";
+
 #[cfg(test)]
 mod tests {
     use super::*;
