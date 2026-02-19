@@ -72,6 +72,7 @@ async fn main() {
         .route("/api/reporting/ar-aging", get(http::aging::get_ar_aging))
         .route("/api/reporting/ap-aging", get(http::aging::get_ap_aging))
         .route("/api/reporting/kpis", get(http::kpis::get_kpis))
+        .route("/api/reporting/rebuild", axum::routing::post(http::admin::rebuild))
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state)
         .layer(cors)

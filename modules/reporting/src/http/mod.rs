@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod aging;
 pub mod cashflow;
 pub mod kpis;
