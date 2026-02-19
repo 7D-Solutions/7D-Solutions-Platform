@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
-use fixed_assets::{config::Config, db, http, metrics, outbox, AppState};
+use fixed_assets::{config::Config, consumers, db, http, metrics, outbox, AppState};
 
 #[tokio::main]
 async fn main() {
@@ -68,6 +68,14 @@ async fn main() {
     });
     tracing::info!("Fixed Assets: outbox publisher task started");
 
+    // Spawn AP bill approved consumer (capitalization from AP)
+    consumers::ap_bill_approved::start_ap_bill_approved_consumer(
+        event_bus.clone(),
+        pool.clone(),
+    )
+    .await;
+    tracing::info!("Fixed Assets: AP bill approved consumer started");
+
     // Metrics
     let fa_metrics = Arc::new(
         metrics::FixedAssetsMetrics::new().expect("Fixed Assets: failed to create metrics"),
@@ -117,6 +125,23 @@ async fn main() {
         .route(
             "/api/fixed-assets/assets/:tenant_id",
             get(http::assets::list_assets),
+        )
+        // Depreciation
+        .route(
+            "/api/fixed-assets/depreciation/schedule",
+            post(http::depreciation::generate_schedule),
+        )
+        .route(
+            "/api/fixed-assets/depreciation/runs",
+            post(http::depreciation::create_run),
+        )
+        .route(
+            "/api/fixed-assets/depreciation/runs/:tenant_id",
+            get(http::depreciation::list_runs),
+        )
+        .route(
+            "/api/fixed-assets/depreciation/runs/:tenant_id/:id",
+            get(http::depreciation::get_run),
         )
         .with_state(app_state)
         .layer(cors)
