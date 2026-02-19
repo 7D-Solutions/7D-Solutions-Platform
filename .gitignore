@@ -4,7 +4,7 @@
 /target-slot-2/
 
 # DR drill reports (generated artifacts)
-/dr_reports/
+/dr-reports/
 **/target/
 **/*.rs.bk
 *.pdb

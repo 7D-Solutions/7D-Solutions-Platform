@@ -9,6 +9,8 @@ Operational runbooks for the 7D Solutions Platform.
 | [BACKUP-RESTORE-RUNBOOK.md](../ops/BACKUP-RESTORE-RUNBOOK.md) | Per-tenant DB backup and restore procedures |
 | [RELEASE-PROMOTION.md](../ops/RELEASE-PROMOTION.md) | Staging → Production promotion workflow |
 | [ALERT-THRESHOLDS.md](../ops/ALERT-THRESHOLDS.md) | Alert threshold configuration and escalation |
+| [disaster_recovery.md](disaster_recovery.md) | DR runbook with RPO/RTO targets + quarterly drill |
+| [backup_restore.md](backup_restore.md) | Scripted backup/restore with smoke verification |
 
 ## Runbook Structure
 

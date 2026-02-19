@@ -13,6 +13,7 @@
 //! | `X-Actor-Id`       | `TracingContext.actor_id`    | None (anonymous)            |
 //! | `X-Actor-Type`     | `TracingContext.actor_type`  | None                        |
 
+use axum::{extract::Request, middleware::Next, response::Response};
 use event_bus::TracingContext;
 use http::HeaderMap;
 use uuid::Uuid;
@@ -43,6 +44,35 @@ pub fn tracing_context_from_headers(headers: &HeaderMap) -> TracingContext {
     }
 
     ctx
+}
+
+/// Axum middleware that injects [`TracingContext`] into request extensions.
+///
+/// Add this to your router's middleware stack:
+/// ```ignore
+/// use axum::Router;
+/// use security::tracing::tracing_context_middleware;
+///
+/// let app = Router::new()
+///     // ... routes ...
+///     .layer(axum::middleware::from_fn(tracing_context_middleware));
+/// ```
+///
+/// Handlers can then extract the context:
+/// ```rust,no_run
+/// use axum::Extension;
+/// use event_bus::TracingContext;
+///
+/// async fn my_handler(Extension(ctx): Extension<TracingContext>) {
+///     // ctx.trace_id, ctx.correlation_id, ctx.actor_id, etc.
+/// }
+/// ```
+pub async fn tracing_context_middleware(request: Request, next: Next) -> Response {
+    let ctx = tracing_context_from_headers(request.headers());
+
+    let mut request = request;
+    request.extensions_mut().insert(ctx);
+    next.run(request).await
 }
 
 fn header_string(headers: &HeaderMap, name: &str) -> Option<String> {
