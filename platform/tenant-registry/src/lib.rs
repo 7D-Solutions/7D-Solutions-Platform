@@ -34,6 +34,7 @@ pub use registry::{
     TenantRegistry, RegistryResult, RegistryError,
     is_valid_state_transition,
     EntitlementRow, get_tenant_entitlements,
+    TenantAppIdRow, get_tenant_app_id,
 };
 
 pub use summary::{
@@ -50,6 +51,7 @@ pub use routes::{
     SummaryState,
     summary_router,
     entitlements_router,
+    app_id_router,
 };
 
 pub use seed::{

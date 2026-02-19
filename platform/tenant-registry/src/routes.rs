@@ -20,7 +20,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::summary::{fetch_tenant_summary, ModuleUrl, SummaryError, TenantSummary};
-use crate::registry::{get_tenant_entitlements, EntitlementRow};
+use crate::registry::{get_tenant_app_id, get_tenant_entitlements, EntitlementRow, TenantAppIdRow};
 
 /// Shared application state for summary routes
 #[derive(Clone)]
@@ -168,9 +168,173 @@ pub fn entitlements_router(state: Arc<SummaryState>) -> Router {
         .with_state(state)
 }
 
+// ============================================================
+// App-ID mapping endpoint
+// ============================================================
+
+/// GET /api/tenants/:tenant_id/app-id
+///
+/// Returns the app_id (and product_code) for a tenant so that orchestrators
+/// such as TTP billing can translate tenant_id → AR app_id.
+///
+/// - 200 + JSON body if the tenant exists and has a non-NULL app_id
+/// - 409 if the tenant exists but app_id is NULL (data integrity problem)
+/// - 404 if the tenant does not exist
+async fn get_app_id(
+    State(state): State<Arc<SummaryState>>,
+    Path(tenant_id): Path<Uuid>,
+) -> Result<Json<TenantAppIdRow>, (StatusCode, Json<ErrorBody>)> {
+    match get_tenant_app_id(&state.pool, tenant_id).await {
+        Ok(Some(row)) => Ok(Json(row)),
+        Ok(None) => Err((
+            StatusCode::CONFLICT,
+            Json(ErrorBody {
+                error: format!("Tenant {tenant_id} has no app_id assigned"),
+            }),
+        )),
+        Err(sqlx::Error::RowNotFound) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorBody {
+                error: format!("Tenant not found: {tenant_id}"),
+            }),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorBody {
+                error: format!("Database error: {e}"),
+            }),
+        )),
+    }
+}
+
+/// Build the app-id router.
+///
+/// Exposes: GET /api/tenants/:tenant_id/app-id
+pub fn app_id_router(state: Arc<SummaryState>) -> Router {
+    Router::new()
+        .route("/api/tenants/{tenant_id}/app-id", get(get_app_id))
+        .with_state(state)
+}
+
+#[cfg(test)]
+mod app_id_tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use sqlx::PgPool;
+    use tower::ServiceExt;
+    use uuid::Uuid;
+
+    async fn test_pool() -> PgPool {
+        let url = std::env::var("TENANT_REGISTRY_DATABASE_URL").unwrap_or_else(|_| {
+            "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
+                .to_string()
+        });
+        PgPool::connect(&url).await.expect("connect to tenant-registry DB")
+    }
+
+    fn build_app(pool: PgPool) -> axum::Router {
+        let state = Arc::new(SummaryState::new_with_urls(pool, vec![]));
+        app_id_router(state)
+    }
+
+    /// Insert a tenant with a known app_id.
+    async fn seed_tenant_with_app_id(pool: &PgPool, app_id: &str) -> Uuid {
+        let tenant_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO tenants (tenant_id, status, environment, module_schema_versions, app_id, product_code, created_at, updated_at)
+             VALUES ($1, 'active', 'development', '{}'::jsonb, $2, 'starter', NOW(), NOW())",
+        )
+        .bind(tenant_id)
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .expect("insert tenant with app_id");
+        tenant_id
+    }
+
+    /// Insert a tenant with a NULL app_id (edge case — should not happen for new tenants).
+    async fn seed_tenant_without_app_id(pool: &PgPool) -> Uuid {
+        let tenant_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO tenants (tenant_id, status, environment, module_schema_versions, created_at, updated_at)
+             VALUES ($1, 'active', 'development', '{}'::jsonb, NOW(), NOW())",
+        )
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .expect("insert tenant without app_id");
+        tenant_id
+    }
+
+    #[tokio::test]
+    async fn app_id_found_returns_200_with_app_id() {
+        let pool = test_pool().await;
+        let app_id = format!("app_{}", Uuid::new_v4().to_string().replace('-', "")[..8].to_string());
+        let tenant_id = seed_tenant_with_app_id(&pool, &app_id).await;
+        let app = build_app(pool.clone());
+
+        let req = Request::builder()
+            .uri(format!("/api/tenants/{tenant_id}/app-id"))
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.expect("call app-id endpoint");
+        assert_eq!(resp.status(), StatusCode::OK, "expected 200 for tenant with app_id");
+
+        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024)
+            .await
+            .expect("read body");
+        let json: serde_json::Value = serde_json::from_slice(&body).expect("parse JSON");
+        assert_eq!(json["app_id"], app_id);
+        assert_eq!(json["product_code"], "starter");
+
+        // Cleanup
+        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
+    }
+
+    #[tokio::test]
+    async fn app_id_not_found_returns_404() {
+        let pool = test_pool().await;
+        let app = build_app(pool);
+
+        let nonexistent = Uuid::new_v4();
+        let req = Request::builder()
+            .uri(format!("/api/tenants/{nonexistent}/app-id"))
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.expect("call app-id endpoint");
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "expected 404 for missing tenant");
+    }
+
+    #[tokio::test]
+    async fn app_id_missing_returns_409() {
+        let pool = test_pool().await;
+        let tenant_id = seed_tenant_without_app_id(&pool).await;
+        let app = build_app(pool.clone());
+
+        let req = Request::builder()
+            .uri(format!("/api/tenants/{tenant_id}/app-id"))
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.expect("call app-id endpoint");
+        assert_eq!(resp.status(), StatusCode::CONFLICT, "expected 409 when app_id is NULL");
+
+        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024)
+            .await
+            .expect("read body");
+        let json: serde_json::Value = serde_json::from_slice(&body).expect("parse JSON");
+        assert!(json["error"].as_str().unwrap().contains("no app_id"));
+
+        // Cleanup
+        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::summary::ModuleUrl;
 
     #[test]

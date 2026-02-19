@@ -79,6 +79,50 @@ pub async fn get_tenant_entitlements(
     Ok(row)
 }
 
+// ============================================================
+// APP-ID MAPPING
+// ============================================================
+
+/// Response for the app_id mapping endpoint
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct TenantAppIdRow {
+    pub tenant_id: Uuid,
+    pub app_id: String,
+    pub product_code: Option<String>,
+}
+
+/// Fetch the app_id (and product_code) for a tenant.
+///
+/// Returns `Ok(Some(row))` if the tenant exists and has a non-NULL app_id.
+/// Returns `Ok(None)` if the tenant exists but app_id is NULL.
+/// Returns `Err(sqlx::Error::RowNotFound)` if the tenant does not exist.
+pub async fn get_tenant_app_id(
+    pool: &PgPool,
+    tenant_id: Uuid,
+) -> Result<Option<TenantAppIdRow>, sqlx::Error> {
+    // Guard: ensure the tenant exists first
+    let row: Option<(Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT app_id, product_code FROM tenants WHERE tenant_id = $1",
+    )
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await?;
+
+    match row {
+        None => Err(sqlx::Error::RowNotFound),
+        Some((None, product_code)) => {
+            // Tenant exists but app_id is NULL — caller must handle this explicitly
+            let _ = product_code;
+            Ok(None)
+        }
+        Some((Some(app_id), product_code)) => Ok(Some(TenantAppIdRow {
+            tenant_id,
+            app_id,
+            product_code,
+        })),
+    }
+}
+
 /// Valid state transitions for tenant lifecycle
 pub fn is_valid_state_transition(from: TenantStatus, to: TenantStatus) -> bool {
     use TenantStatus::*;
