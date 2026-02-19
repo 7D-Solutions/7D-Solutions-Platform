@@ -120,11 +120,11 @@ where
     type Error = Infallible;
     type Future = Pin<Box<dyn Future<Output = Result<Response, Infallible>> + Send>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Infallible>> {
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, mut req: Request) -> Self::Future {
+    fn call(&mut self, mut req: Request) -> Pin<Box<dyn Future<Output = Result<Response, Infallible>> + Send>> {
         let config = self.config.clone();
         // Standard Tower clone-swap: take the ready service, leave a fresh clone.
         let cloned = self.inner.clone();
