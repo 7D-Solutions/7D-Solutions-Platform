@@ -8,7 +8,7 @@
 --   - Audit: preserves payment_id returned by the Payments module
 --   - Reconciliation: links AP payment run ↔ Payments disbursement record
 
-CREATE TABLE payment_run_executions (
+CREATE TABLE IF NOT EXISTS payment_run_executions (
     id              BIGSERIAL PRIMARY KEY,
     run_id          UUID NOT NULL REFERENCES payment_runs (run_id),
     item_id         BIGINT NOT NULL REFERENCES payment_run_items (id),
@@ -26,9 +26,9 @@ CREATE TABLE payment_run_executions (
 );
 
 -- Idempotency: exactly one execution record per item in a run
-CREATE UNIQUE INDEX uq_payment_run_executions_item
+CREATE UNIQUE INDEX IF NOT EXISTS uq_payment_run_executions_item
     ON payment_run_executions (run_id, item_id);
 
 -- Lookup by run (for status reporting)
-CREATE INDEX idx_payment_run_executions_run_id
+CREATE INDEX IF NOT EXISTS idx_payment_run_executions_run_id
     ON payment_run_executions (run_id);
