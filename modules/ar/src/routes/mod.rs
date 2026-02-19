@@ -13,6 +13,7 @@ pub mod reconciliation_routes;
 pub mod refunds;
 pub mod subscriptions;
 pub mod tax;
+pub mod tax_config;
 pub mod usage;
 pub mod webhooks;
 pub mod write_offs;
@@ -105,6 +106,23 @@ pub fn ar_router(db: PgPool) -> Router {
         .route("/api/ar/recon/poll", post(reconciliation_routes::recon_poll_route))
         // Payment allocation (bd-14f)
         .route("/api/ar/payments/allocate", post(allocation::allocate_payment_route))
+        // Tax config CRUD (bd-1m3c)
+        .route(
+            "/api/ar/tax/config/jurisdictions",
+            post(tax_config::create_jurisdiction).get(tax_config::list_jurisdictions),
+        )
+        .route(
+            "/api/ar/tax/config/jurisdictions/{id}",
+            get(tax_config::get_jurisdiction).put(tax_config::update_jurisdiction),
+        )
+        .route(
+            "/api/ar/tax/config/rules",
+            post(tax_config::create_rule).get(tax_config::list_rules),
+        )
+        .route(
+            "/api/ar/tax/config/rules/{id}",
+            get(tax_config::get_rule).put(tax_config::update_rule),
+        )
         .with_state(db.clone())
         .layer(middleware::from_fn_with_state(db, check_idempotency))
 }
