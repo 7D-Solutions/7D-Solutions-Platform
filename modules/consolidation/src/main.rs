@@ -1,6 +1,7 @@
 use axum::{extract::DefaultBodyLimit, http::Method, Extension};
-use security::middleware::{
-    default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+use security::{
+    middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
+    optional_claims_mw, JwtVerifier,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -41,6 +42,7 @@ async fn main() {
     );
     tracing::info!("Consolidation: metrics initialized");
 
+    let admin_pool = pool.clone();
     let app_state = Arc::new(AppState {
         pool,
         metrics: consolidation_metrics,
@@ -59,13 +61,17 @@ async fn main() {
         ])
         .allow_credentials(true);
 
+    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+
     let app = http::router()
         .with_state(app_state)
+        .merge(http::admin::admin_router(admin_pool))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
+        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
         .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();

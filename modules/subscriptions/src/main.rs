@@ -1,3 +1,4 @@
+mod admin;
 mod config;
 mod db;
 mod consumer;
@@ -17,8 +18,9 @@ mod routes;
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use config::Config;
 use event_bus::{EventBus, InMemoryBus, NatsBus};
-use security::middleware::{
-    default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+use security::{
+    middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
+    optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 
 use std::net::SocketAddr;
@@ -105,18 +107,25 @@ async fn main() {
         .parse()
         .expect("PORT must be a valid u16");
 
+    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+
     let app = Router::new()
         .route("/api/health", get(routes::health))
         .route("/api/ready", get(routes::ready))
         .route("/api/version", get(routes::version))
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state.clone())
-        .merge(routes::subscriptions_router(pool.clone()))
+        .merge(
+            routes::subscriptions_router(pool.clone())
+                .route_layer(RequirePermissionsLayer::new(&[permissions::SUBSCRIPTIONS_MUTATE])),
+        )
+        .merge(admin::admin_router(pool))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
+        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
         .layer(security::AuthzLayer::from_env())
         .layer(
             CorsLayer::new()

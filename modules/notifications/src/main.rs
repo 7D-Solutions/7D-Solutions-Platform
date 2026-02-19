@@ -1,8 +1,9 @@
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use ::event_bus::{EventBus, InMemoryBus, NatsBus};
 use notifications_rs::{config, config::Config, db, event_bus, consumer_tasks, metrics, routes};
-use security::middleware::{
-    default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+use security::{
+    middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
+    optional_claims_mw, JwtVerifier,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -72,17 +73,21 @@ async fn main() {
     consumer_tasks::start_payment_failed_consumer(bus.clone(), db.clone()).await;
 
     // HTTP server configuration
+    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+
     let app = Router::new()
         .route("/api/health", get(routes::health::health))
         .route("/api/ready", get(routes::health::ready))
         .route("/api/version", get(routes::health::version))
         .route("/metrics", get(metrics::metrics_handler))
-        .with_state(db)
+        .with_state(db.clone())
+        .merge(routes::admin::admin_router(db))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
+        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
         .layer(security::AuthzLayer::from_env())
         .layer(
             CorsLayer::new()
