@@ -34,7 +34,7 @@ fi
 # Workspace-unique lock root (hash of workspace path)
 WORKSPACE_HASH=$(echo -n "$WORKSPACE_ROOT" | shasum -a 256 | cut -c1-12)
 LOCK_ROOT="/tmp/cargo-build-slots/$WORKSPACE_HASH"
-SLOT_COUNT=2
+SLOT_COUNT=4
 
 # Target dirs live in workspace root (gitignored)
 slot_target_dir() {
