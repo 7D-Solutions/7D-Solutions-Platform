@@ -71,6 +71,7 @@ async fn main() {
         .route("/api/reporting/cashflow", get(http::cashflow::get_cashflow))
         .route("/api/reporting/ar-aging", get(http::aging::get_ar_aging))
         .route("/api/reporting/ap-aging", get(http::aging::get_ap_aging))
+        .route("/api/reporting/kpis", get(http::kpis::get_kpis))
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state)
         .layer(cors)

@@ -28,6 +28,7 @@ pub mod ap;
 pub mod ar;
 pub mod checkpoints;
 pub mod gl;
+pub mod inventory;
 pub mod payments;
 pub mod runner;
 

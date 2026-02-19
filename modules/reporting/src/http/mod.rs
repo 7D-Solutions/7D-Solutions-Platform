@@ -1,5 +1,6 @@
 pub mod aging;
 pub mod cashflow;
+pub mod kpis;
 pub mod statements;
 
 use axum::{extract::State, http::StatusCode, Json};
