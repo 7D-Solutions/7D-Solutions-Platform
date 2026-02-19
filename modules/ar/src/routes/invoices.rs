@@ -134,14 +134,14 @@ pub async fn create_invoice(
             app_id, tilled_invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, due_at, metadata,
             billing_period_start, billing_period_end, line_item_details, compliance_codes,
-            correlation_id, created_at, updated_at
+            correlation_id, party_id, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
         RETURNING
             id, app_id, tilled_invoice_id, ar_customer_id, subscription_id,
             status, amount_cents, currency, due_at, paid_at, hosted_url, metadata,
             billing_period_start, billing_period_end, line_item_details, compliance_codes,
-            correlation_id, created_at, updated_at
+            correlation_id, party_id, created_at, updated_at
         "#,
     )
     .bind(app_id)
@@ -158,6 +158,7 @@ pub async fn create_invoice(
     .bind(req.line_item_details)
     .bind(req.compliance_codes)
     .bind(req.correlation_id)
+    .bind(req.party_id)
     .fetch_one(&db)
     .await
     .map_err(|e| {

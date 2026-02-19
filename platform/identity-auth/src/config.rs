@@ -35,6 +35,9 @@ pub struct Config {
     // Hash concurrency limiting
     pub max_concurrent_hashes: usize,
     pub hash_acquire_timeout_ms: u64,
+
+    // Concurrent seat limit per tenant (DB-backed session leases)
+    pub max_concurrent_sessions: i64,
 }
 
 impl Config {
@@ -75,6 +78,8 @@ impl Config {
 
             max_concurrent_hashes: env::var("MAX_CONCURRENT_HASHES").unwrap_or_else(|_| "50".to_string()).parse()?,
             hash_acquire_timeout_ms: env::var("HASH_ACQUIRE_TIMEOUT_MS").unwrap_or_else(|_| "5000".to_string()).parse()?,
+
+            max_concurrent_sessions: env::var("MAX_CONCURRENT_SESSIONS").unwrap_or_else(|_| "5".to_string()).parse()?,
         })
     }
 }

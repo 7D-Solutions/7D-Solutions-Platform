@@ -103,17 +103,17 @@ pub async fn create_subscription(
             app_id, ar_customer_id, tilled_subscription_id,
             plan_id, plan_name, price_cents, status, interval_unit, interval_count,
             current_period_start, current_period_end, cancel_at_period_end,
-            payment_method_id, payment_method_type, metadata,
+            payment_method_id, payment_method_type, metadata, party_id,
             created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
         RETURNING
             id, app_id, ar_customer_id, tilled_subscription_id,
             plan_id, plan_name, price_cents, status, interval_unit, interval_count,
             billing_cycle_anchor, current_period_start, current_period_end,
             cancel_at_period_end, cancel_at, canceled_at, ended_at,
             payment_method_id, payment_method_type, metadata,
-            update_source, updated_by, created_at, updated_at
+            update_source, updated_by, party_id, created_at, updated_at
         "#,
     )
     .bind(app_id)
@@ -131,6 +131,7 @@ pub async fn create_subscription(
     .bind(&req.payment_method_id)
     .bind("card") // Default payment method type
     .bind(req.metadata)
+    .bind(req.party_id)
     .fetch_one(&db)
     .await
     .map_err(|e| {

@@ -105,6 +105,9 @@ pub struct Vendor {
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// Optional link to a Party record in the party-master service.
+    #[sqlx(default)]
+    pub party_id: Option<Uuid>,
 }
 
 /// Request body to create a new vendor.
@@ -120,6 +123,8 @@ pub struct CreateVendorRequest {
     pub payment_method: Option<String>,
     /// Remittance email (pointer only, no secrets)
     pub remittance_email: Option<String>,
+    /// Optional link to a Party record in the party-master service.
+    pub party_id: Option<Uuid>,
 }
 
 /// Request body to update an existing vendor. All fields are optional (partial update).
@@ -133,6 +138,8 @@ pub struct UpdateVendorRequest {
     pub remittance_email: Option<String>,
     /// Actor performing the update (for event attribution)
     pub updated_by: Option<String>,
+    /// Optional link to a Party record in the party-master service.
+    pub party_id: Option<Uuid>,
 }
 
 // ============================================================================
@@ -244,6 +251,7 @@ mod tests {
             payment_terms_days: 30,
             payment_method: None,
             remittance_email: None,
+            party_id: None,
         };
         assert!(req.validate().is_err());
     }
@@ -257,6 +265,7 @@ mod tests {
             payment_terms_days: 30,
             payment_method: None,
             remittance_email: None,
+            party_id: None,
         };
         assert!(req.validate().is_err());
     }
@@ -270,6 +279,7 @@ mod tests {
             payment_terms_days: 30,
             payment_method: None,
             remittance_email: None,
+            party_id: None,
         };
         assert!(req.validate().is_err());
     }
@@ -284,6 +294,7 @@ mod tests {
             payment_method: None,
             remittance_email: None,
             updated_by: None,
+            party_id: None,
         };
         assert!(req.validate().is_err());
     }
@@ -297,6 +308,7 @@ mod tests {
             payment_terms_days: -1,
             payment_method: None,
             remittance_email: None,
+            party_id: None,
         };
         assert!(req.validate().is_err());
     }
@@ -310,7 +322,54 @@ mod tests {
             payment_terms_days: 30,
             payment_method: Some("ach".to_string()),
             remittance_email: Some("ap@acme.example".to_string()),
+            party_id: None,
         };
         assert!(req.validate().is_ok());
+    }
+
+    #[test]
+    fn create_vendor_request_party_id_is_optional() {
+        let req = CreateVendorRequest {
+            name: "Acme Corp".to_string(),
+            tax_id: None,
+            currency: "USD".to_string(),
+            payment_terms_days: 30,
+            payment_method: None,
+            remittance_email: None,
+            party_id: None,
+        };
+        assert!(req.party_id.is_none());
+        assert!(req.validate().is_ok());
+    }
+
+    #[test]
+    fn create_vendor_request_accepts_party_id() {
+        let id = Uuid::new_v4();
+        let req = CreateVendorRequest {
+            name: "Acme Corp".to_string(),
+            tax_id: None,
+            currency: "USD".to_string(),
+            payment_terms_days: 30,
+            payment_method: None,
+            remittance_email: None,
+            party_id: Some(id),
+        };
+        assert_eq!(req.party_id, Some(id));
+        assert!(req.validate().is_ok());
+    }
+
+    #[test]
+    fn update_vendor_request_party_id_is_optional() {
+        let req = UpdateVendorRequest {
+            name: None,
+            tax_id: None,
+            currency: None,
+            payment_terms_days: None,
+            payment_method: None,
+            remittance_email: None,
+            updated_by: None,
+            party_id: None,
+        };
+        assert!(req.party_id.is_none());
     }
 }

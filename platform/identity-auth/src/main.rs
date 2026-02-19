@@ -88,6 +88,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         login_per_min_per_email: cfg.login_per_min_per_email,
         register_per_min_per_email: cfg.register_per_min_per_email,
         refresh_per_min_per_token: cfg.refresh_per_min_per_token,
+        max_concurrent_sessions: cfg.max_concurrent_sessions,
     });
 
     // Health + Metrics states

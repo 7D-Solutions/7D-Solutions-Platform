@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use uuid::Uuid;
+pub use uuid::Uuid;
 
 /// Invoice status enum
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
@@ -39,6 +39,9 @@ pub struct Invoice {
     pub correlation_id: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    /// Optional link to a Party record in the party-master service.
+    #[sqlx(default)]
+    pub party_id: Option<Uuid>,
 }
 
 /// Request body for creating an invoice
@@ -56,6 +59,8 @@ pub struct CreateInvoiceRequest {
     pub line_item_details: Option<JsonValue>,
     pub compliance_codes: Option<JsonValue>,
     pub correlation_id: Option<String>,
+    /// Optional link to a Party record in the party-master service.
+    pub party_id: Option<Uuid>,
 }
 
 /// Request body for updating an invoice
@@ -110,4 +115,50 @@ pub struct InvoiceAttempt {
     pub idempotency_key: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_invoice_request_party_id_is_optional() {
+        let req = CreateInvoiceRequest {
+            ar_customer_id: 1,
+            subscription_id: None,
+            status: None,
+            amount_cents: 1000,
+            currency: None,
+            due_at: None,
+            metadata: None,
+            billing_period_start: None,
+            billing_period_end: None,
+            line_item_details: None,
+            compliance_codes: None,
+            correlation_id: None,
+            party_id: None,
+        };
+        assert!(req.party_id.is_none());
+    }
+
+    #[test]
+    fn create_invoice_request_accepts_party_id() {
+        let id = Uuid::new_v4();
+        let req = CreateInvoiceRequest {
+            ar_customer_id: 1,
+            subscription_id: None,
+            status: None,
+            amount_cents: 500,
+            currency: Some("usd".to_string()),
+            due_at: None,
+            metadata: None,
+            billing_period_start: None,
+            billing_period_end: None,
+            line_item_details: None,
+            compliance_codes: None,
+            correlation_id: None,
+            party_id: Some(id),
+        };
+        assert_eq!(req.party_id, Some(id));
+    }
 }

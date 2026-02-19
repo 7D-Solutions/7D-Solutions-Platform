@@ -127,22 +127,32 @@ pub async fn refresh(
     let new_hash = hash_refresh_token(&new_raw);
     let new_expires_at = Utc::now() + Duration::days(state.refresh_ttl_days);
 
-    sqlx::query(
+    let new_token_id: Uuid = sqlx::query(
         r#"
         INSERT INTO refresh_tokens (tenant_id, user_id, token_hash, expires_at)
         VALUES ($1, $2, $3, $4)
+        RETURNING id
         "#,
     )
     .bind(req.tenant_id)
     .bind(user_id)
     .bind(&new_hash)
     .bind(new_expires_at)
-    .execute(&mut *tx)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
         state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
-    })?;
+    })?
+    .get("id");
+
+    // Rotate the session lease: point to new token and refresh last_seen_at.
+    super::concurrency::rotate_lease_in_tx(&mut tx, token_id, new_token_id)
+        .await
+        .map_err(|e| {
+            state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
+            err(StatusCode::INTERNAL_SERVER_ERROR, format!("rotate lease: {e}"))
+        })?;
 
     tx.commit().await.map_err(|e| {
         state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
@@ -247,6 +257,9 @@ pub async fn logout(
         state.metrics.auth_logout_total.with_label_values(&["failure", "invalid"]).inc();
         return Err(err(StatusCode::UNAUTHORIZED, "invalid refresh token"));
     }
+
+    // Revoke the session lease (best-effort — token already revoked above).
+    let _ = super::concurrency::revoke_lease_by_token_hash(&state.db, req.tenant_id, &hash).await;
 
     state.metrics.auth_logout_total.with_label_values(&["success", "ok"]).inc();
 

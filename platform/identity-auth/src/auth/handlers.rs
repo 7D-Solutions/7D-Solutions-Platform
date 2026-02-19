@@ -45,6 +45,9 @@ pub struct AuthState {
     pub login_per_min_per_email: u32,
     pub register_per_min_per_email: u32,
     pub refresh_per_min_per_token: u32,
+
+    // DB-backed concurrent seat limit per tenant
+    pub max_concurrent_sessions: i64,
 }
 
 pub(super) type ApiErr = (StatusCode, HeaderMap, String);
@@ -358,21 +361,69 @@ pub async fn login(
     let refresh_hash = hash_refresh_token(&refresh_raw);
     let expires_at = Utc::now() + chrono::Duration::days(state.refresh_ttl_days);
 
-    sqlx::query(
+    // Atomic seat-limit enforcement: advisory lock + count + insert in one transaction.
+    let mut tx = state.db.begin().await.map_err(|e| {
+        state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
+        err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
+    })?;
+
+    super::concurrency::acquire_tenant_xact_lock(&mut tx, req.tenant_id)
+        .await
+        .map_err(|e| {
+            state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
+            err(StatusCode::INTERNAL_SERVER_ERROR, format!("advisory lock: {e}"))
+        })?;
+
+    let active = super::concurrency::count_active_leases_in_tx(&mut tx, req.tenant_id)
+        .await
+        .map_err(|e| {
+            state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
+            err(StatusCode::INTERNAL_SERVER_ERROR, format!("seat count: {e}"))
+        })?;
+
+    if active >= state.max_concurrent_sessions {
+        state.metrics.auth_login_total.with_label_values(&["failure", "seat_limit"]).inc();
+        tracing::warn!(
+            tenant_id = %req.tenant_id,
+            user_id = %user_id,
+            active_seats = active,
+            limit = state.max_concurrent_sessions,
+            trace_id = %trace_id,
+            "auth.seat_limit_exceeded"
+        );
+        let _ = tx.rollback().await;
+        return Err(err(StatusCode::TOO_MANY_REQUESTS, "concurrent session limit reached"));
+    }
+
+    let new_token_id: Uuid = sqlx::query(
         r#"
         INSERT INTO refresh_tokens (tenant_id, user_id, token_hash, expires_at)
         VALUES ($1, $2, $3, $4)
+        RETURNING id
         "#,
     )
     .bind(req.tenant_id)
     .bind(user_id)
-    .bind(refresh_hash)
+    .bind(&refresh_hash)
     .bind(expires_at)
-    .execute(&state.db)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
         state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
+    })?
+    .get("id");
+
+    super::concurrency::create_lease_in_tx(&mut tx, req.tenant_id, user_id, new_token_id)
+        .await
+        .map_err(|e| {
+            state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
+            err(StatusCode::INTERNAL_SERVER_ERROR, format!("create lease: {e}"))
+        })?;
+
+    tx.commit().await.map_err(|e| {
+        state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
+        err(StatusCode::INTERNAL_SERVER_ERROR, format!("tx commit: {e}"))
     })?;
 
     state.metrics.auth_login_total.with_label_values(&["success", "ok"]).inc();

@@ -32,7 +32,7 @@ pub async fn get_vendor(
         r#"
         SELECT vendor_id, tenant_id, name, tax_id, currency,
                payment_terms_days, payment_method, remittance_email,
-               is_active, created_at, updated_at
+               is_active, party_id, created_at, updated_at
         FROM vendors
         WHERE vendor_id = $1 AND tenant_id = $2
         "#,
@@ -56,7 +56,7 @@ pub async fn list_vendors(
             r#"
             SELECT vendor_id, tenant_id, name, tax_id, currency,
                    payment_terms_days, payment_method, remittance_email,
-                   is_active, created_at, updated_at
+                   is_active, party_id, created_at, updated_at
             FROM vendors
             WHERE tenant_id = $1
             ORDER BY name ASC
@@ -70,7 +70,7 @@ pub async fn list_vendors(
             r#"
             SELECT vendor_id, tenant_id, name, tax_id, currency,
                    payment_terms_days, payment_method, remittance_email,
-                   is_active, created_at, updated_at
+                   is_active, party_id, created_at, updated_at
             FROM vendors
             WHERE tenant_id = $1 AND is_active = TRUE
             ORDER BY name ASC
@@ -125,13 +125,13 @@ pub async fn create_vendor(
         INSERT INTO vendors (
             vendor_id, tenant_id, name, tax_id, currency,
             payment_terms_days, payment_method, remittance_email,
-            is_active, created_at, updated_at
+            is_active, party_id, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, $9, $9)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, $9, $10, $10)
         RETURNING
             vendor_id, tenant_id, name, tax_id, currency,
             payment_terms_days, payment_method, remittance_email,
-            is_active, created_at, updated_at
+            is_active, party_id, created_at, updated_at
         "#,
     )
     .bind(vendor_id)
@@ -142,6 +142,7 @@ pub async fn create_vendor(
     .bind(req.payment_terms_days)
     .bind(&req.payment_method)
     .bind(&req.remittance_email)
+    .bind(&req.party_id)
     .bind(now)
     .fetch_one(&mut *tx)
     .await
@@ -216,7 +217,7 @@ pub async fn update_vendor(
         r#"
         SELECT vendor_id, tenant_id, name, tax_id, currency,
                payment_terms_days, payment_method, remittance_email,
-               is_active, created_at, updated_at
+               is_active, party_id, created_at, updated_at
         FROM vendors
         WHERE vendor_id = $1 AND tenant_id = $2
         FOR UPDATE
@@ -256,6 +257,7 @@ pub async fn update_vendor(
     } else {
         current.remittance_email.clone()
     };
+    let new_party_id = if req.party_id.is_some() { req.party_id } else { current.party_id };
     let now = Utc::now();
 
     // Mutation
@@ -264,12 +266,12 @@ pub async fn update_vendor(
         UPDATE vendors
         SET name = $1, tax_id = $2, currency = $3,
             payment_terms_days = $4, payment_method = $5,
-            remittance_email = $6, updated_at = $7
-        WHERE vendor_id = $8 AND tenant_id = $9
+            remittance_email = $6, party_id = $7, updated_at = $8
+        WHERE vendor_id = $9 AND tenant_id = $10
         RETURNING
             vendor_id, tenant_id, name, tax_id, currency,
             payment_terms_days, payment_method, remittance_email,
-            is_active, created_at, updated_at
+            is_active, party_id, created_at, updated_at
         "#,
     )
     .bind(&new_name)
@@ -278,6 +280,7 @@ pub async fn update_vendor(
     .bind(new_terms)
     .bind(&new_method)
     .bind(&new_email)
+    .bind(new_party_id)
     .bind(now)
     .bind(vendor_id)
     .bind(tenant_id)
@@ -439,6 +442,7 @@ mod tests {
             payment_terms_days: 30,
             payment_method: Some("ach".to_string()),
             remittance_email: Some("ap@example.com".to_string()),
+            party_id: None,
         }
     }
 
@@ -512,6 +516,7 @@ mod tests {
             payment_method: Some("wire".to_string()),
             remittance_email: None,
             updated_by: Some("user-42".to_string()),
+            party_id: None,
         };
         let updated = update_vendor(
             &pool,

@@ -63,15 +63,15 @@ pub async fn create_customer(
         r#"
         INSERT INTO ar_customers (
             app_id, external_customer_id, email, name, metadata,
-            status, tilled_customer_id, retry_attempt_count, created_at, updated_at
+            status, tilled_customer_id, retry_attempt_count, party_id, created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, 'pending', NULL, 0, NOW(), NOW())
+        VALUES ($1, $2, $3, $4, $5, 'pending', NULL, 0, $6, NOW(), NOW())
         RETURNING
             id, app_id, external_customer_id, tilled_customer_id, status,
             email, name, default_payment_method_id, payment_method_type,
             metadata, update_source, updated_by, delinquent_since,
             grace_period_end, next_retry_at, retry_attempt_count,
-            created_at, updated_at
+            party_id, created_at, updated_at
         "#,
     )
     .bind(app_id)
@@ -79,6 +79,7 @@ pub async fn create_customer(
     .bind(email)
     .bind(req.name)
     .bind(req.metadata)
+    .bind(req.party_id)
     .fetch_one(&db)
     .await
     .map_err(|e| {
@@ -118,7 +119,7 @@ pub async fn create_customer(
             email, name, default_payment_method_id, payment_method_type,
             metadata, update_source, updated_by, delinquent_since,
             grace_period_end, next_retry_at, retry_attempt_count,
-            created_at, updated_at
+            party_id, created_at, updated_at
         "#,
     )
     .bind(customer.id)
@@ -312,7 +313,7 @@ pub async fn update_customer(
     })?;
 
     // Validate at least one field is being updated
-    if req.email.is_none() && req.name.is_none() && req.metadata.is_none() {
+    if req.email.is_none() && req.name.is_none() && req.metadata.is_none() && req.party_id.is_none() {
         return Err((
             StatusCode::BAD_REQUEST,
             Json(ErrorResponse::new(
@@ -326,23 +327,25 @@ pub async fn update_customer(
     let email = req.email.unwrap_or(existing.email);
     let name = req.name.or(existing.name);
     let metadata = req.metadata.or(existing.metadata);
+    let party_id = if req.party_id.is_some() { req.party_id } else { existing.party_id };
 
     let customer = sqlx::query_as::<_, Customer>(
         r#"
         UPDATE ar_customers
-        SET email = $1, name = $2, metadata = $3, updated_at = NOW()
-        WHERE id = $4
+        SET email = $1, name = $2, metadata = $3, party_id = $4, updated_at = NOW()
+        WHERE id = $5
         RETURNING
             id, app_id, external_customer_id, tilled_customer_id, status,
             email, name, default_payment_method_id, payment_method_type,
             metadata, update_source, updated_by, delinquent_since,
             grace_period_end, next_retry_at, retry_attempt_count,
-            created_at, updated_at
+            party_id, created_at, updated_at
         "#,
     )
     .bind(&email)
     .bind(name)
     .bind(metadata)
+    .bind(party_id)
     .bind(id)
     .fetch_one(&db)
     .await

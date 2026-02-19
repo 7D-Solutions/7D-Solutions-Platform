@@ -1,6 +1,7 @@
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use uuid::Uuid;
 
 /// Subscription status enum
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
@@ -55,6 +56,9 @@ pub struct Subscription {
     pub updated_by: Option<String>,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    /// Optional link to a Party record in the party-master service.
+    #[sqlx(default)]
+    pub party_id: Option<Uuid>,
 }
 
 /// Request body for creating a subscription
@@ -68,6 +72,8 @@ pub struct CreateSubscriptionRequest {
     pub interval_unit: Option<SubscriptionInterval>,
     pub interval_count: Option<i32>,
     pub metadata: Option<JsonValue>,
+    /// Optional link to a Party record in the party-master service.
+    pub party_id: Option<Uuid>,
 }
 
 /// Request body for updating a subscription
@@ -92,4 +98,42 @@ pub struct ListSubscriptionsQuery {
     pub status: Option<SubscriptionStatus>,
     pub limit: Option<i32>,
     pub offset: Option<i32>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_subscription_request_party_id_is_optional() {
+        let req = CreateSubscriptionRequest {
+            ar_customer_id: 1,
+            payment_method_id: "pm_123".to_string(),
+            plan_id: "plan_abc".to_string(),
+            plan_name: "Pro Plan".to_string(),
+            price_cents: 999,
+            interval_unit: None,
+            interval_count: None,
+            metadata: None,
+            party_id: None,
+        };
+        assert!(req.party_id.is_none());
+    }
+
+    #[test]
+    fn create_subscription_request_accepts_party_id() {
+        let id = Uuid::new_v4();
+        let req = CreateSubscriptionRequest {
+            ar_customer_id: 2,
+            payment_method_id: "pm_456".to_string(),
+            plan_id: "plan_xyz".to_string(),
+            plan_name: "Enterprise".to_string(),
+            price_cents: 4999,
+            interval_unit: None,
+            interval_count: None,
+            metadata: None,
+            party_id: Some(id),
+        };
+        assert_eq!(req.party_id, Some(id));
+    }
 }
