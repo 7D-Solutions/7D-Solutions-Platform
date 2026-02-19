@@ -336,6 +336,10 @@ name = "subscriptions_lifecycle"
 path = "tests/subscriptions_lifecycle.rs"
 
 [[test]]
+name = "subscriptions_billing_cycle_e2e"
+path = "tests/subscriptions_billing_cycle_e2e.rs"
+
+[[test]]
 name = "notifications_e2e"
 path = "tests/notifications_e2e.rs"
 
