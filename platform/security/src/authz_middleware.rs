@@ -25,8 +25,9 @@
 
 use crate::claims::{JwtVerifier, VerifiedClaims};
 use axum::{
-    extract::Request,
+    extract::{Request, State},
     http::StatusCode,
+    middleware::Next,
     response::{IntoResponse, Response},
 };
 use std::convert::Infallible;
@@ -130,6 +131,44 @@ fn extract_bearer(req: &Request) -> Option<&str> {
         .get(http::header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.strip_prefix("Bearer "))
+}
+
+// ── Optional Claims Middleware (axum::middleware::from_fn_with_state) ─────────
+
+/// Axum middleware function for optional JWT claims extraction.
+///
+/// Attach via `axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw)`.
+///
+/// If the verifier is `None` (e.g. `JWT_PUBLIC_KEY` not set in dev), or if the
+/// bearer token is missing / invalid, no claims are inserted and the request
+/// continues.  Mutation routes protected by [`RequirePermissionsLayer`] will
+/// then return **401 Unauthorized** because no claims are present.
+///
+/// # Example
+///
+/// ```ignore
+/// use security::{JwtVerifier, optional_claims_mw};
+/// use std::sync::Arc;
+///
+/// let verifier: Option<Arc<JwtVerifier>> = JwtVerifier::from_env().map(Arc::new);
+///
+/// let app = Router::new()
+///     .route("/api/x", post(create))
+///     .route_layer(RequirePermissionsLayer::new(&["x.mutate"]))
+///     .route("/api/x", get(list))
+///     .layer(axum::middleware::from_fn_with_state(verifier, optional_claims_mw));
+/// ```
+pub async fn optional_claims_mw(
+    State(verifier): State<Option<Arc<JwtVerifier>>>,
+    mut req: Request,
+    next: Next,
+) -> Response {
+    if let Some(v) = verifier.as_deref() {
+        if let Some(claims) = extract_bearer(&req).and_then(|t| v.verify(t).ok()) {
+            req.extensions_mut().insert(claims);
+        }
+    }
+    next.run(req).await
 }
 
 // ── Permission Enforcement ─────────────────────────────────────────

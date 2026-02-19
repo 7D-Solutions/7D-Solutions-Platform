@@ -1,0 +1,165 @@
+//! Permission string constants for all platform modules.
+//!
+//! These are the strings that must appear in a caller's JWT `perms` claim
+//! for the request to be authorised.  Constants are grouped by module.
+//!
+//! Naming convention: `<module>.<action>` where action is one of:
+//! - `mutate` — any state-changing operation (POST / PUT / DELETE)
+//! - `post`   — financial journal-posting (GL convention)
+//! - `read`   — query-only (reserved; not yet enforced by default)
+
+// ── Accounts Receivable ───────────────────────────────────────────────────────
+
+pub const AR_MUTATE: &str = "ar.mutate";
+pub const AR_READ: &str = "ar.read";
+
+// ── Payments ──────────────────────────────────────────────────────────────────
+
+pub const PAYMENTS_MUTATE: &str = "payments.mutate";
+pub const PAYMENTS_READ: &str = "payments.read";
+
+// ── Subscriptions ─────────────────────────────────────────────────────────────
+
+pub const SUBSCRIPTIONS_MUTATE: &str = "subscriptions.mutate";
+
+// ── General Ledger ────────────────────────────────────────────────────────────
+
+/// Financial journal-posting permission (standard GL term).
+pub const GL_POST: &str = "gl.post";
+pub const GL_READ: &str = "gl.read";
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+pub const NOTIFICATIONS_MUTATE: &str = "notifications.mutate";
+
+// ── Inventory ─────────────────────────────────────────────────────────────────
+
+pub const INVENTORY_MUTATE: &str = "inventory.mutate";
+pub const INVENTORY_READ: &str = "inventory.read";
+
+// ── Reporting / Analytics ─────────────────────────────────────────────────────
+
+pub const REPORTING_MUTATE: &str = "reporting.mutate";
+
+// ── Treasury / Cash Management ────────────────────────────────────────────────
+
+pub const TREASURY_MUTATE: &str = "treasury.mutate";
+pub const TREASURY_READ: &str = "treasury.read";
+
+// ── Accounts Payable ─────────────────────────────────────────────────────────
+
+pub const AP_MUTATE: &str = "ap.mutate";
+pub const AP_READ: &str = "ap.read";
+
+// ── Consolidation ─────────────────────────────────────────────────────────────
+
+pub const CONSOLIDATION_MUTATE: &str = "consolidation.mutate";
+pub const CONSOLIDATION_READ: &str = "consolidation.read";
+
+// ── Timekeeping ───────────────────────────────────────────────────────────────
+
+pub const TIMEKEEPING_MUTATE: &str = "timekeeping.mutate";
+pub const TIMEKEEPING_READ: &str = "timekeeping.read";
+
+// ── Fixed Assets ─────────────────────────────────────────────────────────────
+
+pub const FIXED_ASSETS_MUTATE: &str = "fixed_assets.mutate";
+pub const FIXED_ASSETS_READ: &str = "fixed_assets.read";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_permissions_ar_constants_are_non_empty() {
+        assert!(!AR_MUTATE.is_empty());
+        assert!(!AR_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_payments_constants_are_non_empty() {
+        assert!(!PAYMENTS_MUTATE.is_empty());
+        assert!(!PAYMENTS_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_gl_constants_are_non_empty() {
+        assert!(!GL_POST.is_empty());
+        assert!(!GL_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_inventory_constants_are_non_empty() {
+        assert!(!INVENTORY_MUTATE.is_empty());
+        assert!(!INVENTORY_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_treasury_constants_are_non_empty() {
+        assert!(!TREASURY_MUTATE.is_empty());
+        assert!(!TREASURY_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_ap_constants_are_non_empty() {
+        assert!(!AP_MUTATE.is_empty());
+        assert!(!AP_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_consolidation_constants_are_non_empty() {
+        assert!(!CONSOLIDATION_MUTATE.is_empty());
+        assert!(!CONSOLIDATION_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_timekeeping_constants_are_non_empty() {
+        assert!(!TIMEKEEPING_MUTATE.is_empty());
+        assert!(!TIMEKEEPING_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_fixed_assets_constants_are_non_empty() {
+        assert!(!FIXED_ASSETS_MUTATE.is_empty());
+        assert!(!FIXED_ASSETS_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_follow_dot_convention() {
+        // Every mutate permission must follow "module.mutate" or "module.post" pattern
+        let mutate_perms = [
+            AR_MUTATE,
+            PAYMENTS_MUTATE,
+            SUBSCRIPTIONS_MUTATE,
+            GL_POST,
+            NOTIFICATIONS_MUTATE,
+            INVENTORY_MUTATE,
+            REPORTING_MUTATE,
+            TREASURY_MUTATE,
+            AP_MUTATE,
+            CONSOLIDATION_MUTATE,
+            TIMEKEEPING_MUTATE,
+            FIXED_ASSETS_MUTATE,
+        ];
+        for perm in &mutate_perms {
+            assert!(perm.contains('.'), "Permission '{}' must contain a dot", perm);
+            let parts: Vec<&str> = perm.splitn(2, '.').collect();
+            assert_eq!(parts.len(), 2, "Permission '{}' must have exactly one dot", perm);
+            assert!(!parts[0].is_empty(), "Module prefix in '{}' must not be empty", perm);
+            assert!(!parts[1].is_empty(), "Action in '{}' must not be empty", perm);
+        }
+    }
+
+    #[test]
+    fn test_permissions_mutate_distinct_from_read() {
+        assert_ne!(AR_MUTATE, AR_READ);
+        assert_ne!(PAYMENTS_MUTATE, PAYMENTS_READ);
+        assert_ne!(GL_POST, GL_READ);
+        assert_ne!(INVENTORY_MUTATE, INVENTORY_READ);
+        assert_ne!(TREASURY_MUTATE, TREASURY_READ);
+        assert_ne!(AP_MUTATE, AP_READ);
+        assert_ne!(CONSOLIDATION_MUTATE, CONSOLIDATION_READ);
+        assert_ne!(TIMEKEEPING_MUTATE, TIMEKEEPING_READ);
+        assert_ne!(FIXED_ASSETS_MUTATE, FIXED_ASSETS_READ);
+    }
+}

@@ -17,6 +17,7 @@ pub mod authz;
 pub mod authz_middleware;
 pub mod claims;
 pub mod middleware;
+pub mod permissions;
 pub mod rbac;
 pub mod ratelimit;
 pub mod service_auth;
@@ -35,7 +36,9 @@ pub use rbac::{Operation, RbacError, RbacPolicy, Role};
 pub use authz::{AuthzConfig, AuthzLayer, AuthzMiddleware, AuthzStatus};
 
 // Re-export JWT-backed authz middleware types
-pub use authz_middleware::{ClaimsLayer, ClaimsMiddleware, RequirePermissionsLayer};
+pub use authz_middleware::{
+    optional_claims_mw, ClaimsLayer, ClaimsMiddleware, RequirePermissionsLayer,
+};
 
 // Re-export JWT claims types
 pub use claims::{ActorType, JwtVerifier, VerifiedClaims};

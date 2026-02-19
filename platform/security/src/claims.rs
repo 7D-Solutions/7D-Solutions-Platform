@@ -102,6 +102,20 @@ impl JwtVerifier {
         })
     }
 
+    /// Create a verifier from the `JWT_PUBLIC_KEY` environment variable.
+    ///
+    /// Returns `None` when the variable is absent (e.g. in local dev environments
+    /// that have not yet configured an identity service).  Services should still
+    /// mount [`RequirePermissionsLayer`](crate::authz_middleware::RequirePermissionsLayer)
+    /// on mutation routes — when no `JwtVerifier` is provided, no claims will be
+    /// extracted and those routes will respond **401 Unauthorized**.
+    pub fn from_env() -> Option<Self> {
+        let pem = std::env::var("JWT_PUBLIC_KEY").ok()?;
+        Self::from_public_pem(&pem)
+            .map_err(|e| tracing::warn!("JWT_PUBLIC_KEY is set but invalid: {}", e))
+            .ok()
+    }
+
     /// Verify a Bearer token and return structured claims.
     pub fn verify(&self, token: &str) -> Result<VerifiedClaims, SecurityError> {
         let data =
