@@ -181,13 +181,18 @@ async fn main() {
         .route("/api/gl/accruals/reversals/execute", post(execute_reversals_handler))
         .route("/api/gl/cash-flow", get(get_cash_flow))
         .with_state(app_state)
+        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
+        .layer(axum::middleware::from_fn(timeout_middleware))
+        .layer(axum::middleware::from_fn(rate_limit_middleware))
+        .layer(Extension(default_rate_limiter()))
         .layer(security::AuthzLayer::from_env())
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)
                 .allow_methods(tower_http::cors::Any)
                 .allow_headers(tower_http::cors::Any),
-        );
+        )
+        .into_make_service_with_connect_info::<SocketAddr>();
 
     // Bind to the configured address
     let addr = SocketAddr::from(([0, 0, 0, 0], config.port));

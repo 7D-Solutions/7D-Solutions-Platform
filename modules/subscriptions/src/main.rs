@@ -14,9 +14,12 @@ mod outbox;
 mod publisher;
 mod routes;
 
-use axum::{routing::get, Router};
+use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use config::Config;
 use event_bus::{EventBus, InMemoryBus, NatsBus};
+use security::middleware::{
+    default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+};
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -109,13 +112,18 @@ async fn main() {
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state.clone())
         .merge(routes::subscriptions_router(pool.clone()))
+        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
+        .layer(axum::middleware::from_fn(timeout_middleware))
+        .layer(axum::middleware::from_fn(rate_limit_middleware))
+        .layer(Extension(default_rate_limiter()))
         .layer(security::AuthzLayer::from_env())
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)
                 .allow_methods(tower_http::cors::Any)
                 .allow_headers(tower_http::cors::Any),
-        );
+        )
+        .into_make_service_with_connect_info::<SocketAddr>();
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     tracing::info!("Subscriptions module listening on {}", addr);

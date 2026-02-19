@@ -1,5 +1,8 @@
-use axum::{http::Method, routing::{get, post}, Router};
+use axum::{extract::DefaultBodyLimit, http::Method, routing::{get, post}, Extension, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
+use security::middleware::{
+    default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -162,6 +165,10 @@ async fn main() {
         .route("/api/ap/tax/reports/summary", get(http::tax_reports::tax_report_summary))
         .route("/api/ap/tax/reports/export", get(http::tax_reports::tax_report_export))
         .with_state(app_state)
+        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
+        .layer(axum::middleware::from_fn(timeout_middleware))
+        .layer(axum::middleware::from_fn(rate_limit_middleware))
+        .layer(Extension(default_rate_limiter()))
         .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
