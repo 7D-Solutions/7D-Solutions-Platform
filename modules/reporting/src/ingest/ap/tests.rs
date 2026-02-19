@@ -35,6 +35,11 @@ async fn cleanup(pool: &PgPool) {
         .execute(pool)
         .await
         .ok();
+    // Also clear checkpoints so tests are re-runnable with the same event IDs.
+    sqlx::query("DELETE FROM rpt_ingestion_checkpoints WHERE consumer_name LIKE 'test-ap-%'")
+        .execute(pool)
+        .await
+        .ok();
 }
 
 async fn fetch_aging(pool: &PgPool, vendor_id: &str, currency: &str) -> Option<(i64, i64, i64, i64, i64, i64)> {
