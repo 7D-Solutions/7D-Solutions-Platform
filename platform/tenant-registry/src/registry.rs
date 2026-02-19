@@ -3,6 +3,9 @@
 /// Core registry logic for tenant lookup, provisioning status, and metadata queries
 
 use crate::schema::{TenantId, TenantRecord, TenantStatus, ProvisioningStep};
+use chrono::{DateTime, Utc};
+use sqlx::PgPool;
+use uuid::Uuid;
 
 /// Registry query result types
 pub type RegistryResult<T> = Result<T, RegistryError>;
@@ -24,6 +27,56 @@ pub enum RegistryError {
         from: TenantStatus,
         to: TenantStatus,
     },
+}
+
+// ============================================================
+// ENTITLEMENTS
+// ============================================================
+
+/// Entitlement record for a tenant, read by identity-auth for concurrency enforcement
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct EntitlementRow {
+    pub tenant_id: Uuid,
+    pub plan_code: String,
+    pub concurrent_user_limit: i32,
+    pub effective_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Fetch entitlements for a tenant.
+///
+/// Returns `Ok(Some(row))` if the tenant exists and has an entitlements row.
+/// Returns `Ok(None)` if the tenant exists but has no entitlements row.
+/// Returns `Err(sqlx::Error::RowNotFound)` if the tenant itself does not exist.
+pub async fn get_tenant_entitlements(
+    pool: &PgPool,
+    tenant_id: Uuid,
+) -> Result<Option<EntitlementRow>, sqlx::Error> {
+    // Guard: ensure the tenant exists (fail closed — 404 if tenant is unknown)
+    let tenant_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM tenants WHERE tenant_id = $1)",
+    )
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await?;
+
+    if !tenant_exists {
+        return Err(sqlx::Error::RowNotFound);
+    }
+
+    // Fetch entitlements row (None if absent — identity-auth treats absence as deny)
+    let row: Option<EntitlementRow> = sqlx::query_as(
+        r#"
+        SELECT tenant_id, plan_code, concurrent_user_limit, effective_at, updated_at
+        FROM cp_entitlements
+        WHERE tenant_id = $1
+        "#,
+    )
+    .bind(tenant_id)
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row)
 }
 
 /// Valid state transitions for tenant lifecycle

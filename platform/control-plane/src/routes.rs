@@ -6,7 +6,7 @@
 
 use axum::{routing::post, Router};
 use std::sync::Arc;
-use tenant_registry::routes::{summary_router, SummaryState};
+use tenant_registry::routes::{summary_router, entitlements_router, SummaryState};
 
 use crate::handlers;
 use crate::state::AppState;
@@ -16,6 +16,7 @@ use crate::state::AppState;
 /// Merges:
 /// - POST /api/control/tenants (provisioning)
 /// - GET  /api/control/tenants/:tenant_id/summary (from tenant-registry summary_router)
+/// - GET  /api/tenants/:tenant_id/entitlements (from tenant-registry entitlements_router)
 pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> Router {
     Router::new()
         .route(
@@ -23,7 +24,8 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
             post(handlers::create_tenant),
         )
         .with_state(state)
-        .merge(summary_router(summary_state))
+        .merge(summary_router(summary_state.clone()))
+        .merge(entitlements_router(summary_state))
 }
 
 /// Build only the provisioning router (for testing without summary state)

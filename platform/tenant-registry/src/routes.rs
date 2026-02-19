@@ -3,6 +3,9 @@
 /// Exposes a read-only summary endpoint:
 ///   GET /api/control/tenants/{tenant_id}/summary
 ///
+/// And an entitlements endpoint for identity-auth consumption:
+///   GET /api/tenants/{tenant_id}/entitlements
+///
 /// Uses parallel HTTP fanout to check module readiness.
 /// No direct cross-module DB reads.
 
@@ -17,6 +20,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::summary::{fetch_tenant_summary, ModuleUrl, SummaryError, TenantSummary};
+use crate::registry::{get_tenant_entitlements, EntitlementRow};
 
 /// Shared application state for summary routes
 #[derive(Clone)]
@@ -107,8 +111,59 @@ async fn get_tenant_summary(
 pub fn summary_router(state: Arc<SummaryState>) -> Router {
     Router::new()
         .route(
-            "/api/control/tenants/:tenant_id/summary",
+            "/api/control/tenants/{tenant_id}/summary",
             get(get_tenant_summary),
+        )
+        .with_state(state)
+}
+
+// ============================================================
+// Entitlements endpoint
+// ============================================================
+
+/// GET /api/tenants/:tenant_id/entitlements
+///
+/// Returns the entitlement row for a tenant.
+/// - 200 + JSON body if the tenant has an entitlements row
+/// - 404 if the tenant exists but has no entitlements row
+/// - 404 if the tenant does not exist
+///
+/// identity-auth treats any 404 as deny (fail-closed).
+async fn get_entitlements(
+    State(state): State<Arc<SummaryState>>,
+    Path(tenant_id): Path<Uuid>,
+) -> Result<Json<EntitlementRow>, (StatusCode, Json<ErrorBody>)> {
+    match get_tenant_entitlements(&state.pool, tenant_id).await {
+        Ok(Some(row)) => Ok(Json(row)),
+        Ok(None) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorBody {
+                error: format!("No entitlements configured for tenant {tenant_id}"),
+            }),
+        )),
+        Err(sqlx::Error::RowNotFound) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorBody {
+                error: format!("Tenant not found: {tenant_id}"),
+            }),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorBody {
+                error: format!("Database error: {e}"),
+            }),
+        )),
+    }
+}
+
+/// Build the entitlements router.
+///
+/// Exposes: GET /api/tenants/:tenant_id/entitlements
+pub fn entitlements_router(state: Arc<SummaryState>) -> Router {
+    Router::new()
+        .route(
+            "/api/tenants/{tenant_id}/entitlements",
+            get(get_entitlements),
         )
         .with_state(state)
 }
@@ -132,5 +187,146 @@ mod tests {
         // (no actual DB connection needed — just verify the type graph compiles)
         // This test is intentionally minimal; real coverage is in E2E tests.
         let _ = "GET /api/control/tenants/:tenant_id/summary";
+    }
+}
+
+#[cfg(test)]
+mod entitlement_tests {
+    use super::*;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use sqlx::PgPool;
+    use tower::ServiceExt;
+    use uuid::Uuid;
+
+    /// Connect to the tenant-registry database used in local dev/CI.
+    /// Requires the container from docker-compose.infrastructure.yml to be running.
+    async fn test_pool() -> PgPool {
+        let url = std::env::var("TENANT_REGISTRY_DATABASE_URL").unwrap_or_else(|_| {
+            "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
+                .to_string()
+        });
+        let pool = PgPool::connect(&url).await.expect("connect to tenant-registry DB");
+
+        // Ensure cp_entitlements exists (idempotent — other tables exist from prior setup).
+        // We don't run the full migrator because the base schema was created outside sqlx tracking.
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS cp_entitlements (
+                tenant_id UUID PRIMARY KEY REFERENCES tenants(tenant_id) ON DELETE CASCADE,
+                plan_code TEXT NOT NULL,
+                concurrent_user_limit INT NOT NULL CHECK (concurrent_user_limit > 0),
+                effective_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            "#,
+        )
+        .execute(&pool)
+        .await
+        .expect("ensure cp_entitlements table exists");
+
+        pool
+    }
+
+    fn build_app(pool: PgPool) -> axum::Router {
+        let state = Arc::new(SummaryState::new_with_urls(pool, vec![]));
+        entitlements_router(state)
+    }
+
+    /// Returns a UUID that is known to exist in tenants and has an entitlements row.
+    async fn seed_tenant_with_entitlements(pool: &PgPool) -> Uuid {
+        let tenant_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO tenants (tenant_id, status, environment, module_schema_versions, created_at, updated_at)
+             VALUES ($1, 'active', 'development', '{}'::jsonb, NOW(), NOW())",
+        )
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .expect("insert tenant");
+
+        sqlx::query(
+            "INSERT INTO cp_entitlements (tenant_id, plan_code, concurrent_user_limit)
+             VALUES ($1, 'monthly', 10)",
+        )
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .expect("insert entitlements");
+
+        tenant_id
+    }
+
+    /// Returns a UUID for a tenant that has no entitlements row.
+    async fn seed_tenant_without_entitlements(pool: &PgPool) -> Uuid {
+        let tenant_id = Uuid::new_v4();
+        sqlx::query(
+            "INSERT INTO tenants (tenant_id, status, environment, module_schema_versions, created_at, updated_at)
+             VALUES ($1, 'active', 'development', '{}'::jsonb, NOW(), NOW())",
+        )
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .expect("insert tenant without entitlements");
+        tenant_id
+    }
+
+    #[tokio::test]
+    async fn entitlements_found_returns_200_with_limit() {
+        let pool = test_pool().await;
+        let tenant_id = seed_tenant_with_entitlements(&pool).await;
+        let app = build_app(pool.clone());
+
+        let req = Request::builder()
+            .uri(format!("/api/tenants/{tenant_id}/entitlements"))
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.expect("call entitlements endpoint");
+        assert_eq!(resp.status(), StatusCode::OK, "expected 200 for tenant with entitlements");
+
+        let body = axum::body::to_bytes(resp.into_body(), 16 * 1024)
+            .await
+            .expect("read body");
+        let json: serde_json::Value = serde_json::from_slice(&body).expect("parse JSON");
+        assert_eq!(json["concurrent_user_limit"], 10);
+        assert_eq!(json["plan_code"], "monthly");
+
+        // Cleanup
+        sqlx::query("DELETE FROM cp_entitlements WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
+        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
+    }
+
+    #[tokio::test]
+    async fn entitlements_not_found_returns_404_when_no_row() {
+        let pool = test_pool().await;
+        let tenant_id = seed_tenant_without_entitlements(&pool).await;
+        let app = build_app(pool.clone());
+
+        let req = Request::builder()
+            .uri(format!("/api/tenants/{tenant_id}/entitlements"))
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.expect("call entitlements endpoint");
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "expected 404 when no entitlements row");
+
+        // Cleanup
+        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
+    }
+
+    #[tokio::test]
+    async fn entitlements_missing_tenant_returns_404() {
+        let pool = test_pool().await;
+        let app = build_app(pool);
+
+        let nonexistent = Uuid::new_v4();
+        let req = Request::builder()
+            .uri(format!("/api/tenants/{nonexistent}/entitlements"))
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.expect("call entitlements endpoint");
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "expected 404 for missing tenant");
     }
 }

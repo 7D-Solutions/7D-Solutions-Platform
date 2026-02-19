@@ -32,6 +32,7 @@ pub use lifecycle::{
 pub use registry::{
     TenantRegistry, RegistryResult, RegistryError,
     is_valid_state_transition,
+    EntitlementRow, get_tenant_entitlements,
 };
 
 pub use summary::{
@@ -47,6 +48,7 @@ pub use summary::{
 pub use routes::{
     SummaryState,
     summary_router,
+    entitlements_router,
 };
 
 pub use seed::{
