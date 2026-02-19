@@ -192,6 +192,20 @@ pub async fn get_reporting_pool() -> PgPool {
     wait_for_db_ready("reporting", &url).await
 }
 
+/// Get Party database pool (party-postgres on port 5448)
+pub async fn get_party_pool() -> PgPool {
+    let url = std::env::var("PARTY_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://party_user:party_pass@localhost:5448/party_db".to_string());
+    wait_for_db_ready("party", &url).await
+}
+
+/// Get TTP database pool (ttp-postgres on port 5450)
+pub async fn get_ttp_pool() -> PgPool {
+    let url = std::env::var("TTP_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://ttp_user:ttp_pass@localhost:5450/ttp_db".to_string());
+    wait_for_db_ready("ttp", &url).await
+}
+
 // ============================================================================
 // NATS Event Bus
 // ============================================================================

@@ -311,6 +311,18 @@ path = "tests/integrations_webhook_ingest_route.rs"
 name = "rbac_enforcement"
 path = "tests/rbac_enforcement.rs"
 
+[[test]]
+name = "party_master_integration"
+path = "tests/party_master_integration.rs"
+
+[[test]]
+name = "ttp_billing_monthly_one_time"
+path = "tests/ttp_billing_monthly_one_time.rs"
+
+[[test]]
+name = "platform_billing_invoices_tenant"
+path = "tests/platform_billing_invoices_tenant.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -345,6 +357,8 @@ control-plane = { path = "../platform/control-plane" }
 security = { path = "../platform/security" }
 compliance-export = { path = "../tools/compliance-export" }
 integrations-rs = { path = "../modules/integrations" }
+party-rs = { path = "../modules/party" }
+ttp-rs = { path = "../modules/ttp" }
 anyhow = "1.0"
 sha2 = "0.10"
 hex = "0.4"
