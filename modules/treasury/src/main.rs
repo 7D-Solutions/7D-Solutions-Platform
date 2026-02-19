@@ -139,6 +139,19 @@ async fn main() {
             "/api/treasury/recon/unmatched",
             get(http::recon::list_unmatched),
         )
+        // GL reconciliation linkage
+        .route(
+            "/api/treasury/recon/gl-link",
+            post(http::recon_gl::link_to_gl),
+        )
+        .route(
+            "/api/treasury/recon/gl-unmatched-txns",
+            get(http::recon_gl::unmatched_bank_txns),
+        )
+        .route(
+            "/api/treasury/recon/gl-unmatched-entries",
+            post(http::recon_gl::unmatched_gl_entries),
+        )
         // Statement import
         .route(
             "/api/treasury/statements/import",

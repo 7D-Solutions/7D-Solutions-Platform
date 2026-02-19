@@ -3,6 +3,7 @@
 //! `superseded_by` on the old one.
 
 pub mod engine;
+pub mod gl_link;
 pub mod models;
 pub mod service;
 
