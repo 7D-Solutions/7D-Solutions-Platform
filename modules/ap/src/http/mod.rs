@@ -3,6 +3,7 @@ pub mod bills;
 pub mod payment_runs;
 pub mod purchase_orders;
 pub mod reports;
+pub mod tax_reports;
 pub mod vendors;
 
 use axum::{extract::State, http::StatusCode, Json};

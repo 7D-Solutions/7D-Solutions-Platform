@@ -158,6 +158,9 @@ async fn main() {
         )
         // Reports
         .route("/api/ap/aging", get(http::reports::aging_report))
+        // Tax reporting / filing summaries (bd-1ai1)
+        .route("/api/ap/tax/reports/summary", get(http::tax_reports::tax_report_summary))
+        .route("/api/ap/tax/reports/export", get(http::tax_reports::tax_report_export))
         .with_state(app_state)
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();

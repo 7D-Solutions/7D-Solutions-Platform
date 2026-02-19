@@ -4,6 +4,7 @@
 //! AP persists tax snapshots per bill for audit and idempotency.
 
 pub mod models;
+pub mod reports;
 pub mod service;
 
 pub use models::ApTaxSnapshot;
