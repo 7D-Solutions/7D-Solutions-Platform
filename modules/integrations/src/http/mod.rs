@@ -19,7 +19,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/metrics", get(metrics::metrics_handler))
         // Inbound webhooks
         .route(
-            "/api/webhooks/inbound/:system",
+            "/api/webhooks/inbound/{system}",
             post(webhooks::inbound_webhook),
         )
         // External refs — static routes registered before parameterized
@@ -36,7 +36,7 @@ pub fn router(state: Arc<AppState>) -> Router {
             post(external_refs::create_external_ref),
         )
         .route(
-            "/api/integrations/external-refs/:id",
+            "/api/integrations/external-refs/{id}",
             get(external_refs::get_external_ref)
                 .put(external_refs::update_external_ref)
                 .delete(external_refs::delete_external_ref),

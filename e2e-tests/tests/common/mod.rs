@@ -171,6 +171,13 @@ pub async fn get_ap_pool() -> PgPool {
     wait_for_db_ready("ap", &url).await
 }
 
+/// Get Integrations database pool
+pub async fn get_integrations_pool() -> PgPool {
+    let url = std::env::var("INTEGRATIONS_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://integrations_user:integrations_pass@localhost:5449/integrations_db".to_string());
+    wait_for_db_ready("integrations", &url).await
+}
+
 /// Get Timekeeping database pool
 pub async fn get_timekeeping_pool() -> PgPool {
     let url = std::env::var("TIMEKEEPING_DATABASE_URL")
