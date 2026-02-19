@@ -66,4 +66,102 @@ mod tests {
         let url = database_url_for_app("postgres://user:pass@localhost/", "test");
         assert_eq!(url, "postgres://user:pass@localhost/integrations_test_db");
     }
+
+    /// Integration test: verify migrations apply cleanly and all expected
+    /// tables + constraints exist in the database.
+    ///
+    /// Requires DATABASE_URL_INTEGRATIONS pointing to a live PostgreSQL instance.
+    /// Run via: cargo test -p integrations-rs -- migration
+    #[tokio::test]
+    async fn test_migration_applies_and_schema_is_correct() {
+        dotenvy::dotenv().ok();
+
+        let db_url = match std::env::var("DATABASE_URL_INTEGRATIONS") {
+            Ok(u) => u,
+            Err(_) => {
+                eprintln!("DATABASE_URL_INTEGRATIONS not set — skipping migration integration test");
+                return;
+            }
+        };
+
+        let pool = resolve_pool(&db_url)
+            .await
+            .expect("Failed to connect to integrations test database");
+
+        // Run migrations (idempotent — sqlx tracks applied versions)
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("Migrations should apply without error");
+
+        // Verify all expected tables exist
+        for table in &[
+            "integrations_external_refs",
+            "integrations_webhook_endpoints",
+            "integrations_webhook_ingest",
+            "integrations_outbox",
+            "integrations_processed_events",
+            "integrations_idempotency_keys",
+        ] {
+            let row: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM information_schema.tables
+                 WHERE table_schema = 'public' AND table_name = $1",
+            )
+            .bind(table)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or_else(|e| panic!("Failed to query table {table}: {e}"));
+
+            assert_eq!(row.0, 1, "Table '{table}' should exist after migrations");
+        }
+
+        // Verify external_refs uniqueness constraint
+        let constraint_row: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM information_schema.table_constraints
+             WHERE table_name = 'integrations_external_refs'
+               AND constraint_name = 'integrations_external_refs_app_system_id_unique'
+               AND constraint_type = 'UNIQUE'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query external_refs constraint");
+
+        assert_eq!(
+            constraint_row.0, 1,
+            "UNIQUE constraint on integrations_external_refs(app_id, system, external_id) should exist"
+        );
+
+        // Verify webhook_ingest dedup constraint
+        let ingest_constraint: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM information_schema.table_constraints
+             WHERE table_name = 'integrations_webhook_ingest'
+               AND constraint_name = 'integrations_webhook_ingest_dedup'
+               AND constraint_type = 'UNIQUE'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query webhook_ingest constraint");
+
+        assert_eq!(
+            ingest_constraint.0, 1,
+            "UNIQUE constraint on integrations_webhook_ingest(app_id, system, idempotency_key) should exist"
+        );
+
+        // Verify outbox partial index for unpublished events
+        let idx_row: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM pg_indexes
+             WHERE tablename = 'integrations_outbox'
+               AND indexname = 'idx_integrations_outbox_unpublished'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query outbox index");
+
+        assert_eq!(
+            idx_row.0, 1,
+            "Partial index on integrations_outbox for unpublished rows should exist"
+        );
+
+        pool.close().await;
+    }
 }
