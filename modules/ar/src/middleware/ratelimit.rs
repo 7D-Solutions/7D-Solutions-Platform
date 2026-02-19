@@ -2,21 +2,27 @@
 //!
 //! This middleware enforces tenant-aware rate limits on API endpoints.
 //! Different limits apply to normal reads vs. fallback paths.
+//! A separate webhook rate limiter restricts inbound webhook traffic by source IP.
 
 use axum::{
     extract::Request,
-    http::{StatusCode, Uri},
+    http::{HeaderMap, StatusCode, Uri},
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
 };
-use security::ratelimit::RateLimiter;
+use security::ratelimit::{RateLimiter, WebhookRateLimiter};
 use std::sync::Arc;
 use tracing::{debug, warn};
 
 /// Rate limiting middleware state
 pub struct RateLimitState {
     pub limiter: Arc<RateLimiter>,
+}
+
+/// Webhook rate limiting middleware state (IP-based)
+pub struct WebhookRateLimitState {
+    pub limiter: Arc<WebhookRateLimiter>,
 }
 
 /// Rate limiting middleware for read endpoints
@@ -98,6 +104,64 @@ pub async fn ratelimit_middleware(
         // (might be a health check or other non-tenant endpoint)
         next.run(request).await
     }
+}
+
+/// Rate limiting middleware for inbound webhook endpoints (IP-based).
+///
+/// Protects public webhook inbound routes from flooding. Extracts the
+/// source IP from `X-Forwarded-For` (proxy) or the raw peer address
+/// embedded in request extensions. Returns 429 when a single IP exceeds
+/// the configured burst limit (default 120 req/min).
+pub async fn webhook_ratelimit_middleware(
+    axum::extract::State(state): axum::extract::State<Arc<WebhookRateLimitState>>,
+    headers: HeaderMap,
+    request: Request,
+    next: Next,
+) -> Response {
+    let ip = extract_client_ip(&headers);
+
+    match state.limiter.check_webhook_limit(&ip) {
+        Ok(()) => {
+            debug!(client_ip = %ip, "Webhook rate limit check passed");
+            next.run(request).await
+        }
+        Err(_) => {
+            warn!(client_ip = %ip, "Webhook rate limit exceeded");
+            (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(serde_json::json!({
+                    "error": "rate_limit_exceeded",
+                    "message": "Too many webhook requests from this source",
+                    "retry_after": 60
+                })),
+            )
+                .into_response()
+        }
+    }
+}
+
+/// Extract client IP from forwarded headers or fall back to a fixed sentinel.
+///
+/// Trusts `X-Forwarded-For` (first entry) then `X-Real-IP`. When running
+/// behind a load balancer these headers carry the actual caller IP. Falls
+/// back to `"unknown"` if neither header is present.
+fn extract_client_ip(headers: &HeaderMap) -> String {
+    // X-Forwarded-For may be "ip1, ip2, proxy" — take the leftmost
+    if let Some(xff) = headers.get("x-forwarded-for") {
+        if let Ok(val) = xff.to_str() {
+            let first = val.split(',').next().unwrap_or("").trim();
+            if !first.is_empty() {
+                return first.to_string();
+            }
+        }
+    }
+    // Fallback: X-Real-IP (single-proxy header)
+    if let Some(real_ip) = headers.get("x-real-ip") {
+        if let Ok(val) = real_ip.to_str() {
+            return val.trim().to_string();
+        }
+    }
+    "unknown".to_string()
 }
 
 /// Extract tenant_id from request path

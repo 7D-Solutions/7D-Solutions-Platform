@@ -1,3 +1,4 @@
+pub mod admin;
 pub mod aging;
 pub mod allocation;
 pub mod charges;
@@ -25,11 +26,30 @@ use axum::{
     routing::{get, post},
     Router,
 };
+use security::ratelimit::WebhookRateLimiter;
 use sqlx::PgPool;
+use std::sync::Arc;
 
 use crate::idempotency::check_idempotency;
+use crate::middleware::{webhook_ratelimit_middleware, WebhookRateLimitState};
 
 pub fn ar_router(db: PgPool) -> Router {
+    // Shared IP-based rate limiter for all inbound webhook endpoints.
+    let webhook_rl_state = Arc::new(WebhookRateLimitState {
+        limiter: Arc::new(WebhookRateLimiter::new()),
+    });
+
+    // Inbound webhook sub-router — rate-limited by source IP.
+    // This is separate from authenticated routes so the rate limit layer
+    // only wraps public webhook ingestion, not admin or listing endpoints.
+    let webhook_inbound = Router::new()
+        .route("/api/ar/webhooks/tilled", post(webhooks::receive_tilled_webhook))
+        .layer(middleware::from_fn_with_state(
+            webhook_rl_state,
+            webhook_ratelimit_middleware,
+        ))
+        .with_state(db.clone());
+
     Router::new()
         // Customer endpoints
         .route("/api/ar/customers", post(customers::create_customer).get(customers::list_customers))
@@ -86,8 +106,7 @@ pub fn ar_router(db: PgPool) -> Router {
             "/api/ar/payment-methods/{id}/set-default",
             post(payment_methods::set_default_payment_method),
         )
-        // Webhook endpoints
-        .route("/api/ar/webhooks/tilled", post(webhooks::receive_tilled_webhook))
+        // Webhook management endpoints (admin, not inbound ingestion)
         .route("/api/ar/webhooks", get(webhooks::list_webhooks))
         .route("/api/ar/webhooks/{id}", get(webhooks::get_webhook))
         .route("/api/ar/webhooks/{id}/replay", post(webhooks::replay_webhook))
@@ -130,4 +149,6 @@ pub fn ar_router(db: PgPool) -> Router {
         .route("/api/ar/tax/reports/export", get(tax_reports::tax_report_export))
         .with_state(db.clone())
         .layer(middleware::from_fn_with_state(db, check_idempotency))
+        // Merge the rate-limited inbound webhook router
+        .merge(webhook_inbound)
 }

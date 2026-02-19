@@ -271,6 +271,62 @@ impl Default for RateLimiter {
     }
 }
 
+/// IP-based rate limiter for inbound webhook endpoints.
+///
+/// Webhook endpoints are public-facing (no auth), so rate limiting by tenant
+/// is not applicable. Instead, we limit by source IP to prevent flooding while
+/// still allowing normal provider retry cadences.
+///
+/// Default: 120 requests per minute per IP (generous for legit providers).
+pub struct WebhookRateLimiter {
+    buckets: Arc<DashMap<String, TokenBucket>>,
+    config: RateLimitConfig,
+}
+
+impl WebhookRateLimiter {
+    /// Create with default config (120 req/min per IP).
+    pub fn new() -> Self {
+        Self {
+            buckets: Arc::new(DashMap::new()),
+            config: RateLimitConfig::new(120, Duration::from_secs(60)),
+        }
+    }
+
+    /// Create with custom config.
+    pub fn with_config(config: RateLimitConfig) -> Self {
+        Self {
+            buckets: Arc::new(DashMap::new()),
+            config,
+        }
+    }
+
+    /// Check whether the IP is within its rate limit.
+    ///
+    /// Returns `Ok(())` if allowed, `Err(SecurityError::RateLimitExceeded)` if not.
+    pub fn check_webhook_limit(&self, ip: &str) -> Result<(), crate::SecurityError> {
+        let mut bucket = self.buckets.entry(ip.to_string()).or_insert_with(|| {
+            TokenBucket::new(self.config.max_requests, self.config.window)
+        });
+
+        if bucket.consume() {
+            Ok(())
+        } else {
+            Err(crate::SecurityError::RateLimitExceeded)
+        }
+    }
+
+    /// Clear all buckets (useful in tests).
+    pub fn reset(&self) {
+        self.buckets.clear();
+    }
+}
+
+impl Default for WebhookRateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -359,5 +415,26 @@ mod tests {
         // Should have refilled ~2.5 tokens, so at least 2 requests should work
         assert!(limiter.check_limit("tenant1", "/api/invoices").is_ok());
         assert!(limiter.check_limit("tenant1", "/api/invoices").is_ok());
+    }
+
+    #[test]
+    fn test_webhook_ratelimiter_allows_within_quota() {
+        let limiter = WebhookRateLimiter::with_config(RateLimitConfig::new(3, Duration::from_secs(60)));
+        assert!(limiter.check_webhook_limit("1.2.3.4").is_ok());
+        assert!(limiter.check_webhook_limit("1.2.3.4").is_ok());
+        assert!(limiter.check_webhook_limit("1.2.3.4").is_ok());
+        assert!(limiter.check_webhook_limit("1.2.3.4").is_err());
+    }
+
+    #[test]
+    fn test_webhook_ratelimiter_ip_isolation() {
+        let limiter = WebhookRateLimiter::with_config(RateLimitConfig::new(2, Duration::from_secs(60)));
+        // Exhaust IP 1
+        assert!(limiter.check_webhook_limit("10.0.0.1").is_ok());
+        assert!(limiter.check_webhook_limit("10.0.0.1").is_ok());
+        assert!(limiter.check_webhook_limit("10.0.0.1").is_err());
+        // IP 2 still has full quota
+        assert!(limiter.check_webhook_limit("10.0.0.2").is_ok());
+        assert!(limiter.check_webhook_limit("10.0.0.2").is_ok());
     }
 }
