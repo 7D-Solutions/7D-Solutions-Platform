@@ -26,6 +26,7 @@ use ap::domain::bills::{
     approve::approve_bill, service::create_bill, ApproveBillRequest, CreateBillLineRequest,
     CreateBillRequest,
 };
+use ap::domain::tax::ZeroTaxProvider;
 use ap::domain::r#match::engine::run_match;
 use ap::domain::r#match::RunMatchRequest;
 use ap::domain::po::{
@@ -322,6 +323,7 @@ async fn test_po_receipt_bill_approve_gl_full_spine() {
     // Step 7: Approve the matched bill (no override needed — within tolerance)
     let approved_bill = approve_bill(
         &ap,
+        &ZeroTaxProvider,
         TENANT_A,
         bill_id,
         &ApproveBillRequest {
@@ -619,6 +621,7 @@ async fn test_price_mismatch_blocks_approval_without_override() {
     // Approve without override must fail
     let approve_result = approve_bill(
         &ap,
+        &ZeroTaxProvider,
         TENANT_A,
         bill_id,
         &ApproveBillRequest {
@@ -638,6 +641,7 @@ async fn test_price_mismatch_blocks_approval_without_override() {
     // Approve WITH override must succeed
     let approved = approve_bill(
         &ap,
+        &ZeroTaxProvider,
         TENANT_A,
         bill_id,
         &ApproveBillRequest {

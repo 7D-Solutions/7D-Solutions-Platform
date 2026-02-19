@@ -108,6 +108,7 @@ pub use valuation_snapshot_created::{
 /// Sets `source_module = "inventory"` and `replay_safe = true`.
 /// Callers MUST supply a deterministic `event_id` derived from a stable business key.
 /// **Phase 34**: trace_id auto-populated from correlation_id for propagation
+/// **Phase 40**: actor_id/actor_type carried from VerifiedClaims on HTTP mutations
 pub fn create_inventory_envelope<T>(
     event_id: uuid::Uuid,
     tenant_id: String,
@@ -116,6 +117,24 @@ pub fn create_inventory_envelope<T>(
     causation_id: Option<String>,
     mutation_class: String,
     payload: T,
+) -> event_bus::EventEnvelope<T> {
+    create_inventory_envelope_with_actor(event_id, tenant_id, event_type, correlation_id, causation_id, mutation_class, payload, None, None)
+}
+
+/// Create an inventory-scoped EventEnvelope with actor identity.
+///
+/// Actor fields are propagated from the originating HTTP request's VerifiedClaims.
+/// Pass `None` for both fields when the operation is system-initiated.
+pub fn create_inventory_envelope_with_actor<T>(
+    event_id: uuid::Uuid,
+    tenant_id: String,
+    event_type: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    mutation_class: String,
+    payload: T,
+    actor_id: Option<uuid::Uuid>,
+    actor_type: Option<String>,
 ) -> event_bus::EventEnvelope<T> {
     event_bus::EventEnvelope::with_event_id(
         event_id,
@@ -130,4 +149,5 @@ pub fn create_inventory_envelope<T>(
     .with_causation_id(causation_id)
     .with_mutation_class(Some(mutation_class))
     .with_replay_safe(true)
+    .with_actor_from(actor_id, actor_type)
 }

@@ -169,6 +169,7 @@ async fn test_treasury_bank_recon_lifecycle() {
             closing_balance_minor: 176_250,
             csv_data: test_csv(),
             filename: Some("feb-2026.csv".to_string()),
+            format: None,
         },
         "e2e-corr-1".to_string(),
     )
@@ -325,6 +326,7 @@ async fn test_reimport_same_statement_idempotent() {
             closing_balance_minor: 176_250,
             csv_data: csv.clone(),
             filename: Some("feb-2026.csv".to_string()),
+            format: None,
         },
         "e2e-reimport-1".to_string(),
     )
@@ -344,6 +346,7 @@ async fn test_reimport_same_statement_idempotent() {
             closing_balance_minor: 176_250,
             csv_data: csv,
             filename: Some("feb-2026.csv".to_string()),
+            format: None,
         },
         "e2e-reimport-2".to_string(),
     )

@@ -20,6 +20,7 @@ use ap::domain::bills::{
     approve::approve_bill, service::create_bill, ApproveBillRequest, CreateBillLineRequest,
     CreateBillRequest,
 };
+use ap::domain::tax::ZeroTaxProvider;
 use ap::domain::payment_runs::{
     builder::create_payment_run, execute::execute_payment_run, CreatePaymentRunRequest,
 };
@@ -90,6 +91,7 @@ async fn create_approved_bill(
 
     approve_bill(
         pool,
+        &ZeroTaxProvider,
         tenant_id,
         bill_id,
         &ApproveBillRequest {
