@@ -8,6 +8,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::engine;
+use super::gl_entries;
 use super::models::*;
 use crate::outbox;
 
@@ -39,9 +40,7 @@ impl DepreciationService {
         pool: &PgPool,
         req: &GenerateScheduleRequest,
     ) -> Result<Vec<DepreciationSchedule>, DepreciationError> {
-        if req.tenant_id.trim().is_empty() {
-            return Err(DepreciationError::Validation("tenant_id required".into()));
-        }
+        req.validate()?;
 
         let asset = sqlx::query_as::<_, AssetProjection>(
             r#"
@@ -125,9 +124,7 @@ impl DepreciationService {
         pool: &PgPool,
         req: &CreateRunRequest,
     ) -> Result<DepreciationRun, DepreciationError> {
-        if req.tenant_id.trim().is_empty() {
-            return Err(DepreciationError::Validation("tenant_id required".into()));
-        }
+        req.validate()?;
 
         let currency = req.currency.as_deref().unwrap_or("usd");
         let run_id = Uuid::new_v4();
@@ -205,12 +202,15 @@ impl DepreciationService {
         .fetch_one(&mut *tx)
         .await?;
 
+        let gl_entry_data =
+            gl_entries::query_for_run(&mut tx, completed.id, &req.tenant_id).await?;
         let event = DepreciationRunCompletedEvent {
             run_id: completed.id,
             tenant_id: req.tenant_id.clone(),
             as_of_date: req.as_of_date,
             periods_posted,
             total_depreciation_minor: total_minor,
+            gl_entries: gl_entry_data,
         };
         outbox::enqueue_event_tx(
             &mut tx,

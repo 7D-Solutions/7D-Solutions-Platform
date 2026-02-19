@@ -54,6 +54,15 @@ pub struct GenerateScheduleRequest {
     pub asset_id: Uuid,
 }
 
+impl GenerateScheduleRequest {
+    pub fn validate(&self) -> Result<(), DepreciationError> {
+        if self.tenant_id.trim().is_empty() {
+            return Err(DepreciationError::Validation("tenant_id required".into()));
+        }
+        Ok(())
+    }
+}
+
 /// Request to execute a depreciation run for a tenant up to as_of_date.
 #[derive(Debug, Deserialize)]
 pub struct CreateRunRequest {
@@ -61,6 +70,41 @@ pub struct CreateRunRequest {
     pub as_of_date: NaiveDate,
     pub currency: Option<String>,
     pub created_by: Option<String>,
+}
+
+impl CreateRunRequest {
+    pub fn validate(&self) -> Result<(), DepreciationError> {
+        if self.tenant_id.trim().is_empty() {
+            return Err(DepreciationError::Validation("tenant_id required".into()));
+        }
+        if let Some(ref c) = self.currency {
+            let trimmed = c.trim();
+            if trimmed.len() != 3 || !trimmed.chars().all(|ch| ch.is_ascii_alphabetic()) {
+                return Err(DepreciationError::Validation(
+                    "currency must be a 3-letter ISO 4217 code (e.g. USD)".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Per-entry GL posting data embedded in DepreciationRunCompletedEvent.
+///
+/// Carries the GL account refs from fa_categories so the GL consumer can post
+/// balanced journal entries without querying the FA database.
+#[derive(Debug, Serialize, Deserialize, sqlx::FromRow)]
+pub struct DepreciationGlEntry {
+    /// fa_depreciation_schedules.id — used as GL idempotency key.
+    pub entry_id: Uuid,
+    pub asset_id: Uuid,
+    pub period_end: NaiveDate,
+    pub depreciation_amount_minor: i64,
+    pub currency: String,
+    /// fa_categories.depreciation_expense_ref (e.g. "6100")
+    pub expense_account_ref: String,
+    /// fa_categories.accum_depreciation_ref (e.g. "1510")
+    pub accum_depreciation_ref: String,
 }
 
 /// Outbox event emitted when a run completes.
@@ -71,6 +115,8 @@ pub struct DepreciationRunCompletedEvent {
     pub as_of_date: NaiveDate,
     pub periods_posted: i32,
     pub total_depreciation_minor: i64,
+    /// Per-entry GL data for the GL consumer to post balanced journal entries.
+    pub gl_entries: Vec<DepreciationGlEntry>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -85,4 +131,83 @@ pub enum DepreciationError {
     Validation(String),
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::NaiveDate;
+
+    #[test]
+    fn generate_schedule_validation_rejects_empty_tenant() {
+        let req = GenerateScheduleRequest {
+            tenant_id: "  ".into(),
+            asset_id: Uuid::new_v4(),
+        };
+        assert!(matches!(req.validate(), Err(DepreciationError::Validation(_))));
+    }
+
+    #[test]
+    fn generate_schedule_validation_accepts_valid() {
+        let req = GenerateScheduleRequest {
+            tenant_id: "t1".into(),
+            asset_id: Uuid::new_v4(),
+        };
+        assert!(req.validate().is_ok());
+    }
+
+    #[test]
+    fn create_run_validation_rejects_empty_tenant() {
+        let req = CreateRunRequest {
+            tenant_id: "".into(),
+            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            currency: None,
+            created_by: None,
+        };
+        assert!(matches!(req.validate(), Err(DepreciationError::Validation(_))));
+    }
+
+    #[test]
+    fn create_run_validation_rejects_numeric_currency() {
+        let req = CreateRunRequest {
+            tenant_id: "t1".into(),
+            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            currency: Some("123".into()),
+            created_by: None,
+        };
+        assert!(matches!(req.validate(), Err(DepreciationError::Validation(_))));
+    }
+
+    #[test]
+    fn create_run_validation_rejects_short_currency() {
+        let req = CreateRunRequest {
+            tenant_id: "t1".into(),
+            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            currency: Some("US".into()),
+            created_by: None,
+        };
+        assert!(matches!(req.validate(), Err(DepreciationError::Validation(_))));
+    }
+
+    #[test]
+    fn create_run_validation_accepts_valid() {
+        let req = CreateRunRequest {
+            tenant_id: "t1".into(),
+            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            currency: Some("usd".into()),
+            created_by: Some("admin".into()),
+        };
+        assert!(req.validate().is_ok());
+    }
+
+    #[test]
+    fn create_run_validation_accepts_no_currency() {
+        let req = CreateRunRequest {
+            tenant_id: "t1".into(),
+            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            currency: None,
+            created_by: None,
+        };
+        assert!(req.validate().is_ok());
+    }
 }

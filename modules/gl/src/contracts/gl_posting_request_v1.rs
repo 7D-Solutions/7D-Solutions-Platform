@@ -47,6 +47,7 @@ pub enum SourceDocType {
     PayrollRun,
     LaborCostAccrual,
     GlAccrual,
+    FixedAssetDepreciation,
 }
 
 /// A single line in a journal entry
