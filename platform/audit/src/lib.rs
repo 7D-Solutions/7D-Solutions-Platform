@@ -15,3 +15,4 @@ pub mod policy;
 pub mod diff;
 pub mod schema;
 pub mod writer;
+pub mod outbox_bridge;

@@ -295,6 +295,10 @@ path = "tests/consolidation_end_to_end.rs"
 name = "fixed_assets_end_to_end"
 path = "tests/fixed_assets_end_to_end.rs"
 
+[[test]]
+name = "audit_oracle"
+path = "tests/audit_oracle.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
