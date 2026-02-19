@@ -66,4 +66,84 @@ mod tests {
         let url = database_url_for_app("postgres://user:pass@localhost/", "test");
         assert_eq!(url, "postgres://user:pass@localhost/party_test_db");
     }
+
+    /// Integration test: verify migrations apply cleanly and all expected
+    /// tables + constraints exist in the database.
+    ///
+    /// Requires DATABASE_URL_PARTY pointing to a live PostgreSQL instance.
+    /// Run via: cargo test -p party-rs -- migration
+    #[tokio::test]
+    async fn test_migration_applies_and_schema_is_correct() {
+        dotenvy::dotenv().ok();
+
+        let db_url = match std::env::var("DATABASE_URL_PARTY") {
+            Ok(u) => u,
+            Err(_) => {
+                eprintln!("DATABASE_URL_PARTY not set — skipping migration integration test");
+                return;
+            }
+        };
+
+        let pool = resolve_pool(&db_url)
+            .await
+            .expect("Failed to connect to party test database");
+
+        // Run migrations (idempotent — sqlx tracks applied versions)
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("Migrations should apply without error");
+
+        // Verify core party tables exist
+        for table in &[
+            "party_parties",
+            "party_companies",
+            "party_individuals",
+            "party_external_refs",
+            "party_outbox",
+            "party_processed_events",
+            "party_idempotency_keys",
+        ] {
+            let row: (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM information_schema.tables
+                 WHERE table_schema = 'public' AND table_name = $1",
+            )
+            .bind(table)
+            .fetch_one(&pool)
+            .await
+            .unwrap_or_else(|e| panic!("Failed to query table {table}: {e}"));
+
+            assert_eq!(row.0, 1, "Table '{table}' should exist after migrations");
+        }
+
+        // Verify external_refs uniqueness constraint exists
+        let constraint_row: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM information_schema.table_constraints
+             WHERE table_name = 'party_external_refs'
+               AND constraint_name = 'party_external_refs_app_system_id_unique'
+               AND constraint_type = 'UNIQUE'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query external_refs constraint");
+
+        assert_eq!(
+            constraint_row.0, 1,
+            "UNIQUE constraint on party_external_refs(app_id, system, external_id) should exist"
+        );
+
+        // Verify outbox has partial index for unpublished events
+        let idx_row: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM pg_indexes
+             WHERE tablename = 'party_outbox'
+               AND indexname = 'idx_party_outbox_unpublished'",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query outbox index");
+
+        assert_eq!(idx_row.0, 1, "Partial index on party_outbox for unpublished rows should exist");
+
+        pool.close().await;
+    }
 }
