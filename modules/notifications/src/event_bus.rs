@@ -13,6 +13,7 @@ pub use event_bus::EventEnvelope;
 /// Helper function to create a notifications-specific envelope
 ///
 /// **Phase 16**: mutation_class is REQUIRED. Refer to docs/governance/MUTATION-CLASSES.md
+/// **Phase 34**: trace_id auto-populated from correlation_id for propagation
 pub fn create_notifications_envelope<T>(
     event_id: uuid::Uuid,
     tenant_id: String,
@@ -24,6 +25,7 @@ pub fn create_notifications_envelope<T>(
 ) -> EventEnvelope<T> {
     EventEnvelope::with_event_id(event_id, tenant_id, "notifications".to_string(), event_type, payload)
         .with_source_version(env!("CARGO_PKG_VERSION").to_string())
+        .with_trace_id(correlation_id.clone())
         .with_correlation_id(correlation_id)
         .with_causation_id(causation_id)
         .with_mutation_class(Some(mutation_class))

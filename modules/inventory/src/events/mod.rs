@@ -107,6 +107,7 @@ pub use valuation_snapshot_created::{
 ///
 /// Sets `source_module = "inventory"` and `replay_safe = true`.
 /// Callers MUST supply a deterministic `event_id` derived from a stable business key.
+/// **Phase 34**: trace_id auto-populated from correlation_id for propagation
 pub fn create_inventory_envelope<T>(
     event_id: uuid::Uuid,
     tenant_id: String,
@@ -124,6 +125,7 @@ pub fn create_inventory_envelope<T>(
         payload,
     )
     .with_source_version(env!("CARGO_PKG_VERSION").to_string())
+    .with_trace_id(Some(correlation_id.clone()))
     .with_correlation_id(Some(correlation_id))
     .with_causation_id(causation_id)
     .with_mutation_class(Some(mutation_class))
