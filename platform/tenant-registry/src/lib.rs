@@ -16,6 +16,7 @@ pub use schema::{
     TenantId, TenantRecord, TenantStatus, Environment,
     ModuleSchemaVersions, ProvisioningStep, ProvisioningStepStatus,
     VerificationResult,
+    Bundle, BundleModule, TenantBundle, TenantBundleStatus,
 };
 
 pub use lifecycle::{

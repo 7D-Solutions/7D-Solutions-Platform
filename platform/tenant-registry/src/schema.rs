@@ -162,6 +162,58 @@ pub struct ProvisioningStep {
     pub created_at: DateTime<Utc>,
 }
 
+// ============================================================
+// Bundle types (Phase 40 — Tenant Control Plane)
+// ============================================================
+
+/// A product bundle definition (row in cp_bundles)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Bundle {
+    pub bundle_id:    Uuid,
+    pub product_code: String,
+    pub bundle_name:  String,
+    pub is_default:   bool,
+    pub created_at:   DateTime<Utc>,
+    pub updated_at:   DateTime<Utc>,
+}
+
+/// A module included in a bundle (row in cp_bundle_modules)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BundleModule {
+    pub bundle_id:      Uuid,
+    pub module_code:    String,
+    /// Pinned version string; "latest" means always current
+    pub module_version: String,
+}
+
+/// Status of a tenant's bundle assignment
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TenantBundleStatus {
+    /// Tenant is fully operating on this bundle
+    Active,
+    /// Tenant is mid-upgrade or mid-downgrade
+    InTransition,
+}
+
+impl std::fmt::Display for TenantBundleStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Active       => write!(f, "active"),
+            Self::InTransition => write!(f, "in_transition"),
+        }
+    }
+}
+
+/// Tenant-to-bundle assignment (row in cp_tenant_bundle)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TenantBundle {
+    pub tenant_id:    Uuid,
+    pub bundle_id:    Uuid,
+    pub status:       TenantBundleStatus,
+    pub effective_at: DateTime<Utc>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -228,6 +280,60 @@ mod tests {
     fn environment_serialization() {
         let json = serde_json::to_string(&Environment::Production).unwrap();
         assert_eq!(json, r#""production""#);
+    }
+
+    #[test]
+    fn bundle_status_serialization() {
+        let json = serde_json::to_string(&TenantBundleStatus::Active).unwrap();
+        assert_eq!(json, r#""active""#);
+        let json = serde_json::to_string(&TenantBundleStatus::InTransition).unwrap();
+        assert_eq!(json, r#""in_transition""#);
+    }
+
+    #[test]
+    fn bundle_status_display() {
+        assert_eq!(TenantBundleStatus::Active.to_string(), "active");
+        assert_eq!(TenantBundleStatus::InTransition.to_string(), "in_transition");
+    }
+
+    #[test]
+    fn bundle_struct_roundtrip() {
+        use chrono::Utc;
+        let bundle = Bundle {
+            bundle_id:    Uuid::new_v4(),
+            product_code: "starter".to_string(),
+            bundle_name:  "Starter Bundle".to_string(),
+            is_default:   true,
+            created_at:   Utc::now(),
+            updated_at:   Utc::now(),
+        };
+        let json = serde_json::to_string(&bundle).unwrap();
+        let decoded: Bundle = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded.product_code, "starter");
+        assert!(decoded.is_default);
+    }
+
+    #[test]
+    fn bundle_module_struct() {
+        let bm = BundleModule {
+            bundle_id:      Uuid::new_v4(),
+            module_code:    "ar".to_string(),
+            module_version: "latest".to_string(),
+        };
+        assert_eq!(bm.module_code, "ar");
+    }
+
+    #[test]
+    fn tenant_bundle_struct() {
+        use chrono::Utc;
+        let tb = TenantBundle {
+            tenant_id:    Uuid::new_v4(),
+            bundle_id:    Uuid::new_v4(),
+            status:       TenantBundleStatus::Active,
+            effective_at: Utc::now(),
+        };
+        let json = serde_json::to_string(&tb).unwrap();
+        assert!(json.contains("active"));
     }
 
     #[test]
