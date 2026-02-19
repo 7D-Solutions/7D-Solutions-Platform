@@ -51,13 +51,20 @@ panes/*.lock
 panes/.*.lock
 .no-clear
 
-# Flywheel ephemeral runtime state
-.flywheel/browser-ready.txt
-.flywheel/browser-response.json
-.flywheel/browser-worker-pid.txt
+# Flywheel ephemeral runtime state and secrets (chatgpt.json, auth state, etc.)
+.flywheel/
 
-# Browser profiles (Chrome session data)
+# Browser profiles (Chrome session data — contains live cookies/tokens/sessions)
 .browser-profiles/
+
+# Node.js dependencies (never commit)
+node_modules/
+
+# DR drill reports (generated artifacts)
+dr_reports/
+
+# RTF and other generated documents
+*.rtf
 
 # AgentCore symlinked scripts (created by create-symlinks.sh)
 # Only track scripts that are actual project files, not AgentCore symlinks.
