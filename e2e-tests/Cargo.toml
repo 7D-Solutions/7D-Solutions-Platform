@@ -303,6 +303,14 @@ path = "tests/fixed_assets_end_to_end.rs"
 name = "audit_oracle"
 path = "tests/audit_oracle.rs"
 
+[[test]]
+name = "integrations_webhook_ingest_route"
+path = "tests/integrations_webhook_ingest_route.rs"
+
+[[test]]
+name = "rbac_enforcement"
+path = "tests/rbac_enforcement.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
@@ -336,6 +344,7 @@ tenant-registry = { path = "../platform/tenant-registry" }
 control-plane = { path = "../platform/control-plane" }
 security = { path = "../platform/security" }
 compliance-export = { path = "../tools/compliance-export" }
+integrations-rs = { path = "../modules/integrations" }
 anyhow = "1.0"
 sha2 = "0.10"
 hex = "0.4"
@@ -343,6 +352,8 @@ rand = "0.8"
 rand_chacha = "0.3"
 hmac = "0.12"
 base64 = "0.22"
+rsa = { version = "0.9", features = ["pem"] }
+jsonwebtoken = "9"
 
 [dev-dependencies]
 serial_test = "3.0"
