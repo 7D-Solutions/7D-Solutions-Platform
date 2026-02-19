@@ -1,4 +1,6 @@
-use axum::{routing::get, Router};
+pub mod billing;
+
+use axum::{routing::{get, post}, Router};
 use std::sync::Arc;
 
 use crate::{metrics, ops, AppState};
@@ -11,5 +13,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/ready", get(ops::ready::ready))
         .route("/api/version", get(ops::version::version))
         .route("/metrics", get(metrics::metrics_handler))
+        // Billing runs
+        .route("/api/ttp/billing-runs", post(billing::create_billing_run))
         .with_state(state)
 }
