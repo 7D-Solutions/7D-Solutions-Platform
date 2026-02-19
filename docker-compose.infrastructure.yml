@@ -424,6 +424,84 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  party-postgres:
+    container_name: 7d-party-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5448:5432"
+    environment:
+      POSTGRES_DB: ${PARTY_POSTGRES_DB:-party_db}
+      POSTGRES_USER: ${PARTY_POSTGRES_USER:-party_user}
+      POSTGRES_PASSWORD: ${PARTY_POSTGRES_PASSWORD:-party_pass}
+    volumes:
+      - party_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PARTY_POSTGRES_USER:-party_user} -d ${PARTY_POSTGRES_DB:-party_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "party-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  integrations-postgres:
+    container_name: 7d-integrations-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5449:5432"
+    environment:
+      POSTGRES_DB: ${INTEGRATIONS_POSTGRES_DB:-integrations_db}
+      POSTGRES_USER: ${INTEGRATIONS_POSTGRES_USER:-integrations_user}
+      POSTGRES_PASSWORD: ${INTEGRATIONS_POSTGRES_PASSWORD:-integrations_pass}
+    volumes:
+      - integrations_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${INTEGRATIONS_POSTGRES_USER:-integrations_user} -d ${INTEGRATIONS_POSTGRES_DB:-integrations_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "integrations-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  ttp-postgres:
+    container_name: 7d-ttp-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5450:5432"
+    environment:
+      POSTGRES_DB: ${TTP_POSTGRES_DB:-ttp_db}
+      POSTGRES_USER: ${TTP_POSTGRES_USER:-ttp_user}
+      POSTGRES_PASSWORD: ${TTP_POSTGRES_PASSWORD:-ttp_pass}
+    volumes:
+      - ttp_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TTP_POSTGRES_USER:-ttp_user} -d ${TTP_POSTGRES_DB:-ttp_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "ttp-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
@@ -477,4 +555,13 @@ volumes:
     external: true
   timekeeping_pgdata:
     name: 7d-timekeeping-pgdata
+    external: true
+  party_pgdata:
+    name: 7d-party-pgdata
+    external: true
+  integrations_pgdata:
+    name: 7d-integrations-pgdata
+    external: true
+  ttp_pgdata:
+    name: 7d-ttp-pgdata
     external: true

@@ -371,6 +371,105 @@ services:
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
 
+  # =========================
+  # PARTY MODULE
+  # =========================
+  party:
+    container_name: 7d-party
+    build:
+      context: .
+      dockerfile: modules/party/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${PARTY_POSTGRES_USER:-party_user}:${PARTY_POSTGRES_PASSWORD:-party_pass}@7d-party-postgres:5432/${PARTY_POSTGRES_DB:-party_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8098
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8098:8098"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8098/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "party"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # INTEGRATIONS MODULE
+  # =========================
+  integrations:
+    container_name: 7d-integrations
+    build:
+      context: .
+      dockerfile: modules/integrations/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${INTEGRATIONS_POSTGRES_USER:-integrations_user}:${INTEGRATIONS_POSTGRES_PASSWORD:-integrations_pass}@7d-integrations-postgres:5432/${INTEGRATIONS_POSTGRES_DB:-integrations_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8099
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8099:8099"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8099/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "integrations"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # TTP MODULE
+  # =========================
+  ttp:
+    container_name: 7d-ttp
+    build:
+      context: .
+      dockerfile: modules/ttp/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${TTP_POSTGRES_USER:-ttp_user}:${TTP_POSTGRES_PASSWORD:-ttp_pass}@7d-ttp-postgres:5432/${TTP_POSTGRES_DB:-ttp_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8100
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8100:8100"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8100/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "ttp"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
