@@ -33,6 +33,7 @@ pub struct Config {
     pub nats_url: Option<String>,
     pub host: String,
     pub port: u16,
+    pub party_master_url: String,
 }
 
 impl Config {
@@ -97,12 +98,17 @@ impl Config {
                 )
             })?;
 
+        // Optional: PARTY_MASTER_URL (default: http://7d-party:8098)
+        let party_master_url =
+            env::var("PARTY_MASTER_URL").unwrap_or_else(|_| "http://7d-party:8098".to_string());
+
         Ok(Config {
             database_url,
             bus_type,
             nats_url,
             host,
             port,
+            party_master_url,
         })
     }
 
@@ -153,6 +159,7 @@ mod tests {
             nats_url: None,
             host: "0.0.0.0".to_string(),
             port: 8086,
+            party_master_url: "http://7d-party:8098".to_string(),
         };
 
         let err = config.validate().unwrap_err();
@@ -167,6 +174,7 @@ mod tests {
             nats_url: None,
             host: "0.0.0.0".to_string(),
             port: 8086,
+            party_master_url: "http://7d-party:8098".to_string(),
         };
 
         let err = config.validate().unwrap_err();
@@ -181,6 +189,7 @@ mod tests {
             nats_url: None,
             host: "0.0.0.0".to_string(),
             port: 8086,
+            party_master_url: "http://7d-party:8098".to_string(),
         };
 
         assert!(config.validate().is_ok());
@@ -191,6 +200,7 @@ mod tests {
             nats_url: Some("nats://localhost:4222".to_string()),
             host: "0.0.0.0".to_string(),
             port: 8086,
+            party_master_url: "http://7d-party:8098".to_string(),
         };
 
         assert!(config_nats.validate().is_ok());

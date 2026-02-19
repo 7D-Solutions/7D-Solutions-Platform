@@ -123,6 +123,25 @@ pub async fn create_invoice(
         })?;
     }
 
+    // Validate party_id exists in Party Master if provided
+    if let Some(pid) = req.party_id {
+        let url = crate::integrations::party_client::party_master_url();
+        crate::integrations::party_client::verify_party(&url, pid, app_id)
+            .await
+            .map_err(|e| {
+                use crate::integrations::party_client::PartyClientError;
+                let (status, code) = match &e {
+                    PartyClientError::ServiceUnavailable(_) => (
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        "party_service_unavailable",
+                    ),
+                    _ => (StatusCode::UNPROCESSABLE_ENTITY, "party_not_found"),
+                };
+                tracing::warn!("Party validation failed for invoice create: {}", e);
+                (status, Json(ErrorResponse::new(code, e.to_string())))
+            })?;
+    }
+
     // Generate unique Tilled invoice ID
     let tilled_invoice_id = format!("in_{}_{}", app_id, uuid::Uuid::new_v4());
     let currency = req.currency.unwrap_or_else(|| "usd".to_string());
