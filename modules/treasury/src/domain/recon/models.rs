@@ -48,6 +48,9 @@ pub struct ReconMatch {
 }
 
 /// Lightweight view used by the auto-match engine.
+///
+/// CC-specific fields (auth_date, settle_date, merchant_name) are None for
+/// bank transactions and populated for credit card transactions.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct UnmatchedTxn {
     pub id: Uuid,
@@ -58,6 +61,10 @@ pub struct UnmatchedTxn {
     pub description: Option<String>,
     pub reference: Option<String>,
     pub statement_id: Option<Uuid>,
+    // CC-specific (None for bank transactions)
+    pub auth_date: Option<NaiveDate>,
+    pub settle_date: Option<NaiveDate>,
+    pub merchant_name: Option<String>,
 }
 
 // ============================================================================

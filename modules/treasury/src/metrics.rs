@@ -1,16 +1,42 @@
+//! Prometheus metrics for the Treasury module.
+//!
+//! Exposes operational counters (import success/fail), recon gauges
+//! (match rate, unmatched counts), and endpoint latency histograms.
+//! Gauges are refreshed from the database on each `/metrics` scrape.
+//! No PII appears in any metric label.
+
 use axum::{extract::State, http::StatusCode};
-use prometheus::{Encoder, IntCounter, IntGauge, Registry, TextEncoder};
+use prometheus::{
+    Encoder, Gauge, HistogramOpts, HistogramVec, IntCounter, IntGauge, Registry, TextEncoder,
+};
 use std::sync::Arc;
 
-/// Treasury-specific Prometheus metrics
+use crate::domain::recon::metrics as recon_metrics;
+
+/// Treasury-specific Prometheus metrics.
 pub struct TreasuryMetrics {
+    // -- Existing counters --
     pub accounts_created_total: IntCounter,
     pub transactions_recorded_total: IntCounter,
     pub statements_imported_total: IntCounter,
-    /// Current count of open (unreconciled) transactions — updated on each scrape.
+
+    // -- Existing gauges --
     pub open_transactions_count: IntGauge,
-    /// Current count of accounts — updated on each scrape.
     pub accounts_count: IntGauge,
+
+    // -- Import ops --
+    pub import_success_total: IntCounter,
+    pub import_fail_total: IntCounter,
+
+    // -- Recon gauges (refreshed from DB on scrape) --
+    pub recon_matched_total: IntGauge,
+    pub recon_unmatched_lines: IntGauge,
+    pub recon_unmatched_txns: IntGauge,
+    pub recon_match_rate: Gauge,
+
+    // -- Endpoint latency --
+    pub endpoint_latency: HistogramVec,
+
     registry: Registry,
 }
 
@@ -18,6 +44,7 @@ impl TreasuryMetrics {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         let registry = Registry::new();
 
+        // Existing counters
         let accounts_created_total = IntCounter::new(
             "treasury_accounts_created_total",
             "Total treasury accounts created",
@@ -36,6 +63,7 @@ impl TreasuryMetrics {
         )?;
         registry.register(Box::new(statements_imported_total.clone()))?;
 
+        // Existing gauges
         let open_transactions_count = IntGauge::new(
             "treasury_open_transactions_count",
             "Current count of unreconciled treasury transactions",
@@ -48,12 +76,66 @@ impl TreasuryMetrics {
         )?;
         registry.register(Box::new(accounts_count.clone()))?;
 
+        // Import ops
+        let import_success_total = IntCounter::new(
+            "treasury_import_success_total",
+            "Successful statement imports",
+        )?;
+        registry.register(Box::new(import_success_total.clone()))?;
+
+        let import_fail_total = IntCounter::new(
+            "treasury_import_fail_total",
+            "Failed statement imports",
+        )?;
+        registry.register(Box::new(import_fail_total.clone()))?;
+
+        // Recon gauges
+        let recon_matched_total = IntGauge::new(
+            "treasury_recon_matched_total",
+            "Active (non-superseded) recon matches",
+        )?;
+        registry.register(Box::new(recon_matched_total.clone()))?;
+
+        let recon_unmatched_lines = IntGauge::new(
+            "treasury_recon_unmatched_lines",
+            "Unmatched imported statement lines",
+        )?;
+        registry.register(Box::new(recon_unmatched_lines.clone()))?;
+
+        let recon_unmatched_txns = IntGauge::new(
+            "treasury_recon_unmatched_txns",
+            "Unmatched payment transactions",
+        )?;
+        registry.register(Box::new(recon_unmatched_txns.clone()))?;
+
+        let recon_match_rate = Gauge::new(
+            "treasury_recon_match_rate",
+            "Ratio of matched lines to total imported lines (0.0-1.0)",
+        )?;
+        registry.register(Box::new(recon_match_rate.clone()))?;
+
+        // Endpoint latency histogram
+        let latency_opts = HistogramOpts::new(
+            "treasury_http_request_duration_seconds",
+            "HTTP request duration in seconds",
+        )
+        .buckets(vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]);
+        let endpoint_latency = HistogramVec::new(latency_opts, &["method", "endpoint"])?;
+        registry.register(Box::new(endpoint_latency.clone()))?;
+
         Ok(Self {
             accounts_created_total,
             transactions_recorded_total,
             statements_imported_total,
             open_transactions_count,
             accounts_count,
+            import_success_total,
+            import_fail_total,
+            recon_matched_total,
+            recon_unmatched_lines,
+            recon_unmatched_txns,
+            recon_match_rate,
+            endpoint_latency,
             registry,
         })
     }
@@ -61,15 +143,39 @@ impl TreasuryMetrics {
     pub fn registry(&self) -> &Registry {
         &self.registry
     }
+
+    /// Convenience: record a successful import.
+    pub fn record_import_success(&self) {
+        self.import_success_total.inc();
+        self.statements_imported_total.inc();
+    }
+
+    /// Convenience: record a failed import.
+    pub fn record_import_fail(&self) {
+        self.import_fail_total.inc();
+    }
 }
 
-/// Axum handler for GET /metrics
+/// Axum handler for GET /metrics.
+///
+/// Refreshes DB-backed gauges (recon stats, account/txn counts) before
+/// encoding, so every Prometheus scrape sees current values.
 pub async fn metrics_handler(
     State(app_state): State<Arc<crate::AppState>>,
 ) -> Result<String, (StatusCode, String)> {
-    // Operational gauges will be refreshed from DB once schema is available (bd-1vrz).
-    // For now, encode whatever counters have been incremented in-process.
-    let _ = &app_state.metrics;
+    // Refresh recon gauges from DB
+    if let Ok(snap) = recon_metrics::snapshot(&app_state.pool).await {
+        app_state.metrics.recon_matched_total.set(snap.matched);
+        app_state
+            .metrics
+            .recon_unmatched_lines
+            .set(snap.unmatched_lines);
+        app_state
+            .metrics
+            .recon_unmatched_txns
+            .set(snap.unmatched_txns);
+        app_state.metrics.recon_match_rate.set(snap.match_rate);
+    }
 
     let encoder = TextEncoder::new();
     let metric_families = app_state.metrics.registry().gather();
@@ -86,4 +192,91 @@ pub async fn metrics_handler(
             format!("Failed to convert metrics to UTF-8: {}", e),
         )
     })
+}
+
+/// Axum middleware that records per-endpoint latency.
+///
+/// UUIDs in the path are replaced with `:id` to keep label cardinality low.
+pub async fn latency_layer(
+    State(state): State<Arc<crate::AppState>>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let start = std::time::Instant::now();
+    let method = req.method().to_string();
+    let path = req.uri().path().to_string();
+
+    let response = next.run(req).await;
+
+    let duration = start.elapsed().as_secs_f64();
+    let sanitized = sanitize_path(&path);
+    state
+        .metrics
+        .endpoint_latency
+        .with_label_values(&[&method, &sanitized])
+        .observe(duration);
+
+    response
+}
+
+/// Replace UUID path segments with `:id` to avoid high-cardinality labels.
+fn sanitize_path(path: &str) -> String {
+    path.split('/')
+        .map(|seg| {
+            if uuid::Uuid::parse_str(seg).is_ok() {
+                ":id"
+            } else {
+                seg
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metrics_registry_creates_successfully() {
+        let m = TreasuryMetrics::new().expect("metrics init");
+        // HistogramVec only appears in gather() after at least one observation.
+        m.endpoint_latency
+            .with_label_values(&["GET", "/test"])
+            .observe(0.001);
+        // All metrics should be registered — gathering should not panic.
+        let families = m.registry().gather();
+        let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
+
+        assert!(names.contains(&"treasury_import_success_total"));
+        assert!(names.contains(&"treasury_import_fail_total"));
+        assert!(names.contains(&"treasury_recon_match_rate"));
+        assert!(names.contains(&"treasury_recon_unmatched_lines"));
+        assert!(names.contains(&"treasury_recon_unmatched_txns"));
+        assert!(names.contains(&"treasury_http_request_duration_seconds"));
+    }
+
+    #[test]
+    fn sanitize_path_replaces_uuids() {
+        let path = "/api/treasury/accounts/550e8400-e29b-41d4-a716-446655440000";
+        assert_eq!(sanitize_path(path), "/api/treasury/accounts/:id");
+    }
+
+    #[test]
+    fn sanitize_path_preserves_non_uuid_segments() {
+        let path = "/api/treasury/recon/auto-match";
+        assert_eq!(sanitize_path(path), "/api/treasury/recon/auto-match");
+    }
+
+    #[test]
+    fn record_import_counters() {
+        let m = TreasuryMetrics::new().expect("metrics init");
+        m.record_import_success();
+        m.record_import_success();
+        m.record_import_fail();
+
+        assert_eq!(m.import_success_total.get(), 2);
+        assert_eq!(m.import_fail_total.get(), 1);
+        assert_eq!(m.statements_imported_total.get(), 2);
+    }
 }

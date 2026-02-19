@@ -9,7 +9,9 @@ use uuid::Uuid;
 
 use super::engine;
 use super::models::*;
+use super::strategies::credit_card::CreditCardStrategy;
 use super::ReconError;
+use crate::domain::accounts::AccountType;
 use crate::outbox::enqueue_event_tx;
 
 const EVT_RECON_AUTO_MATCHED: &str = "recon.auto_matched";
@@ -29,8 +31,14 @@ pub async fn run_auto_match(
     let stmt_lines = fetch_unmatched_statement_lines(pool, app_id, account_id).await?;
     let pay_txns = fetch_unmatched_payment_txns(pool, app_id, account_id).await?;
 
-    // Engine: compute matches
-    let candidates = engine::auto_match(&stmt_lines, &pay_txns);
+    // Determine account type to select matching strategy
+    let account_type = fetch_account_type(pool, app_id, account_id).await?;
+    let candidates = match account_type {
+        Some(AccountType::CreditCard) => {
+            engine::auto_match_with_strategy(&stmt_lines, &pay_txns, &CreditCardStrategy)
+        }
+        _ => engine::auto_match(&stmt_lines, &pay_txns),
+    };
     let matches_created = candidates.len();
 
     // Mutation + Outbox: insert each match within a transaction
@@ -215,7 +223,8 @@ pub async fn list_unmatched(
     let rows = sqlx::query_as::<_, UnmatchedTxn>(
         r#"
         SELECT id, account_id, transaction_date, amount_minor, currency,
-               description, reference, statement_id
+               description, reference, statement_id,
+               auth_date, settle_date, merchant_name
         FROM treasury_bank_transactions
         WHERE app_id = $1 AND account_id = $2 AND status = 'unmatched'
         ORDER BY transaction_date, id
@@ -240,7 +249,8 @@ async fn fetch_unmatched_statement_lines(
     sqlx::query_as::<_, UnmatchedTxn>(
         r#"
         SELECT id, account_id, transaction_date, amount_minor, currency,
-               description, reference, statement_id
+               description, reference, statement_id,
+               auth_date, settle_date, merchant_name
         FROM treasury_bank_transactions
         WHERE app_id = $1 AND account_id = $2
           AND status = 'unmatched'
@@ -262,7 +272,8 @@ async fn fetch_unmatched_payment_txns(
     sqlx::query_as::<_, UnmatchedTxn>(
         r#"
         SELECT id, account_id, transaction_date, amount_minor, currency,
-               description, reference, statement_id
+               description, reference, statement_id,
+               auth_date, settle_date, merchant_name
         FROM treasury_bank_transactions
         WHERE app_id = $1 AND account_id = $2
           AND status = 'unmatched'
@@ -284,7 +295,8 @@ async fn fetch_txn(
     sqlx::query_as::<_, UnmatchedTxn>(
         r#"
         SELECT id, account_id, transaction_date, amount_minor, currency,
-               description, reference, statement_id
+               description, reference, statement_id,
+               auth_date, settle_date, merchant_name
         FROM treasury_bank_transactions
         WHERE id = $1 AND app_id = $2
         "#,
@@ -293,6 +305,21 @@ async fn fetch_txn(
     .bind(app_id)
     .fetch_optional(pool)
     .await
+}
+
+async fn fetch_account_type(
+    pool: &PgPool,
+    app_id: &str,
+    account_id: Uuid,
+) -> Result<Option<AccountType>, ReconError> {
+    let row: Option<(AccountType,)> = sqlx::query_as(
+        "SELECT account_type FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2",
+    )
+    .bind(account_id)
+    .bind(app_id)
+    .fetch_optional(pool)
+    .await?;
+    Ok(row.map(|(t,)| t))
 }
 
 async fn fetch_match(pool: &PgPool, match_id: Uuid) -> Result<Option<ReconMatch>, sqlx::Error> {

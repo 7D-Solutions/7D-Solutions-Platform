@@ -1,13 +1,17 @@
-//! Auto-match heuristics for bank reconciliation.
+//! Auto-match heuristics for reconciliation.
 //!
 //! Matches statement lines (CSV-imported, `statement_id IS NOT NULL`) to
 //! payment-event transactions (`statement_id IS NULL`) using deterministic
 //! scoring. Same inputs always produce same matches.
+//!
+//! Supports pluggable strategies via `MatchStrategy` trait — bank (default)
+//! and credit card strategies produce different scoring for the same pair.
 
 use rust_decimal::Decimal;
 use std::str::FromStr;
 
 use super::models::UnmatchedTxn;
+use super::strategies::MatchStrategy;
 
 /// A candidate match between a statement line and a bank transaction.
 #[derive(Debug, Clone)]
@@ -17,34 +21,28 @@ pub struct CandidateMatch {
     pub confidence: Decimal,
 }
 
-/// Run deterministic auto-match: pair statement lines to payment transactions.
+/// Run deterministic auto-match with the given strategy.
 ///
-/// Strategy (greedy, highest-confidence-first):
-/// 1. For each statement line, score every unmatched payment transaction.
-/// 2. Only keep pairs where amount matches exactly (mandatory).
-/// 3. Score date proximity and reference similarity as bonus confidence.
-/// 4. Sort all candidates by confidence descending, then by IDs for stability.
-/// 5. Greedily assign — each line and transaction used at most once.
-pub fn auto_match(
+/// 1. For each (statement_line, payment_txn) pair, call `strategy.score()`.
+/// 2. Skip pairs where the strategy returns `None` (mandatory criteria failed).
+/// 3. Sort all candidates by confidence descending, then by IDs for stability.
+/// 4. Greedily assign — each line and transaction used at most once.
+pub fn auto_match_with_strategy(
     statement_lines: &[UnmatchedTxn],
     payment_txns: &[UnmatchedTxn],
+    strategy: &dyn MatchStrategy,
 ) -> Vec<CandidateMatch> {
     let mut candidates: Vec<CandidateMatch> = Vec::new();
 
     for sl in statement_lines {
         for pt in payment_txns {
-            if sl.amount_minor != pt.amount_minor {
-                continue;
+            if let Some(confidence) = strategy.score(sl, pt) {
+                candidates.push(CandidateMatch {
+                    statement_line: sl.clone(),
+                    bank_transaction: pt.clone(),
+                    confidence,
+                });
             }
-            if sl.currency != pt.currency {
-                continue;
-            }
-            let confidence = score(sl, pt);
-            candidates.push(CandidateMatch {
-                statement_line: sl.clone(),
-                bank_transaction: pt.clone(),
-                confidence,
-            });
         }
     }
 
@@ -74,13 +72,43 @@ pub fn auto_match(
     result
 }
 
-/// Score a candidate pair. Amount match is a prerequisite (caller filters).
-/// Returns confidence in [0.5000, 1.0000].
-fn score(sl: &UnmatchedTxn, pt: &UnmatchedTxn) -> Decimal {
+/// Convenience: auto-match using the default bank strategy.
+pub fn auto_match(
+    statement_lines: &[UnmatchedTxn],
+    payment_txns: &[UnmatchedTxn],
+) -> Vec<CandidateMatch> {
+    auto_match_with_strategy(statement_lines, payment_txns, &BankStrategy)
+}
+
+// ============================================================================
+// Bank strategy (default)
+// ============================================================================
+
+/// Default bank reconciliation strategy — exact amount + date proximity +
+/// reference similarity.
+pub struct BankStrategy;
+
+impl MatchStrategy for BankStrategy {
+    fn score(&self, sl: &UnmatchedTxn, pt: &UnmatchedTxn) -> Option<Decimal> {
+        if sl.amount_minor != pt.amount_minor {
+            return None;
+        }
+        if sl.currency != pt.currency {
+            return None;
+        }
+        Some(score_bank(sl, pt))
+    }
+}
+
+/// Score a candidate pair for bank recon. Amount match is a prerequisite
+/// (caller filters). Returns confidence in [0.5000, 1.0000].
+fn score_bank(sl: &UnmatchedTxn, pt: &UnmatchedTxn) -> Decimal {
     let mut score = Decimal::from_str("0.5000").unwrap(); // base: amount match
 
     // Date proximity bonus (up to +0.3)
-    let day_diff = (sl.transaction_date - pt.transaction_date).num_days().unsigned_abs();
+    let day_diff = (sl.transaction_date - pt.transaction_date)
+        .num_days()
+        .unsigned_abs();
     let date_bonus = match day_diff {
         0 => Decimal::from_str("0.3000").unwrap(),
         1 => Decimal::from_str("0.2000").unwrap(),
@@ -146,6 +174,9 @@ mod tests {
             } else {
                 None
             },
+            auth_date: None,
+            settle_date: None,
+            merchant_name: None,
         }
     }
 
@@ -195,5 +226,47 @@ mod tests {
 
         let matches = auto_match(&[sl1, sl2], &[pt1]);
         assert_eq!(matches.len(), 1, "only one txn available → one match");
+    }
+
+    #[test]
+    fn strategy_dispatches_correctly() {
+        use super::super::strategies::credit_card::CreditCardStrategy;
+
+        let d = NaiveDate::from_ymd_opt(2024, 1, 15).unwrap();
+        let sl = UnmatchedTxn {
+            id: Uuid::new_v4(),
+            account_id: Uuid::new_v4(),
+            transaction_date: d,
+            amount_minor: -2500,
+            currency: "USD".to_string(),
+            description: None,
+            reference: None,
+            statement_id: Some(Uuid::new_v4()),
+            auth_date: None,
+            settle_date: None,
+            merchant_name: Some("STARBUCKS".to_string()),
+        };
+        let pt = UnmatchedTxn {
+            id: Uuid::new_v4(),
+            account_id: Uuid::new_v4(),
+            transaction_date: d,
+            amount_minor: -2500,
+            currency: "USD".to_string(),
+            description: None,
+            reference: None,
+            statement_id: None,
+            auth_date: Some(d),
+            settle_date: Some(d),
+            merchant_name: Some("STARBUCKS".to_string()),
+        };
+
+        let bank_result = auto_match_with_strategy(&[sl.clone()], &[pt.clone()], &BankStrategy);
+        let cc_result =
+            auto_match_with_strategy(&[sl.clone()], &[pt.clone()], &CreditCardStrategy);
+
+        assert_eq!(bank_result.len(), 1);
+        assert_eq!(cc_result.len(), 1);
+        // CC strategy uses merchant matching so confidence differs from bank
+        assert_ne!(bank_result[0].confidence, cc_result[0].confidence);
     }
 }

@@ -4,8 +4,10 @@
 
 pub mod engine;
 pub mod gl_link;
+pub mod metrics;
 pub mod models;
 pub mod service;
+pub mod strategies;
 
 use thiserror::Error;
 use uuid::Uuid;
