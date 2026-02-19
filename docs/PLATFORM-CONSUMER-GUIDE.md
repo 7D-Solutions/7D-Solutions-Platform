@@ -1,14 +1,37 @@
 # 7D Solutions Platform — Consumer Guide for Claude Code Agents
 
 **Audience:** Claude Code agents building vertical applications (TrashTech Pro, etc.) on the 7D Platform.
-**Purpose:** Complete, source-verified API reference. Every fact here is checked against actual Rust source code. Use this instead of reading the platform codebase.
+**Purpose:** Complete, source-verified API reference. Every fact here is checked against actual Rust source code.
 
 > **All data in this file is verified against source.** File references included so you can re-verify.
 > Last verified: 2026-02-19 against commit 474294cb.
 
 ---
 
-## CRITICAL CONCEPTS (Read Before Anything Else)
+## TABLE OF CONTENTS
+
+1. [Critical Concepts](#critical-concepts)
+2. [Ownership Boundary](#ownership-boundary)
+3. [Module Reference](#module-reference)
+4. [Required HTTP Headers](#required-http-headers)
+5. [Error Response Format](#error-response-format)
+6. [Authentication (identity-auth)](#authentication-identity-auth)
+7. [JWT Verification in Your Service](#jwt-verification-in-your-service)
+8. [Party Master](#party-master)
+9. [AR Module](#ar-module--customers-and-invoices)
+10. [Complete "First Invoice" Flow](#complete-first-invoice-flow)
+11. [NATS Event Bus](#nats-event-bus)
+12. [Outbox Pattern](#outbox-pattern--copy-this)
+13. [Integrations Module](#integrations-module)
+14. [Tenant Provisioning](#tenant-provisioning)
+15. [Data Ownership Decision Table](#data-ownership--decision-table)
+16. [Cargo.toml Dependencies](#cargotoml-path-dependencies)
+17. [Reference E2E Tests](#reference-e2e-tests)
+18. [Source File Index](#source-file-index)
+
+---
+
+## CRITICAL CONCEPTS
 
 ### You are a TENANT
 
@@ -29,7 +52,7 @@
 | Audit trail | Audit service | Written automatically |
 | Your domain data (jobs, GPS, etc.) | **Your Postgres** | Your own sqlx/migrations/repo |
 
-### The AR Two-Step (Non-Obvious — Read Carefully)
+### The AR Two-Step (Non-Obvious)
 
 AR invoices are **not** created directly from a `party_id`. There is a mandatory two-step flow:
 
@@ -39,6 +62,58 @@ Step 2: POST /api/ar/invoices   →  uses ar_customer_id (integer), not party_id
 ```
 
 `party_id` (UUID from Party Master) is an optional cross-reference field on both the AR customer and the invoice. It is **not** the primary key the AR module uses internally. You must create an AR customer first.
+
+### Command Flow Pattern (Guard → Mutation → Outbox)
+
+All command handlers follow this pattern:
+
+```
+1. Guard:    Validate invariants, auth, permissions
+2. Mutation: Apply domain change atomically (in a DB transaction)
+3. Outbox:   Write event to outbox table IN THE SAME TRANSACTION
+```
+
+The outbox insert and domain mutation MUST be atomic. Use `enqueue_event_tx()` (transactional), never `enqueue_event()` (deprecated, non-transactional).
+
+Source: `modules/ar/src/events/outbox.rs`
+
+---
+
+## OWNERSHIP BOUNDARY
+
+This table defines what your vertical app agents CAN edit vs what requires 7D Platform agents to change.
+
+### Your App Agents CAN Edit (your repo)
+
+| What | Where | Notes |
+|------|-------|-------|
+| Domain models (pickups, GPS, routes, evidence) | `modules/trashtech/` | Your Postgres, your migrations |
+| Domain HTTP handlers | `modules/trashtech/src/http/` | Your Axum routes |
+| Domain event types (payload structs) | `modules/trashtech/src/events/` | Define your own event payloads |
+| Outbox table + publisher | `modules/trashtech/src/events/` | Copy AR's pattern (see below) |
+| Cargo.toml path deps to platform crates | `modules/trashtech/Cargo.toml` | `event-bus`, `security` |
+| Docker Compose for your service | Your compose file | Your HTTP port, your PG port |
+| Your DB migrations | `modules/trashtech/db/migrations/` | sqlx migrate |
+
+### Requires 7D Platform Agents to Change (platform repo)
+
+| What | Where | Why |
+|------|-------|-----|
+| Add permission strings (`trashtech.mutate`, `trashtech.read`) | `platform/security/src/permissions.rs` | Central permission registry |
+| Register new NATS subjects | Platform event-bus config | Subject ACLs |
+| Add new E2E test files | `e2e-tests/tests/` | Platform-wide test suite |
+| Modify any platform module code | `platform/*/`, `modules/party/`, `modules/ar/`, etc. | Not your code |
+| Provision tenants | Admin tooling | No public API |
+| Add new EventEnvelope fields | `platform/event-bus/src/envelope/` | Shared struct |
+
+### Shared Platform Crates (Read-Only Dependencies)
+
+These crates live in the platform repo. You import them via path dependencies. Never modify them.
+
+| Crate | Path | What you use |
+|-------|------|-------------|
+| `event-bus` | `platform/event-bus/` | `EventEnvelope<T>`, `MerchantContext`, `outbox::validate_and_serialize_envelope()` |
+| `security` | `platform/security/` | `JwtVerifier`, `VerifiedClaims`, `ActorType`, `ClaimsLayer`, `RequirePermissionsLayer`, permission constants |
 
 ---
 
@@ -196,7 +271,7 @@ Source: `platform/identity-auth/src/auth/jwt.rs` → `AccessClaims`
   "tenant_id": "<tenant-uuid>",
   "app_id": "trashtech-pro",
   "roles": ["operator", "driver"],
-  "perms": ["ar.create", "ar.read"],
+  "perms": ["ar.mutate", "ar.read"],
   "actor_type": "user",
   "ver": "1"
 }
@@ -205,11 +280,118 @@ Source: `platform/identity-auth/src/auth/jwt.rs` → `AccessClaims`
 Field notes:
 - `sub` = `user_id` UUID string — use as `x-actor-id` in downstream calls
 - `actor_type` values: `"user"` | `"service"` | `"system"`
-- `app_id` in the JWT is a UUID string (not a short string like "trashtech-pro") — currently always `null` in issued tokens; do not rely on it
-- `x-app-id` header (e.g. `trashtech-pro`) is separate from the JWT `app_id` claim — always send the header explicitly
+- `app_id` may be absent (`null`) — do not rely on it always being present in token
 - `ver` = `"1"` (current schema version)
 - For service-to-service calls: obtain a service account token with `actor_type: "service"`
-- Use the `security` crate's `JwtVerifier` to validate tokens — never decode manually
+
+---
+
+## JWT Verification in Your Service
+
+Source: `platform/security/src/claims.rs`, `platform/security/src/authz_middleware.rs`
+
+The `security` crate provides ready-made JWT verification and permission enforcement. **Do not implement your own JWT validation.**
+
+### JwtVerifier Setup
+
+```rust
+// In your main.rs or startup code
+use security::claims::JwtVerifier;
+use std::sync::Arc;
+
+// Option A: From environment variable (recommended for production)
+// Reads JWT_PUBLIC_KEY env var. Returns None if not set (dev mode).
+let verifier: Option<Arc<JwtVerifier>> = JwtVerifier::from_env().map(Arc::new);
+
+// Option B: From PEM string (for tests)
+let verifier = Arc::new(JwtVerifier::from_public_pem(&pem_string).unwrap());
+```
+
+**JwtVerifier validates:** RS256 signature, expiration, issuer (`"auth-rs"`), audience (`"7d-platform"`).
+
+### VerifiedClaims (What You Get After Verification)
+
+Source: `platform/security/src/claims.rs`
+
+```rust
+pub struct VerifiedClaims {
+    pub user_id: Uuid,           // from JWT "sub"
+    pub tenant_id: Uuid,         // from JWT "tenant_id"
+    pub app_id: Option<Uuid>,    // from JWT "app_id" (may be None)
+    pub roles: Vec<String>,      // from JWT "roles"
+    pub perms: Vec<String>,      // from JWT "perms"
+    pub actor_type: ActorType,   // User | Service | System
+    pub issued_at: DateTime<Utc>,
+    pub expires_at: DateTime<Utc>,
+    pub token_id: Uuid,          // from JWT "jti"
+    pub version: String,         // from JWT "ver"
+}
+
+pub enum ActorType { User, Service, System }
+```
+
+### Wiring Into Axum Router
+
+Source: `platform/security/src/authz_middleware.rs`
+
+```rust
+use security::authz_middleware::{ClaimsLayer, RequirePermissionsLayer, optional_claims_mw};
+use security::claims::JwtVerifier;
+use std::sync::Arc;
+
+let verifier: Option<Arc<JwtVerifier>> = JwtVerifier::from_env().map(Arc::new);
+
+let app = Router::new()
+    // Mutation routes — require specific permissions
+    .route("/api/trashtech/pickups", post(create_pickup))
+    .route_layer(RequirePermissionsLayer::new(&["trashtech.mutate"]))
+    // Read routes — no permission guard (or use trashtech.read)
+    .route("/api/trashtech/pickups", get(list_pickups))
+    .route("/api/trashtech/pickups/{id}", get(get_pickup))
+    // Health/ready — no auth required
+    .route("/api/health", get(health))
+    .route("/api/ready", get(ready))
+    // Claims extraction layer (must be outermost)
+    .layer(axum::middleware::from_fn_with_state(verifier, optional_claims_mw));
+```
+
+**Behavior:**
+- `ClaimsLayer::permissive(verifier)` — requests without valid JWT pass through (claims absent). Use with `RequirePermissionsLayer` on mutation routes.
+- `ClaimsLayer::strict(verifier)` — requests without valid JWT get `401 Unauthorized`.
+- `optional_claims_mw` — Axum middleware function variant. If `verifier` is `None` (dev mode, no JWT_PUBLIC_KEY), no claims extracted, mutation routes return `401`.
+- `RequirePermissionsLayer::new(&["trashtech.mutate"])` — checks `VerifiedClaims.perms` contains all listed strings. Returns `403` if missing, `401` if no claims at all.
+
+### Accessing Claims in Handlers
+
+```rust
+use security::claims::VerifiedClaims;
+use axum::Extension;
+
+async fn create_pickup(
+    Extension(claims): Extension<VerifiedClaims>,
+    // ... other extractors
+) -> impl IntoResponse {
+    let tenant_id = claims.tenant_id;
+    let user_id = claims.user_id;
+    let actor_type = claims.actor_type.as_str(); // "user", "service", "system"
+    // ...
+}
+```
+
+### Permission Strings
+
+Source: `platform/security/src/permissions.rs`
+
+Convention: `<module>.mutate` for writes, `<module>.read` for reads, `gl.post` for GL journal posting.
+
+Existing constants:
+```
+ar.mutate, ar.read, payments.mutate, payments.read, subscriptions.mutate,
+gl.post, gl.read, notifications.mutate, inventory.mutate, inventory.read,
+reporting.mutate, treasury.mutate, treasury.read, ap.mutate, ap.read,
+consolidation.mutate, consolidation.read, timekeeping.mutate, timekeeping.read,
+fixed_assets.mutate, fixed_assets.read, trashtech.mutate, trashtech.read
+```
 
 ---
 
@@ -325,6 +507,13 @@ x-app-id: trashtech-pro
 ```
 
 Query parameters (all optional): `name` (partial match), `party_type` (`company`|`individual`|`contact`), `status` (`active`|`inactive`), `external_system`, `external_id`, `limit` (default 50, max 200), `offset`.
+
+### List Parties
+
+```
+GET /api/party/parties
+x-app-id: trashtech-pro
+```
 
 ### Update a Party
 
@@ -448,6 +637,38 @@ x-app-id: trashtech-pro
 
 Use this to check if you already created an AR customer before creating a duplicate.
 
+### Other AR Endpoints
+
+Source: `modules/ar/src/routes/mod.rs`
+
+Mutation routes (require `ar.mutate` permission):
+```
+POST   /api/ar/invoices/{id}/finalize
+POST   /api/ar/invoices/{id}/bill-usage
+POST   /api/ar/invoices/{id}/credit-notes
+POST   /api/ar/invoices/{id}/write-off
+POST   /api/ar/charges
+POST   /api/ar/refunds
+POST   /api/ar/disputes
+POST   /api/ar/payment-methods
+POST   /api/ar/webhooks
+POST   /api/ar/usage
+POST   /api/ar/dunning/run
+POST   /api/ar/allocation/run
+POST   /api/ar/reconciliation/run
+POST   /api/ar/tax-config
+```
+
+Read routes:
+```
+GET    /api/ar/invoices
+GET    /api/ar/invoices/{id}
+GET    /api/ar/customers
+GET    /api/ar/customers/{id}
+GET    /api/ar/subscriptions
+GET    /api/ar/aging
+```
+
 ---
 
 ## Complete "First Invoice" Flow
@@ -502,62 +723,124 @@ CREATE TABLE pickup_jobs (
 
 ## NATS Event Bus
 
-Source: `platform/event-bus/src/envelope/mod.rs`
+Source: `platform/event-bus/src/envelope/mod.rs`, `modules/ar/src/events/publisher.rs`, `platform/identity-auth/src/auth/handlers.rs`
 
 Platform uses **NATS JetStream** for async events.
 
-### EventEnvelope Structure
+### Subject Naming Convention
 
-Source: `platform/event-bus/src/envelope/mod.rs` → `EventEnvelope<T>` (the canonical envelope — 17 fields)
+**Pattern:** `{module}.events.{event-type}`
 
-> **Note:** identity-auth has a LEGACY EventEnvelope (11 fields, different field names). Do NOT use that as a reference. The canonical one is in the `event-bus` crate.
+```
+ar.events.invoice.created
+ar.events.payment.collection.requested
+auth.events.user.registered
+auth.events.user.logged_in
+gl.events.journal.posted
+trashtech.events.pickup.requested      ← your events
+trashtech.events.pickup.completed      ← your events
+```
 
-All cross-module events use this envelope structure:
-```json
-{
-  "event_id": "<uuid>",
-  "event_type": "invoice.created",
-  "occurred_at": "2026-02-19T10:00:00Z",
-  "tenant_id": "<tenant-uuid>",
-  "source_module": "ar",
-  "source_version": "1.0.0",
-  "schema_version": "1.0.0",
-  "replay_safe": true,
-  "payload": { ... },
+Source: AR publisher at `modules/ar/src/events/publisher.rs` line 56: `format!("ar.events.{}", event.event_type)`.
+Source: identity-auth at `platform/identity-auth/src/auth/handlers.rs`: publishes to `"auth.events.user.registered"`, `"auth.events.user.logged_in"`.
 
-  "merchant_context": { "type": "Tenant", "id": "<tenant-uuid>" },
+**Note:** Some older subjects may exist in flat format (e.g. `invoice.issued`). When subscribing, use the exact subject strings. When publishing new events, always use the namespaced `{module}.events.{type}` format.
 
-  "trace_id": "<uuid>",
-  "correlation_id": "<uuid>",
-  "causation_id": "<uuid>",
-  "actor_id": "<user-uuid>",
-  "actor_type": "user",
-  "mutation_class": "financial",
+### EventEnvelope — Canonical Structure (17 Fields)
 
-  "reverses_event_id": null,
-  "supersedes_event_id": null,
-  "side_effect_id": null
+Source: `platform/event-bus/src/envelope/mod.rs` → `EventEnvelope<T>`
+
+This is the platform-wide event envelope. **Use the `event-bus` crate — do not reimplement.**
+
+```rust
+pub struct EventEnvelope<T> {
+    pub event_id: Uuid,                           // Auto-generated. Idempotency key.
+    pub event_type: String,                        // e.g. "pickup.requested"
+    pub occurred_at: DateTime<Utc>,                // Auto-generated.
+    pub tenant_id: String,                         // Multi-tenant isolation.
+    pub source_module: String,                     // e.g. "trashtech"
+    pub source_version: String,                    // Default "1.0.0". Use CARGO_PKG_VERSION.
+    pub schema_version: String,                    // Default "1.0.0".
+    pub trace_id: Option<String>,                  // Distributed tracing.
+    pub correlation_id: Option<String>,            // Links events in a business transaction.
+    pub causation_id: Option<String>,              // What caused this event.
+    pub reverses_event_id: Option<Uuid>,           // Compensating transactions.
+    pub supersedes_event_id: Option<Uuid>,         // Corrections.
+    pub side_effect_id: Option<String>,            // Side-effect idempotency.
+    pub replay_safe: bool,                         // Default true.
+    pub mutation_class: Option<String>,            // e.g. "financial", "user-data"
+    pub actor_id: Option<Uuid>,                    // Who caused this event.
+    pub actor_type: Option<String>,                // "user", "service", "system"
+    pub merchant_context: Option<MerchantContext>, // Money-mixing guard. Required for financial.
+    pub payload: T,                                // Your event-specific data.
 }
 ```
 
-Fields with `skip_serializing_if = "Option::is_none"` are omitted when null: `trace_id`, `correlation_id`, `causation_id`, `reverses_event_id`, `supersedes_event_id`, `side_effect_id`, `actor_id`, `actor_type`, `mutation_class`, `merchant_context`.
+### Creating an Envelope
 
-### merchant_context Serialization
+```rust
+use event_bus::{EventEnvelope, MerchantContext};
 
-Source: `platform/event-bus/src/envelope/mod.rs` → `MerchantContext` enum with `#[serde(tag = "type", content = "id")]`
+// Basic construction
+let envelope = EventEnvelope::new(
+    tenant_id.to_string(),       // tenant_id
+    "trashtech".to_string(),     // source_module
+    "pickup.requested".to_string(), // event_type
+    payload,                     // your struct implementing Serialize
+);
 
-```json
-// Tenant context (your product operating):
-"merchant_context": { "type": "Tenant", "id": "<tenant-uuid-string>" }
-
-// Platform context (7D billing you — DO NOT USE):
-"merchant_context": { "type": "Platform" }
+// With builder methods
+let envelope = EventEnvelope::new(tenant_id, "trashtech".into(), "pickup.requested".into(), payload)
+    .with_source_version(env!("CARGO_PKG_VERSION").to_string())
+    .with_correlation_id(Some(correlation_id))
+    .with_causation_id(Some(causation_id))
+    .with_mutation_class(Some("operational".to_string()))
+    .with_actor(user_id, "user".to_string())
+    .with_merchant_context(Some(MerchantContext::Tenant(tenant_id.to_string())));
 ```
 
-**CRITICAL:** `merchant_context` is NOT a string. It is an object with a `type` field. Using `"merchant_context": "TENANT"` will cause deserialization errors. Always use the object form.
+Builder methods available (all return `Self`):
+```
+.with_source_version(String)
+.with_schema_version(String)
+.with_trace_id(Option<String>)
+.with_correlation_id(Option<String>)
+.with_causation_id(Option<String>)
+.with_reverses_event_id(Option<Uuid>)
+.with_supersedes_event_id(Option<Uuid>)
+.with_side_effect_id(Option<String>)
+.with_replay_safe(bool)
+.with_mutation_class(Option<String>)
+.with_actor(Uuid, String)
+.with_actor_from(Option<Uuid>, Option<String>)
+.with_merchant_context(Option<MerchantContext>)
+.with_tracing_context(&TracingContext)
+```
 
-For financial events (AR, payments, GL): set `merchant_context` to `{ "type": "Tenant", "id": "<your-tenant-id>" }`.
-Non-financial events may omit `merchant_context` entirely.
+### MerchantContext
+
+Source: `platform/event-bus/src/envelope/mod.rs`
+
+```rust
+#[serde(tag = "type", content = "id")]
+pub enum MerchantContext {
+    Tenant(String),  // Your events. Inner value = tenant_id.
+    Platform,        // 7D internal. NEVER use this.
+}
+```
+
+Serialized JSON:
+```json
+{ "type": "Tenant", "id": "550e8400-..." }
+```
+
+**Always use `MerchantContext::Tenant(tenant_id)` for your events. Never use `Platform`.**
+
+Required for financial events (invoicing, payments). Optional for non-financial (GPS pings, route updates).
+
+### Idempotency
+
+All events are deduplicated by `event_id`. Your consumer must check and skip already-processed `event_id` values using a `processed_events` table.
 
 ### Known NATS Subjects
 
@@ -565,18 +848,150 @@ Non-financial events may omit `merchant_context` entirely.
 |---------|-------------|---------|
 | `auth.events.user.registered` | identity-auth | User registered |
 | `auth.events.user.logged_in` | identity-auth | Successful login |
-| `invoice.created` | AR | Invoice created |
-| `invoice.payment_succeeded` | AR | Payment applied |
-| `invoice.payment_failed` | AR | Payment attempt failed |
-| `subscription.created` | Subscriptions | Subscription started |
-| `subscription.updated` | Subscriptions | Subscription changed |
-| `subscription.canceled` | Subscriptions | Subscription ended |
-| `payment.collection.requested` | AR | Collection triggered |
+| `ar.events.invoice.created` | AR | Invoice created |
+| `ar.events.payment.collection.requested` | AR | Collection triggered |
+| `gl.events.journal.posted` | AR (cross-module) | GL posting |
 | `payments.events.payment.succeeded` | Payments | Payment gateway success |
 
-**Subject naming pattern:** Newer subjects use `{module}.events.{entity}.{verb}`. Older subjects use flat `{entity}.{verb}`. Subscribe to exact subject strings as listed.
+### Event Evolution Rules
 
-**Idempotency:** All events are deduplicated by `event_id`. Your consumer must check and skip already-processed `event_id` values.
+1. Never remove fields from event payloads
+2. Only add fields with safe defaults
+3. Breaking change → emit new event type OR bump `schema_version`
+4. Consumers must handle older schema versions until cutover
+
+---
+
+## Outbox Pattern — Copy This
+
+Source: `modules/ar/db/migrations/20260211000001_create_events_outbox.sql`, `modules/ar/db/migrations/20260216000001_add_envelope_metadata_to_outbox.sql`
+
+### Migration: Create Outbox Tables
+
+Copy this into your first migration for TrashTech:
+
+```sql
+-- events_outbox: Transactional outbox for reliable event publishing
+CREATE TABLE events_outbox (
+    id SERIAL PRIMARY KEY,
+    event_id UUID NOT NULL UNIQUE,
+    event_type VARCHAR(255) NOT NULL,
+    aggregate_type VARCHAR(100) NOT NULL,
+    aggregate_id VARCHAR(255) NOT NULL,
+    payload JSONB NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    published_at TIMESTAMP,
+    -- Envelope metadata (all from EventEnvelope)
+    tenant_id VARCHAR(255),
+    source_module VARCHAR(100),
+    source_version VARCHAR(50),
+    schema_version VARCHAR(50),
+    occurred_at TIMESTAMPTZ,
+    replay_safe BOOLEAN DEFAULT true,
+    trace_id VARCHAR(255),
+    correlation_id VARCHAR(255),
+    causation_id VARCHAR(255),
+    reverses_event_id UUID,
+    supersedes_event_id UUID,
+    side_effect_id VARCHAR(255),
+    mutation_class VARCHAR(100)
+);
+
+-- Index for unpublished events (background publisher polls this)
+CREATE INDEX idx_events_outbox_unpublished ON events_outbox (created_at)
+WHERE published_at IS NULL;
+
+-- Index for cleanup queries
+CREATE INDEX idx_events_outbox_published ON events_outbox (published_at)
+WHERE published_at IS NOT NULL;
+
+-- Index for tenant-scoped queries
+CREATE INDEX idx_events_outbox_tenant_id ON events_outbox(tenant_id)
+WHERE tenant_id IS NOT NULL;
+
+-- Index for distributed tracing
+CREATE INDEX idx_events_outbox_trace_id ON events_outbox(trace_id)
+WHERE trace_id IS NOT NULL;
+
+-- processed_events: Idempotent consumer dedup
+CREATE TABLE processed_events (
+    id SERIAL PRIMARY KEY,
+    event_id UUID NOT NULL UNIQUE,
+    event_type VARCHAR(255) NOT NULL,
+    processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    processor VARCHAR(100) NOT NULL
+);
+
+CREATE INDEX idx_processed_events_event_id ON processed_events (event_id);
+```
+
+### Outbox Enqueue (Transactional)
+
+Source: `modules/ar/src/events/outbox.rs` → `enqueue_event_tx()`
+
+```rust
+use event_bus::outbox::validate_and_serialize_envelope;
+
+pub async fn enqueue_event_tx<T: Serialize>(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    event_type: &str,          // e.g. "pickup.requested"
+    aggregate_type: &str,      // e.g. "pickup"
+    aggregate_id: &str,        // e.g. pickup UUID
+    envelope: &EventEnvelope<T>,
+) -> Result<(), sqlx::Error> {
+    let payload = validate_and_serialize_envelope(envelope)
+        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Envelope validation failed: {}", e),
+        ))))?;
+
+    sqlx::query(
+        r#"INSERT INTO events_outbox (
+            event_id, event_type, aggregate_type, aggregate_id, payload,
+            tenant_id, source_module, source_version, schema_version,
+            occurred_at, replay_safe, trace_id, correlation_id, causation_id,
+            reverses_event_id, supersedes_event_id, side_effect_id, mutation_class
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)"#,
+    )
+    .bind(envelope.event_id)
+    .bind(event_type)
+    .bind(aggregate_type)
+    .bind(aggregate_id)
+    .bind(payload)
+    .bind(&envelope.tenant_id)
+    .bind(&envelope.source_module)
+    .bind(&envelope.source_version)
+    .bind(&envelope.schema_version)
+    .bind(envelope.occurred_at)
+    .bind(envelope.replay_safe)
+    .bind(&envelope.trace_id)
+    .bind(&envelope.correlation_id)
+    .bind(&envelope.causation_id)
+    .bind(&envelope.reverses_event_id)
+    .bind(&envelope.supersedes_event_id)
+    .bind(&envelope.side_effect_id)
+    .bind(&envelope.mutation_class)
+    .execute(&mut **tx)
+    .await?;
+
+    Ok(())
+}
+```
+
+### Background Publisher
+
+Source: `modules/ar/src/events/publisher.rs`
+
+Polls `events_outbox` every 1 second. For each unpublished event:
+1. Build NATS subject: `format!("{module}.events.{event_type}")`
+2. Serialize payload to bytes
+3. Publish via `event_bus::EventBus` trait
+4. Mark as published (`UPDATE events_outbox SET published_at = NOW() WHERE event_id = $1`)
+
+Copy this pattern for TrashTech. Subject routing:
+```rust
+let subject = format!("trashtech.events.{}", event.event_type);
+```
 
 ---
 
@@ -643,32 +1058,72 @@ When writing code, use this table to decide where data lives:
 
 **Rule:** Never duplicate data that belongs to a platform module in your own DB. Store the platform's IDs (`party_id`, `ar_customer_id`) as foreign references.
 
+### Billing Separation (Non-Negotiable)
+
+- Tenant Platform and TrashTech Pro are **independent billing contracts**
+- Separate `product_code`s: `tenant_platform`, `trashtech_pro`
+- TrashTech cannot silently cause platform billing to begin
+- All TrashTech financial events use `MerchantContext::Tenant(tenant_id)`, never `Platform`
+
+---
+
+## Cargo.toml Path Dependencies
+
+When your vertical app needs platform crates, add these to your `Cargo.toml`:
+
+```toml
+[dependencies]
+# Platform crates (path dependencies — adjust relative path based on your module location)
+# If your module is at modules/trashtech/:
+event-bus = { path = "../../platform/event-bus" }
+security = { path = "../../platform/security" }
+
+# Common dependencies matching platform versions
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+sqlx = { version = "0.8", features = ["runtime-tokio", "tls-rustls", "postgres", "uuid", "chrono", "json"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["serde", "v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+tower = "0.5"
+http = "1"
+```
+
+Source: `platform/security/Cargo.toml` confirms `event-bus = { path = "../event-bus" }` pattern.
+
 ---
 
 ## Do's and Don'ts
 
 ### DO
 
-- ✅ Create a party in Party Master before creating AR customers or AP vendors — you need `party_id` first
-- ✅ Create an AR customer before creating an invoice — you need `ar_customer_id` first
-- ✅ Store `party_id` and `ar_customer_id` in your operational tables so you can join without re-querying
-- ✅ Include all 5 required headers on every API call
-- ✅ Use `x-correlation-id` (generate a UUID per request) for distributed tracing
-- ✅ Deduplicate NATS events by `event_id`
-- ✅ Use identity-auth for all user auth — validate JWT signature against JWKS, not shared secret
-- ✅ Use `merchant_context: { "type": "Tenant", "id": "<tenant-id>" }` on all financial events you publish
-- ✅ Check `e2e-tests/tests/` for working code patterns before implementing from scratch
+- Create a party in Party Master before creating AR customers or AP vendors — you need `party_id` first
+- Create an AR customer before creating an invoice — you need `ar_customer_id` first
+- Store `party_id` and `ar_customer_id` in your operational tables so you can join without re-querying
+- Include all 5 required headers on every API call
+- Use `x-correlation-id` (generate a UUID per request) for distributed tracing
+- Deduplicate NATS events by `event_id`
+- Use identity-auth for all user auth — validate JWT via `security` crate, not custom code
+- Use `MerchantContext::Tenant(tenant_id)` on all events you publish
+- Use `enqueue_event_tx()` for outbox writes — MUST be in the same transaction as domain mutation
+- Check `e2e-tests/tests/` for working code patterns before implementing from scratch
+- Use `env!("CARGO_PKG_VERSION")` for `source_version` in event envelopes
 
 ### DON'T
 
-- ❌ Never connect directly to platform Postgres databases — REST APIs only
-- ❌ Never store customer/vendor entity data in your own tables — that's Party Master's job
-- ❌ Never build your own billing logic — AR + Subscriptions + Payments handle it
-- ❌ Never build your own JWT issuance — identity-auth handles it
-- ❌ Never use `merchant_context: { "type": "Platform" }` — reserved for 7D internal operations
-- ❌ Never omit `x-app-id` — you will get empty results or 400 with no other error indication
-- ❌ Never skip `x-correlation-id` — audit trail gaps are hard to debug
-- ❌ Never mock platform services in tests — tests must call real services
+- Never connect directly to platform Postgres databases — REST APIs only
+- Never store customer/vendor entity data in your own tables — that's Party Master's job
+- Never build your own billing logic — AR + Subscriptions + Payments handle it
+- Never build your own JWT issuance or validation — identity-auth issues, `security` crate validates
+- Never use `MerchantContext::Platform` — reserved for 7D internal operations
+- Never omit `x-app-id` — you will get empty results or 400 with no other error indication
+- Never skip `x-correlation-id` — audit trail gaps are hard to debug
+- Never mock platform services in tests — tests must call real services
+- Never use `enqueue_event()` (non-transactional, deprecated) — use `enqueue_event_tx()` always
+- Never modify platform crates (`event-bus`, `security`) — request changes from 7D Platform agents
 
 ---
 
@@ -691,143 +1146,6 @@ Copy patterns from these files in `e2e-tests/tests/`:
 
 ---
 
-## Platform Crate Dependencies
-
-Source: `platform/event-bus/`, `platform/security/`
-
-Your vertical app Cargo.toml must include these path dependencies to use platform types:
-
-```toml
-[dependencies]
-# Canonical EventEnvelope, MerchantContext, EventBus trait
-event-bus = { path = "../../platform/event-bus" }
-
-# JwtVerifier, VerifiedClaims, ClaimsLayer, RequirePermissionsLayer, permission constants
-security = { path = "../../platform/security" }
-```
-
-### event-bus crate
-
-```rust
-use event_bus::{EventEnvelope, MerchantContext};
-
-// Build an envelope for a financial event:
-let envelope = EventEnvelope::new(
-    tenant_id.to_string(),
-    "trashtech".to_string(),       // source_module
-    "pickup.completed".to_string(), // event_type
-    payload,
-)
-.with_merchant_context(Some(MerchantContext::Tenant(tenant_id.to_string())))
-.with_mutation_class(Some("operational".to_string()));
-```
-
-### security crate — JWT verification
-
-```rust
-use security::{JwtVerifier, VerifiedClaims};
-
-// At startup (once):
-let verifier = JwtVerifier::from_env()
-    .expect("JWT_PUBLIC_KEY env var required");
-
-// Per-request (extract bearer token from Authorization header):
-let claims: VerifiedClaims = verifier.verify(&bearer_token)?;
-// claims.user_id: Uuid
-// claims.tenant_id: Uuid
-// claims.perms: Vec<String>
-```
-
-### security crate — RBAC middleware
-
-```rust
-use security::{ClaimsLayer, RequirePermissionsLayer};
-use security::permissions::{TRASHTECH_MUTATE, TRASHTECH_READ};
-
-let app = Router::new()
-    .route("/api/trashtech/jobs", post(create_job))
-    .layer(RequirePermissionsLayer::new(
-        verifier.clone(),
-        vec![TRASHTECH_MUTATE.to_string()],
-    ))
-    .route("/api/trashtech/jobs", get(list_jobs))
-    .layer(ClaimsLayer::new(verifier.clone()));
-```
-
-### Permission constants (platform/security/src/permissions.rs)
-
-```rust
-// Platform modules:
-AR_MUTATE = "ar.mutate"      AR_READ = "ar.read"
-PAYMENTS_MUTATE              GL_POST = "gl.post"
-SUBSCRIPTIONS_MUTATE         INVENTORY_MUTATE / INVENTORY_READ
-AP_MUTATE / AP_READ          TREASURY_MUTATE / TREASURY_READ
-
-// Your product:
-TRASHTECH_MUTATE = "trashtech.mutate"
-TRASHTECH_READ   = "trashtech.read"
-```
-
----
-
-## Transactional Outbox Pattern
-
-Source: `modules/ar/db/migrations/20260211000001_create_events_outbox.sql`
-
-**Never publish NATS events directly inside a mutation handler.** Use the transactional outbox pattern so events are never lost if NATS is down or the process crashes.
-
-### Required DB Tables (copy into your migrations)
-
-```sql
--- Write events here in the SAME transaction as your domain mutation
-CREATE TABLE events_outbox (
-    id           SERIAL PRIMARY KEY,
-    event_id     UUID NOT NULL UNIQUE,
-    event_type   VARCHAR(255) NOT NULL,
-    aggregate_type VARCHAR(100) NOT NULL,
-    aggregate_id VARCHAR(255) NOT NULL,
-    payload      JSONB NOT NULL,
-    created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    published_at TIMESTAMP          -- NULL = not yet published
-);
-
-CREATE INDEX idx_events_outbox_unpublished ON events_outbox (created_at)
-    WHERE published_at IS NULL;
-
--- Idempotent consumer: check this before processing any event
-CREATE TABLE processed_events (
-    id           SERIAL PRIMARY KEY,
-    event_id     UUID NOT NULL UNIQUE,
-    event_type   VARCHAR(255) NOT NULL,
-    processed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    processor    VARCHAR(100) NOT NULL
-);
-```
-
-### The Pattern
-
-```
-Mutation handler (single transaction):
-  1. Write domain record (e.g. INSERT INTO pickup_jobs)
-  2. Write to events_outbox (same TX)
-  3. COMMIT
-
-Background drainer (separate task, runs every ~100ms):
-  4. SELECT * FROM events_outbox WHERE published_at IS NULL ORDER BY created_at LIMIT 100
-  5. For each row: publish EventEnvelope to NATS
-  6. UPDATE events_outbox SET published_at = NOW() WHERE id = $1
-
-Consumer (your NATS subscriber):
-  7. Receive event
-  8. Check processed_events: if event_id exists → skip (idempotent)
-  9. INSERT INTO processed_events (event_id, event_type, processor)
-  10. Process the event
-```
-
-**The invariant:** The domain mutation and the outbox write are atomic. Either both succeed or neither does. This guarantees at-least-once delivery without dual-write risk.
-
----
-
 ## Source File Index
 
 For re-verification or deeper reading:
@@ -837,19 +1155,31 @@ For re-verification or deeper reading:
 | Auth endpoints | `platform/identity-auth/src/routes/auth.rs` |
 | JWT claims structure | `platform/identity-auth/src/auth/jwt.rs` → `AccessClaims` |
 | JWKS endpoint | `platform/identity-auth/src/main.rs` (mounted at `/.well-known/jwks.json`) |
+| JWT verification | `platform/security/src/claims.rs` → `JwtVerifier`, `VerifiedClaims` |
+| Auth middleware | `platform/security/src/authz_middleware.rs` → `ClaimsLayer`, `RequirePermissionsLayer` |
+| Permission constants | `platform/security/src/permissions.rs` |
+| Security crate Cargo.toml | `platform/security/Cargo.toml` |
+| EventEnvelope (canonical) | `platform/event-bus/src/envelope/mod.rs` |
+| EventEnvelope builder | `platform/event-bus/src/envelope/builder.rs` |
+| EventEnvelope validation | `platform/event-bus/src/envelope/validation.rs` |
+| MerchantContext enum | `platform/event-bus/src/envelope/mod.rs` |
+| TracingContext | `platform/event-bus/src/envelope/tracing_context.rs` |
 | Party Master endpoints | `modules/party/src/http/party.rs` |
+| Party Master router | `modules/party/src/http/mod.rs` |
 | Party Master models | `modules/party/src/domain/party/models.rs` |
 | AR customer model | `modules/ar/src/models/customer.rs` |
 | AR invoice model | `modules/ar/src/models/invoice.rs` |
+| AR router (all routes) | `modules/ar/src/routes/mod.rs` |
 | AR customer endpoints | `modules/ar/src/routes/customers.rs` |
-| NATS subjects (AR) | `modules/ar/src/consumer_tasks.rs` |
+| AR envelope helper | `modules/ar/src/events/envelope.rs` |
+| AR outbox functions | `modules/ar/src/events/outbox.rs` |
+| AR publisher | `modules/ar/src/events/publisher.rs` |
+| AR outbox migration | `modules/ar/db/migrations/20260211000001_create_events_outbox.sql` |
+| AR outbox metadata migration | `modules/ar/db/migrations/20260216000001_add_envelope_metadata_to_outbox.sql` |
+| NATS subjects (AR) | `modules/ar/src/events/publisher.rs` line 51-57 |
+| NATS subjects (auth) | `platform/identity-auth/src/auth/handlers.rs` |
 | Tenant status endpoint | `platform/tenant-registry/src/routes.rs` |
 | Tenant lifecycle states | `platform/tenant-registry/src/lifecycle.rs` |
-| EventEnvelope structure (canonical) | `platform/event-bus/src/envelope/mod.rs` → `EventEnvelope<T>` |
-| MerchantContext serialization | `platform/event-bus/src/envelope/mod.rs` → `MerchantContext` |
-| JWT verifier (security crate) | `platform/security/src/claims.rs` → `JwtVerifier`, `VerifiedClaims` |
-| Permission constants | `platform/security/src/permissions.rs` |
-| Outbox migration (AR reference) | `modules/ar/db/migrations/20260211000001_create_events_outbox.sql` |
 
 ---
 
