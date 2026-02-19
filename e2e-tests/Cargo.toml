@@ -308,6 +308,10 @@ name = "integrations_webhook_ingest_route"
 path = "tests/integrations_webhook_ingest_route.rs"
 
 [[test]]
+name = "integrations_integration"
+path = "tests/integrations_integration.rs"
+
+[[test]]
 name = "rbac_enforcement"
 path = "tests/rbac_enforcement.rs"
 
