@@ -20,6 +20,15 @@ pub struct CreateTenantRequest {
 
     /// Deployment environment
     pub environment: Environment,
+
+    /// Purchased product identifier (e.g. "starter", "professional", "enterprise")
+    pub product_code: String,
+
+    /// Billing plan within the product (e.g. "monthly", "annual")
+    pub plan_code: String,
+
+    /// Maximum concurrent sessions allowed. Defaults to 5 if omitted.
+    pub concurrent_user_limit: Option<i32>,
 }
 
 /// Accepted environments for provisioning
@@ -52,6 +61,21 @@ pub struct CreateTenantResponse {
 
     /// Echoed idempotency key
     pub idempotency_key: String,
+
+    /// Stable AR namespace identifier derived from tenant_id (e.g. "app-550e8400e29b")
+    pub app_id: String,
+
+    /// Product assigned at creation (e.g. "starter", "professional", "enterprise")
+    pub product_code: String,
+
+    /// Billing plan assigned at creation (e.g. "monthly", "annual")
+    pub plan_code: String,
+
+    /// Concurrent session limit seeded into cp_entitlements
+    pub concurrent_user_limit: i32,
+
+    /// Default bundle assigned from cp_bundles; None if no default bundle for product exists
+    pub bundle_id: Option<Uuid>,
 }
 
 // ============================================================================
