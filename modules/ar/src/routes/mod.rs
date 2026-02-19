@@ -15,6 +15,7 @@ pub mod subscriptions;
 pub mod tax;
 pub mod tax_config;
 pub mod tax_config_rules;
+pub mod tax_reports;
 pub mod usage;
 pub mod webhooks;
 pub mod write_offs;
@@ -124,6 +125,9 @@ pub fn ar_router(db: PgPool) -> Router {
             "/api/ar/tax/config/rules/{id}",
             get(tax_config_rules::get_rule).put(tax_config_rules::update_rule),
         )
+        // Tax reporting / filing summaries (bd-1ai1)
+        .route("/api/ar/tax/reports/summary", get(tax_reports::tax_report_summary))
+        .route("/api/ar/tax/reports/export", get(tax_reports::tax_report_export))
         .with_state(db.clone())
         .layer(middleware::from_fn_with_state(db, check_idempotency))
 }
