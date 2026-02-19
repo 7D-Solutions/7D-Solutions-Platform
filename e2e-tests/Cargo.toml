@@ -260,6 +260,10 @@ name = "reporting_gl_statements"
 path = "tests/reporting_gl_statements.rs"
 
 [[test]]
+name = "reporting_aging_reconcile"
+path = "tests/reporting_aging_reconcile.rs"
+
+[[test]]
 name = "ap_multicurrency_gl"
 path = "tests/ap_multicurrency_gl.rs"
 
