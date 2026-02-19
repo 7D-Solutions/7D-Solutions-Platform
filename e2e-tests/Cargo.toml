@@ -320,6 +320,10 @@ name = "party_master_integration"
 path = "tests/party_master_integration.rs"
 
 [[test]]
+name = "party_master_e2e"
+path = "tests/party_master_e2e.rs"
+
+[[test]]
 name = "ttp_billing_monthly_one_time"
 path = "tests/ttp_billing_monthly_one_time.rs"
 
