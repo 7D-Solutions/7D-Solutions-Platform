@@ -109,6 +109,7 @@ async fn main() {
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state.clone())
         .merge(routes::subscriptions_router(pool.clone()))
+        .layer(security::AuthzLayer::from_env())
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)

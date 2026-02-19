@@ -162,6 +162,7 @@ async fn main() {
         .route("/api/ap/tax/reports/summary", get(http::tax_reports::tax_report_summary))
         .route("/api/ap/tax/reports/export", get(http::tax_reports::tax_report_export))
         .with_state(app_state)
+        .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
 

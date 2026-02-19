@@ -58,6 +58,7 @@ async fn main() {
 
     let app = http::router()
         .with_state(app_state)
+        .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
 

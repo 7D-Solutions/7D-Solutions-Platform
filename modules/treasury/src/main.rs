@@ -122,6 +122,10 @@ async fn main() {
             "/api/treasury/cash-position",
             get(http::reports::cash_position),
         )
+        .route(
+            "/api/treasury/forecast",
+            get(http::reports::forecast),
+        )
         // Reconciliation
         .route(
             "/api/treasury/recon/auto-match",
@@ -157,7 +161,12 @@ async fn main() {
             "/api/treasury/statements/import",
             post(http::import::import_statement),
         )
+        .layer(axum::middleware::from_fn_with_state(
+            app_state.clone(),
+            metrics::latency_layer,
+        ))
         .with_state(app_state)
+        .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
 

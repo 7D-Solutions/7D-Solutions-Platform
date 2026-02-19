@@ -119,6 +119,7 @@ async fn main() {
         .route("/api/version", get(payments_rs::routes::health::version))
         .route("/metrics", get(metrics_handler))
         .with_state(app_state)
+        .layer(security::AuthzLayer::from_env())
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)

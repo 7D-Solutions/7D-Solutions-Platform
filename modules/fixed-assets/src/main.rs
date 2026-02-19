@@ -144,6 +144,7 @@ async fn main() {
             get(http::depreciation::get_run),
         )
         .with_state(app_state)
+        .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
 

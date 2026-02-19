@@ -193,6 +193,7 @@ async fn main() {
             axum::routing::get(list_locations),
         )
         .with_state(app_state)
+        .layer(security::AuthzLayer::from_env())
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)

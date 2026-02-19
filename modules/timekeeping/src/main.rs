@@ -61,6 +61,7 @@ async fn main() {
         .allow_credentials(true);
 
     let app = http::router(app_state)
+        .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
 

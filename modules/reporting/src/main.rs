@@ -75,6 +75,7 @@ async fn main() {
         .route("/api/reporting/rebuild", axum::routing::post(http::admin::rebuild))
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state)
+        .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
 

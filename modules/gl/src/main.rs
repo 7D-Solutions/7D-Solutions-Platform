@@ -1,5 +1,8 @@
-use axum::{routing::{get, post}, Router};
+use axum::{extract::DefaultBodyLimit, routing::{get, post}, Extension, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
+use security::middleware::{
+    default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -32,6 +35,7 @@ use gl_rs::{
         get_reporting_balance_sheet,
     },
     consumer::ar_tax_liability::{start_ar_tax_committed_consumer, start_ar_tax_voided_consumer},
+    consumer::fixed_assets_depreciation::start_fixed_assets_depreciation_consumer,
     consumer::gl_inventory_consumer::start_gl_inventory_consumer,
     consumer::gl_writeoff_consumer::start_gl_writeoff_consumer,
     start_gl_posting_consumer,
@@ -123,6 +127,11 @@ async fn main() {
     let tax_voided_bus = bus.clone();
     start_ar_tax_voided_consumer(tax_voided_bus, tax_voided_pool).await;
 
+    // Start GL fixed assets depreciation consumer
+    let fa_depr_pool = pool.clone();
+    let fa_depr_bus = bus.clone();
+    start_fixed_assets_depreciation_consumer(fa_depr_bus, fa_depr_pool).await;
+
     // Create metrics registry
     let metrics = Arc::new(
         gl_rs::metrics::GlMetrics::new()
@@ -172,6 +181,7 @@ async fn main() {
         .route("/api/gl/accruals/reversals/execute", post(execute_reversals_handler))
         .route("/api/gl/cash-flow", get(get_cash_flow))
         .with_state(app_state)
+        .layer(security::AuthzLayer::from_env())
         .layer(
             CorsLayer::new()
                 .allow_origin(tower_http::cors::Any)

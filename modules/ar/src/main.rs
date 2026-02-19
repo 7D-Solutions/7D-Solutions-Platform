@@ -1,5 +1,8 @@
-use axum::{http::Method, routing::get, Router};
+use axum::{extract::DefaultBodyLimit, http::Method, routing::get, Extension, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
+use security::middleware::{
+    default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -99,6 +102,8 @@ async fn main() {
         ])
         .allow_credentials(true);
 
+    let rate_limiter = default_rate_limiter();
+
     let app = Router::new()
         .route("/api/health", get(routes::health::health))
         .route("/api/ready", get(routes::health::ready))
@@ -107,6 +112,11 @@ async fn main() {
         .with_state(app_state.clone())
         .merge(routes::ar_router(db.clone()))
         .merge(routes::tax::tax_router(db))
+        .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
+        .layer(axum::middleware::from_fn(timeout_middleware))
+        .layer(axum::middleware::from_fn(rate_limit_middleware))
+        .layer(Extension(rate_limiter))
+        .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
 
