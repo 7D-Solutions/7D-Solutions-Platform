@@ -16,7 +16,7 @@
 ./scripts/cargo-slot.sh test --workspace         # instead of: cargo test --workspace
 ```
 
-This routes through 2 independent build slots so multiple agents can compile in parallel. If both slots are busy, the script waits automatically.
+This routes through 4 independent build slots so multiple agents can compile in parallel. If all slots are busy, the script waits automatically.
 
 ## File Size Limit
 
