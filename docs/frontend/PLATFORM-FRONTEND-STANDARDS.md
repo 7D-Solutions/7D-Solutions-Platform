@@ -4,8 +4,17 @@
 > This document defines the shared foundation. App-specific decisions (color palette, navigation structure, audience) live in each app's own vision document.
 >
 > **Applies to:** Tenant Control Plane UI (Phase 41), TrashTech Pro, and all future platform apps.
-> **Last updated:** 2026-02-20
-> **Status:** ACTIVE — TopazElk reviewed. All 7 open items resolved (2026-02-20). Document is product-agnostic: TrashTech-specific content lives in `/Users/james/Projects/TrashTech/docs/VISION.md`.
+> **Status:** ACTIVE — TopazElk reviewed. All 7 open items resolved. Document is product-agnostic.
+
+## Revision History
+
+| Rev | Date | Changed By | Summary |
+|-----|------|-----------|---------|
+| 1.0 | 2026-02-20 | BrightHill | Created document. Guiding principles, tech stack, repository structure, CSS token system, Button/StatusBadge/Modal/DataTable/Form components, tab system, unsaved changes, state management, ESLint enforcement, language standards, navigation standards, testing standards, infrastructure map requirement, foundation bead checklist, app vision documents table. |
+| 1.1 | 2026-02-20 | BrightHill | Added Multi-Audience Apps section and Mobile Standards section (48×48px, 16px inputs, skeleton loaders, bottom nav, offline pattern). Incorporated TopazElk TrashTech audience input. |
+| 1.2 | 2026-02-20 | BrightHill | Added Toast vs Modal Threshold section and Real-Time Updates section. Added customer-facing language rules. |
+| 1.3 | 2026-02-20 | BrightHill | Genericized per user directive: removed all product-specific content. TrashTech status types, navigation model specifics, and audience names removed — belong in each app's vision doc. Updated StatusBadge to document audience prop and extension pattern. Clarified shared vs app-specific colors. |
+| 1.4 | 2026-02-20 | BrightHill | Added Revision History (this table), Decision Log, pointer to DOC-REVISION-STANDARDS.md. Adopted cross-app doc standard proposed by TopazElk. Moved to docs/frontend/ subfolder. Updated App Vision Documents paths. |
 
 ---
 
@@ -534,18 +543,26 @@ Each app maintains its own vision document with app-specific decisions:
 
 | App | Vision Document |
 |-----|----------------|
-| Tenant Control Plane UI | `docs/TENANT-CONTROL-PLANE-UI-VISION.md` (this repo) |
+| Tenant Control Plane UI | `docs/frontend/TCP-UI-VISION.md` (this repo) |
 | TrashTech Pro | `/Users/james/Projects/TrashTech/docs/VISION.md` |
 
 ---
 
-## Changelog
+## Decision Log
 
-All significant changes to this document are recorded here. Minor wording fixes are not logged.
+Standards decisions that are settled. Agents must not re-open these without an explicit user directive. Rationale includes what was considered and rejected.
 
-| Date | Changed by | What changed |
-|------|-----------|-------------|
-| 2026-02-20 | BrightHill | Created document. Initial draft from TCP UI vision and Fireproof analysis: Guiding Principles, Tech Stack, Repository Structure, CSS Infrastructure (full token system), Button (variants, sizes, behaviors), StatusBadge (platform types), Modal (rules, sizes, composition), DataTable/ViewToggle, Form Components, Tab System, Unsaved Changes Protection, State Management, ESLint Enforcement, Language Standards, Navigation Standards, Testing Standards, Infrastructure Map requirement, Foundation Bead checklist. |
-| 2026-02-20 | BrightHill | Added Multi-Audience Apps section (generic audience tier table), Mobile Standards section (48×48px touch targets, 16px form inputs, skeleton loaders, bottom nav, no tab system/column manager, offline pattern with IndexedDB + TanStack Query offlineFirst + service worker), Foundation Bead additions for mobile apps. Incorporated TopazElk's input on TrashTech three audiences. |
-| 2026-02-20 | BrightHill | Added Toast vs Modal Threshold section (hard rules: 4s toast, auto-dismiss, destructive/billing→modal, field worker→full-screen confirmation page). Added Real-Time Updates section (TanStack Query refetchInterval, constants file, no setInterval, WebSocket deferred to Phase 2). Added customer-facing language rules to Language Standards. |
-| 2026-02-20 | BrightHill | Genericized document per user directive: removed all TrashTech-specific product content (status types, named navigation models, audience specifics). Replaced with generic patterns. App-specific details belong in each app's vision document. Updated StatusBadge section: audience prop documented, app extension pattern documented; TrashTech-specific table removed. Updated Shared vs App-specific color note to be explicit. |
+| Date | Decision | Rationale (includes what was NOT chosen) | Decided By |
+|------|----------|------------------------------------------|-----------|
+| 2026-02-20 | Next.js (App Router) + TypeScript as the standard frontend framework | Mature ecosystem, strong TypeScript support, server components, BFF routes built in. Rejected: Vite + React (no BFF), Remix (less adoption), SvelteKit (agent unfamiliarity). | User + BrightHill |
+| 2026-02-20 | CSS custom properties in `globals.css` as the token system — not Tailwind config values directly | CSS variables cascade, can be overridden per component or theme without rebuilding Tailwind. Rejected: hardcoding Tailwind classes in components (no single source of truth). | BrightHill |
+| 2026-02-20 | Semantic colors shared across apps — brand palette app-specific | Semantic meaning (success=green, danger=red) must be consistent platform-wide. Brand color is per-product identity. Rejected: fully unified visual theme across all apps (ignores product identity). | User + TopazElk |
+| 2026-02-20 | Tab system is desktop-only — mobile views use stack navigation | Tabs are a desktop interaction pattern. Mobile users navigate with back button + flat drill-down. Rejected: responsive tab system (too complex, poor mobile UX). | TopazElk (confirmed) |
+| 2026-02-20 | ESLint rules enforced from day one — violations fail build, no override comments | Consistency by tooling not discipline. If rules can be bypassed in emergencies, they will be bypassed routinely. Rejected: lint warnings (ignored), convention-based standards (drift over time). | BrightHill |
+| 2026-02-20 | TanStack Query `refetchInterval` for real-time data — WebSocket/SSE deferred to Phase 2 | Polling is sufficient for MVP, simpler to implement and debug. WebSocket adds operational complexity. Rejected: WebSocket from day one (over-engineering for initial scale). | TopazElk |
+| 2026-02-20 | Playwright E2E against real backend only — no mocking, no MSW, no stubs | Tests that mock the backend don't catch backend contract changes. Real integration is the only valid proof. Rejected: MSW mocking (fast but doesn't catch real failures). | User |
+| 2026-02-20 | Document is product-agnostic — all app-specific content belongs in each app's vision doc | Platform doc must be usable by any future app team without mental search-and-replace. Rejected: including TrashTech-specific examples inline (confuses future app teams). | User |
+
+---
+
+> **Revision History** is at the top of this document (immediately after the header). See `docs/frontend/DOC-REVISION-STANDARDS.md` for the standards governing how this document is maintained.

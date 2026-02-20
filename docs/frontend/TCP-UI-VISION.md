@@ -3,7 +3,13 @@
 > **Phase 41**
 > This document is the authoritative vision for the Tenant Control Plane staff-facing admin console.
 > It survives agent context loss and is updated as decisions are made.
-> Last updated: 2026-02-20
+
+## Revision History
+
+| Rev | Date | Changed By | Summary |
+|-----|------|-----------|---------|
+| 1.0 | 2026-02-20 | BrightHill | Created document. Navigation structure, design philosophy, language standards, full scope (A–H), design system, tab system, unsaved changes, column manager, modal system, Zustand stores, ESLint rules, technical constraints, open questions, decision log. |
+| 1.1 | 2026-02-20 | BrightHill | Added Revision History, Decided By column to Decision Log, expanded rationale to include what was rejected. Moved to docs/frontend/TCP-UI-VISION.md. Adopted TopazElk cross-app doc standard. |
 
 ---
 
@@ -397,34 +403,28 @@ These are decisions still to be made. Do not create beads until these are resolv
 
 ## Decision Log
 
-| Date | Decision | Rationale |
-|------|----------|-----------|
-| 2026-02-20 | Full product scope from day one, no MVP phasing | Phased approach would require restructuring, not extending. Speed is not a constraint. |
-| 2026-02-20 | Next.js (React) frontend, not Rust (Leptos) | React ecosystem maturity, component tooling, developer availability |
-| 2026-02-20 | Tenant Detail is a tabbed single page, not 8 separate navigations | Minimum clicks, context before action |
-| 2026-02-20 | Actions surface in context, not only in Admin Tools section | Non-technical users should not need to know where to go to take an action |
-| 2026-02-20 | Plain English labels throughout, no system terminology in UI | Tool must be usable by non-technical staff without documentation |
-| 2026-02-20 | Color-rich UI with strong status badges | Status (active/suspended/terminated/past due/degraded) must be scannable at a glance without drilling down |
-| 2026-02-20 | Row / card view toggle on all list screens | Users choose their preferred display mode; preference persisted per user |
-| 2026-02-20 | One-time charge feature removed from scope | No current use case identified; can be added later if needed |
-| 2026-02-20 | Centralized design system — no ad-hoc button/badge/color styling | Consistency guaranteed by architecture; all components defined once in components/ui/ and pulled from there |
-| 2026-02-20 | CSS infrastructure via CSS custom properties in globals.css (same pattern as Fireproof/tokens.css) | All design values (color, spacing, sizing, shadows, z-index) defined once as CSS variables; Tailwind references them |
-| 2026-02-20 | Button component includes double-click protection by default (1s cooldown) | Prevents accidental duplicate form submissions and destructive action repeats |
-| 2026-02-20 | Tab system ported from Fireproof (preview/permanent, split view, tab-scoped state, isDirty persistence) | Staff work with multiple tenants simultaneously; tab state persists across refresh |
-| 2026-02-20 | Column manager on all tables (drag-reorder, show/hide, backend-persisted per user) | Staff customize their view; preferences follow them across devices |
-| 2026-02-20 | Unsaved changes protection: browser close warning + field-level diff panel | Two layers prevent data loss on forms and destructive navigation |
-| 2026-02-20 | Modal system: no backdrop-click close, two close behaviors, proper stacking, composition pattern | Consistent, safe modal behavior across all 26+ screens |
-| 2026-02-20 | All UI state in Zustand, tab-scoped, no ad-hoc useState for persistent state | State survives tab switches; ESLint rules enforce from day one |
-| 2026-02-20 | Infrastructure Map document required in Foundation bead | First document agents read; maps every centralized system |
+Decisions that are settled. Agents must not re-open these without an explicit user directive. Rationale includes what was considered and rejected.
+
+| Date | Decision | Rationale (includes what was NOT chosen) | Decided By |
+|------|----------|------------------------------------------|-----------|
+| 2026-02-20 | Full product scope from day one — no MVP phasing | Phased approach requires tearing out and rebuilding structural elements later. Speed is not a constraint with a multi-agent worker pool. Rejected: MVP with 8 beads covering only tenant list + detail. | User |
+| 2026-02-20 | Next.js (React) + TypeScript, not pure Rust (Leptos) | React ecosystem maturity, component tooling, developer availability, and shadcn/ui component library. Rejected: Leptos (immature ecosystem, limited component tooling, learning curve for agents). | User + BrightHill |
+| 2026-02-20 | Tenant Detail is a single tabbed page — not 8 separate sub-page navigations | Minimum clicks principle: one click from tenant list → one page with all context. Rejected: separate pages per section (billing page, users page, etc.) which would require navigating away to get full context. | User + BrightHill |
+| 2026-02-20 | Actions surface where the data is — not only in an Admin Tools section | Non-technical staff should not need to know which admin section handles what. Suspend button is on the tenant page. Rejected: centralized admin actions page. | User + BrightHill |
+| 2026-02-20 | Plain English labels throughout — no system terminology in UI | Tool must be usable by non-technical ops and support staff without documentation. Rejected: showing database field names, status codes, or internal IDs as display values. | User |
+| 2026-02-20 | Color-rich UI with status badges (color + text) | Status must be scannable at a glance. Rejected: minimal/monochrome style (Linear/Vercel aesthetic) that requires reading text to determine status. | User |
+| 2026-02-20 | Row / card view toggle on all list screens, preference persisted | Users have different workflows; some prefer dense row view, others prefer card view. Preference saved per user per table. Rejected: single fixed view mode. | User |
+| 2026-02-20 | One-time charge feature removed from scope entirely | No current business use case identified. Can be added in a future bead if a need emerges. Rejected: keeping it in scope speculatively. | User |
+| 2026-02-20 | Centralized design system — all components defined once in `components/ui/`, ESLint prevents ad-hoc variants | Consistency enforced by tooling, not discipline. Rejected: convention-based approach where developers are trusted to follow style guides. | User + BrightHill |
+| 2026-02-20 | CSS infrastructure via CSS custom properties in `globals.css` (same pattern as Fireproof `tokens.css`) | Single source of truth for all design values. Tailwind references CSS variables. Rejected: hardcoded Tailwind classes or inline hex values in components. | BrightHill |
+| 2026-02-20 | Button double-click protection ON by default (1s cooldown) | Prevents duplicate submissions on financial/destructive actions. Rejected: opt-in protection (relies on developers remembering to enable it on important buttons). | BrightHill |
+| 2026-02-20 | Tab system ported from Fireproof (preview/permanent, split view, tab-scoped state, isDirty persistence) | Staff work with multiple tenants simultaneously; tab state persists across refresh. Rejected: single-page-at-a-time navigation (forces context loss when switching). | BrightHill |
+| 2026-02-20 | Column manager on all data tables — drag-reorder, show/hide, backend-persisted per user | Staff customize their view based on workflow; preferences sync across devices. Rejected: localStorage-only persistence (lost on device switch) or no customization. | BrightHill |
+| 2026-02-20 | Unsaved changes: browser close warning + field-level diff panel (two layers) | Both are necessary — browser warning catches accidental navigation, diff panel gives staff information before they decide. Rejected: single-layer (warning only, no context about what would be lost). | BrightHill |
+| 2026-02-20 | Modal: no backdrop-click close, two close behaviors (onClose vs onFullClose), portal rendering | Backdrop-click accidentally loses data. Two close behaviors distinguish cancel-and-stay from navigate-away. Rejected: backdrop-click close (high accidental loss rate on destructive actions). | BrightHill |
+| 2026-02-20 | All persistent UI state in Zustand stores (tab-scoped) — no ad-hoc useState | State survives tab switches without data loss. ESLint rules make violations a build failure from day one. Rejected: component-local useState for persistent state (breaks on tab switch). | BrightHill |
+| 2026-02-20 | Infrastructure Map document required in Foundation bead | First document new agents read before touching any UI code. Maps every centralized system. Rejected: relying on code comments and tribal knowledge. | BrightHill |
 
 ---
 
-## Changelog
-
-All significant changes to this document are recorded here. Minor wording fixes are not logged.
-
-| Date | Changed by | What changed |
-|------|-----------|-------------|
-| 2026-02-20 | BrightHill | Created document. Initial structure: What We're Building, Who Uses This, Design Philosophy, Navigation Structure (5 sections, Tenant Detail tabbed), Language Standards, Scope (A-H), Design System section stub. |
-| 2026-02-20 | BrightHill | Added full CSS Infrastructure (design tokens), Button variants/sizes, StatusBadge, Tab System, Unsaved Changes Protection, Column Management, Modal System, State Management Infrastructure, ESLint Enforcement, Infrastructure Map requirement. Ported from Fireproof analysis. |
-| 2026-02-20 | BrightHill | Added Technical Constraints, Open Questions table, Decision Log. Added decisions: full scope (no MVP), Next.js frontend, tabbed Tenant Detail, color-rich UI, row/card toggle, one-time charge removed, centralized design system, CSS tokens, double-click protection, tab system, column manager, unsaved changes, modal system, Zustand, Infrastructure Map. |
+> **Revision History** is at the top of this document (immediately after the header). See `docs/frontend/DOC-REVISION-STANDARDS.md` for the standards governing how this document is maintained.
