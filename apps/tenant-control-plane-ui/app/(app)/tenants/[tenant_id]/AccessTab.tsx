@@ -12,6 +12,7 @@ import { formatDate } from '@/infrastructure/utils/formatters';
 import { REFETCH_INTERVAL_MS } from '@/lib/constants';
 import type { TenantUser, TenantUserListResponse } from '@/lib/api/types';
 import { RbacPanel } from './RbacPanel';
+import { AppLauncherPanel } from './AppLauncherPanel';
 
 // ── Support session helpers ──────────────────────────────────
 
@@ -342,6 +343,9 @@ export function AccessTab({ tenantId }: AccessTabProps) {
           </Button>
         </Modal.Actions>
       </Modal>
+
+      {/* Subscribed Apps */}
+      <AppLauncherPanel tenantId={tenantId} />
 
       {/* RBAC Roles & Permissions */}
       <RbacPanel tenantId={tenantId} />

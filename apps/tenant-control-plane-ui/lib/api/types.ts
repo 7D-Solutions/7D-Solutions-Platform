@@ -671,3 +671,21 @@ export const RbacChangeRequestSchema = z.object({
 });
 
 export type RbacChangeRequest = z.infer<typeof RbacChangeRequestSchema>;
+
+// ── Tenant Subscribed Apps (App Launcher) ────────────────
+
+export const TenantAppSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  module_code: z.string(),
+  launch_url: z.string().nullable(),
+  status: z.enum(['available', 'provisioning', 'unavailable']),
+});
+
+export type TenantApp = z.infer<typeof TenantAppSchema>;
+
+export const TenantAppListResponseSchema = z.object({
+  apps: z.array(TenantAppSchema),
+});
+
+export type TenantAppListResponse = z.infer<typeof TenantAppListResponseSchema>;
