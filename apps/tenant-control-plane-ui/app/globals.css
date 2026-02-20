@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* ============================================================
    TCP UI — Design Tokens
    Source of truth for all design values.
