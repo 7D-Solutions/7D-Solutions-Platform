@@ -120,6 +120,7 @@ async fn main() {
         .with_state(app_state.clone());
 
     let app = Router::new()
+        .route("/healthz", get(health::healthz))
         .route("/api/health", get(health))
         .route("/api/ready", get(ready))
         .route("/api/version", get(version))

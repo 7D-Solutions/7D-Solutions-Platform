@@ -174,6 +174,7 @@ async fn main() {
     // Build the application router
     let app = Router::new()
         // Ops
+        .route("/healthz", get(health::healthz))
         .route("/api/health", get(health))
         .route("/api/ready", get(ready))
         .route("/api/version", get(version))

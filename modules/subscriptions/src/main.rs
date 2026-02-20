@@ -110,6 +110,7 @@ async fn main() {
     let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
 
     let app = Router::new()
+        .route("/healthz", get(health::healthz))
         .route("/api/health", get(routes::health))
         .route("/api/ready", get(routes::ready))
         .route("/api/version", get(routes::version))

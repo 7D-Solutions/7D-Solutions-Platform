@@ -8,16 +8,38 @@
 ///   POST /api/control/tenants/:tenant_id/tombstone     — Tombstone tenant data (audited)
 ///   POST /api/control/platform-billing-runs            — Run the platform billing cycle for a period
 
-use axum::{routing::{get, post}, Router};
+use axum::{extract::State, http::StatusCode, routing::{get, post}, Json, Router};
 use std::sync::Arc;
 use tenant_registry::routes::{summary_router, entitlements_router, status_router, SummaryState};
 
 use crate::handlers;
 use crate::state::AppState;
 
+/// GET /api/ready — standardized readiness probe
+async fn ready(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<health::ReadyResponse>, (StatusCode, Json<health::ReadyResponse>)> {
+    let start = std::time::Instant::now();
+    let db_err = sqlx::query("SELECT 1")
+        .execute(&state.pool)
+        .await
+        .err()
+        .map(|e| e.to_string());
+    let latency = start.elapsed().as_millis() as u64;
+
+    let resp = health::build_ready_response(
+        "control-plane",
+        env!("CARGO_PKG_VERSION"),
+        vec![health::db_check(latency, db_err)],
+    );
+    health::ready_response_to_axum(resp)
+}
+
 /// Build the full control-plane router.
 pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> Router {
     Router::new()
+        .route("/healthz", get(health::healthz))
+        .route("/api/ready", get(ready))
         .route(
             "/api/control/tenants",
             post(handlers::create_tenant),

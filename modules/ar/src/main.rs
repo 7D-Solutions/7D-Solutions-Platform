@@ -105,6 +105,7 @@ async fn main() {
     let rate_limiter = default_rate_limiter();
 
     let app = Router::new()
+        .route("/healthz", get(health::healthz))
         .route("/api/health", get(routes::health::health))
         .route("/api/ready", get(routes::health::ready))
         .route("/api/version", get(routes::health::version))

@@ -138,8 +138,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Build routers separately then merge
     let health_router = Router::new()
+        .route("/healthz", get(health::healthz))
         .route("/health/live", get(routes::health::health_live))
         .route("/health/ready", get(routes::health::health_ready))
+        .route("/api/ready", get(routes::health::ready))
         .with_state(health_state);
 
     let metrics_router = Router::new()

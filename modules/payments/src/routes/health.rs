@@ -1,9 +1,9 @@
-use axum::{extract::State, Json};
+use axum::{extract::State, http::StatusCode, Json};
+use health::{build_ready_response, db_check, ready_response_to_axum, ReadyResponse};
 use std::sync::Arc;
+use std::time::Instant;
 
-/// Health check endpoint - returns basic service status
-///
-/// This endpoint is for liveness checks. It does not verify external dependencies.
+/// Health check endpoint - returns basic service status (legacy, kept for compat)
 pub async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
@@ -12,31 +12,24 @@ pub async fn health() -> Json<serde_json::Value> {
     }))
 }
 
-/// Readiness check endpoint - verifies DB connectivity
-///
-/// This endpoint is for readiness checks. It verifies that the service can:
-/// - Connect to the database
-/// - Execute queries
-///
-/// Returns 200 OK if ready, 503 Service Unavailable if not ready.
+/// GET /api/ready — readiness probe (verifies DB connectivity)
 pub async fn ready(
     State(app_state): State<Arc<crate::AppState>>,
-) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, String)> {
-    // Test DB connectivity with a simple query
-    match sqlx::query("SELECT 1")
+) -> Result<Json<ReadyResponse>, (StatusCode, Json<ReadyResponse>)> {
+    let start = Instant::now();
+    let db_err = sqlx::query("SELECT 1")
         .execute(&app_state.pool)
         .await
-    {
-        Ok(_) => Ok(Json(serde_json::json!({
-            "status": "ready",
-            "service": "payments-rs",
-            "database": "connected"
-        }))),
-        Err(e) => Err((
-            axum::http::StatusCode::SERVICE_UNAVAILABLE,
-            format!("Database not reachable: {}", e),
-        )),
-    }
+        .err()
+        .map(|e| e.to_string());
+    let latency = start.elapsed().as_millis() as u64;
+
+    let resp = build_ready_response(
+        "payments",
+        env!("CARGO_PKG_VERSION"),
+        vec![db_check(latency, db_err)],
+    );
+    ready_response_to_axum(resp)
 }
 
 /// Version endpoint - returns module identity and schema version

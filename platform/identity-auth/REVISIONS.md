@@ -8,6 +8,7 @@
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
 | 1.0.0 | 2026-02-14 | bd-266g | Initial proof. JWT auth, RBAC, API key management, rate limiting, session management, tenant isolation, NATS event publishing, contract validation. | Module build complete. All E2E tests passing. | — |
+| 1.1.0 | 2026-02-20 | bd-2a3q | Added `/healthz` (liveness) and `/api/ready` (standardized readiness JSON) endpoints. Existing `/health/live` and `/health/ready` kept for backward compatibility. New `health` crate dependency. | Platform-wide health endpoint standardization (Phase 42). | No |
 
 ## How to read this table
 

@@ -117,6 +117,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "hex",
  "projections",
  "prometheus",
@@ -148,6 +149,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "hex",
  "hmac",
  "http-body-util",
@@ -331,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "argon2",
  "async-nats 0.33.0",
@@ -341,6 +343,7 @@ dependencies = [
  "dashmap 6.1.0",
  "dotenvy",
  "governor 0.6.3",
+ "health",
  "hex",
  "jsonschema",
  "jsonwebtoken",
@@ -808,6 +811,7 @@ dependencies = [
  "axum 0.8.8",
  "chrono",
  "dotenvy",
+ "health",
  "projections",
  "prometheus",
  "reqwest 0.12.28",
@@ -851,6 +855,7 @@ dependencies = [
  "axum 0.8.8",
  "axum-test",
  "chrono",
+ "health",
  "serde",
  "serde_json",
  "sqlx",
@@ -1296,6 +1301,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "projections",
  "prometheus",
  "security",
@@ -1557,6 +1563,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "projections",
  "prometheus",
  "reqwest 0.11.27",
@@ -1706,6 +1713,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7382cf6263419f2d8df38c55d7da83da5c18aef87fc7a7fc1fb1e344edfe14c1"
 dependencies = [
  "hashbrown 0.15.5",
+]
+
+[[package]]
+name = "health"
+version = "0.1.0"
+dependencies = [
+ "axum 0.8.8",
+ "chrono",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2099,6 +2116,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "hex",
  "hmac",
  "projections",
@@ -2126,6 +2144,7 @@ dependencies = [
  "chrono",
  "dotenvy",
  "event-bus",
+ "health",
  "projections",
  "prometheus",
  "security",
@@ -2481,6 +2500,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "lazy_static",
  "projections",
  "prometheus",
@@ -2720,6 +2740,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "projections",
  "prometheus",
  "security",
@@ -2759,6 +2780,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "hmac",
  "lazy_static",
  "projections",
@@ -3254,6 +3276,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "projections",
  "prometheus",
  "security",
@@ -4296,6 +4319,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "projections",
  "prometheus",
  "reqwest 0.12.28",
@@ -4423,6 +4447,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+ "tokio",
  "uuid",
 ]
 
@@ -4570,6 +4595,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "projections",
  "prometheus",
  "security",
@@ -4964,6 +4990,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "projections",
  "prometheus",
  "rust_decimal",
@@ -5035,6 +5062,7 @@ dependencies = [
  "dotenvy",
  "event-bus",
  "futures",
+ "health",
  "projections",
  "prometheus",
  "reqwest 0.12.28",

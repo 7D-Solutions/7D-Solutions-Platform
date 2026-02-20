@@ -12,10 +12,12 @@ pub struct HealthState {
     pub metrics: Metrics,
 }
 
+/// GET /health/live — legacy liveness probe (kept for backward compatibility)
 pub async fn health_live() -> StatusCode {
     StatusCode::OK
 }
 
+/// GET /health/ready — legacy readiness probe (kept for backward compatibility)
 pub async fn health_ready(
     State(state): State<Arc<HealthState>>,
 ) -> Result<Json<Value>, StatusCode> {
@@ -56,4 +58,45 @@ pub async fn health_ready(
         "database": "connected",
         "nats": "connected"
     })))
+}
+
+/// GET /api/ready — standardized readiness probe (platform health contract)
+pub async fn ready(
+    State(state): State<Arc<HealthState>>,
+) -> Result<Json<health::ReadyResponse>, (StatusCode, Json<health::ReadyResponse>)> {
+    let start = std::time::Instant::now();
+    let db_err = sqlx::query("SELECT 1")
+        .execute(&state.db)
+        .await
+        .err()
+        .map(|e| e.to_string());
+    let db_latency = start.elapsed().as_millis() as u64;
+
+    state
+        .metrics
+        .dep_up
+        .with_label_values(&["db"])
+        .set(if db_err.is_none() { 1 } else { 0 });
+
+    let nats_ok = state.nats.connection_state() == async_nats::connection::State::Connected;
+    state
+        .metrics
+        .dep_up
+        .with_label_values(&["nats"])
+        .set(if nats_ok { 1 } else { 0 });
+
+    let resp = health::build_ready_response(
+        "identity-auth",
+        env!("CARGO_PKG_VERSION"),
+        vec![
+            health::db_check(db_latency, db_err),
+            health::nats_check(nats_ok, 0),
+        ],
+    );
+
+    state.metrics.dep_up.with_label_values(&["ready"]).set(
+        if resp.status == health::ReadyStatus::Ready { 1 } else { 0 },
+    );
+
+    health::ready_response_to_axum(resp)
 }

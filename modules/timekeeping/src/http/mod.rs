@@ -65,6 +65,7 @@ pub fn router(state: Arc<AppState>) -> Router {
 
     let reads = Router::new()
         // Ops
+        .route("/healthz", get(health::healthz))
         .route("/api/health", get(ops::health::health))
         .route("/api/ready", get(ops::ready::ready))
         .route("/api/version", get(ops::version::version))
