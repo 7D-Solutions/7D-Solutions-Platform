@@ -4,7 +4,7 @@
 // ============================================================
 'use client';
 import { useQuery } from '@tanstack/react-query';
-import { ViewToggle, DataTable, StatusBadge, Pagination } from '@/components/ui';
+import { Button, ViewToggle, DataTable, StatusBadge, Pagination } from '@/components/ui';
 import { usePersistedView } from '@/infrastructure/hooks/usePersistedView';
 import { useColumnManager } from '@/infrastructure/hooks/useColumnManager';
 import { usePagination } from '@/infrastructure/hooks/usePagination';
@@ -148,12 +148,13 @@ export default function PlansPage() {
         </select>
 
         {hasActiveFilters && (
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={clearFilters}
-            className="text-xs text-[--color-text-secondary] hover:text-[--color-text-primary] underline"
           >
             Clear filters
-          </button>
+          </Button>
         )}
       </div>
 
