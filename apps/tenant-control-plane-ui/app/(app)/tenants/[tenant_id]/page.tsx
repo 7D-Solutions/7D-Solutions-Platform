@@ -9,7 +9,8 @@ import { useParams } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
-import { Button, StatusBadge } from '@/components/ui';
+import { StatusBadge } from '@/components/ui';
+import { Button } from '@/components/ui/Button';
 import { useViewStore } from '@/infrastructure/state/useViewStore';
 import { formatDate } from '@/infrastructure/utils/formatters';
 import { REFETCH_INTERVAL_MS } from '@/lib/constants';
@@ -109,12 +110,16 @@ export default function TenantDetailPage() {
         data-testid="tenant-detail-tabs"
       >
         {TABS.map((tab, index) => (
-          <button
+          <Button
             key={tab.id}
+            variant="ghost"
+            size="sm"
             role="tab"
             aria-selected={activeTabIndex === index}
             onClick={() => setState({ activeTab: index })}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-[--transition-fast] ${
+            // Tab switching is not a mutation — no cooldown needed
+            disableCooldown
+            className={`rounded-none border-b-2 ${
               activeTabIndex === index
                 ? 'border-[--color-primary] text-[--color-primary]'
                 : 'border-transparent text-[--color-text-secondary] hover:text-[--color-text-primary] hover:border-[--color-border-default]'
@@ -122,7 +127,7 @@ export default function TenantDetailPage() {
             data-testid={`tab-${tab.id}`}
           >
             {tab.label}
-          </button>
+          </Button>
         ))}
       </div>
 
