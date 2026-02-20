@@ -1,20 +1,23 @@
 //! Reservation HTTP handlers.
 //!
 //! Endpoints:
-//!   POST /api/inventory/reservations/reserve  — create a stock hold
-//!   POST /api/inventory/reservations/release  — compensating release referencing a reserve
+//!   POST /api/inventory/reservations/reserve          — create a stock hold
+//!   POST /api/inventory/reservations/release          — compensating release referencing a reserve
+//!   POST /api/inventory/reservations/{id}/fulfill     — fulfill reservation (physical stock deduction)
 //!
 //! Idempotency:
 //!   Callers MUST supply `idempotency_key` in the request body.
 //!   Duplicate keys with the same body return 200 OK with the stored result.
 //!   Duplicate keys with a different body return 409 Conflict.
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::{Path, State}, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::{
     domain::{
+        fulfill_service::{process_fulfill, FulfillError, FulfillRequest},
         guards::GuardError,
         reservation_service::{
             process_release, process_reserve, ReleaseRequest, ReservationError, ReserveRequest,
@@ -153,6 +156,93 @@ pub async fn post_release(
     match process_release(&state.pool, &req).await {
         Ok((result, _is_replay)) => (StatusCode::OK, Json(json!(result))).into_response(),
         Err(e) => reservation_error_response(e).into_response(),
+    }
+}
+
+// ============================================================================
+// Fulfill error mapping
+// ============================================================================
+
+fn fulfill_error_response(err: FulfillError) -> impl IntoResponse {
+    match err {
+        FulfillError::Guard(GuardError::Validation(msg)) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({ "error": "validation_error", "message": msg })),
+        ),
+        FulfillError::Guard(e) => {
+            tracing::error!(error = %e, "fulfill guard error");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": e.to_string() })),
+            )
+        }
+        FulfillError::ReservationNotFound => (
+            StatusCode::NOT_FOUND,
+            Json(json!({
+                "error": "reservation_not_found",
+                "message": "Reservation not found or does not belong to this tenant"
+            })),
+        ),
+        FulfillError::AlreadySettled => (
+            StatusCode::CONFLICT,
+            Json(json!({
+                "error": "already_settled",
+                "message": "Reservation already fulfilled or released"
+            })),
+        ),
+        FulfillError::QuantityExceedsReserved(requested, reserved) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "error": "quantity_exceeds_reserved",
+                "message": format!("Fulfill quantity {} exceeds reserved quantity {}", requested, reserved)
+            })),
+        ),
+        FulfillError::ConflictingIdempotencyKey => (
+            StatusCode::CONFLICT,
+            Json(json!({
+                "error": "idempotency_conflict",
+                "message": "Idempotency key already used with a different request body"
+            })),
+        ),
+        FulfillError::Serialization(e) => {
+            tracing::error!(error = %e, "serialization error in fulfill");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
+            )
+        }
+        FulfillError::Database(e) => {
+            tracing::error!(error = %e, "fulfill database error");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": "Database error" })),
+            )
+        }
+    }
+}
+
+/// POST /api/inventory/reservations/{reservation_id}/fulfill
+///
+/// Converts an active reservation into a physical stock deduction.
+/// Creates a compensating 'fulfilled' row, decrements quantity_reserved
+/// AND quantity_on_hand, and writes an outbox event, all in one transaction.
+///
+/// Responses:
+///   200 OK        — fulfilled (or idempotency replay)
+///   404 Not Found — reservation_id not found or wrong tenant
+///   409 Conflict  — already settled / idempotency conflict
+///   422           — validation failure (quantity > reserved)
+///   500           — internal error
+pub async fn post_fulfill(
+    State(state): State<Arc<AppState>>,
+    Path(reservation_id): Path<Uuid>,
+    Json(mut req): Json<FulfillRequest>,
+) -> impl IntoResponse {
+    // Inject path param into request body for consistency.
+    req.reservation_id = reservation_id;
+    match process_fulfill(&state.pool, &req).await {
+        Ok((result, _is_replay)) => (StatusCode::OK, Json(json!(result))).into_response(),
+        Err(e) => fulfill_error_response(e).into_response(),
     }
 }
 

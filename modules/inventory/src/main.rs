@@ -30,7 +30,7 @@ use inventory_rs::{
             create_location, deactivate_location, get_location, list_locations, update_location,
         },
         receipts::post_receipt,
-        reservations::{post_release, post_reserve},
+        reservations::{post_fulfill, post_release, post_reserve},
         transfers::post_transfer,
         uom::{create_conversion, create_uom, list_conversions, list_uoms},
     },
@@ -88,6 +88,7 @@ async fn main() {
         // Reservations — write
         .route("/api/inventory/reservations/reserve", axum::routing::post(post_reserve))
         .route("/api/inventory/reservations/release", axum::routing::post(post_release))
+        .route("/api/inventory/reservations/{id}/fulfill", axum::routing::post(post_fulfill))
         // UoM — write
         .route("/api/inventory/uoms", axum::routing::post(create_uom))
         .route("/api/inventory/items/{id}/uom-conversions", axum::routing::post(create_conversion))

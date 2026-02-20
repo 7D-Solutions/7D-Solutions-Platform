@@ -16,8 +16,11 @@ modules/ar/src/finalization.rs            # 734 LOC — invoice finalization
 modules/ar/src/routes/invoices.rs         # 689 LOC — invoice routes
 modules/ar/src/routes/subscriptions.rs    # 562 LOC — subscription routes
 modules/ar/src/routes/charges.rs          # 511 LOC — charge routes
-modules/inventory/src/domain/issue_service.rs  # 530 LOC — issue service (refactor in future bead)
-modules/inventory/src/domain/adjust_service.rs # 580 LOC — adjustment service (refactor in future bead)
+modules/inventory/src/domain/issue_service.rs       # 530 LOC — issue service (refactor in future bead)
+modules/inventory/src/domain/adjust_service.rs      # 580 LOC — adjustment service (refactor in future bead)
+modules/inventory/src/domain/reservation_service.rs # 592 LOC — reservation service (refactor in future bead)
+modules/inventory/src/routes/reservations.rs        # ~262 LOC — reservation routes + fulfill handler
+e2e-tests/tests/inventory_reservation_e2e.rs        # 726 LOC — full reservation lifecycle coverage
 modules/treasury/src/domain/accounts/service.rs # ~680 LOC — bank + CC account service (refactor in future bead)
 modules/treasury/src/consumers/payments.rs     # ~545 LOC — payments consumer + integrated tests
 platform/tenant-registry/src/routes.rs        # 537 LOC — control-plane routes (split in future bead)
