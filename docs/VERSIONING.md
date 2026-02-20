@@ -8,6 +8,7 @@
 
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
+| 1.1 | 2026-02-20 | Platform Orchestrator | ChatGPT review feedback: added module identification section, tag immutability rule, rollback procedure, cross-module change guidance, event schema vs module versioning clarification, platform component adoption model. |
 | 1.0 | 2026-02-20 | Platform Orchestrator | Created. Replaces docs/architecture/VERSIONING-STANDARD.md, docs/architecture/CONTRACT-VERSIONING-POLICY.md, and docs/governance/RELEASE-POLICY.md — those documents described an aspirational system that was never implemented. This document describes the system that is implemented and enforced. |
 
 ---
@@ -15,6 +16,24 @@
 ## The Rule
 
 No change to a proven module reaches any product automatically. Every module change is versioned. Every product explicitly adopts the versions it runs. There are three gates between an agent's code change and a production deployment, and all three must pass.
+
+---
+
+## Identifying Modules
+
+A **module** is any directory in the workspace that produces a deployable service (Docker container). Each module has:
+
+- A **package file** containing its version: `Cargo.toml` (Rust) or `package.json` (Node)
+- A **source directory** (`src/`, `db/`, `migrations/`) whose changes trigger version checks
+- A **REVISIONS.md** file in the module root (only after the module is proven)
+
+**Where modules live in this platform:**
+```
+modules/{name}/Cargo.toml          → product-facing modules (AR, GL, AP, etc.)
+platform/{name}/Cargo.toml         → shared platform services (identity-auth, tenant-registry, etc.)
+```
+
+**How to tell if a module is proven:** Read the `version` field in the module's package file. If the version is `>= 1.0.0`, the module is proven and all versioning rules apply. If the version is `0.x.x`, the module is unproven — change freely.
 
 ---
 
@@ -33,7 +52,7 @@ The module is being built for the first time. Agents change it freely. No versio
 The module has passed all E2E tests and is stable. At this point:
 
 1. Bump the version to `1.0.0` in the package file
-2. Create `REVISIONS.md` in the module root (use the template at `docs/templates/MODULE-REVISIONS.md`)
+2. Create `REVISIONS.md` in the module root — e.g., `modules/ar/REVISIONS.md` or `platform/identity-auth/REVISIONS.md` (use the template at `docs/templates/MODULE-REVISIONS.md`)
 3. Commit and push
 4. Build and push the first versioned image to the container registry (CI does this when automated; agent or orchestrator does it manually until then)
 5. Tag the commit: `git tag {module-name}-v1.0.0` (the committing agent creates the tag)
@@ -169,6 +188,7 @@ registry.example.com/7d-auth:1.0.0
 
 ### Rules
 
+- **Published version tags are immutable.** Once an image is pushed as `7d-ar:1.0.1`, that tag must never be overwritten with different bytes. If the tag is wrong, bump to the next version and push a new tag.
 - Every version ever published stays in the registry. Old versions are not deleted.
 - There is no `latest` tag in production. Products always reference explicit version numbers.
 - Development environments may use `latest` for convenience, but production deployments must pin versions.
@@ -218,7 +238,14 @@ The product cannot simply bump the version in the manifest. A breaking change me
 
 ## Platform Components vs Modules
 
-Platform components (`identity-auth`, `event-bus`, `tenant-registry`, etc.) follow the same versioning rules as modules. They are proven, versioned, and gated in the same way. Products include platform component versions in their manifests.
+Platform components (`identity-auth`, `event-bus`, `tenant-registry`, etc.) follow the same versioning rules as modules — proven, versioned, gated. The difference is in **who adopts them.**
+
+- **Modules** (AR, GL, AP, etc.) are adopted per-product. Each product's `MODULE-MANIFEST.md` pins the module version it uses.
+- **Platform components** (identity-auth, event-bus, tenant-registry) are shared infrastructure. They are adopted at the **environment level**, not per-product. When a platform component is upgraded, all products in that environment use the new version.
+
+Platform component upgrades require backward compatibility for at least one prior version. If a platform component makes a breaking change, it must support both the old and new behavior until all products have migrated. This is enforced via the same REVISIONS.md process — the breaking change entry must document the compatibility window.
+
+Products still list platform component versions in their manifests for documentation and traceability, but the platform team controls when the shared service is actually upgraded.
 
 ---
 
@@ -242,6 +269,26 @@ These rules are enforced via CLAUDE.md in every project. They are repeated here 
 3. **Update `MODULE-MANIFEST.md`** with the new version and validation date.
 4. **Run the product's E2E tests** against the new version.
 5. **Commit** the manifest change (and any code changes) with a note explaining the adoption.
+
+### When a change spans multiple proven modules
+
+If a single bead requires changes to more than one proven module, each module gets its own version bump and revision entry. The revision entries should cross-reference each other:
+
+- Bump and add a revision row in each module's `REVISIONS.md`
+- In each revision entry, note the paired module and version: "Requires {other-module} >= {version}"
+- Commit all module changes together so they are atomically deployed
+
+### When rolling back a module version in a product
+
+If a product needs to revert to an earlier module version:
+
+1. Update `MODULE-MANIFEST.md` to the previous version
+2. Add an adoption log entry with reason: "Rollback: {why}"
+3. Run the product's E2E tests against the previous version
+4. Commit the manifest change
+5. Deploy with the reverted manifest
+
+Rollbacks are version changes like any other — they go through the manifest and are recorded.
 
 ### When proving a module for the first time
 
@@ -294,6 +341,22 @@ This document replaces three earlier documents that described an aspirational sy
 - `docs/governance/RELEASE-POLICY.md` — described Kubernetes deployments, biweekly release cadence, approval matrices. Not implemented.
 
 The event schema versioning concepts from `CONTRACT-VERSIONING-POLICY.md` (v1.json file naming, source_version in EventEnvelope, contract tests) are valid and remain in effect. The rest of those documents is superseded by this one.
+
+---
+
+## Event Schema Versioning vs Module Versioning
+
+These are two independent version axes. Do not confuse them.
+
+- **Module version** (SemVer in `Cargo.toml`): Tracks the module's code. Bumped on every change to a proven module. Recorded in `REVISIONS.md`.
+- **Event schema version** (`source_version` in EventEnvelope, e.g., `"v1"`): Tracks the shape of event payloads. Changes only when the event contract changes.
+
+**Rules:**
+
+- A module PATCH or MINOR bump does not change the event schema version. Internal fixes and additive features keep `source_version` at its current value.
+- A module MAJOR bump that changes event payload structure requires a new schema version: create `contracts/events/{event}.v2.json`, update `source_version` to `"v2"`.
+- When a new schema version is introduced, the module must continue producing/consuming the previous schema version until all known consumers have migrated. The `REVISIONS.md` entry must document this compatibility window.
+- Contract tests must pass for all supported schema versions.
 
 ---
 
