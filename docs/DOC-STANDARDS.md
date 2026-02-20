@@ -12,6 +12,7 @@
 | 1.1 | 2026-02-20 | Platform Orchestrator | Added Cross-Repo Reference section — single symlink convention, setup instructions, what apps must not do, app-level governance model. |
 | 1.2 | 2026-02-20 | Platform Orchestrator | Replaced per-app symlink pattern with canonical /Users/james/Projects/platform-docs/ folder. Single entry point for all projects; apps symlink to it. |
 | 1.3 | 2026-02-20 | Platform Orchestrator | Moved Consumer Guide files into docs/consumer-guide/ subfolder. Now matches docs/frontend/ naming pattern. Updated Cross-Repo Reference paths and Consumer Guide file listing. |
+| 1.4 | 2026-02-20 | Platform Orchestrator | Fixed Document Families table paths — CG files now reference docs/consumer-guide/ subfolder. Fixed anchor links to match heading IDs. |
 
 ---
 
@@ -94,8 +95,8 @@ The platform has two families of documentation, each with its own directory and 
 
 | Family | Location | Index file | Standards extension |
 |--------|----------|------------|---------------------|
-| Consumer Guide | `docs/CG-*.md` | `docs/PLATFORM-CONSUMER-GUIDE.md` | [CG-specific rules](#consumer-guide-specific-rules) |
-| Frontend Standards | `docs/frontend/*.md` | `docs/frontend/PLATFORM-FRONTEND-STANDARDS.md` | [Frontend-specific rules](#frontend-specific-rules) |
+| Consumer Guide | `docs/consumer-guide/CG-*.md` | `docs/consumer-guide/PLATFORM-CONSUMER-GUIDE.md` | [CG-specific rules](#consumer-guide--specific-rules) |
+| Frontend Standards | `docs/frontend/*.md` | `docs/frontend/PLATFORM-FRONTEND-STANDARDS.md` | [Frontend-specific rules](#frontend-standards--specific-rules) |
 
 ---
 

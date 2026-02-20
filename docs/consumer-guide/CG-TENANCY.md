@@ -22,6 +22,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-20 | Platform Orchestrator | Extracted from PLATFORM-CONSUMER-GUIDE.md. Tenant provisioning, database-per-tenant pattern (management DB, pool map, middleware, NATS subscriber, migration strategy), per-app roles, cross-app navigation, support sessions. |
+| 1.1 | 2026-02-20 | Platform Orchestrator | Fixed agent name in dev provisioning flow (BrightHill → Platform Orchestrator). Added clarifying note distinguishing dev-time manual provisioning from production NATS-driven flow. |
 
 ---
 
@@ -30,8 +31,8 @@
 Tenant provisioning is an **internal admin process** — there is no public API endpoint for creating tenants.
 
 **Flow:**
-1. Contact BrightHill (orchestrator) to provision your tenant
-2. BrightHill creates the tenant record via admin tools
+1. Contact Platform Orchestrator to provision your tenant (development-time only; production provisioning uses NATS — see [Tenant Provisioning — Database Creation](#tenant-provisioning--database-creation))
+2. Platform Orchestrator creates the tenant record via admin tools
 3. You receive: `tenant_id` (UUID) + `app_id` (string, e.g. `trashtech-pro`)
 4. Provisioning states: `pending` → `provisioning` → `active` | `failed`
 5. Only `active` tenants can log in — identity-auth enforces this at login time
