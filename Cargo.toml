@@ -8,6 +8,7 @@ members = [
   "platform/projections",
   "platform/security",
   "platform/tax-core",
+  "platform/health",
   "modules/ar",
   "modules/subscriptions",
   "modules/payments",
