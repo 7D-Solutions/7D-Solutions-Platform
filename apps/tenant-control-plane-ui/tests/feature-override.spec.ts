@@ -51,7 +51,7 @@ test.describe('Feature Override', () => {
 
     // Modal should be visible with Grant Override title
     await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page.getByText('Grant Override')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Grant Override' })).toBeVisible();
     await expect(page.getByTestId('override-justification')).toBeVisible();
     await expect(page.getByTestId('override-confirm-btn')).toBeVisible();
   });
@@ -66,7 +66,7 @@ test.describe('Feature Override', () => {
 
     // Modal should be visible with Revoke Override title
     await expect(page.getByRole('dialog')).toBeVisible();
-    await expect(page.getByText('Revoke Override')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Revoke Override' })).toBeVisible();
     await expect(page.getByTestId('override-justification')).toBeVisible();
     await expect(page.getByTestId('override-confirm-btn')).toBeVisible();
   });
