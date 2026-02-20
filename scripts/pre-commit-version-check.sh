@@ -47,7 +47,8 @@ for file in $STAGED_FILES; do
     done
 done
 
-if [ ${#TOUCHED_MODULES[@]} -eq 0 ]; then
+# shellcheck disable=SC2128
+if [ -z "${TOUCHED_MODULES[*]:-}" ]; then
     exit 0
 fi
 
