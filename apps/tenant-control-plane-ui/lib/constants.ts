@@ -30,6 +30,9 @@ export const BUTTON_COOLDOWN_MS = 1000;
 // Auth cookie name
 export const AUTH_COOKIE_NAME = 'tcp_auth_token';
 
+// Support session cookie name (separate from staff auth)
+export const SUPPORT_SESSION_COOKIE_NAME = 'tcp_support_session';
+
 // Required role for TCP access
 export const REQUIRED_ROLE = 'platform_admin';
 
