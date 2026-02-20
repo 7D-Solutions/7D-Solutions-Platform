@@ -82,7 +82,7 @@ export function SettingsTab({ tenantId, tenant }: SettingsTabProps) {
   const [reauthDone, setReauthDone] = useState(false);
 
   const status = tenant?.status ?? 'unknown';
-  const canSuspend = status === 'active' || status === 'trial';
+  const canSuspend = ['active', 'trial', 'unknown'].includes(status);
   const canActivate = status === 'suspended';
   const canTerminate = status !== 'terminated';
 

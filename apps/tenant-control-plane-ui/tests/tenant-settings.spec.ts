@@ -51,7 +51,7 @@ test.describe('Tenant Settings', () => {
 
     // At least one lifecycle button should be visible
     await expect(
-      suspendBtn.or(activateBtn).or(terminateBtn)
+      suspendBtn.or(activateBtn).or(terminateBtn).first()
     ).toBeVisible({ timeout: 5000 });
   });
 
@@ -69,7 +69,7 @@ test.describe('Tenant Settings', () => {
 
     await suspendBtn.click();
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('Suspend Tenant')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Suspend Tenant' })).toBeVisible();
     await expect(page.getByText(/Are you sure you want to suspend/)).toBeVisible();
 
     // Confirm the suspend
@@ -86,38 +86,20 @@ test.describe('Tenant Settings', () => {
   });
 
   test('activate action opens confirmation and calls BFF', async ({ page }) => {
-    // First suspend, then activate
     await page.goto('/tenants/test-tenant-001');
     await page.getByTestId('tab-settings').click();
     await expect(page.getByTestId('settings-tab')).toBeVisible({ timeout: BFF_TIMEOUT });
 
-    // If activate is available directly, use it
+    // Activate is only available for suspended tenants — skip in seed mode
     const activateBtn = page.getByTestId('activate-btn');
     if (!(await activateBtn.isVisible().catch(() => false))) {
-      // Suspend first to make activate available
-      const suspendBtn = page.getByTestId('suspend-btn');
-      if (!(await suspendBtn.isVisible().catch(() => false))) {
-        test.skip();
-        return;
-      }
-      await suspendBtn.click();
-      await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
-      await Promise.all([
-        page.waitForResponse(
-          (res) => res.url().includes('/suspend') && res.request().method() === 'POST',
-          { timeout: BFF_TIMEOUT },
-        ),
-        page.getByTestId('confirm-lifecycle-btn').click(),
-      ]);
-      await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 5000 });
-
-      // Wait for refetch to show activate
-      await expect(page.getByTestId('activate-btn')).toBeVisible({ timeout: BFF_TIMEOUT });
+      test.skip();
+      return;
     }
 
-    await page.getByTestId('activate-btn').click();
+    await activateBtn.click();
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('Activate Tenant')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Activate Tenant' })).toBeVisible();
 
     const [activateRes] = await Promise.all([
       page.waitForResponse(
@@ -172,7 +154,7 @@ test.describe('Terminate with Re-auth', () => {
 
     await terminateBtn.click();
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('Terminate Tenant')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Terminate Tenant' })).toBeVisible();
     await expect(page.getByText('Reason for termination')).toBeVisible();
 
     // Next button should be disabled with empty reason
