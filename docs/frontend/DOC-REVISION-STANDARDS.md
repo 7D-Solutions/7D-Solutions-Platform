@@ -7,10 +7,10 @@
 
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
-| 1.0 | 2026-02-20 | Orchestrator | Created. Adopted as cross-app standard with TrashTech Orchestrator. |
-| 1.1 | 2026-02-20 | Orchestrator | Added Cross-Repo Path Convention section and full docs/ directory structure. Symlinks created: docs/apps/trashtech and docs/reference/fireproof. Eliminates absolute paths across all docs. |
-| 1.2 | 2026-02-20 | Orchestrator | Changed By and Decided By convention: use roles, not agent names (agent names change per session). Updated all revision history and decision log entries in all docs. |
-| 1.3 | 2026-02-20 | Orchestrator | Added Governance section: platform is single source of truth, app teams submit change requests, platform orchestrator owns all docs in docs/frontend/. |
+| 1.0 | 2026-02-20 | Platform Orchestrator | Created. Adopted as cross-app standard with TrashTech Orchestrator. |
+| 1.1 | 2026-02-20 | Platform Orchestrator | Added Cross-Repo Path Convention section and full docs/ directory structure. Symlinks created: docs/apps/trashtech and docs/reference/fireproof. Eliminates absolute paths across all docs. |
+| 1.2 | 2026-02-20 | Platform Orchestrator | Changed By and Decided By convention: use roles, not agent names (agent names change per session). Updated all revision history and decision log entries in all docs. |
+| 1.3 | 2026-02-20 | Platform Orchestrator | Added Governance section: platform is single source of truth, app teams submit change requests, platform orchestrator owns all docs in docs/frontend/. |
 
 ---
 
@@ -81,8 +81,8 @@ Do not add sections, rename sections, or reorder sections without updating this 
 
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
-| 1.0 | YYYY-MM-DD | Orchestrator | Initial document — list sections created. |
-| 1.1 | YYYY-MM-DD | Orchestrator | Added X section — reason why it was needed. |
+| 1.0 | YYYY-MM-DD | Platform Orchestrator | Initial document — list sections created. |
+| 1.1 | YYYY-MM-DD | Platform Orchestrator | Added X section — reason why it was needed. |
 | 1.2 | YYYY-MM-DD | User | Updated Y — what changed and why. |
 ```
 
@@ -90,7 +90,7 @@ Do not add sections, rename sections, or reorder sections without updating this 
 - Every commit that changes the document content bumps the revision (1.0 → 1.1 → 1.2, etc.)
 - Minor wording fixes that do not change meaning: no revision bump, just note in commit message
 - Summary must say what changed AND why — not just what
-- **Changed By uses roles, not agent names.** Agent names change on each session initialization — roles are stable. Use: `User` (human), `Orchestrator` (platform orchestrator), `TrashTech Orchestrator`, or the role of whichever team made the change. Never use a session agent name like `BrightHill` or `TopazElk`.
+- **Changed By uses roles, not agent names.** Agent names change on each session initialization — roles are stable. Use: `User` (human), `Platform Orchestrator` (whoever owns this repo's planning), `TrashTech Orchestrator`, or the role of whichever team made the change. Never use a session agent name like `BrightHill` or `TopazElk`.
 - If a decision is reversed, add a new revision row — do not edit old rows
 
 ---
@@ -108,14 +108,14 @@ Decisions that are settled. Do not re-open without an explicit user directive.
 
 | Date | Decision | Rationale (includes what was NOT chosen) | Decided By |
 |------|----------|------------------------------------------|-----------|
-| YYYY-MM-DD | Short statement of what was decided | Why this was chosen. What was rejected and why. | User / Orchestrator / TrashTech Orchestrator |
+| YYYY-MM-DD | Short statement of what was decided | Why this was chosen. What was rejected and why. | User / Platform Orchestrator / TrashTech Orchestrator |
 ```
 
 **Rules:**
 - Every structural decision goes here when it is made — not after the fact
 - Rationale MUST name what was NOT chosen. "Chose X" is not sufficient. "Chose X over Y because Z" is required.
 - If a decision is reversed: add a new row, do not delete the old one. New row says: "Supersedes YYYY-MM-DD decision on [topic]. New decision: [what]. Reason for reversal: [why]."
-- **Decided By uses roles, not agent names** — same rule as Changed By. Write `User`, `Orchestrator`, `User + Orchestrator`, etc. Never a session-specific agent name.
+- **Decided By uses roles, not agent names** — same rule as Changed By. Write `User`, `Platform Orchestrator`, `TrashTech Orchestrator`, `User + Platform Orchestrator`, etc. Never a session-specific agent name.
 
 ---
 

@@ -8,10 +8,10 @@
 
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
-| 1.0 | 2026-02-20 | Orchestrator | Created document. Navigation structure, design philosophy, language standards, full scope (A–H), design system, tab system, unsaved changes, column manager, modal system, Zustand stores, ESLint rules, technical constraints, open questions, decision log. |
-| 1.1 | 2026-02-20 | Orchestrator | Added Revision History, Decided By column to Decision Log, expanded rationale to include what was rejected. Moved to docs/frontend/TCP-UI-VISION.md. Adopted cross-app doc standard. |
-| 1.2 | 2026-02-20 | Orchestrator | Replaced all absolute Fireproof paths with repo-relative symlink paths (docs/reference/fireproof/). No content changes — path references only. |
-| 1.3 | 2026-02-20 | Orchestrator | Changed By and Decided By: replaced agent names with roles throughout (User, Orchestrator, TrashTech Orchestrator). Agent names are session-ephemeral. |
+| 1.0 | 2026-02-20 | Platform Orchestrator | Created document. Navigation structure, design philosophy, language standards, full scope (A–H), design system, tab system, unsaved changes, column manager, modal system, Zustand stores, ESLint rules, technical constraints, open questions, decision log. |
+| 1.1 | 2026-02-20 | Platform Orchestrator | Added Revision History, Decided By column to Decision Log, expanded rationale to include what was rejected. Moved to docs/frontend/TCP-UI-VISION.md. Adopted cross-app doc standard. |
+| 1.2 | 2026-02-20 | Platform Orchestrator | Replaced all absolute Fireproof paths with repo-relative symlink paths (docs/reference/fireproof/). No content changes — path references only. |
+| 1.3 | 2026-02-20 | Platform Orchestrator | Changed By and Decided By: replaced agent names with roles throughout (User, Orchestrator, TrashTech Orchestrator). Agent names are session-ephemeral. |
 
 ---
 
@@ -418,14 +418,14 @@ Decisions that are settled. Agents must not re-open these without an explicit us
 | 2026-02-20 | Row / card view toggle on all list screens, preference persisted | Users have different workflows; some prefer dense row view, others prefer card view. Preference saved per user per table. Rejected: single fixed view mode. | User |
 | 2026-02-20 | One-time charge feature removed from scope entirely | No current business use case identified. Can be added in a future bead if a need emerges. Rejected: keeping it in scope speculatively. | User |
 | 2026-02-20 | Centralized design system — all components defined once in `components/ui/`, ESLint prevents ad-hoc variants | Consistency enforced by tooling, not discipline. Rejected: convention-based approach where developers are trusted to follow style guides. | User + Orchestrator |
-| 2026-02-20 | CSS infrastructure via CSS custom properties in `globals.css` (same pattern as Fireproof `tokens.css`) | Single source of truth for all design values. Tailwind references CSS variables. Rejected: hardcoded Tailwind classes or inline hex values in components. | Orchestrator |
-| 2026-02-20 | Button double-click protection ON by default (1s cooldown) | Prevents duplicate submissions on financial/destructive actions. Rejected: opt-in protection (relies on developers remembering to enable it on important buttons). | Orchestrator |
-| 2026-02-20 | Tab system ported from Fireproof (preview/permanent, split view, tab-scoped state, isDirty persistence) | Staff work with multiple tenants simultaneously; tab state persists across refresh. Rejected: single-page-at-a-time navigation (forces context loss when switching). | Orchestrator |
-| 2026-02-20 | Column manager on all data tables — drag-reorder, show/hide, backend-persisted per user | Staff customize their view based on workflow; preferences sync across devices. Rejected: localStorage-only persistence (lost on device switch) or no customization. | Orchestrator |
-| 2026-02-20 | Unsaved changes: browser close warning + field-level diff panel (two layers) | Both are necessary — browser warning catches accidental navigation, diff panel gives staff information before they decide. Rejected: single-layer (warning only, no context about what would be lost). | Orchestrator |
-| 2026-02-20 | Modal: no backdrop-click close, two close behaviors (onClose vs onFullClose), portal rendering | Backdrop-click accidentally loses data. Two close behaviors distinguish cancel-and-stay from navigate-away. Rejected: backdrop-click close (high accidental loss rate on destructive actions). | Orchestrator |
-| 2026-02-20 | All persistent UI state in Zustand stores (tab-scoped) — no ad-hoc useState | State survives tab switches without data loss. ESLint rules make violations a build failure from day one. Rejected: component-local useState for persistent state (breaks on tab switch). | Orchestrator |
-| 2026-02-20 | Infrastructure Map document required in Foundation bead | First document new agents read before touching any UI code. Maps every centralized system. Rejected: relying on code comments and tribal knowledge. | Orchestrator |
+| 2026-02-20 | CSS infrastructure via CSS custom properties in `globals.css` (same pattern as Fireproof `tokens.css`) | Single source of truth for all design values. Tailwind references CSS variables. Rejected: hardcoded Tailwind classes or inline hex values in components. | Platform Orchestrator |
+| 2026-02-20 | Button double-click protection ON by default (1s cooldown) | Prevents duplicate submissions on financial/destructive actions. Rejected: opt-in protection (relies on developers remembering to enable it on important buttons). | Platform Orchestrator |
+| 2026-02-20 | Tab system ported from Fireproof (preview/permanent, split view, tab-scoped state, isDirty persistence) | Staff work with multiple tenants simultaneously; tab state persists across refresh. Rejected: single-page-at-a-time navigation (forces context loss when switching). | Platform Orchestrator |
+| 2026-02-20 | Column manager on all data tables — drag-reorder, show/hide, backend-persisted per user | Staff customize their view based on workflow; preferences sync across devices. Rejected: localStorage-only persistence (lost on device switch) or no customization. | Platform Orchestrator |
+| 2026-02-20 | Unsaved changes: browser close warning + field-level diff panel (two layers) | Both are necessary — browser warning catches accidental navigation, diff panel gives staff information before they decide. Rejected: single-layer (warning only, no context about what would be lost). | Platform Orchestrator |
+| 2026-02-20 | Modal: no backdrop-click close, two close behaviors (onClose vs onFullClose), portal rendering | Backdrop-click accidentally loses data. Two close behaviors distinguish cancel-and-stay from navigate-away. Rejected: backdrop-click close (high accidental loss rate on destructive actions). | Platform Orchestrator |
+| 2026-02-20 | All persistent UI state in Zustand stores (tab-scoped) — no ad-hoc useState | State survives tab switches without data loss. ESLint rules make violations a build failure from day one. Rejected: component-local useState for persistent state (breaks on tab switch). | Platform Orchestrator |
+| 2026-02-20 | Infrastructure Map document required in Foundation bead | First document new agents read before touching any UI code. Maps every centralized system. Rejected: relying on code comments and tribal knowledge. | Platform Orchestrator |
 
 ---
 
