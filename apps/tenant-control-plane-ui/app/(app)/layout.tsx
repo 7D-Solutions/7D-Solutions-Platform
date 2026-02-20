@@ -6,7 +6,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
-import { Users, CreditCard, Settings, BarChart2, Shield, LogOut, Package, Boxes, Key, ClipboardList, Activity, ShieldAlert } from 'lucide-react';
+import { Users, CreditCard, Settings, BarChart2, Shield, LogOut, Package, Boxes, Key, ClipboardList, Activity, ShieldAlert, Wrench } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/Button';
 import { NotificationCenter } from '@/components/ui/NotificationCenter';
@@ -26,6 +26,7 @@ const navItems = [
   { label: 'Billing',          href: '/billing',       icon: CreditCard  },
   { label: 'Audit Log',         href: '/audit',    icon: ClipboardList },
   { label: 'System Status',    href: '/system/status', icon: Activity },
+  { label: 'Admin Tools',      href: '/system/admin-tools', icon: Wrench },
   { label: 'Reports',          href: '/reports',  icon: BarChart2   },
   { label: 'IAM',              href: '/iam',      icon: Shield      },
   { label: 'Settings',         href: '/settings', icon: Settings    },
