@@ -25,12 +25,13 @@
 13. [Outbox Pattern](#outbox-pattern--copy-this)
 14. [Integrations Module](#integrations-module)
 15. [Tenant Provisioning](#tenant-provisioning)
-16. [Data Ownership Decision Table](#data-ownership--decision-table)
-17. [Environment Variables](#environment-variables)
-18. [Cargo.toml Dependencies](#cargotoml-path-dependencies)
-19. [Local Development](#local-development)
-20. [Reference E2E Tests](#reference-e2e-tests)
-21. [Source File Index](#source-file-index)
+16. [Database-Per-Tenant Routing Pattern](#database-per-tenant-routing-pattern)
+17. [Data Ownership Decision Table](#data-ownership--decision-table)
+18. [Environment Variables](#environment-variables)
+19. [Cargo.toml Dependencies](#cargotoml-path-dependencies)
+20. [Local Development](#local-development)
+21. [Reference E2E Tests](#reference-e2e-tests)
+22. [Source File Index](#source-file-index)
 
 ---
 
@@ -1185,6 +1186,159 @@ Tenant provisioning is an **internal admin process** — there is no public API 
 ```
 GET http://7d-tenant-registry/api/tenants/{tenant_id}/status
 → { "tenant_id": "<uuid>", "status": "active" }
+```
+
+---
+
+## Database-Per-Tenant Routing Pattern
+
+Use this section if your vertical app gives each of your customers (tenants) an isolated Postgres database — no `tenant_id` columns on operational tables, the DB connection is the tenant boundary.
+
+**When to use this pattern:** Full schema isolation required, regulatory data separation, or your SLA requires one customer's noisy queries to never affect another's performance.
+
+**Platform modules do NOT use this pattern.** AR, GL, Payments, etc. use `tenant_id` columns. This pattern is for your vertical app's own operational database only.
+
+---
+
+### How tenant database selection works
+
+The JWT already carries `tenant_id` (UUID). Your app uses that as the key into a pool map.
+
+**Architecture:**
+- **Management database** — one stable Postgres DB (not per-tenant). Stores your routing table: `(tenant_id → connection_string)`.
+- **Pool map** — `HashMap<Uuid, PgPool>` in Axum state. Populated at startup from the management DB, updated when new tenants are provisioned.
+- **Tenant DB middleware** — reads `tenant_id` from JWT claims, looks up the pool, attaches it to request extensions.
+
+**You never send an `x-tenant-id` header.** The JWT is the source of truth.
+
+---
+
+### Axum middleware pattern
+
+```rust
+// In your AppState:
+pub struct AppState {
+    pub tenant_pools: Arc<RwLock<HashMap<Uuid, PgPool>>>,
+    pub management_db: PgPool,  // one stable DB for routing config
+    // ... other fields
+}
+
+// Tenant DB selection middleware:
+async fn tenant_db_mw(
+    State(state): State<AppState>,
+    Extension(claims): Extension<Claims>,
+    mut req: Request,
+    next: Next,
+) -> Response {
+    let pool = {
+        state.tenant_pools.read().await
+            .get(&claims.tenant_id)
+            .cloned()
+    };
+    match pool {
+        Some(pool) => {
+            req.extensions_mut().insert(pool);
+            next.run(req).await
+        }
+        None => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            "tenant database not available",
+        ).into_response(),
+    }
+}
+
+// In handlers — pull the pool from extensions:
+async fn my_handler(
+    Extension(pool): Extension<PgPool>,
+    // ...
+) -> Result<Json<MyResponse>, AppError> {
+    let row = sqlx::query_as!(MyRow, "SELECT ...").fetch_one(&pool).await?;
+    // ...
+}
+```
+
+Register the middleware in your Axum router **after** the JWT claims middleware, so claims are always populated before pool selection runs.
+
+---
+
+### Tenant provisioning — database creation
+
+When the platform provisions a new tenant, it publishes a `tenant.provisioned` NATS event. Subscribe to this subject in your app.
+
+On receiving `tenant.provisioned`:
+
+1. Create a new Postgres database: `CREATE DATABASE your_app_tenant_{short_id}`
+2. Run all sqlx migrations against the new database (see below)
+3. Insert the connection string into your management DB routing table
+4. Create a new `PgPool` and insert it into the pool map
+
+```rust
+// NATS subscriber (pseudocode — adapt to your event envelope):
+async fn handle_tenant_provisioned(
+    event: TenantProvisionedEvent,
+    state: AppState,
+) -> Result<(), Error> {
+    let conn_str = format!(
+        "postgres://user:pass@host/{}_{}",
+        YOUR_APP_PREFIX,
+        &event.tenant_id.to_string().replace('-', "")[..8]
+    );
+
+    // 1. Create the database
+    sqlx::query(&format!("CREATE DATABASE {}", db_name))
+        .execute(&state.management_db).await?;
+
+    // 2. Run migrations
+    let pool = PgPool::connect(&conn_str).await?;
+    sqlx::migrate!("./db/migrations").run(&pool).await?;
+
+    // 3. Persist to routing table
+    sqlx::query!(
+        "INSERT INTO tenant_routing (tenant_id, connection_string) VALUES ($1, $2)",
+        event.tenant_id, conn_str
+    )
+    .execute(&state.management_db).await?;
+
+    // 4. Add to live pool map
+    state.tenant_pools.write().await.insert(event.tenant_id, pool);
+
+    Ok(())
+}
+```
+
+---
+
+### Migration strategy
+
+One migrations directory. Runs against every tenant DB. No per-tenant migration divergence allowed.
+
+```rust
+// At startup: migrate all registered tenant DBs
+async fn migrate_all_tenants(state: &AppState) -> Result<(), Error> {
+    let tenant_pools = state.tenant_pools.read().await;
+    for (tenant_id, pool) in tenant_pools.iter() {
+        sqlx::migrate!("./db/migrations")
+            .run(pool)
+            .await
+            .map_err(|e| anyhow::anyhow!("migrate tenant {}: {}", tenant_id, e))?;
+    }
+    Ok(())
+}
+```
+
+Call `migrate_all_tenants()` during app startup before accepting requests. Call `sqlx::migrate!(...).run(&new_pool)` immediately after creating each new tenant DB.
+
+---
+
+### Management database schema (minimal)
+
+```sql
+-- Your app's management database (one DB, not per-tenant)
+CREATE TABLE tenant_routing (
+    tenant_id        UUID PRIMARY KEY,
+    connection_string TEXT NOT NULL,
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 ```
 
 ---
