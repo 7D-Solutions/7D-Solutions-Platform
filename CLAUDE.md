@@ -82,6 +82,26 @@ If running inside `scripts/agent-runner.sh`:
 6. A bead is only done when ALL child beads are also closed
 7. After `br close`, context clears automatically - do NOT run `next-bead.sh` manually
 
+## Module Versioning (MANDATORY)
+
+**Full standard:** See [docs/VERSIONING.md](./docs/VERSIONING.md) for the complete system.
+
+**Quick rules for agents:**
+
+1. **Check before you edit:** If the module's package file (`Cargo.toml` or `package.json`) has version >= `1.0.0`, it is a **proven module**. Extra rules apply.
+2. **Proven module changes require a version bump.** Bump the version in the package file before committing. PATCH for fixes, MINOR for new features, MAJOR for breaking changes.
+3. **Add a revision entry.** Every version bump requires a new row in the module's `REVISIONS.md`. Describe what changed, why, and whether it is breaking.
+4. **Same commit.** The version bump, revision entry, and code change go in the same commit.
+5. **Breaking changes (MAJOR):** Note the migration path in the revision entry. Send agent mail to the orchestrator flagging the breaking change.
+6. **Unproven modules (v0.x.x):** No version bumps or revision entries required. Change freely.
+
+**For product agents adopting a new module version:**
+
+1. Read the module's `REVISIONS.md` for all changes since your current pinned version.
+2. Update `MODULE-MANIFEST.md` with the new version.
+3. Run your product's E2E tests against the new version.
+4. Commit the manifest change with a note explaining the adoption.
+
 📧 **Multi-Agent Communication**: See [AGENT_MAIL.md](./AGENT_MAIL.md) for commands.
 
 🎯 **Beads Workflow**: See [AGENTS.md](./AGENTS.md) for task tracking with BV.
