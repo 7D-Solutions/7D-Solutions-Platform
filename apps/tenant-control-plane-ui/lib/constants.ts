@@ -43,3 +43,9 @@ export const NOTIFICATIONS_BASE_URL = process.env.NOTIFICATIONS_BASE_URL ?? 'htt
 
 // Notification polling interval (same as general refetch)
 export const NOTIFICATION_POLL_MS = 30_000;
+
+// Audit service URL (server-side only)
+export const AUDIT_SERVICE_BASE_URL = process.env.AUDIT_SERVICE_BASE_URL ?? 'http://localhost:8096';
+
+// Audit max page size — hard ceiling for BFF validation
+export const AUDIT_MAX_PAGE_SIZE = 100;
