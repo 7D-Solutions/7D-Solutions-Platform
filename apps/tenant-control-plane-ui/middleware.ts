@@ -1,29 +1,33 @@
 // ============================================================
 // TCP UI — Middleware
-// Protects all /app/** routes. Requires valid JWT + platform_admin.
-// Login page (/app/login) is exempt.
+// Protects all authenticated routes. Requires valid JWT + platform_admin.
+// Public routes: /login, /forbidden, /api/*, /_next/*, /favicon.ico
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server';
 import { decodeJwt } from 'jose';
 import { AUTH_COOKIE_NAME, REQUIRED_ROLE } from '@/lib/constants';
 
+/** Routes that do not require authentication */
+function isPublicRoute(pathname: string): boolean {
+  if (pathname === '/login' || pathname.startsWith('/login')) return true;
+  if (pathname === '/forbidden' || pathname.startsWith('/forbidden')) return true;
+  if (pathname.startsWith('/api/')) return true;
+  if (pathname.startsWith('/_next/')) return true;
+  if (pathname === '/favicon.ico') return true;
+  return false;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Only protect /app/** routes
-  if (!pathname.startsWith('/app')) {
-    return NextResponse.next();
-  }
-
-  // Login page is public
-  if (pathname === '/app/login' || pathname.startsWith('/app/login')) {
+  if (isPublicRoute(pathname)) {
     return NextResponse.next();
   }
 
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
 
   if (!token) {
-    const loginUrl = new URL('/app/login', request.url);
+    const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
@@ -34,7 +38,7 @@ export function middleware(request: NextRequest) {
     // Check expiry
     const now = Math.floor(Date.now() / 1000);
     if (payload.exp && payload.exp < now) {
-      const loginUrl = new URL('/app/login', request.url);
+      const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
       loginUrl.searchParams.set('reason', 'expired');
       return NextResponse.redirect(loginUrl);
@@ -49,17 +53,17 @@ export function middleware(request: NextRequest) {
     );
 
     if (!hasPlatformAdmin) {
-      return NextResponse.redirect(new URL('/app/login?reason=forbidden', request.url));
+      return NextResponse.redirect(new URL('/forbidden', request.url));
     }
 
     return NextResponse.next();
   } catch {
-    const loginUrl = new URL('/app/login', request.url);
+    const loginUrl = new URL('/login', request.url);
     loginUrl.searchParams.set('redirect', pathname);
     return NextResponse.redirect(loginUrl);
   }
 }
 
 export const config = {
-  matcher: ['/app/:path*'],
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico).*)'],
 };
