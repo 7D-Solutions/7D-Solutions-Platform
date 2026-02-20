@@ -55,7 +55,7 @@
 | Audit trail | Audit service | Written automatically |
 | Your domain data (jobs, GPS, etc.) | **Your Postgres** | Your own sqlx/migrations/repo |
 
-### The AR Two-Step (Non-Obvious)
+### The AR Two-Step (Mandatory)
 
 AR invoices are **not** created directly from a `party_id`. There is a mandatory two-step flow:
 
@@ -404,6 +404,9 @@ let verifier: Option<Arc<JwtVerifier>> = JwtVerifier::from_env().map(Arc::new);
 let app = Router::new()
     // Mutation routes — require specific permissions
     .route("/api/trashtech/pickups", post(create_pickup))
+    // IMPORTANT: route_layer applies ONLY to routes defined ABOVE it in this chain.
+    // Routes defined below are NOT protected by RequirePermissionsLayer.
+    // Do NOT move or reorganize routes without understanding this Axum ordering rule.
     .route_layer(RequirePermissionsLayer::new(&["trashtech.mutate"]))
     // Read routes — no permission guard (or use trashtech.read)
     .route("/api/trashtech/pickups", get(list_pickups))
@@ -871,8 +874,8 @@ Builder methods available (all return `Self`):
 .with_side_effect_id(Option<String>)
 .with_replay_safe(bool)
 .with_mutation_class(Option<String>)
-.with_actor(Uuid, String)
-.with_actor_from(Option<Uuid>, Option<String>)
+.with_actor(Uuid, String)             // use when actor_id and actor_type are known (user-initiated events)
+.with_actor_from(Option<Uuid>, Option<String>)  // use for system-initiated events where actor may be None
 .with_merchant_context(Option<MerchantContext>)
 .with_tracing_context(&TracingContext)
 ```
@@ -931,6 +934,10 @@ Source: `modules/ar/db/migrations/20260211000001_create_events_outbox.sql`, `mod
 ### Migration: Create Outbox Tables
 
 Copy this into your first migration for TrashTech:
+
+> **Note on EventEnvelope fields:** `EventEnvelope` has `actor_id`, `actor_type`, and `merchant_context` fields. These are **not** separate outbox columns — they are serialized into the `payload` JSONB by `validate_and_serialize_envelope()`. The individual columns (tenant_id, trace_id, etc.) exist for database-level indexing and querying. The `payload` column carries the full envelope for NATS publishing. If you compare the struct to the SQL and see missing fields, this is why.
+
+> **Note on TIMESTAMP vs TIMESTAMPTZ:** `created_at` and `published_at` use `TIMESTAMP` (no timezone, stored as UTC by convention). `occurred_at` uses `TIMESTAMPTZ` (explicit timezone). This matches the AR source migration. Copy as-is.
 
 ```sql
 -- events_outbox: Transactional outbox for reliable event publishing
@@ -1230,7 +1237,19 @@ AUTH_BASE_URL=http://7d-auth-lb:8080
 RUST_LOG=info
 ```
 
-**JwtVerifier::from_env() reads `JWT_PUBLIC_KEY`.** If that env var is absent, `from_env()` returns `None` (dev mode — auth bypassed). In production, always set it. In E2E tests against real platform, set it to the actual platform public key (read from identity-auth JWKS or platform ops team).
+**JwtVerifier::from_env() reads `JWT_PUBLIC_KEY`.** If that env var is absent, `from_env()` returns `None` — **this does NOT bypass auth**. When the verifier is `None`, `optional_claims_mw` extracts no claims, and `RequirePermissionsLayer` returns `401 Unauthorized` on every mutation route. You cannot call mutation endpoints without a valid JWT, even locally.
+
+**Always set `JWT_PUBLIC_KEY` — including in local development.** Use a test RSA key pair:
+```bash
+# Generate a test RSA key pair (one-time local setup)
+openssl genrsa -out /tmp/jwt-test.pem 2048
+openssl rsa -in /tmp/jwt-test.pem -pubout -out /tmp/jwt-test-pub.pem
+
+# Set env var (inline PEM, newlines as \n)
+export JWT_PUBLIC_KEY="$(cat /tmp/jwt-test-pub.pem)"
+```
+
+In E2E tests against real platform, read the public key from the identity-auth JWKS endpoint (`GET /.well-known/jwks.json`) or from the platform ops team.
 
 ---
 
@@ -1323,6 +1342,30 @@ Platform services bind to localhost in development:
 - Party Master: localhost:8098
 
 In Docker Compose networking (service-to-service), use container names: `7d-auth-lb`, `7d-ar`, `7d-party`.
+
+### Running Your Vertical App Locally
+
+Your vertical app (TrashTech) runs alongside platform services — not inside the platform compose. Run it separately with `cargo run` pointing at platform services on localhost:
+
+```bash
+# 1. Start platform services (from 7D Platform repo)
+cd /path/to/7D-Solutions-Platform && docker compose up -d
+
+# 2. In your TrashTech repo, run your service with env vars pointing to platform
+DATABASE_URL=postgres://postgres:postgres@localhost:5433/trashtech_db \
+NATS_URL=nats://localhost:4222 \
+JWT_PUBLIC_KEY="$(cat /tmp/jwt-test-pub.pem)" \
+AUTH_BASE_URL=http://localhost:8080 \
+AR_BASE_URL=http://localhost:8086 \
+PARTY_BASE_URL=http://localhost:8098 \
+./scripts/cargo-slot.sh run -p tt-server
+
+# 3. Run your E2E tests (same env vars, separate terminal)
+DATABASE_URL=postgres://postgres:postgres@localhost:5433/trashtech_db \
+./scripts/cargo-slot.sh test -p e2e-tests -- trashtech --nocapture
+```
+
+Your service uses a **separate Postgres instance** (different port or database name) from the platform services.
 
 ---
 
