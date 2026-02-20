@@ -116,14 +116,11 @@ fi
 echo "→ Setting up RBAC (role, permissions, binding)..."
 
 PGPASSWORD="$AUTH_DB_PASS" psql -h "$AUTH_DB_HOST" -p "$AUTH_DB_PORT" \
-  -U "$AUTH_DB_USER" -d "$AUTH_DB_NAME" -v ON_ERROR_STOP=1 <<SQL
-BEGIN;
-
+  -U "$AUTH_DB_USER" -d "$AUTH_DB_NAME" -v ON_ERROR_STOP=1 -q <<SQL
 -- Create platform_admin role (idempotent)
 INSERT INTO roles (tenant_id, name, description, is_system)
 VALUES ('${PLATFORM_TENANT_ID}', 'platform_admin', 'Full platform administration', true)
 ON CONFLICT (tenant_id, name) DO NOTHING;
-
 SQL
 
 echo "  ✓ platform_admin role ensured"
