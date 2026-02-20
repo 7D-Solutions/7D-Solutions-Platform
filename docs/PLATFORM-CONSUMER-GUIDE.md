@@ -288,9 +288,25 @@ Error cases:
 
 ### 3. Refresh Token
 
+Source: `platform/identity-auth/src/auth/session.rs` → `RefreshReq`
+
 ```
 POST /api/auth/refresh
 ```
+
+Request body:
+```json
+{
+  "tenant_id": "<tenant-uuid>",
+  "refresh_token": "<opaque-token-from-login>"
+}
+```
+
+Response body: same `TokenResponse` shape as login (new `access_token` + new `refresh_token`).
+
+Error cases:
+- `401 Unauthorized`: refresh token expired, revoked, or not found
+- `403 Forbidden`: tenant suspended/canceled
 
 ### 4. JWKS (Public Key for Verification)
 
@@ -975,6 +991,8 @@ CREATE INDEX idx_processed_events_event_id ON processed_events (event_id);
 
 Source: `modules/ar/src/events/outbox.rs` → `enqueue_event_tx()`
 
+> **Import note:** `validate_and_serialize_envelope` is in the **platform** `event-bus` crate (`platform/event-bus/src/outbox.rs`), NOT in AR. The import below is correct. AR's `outbox.rs` is the *wrapper* you copy into your module.
+
 ```rust
 use event_bus::outbox::validate_and_serialize_envelope;
 
@@ -1026,7 +1044,7 @@ pub async fn enqueue_event_tx<T: Serialize>(
 
 ### Background Publisher
 
-Source: `modules/ar/src/events/publisher.rs`
+Source: `modules/ar/src/events/publisher.rs` → `run_publisher_task()`
 
 Polls `events_outbox` every 1 second. For each unpublished event:
 1. Build NATS subject: `format!("{module}.events.{event_type}")`
@@ -1034,10 +1052,24 @@ Polls `events_outbox` every 1 second. For each unpublished event:
 3. Publish via `event_bus::EventBus` trait
 4. Mark as published (`UPDATE events_outbox SET published_at = NOW() WHERE event_id = $1`)
 
+**Who starts it:** `main.rs` spawns it as a background `tokio::spawn` before starting the HTTP server:
+
+```rust
+// In your main.rs — copy from modules/ar/src/main.rs
+tokio::spawn(async move {
+    run_publisher_task(publisher_db, publisher_bus).await;
+});
+tracing::info!("Event publisher task started");
+```
+
+Without this background task running, `enqueue_event_tx()` rows accumulate in the DB but **nothing publishes to NATS**. The outbox will not drain on its own. Both the publisher task AND the HTTP server must be running.
+
 Copy this pattern for TrashTech. Subject routing:
 ```rust
 let subject = format!("trashtech.events.{}", event.event_type);
 ```
+
+To debug stuck events: `SELECT * FROM events_outbox WHERE published_at IS NULL ORDER BY created_at;`
 
 ---
 
@@ -1049,21 +1081,74 @@ Source: `modules/integrations/src/`
 
 ### Inbound Webhooks (External → Platform)
 
+Source: `modules/integrations/src/http/webhooks.rs` → `inbound_webhook()`
+
 ```
-POST /api/integrations/webhooks/inbound
+POST /api/webhooks/inbound/{system}
 x-app-id: trashtech-pro
+x-webhook-id: <source-system-event-id>   ← idempotency key (optional, Stripe event ID etc.)
 Content-Type: application/json
 ```
 
-Use for routing external system events (GPS provider webhooks, payment gateway callbacks) into the platform event bus.
+Body: raw JSON from the external system (verbatim). The body is stored as-is and routed by `{system}`.
+
+```json
+{
+  "id": "evt_1234",
+  "type": "customer.updated",
+  "data": { "...": "source-system-specific" }
+}
+```
+
+Response:
+```json
+{ "status": "accepted", "ingest_id": 42 }
+{ "status": "duplicate", "ingest_id": 41 }   ← if x-webhook-id matches prior ingest
+```
+
+Use for routing GPS provider webhooks, payment gateway callbacks, or any external event into the platform.
 
 ### External ID Mapping
+
+Source: `modules/integrations/src/http/external_refs.rs`, `modules/integrations/src/domain/external_refs/models.rs`
 
 Map your internal IDs to external system IDs:
 
 ```
-POST /api/integrations/external-refs
-GET /api/integrations/external-refs/by-external?system=stripe&external_id=cus_12345
+POST   /api/integrations/external-refs
+GET    /api/integrations/external-refs/by-entity?entity_type=pickup&entity_id=<uuid>
+GET    /api/integrations/external-refs/by-system?system=stripe&external_id=cus_12345
+GET    /api/integrations/external-refs/{id}
+PUT    /api/integrations/external-refs/{id}
+DELETE /api/integrations/external-refs/{id}
+```
+
+Create body:
+```json
+{
+  "entity_type": "pickup",
+  "entity_id": "<pickup-uuid>",
+  "system": "stripe",
+  "external_id": "cus_12345",
+  "label": "Acme Corp Stripe customer",
+  "metadata": { "plan": "enterprise" }
+}
+```
+
+Response (`ExternalRef`):
+```json
+{
+  "id": 7,
+  "app_id": "trashtech-pro",
+  "entity_type": "pickup",
+  "entity_id": "<pickup-uuid>",
+  "system": "stripe",
+  "external_id": "cus_12345",
+  "label": "Acme Corp Stripe customer",
+  "metadata": { "plan": "enterprise" },
+  "created_at": "2026-02-19T00:00:00Z",
+  "updated_at": "2026-02-19T00:00:00Z"
+}
 ```
 
 ---
