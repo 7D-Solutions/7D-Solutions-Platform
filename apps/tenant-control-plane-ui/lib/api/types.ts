@@ -264,6 +264,105 @@ export const TenantPlanSummarySchema = z.object({
 
 export type TenantPlanSummary = z.infer<typeof TenantPlanSummarySchema>;
 
+// ── Entitlement Summary (catalog list item) ─────────────────
+
+export const EntitlementSummarySchema = z.object({
+  id: z.string(),
+  key: z.string(),
+  label: z.string(),
+  value_type: z.string(),
+  default_value: z.union([z.string(), z.number(), z.boolean()]),
+  status: z.string(),
+  created_at: z.string().optional(),
+});
+
+export type EntitlementSummary = z.infer<typeof EntitlementSummarySchema>;
+
+// ── Entitlement List Response (paginated) ────────────────────
+
+export const EntitlementListResponseSchema = z.object({
+  entitlements: z.array(EntitlementSummarySchema),
+  total: z.number(),
+  page: z.number(),
+  page_size: z.number(),
+});
+
+export type EntitlementListResponse = z.infer<typeof EntitlementListResponseSchema>;
+
+// ── Entitlement Value Type Options ───────────────────────────
+
+export const ENTITLEMENT_VALUE_TYPE_OPTIONS = [
+  { value: '', label: 'All types' },
+  { value: 'boolean', label: 'Boolean' },
+  { value: 'number', label: 'Number' },
+  { value: 'string', label: 'String' },
+] as const;
+
+// ── Entitlement Status Options ───────────────────────────────
+
+export const ENTITLEMENT_STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'archived', label: 'Archived' },
+] as const;
+
+// ── Audit Event Summary (list item) ─────────────────────────
+
+export const AuditEventSummarySchema = z.object({
+  id: z.string(),
+  timestamp: z.string(),
+  actor: z.string(),
+  action: z.string(),
+  tenant_id: z.string().optional(),
+  tenant_name: z.string().optional(),
+  resource_type: z.string().optional(),
+  resource_id: z.string().optional(),
+  summary: z.string().optional(),
+  payload: z.unknown().optional(),
+});
+
+export type AuditEventSummary = z.infer<typeof AuditEventSummarySchema>;
+
+// ── Audit List Response (paginated) ─────────────────────────
+
+export const AuditListResponseSchema = z.object({
+  events: z.array(AuditEventSummarySchema),
+  total: z.number(),
+  page: z.number(),
+  page_size: z.number(),
+});
+
+export type AuditListResponse = z.infer<typeof AuditListResponseSchema>;
+
+// ── Audit Filter defaults ───────────────────────────────────
+
+export type AuditFilter = {
+  [key: string]: string;
+  actor: string;
+  action: string;
+  tenant_id: string;
+};
+
+export const DEFAULT_AUDIT_FILTERS: AuditFilter = {
+  actor: '',
+  action: '',
+  tenant_id: '',
+};
+
+export const AUDIT_ACTION_OPTIONS = [
+  { value: '', label: 'All actions' },
+  { value: 'tenant.created', label: 'Tenant Created' },
+  { value: 'tenant.updated', label: 'Tenant Updated' },
+  { value: 'tenant.suspended', label: 'Tenant Suspended' },
+  { value: 'tenant.activated', label: 'Tenant Activated' },
+  { value: 'plan.created', label: 'Plan Created' },
+  { value: 'plan.updated', label: 'Plan Updated' },
+  { value: 'user.login', label: 'User Login' },
+  { value: 'user.logout', label: 'User Logout' },
+  { value: 'settings.changed', label: 'Settings Changed' },
+] as const;
+
 // ── Health Snapshot (service readiness) ─────────────────────
 
 export const ServiceHealthSchema = z.object({
