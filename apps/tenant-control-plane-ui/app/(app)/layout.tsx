@@ -9,10 +9,11 @@ import { clsx } from 'clsx';
 import { Users, CreditCard, Settings, BarChart2, Shield, LogOut, Package } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { NotificationCenter } from '@/components/ui/NotificationCenter';
+import { UserMenu } from '@/components/ui/UserMenu';
 import { IdleWarningModal } from '@/components/ui/IdleWarningModal';
 import { TabBar } from '@/components/ui/TabBar';
 import { useIdleTimeout } from '@/infrastructure/hooks/useIdleTimeout';
-import { useSplitView, useTabActions, useActiveTabId } from '@/infrastructure/state/tabStore';
+import { useSplitView } from '@/infrastructure/state/tabStore';
 import { useState, useCallback } from 'react';
 
 const navItems = [
@@ -32,8 +33,6 @@ async function logout() {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const splitView = useSplitView();
-  const { getTab, setDividerPosition } = useTabActions();
-  const activeTabId = useActiveTabId();
   const [showIdleWarning, setShowIdleWarning] = useState(false);
 
   // Stable callback refs — prevent useIdleTimeout effects from re-running
@@ -115,6 +114,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             style={{ height: 'var(--header-height)' }}
           >
             <NotificationCenter />
+            <UserMenu />
           </header>
 
           {/* Tab bar */}
