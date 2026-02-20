@@ -308,6 +308,10 @@ name = "timekeeping_end_to_end"
 path = "tests/timekeeping_end_to_end.rs"
 
 [[test]]
+name = "timekeeping_billing_e2e"
+path = "tests/timekeeping_billing_e2e.rs"
+
+[[test]]
 name = "consolidation_end_to_end"
 path = "tests/consolidation_end_to_end.rs"
 

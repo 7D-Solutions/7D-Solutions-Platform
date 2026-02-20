@@ -1,6 +1,7 @@
 pub mod admin;
 pub mod allocations;
 pub mod approvals;
+pub mod billing;
 pub mod employees;
 pub mod entries;
 pub mod export;
@@ -56,6 +57,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         )
         // Exports — write
         .route("/api/timekeeping/exports", post(export::create_export))
+        // Billing rates + billing runs — write
+        .route("/api/timekeeping/rates", post(billing::create_rate))
+        .route("/api/timekeeping/billing-runs", post(billing::create_billing_run))
         .route_layer(RequirePermissionsLayer::new(&[permissions::TIMEKEEPING_MUTATE]))
         .with_state(state.clone());
 
@@ -93,6 +97,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         // Exports — read
         .route("/api/timekeeping/exports", get(export::list_exports))
         .route("/api/timekeeping/exports/{id}", get(export::get_export))
+        // Billing rates — read
+        .route("/api/timekeeping/rates", get(billing::list_rates))
         .with_state(state);
 
     Router::new().merge(mutations).merge(reads)
