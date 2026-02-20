@@ -387,6 +387,26 @@ export const TenantUserListResponseSchema = z.object({
 
 export type TenantUserListResponse = z.infer<typeof TenantUserListResponseSchema>;
 
+// ── Effective Entitlement (tenant-scoped, with attribution) ──
+
+export const EffectiveEntitlementSchema = z.object({
+  code: z.string(),
+  name: z.string(),
+  granted: z.union([z.string(), z.number(), z.boolean()]),
+  source: z.enum(['plan', 'bundle', 'override']),
+  source_name: z.string().optional(),
+  justification: z.string().optional(),
+});
+
+export type EffectiveEntitlement = z.infer<typeof EffectiveEntitlementSchema>;
+
+export const EffectiveEntitlementListResponseSchema = z.object({
+  entitlements: z.array(EffectiveEntitlementSchema),
+  total: z.number(),
+});
+
+export type EffectiveEntitlementListResponse = z.infer<typeof EffectiveEntitlementListResponseSchema>;
+
 // ── Health Snapshot (service readiness) ─────────────────────
 
 export const ServiceHealthSchema = z.object({
@@ -403,3 +423,68 @@ export const HealthSnapshotSchema = z.object({
 });
 
 export type HealthSnapshot = z.infer<typeof HealthSnapshotSchema>;
+
+// ── Billing Overview (aggregated BFF DTO) ────────────────────
+
+export const SectionAvailabilitySchema = z.enum(['available', 'unavailable', 'error']);
+export type SectionAvailability = z.infer<typeof SectionAvailabilitySchema>;
+
+export const BillingChargesSchema = z.object({
+  availability: SectionAvailabilitySchema,
+  base_amount: z.number().optional(),
+  seat_count: z.number().optional(),
+  seat_unit_price: z.number().optional(),
+  seat_total: z.number().optional(),
+  metered_charges: z.array(z.object({
+    dimension: z.string(),
+    quantity: z.number(),
+    amount: z.number(),
+  })).optional(),
+  total: z.number().optional(),
+  currency: z.string().optional(),
+});
+
+export const BillingLastInvoiceSchema = z.object({
+  availability: SectionAvailabilitySchema,
+  id: z.string().optional(),
+  number: z.string().optional(),
+  issued_at: z.string().optional(),
+  due_date: z.string().optional(),
+  total: z.number().optional(),
+  status: z.string().optional(),
+  currency: z.string().optional(),
+});
+
+export const BillingOutstandingSchema = z.object({
+  availability: SectionAvailabilitySchema,
+  total_due: z.number().optional(),
+  overdue_count: z.number().optional(),
+  currency: z.string().optional(),
+});
+
+export const BillingPaymentStatusSchema = z.object({
+  availability: SectionAvailabilitySchema,
+  status: z.string().optional(),
+  last_payment_at: z.string().optional(),
+  last_payment_amount: z.number().optional(),
+  currency: z.string().optional(),
+});
+
+export const BillingDunningSchema = z.object({
+  availability: SectionAvailabilitySchema,
+  state: z.string().optional(),
+  current_step: z.number().optional(),
+  total_steps: z.number().optional(),
+  next_retry_at: z.string().optional(),
+  started_at: z.string().optional(),
+});
+
+export const BillingOverviewSchema = z.object({
+  charges: BillingChargesSchema,
+  last_invoice: BillingLastInvoiceSchema,
+  outstanding: BillingOutstandingSchema,
+  payment_status: BillingPaymentStatusSchema,
+  dunning: BillingDunningSchema,
+});
+
+export type BillingOverview = z.infer<typeof BillingOverviewSchema>;

@@ -77,12 +77,12 @@ test.describe('Tenant Overview', () => {
     await page.goto('/tenants/test-tenant-001');
     await expect(page.getByTestId('overview-tab')).toBeVisible();
 
-    // Click Billing tab
-    await page.getByTestId('tab-billing').click();
+    // Click Features tab (still a placeholder)
+    await page.getByTestId('tab-features').click();
 
     // Wait for the UI to update
     await expect(page.getByTestId('tab-placeholder')).toBeVisible({ timeout: 5000 });
-    await expect(page.getByTestId('tab-placeholder')).toContainText('Billing');
+    await expect(page.getByTestId('tab-placeholder')).toContainText('Features');
     await expect(page.getByTestId('overview-tab')).not.toBeVisible();
 
     // Switch back to Overview
