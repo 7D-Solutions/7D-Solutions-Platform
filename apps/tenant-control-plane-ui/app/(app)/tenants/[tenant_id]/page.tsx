@@ -17,6 +17,7 @@ import { REFETCH_INTERVAL_MS } from '@/lib/constants';
 import type { TenantDetail, TenantPlanSummary, HealthSnapshot } from '@/lib/api/types';
 import { AccessTab } from './AccessTab';
 import { BillingTab } from './BillingTab';
+import { FeaturesTab } from './FeaturesTab';
 
 // ── Data fetchers ──────────────────────────────────────────
 
@@ -156,7 +157,11 @@ export default function TenantDetailPage() {
         <BillingTab tenantId={tenant_id} />
       )}
 
-      {activeTab && activeTab.id !== 'overview' && activeTab.id !== 'access' && activeTab.id !== 'billing' && (
+      {activeTab?.id === 'features' && (
+        <FeaturesTab tenantId={tenant_id} />
+      )}
+
+      {activeTab && activeTab.id !== 'overview' && activeTab.id !== 'access' && activeTab.id !== 'billing' && activeTab.id !== 'features' && (
         <div
           className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-8 text-center text-[--color-text-muted]"
           data-testid="tab-placeholder"
