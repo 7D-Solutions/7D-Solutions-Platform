@@ -264,6 +264,26 @@ export const TenantPlanSummarySchema = z.object({
 
 export type TenantPlanSummary = z.infer<typeof TenantPlanSummarySchema>;
 
+// ── Plan Assignment Request ─────────────────────────────────
+
+export const PlanAssignmentRequestSchema = z.object({
+  plan_id: z.string().min(1, 'Plan is required'),
+  effective_date: z.string().min(1, 'Effective date is required').refine(
+    (val) => !isNaN(Date.parse(val)),
+    { message: 'Must be a valid date' },
+  ).refine(
+    (val) => {
+      const d = new Date(val);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return d >= today;
+    },
+    { message: 'Effective date cannot be in the past' },
+  ),
+});
+
+export type PlanAssignmentRequest = z.infer<typeof PlanAssignmentRequestSchema>;
+
 // ── Entitlement Summary (catalog list item) ─────────────────
 
 export const EntitlementSummarySchema = z.object({
@@ -498,6 +518,28 @@ export const INVOICE_STATUS_OPTIONS = [
   { value: 'overdue', label: 'Overdue' },
   { value: 'void', label: 'Void' },
 ] as const;
+
+// ── Admin Tool Requests ─────────────────────────────────────
+
+export const RunBillingRequestSchema = z.object({
+  tenant_id: z.string().optional().or(z.literal('')),
+  reason: z.string().min(1, 'Reason is required').max(500, 'Reason must be 500 characters or fewer'),
+});
+
+export type RunBillingRequest = z.infer<typeof RunBillingRequestSchema>;
+
+export const ReconcileMappingRequestSchema = z.object({
+  tenant_id: z.string().min(1, 'Tenant ID is required'),
+  reason: z.string().min(1, 'Reason is required').max(500, 'Reason must be 500 characters or fewer'),
+});
+
+export type ReconcileMappingRequest = z.infer<typeof ReconcileMappingRequestSchema>;
+
+export interface AdminToolResult {
+  ok: boolean;
+  message?: string;
+  not_available?: boolean;
+}
 
 // ── Health Snapshot (service readiness) ─────────────────────
 

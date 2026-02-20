@@ -35,7 +35,7 @@ test.describe('Tenant Settings', () => {
     await expect(page.getByTestId('settings-tab')).toBeVisible({ timeout: BFF_TIMEOUT });
 
     await expect(page.getByTestId('plan-change-section')).toBeVisible();
-    await expect(page.getByTestId('change-plan-btn')).toBeDisabled();
+    await expect(page.getByTestId('change-plan-btn')).toBeEnabled();
     await expect(page.getByTestId('account-config-section')).toBeVisible();
   });
 

@@ -1,7 +1,8 @@
 // ============================================================
-// SettingsTab — Lifecycle actions, plan change entrypoint, config placeholders
+// SettingsTab — Lifecycle actions, plan change, config placeholders
 // Suspend/activate require simple confirmation.
 // Terminate requires reason + password re-auth before final confirm.
+// Plan change opens a modal with plan select + effective date.
 // ============================================================
 'use client';
 
@@ -9,6 +10,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Modal, StatusBadge, FormInput, FormTextarea } from '@/components/ui';
 import type { TenantDetail } from '@/lib/api/types';
+import { PlanChangeModal } from './PlanChangeModal';
 
 // ── API helpers ─────────────────────────────────────────────
 
@@ -137,6 +139,9 @@ export function SettingsTab({ tenantId, tenant }: SettingsTabProps) {
 
   const activeMutation = lifecycleAction === 'suspend' ? suspendMutation : activateMutation;
 
+  // Plan change modal
+  const [showPlanChange, setShowPlanChange] = useState(false);
+
   // ── Render ──────────────────────────────────────────────
 
   return (
@@ -203,22 +208,27 @@ export function SettingsTab({ tenantId, tenant }: SettingsTabProps) {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm text-[--color-text-primary]">
-              Current plan: <strong>{tenant?.plan ?? 'Unknown'}</strong>
+              Current plan: <strong data-testid="current-plan-name">{tenant?.plan ?? 'Unknown'}</strong>
             </p>
           </div>
           <Button
             variant="outline"
             size="sm"
-            disabled
+            onClick={() => setShowPlanChange(true)}
             data-testid="change-plan-btn"
           >
             Change Plan
           </Button>
         </div>
-        <p className="text-xs text-[--color-text-muted] mt-2">
-          Plan changes will be available in a future update.
-        </p>
       </section>
+
+      {/* Plan Change Modal */}
+      <PlanChangeModal
+        tenantId={tenantId}
+        currentPlan={tenant?.plan}
+        isOpen={showPlanChange}
+        onClose={() => setShowPlanChange(false)}
+      />
 
       {/* Account Configuration */}
       <section
