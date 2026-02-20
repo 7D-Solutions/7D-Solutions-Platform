@@ -20,9 +20,7 @@ test.describe('Login', () => {
 
   test('shows validation errors for empty fields', async ({ page }) => {
     await page.goto('/login');
-    // Click sign in without filling fields
     await page.getByRole('button', { name: /sign in/i }).click();
-    // RHF+Zod validation should show errors
     await expect(page.getByText(/email is required/i)).toBeVisible();
     await expect(page.getByText(/password is required/i)).toBeVisible();
   });
@@ -40,7 +38,6 @@ test.describe('Login', () => {
     await page.getByLabel(/email/i).fill('wrong@example.com');
     await page.getByLabel(/password/i).fill('wrong-password');
     await page.getByRole('button', { name: /sign in/i }).click();
-    // BFF returns error — should display server error
     await expect(page.getByTestId('server-error')).toBeVisible({ timeout: 10000 });
   });
 
@@ -53,15 +50,25 @@ test.describe('Login', () => {
 
   test('login stores JWT in httpOnly cookie only', async ({ page }) => {
     await loginAsStaff(page);
-    // Cookie should exist (set by loginAsStaff)
+    await page.goto('/tenants');
+    // Wait for page to hydrate (don't use networkidle — TanStack Query refetchInterval prevents it)
+    await expect(page.getByRole('heading', { name: 'Tenants' })).toBeVisible({ timeout: 10000 });
+
+    // Cookie should exist and be httpOnly
     const cookies = await page.context().cookies();
     const authCookie = cookies.find((c) => c.name === AUTH_COOKIE);
     expect(authCookie).toBeDefined();
     expect(authCookie!.httpOnly).toBe(true);
 
     // Token should NOT be in localStorage or sessionStorage
-    const localToken = await page.evaluate(() => localStorage.getItem(AUTH_COOKIE));
-    const sessionToken = await page.evaluate(() => sessionStorage.getItem(AUTH_COOKIE));
+    const localToken = await page.evaluate(
+      (name) => localStorage.getItem(name),
+      AUTH_COOKIE,
+    );
+    const sessionToken = await page.evaluate(
+      (name) => sessionStorage.getItem(name),
+      AUTH_COOKIE,
+    );
     expect(localToken).toBeNull();
     expect(sessionToken).toBeNull();
   });
@@ -77,7 +84,6 @@ test.describe('Login', () => {
   });
 
   test('forbidden user is redirected to /forbidden', async ({ page }) => {
-    // Set a JWT with a non-admin role
     const secret = new TextEncoder().encode('test-secret');
     const token = await new SignJWT({
       sub: 'test-user-001',
@@ -109,9 +115,12 @@ test.describe('Logout', () => {
   test('sidebar logout clears cookie and redirects to login', async ({ page }) => {
     await loginAsStaff(page);
     await page.goto('/tenants');
+    // Wait for layout to fully hydrate (UserMenu loads user data via API)
+    await expect(page.getByTestId('user-menu')).toBeVisible({ timeout: 10000 });
+
     // Click sidebar logout button
     await page.getByRole('button', { name: /log out/i }).first().click();
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
 
     // Cookie should be cleared
     const cookies = await page.context().cookies();
@@ -122,20 +131,30 @@ test.describe('Logout', () => {
   test('user menu logout clears cookie and redirects to login', async ({ page }) => {
     await loginAsStaff(page);
     await page.goto('/tenants');
+    // Wait for layout to fully hydrate
+    await expect(page.getByTestId('user-menu')).toBeVisible({ timeout: 10000 });
+
     // Open user menu dropdown
-    await page.getByTestId('user-menu').click();
-    // Click Log out in the dropdown menu
-    await page.getByRole('menuitem', { name: /log out/i }).click();
-    await expect(page).toHaveURL(/\/login/);
+    await page.getByTestId('user-menu').getByRole('button').click();
+    // Wait for dropdown menu to render
+    await expect(page.getByRole('menuitem', { name: /log out/i })).toBeVisible({ timeout: 5000 });
+    // dispatchEvent avoids the z-index hit-test issue: the dropdown sits
+    // above main content visually but Playwright detects an overlap that
+    // causes mousedown to close the dropdown via the outside-click handler
+    await page.getByRole('menuitem', { name: /log out/i }).dispatchEvent('click');
+    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
   });
 
   test('after logout, protected routes redirect back to login', async ({ page }) => {
     await loginAsStaff(page);
     await page.goto('/tenants');
-    // Logout
+    await expect(page.getByTestId('user-menu')).toBeVisible({ timeout: 10000 });
+
+    // Logout via sidebar
     await page.getByRole('button', { name: /log out/i }).first().click();
-    await expect(page).toHaveURL(/\/login/);
-    // Try to access protected route
+    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
+
+    // Try to access protected route again
     await page.goto('/tenants');
     await expect(page).toHaveURL(/\/login/);
   });

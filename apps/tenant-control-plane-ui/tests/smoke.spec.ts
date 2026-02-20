@@ -32,9 +32,11 @@ test.describe('TCP UI smoke', () => {
   test('logout clears auth and redirects to login', async ({ page }) => {
     await loginAsStaff(page);
     await page.goto('/tenants');
+    // Wait for full hydration before clicking (Button needs React event handler bound)
+    await expect(page.getByTestId('user-menu')).toBeVisible({ timeout: 10000 });
     // Use the sidebar logout button
     await page.getByRole('button', { name: /log out/i }).first().click();
-    await expect(page).toHaveURL(/\/login/);
+    await expect(page).toHaveURL(/\/login/, { timeout: 10000 });
     // Navigating back to protected route should redirect to login again
     await page.goto('/tenants');
     await expect(page).toHaveURL(/\/login/);
