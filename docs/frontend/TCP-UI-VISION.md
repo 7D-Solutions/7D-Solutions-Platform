@@ -12,6 +12,7 @@
 | 1.1 | 2026-02-20 | Platform Orchestrator | Added Revision History, Decided By column to Decision Log, expanded rationale to include what was rejected. Moved to docs/frontend/TCP-UI-VISION.md. Adopted cross-app doc standard. |
 | 1.2 | 2026-02-20 | Platform Orchestrator | Replaced all absolute Fireproof paths with repo-relative symlink paths (docs/reference/fireproof/). No content changes — path references only. |
 | 1.3 | 2026-02-20 | Platform Orchestrator | Changed By and Decided By: replaced agent names with roles throughout (User, Orchestrator, TrashTech Orchestrator). Agent names are session-ephemeral. |
+| 1.4 | 2026-02-20 | Platform Orchestrator | Added notification center to Global Shell scope (B). Added idle timeout as required for TCP. Added TCP-specific re-auth decision for Terminate action. Captured infrastructure decisions from Fireproof gap evaluation. |
 
 ---
 
@@ -140,8 +141,9 @@ The full product. No phased MVP that requires tearing out and rebuilding. Agents
 - Playwright auth fixture (`loginAsStaff`)
 
 ### B. Global Shell
-- Top bar: staff identity, environment indicator, logout
-- Left navigation with all five sections
+- Top bar: staff identity, environment indicator, notification center bell (with count badge), logout
+- Left navigation with all five sections, with badge counts on relevant nav items (e.g., Tenants showing past-due count)
+- Idle timeout: 30-minute default, 5-minute warning modal before forced logout (required — TCP is a staff console with destructive actions)
 
 ### C. Tenants
 - Tenant List: search, filter by status/plan/connection ID, pagination
@@ -426,6 +428,9 @@ Decisions that are settled. Agents must not re-open these without an explicit us
 | 2026-02-20 | Modal: no backdrop-click close, two close behaviors (onClose vs onFullClose), portal rendering | Backdrop-click accidentally loses data. Two close behaviors distinguish cancel-and-stay from navigate-away. Rejected: backdrop-click close (high accidental loss rate on destructive actions). | Platform Orchestrator |
 | 2026-02-20 | All persistent UI state in Zustand stores (tab-scoped) — no ad-hoc useState | State survives tab switches without data loss. ESLint rules make violations a build failure from day one. Rejected: component-local useState for persistent state (breaks on tab switch). | Platform Orchestrator |
 | 2026-02-20 | Infrastructure Map document required in Foundation bead | First document new agents read before touching any UI code. Maps every centralized system. Rejected: relying on code comments and tribal knowledge. | Platform Orchestrator |
+| 2026-02-20 | TCP UI implements idle timeout (30 min, 5 min warning) | Staff console with access to terminate tenants and modify billing. Session must expire on inactivity. Rejected: short JWT TTL only (no warning, loses form state). Rejected: no idle timeout (unattended sessions with admin access are a security risk). | Platform Orchestrator |
+| 2026-02-20 | TCP UI implements re-authentication before Terminate Tenant action | Terminating a tenant is catastrophic and unrecoverable. Re-auth before this specific action ensures the session owner confirms the intent. Not a platform standard (risk profile is TCP-specific) — but required for TCP. Rejected: confirmation modal alone is sufficient (does not verify the operator is still the one at the keyboard). | Platform Orchestrator |
+| 2026-02-20 | Notification center in top bar — TCP events: tenant past due, service health degraded, billing run complete | Staff may miss a 4-second toast. Notification center provides persistent history. These are the events significant enough to persist: billing and health events affect platform reliability. Rejected: toast only (missed events are lost). | Platform Orchestrator |
 
 ---
 

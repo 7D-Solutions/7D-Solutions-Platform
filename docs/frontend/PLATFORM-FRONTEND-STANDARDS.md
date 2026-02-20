@@ -18,6 +18,7 @@
 | 1.5 | 2026-02-20 | Platform Orchestrator | Replaced all absolute paths with repo-relative symlink paths (docs/apps/trashtech/, docs/reference/fireproof/). No content changes — path references only. |
 | 1.6 | 2026-02-20 | Platform Orchestrator | Changed By and Decided By: replaced agent names with roles throughout. Agent names are session-ephemeral and must not appear in persistent documents. |
 | 1.7 | 2026-02-20 | Platform Orchestrator | Formalized governance model: platform is single source of truth, app teams follow not fork. Converted Open Items to Deferred Decisions table. Genericized App Vision Documents to a registry with registration date. Added governance decisions to Decision Log. |
+| 1.8 | 2026-02-20 | Platform Orchestrator | Added five new sections: Notification System (browser notifications prohibited — platform notifications only, toast + notification center), Standard Hooks (useMutationPattern, useQueryInvalidation, usePagination, useSearchDebounce, useLoadingState), Formatter Standards (date + currency rules), Idle Timeout (standardized pattern for staff-facing apps), Nav Badge Counts (standardized pattern for any sidebar nav). Added ESLint prohibition on browser Notification API. Updated Foundation Bead checklist. Added 9 new Decision Log entries from joint evaluation with TrashTech Orchestrator. |
 
 ---
 
@@ -341,6 +342,24 @@ Column configurations and view preferences are saved to the backend API via `use
 
 ---
 
+## Standard Hooks
+
+Every TanStack Query app needs these hooks. Not standardizing them means each app builds slightly different versions that diverge over time. Each app implements these locally — no shared package, no versioning overhead. The signature and behavior contract is what is standardized.
+
+Reference implementations: `docs/reference/fireproof/src/infrastructure/hooks/`
+
+| Hook | Purpose | Signature contract |
+|------|---------|-------------------|
+| `useMutationPattern` | Standardized API mutations | Accepts `mutationFn`, returns `{ mutate, isPending, error }`. Error is always surfaced to the caller — never swallowed. Loading state auto-managed. |
+| `useQueryInvalidation` | Cache invalidation after mutations | Accepts query keys to invalidate. Called inside `onSuccess` of mutations. Never invalidate all queries blindly — be explicit. |
+| `usePagination` | Centralized pagination | Returns `{ page, pageSize, totalCount, totalPages, goToPage, nextPage, prevPage }`. Page is 1-indexed. Default pageSize defined as a named constant in `lib/constants.ts`. |
+| `useSearchDebounce` | Debounced search input | Accepts `value` and optional `delay` (default 300ms). Returns debounced value. Delay is configurable per usage — some searches need 150ms, some 500ms. |
+| `useLoadingState` | Coordinated loading across multiple operations | Returns `{ isLoading, setLoading, withLoading }`. Prevents multiple spinners competing. |
+
+**Rule:** Never use raw `setTimeout` for debounce. Never manually track loading state with `useState`. Never invalidate query cache with wildcard keys.
+
+---
+
 ## ESLint Enforcement
 
 Custom ESLint rules are active from day one. Violations fail the build. No exceptions without a documented justification.
@@ -355,6 +374,7 @@ Custom ESLint rules are active from day one. Violations fail the build. No excep
 | `no-local-upload-state` | `useState` for file uploads — use `useUploadStore` |
 | `no-local-selection-state` | `useState` for selections — use `useSelectionStore` |
 | `no-local-view-state` | `useState` for tab/step/collapse — use `useViewStore` |
+| `no-browser-notifications` | `new Notification(...)` or `Notification.requestPermission()` — use platform notification system |
 
 Reference implementation: `docs/reference/fireproof/eslint-local-rules/`
 
@@ -380,6 +400,40 @@ Users should never see internal system terminology. Labels must be plain English
 
 ---
 
+## Formatter Standards
+
+Every app implements a local `infrastructure/utils/formatters.ts` following these rules exactly. No app invents its own date or currency format.
+
+### Date Formatting
+
+| Context | Format | Example |
+|---------|--------|---------|
+| Within 7 days | Relative | "2 hours ago", "Yesterday at 3pm", "3 days ago" |
+| Beyond 7 days | Short date | "Feb 20, 2026" |
+| Audit / activity events | Short date + time, always | "Feb 20, 2026 at 10:37am" |
+| Long dates | Never | — |
+
+**Rules:**
+- Never render a raw ISO string in the UI (`2026-02-20T10:37:00Z` is never user-facing)
+- Always include time for audit log entries and activity feeds — timestamp without time is useless for debugging
+- Relative times use the smallest meaningful unit: "just now" (< 60s), "2 minutes ago", "1 hour ago", "Yesterday at 3pm", then fall through to short date
+
+### Currency Formatting
+
+- Always use `Intl.NumberFormat` — never format currency manually
+- Always include currency symbol
+- Currency code comes from the data — never hardcoded to USD
+- Format: `new Intl.NumberFormat('en-US', { style: 'currency', currency: record.currency })`
+- For multi-currency contexts, show both symbol and code: "$1,234.56 USD"
+
+### Numeric Formatting
+
+- Percentages: one decimal place (`12.3%`) — never raw decimal (`0.123`)
+- Large numbers: comma-separated (`1,234,567`) — use `Intl.NumberFormat`
+- Decimal precision: matches the domain (financial = 2 decimal places, percentage = 1)
+
+---
+
 ## Navigation Standards
 
 **Flat over nested.** Navigation menus have one level. No dropdowns inside dropdowns.
@@ -390,6 +444,8 @@ Users should never see internal system terminology. Labels must be plain English
 - Actions available on the record — no extra navigation
 
 **Tabs on detail pages** instead of separate pages for sub-sections. All information about a record is accessible via tabs on its detail page.
+
+**Nav badge counts:** Nav items may display a numeric count badge (e.g., "3 past due", "4 unassigned"). The hook signature and badge placement are standardized — badge appears top-right of the nav item, numeric, no color override. Data source is app-specific. Each app implements a `useBadgeCounts` hook that returns a `Record<navKey, number>` and passes counts to the nav component. Zero counts hide the badge.
 
 ---
 
@@ -433,8 +489,23 @@ Every app's Foundation bead must deliver all of the following before any feature
 - [ ] `infrastructure/services/userPreferencesService.ts` — backend preference persistence
 - [ ] `eslint-local-rules/` — all enforcement rules active
 - [ ] `INFRASTRUCTURE_MAP.md` — complete
+- [ ] `infrastructure/hooks/useMutationPattern.ts` — standardized API mutations
+- [ ] `infrastructure/hooks/useQueryInvalidation.ts` — cache invalidation
+- [ ] `infrastructure/hooks/usePagination.ts` — centralized pagination
+- [ ] `infrastructure/hooks/useSearchDebounce.ts` — debounced search
+- [ ] `infrastructure/hooks/useLoadingState.ts` — coordinated loading state
+- [ ] `infrastructure/utils/formatters.ts` — date + currency + numeric formatters
+- [ ] `lib/constants.ts` — polling interval, page size, and all other named constants
 - [ ] Playwright auth fixture for each user role
 - [ ] CI configuration
+
+**Additionally, for staff-facing apps (add to Foundation bead):**
+- [ ] `infrastructure/hooks/useIdleTimeout.ts` — idle timer with warning
+- [ ] `components/ui/IdleWarningModal.tsx` — countdown + stay-logged-in action
+- [ ] `infrastructure/state/notificationStore.ts` — in-memory notification list
+- [ ] `components/ui/NotificationCenter.tsx` — bell icon + badge + dropdown panel
+- [ ] `components/ui/NotificationItem.tsx` — individual notification row
+- [ ] `infrastructure/hooks/useBadgeCounts.ts` — nav badge count hook
 
 ---
 
@@ -453,6 +524,41 @@ Some apps serve multiple distinct audiences with radically different needs (e.g.
 **Rule:** Never try to serve desktop and mobile-first in the same Next.js route/layout. Separate routes, separate layouts — shared component library underneath.
 
 Each app's vision document defines which audience tiers it serves and what the navigation model is for each.
+
+---
+
+## Idle Timeout (Staff-Facing Apps)
+
+Applies to staff admin consoles. Field worker apps and consumer-facing apps are explicitly exempt — see exemption rules below.
+
+**Why not short JWT expiry:** Short JWT TTL causes hard logout with no warning, losing any in-flight form state. That is not acceptable. Idle timeout gives a graceful warning and preserves context.
+
+### Standard Pattern
+
+- Default timeout: **30 minutes** of inactivity. App's vision document may specify a different value.
+- **Warning:** A modal appears **5 minutes before** forced logout. Staff can click "Stay logged in" to reset the timer.
+- The warning modal preserves all open tabs, form state, and filters — nothing is lost during the warning window.
+- After the warning countdown expires with no interaction: session is terminated, user is redirected to login, and a message explains why.
+- Activity resets the timer: any keypress, mouse move, or click counts as activity.
+
+### Implementation
+
+Each app that requires idle timeout implements:
+- `infrastructure/hooks/useIdleTimeout.ts` — timer logic, activity detection, warning trigger
+- `components/ui/IdleWarningModal.tsx` — the warning modal with countdown
+
+Timeout duration is read from a named constant in `lib/constants.ts`:
+```ts
+export const IDLE_TIMEOUT_MS = 30 * 60 * 1000;       // 30 minutes
+export const IDLE_WARNING_BEFORE_MS = 5 * 60 * 1000;  // warn 5 min before
+```
+
+### Exemptions
+
+- **Field worker apps** (e.g., TrashTech Driver): Exempt. Active use mid-route — forced logout would be a UX disaster.
+- **Consumer-facing apps**: Exempt. Short JWT TTL is appropriate for consumer sessions.
+
+Each app's vision document must explicitly state whether idle timeout applies.
 
 ---
 
@@ -521,6 +627,55 @@ Rules for agents — not guidelines.
 
 ---
 
+## Notification System
+
+**Browser notifications are prohibited.** No app on this platform calls `Notification.requestPermission()` or `new Notification(...)`. The platform controls the notification experience — not the browser, not the OS.
+
+**Reason:** Browser notifications hand control to the browser and the user's OS settings. They appear outside the app, are styled by the OS, and their timing and display are outside our control. Platform notifications are rendered inside the app, styled consistently, and always visible in the notification history.
+
+### Two Channels — Both Used
+
+**Channel 1: Toast (transient)**
+Ephemeral alerts. 4-second auto-dismiss. Max one visible at a time. Rules defined in Toast vs Modal Threshold section. Used for: action succeeded, background process finished, non-critical status change.
+
+**Channel 2: In-App Notification Center (persistent)**
+A bell icon in the top bar with a count badge. Platform alerts accumulate here and remain until dismissed. Used for: anything important enough that a missed toast would be a problem.
+
+**Why both:** A 4-second toast can be missed. The notification center ensures nothing falls through. Staff can look at the bell at any time and see everything they may have missed.
+
+### Notification Center — Standard Pattern
+
+Every staff-facing app implements a notification center in its top bar:
+
+- Bell icon with numeric badge (badge hides at zero)
+- Clicking bell opens a dropdown panel listing all unread notifications
+- Each notification: icon by severity, title, short description, timestamp (always with time — see Formatter Standards), dismiss button
+- "Clear all" action at top of panel
+- Notifications are ordered newest-first
+- Unread notifications are visually distinct from read ones
+- Severity levels: `info` (blue), `warning` (amber), `error` (red)
+
+**State:** Notification list lives in a `notificationStore` (Zustand, in-memory — not persisted to localStorage). On page refresh the notification center clears. Persistence to backend API is a deferred decision.
+
+### What Belongs in the Notification Center
+
+Each app's vision document defines which system events generate a notification. Examples for TCP UI: tenant goes past due, service health degrades, billing run completes. Examples for TrashTech Dispatcher (Phase 2): driver misses a stop, route unassigned.
+
+**Rule:** Never create a notification that requires no action and would never interest the user. Notification fatigue reduces trust in the system.
+
+### ESLint Enforcement
+
+`no-browser-notifications` rule blocks `new Notification(...)` and `Notification.requestPermission()` anywhere in the codebase. Violations fail the build.
+
+### Foundation Bead — Notification Requirements
+
+Apps that include a notification center (all staff apps) add to their Foundation bead:
+- [ ] `infrastructure/state/notificationStore.ts` — Zustand store, in-memory
+- [ ] `components/ui/NotificationCenter.tsx` — bell + badge + dropdown panel
+- [ ] `components/ui/NotificationItem.tsx` — individual notification row
+
+---
+
 ## Real-Time Updates
 
 **MVP standard: TanStack Query polling.**
@@ -573,6 +728,16 @@ Standards decisions that are settled. Agents must not re-open these without an e
 | 2026-02-20 | Document is product-agnostic — all app-specific content belongs in each app's vision doc | Platform doc must be usable by any future app team without mental search-and-replace. Rejected: including TrashTech-specific examples inline (confuses future app teams). | User |
 | 2026-02-20 | Platform standards are single source of truth — app teams follow, do not fork or restate | Parallel versions drift and contradict each other. If TrashTech restates a rule, agents don't know which version to follow. Rejected: each app maintains its own copy of shared rules. | User |
 | 2026-02-20 | Changes to platform docs require a formal change request through the platform orchestrator | Uncontrolled edits by app teams would make the doc an unreliable source. Rejected: any orchestrator can edit any doc (no ownership = no accountability). | User |
+| 2026-02-20 | Browser notifications are prohibited on all platform apps — platform notifications only | Browser notifications hand UX control to the OS and browser settings. Platform notifications (toast + notification center) are styled consistently and always visible in history. Rejected: `Notification.requestPermission()` / `new Notification(...)` — outside platform control. | User |
+| 2026-02-20 | Notification system uses two channels: toast (transient) + in-app notification center (persistent) | Toast alone can be missed in 4 seconds. Notification center ensures nothing is lost. Both are needed — one for immediacy, one for history. Rejected: toast only (missed alerts gone forever), notification center only (no immediate feedback). | User |
+| 2026-02-20 | Idle timeout is a standardized pattern for staff-facing apps — 30 min default, 5 min warning | Staff consoles with destructive actions need session expiry. Short JWT TTL alone causes hard logout with no warning, losing form state. Rejected: JWT TTL as sole mechanism (no graceful warning, loses in-flight work). Field worker and consumer apps are explicitly exempt. | Platform Orchestrator + TrashTech Orchestrator |
+| 2026-02-20 | Nav badge counts are a standardized pattern — hook signature and placement standardized, data source app-specific | Any sidebar nav benefits from counts. Standardizing the pattern prevents three different badge implementations. Rejected: each app invents its own badge system (divergence over time). | Platform Orchestrator + TrashTech Orchestrator |
+| 2026-02-20 | Standard hooks (useMutationPattern, useQueryInvalidation, usePagination, useSearchDebounce, useLoadingState) standardized as pattern docs — no shared package | Every TanStack Query app needs these. Pattern docs prevent divergence without shared package versioning overhead. Each app implements locally. Rejected: shared npm package (versioning overhead, monorepo coupling). | Platform Orchestrator + TrashTech Orchestrator |
+| 2026-02-20 | Date and currency formatting rules standardized — each app implements local formatters.ts following the rules | "Feb 20" vs "February 20th" vs "02/20" across apps looks broken. Consistent format across the platform builds trust. Rejected: each app formats dates independently (guaranteed drift). | Platform Orchestrator + TrashTech Orchestrator |
+| 2026-02-20 | Re-authentication for sensitive actions is NOT standardized — each app decides | Risk profiles differ: terminating a tenant (catastrophic, unrecoverable) vs. canceling a route (recoverable). A single standard would over-engineer low-risk apps or under-protect high-risk ones. Revisit when two apps both implement re-auth and can extract a pattern. | Platform Orchestrator + TrashTech Orchestrator |
+| 2026-02-20 | Breadcrumbs rejected for this platform | Neither current app has hierarchy deep enough to warrant breadcrumbs. A 2-level drill-down with a breadcrumb trail is noise. Rejected: breadcrumbs as a navigation aid (no hierarchy to navigate). | TrashTech Orchestrator + Platform Orchestrator |
+| 2026-02-20 | Sidebar favorites rejected | Current apps have 4–5 flat nav items. Favorites are for apps with 20+ nav destinations. Adds UI complexity with no payoff at our scale. Rejected: favorites pinning (wrong scale). | TrashTech Orchestrator + Platform Orchestrator |
+| 2026-02-20 | Global popup manager (third notification channel) rejected | Toast = transient, modal = blocking. Two channels covers every case. A third channel creates a decision overhead question agents should never have to answer. Rejected: queued popup system separate from toast and modal. | TrashTech Orchestrator + Platform Orchestrator |
 
 ---
 
