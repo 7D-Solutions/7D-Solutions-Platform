@@ -36,6 +36,7 @@
 | Warn on browser close (unsaved changes) | `useBeforeUnload` | `@/infrastructure/hooks/useBeforeUnload` |
 | Idle timeout monitoring | `useIdleTimeout` | `@/infrastructure/hooks/useIdleTimeout` |
 | Nav badge counts | `useBadgeCounts` | `@/infrastructure/hooks/useBadgeCounts` |
+| Backend notifications (TanStack Query) | `useNotificationsQuery` | `@/infrastructure/hooks/useNotificationsQuery` |
 
 ---
 
@@ -160,6 +161,10 @@
 ### `useBadgeCounts` — Nav badge counts
 - **File:** `infrastructure/hooks/useBadgeCounts.ts`
 - **Usage:** Used by the left nav component to show unread/pending counts.
+
+### `useNotificationsQuery` — Backend-persisted notifications
+- **File:** `infrastructure/hooks/useNotificationsQuery.ts`
+- **Usage:** TanStack Query hook that fetches from BFF `/api/notifications` with 30s polling. Returns `{ notifications, unreadCount, markAsRead, markAllAsRead }`. Used by `NotificationCenter` to merge with local store.
 
 ---
 
