@@ -26,12 +26,13 @@
 14. [Integrations Module](#integrations-module)
 15. [Tenant Provisioning](#tenant-provisioning)
 16. [Database-Per-Tenant Routing Pattern](#database-per-tenant-routing-pattern)
-17. [Data Ownership Decision Table](#data-ownership--decision-table)
-18. [Environment Variables](#environment-variables)
-19. [Cargo.toml Dependencies](#cargotoml-path-dependencies)
-20. [Local Development](#local-development)
-21. [Reference E2E Tests](#reference-e2e-tests)
-22. [Source File Index](#source-file-index)
+17. [Per-App Roles and Cross-App Navigation](#per-app-roles-and-cross-app-navigation)
+18. [Data Ownership Decision Table](#data-ownership--decision-table)
+19. [Environment Variables](#environment-variables)
+20. [Cargo.toml Dependencies](#cargotoml-path-dependencies)
+21. [Local Development](#local-development)
+22. [Reference E2E Tests](#reference-e2e-tests)
+23. [Source File Index](#source-file-index)
 
 ---
 
@@ -1340,6 +1341,66 @@ CREATE TABLE tenant_routing (
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
+
+---
+
+## Per-App Roles and Cross-App Navigation
+
+### Per-app permission model
+
+The JWT `perms` field uses dot-notation. Platform module permissions follow the pattern `{module}.{action}` (e.g., `ar.mutate`). Vertical apps follow the same pattern using their `app_id` as the prefix:
+
+```
+{app-id}.admin        → full administrative access in the app
+{app-id}.dispatcher   → app-specific named role (example)
+{app-id}.viewer       → read-only access in the app
+```
+
+**A user can hold different roles across different apps.** The JWT carries all permissions for all apps the user has access to. Each app checks only the permissions it cares about:
+
+```rust
+// In your Axum router — require app-specific admin permission:
+.route_layer(RequirePermissionsLayer::new(&["trashtech-pro.admin"]))
+
+// Viewer access — allow read routes for any authenticated viewer:
+.route_layer(RequirePermissionsLayer::new(&["trashtech-pro.viewer"]))
+```
+
+TCP manages role assignment. When a TCP staff member changes a user's role in your app, the new permission strings appear in the user's next JWT. Your app does not need to know anything about TCP — it only reads the JWT.
+
+### Defining your permission strings
+
+When onboarding a new vertical app to the platform, register your permission strings by sending a list to the platform orchestrator. Follow the naming convention:
+
+```
+{your-app-id}.admin
+{your-app-id}.{role-name}   (one entry per named role your app defines)
+{your-app-id}.viewer
+```
+
+Minimum: define at least `{your-app-id}.admin` and `{your-app-id}.viewer`. Add named roles if your app has distinct permission levels (e.g., `trashtech-pro.dispatcher` vs `trashtech-pro.driver`).
+
+### Cross-app navigation (the launch link)
+
+All 7D apps share an auth domain. The user's JWT is stored in an httpOnly cookie scoped to the root domain (e.g., `.7d.io`). Any app on a subdomain reads this cookie automatically.
+
+**What this means for your app:** you do not need to implement any special token exchange or deep-link authentication. If a user arrives at your app from TCP's launch link, they are already authenticated. Your standard JWT verification middleware handles it.
+
+**What your app must do:**
+- Verify the JWT on every request (standard `ClaimsLayer` setup — already required)
+- Enforce app-scoped permissions on protected routes (`RequirePermissionsLayer::new(&["your-app-id.admin"])`)
+- Return `403 Forbidden` with a clear message if a user has no role in your app
+
+**What TCP does on the launch link:**
+- Shows a card for each app the tenant has subscribed to
+- The Launch button is a simple `<a href target="_blank">` pointing to the app's URL
+- No token is passed in the URL — the cookie does the work
+
+**The user's experience:**
+- Click Launch in TCP
+- New tab opens at the app's URL
+- App reads JWT from cookie, checks permissions, renders the appropriate role's view
+- If the user has no role in that app, the app shows a "you don't have access" page — not an error, just an appropriate no-access state
 
 ---
 

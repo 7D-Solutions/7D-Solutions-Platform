@@ -14,6 +14,7 @@
 | 1.3 | 2026-02-20 | Platform Orchestrator | Changed By and Decided By: replaced agent names with roles throughout (User, Orchestrator, TrashTech Orchestrator). Agent names are session-ephemeral. |
 | 1.4 | 2026-02-20 | Platform Orchestrator | Added notification center to Global Shell scope (B). Added idle timeout as required for TCP. Added TCP-specific re-auth decision for Terminate action. Captured infrastructure decisions from Fireproof gap evaluation. |
 | 1.5 | 2026-02-20 | Platform Orchestrator | Resolved all three remaining open questions (Q2, Q3, Q4). All open questions now resolved — bead creation can proceed. |
+| 1.6 | 2026-02-20 | Platform Orchestrator | Added App Launcher section: cross-app navigation via shared auth cookie, per-app role model (dot-notation perms), Settings tab app cards, Access tab per-app role assignment UI. Updated F (IAM/Access) and C (Tenants) scope descriptions. |
 
 ---
 
@@ -151,6 +152,7 @@ The full product. No phased MVP that requires tearing out and rebuilding. Agents
 - Tenant Detail: tabbed page (Overview, Billing, Access, Features, Settings, Activity)
 - Lifecycle actions: Suspend, Activate, Terminate (with reason capture and confirmation)
 - Connection mapping view and management
+- App launcher: from Settings tab, a card for each app the tenant is subscribed to with a direct Launch link
 
 ### D. Plans & Pricing
 - Plans catalog: all platform plans with pricing model, included seats, metered dimensions
@@ -168,7 +170,7 @@ The full product. No phased MVP that requires tearing out and rebuilding. Agents
 
 ### F. IAM / Access
 - Tenant users: list, deactivate
-- Roles and permissions: assign roles, manage tenant-scoped access
+- Per-app role assignment: each user shows their role in each subscribed app (admin / user / viewer / none). Staff can change a user's role per app independently.
 - Seat leases: allocated vs active, release locked seat
 - Active sessions: list, terminate session, policy violation flags
 
@@ -282,6 +284,71 @@ The application uses a browser-tab-like interface — staff can have multiple te
 **Tab scoping:** All state (form data, filters, search, column config, modals) is scoped to the active tab ID. Switching tabs switches context completely without losing data in either tab.
 
 Reference implementation: `docs/reference/fireproof/src/infrastructure/components/TabManager/` and `docs/reference/fireproof/src/infrastructure/state/tabStore.ts`
+
+---
+
+## App Launcher — Cross-App Navigation
+
+### Concept
+
+From the Settings tab of any Tenant Detail page, staff can see every app the tenant is subscribed to. Each app has a **Launch** button that opens the app in a new browser tab. The person launching arrives already authenticated, with their role in that specific app.
+
+A user can be an admin in one app and a viewer in another. Roles are per-app, not global. The Access tab shows and manages this per-app role assignment for each user in the tenant.
+
+### How authentication works at the launch link
+
+The 7D Platform uses a shared auth domain. All apps (`trashtech.7d.io`, any future app, and TCP itself) share the same root cookie domain. The user's JWT (stored in an httpOnly cookie scoped to `.7d.io`) is valid at any app on that domain.
+
+When a staff member clicks Launch:
+1. Browser navigates to the app's URL (a new tab)
+2. The app reads the existing JWT from the cookie — no re-login
+3. The app checks the JWT's `perms` array for app-scoped permissions (e.g., `trashtech-pro.admin`)
+4. Access is granted at whatever role the user holds in that app
+
+No token exchange. No query-string tokens. The cookie does the work.
+
+### Per-app roles in the JWT
+
+The JWT `perms` field uses dot-notation. Per-app roles follow the same pattern:
+
+| App | Role | Permission string in JWT |
+|-----|------|--------------------------|
+| TrashTech Pro | Admin | `trashtech-pro.admin` |
+| TrashTech Pro | Dispatcher | `trashtech-pro.dispatcher` |
+| TrashTech Pro | View-only | `trashtech-pro.viewer` |
+| [Next App] | Admin | `[app-id].admin` |
+| [Next App] | View-only | `[app-id].viewer` |
+
+Each app defines its own permission strings and enforces them via `RequirePermissionsLayer`. TCP manages the assignment; apps enforce it.
+
+### Settings tab — App Launcher UI
+
+The Settings tab of Tenant Detail shows a **Subscribed Apps** section:
+
+```
+Subscribed Apps
+
+[TrashTech Pro]          Status: Active    [ Launch → ]
+[Another App]            Status: Active    [ Launch → ]
+```
+
+Each card shows: app name, subscription status, and the Launch button. If the current user has no role in that app, the Launch button still appears — they will arrive at the app and see its default no-role experience (typically a "you don't have access" state, handled by the app). TCP does not hide launch links based on the staff member's per-app role.
+
+### Access tab — Per-App Role Management
+
+The Access tab shows a user list. Selecting a user expands their role assignment across all subscribed apps:
+
+```
+Alice Chen
+  TrashTech Pro    [ Admin ▼ ]
+  Another App      [ Viewer ▼ ]
+
+Bob Smith
+  TrashTech Pro    [ Dispatcher ▼ ]
+  Another App      [ — None — ]
+```
+
+Staff can change any role via the dropdown. Role changes take effect at the user's next login (JWT refresh). There is no mechanism to force an immediate session invalidation per-app — seat lease termination handles that if needed.
 
 ---
 
@@ -435,6 +502,10 @@ Decisions that are settled. Agents must not re-open these without an explicit us
 | 2026-02-20 | Landing page after login: Tenant List directly — no dashboard home | Design philosophy is minimum clicks to primary task. Staff use TCP primarily to work with tenants. A dashboard home screen adds a click for every session with no gain. System health (secondary use case) is one click away in the System section. Rejected: dashboard home with system health summary (adds a click to the most common task, system health is an edge-case action not a daily landing need). | Platform Orchestrator |
 | 2026-02-20 | No charts or graphs in Phase 41 — all data as tables | Charts add charting library dependencies, visual design decisions, and responsive rendering complexity. All billing and usage data is accessible via tables on the Billing tab and invoice list. Rejected: adding charts for billing trends and seat usage (out of scope for Phase 41, can be added as a dedicated analytics bead if demand emerges). | Platform Orchestrator |
 | 2026-02-20 | Module versioning: not applicable to Phase 41 | TCP UI is co-deployed with the platform in a monorepo. There is no independent versioning or API version prefix needed. The question was forward-looking; current scope has no versioning requirement. If the platform adopts versioned APIs in the future, the Consumer Guide will document it. Rejected: adding v1 URL prefixes speculatively (would require work throughout every BFF route with no current benefit). | Platform Orchestrator |
+| 2026-02-20 | App launcher lives on Settings tab of Tenant Detail — one card per subscribed app with a Launch button | Minimum clicks: staff viewing a tenant's Settings can immediately jump to that app. Rejected: a dedicated top-level "Apps" section in TCP nav (too much distance from tenant context; launching an app is always tenant-specific). | User + Platform Orchestrator |
+| 2026-02-20 | Cross-app authentication via shared auth cookie — no token exchange | All 7D apps share an auth domain. The httpOnly JWT cookie is valid across apps. Clicking Launch navigates to the app which reads the existing cookie. Zero friction, secure, no secrets in URLs. Rejected: query-string token hand-off (tokens in URLs appear in server logs and browser history). Rejected: per-app re-login (defeats the purpose of single sign-on). | Platform Orchestrator |
+| 2026-02-20 | Per-app roles encoded as dot-notation permission strings in JWT (`{app-id}.{role}`) | The JWT `perms` field already uses dot-notation (`ar.mutate`). Extending it to per-app roles keeps one consistent model across all access control. Each app defines its own permission strings and enforces them via RequirePermissionsLayer. TCP manages assignment; apps enforce. Rejected: a separate per-app roles field in the JWT (would require JWT schema change; existing pattern already covers this). | Platform Orchestrator |
+| 2026-02-20 | Role changes take effect at next JWT refresh — no forced per-app invalidation | Session invalidation is already handled by seat lease termination for cases requiring immediate effect. Adding per-app immediate invalidation would require platform-wide token revocation infrastructure. Rejected: forced immediate invalidation on role change (disproportionate complexity; seat termination already handles urgent cases). | Platform Orchestrator |
 
 ---
 
