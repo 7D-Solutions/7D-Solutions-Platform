@@ -19,6 +19,8 @@ interface DataTableProps<T extends Record<string, unknown>> {
   loading?: boolean;
   emptyMessage?: string;
   className?: string;
+  /** Slot for extra toolbar controls (e.g. ViewToggle) rendered before the column manager button */
+  headerActions?: React.ReactNode;
 }
 
 export function DataTable<T extends Record<string, unknown>>({
@@ -29,6 +31,7 @@ export function DataTable<T extends Record<string, unknown>>({
   loading = false,
   emptyMessage = 'No records found.',
   className,
+  headerActions,
 }: DataTableProps<T>) {
   const { columns: managedCols, isEditMode, toggleEditMode, resetToDefault,
           handleDragStart, handleDragOver, handleDrop, handleDragEnd,
@@ -42,6 +45,7 @@ export function DataTable<T extends Record<string, unknown>>({
     <div className={clsx('rounded-[--radius-lg] border border-[--color-border-light] overflow-hidden', className)}>
       {/* Column manager toolbar */}
       <div className="flex items-center justify-end gap-2 border-b border-[--color-border-light] bg-[--color-bg-secondary] px-4 py-2">
+        {headerActions}
         {isEditMode && (
           <button
             onClick={resetToDefault}

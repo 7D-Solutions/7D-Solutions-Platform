@@ -15,7 +15,7 @@ export { Modal } from './Modal';
 export type { ModalSize } from './Modal';
 
 export { ViewToggle } from './ViewToggle';
-export type { ViewMode } from './ViewToggle';
+export type { ViewMode, ViewToggleProps } from './ViewToggle';
 
 export { DataTable } from './DataTable';
 

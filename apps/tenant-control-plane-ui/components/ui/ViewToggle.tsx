@@ -1,46 +1,31 @@
 'use client';
 // ============================================================
-// ViewToggle — row/card toggle, preference persisted per table per user
+// ViewToggle — row/card toggle button group (presentational)
+// Persistence is handled by usePersistedView hook, not this component.
 // ============================================================
-import { useEffect } from 'react';
 import { clsx } from 'clsx';
 import { LayoutList, LayoutGrid } from 'lucide-react';
-import { userPreferencesService } from '@/infrastructure/services/userPreferencesService';
 
 export type ViewMode = 'row' | 'card';
 
-interface ViewToggleProps {
-  tableId: string;
+export interface ViewToggleProps {
   value: ViewMode;
   onChange: (mode: ViewMode) => void;
   className?: string;
 }
 
-export function ViewToggle({ tableId, value, onChange, className }: ViewToggleProps) {
-  const prefKey = `view-mode-${tableId}`;
-
-  // Load persisted preference on mount
-  useEffect(() => {
-    userPreferencesService.getPreference<ViewMode>(prefKey, null).then((saved) => {
-      if (saved && saved !== value) onChange(saved);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefKey]);
-
-  const handleChange = (mode: ViewMode) => {
-    onChange(mode);
-    userPreferencesService.savePreference(prefKey, mode);
-  };
-
+export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
   return (
     <div
       className={clsx(
         'inline-flex rounded-[--radius-default] border border-[--color-border-default] overflow-hidden',
         className
       )}
+      role="group"
+      aria-label="View mode"
     >
       <button
-        onClick={() => handleChange('row')}
+        onClick={() => onChange('row')}
         aria-label="Row view"
         aria-pressed={value === 'row'}
         className={clsx(
@@ -54,7 +39,7 @@ export function ViewToggle({ tableId, value, onChange, className }: ViewTogglePr
         <span>List</span>
       </button>
       <button
-        onClick={() => handleChange('card')}
+        onClick={() => onChange('card')}
         aria-label="Card view"
         aria-pressed={value === 'card'}
         className={clsx(
