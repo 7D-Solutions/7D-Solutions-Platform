@@ -39,3 +39,7 @@ export const IDENTITY_AUTH_BASE_URL = process.env.IDENTITY_AUTH_BASE_URL ?? 'htt
 export const TENANT_REGISTRY_BASE_URL = process.env.TENANT_REGISTRY_BASE_URL ?? 'http://localhost:8091';
 export const AR_BASE_URL = process.env.AR_BASE_URL ?? 'http://localhost:8080';
 export const TTP_BASE_URL = process.env.TTP_BASE_URL ?? 'http://localhost:8095';
+export const NOTIFICATIONS_BASE_URL = process.env.NOTIFICATIONS_BASE_URL ?? 'http://localhost:8094';
+
+// Notification polling interval (same as general refetch)
+export const NOTIFICATION_POLL_MS = 30_000;

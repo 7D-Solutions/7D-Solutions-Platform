@@ -96,3 +96,32 @@ export const PLAN_STATUS_OPTIONS = [
   { value: 'draft', label: 'Draft' },
   { value: 'archived', label: 'Archived' },
 ] as const;
+
+// ── Notification (backend-persisted) ─────────────────────────
+
+export const NotificationSeveritySchema = z.enum(['info', 'success', 'warning', 'error']);
+
+export const NotificationSchema = z.object({
+  id: z.string(),
+  severity: NotificationSeveritySchema,
+  title: z.string(),
+  message: z.string().optional(),
+  timestamp: z.string(),
+  read: z.boolean(),
+});
+
+export type Notification = z.infer<typeof NotificationSchema>;
+
+export const NotificationListResponseSchema = z.object({
+  notifications: z.array(NotificationSchema),
+  unread_count: z.number(),
+});
+
+export type NotificationListResponse = z.infer<typeof NotificationListResponseSchema>;
+
+export const MarkReadRequestSchema = z.object({
+  ids: z.array(z.string()).optional(),
+  all: z.boolean().optional(),
+});
+
+export type MarkReadRequest = z.infer<typeof MarkReadRequestSchema>;

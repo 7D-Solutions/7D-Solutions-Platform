@@ -1,6 +1,8 @@
 // ============================================================
-// In-app notification store — in-memory only (not persisted)
-// Used by NotificationCenter component.
+// Notification store — combines backend-persisted notifications
+// (via TanStack Query) with local in-app notifications (ephemeral).
+// The store manages local state; backend state is managed by
+// useNotificationsQuery. The NotificationCenter merges both.
 // ============================================================
 'use client';
 import { create } from 'zustand';
@@ -15,24 +17,28 @@ export interface AppNotification {
   message?: string;
   timestamp: number;
   read: boolean;
+  source: 'local' | 'backend';
 }
 
 interface NotificationStoreState {
-  notifications: AppNotification[];
-  unreadCount: number;
+  localNotifications: AppNotification[];
+  localUnreadCount: number;
+  lastSeenTimestamp: number;
 
-  addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => void;
+  addNotification: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read' | 'source'>) => void;
   markAsRead: (id: string) => void;
   markAllAsRead: () => void;
   dismissNotification: (id: string) => void;
   clearAll: () => void;
+  updateLastSeen: () => void;
 }
 
 const generateId = () => `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
 export const useNotificationStore = create<NotificationStoreState>()((set) => ({
-  notifications: [],
-  unreadCount: 0,
+  localNotifications: [],
+  localUnreadCount: 0,
+  lastSeenTimestamp: 0,
 
   addNotification: (notification) => {
     const item: AppNotification = {
@@ -40,47 +46,56 @@ export const useNotificationStore = create<NotificationStoreState>()((set) => ({
       id: generateId(),
       timestamp: Date.now(),
       read: false,
+      source: 'local',
     };
     set((state) => ({
-      notifications: [item, ...state.notifications],
-      unreadCount: state.unreadCount + 1,
+      localNotifications: [item, ...state.localNotifications],
+      localUnreadCount: state.localUnreadCount + 1,
     }));
   },
 
   markAsRead: (id) => {
     set((state) => {
-      const updated = state.notifications.map((n) =>
+      const updated = state.localNotifications.map((n) =>
         n.id === id && !n.read ? { ...n, read: true } : n
       );
       return {
-        notifications: updated,
-        unreadCount: updated.filter((n) => !n.read).length,
+        localNotifications: updated,
+        localUnreadCount: updated.filter((n) => !n.read).length,
       };
     });
   },
 
   markAllAsRead: () => {
     set((state) => ({
-      notifications: state.notifications.map((n) => ({ ...n, read: true })),
-      unreadCount: 0,
+      localNotifications: state.localNotifications.map((n) => ({ ...n, read: true })),
+      localUnreadCount: 0,
     }));
   },
 
   dismissNotification: (id) => {
     set((state) => {
-      const updated = state.notifications.filter((n) => n.id !== id);
+      const updated = state.localNotifications.filter((n) => n.id !== id);
       return {
-        notifications: updated,
-        unreadCount: updated.filter((n) => !n.read).length,
+        localNotifications: updated,
+        localUnreadCount: updated.filter((n) => !n.read).length,
       };
     });
   },
 
-  clearAll: () => set({ notifications: [], unreadCount: 0 }),
+  clearAll: () => set({ localNotifications: [], localUnreadCount: 0 }),
+
+  updateLastSeen: () => set({ lastSeenTimestamp: Date.now() }),
 }));
 
-export const useNotifications = () => useNotificationStore((s) => s.notifications);
-export const useUnreadCount = () => useNotificationStore((s) => s.unreadCount);
+export const useLocalNotifications = () =>
+  useNotificationStore((s) => s.localNotifications);
+export const useLocalUnreadCount = () =>
+  useNotificationStore((s) => s.localUnreadCount);
+
+// Aliases consumed by NotificationCenter (merges local + backend in future)
+export const useNotifications = useLocalNotifications;
+export const useUnreadCount = useLocalUnreadCount;
 export const useNotificationActions = () =>
   useNotificationStore(
     useShallow((s) => ({
@@ -89,5 +104,6 @@ export const useNotificationActions = () =>
       markAllAsRead: s.markAllAsRead,
       dismissNotification: s.dismissNotification,
       clearAll: s.clearAll,
+      updateLastSeen: s.updateLastSeen,
     }))
   );
