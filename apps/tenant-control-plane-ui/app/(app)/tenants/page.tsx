@@ -94,25 +94,11 @@ export default function TenantsPage() {
 
   const debouncedSearch = useSearchDebounce(searchTerm);
 
-  // TanStack Query — key includes all filter/pagination params
+  // Pagination state — page/pageSize are internal state; derived values computed from query data below
+  const pagination = usePagination({ totalCount: 0 });
+
+  // TanStack Query — key includes all filter + pagination params
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['tenants', debouncedSearch, filters.status, filters.plan, filters.app_id, 1],
-    queryFn: () =>
-      fetchTenants({
-        search: debouncedSearch,
-        status: filters.status,
-        plan: filters.plan,
-        app_id: filters.app_id,
-        page: 1,
-        pageSize: pagination.pageSize,
-      }),
-    refetchInterval: REFETCH_INTERVAL_MS,
-  });
-
-  const pagination = usePagination({ totalCount: data?.total ?? 0 });
-
-  // Re-fetch when page changes (second query with actual page)
-  const { data: pageData, isLoading: pageLoading } = useQuery({
     queryKey: [
       'tenants',
       debouncedSearch,
@@ -134,9 +120,11 @@ export default function TenantsPage() {
     refetchInterval: REFETCH_INTERVAL_MS,
   });
 
-  const tenants: TenantSummary[] = (pageData ?? data)?.tenants ?? [];
-  const totalCount = (pageData ?? data)?.total ?? 0;
-  const loading = isLoading || pageLoading;
+  const tenants: TenantSummary[] = data?.tenants ?? [];
+  const totalCount = data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalCount / pagination.pageSize));
+  const hasNextPage = pagination.page < totalPages;
+  const hasPrevPage = pagination.page > 1;
 
   return (
     <div>
@@ -224,7 +212,7 @@ export default function TenantsPage() {
             columns={TABLE_COLUMNS as DataTableColumn[]}
             columnManager={columnManager}
             keyField="id"
-            loading={loading}
+            loading={isLoading}
             emptyMessage={
               hasActiveFilters || debouncedSearch
                 ? 'No tenants match your filters.'
@@ -238,7 +226,7 @@ export default function TenantsPage() {
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
           data-testid="card-view"
         >
-          {loading ? (
+          {isLoading ? (
             <div className="col-span-full py-12 text-center text-[--color-text-muted]">
               Loading...
             </div>
@@ -275,9 +263,9 @@ export default function TenantsPage() {
             page={pagination.page}
             pageSize={pagination.pageSize}
             totalCount={totalCount}
-            totalPages={pagination.totalPages}
-            hasNextPage={pagination.hasNextPage}
-            hasPrevPage={pagination.hasPrevPage}
+            totalPages={totalPages}
+            hasNextPage={hasNextPage}
+            hasPrevPage={hasPrevPage}
             onNextPage={pagination.nextPage}
             onPrevPage={pagination.prevPage}
             onGoToPage={pagination.goToPage}
