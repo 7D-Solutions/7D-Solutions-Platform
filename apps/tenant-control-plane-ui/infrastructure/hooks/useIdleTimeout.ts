@@ -2,10 +2,29 @@
 // Idle timeout hook — staff console (30-min default, 5-min warning)
 // Port from: docs/reference/fireproof/src/infrastructure/hooks/useIdleTimeout.ts
 // Adapted: uses lib/constants instead of API settings; no apiClient dependency.
+//
+// Test overrides: set window.__TCP_IDLE_MS / window.__TCP_IDLE_WARN_MS
+// via Playwright addInitScript to use shortened durations.
 // ============================================================
 'use client';
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { IDLE_TIMEOUT_MS, IDLE_WARNING_MS } from '@/lib/constants';
+
+/** Window-level test overrides (set by Playwright addInitScript) */
+interface WindowWithIdleOverrides {
+  __TCP_IDLE_MS?: number;
+  __TCP_IDLE_WARN_MS?: number;
+}
+
+function getIdleConfig(): { timeoutMs: number; warningMs: number } {
+  if (typeof window !== 'undefined') {
+    const w = window as unknown as WindowWithIdleOverrides;
+    const timeout = typeof w.__TCP_IDLE_MS === 'number' ? w.__TCP_IDLE_MS : IDLE_TIMEOUT_MS;
+    const warning = typeof w.__TCP_IDLE_WARN_MS === 'number' ? w.__TCP_IDLE_WARN_MS : IDLE_WARNING_MS;
+    return { timeoutMs: timeout, warningMs: warning };
+  }
+  return { timeoutMs: IDLE_TIMEOUT_MS, warningMs: IDLE_WARNING_MS };
+}
 
 export interface UseIdleTimeoutOptions {
   onWarning?: () => void;
@@ -25,11 +44,19 @@ export interface UseIdleTimeoutReturn {
  * Tracks user inactivity and fires onWarning / onTimeout callbacks.
  * Default: 30-minute timeout with a 5-minute warning window.
  * Activity events: mousemove, keydown, click, scroll, touchstart.
+ *
+ * Activity resets are suppressed while the warning is active — only the
+ * explicit "Stay logged in" action (calling resetTimer) dismisses it.
  */
 export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTimeoutReturn {
   const { onWarning, onTimeout, enabled = true } = options;
 
-  const [remainingMs, setRemainingMs] = useState(IDLE_TIMEOUT_MS);
+  // Read config once on mount (supports test overrides via window globals)
+  const { timeoutMs, warningMs } = useMemo(() => getIdleConfig(), []);
+  // Adaptive check interval: 1s for short timeouts (tests), 5s for production
+  const checkIntervalMs = timeoutMs < 60_000 ? 1000 : 5000;
+
+  const [remainingMs, setRemainingMs] = useState(timeoutMs);
   const [isWarning, setIsWarning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
 
@@ -47,11 +74,11 @@ export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTime
 
   const resetTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
-    setRemainingMs(IDLE_TIMEOUT_MS);
+    setRemainingMs(timeoutMs);
     setIsWarning(false);
     warningFiredRef.current = false;
     timeoutFiredRef.current = false;
-  }, []);
+  }, [timeoutMs]);
 
   const pauseTimer = useCallback(() => setIsPaused(true), []);
 
@@ -60,8 +87,10 @@ export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTime
     resetTimer();
   }, [resetTimer]);
 
+  // Activity resets are suppressed once the warning modal is active.
+  // Only the explicit resetTimer() call (from "Stay logged in") resets.
   const handleActivity = useCallback(() => {
-    if (!isPaused) resetTimer();
+    if (!isPaused && !warningFiredRef.current) resetTimer();
   }, [isPaused, resetTimer]);
 
   // Activity listeners (throttled to 1s)
@@ -84,17 +113,17 @@ export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTime
     };
   }, [handleActivity, enabled]);
 
-  // Idle checker (every 5s)
+  // Idle checker
   useEffect(() => {
     if (!enabled) return;
 
     const check = () => {
       if (isPaused) return;
       const elapsed = Date.now() - lastActivityRef.current;
-      const remaining = Math.max(0, IDLE_TIMEOUT_MS - elapsed);
+      const remaining = Math.max(0, timeoutMs - elapsed);
       setRemainingMs(remaining);
 
-      if (remaining <= IDLE_WARNING_MS && remaining > 0 && !warningFiredRef.current) {
+      if (remaining <= warningMs && remaining > 0 && !warningFiredRef.current) {
         warningFiredRef.current = true;
         setIsWarning(true);
         onWarningRef.current?.();
@@ -107,13 +136,13 @@ export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTime
       }
     };
 
-    intervalRef.current = setInterval(check, 5000);
+    intervalRef.current = setInterval(check, checkIntervalMs);
     check();
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [enabled, isPaused]);
+  }, [enabled, isPaused, timeoutMs, warningMs, checkIntervalMs]);
 
   return { remainingMs, isWarning, resetTimer, pauseTimer, resumeTimer };
 }
