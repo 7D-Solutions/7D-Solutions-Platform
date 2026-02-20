@@ -103,7 +103,7 @@ pub async fn start_payment_succeeded_consumer(bus: Arc<dyn EventBus>, pool: PgPo
     });
 }
 
-async fn process_payment_succeeded(
+pub async fn process_payment_succeeded(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error>> {
