@@ -90,19 +90,19 @@ This table defines what your vertical app agents CAN edit vs what requires 7D Pl
 
 | What | Where | Notes |
 |------|-------|-------|
-| Domain models (pickups, GPS, routes, evidence) | `modules/trashtech/` | Your Postgres, your migrations |
-| Domain HTTP handlers | `modules/trashtech/src/http/` | Your Axum routes |
-| Domain event types (payload structs) | `modules/trashtech/src/events/` | Define your own event payloads |
-| Outbox table + publisher | `modules/trashtech/src/events/` | Copy AR's pattern (see below) |
-| Cargo.toml path deps to platform crates | `modules/trashtech/Cargo.toml` | `event-bus`, `security` |
+| Domain models (pickups, GPS, routes, evidence) | `modules/your-app/` | Your Postgres, your migrations |
+| Domain HTTP handlers | `modules/your-app/src/http/` | Your Axum routes |
+| Domain event types (payload structs) | `modules/your-app/src/events/` | Define your own event payloads |
+| Outbox table + publisher | `modules/your-app/src/events/` | Copy AR's pattern (see below) |
+| Cargo.toml path deps to platform crates | `modules/your-app/Cargo.toml` | `event-bus`, `security` |
 | Docker Compose for your service | Your compose file | Your HTTP port, your PG port |
-| Your DB migrations | `modules/trashtech/db/migrations/` | sqlx migrate |
+| Your DB migrations | `modules/your-app/db/migrations/` | sqlx migrate |
 
 ### Requires 7D Platform Agents to Change (platform repo)
 
 | What | Where | Why |
 |------|-------|-----|
-| Add permission strings (`trashtech.mutate`, `trashtech.read`) | `platform/security/src/permissions.rs` | Central permission registry |
+| Add permission strings (`yourapp.mutate`, `yourapp.read`) | `platform/security/src/permissions.rs` | Central permission registry |
 | Register new NATS subjects | Platform event-bus config | Subject ACLs |
 | Add new E2E test files | `e2e-tests/tests/` | Platform-wide test suite |
 | Modify any platform module code | `platform/*/`, `modules/party/`, `modules/ar/`, etc. | Not your code |
@@ -151,7 +151,7 @@ Before writing any application code, verify this sequence completes cleanly. If 
 
 5. Verify headers are correct — make one real query:
    GET http://7d-party:8098/api/party/parties
-   Headers: x-app-id: trashtech-pro, Authorization: Bearer <jwt>, x-correlation-id: <uuid>
+   Headers: x-app-id: <your-app-id>, Authorization: Bearer <jwt>, x-correlation-id: <uuid>
    → 200 OK with empty list (not 400, not 401)
 
    If you get 400: x-app-id is wrong or missing.
@@ -197,7 +197,7 @@ GET /metrics      — Prometheus
 Source: `modules/party/src/http/party.rs` (enforced pattern across all modules)
 
 ```
-x-app-id: trashtech-pro           # REQUIRED — wrong or missing = 400 or empty results
+x-app-id: <your-app-id>           # REQUIRED — wrong or missing = 400 or empty results
 x-tenant-id: <tenant-uuid>        # REQUIRED — read directly from header by handlers (NOT extracted from JWT)
 x-correlation-id: <uuid>          # REQUIRED — propagated through audit trail
 x-actor-id: <user-or-service-uuid> # REQUIRED — who is performing the action
@@ -243,7 +243,7 @@ Request body (all fields required):
 {
   "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
   "user_id": "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
-  "email": "driver@trashtech.com",
+  "email": "user@example.com",
   "password": "SecurePass123!"
 }
 ```
@@ -264,7 +264,7 @@ Request body (all fields required):
 ```json
 {
   "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "driver@trashtech.com",
+  "email": "user@example.com",
   "password": "SecurePass123!"
 }
 ```
@@ -405,14 +405,14 @@ let verifier: Option<Arc<JwtVerifier>> = JwtVerifier::from_env().map(Arc::new);
 
 let app = Router::new()
     // Mutation routes — require specific permissions
-    .route("/api/trashtech/pickups", post(create_pickup))
+    .route("/api/yourapp/orders", post(create_order))
     // IMPORTANT: route_layer applies ONLY to routes defined ABOVE it in this chain.
     // Routes defined below are NOT protected by RequirePermissionsLayer.
     // Do NOT move or reorganize routes without understanding this Axum ordering rule.
-    .route_layer(RequirePermissionsLayer::new(&["trashtech.mutate"]))
-    // Read routes — no permission guard (or use trashtech.read)
-    .route("/api/trashtech/pickups", get(list_pickups))
-    .route("/api/trashtech/pickups/{id}", get(get_pickup))
+    .route_layer(RequirePermissionsLayer::new(&["yourapp.mutate"]))
+    // Read routes — no permission guard (or use yourapp.read)
+    .route("/api/yourapp/orders", get(list_orders))
+    .route("/api/yourapp/orders/{id}", get(get_order))
     // Health/ready — no auth required
     .route("/api/health", get(health))
     .route("/api/ready", get(ready))
@@ -424,7 +424,7 @@ let app = Router::new()
 - `ClaimsLayer::permissive(verifier)` — requests without valid JWT pass through (claims absent). Use with `RequirePermissionsLayer` on mutation routes.
 - `ClaimsLayer::strict(verifier)` — requests without valid JWT get `401 Unauthorized`.
 - `optional_claims_mw` — Axum middleware function variant. If `verifier` is `None` (dev mode, no JWT_PUBLIC_KEY), no claims extracted, mutation routes return `401`.
-- `RequirePermissionsLayer::new(&["trashtech.mutate"])` — checks `VerifiedClaims.perms` contains all listed strings. Returns `403` if missing, `401` if no claims at all.
+- `RequirePermissionsLayer::new(&["yourapp.mutate"])` — checks `VerifiedClaims.perms` contains all listed strings. Returns `403` if missing, `401` if no claims at all.
 
 ### Accessing Claims in Handlers
 
@@ -432,7 +432,7 @@ let app = Router::new()
 use security::claims::VerifiedClaims;
 use axum::Extension;
 
-async fn create_pickup(
+async fn create_order(
     Extension(claims): Extension<VerifiedClaims>,
     // ... other extractors
 ) -> impl IntoResponse {
@@ -455,7 +455,7 @@ ar.mutate, ar.read, payments.mutate, payments.read, subscriptions.mutate,
 gl.post, gl.read, notifications.mutate, inventory.mutate, inventory.read,
 reporting.mutate, treasury.mutate, treasury.read, ap.mutate, ap.read,
 consolidation.mutate, consolidation.read, timekeeping.mutate, timekeeping.read,
-fixed_assets.mutate, fixed_assets.read, trashtech.mutate, trashtech.read
+fixed_assets.mutate, fixed_assets.read, yourapp.mutate, yourapp.read
 ```
 
 ---
@@ -472,7 +472,7 @@ Source: `modules/party/src/http/party.rs`, `modules/party/src/domain/party/model
 
 ```
 POST /api/party/companies
-x-app-id: trashtech-pro
+x-app-id: <your-app-id>
 Content-Type: application/json
 ```
 
@@ -505,7 +505,7 @@ Response `201 Created` → `PartyView`:
 ```json
 {
   "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "app_id": "trashtech-pro",
+  "app_id": "<your-app-id>",
   "party_type": "company",
   "status": "active",
   "display_name": "Acme Waste Management",
@@ -532,7 +532,7 @@ Response `201 Created` → `PartyView`:
 
 ```
 POST /api/party/individuals
-x-app-id: trashtech-pro
+x-app-id: <your-app-id>
 Content-Type: application/json
 ```
 
@@ -559,7 +559,7 @@ Response: Same `PartyView` shape, `party_type` = `"individual"`.
 
 ```
 GET /api/party/parties/{party_id}
-x-app-id: trashtech-pro
+x-app-id: <your-app-id>
 ```
 
 Response: `PartyView` (200) or `{ "error": "not_found", "message": "..." }` (404).
@@ -568,7 +568,7 @@ Response: `PartyView` (200) or `{ "error": "not_found", "message": "..." }` (404
 
 ```
 GET /api/party/parties/search?name=Acme&party_type=company&limit=20&offset=0
-x-app-id: trashtech-pro
+x-app-id: <your-app-id>
 ```
 
 Query parameters (all optional): `name` (partial match), `party_type` (`company`|`individual`|`contact`), `status` (`active`|`inactive`), `external_system`, `external_id`, `limit` (default 50, max 200), `offset`.
@@ -577,14 +577,14 @@ Query parameters (all optional): `name` (partial match), `party_type` (`company`
 
 ```
 GET /api/party/parties
-x-app-id: trashtech-pro
+x-app-id: <your-app-id>
 ```
 
 ### Update a Party
 
 ```
 PUT /api/party/parties/{party_id}
-x-app-id: trashtech-pro
+x-app-id: <your-app-id>
 Content-Type: application/json
 ```
 
@@ -594,7 +594,7 @@ Send only the fields you want to update.
 
 ```
 POST /api/party/parties/{party_id}/deactivate
-x-app-id: trashtech-pro
+x-app-id: <your-app-id>
 ```
 
 Response: `204 No Content`.
@@ -613,7 +613,7 @@ Source: `modules/ar/src/models/customer.rs`, `modules/ar/src/models/invoice.rs`,
 
 ```
 POST /api/ar/customers
-x-app-id: trashtech-pro
+x-app-id: <your-app-id>
 x-tenant-id: <tenant-uuid>
 Authorization: Bearer <jwt>
 x-correlation-id: <uuid>
@@ -642,7 +642,7 @@ Response `201 Created`:
 ```json
 {
   "id": 42,
-  "app_id": "trashtech-pro",
+  "app_id": "<your-app-id>",
   "email": "billing@acme.com",
   "name": "Acme Waste Management",
   "external_customer_id": "crm-acme-001",
@@ -668,7 +668,7 @@ Error cases:
 
 ```
 POST /api/ar/invoices
-x-app-id: trashtech-pro
+x-app-id: <your-app-id>
 x-tenant-id: <tenant-uuid>
 Authorization: Bearer <jwt>
 x-correlation-id: <uuid>
@@ -705,7 +705,7 @@ Response: `201 Created` with full invoice object including `id` (integer), `till
 
 ```
 GET /api/ar/customers?external_customer_id=crm-acme-001&limit=1
-x-app-id: trashtech-pro
+x-app-id: <your-app-id>
 ```
 
 Use this to check if you already created an AR customer before creating a duplicate.
@@ -779,9 +779,9 @@ This is the canonical sequence for billing a customer for the first time.
 
 **In your operational DB:** Store `party_id` (UUID) and `ar_customer_id` (integer) on your domain tables so you can reference them without re-querying Party Master or AR.
 
-Example schema for your `pickup_jobs` table:
+Example schema for your domain entity table (rename `orders` to your domain concept):
 ```sql
-CREATE TABLE pickup_jobs (
+CREATE TABLE orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_party_id UUID NOT NULL,     -- Party Master party_id
     ar_customer_id INTEGER,               -- AR module ar_customer_id; NULL until billing relationship established
@@ -810,8 +810,8 @@ ar.events.payment.collection.requested
 auth.events.user.registered
 auth.events.user.logged_in
 gl.events.journal.posted
-trashtech.events.pickup.requested      ← your events
-trashtech.events.pickup.completed      ← your events
+yourapp.events.order.created      ← your events
+yourapp.events.order.completed      ← your events
 ```
 
 Source: AR publisher at `modules/ar/src/events/publisher.rs` line 56: `format!("ar.events.{}", event.event_type)`.
@@ -828,7 +828,7 @@ This is the platform-wide event envelope. **Use the `event-bus` crate — do not
 ```rust
 pub struct EventEnvelope<T> {
     pub event_id: Uuid,                           // Auto-generated. Idempotency key.
-    pub event_type: String,                        // e.g. "pickup.requested"
+    pub event_type: String,                        // e.g. "order.created"
     pub occurred_at: DateTime<Utc>,                // Auto-generated.
     pub tenant_id: String,                         // Multi-tenant isolation.
     pub source_module: String,                     // e.g. "trashtech"
@@ -857,13 +857,13 @@ use event_bus::{EventEnvelope, MerchantContext};
 // Basic construction
 let envelope = EventEnvelope::new(
     tenant_id.to_string(),       // tenant_id
-    "trashtech".to_string(),     // source_module
-    "pickup.requested".to_string(), // event_type
+    "your-app".to_string(),     // source_module
+    "order.created".to_string(), // event_type
     payload,                     // your struct implementing Serialize
 );
 
 // With builder methods
-let envelope = EventEnvelope::new(tenant_id, "trashtech".into(), "pickup.requested".into(), payload)
+let envelope = EventEnvelope::new(tenant_id, "your-app".into(), "order.created".into(), payload)
     .with_source_version(env!("CARGO_PKG_VERSION").to_string())
     .with_correlation_id(Some(correlation_id))
     .with_causation_id(Some(causation_id))
@@ -1015,9 +1015,9 @@ use event_bus::outbox::validate_and_serialize_envelope;
 
 pub async fn enqueue_event_tx<T: Serialize>(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    event_type: &str,          // e.g. "pickup.requested"
-    aggregate_type: &str,      // e.g. "pickup"
-    aggregate_id: &str,        // e.g. pickup UUID
+    event_type: &str,          // e.g. "order.created"
+    aggregate_type: &str,      // e.g. "order"
+    aggregate_id: &str,        // e.g. order UUID
     envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
     let payload = validate_and_serialize_envelope(envelope)
@@ -1083,7 +1083,7 @@ Without this background task running, `enqueue_event_tx()` rows accumulate in th
 
 Copy this pattern for TrashTech. Subject routing:
 ```rust
-let subject = format!("trashtech.events.{}", event.event_type);
+let subject = format!("yourapp.events.{}", event.event_type);
 ```
 
 To debug stuck events: `SELECT * FROM events_outbox WHERE published_at IS NULL ORDER BY created_at;`
@@ -1102,7 +1102,7 @@ Source: `modules/integrations/src/http/webhooks.rs` → `inbound_webhook()`
 
 ```
 POST /api/webhooks/inbound/{system}
-x-app-id: trashtech-pro
+x-app-id: <your-app-id>
 x-webhook-id: <source-system-event-id>   ← idempotency key (optional, Stripe event ID etc.)
 Content-Type: application/json
 ```
@@ -1133,7 +1133,7 @@ Map your internal IDs to external system IDs:
 
 ```
 POST   /api/integrations/external-refs
-GET    /api/integrations/external-refs/by-entity?entity_type=pickup&entity_id=<uuid>
+GET    /api/integrations/external-refs/by-entity?entity_type=order&entity_id=<uuid>
 GET    /api/integrations/external-refs/by-system?system=stripe&external_id=cus_12345
 GET    /api/integrations/external-refs/{id}
 PUT    /api/integrations/external-refs/{id}
@@ -1143,8 +1143,8 @@ DELETE /api/integrations/external-refs/{id}
 Create body:
 ```json
 {
-  "entity_type": "pickup",
-  "entity_id": "<pickup-uuid>",
+  "entity_type": "order",
+  "entity_id": "<order-uuid>",
   "system": "stripe",
   "external_id": "cus_12345",
   "label": "Acme Corp Stripe customer",
@@ -1156,9 +1156,9 @@ Response (`ExternalRef`):
 ```json
 {
   "id": 7,
-  "app_id": "trashtech-pro",
-  "entity_type": "pickup",
-  "entity_id": "<pickup-uuid>",
+  "app_id": "<your-app-id>",
+  "entity_type": "order",
+  "entity_id": "<order-uuid>",
   "system": "stripe",
   "external_id": "cus_12345",
   "label": "Acme Corp Stripe customer",
@@ -1209,7 +1209,7 @@ When writing code, use this table to decide where data lives:
 ### Billing Separation (Non-Negotiable)
 
 - Tenant Platform and TrashTech Pro are **independent billing contracts**
-- Separate `product_code`s: `tenant_platform`, `trashtech_pro`
+- Separate `product_code`s: `tenant_platform`, `<your_app>` (one product code per vertical)
 - TrashTech cannot silently cause platform billing to begin
 - All TrashTech financial events use `MerchantContext::Tenant(tenant_id)`, never `Platform`
 
@@ -1221,7 +1221,7 @@ Required env vars for any module that uses platform crates. Set these in your `d
 
 ```bash
 # Your module's Postgres connection
-DATABASE_URL=postgres://postgres:postgres@trashtech-postgres:5432/trashtech_db
+DATABASE_URL=postgres://postgres:postgres@your-app-postgres:5432/your_app_db
 
 # NATS event bus (JetStream enabled)
 NATS_URL=nats://nats:4222
@@ -1236,7 +1236,7 @@ LISTEN_PORT=8101   # pick an unused port
 
 # Your tenant identity (set by orchestrator during provisioning)
 TENANT_ID=550e8400-e29b-41d4-a716-446655440000
-APP_ID=trashtech-pro
+APP_ID=<your-app-id>
 
 # Platform module base URLs (use container names in Docker, localhost in dev)
 PARTY_BASE_URL=http://7d-party:8098
@@ -1270,7 +1270,7 @@ When your vertical app needs platform crates, add these to your `Cargo.toml`:
 ```toml
 [dependencies]
 # Platform crates (path dependencies — adjust relative path based on your module location)
-# If your module is at modules/trashtech/:
+# If your module is at modules/your-app/:
 event-bus = { path = "../../platform/event-bus" }
 security = { path = "../../platform/security" }
 
@@ -1362,7 +1362,7 @@ Your vertical app (TrashTech) runs alongside platform services — not inside th
 cd /path/to/7D-Solutions-Platform && docker compose up -d
 
 # 2. In your TrashTech repo, run your service with env vars pointing to platform
-DATABASE_URL=postgres://postgres:postgres@localhost:5433/trashtech_db \
+DATABASE_URL=postgres://postgres:postgres@localhost:5433/your_app_db \
 NATS_URL=nats://localhost:4222 \
 JWT_PUBLIC_KEY="$(cat /tmp/jwt-test-pub.pem)" \
 AUTH_BASE_URL=http://localhost:8080 \
@@ -1371,8 +1371,8 @@ PARTY_BASE_URL=http://localhost:8098 \
 ./scripts/cargo-slot.sh run -p tt-server
 
 # 3. Run your E2E tests (same env vars, separate terminal)
-DATABASE_URL=postgres://postgres:postgres@localhost:5433/trashtech_db \
-./scripts/cargo-slot.sh test -p e2e-tests -- trashtech --nocapture
+DATABASE_URL=postgres://postgres:postgres@localhost:5433/your_app_db \
+./scripts/cargo-slot.sh test -p e2e-tests -- your_app --nocapture
 ```
 
 Your service uses a **separate Postgres instance** (different port or database name) from the platform services.
