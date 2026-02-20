@@ -68,8 +68,8 @@ pub async fn aggregate_by_dimension(
     let rows = sqlx::query(
         r#"
         SELECT dimension,
-               SUM(quantity)  AS total_quantity,
-               COUNT(*)       AS event_count
+               CAST(SUM(quantity) AS BIGINT) AS total_quantity,
+               COUNT(*)                      AS event_count
         FROM ttp_metering_events
         WHERE tenant_id = $1
           AND occurred_at >= $2::date::timestamptz
