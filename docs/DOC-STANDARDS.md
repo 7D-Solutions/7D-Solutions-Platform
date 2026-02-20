@@ -9,6 +9,49 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-20 | Platform Orchestrator | Created. Unified standard consolidating docs/frontend/DOC-REVISION-STANDARDS.md and docs/CG-DOC-STANDARDS.md. Both reduced to pointers to this file. |
+| 1.1 | 2026-02-20 | Platform Orchestrator | Added Cross-Repo Reference section — single symlink convention, setup instructions, what apps must not do, app-level governance model. |
+
+---
+
+## Cross-Repo Reference — How Apps Access Platform Docs
+
+All platform documentation lives in the platform repo under `docs/`. Vertical apps (TrashTech Pro, future apps) access it via a single symlink:
+
+```
+[app-repo]/docs/platform/  →  symlink →  /path/to/7D-Solutions Platform/docs/
+```
+
+**What the symlink gives you:** every platform doc at a stable repo-relative path.
+
+```
+docs/platform/PLATFORM-CONSUMER-GUIDE.md    ← master API reference index
+docs/platform/CG-AUTH.md                    ← authentication details
+docs/platform/CG-TENANCY.md                 ← tenancy patterns
+docs/platform/DOC-STANDARDS.md              ← this file
+docs/platform/frontend/PLATFORM-COMPONENTS.md  ← UI component specs
+docs/platform/frontend/TCP-UI-VISION.md        ← TCP product vision
+```
+
+**Setting up a new app:**
+```bash
+ln -s "/path/to/7D-Solutions Platform/docs" docs/platform
+```
+
+One symlink. No copies. Changes to platform docs are immediately visible to all apps via the symlink — no sync required.
+
+**The reverse direction** — platform reads app docs:
+The platform maintains its own symlinks into each app's docs folder:
+```
+[platform-repo]/docs/apps/trashtech/  →  symlink →  /path/to/TrashTech/docs/
+[platform-repo]/docs/apps/[next-app]/ →  symlink →  /path/to/NextApp/docs/
+```
+
+**What apps must NOT do:**
+- Never copy platform docs into your repo — copies go stale
+- Never write absolute paths in documents — use `docs/platform/...` (repo-relative via symlink)
+- Never modify files under `docs/platform/` — that directory is read-only from the app's perspective. Submit a change request.
+
+**App-level doc governance** belongs in the app's own standards file (e.g. `docs/standards/DOC-STANDARDS.md` in TrashTech). It covers app-specific rules and references this file for platform standards. It does not duplicate platform rules.
 
 ---
 
