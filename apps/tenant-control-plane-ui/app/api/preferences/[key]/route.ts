@@ -44,3 +44,18 @@ export async function PUT(
 
   return NextResponse.json({ ok: true });
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ key: string }> }
+) {
+  const auth = await guardPlatformAdmin();
+  if (auth instanceof Response) return auth;
+
+  const { key } = await params;
+  const storeKey = `${auth.sub}:${key}`;
+
+  store.delete(storeKey);
+
+  return NextResponse.json({ ok: true });
+}

@@ -8,6 +8,8 @@ import { loginAsStaff } from './fixtures/auth';
 test.describe('View Toggle', () => {
   test.beforeEach(async ({ page }) => {
     await loginAsStaff(page);
+    // Clear any persisted view preference from prior runs
+    await page.request.delete('/api/preferences/view-mode-tenants');
   });
 
   test('defaults to row view on first load', async ({ page }) => {
