@@ -1,0 +1,603 @@
+name: 7d-services
+
+services:
+  # =========================
+  # IDENTITY & AUTH (2 instances)
+  # =========================
+  auth-1:
+    container_name: 7d-auth-1
+    build:
+      context: ./platform/identity-auth
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}
+      NATS_URL: nats://7d-nats:4222
+      HOST: 0.0.0.0
+      PORT: 8080
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      JWT_PUBLIC_KEY_PEM: ${JWT_PUBLIC_KEY_PEM}
+      JWT_KID: ${JWT_KID:-auth-key-1}
+      ACCESS_TOKEN_TTL_MINUTES: "15"
+      REFRESH_TOKEN_TTL_DAYS: "14"
+      ARGON_MEMORY_KB: "65536"
+      ARGON_ITERATIONS: "3"
+      ARGON_PARALLELISM: "1"
+      MAX_CONCURRENT_HASHES: "50"
+      HASH_ACQUIRE_TIMEOUT_MS: "5000"
+      LOCKOUT_THRESHOLD: "10"
+      LOCKOUT_MINUTES: "15"
+      LOGIN_PER_MIN_PER_EMAIL: "5"
+      REGISTER_PER_MIN_PER_EMAIL: "5"
+      REFRESH_PER_MIN_PER_TOKEN: "20"
+      RUST_LOG: info,auth_rs=debug
+    networks:
+      - 7d-platform
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "platform"
+      com.7dsolutions.component: "auth"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+      com.7dsolutions.instance: "1"
+
+  auth-2:
+    container_name: 7d-auth-2
+    build:
+      context: ./platform/identity-auth
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}
+      NATS_URL: nats://7d-nats:4222
+      HOST: 0.0.0.0
+      PORT: 8080
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM}
+      JWT_PUBLIC_KEY_PEM: ${JWT_PUBLIC_KEY_PEM}
+      JWT_KID: ${JWT_KID:-auth-key-1}
+      ACCESS_TOKEN_TTL_MINUTES: "15"
+      REFRESH_TOKEN_TTL_DAYS: "14"
+      ARGON_MEMORY_KB: "65536"
+      ARGON_ITERATIONS: "3"
+      ARGON_PARALLELISM: "1"
+      MAX_CONCURRENT_HASHES: "50"
+      HASH_ACQUIRE_TIMEOUT_MS: "5000"
+      LOCKOUT_THRESHOLD: "10"
+      LOCKOUT_MINUTES: "15"
+      LOGIN_PER_MIN_PER_EMAIL: "5"
+      REGISTER_PER_MIN_PER_EMAIL: "5"
+      REFRESH_PER_MIN_PER_TOKEN: "20"
+      RUST_LOG: info,auth_rs=debug
+    networks:
+      - 7d-platform
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "platform"
+      com.7dsolutions.component: "auth"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+      com.7dsolutions.instance: "2"
+
+  # =========================
+  # AUTH LOAD BALANCER
+  # =========================
+  auth-lb:
+    container_name: 7d-auth-lb
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./nginx/auth-nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "8080:80"
+    networks:
+      - 7d-platform
+    depends_on:
+      - auth-1
+      - auth-2
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "platform"
+      com.7dsolutions.component: "auth-lb"
+      com.7dsolutions.type: "proxy"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # TCP UI (Tenant Control Plane)
+  # =========================
+  tcp-ui:
+    container_name: 7d-tcp-ui
+    build:
+      context: ./apps/tenant-control-plane-ui
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+      IDENTITY_AUTH_URL: http://7d-auth-lb:80
+      TENANT_REGISTRY_URL: http://7d-ttp:8100
+    ports:
+      - "3000:3000"
+    networks:
+      - 7d-platform
+    depends_on:
+      - auth-lb
+      - ttp
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/login || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "app"
+      com.7dsolutions.component: "tcp-ui"
+      com.7dsolutions.type: "frontend"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # AR MODULE
+  # =========================
+  ar:
+    container_name: 7d-ar
+    build:
+      context: .
+      dockerfile: modules/ar/deploy/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8086
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8086:8086"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8086/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "ar"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # SUBSCRIPTIONS MODULE
+  # =========================
+  subscriptions:
+    container_name: 7d-subscriptions
+    build:
+      context: .
+      dockerfile: modules/subscriptions/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}:${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}@7d-subscriptions-postgres:5432/${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8087
+      AR_BASE_URL: http://7d-ar:8086
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8087:8087"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8087/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "subscriptions"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # PAYMENTS MODULE
+  # =========================
+  payments:
+    container_name: 7d-payments
+    build:
+      context: .
+      dockerfile: modules/payments/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${PAYMENTS_POSTGRES_USER:-payments_user}:${PAYMENTS_POSTGRES_PASSWORD:-payments_pass}@7d-payments-postgres:5432/${PAYMENTS_POSTGRES_DB:-payments_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8088
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8088:8088"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8088/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "payments"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # NOTIFICATIONS MODULE
+  # =========================
+  notifications:
+    container_name: 7d-notifications
+    build:
+      context: .
+      dockerfile: modules/notifications/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${NOTIFICATIONS_POSTGRES_USER:-notifications_user}:${NOTIFICATIONS_POSTGRES_PASSWORD:-notifications_pass}@7d-notifications-postgres:5432/${NOTIFICATIONS_POSTGRES_DB:-notifications_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8089
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8089:8089"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8089/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "notifications"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # GL MODULE
+  # =========================
+  gl:
+    container_name: 7d-gl
+    build:
+      context: .
+      dockerfile: modules/gl/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${GL_POSTGRES_USER:-gl_user}:${GL_POSTGRES_PASSWORD:-gl_pass}@7d-gl-postgres:5432/${GL_POSTGRES_DB:-gl_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8090
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8090:8090"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8090/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "gl"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # INVENTORY MODULE
+  # =========================
+  inventory:
+    container_name: 7d-inventory
+    build:
+      context: .
+      dockerfile: modules/inventory/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${INVENTORY_POSTGRES_USER:-inventory_user}:${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}@7d-inventory-postgres:5432/${INVENTORY_POSTGRES_DB:-inventory_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8092
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8092:8092"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8092/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "inventory"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # AP MODULE
+  # =========================
+  ap:
+    container_name: 7d-ap
+    build:
+      context: .
+      dockerfile: modules/ap/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${AP_POSTGRES_USER:-ap_user}:${AP_POSTGRES_PASSWORD:-ap_pass}@7d-ap-postgres:5432/${AP_POSTGRES_DB:-ap_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8093
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8093:8093"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8093/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "ap"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # TREASURY MODULE
+  # =========================
+  treasury:
+    container_name: 7d-treasury
+    build:
+      context: .
+      dockerfile: modules/treasury/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${TREASURY_POSTGRES_USER:-treasury_user}:${TREASURY_POSTGRES_PASSWORD:-treasury_pass}@7d-treasury-postgres:5432/${TREASURY_POSTGRES_DB:-treasury_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8094
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8094:8094"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8094/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "treasury"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # FIXED ASSETS MODULE
+  # =========================
+  fixed-assets:
+    container_name: 7d-fixed-assets
+    build:
+      context: .
+      dockerfile: modules/fixed-assets/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}:${FIXED_ASSETS_POSTGRES_PASSWORD:-fixed_assets_pass}@7d-fixed-assets-postgres:5432/${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8095
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8095:8095"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8095/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "fixed-assets"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # CONSOLIDATION MODULE
+  # =========================
+  consolidation:
+    container_name: 7d-consolidation
+    build:
+      context: .
+      dockerfile: modules/consolidation/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${CONSOLIDATION_POSTGRES_USER:-consolidation_user}:${CONSOLIDATION_POSTGRES_PASSWORD:-consolidation_pass}@7d-consolidation-postgres:5432/${CONSOLIDATION_POSTGRES_DB:-consolidation_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8096
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8096:8096"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8096/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "consolidation"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # TIMEKEEPING MODULE
+  # =========================
+  timekeeping:
+    container_name: 7d-timekeeping
+    build:
+      context: .
+      dockerfile: modules/timekeeping/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}:${TIMEKEEPING_POSTGRES_PASSWORD:-timekeeping_pass}@7d-timekeeping-postgres:5432/${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8097
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8097:8097"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8097/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "timekeeping"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # PARTY MODULE
+  # =========================
+  party:
+    container_name: 7d-party
+    build:
+      context: .
+      dockerfile: modules/party/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${PARTY_POSTGRES_USER:-party_user}:${PARTY_POSTGRES_PASSWORD:-party_pass}@7d-party-postgres:5432/${PARTY_POSTGRES_DB:-party_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8098
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8098:8098"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8098/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "party"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # INTEGRATIONS MODULE
+  # =========================
+  integrations:
+    container_name: 7d-integrations
+    build:
+      context: .
+      dockerfile: modules/integrations/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${INTEGRATIONS_POSTGRES_USER:-integrations_user}:${INTEGRATIONS_POSTGRES_PASSWORD:-integrations_pass}@7d-integrations-postgres:5432/${INTEGRATIONS_POSTGRES_DB:-integrations_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8099
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8099:8099"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8099/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "integrations"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # TTP MODULE
+  # =========================
+  ttp:
+    container_name: 7d-ttp
+    build:
+      context: .
+      dockerfile: modules/ttp/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${TTP_POSTGRES_USER:-ttp_user}:${TTP_POSTGRES_PASSWORD:-ttp_pass}@7d-ttp-postgres:5432/${TTP_POSTGRES_DB:-ttp_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8100
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8100:8100"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8100/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "ttp"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+networks:
+  7d-platform:
+    name: 7d-platform
+    external: true

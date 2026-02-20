@@ -1,0 +1,567 @@
+name: 7d-data
+
+services:
+  # =========================
+  # MESSAGE BUS
+  # =========================
+  nats:
+    container_name: 7d-nats
+    image: nats:2.10-alpine
+    command: ["-js", "-sd", "/data", "-m", "8222"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8222/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "nats"
+      com.7dsolutions.type: "message-bus"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # DATABASES
+  # =========================
+  auth-postgres:
+    container_name: 7d-auth-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: ${AUTH_POSTGRES_DB:-auth_db}
+      POSTGRES_USER: ${AUTH_POSTGRES_USER:-auth_user}
+      POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD:-auth_pass}
+    volumes:
+      - auth_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUTH_POSTGRES_USER:-auth_user} -d ${AUTH_POSTGRES_DB:-auth_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "auth-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  ar-postgres:
+    container_name: 7d-ar-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_DB: ${AR_POSTGRES_DB:-ar_db}
+      POSTGRES_USER: ${AR_POSTGRES_USER:-ar_user}
+      POSTGRES_PASSWORD: ${AR_POSTGRES_PASSWORD:-ar_pass}
+    volumes:
+      - ar_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AR_POSTGRES_USER:-ar_user} -d ${AR_POSTGRES_DB:-ar_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "ar-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  subscriptions-postgres:
+    container_name: 7d-subscriptions-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5435:5432"
+    environment:
+      POSTGRES_DB: ${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}
+      POSTGRES_USER: ${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}
+      POSTGRES_PASSWORD: ${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}
+    volumes:
+      - subscriptions_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user} -d ${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "subscriptions-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  payments-postgres:
+    container_name: 7d-payments-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5436:5432"
+    environment:
+      POSTGRES_DB: ${PAYMENTS_POSTGRES_DB:-payments_db}
+      POSTGRES_USER: ${PAYMENTS_POSTGRES_USER:-payments_user}
+      POSTGRES_PASSWORD: ${PAYMENTS_POSTGRES_PASSWORD:-payments_pass}
+    volumes:
+      - payments_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PAYMENTS_POSTGRES_USER:-payments_user} -d ${PAYMENTS_POSTGRES_DB:-payments_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "payments-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  notifications-postgres:
+    container_name: 7d-notifications-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5437:5432"
+    environment:
+      POSTGRES_DB: ${NOTIFICATIONS_POSTGRES_DB:-notifications_db}
+      POSTGRES_USER: ${NOTIFICATIONS_POSTGRES_USER:-notifications_user}
+      POSTGRES_PASSWORD: ${NOTIFICATIONS_POSTGRES_PASSWORD:-notifications_pass}
+    volumes:
+      - notifications_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NOTIFICATIONS_POSTGRES_USER:-notifications_user} -d ${NOTIFICATIONS_POSTGRES_DB:-notifications_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "notifications-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  gl-postgres:
+    container_name: 7d-gl-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5438:5432"
+    environment:
+      POSTGRES_DB: ${GL_POSTGRES_DB:-gl_db}
+      POSTGRES_USER: ${GL_POSTGRES_USER:-gl_user}
+      POSTGRES_PASSWORD: ${GL_POSTGRES_PASSWORD:-gl_pass}
+    volumes:
+      - gl_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${GL_POSTGRES_USER:-gl_user} -d ${GL_POSTGRES_DB:-gl_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "gl-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  # =========================
+  # PLATFORM DATABASES
+  # =========================
+  projections-postgres:
+    container_name: 7d-projections-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5439:5432"
+    environment:
+      POSTGRES_DB: ${PROJECTIONS_POSTGRES_DB:-projections_db}
+      POSTGRES_USER: ${PROJECTIONS_POSTGRES_USER:-projections_user}
+      POSTGRES_PASSWORD: ${PROJECTIONS_POSTGRES_PASSWORD:-projections_pass}
+    volumes:
+      - projections_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PROJECTIONS_POSTGRES_USER:-projections_user} -d ${PROJECTIONS_POSTGRES_DB:-projections_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "projections-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  audit-postgres:
+    container_name: 7d-audit-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5440:5432"
+    environment:
+      POSTGRES_DB: ${AUDIT_POSTGRES_DB:-audit_db}
+      POSTGRES_USER: ${AUDIT_POSTGRES_USER:-audit_user}
+      POSTGRES_PASSWORD: ${AUDIT_POSTGRES_PASSWORD:-audit_pass}
+    volumes:
+      - audit_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AUDIT_POSTGRES_USER:-audit_user} -d ${AUDIT_POSTGRES_DB:-audit_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "audit-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  tenant-registry-postgres:
+    container_name: 7d-tenant-registry-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5441:5432"
+    environment:
+      POSTGRES_DB: ${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}
+      POSTGRES_USER: ${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user}
+      POSTGRES_PASSWORD: ${TENANT_REGISTRY_POSTGRES_PASSWORD:-tenant_registry_pass}
+    volumes:
+      - tenant_registry_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user} -d ${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "tenant-registry-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  inventory-postgres:
+    container_name: 7d-inventory-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5442:5432"
+    environment:
+      POSTGRES_DB: ${INVENTORY_POSTGRES_DB:-inventory_db}
+      POSTGRES_USER: ${INVENTORY_POSTGRES_USER:-inventory_user}
+      POSTGRES_PASSWORD: ${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}
+    volumes:
+      - inventory_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${INVENTORY_POSTGRES_USER:-inventory_user} -d ${INVENTORY_POSTGRES_DB:-inventory_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "inventory-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  ap-postgres:
+    container_name: 7d-ap-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5443:5432"
+    environment:
+      POSTGRES_DB: ${AP_POSTGRES_DB:-ap_db}
+      POSTGRES_USER: ${AP_POSTGRES_USER:-ap_user}
+      POSTGRES_PASSWORD: ${AP_POSTGRES_PASSWORD:-ap_pass}
+    volumes:
+      - ap_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AP_POSTGRES_USER:-ap_user} -d ${AP_POSTGRES_DB:-ap_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "ap-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  treasury-postgres:
+    container_name: 7d-treasury-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5444:5432"
+    environment:
+      POSTGRES_DB: ${TREASURY_POSTGRES_DB:-treasury_db}
+      POSTGRES_USER: ${TREASURY_POSTGRES_USER:-treasury_user}
+      POSTGRES_PASSWORD: ${TREASURY_POSTGRES_PASSWORD:-treasury_pass}
+    volumes:
+      - treasury_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TREASURY_POSTGRES_USER:-treasury_user} -d ${TREASURY_POSTGRES_DB:-treasury_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "treasury-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  fixed-assets-postgres:
+    container_name: 7d-fixed-assets-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5445:5432"
+    environment:
+      POSTGRES_DB: ${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}
+      POSTGRES_USER: ${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}
+      POSTGRES_PASSWORD: ${FIXED_ASSETS_POSTGRES_PASSWORD:-fixed_assets_pass}
+    volumes:
+      - fixed_assets_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user} -d ${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "fixed-assets-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  consolidation-postgres:
+    container_name: 7d-consolidation-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5446:5432"
+    environment:
+      POSTGRES_DB: ${CONSOLIDATION_POSTGRES_DB:-consolidation_db}
+      POSTGRES_USER: ${CONSOLIDATION_POSTGRES_USER:-consolidation_user}
+      POSTGRES_PASSWORD: ${CONSOLIDATION_POSTGRES_PASSWORD:-consolidation_pass}
+    volumes:
+      - consolidation_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CONSOLIDATION_POSTGRES_USER:-consolidation_user} -d ${CONSOLIDATION_POSTGRES_DB:-consolidation_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "consolidation-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  timekeeping-postgres:
+    container_name: 7d-timekeeping-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5447:5432"
+    environment:
+      POSTGRES_DB: ${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}
+      POSTGRES_USER: ${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}
+      POSTGRES_PASSWORD: ${TIMEKEEPING_POSTGRES_PASSWORD:-timekeeping_pass}
+    volumes:
+      - timekeeping_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TIMEKEEPING_POSTGRES_USER:-timekeeping_user} -d ${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "timekeeping-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  party-postgres:
+    container_name: 7d-party-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5448:5432"
+    environment:
+      POSTGRES_DB: ${PARTY_POSTGRES_DB:-party_db}
+      POSTGRES_USER: ${PARTY_POSTGRES_USER:-party_user}
+      POSTGRES_PASSWORD: ${PARTY_POSTGRES_PASSWORD:-party_pass}
+    volumes:
+      - party_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PARTY_POSTGRES_USER:-party_user} -d ${PARTY_POSTGRES_DB:-party_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "party-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  integrations-postgres:
+    container_name: 7d-integrations-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5449:5432"
+    environment:
+      POSTGRES_DB: ${INTEGRATIONS_POSTGRES_DB:-integrations_db}
+      POSTGRES_USER: ${INTEGRATIONS_POSTGRES_USER:-integrations_user}
+      POSTGRES_PASSWORD: ${INTEGRATIONS_POSTGRES_PASSWORD:-integrations_pass}
+    volumes:
+      - integrations_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${INTEGRATIONS_POSTGRES_USER:-integrations_user} -d ${INTEGRATIONS_POSTGRES_DB:-integrations_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "integrations-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  ttp-postgres:
+    container_name: 7d-ttp-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5450:5432"
+    environment:
+      POSTGRES_DB: ${TTP_POSTGRES_DB:-ttp_db}
+      POSTGRES_USER: ${TTP_POSTGRES_USER:-ttp_user}
+      POSTGRES_PASSWORD: ${TTP_POSTGRES_PASSWORD:-ttp_pass}
+    volumes:
+      - ttp_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TTP_POSTGRES_USER:-ttp_user} -d ${TTP_POSTGRES_DB:-ttp_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "ttp-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+networks:
+  7d-platform:
+    name: 7d-platform
+    external: true
+
+volumes:
+  nats_data:
+    name: 7d-nats-data
+    external: true
+  auth_pgdata:
+    name: 7d-auth-pgdata
+    external: true
+  ar_pgdata:
+    name: 7d-ar-pgdata
+    external: true
+  subscriptions_pgdata:
+    name: 7d-subscriptions-pgdata
+    external: true
+  payments_pgdata:
+    name: 7d-payments-pgdata
+    external: true
+  notifications_pgdata:
+    name: 7d-notifications-pgdata
+    external: true
+  gl_pgdata:
+    name: 7d-gl-pgdata
+    external: true
+  projections_pgdata:
+    name: 7d-projections-pgdata
+    external: true
+  audit_pgdata:
+    name: 7d-audit-pgdata
+    external: true
+  tenant_registry_pgdata:
+    name: 7d-tenant-registry-pgdata
+    external: true
+  inventory_pgdata:
+    name: 7d-inventory-pgdata
+    external: true
+  ap_pgdata:
+    name: 7d-ap-pgdata
+    external: true
+  treasury_pgdata:
+    name: 7d-treasury-pgdata
+    external: true
+  fixed_assets_pgdata:
+    name: 7d-fixed-assets-pgdata
+    external: true
+  consolidation_pgdata:
+    name: 7d-consolidation-pgdata
+    external: true
+  timekeeping_pgdata:
+    name: 7d-timekeeping-pgdata
+    external: true
+  party_pgdata:
+    name: 7d-party-pgdata
+    external: true
+  integrations_pgdata:
+    name: 7d-integrations-pgdata
+    external: true
+  ttp_pgdata:
+    name: 7d-ttp-pgdata
+    external: true

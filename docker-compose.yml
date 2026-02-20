@@ -1,10 +1,15 @@
 name: 7d-solutions-platform
 
-# Main orchestration file
-# Use: docker compose up -d
-# Or selectively: docker compose -f docker-compose.infrastructure.yml up -d
+# Main orchestration file — two-stack split: data vs services
+#
+# Full stack:   docker compose up -d
+# Data only:    docker compose -f docker-compose.data.yml up -d
+# Services:     docker compose -f docker-compose.services.yml up -d
+#
+# Legacy files (docker-compose.infrastructure.yml, docker-compose.platform.yml,
+# docker-compose.modules.yml) are kept for backward compatibility but are
+# superseded by the data/services split.
 
 include:
-  - docker-compose.infrastructure.yml
-  - docker-compose.platform.yml
-  - docker-compose.modules.yml
+  - docker-compose.data.yml
+  - docker-compose.services.yml
