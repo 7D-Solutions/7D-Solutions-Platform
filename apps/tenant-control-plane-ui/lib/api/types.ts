@@ -269,14 +269,17 @@ export type TenantPlanSummary = z.infer<typeof TenantPlanSummarySchema>;
 export const PlanAssignmentRequestSchema = z.object({
   plan_id: z.string().min(1, 'Plan is required'),
   effective_date: z.string().min(1, 'Effective date is required').refine(
-    (val) => !isNaN(Date.parse(val)),
-    { message: 'Must be a valid date' },
+    (val) => /^\d{4}-\d{2}-\d{2}$/.test(val),
+    { message: 'Must be a valid date (YYYY-MM-DD)' },
   ).refine(
     (val) => {
-      const d = new Date(val);
+      // Compare date strings directly to avoid UTC vs local timezone issues.
+      // Both todayString and <input type="date"> produce YYYY-MM-DD in local time.
       const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return d >= today;
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      return val >= `${yyyy}-${mm}-${dd}`;
     },
     { message: 'Effective date cannot be in the past' },
   ),

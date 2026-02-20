@@ -101,7 +101,7 @@ export function PlanChangeModal({ tenantId, currentPlan, isOpen, onClose }: Plan
 
   return (
     <Modal isOpen={isOpen} title="Change Plan" onClose={onClose} size="sm">
-      <form onSubmit={onSubmit} noValidate>
+      <div>
         <Modal.Body>
           <div className="space-y-4">
             {currentPlan && (
@@ -156,15 +156,16 @@ export function PlanChangeModal({ tenantId, currentPlan, isOpen, onClose }: Plan
           <Button
             variant="primary"
             size="sm"
-            type="submit"
+            type="button"
             loading={mutation.isPending}
             disabled={plansQuery.isLoading || plansQuery.isError}
+            onClick={onSubmit}
             data-testid="confirm-plan-change-btn"
           >
             Assign Plan
           </Button>
         </Modal.Actions>
-      </form>
+      </div>
     </Modal>
   );
 }
