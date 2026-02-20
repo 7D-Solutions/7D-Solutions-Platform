@@ -10,6 +10,7 @@
 | 1.0 | 2026-02-20 | Orchestrator | Created. Adopted as cross-app standard with TrashTech Orchestrator. |
 | 1.1 | 2026-02-20 | Orchestrator | Added Cross-Repo Path Convention section and full docs/ directory structure. Symlinks created: docs/apps/trashtech and docs/reference/fireproof. Eliminates absolute paths across all docs. |
 | 1.2 | 2026-02-20 | Orchestrator | Changed By and Decided By convention: use roles, not agent names (agent names change per session). Updated all revision history and decision log entries in all docs. |
+| 1.3 | 2026-02-20 | Orchestrator | Added Governance section: platform is single source of truth, app teams submit change requests, platform orchestrator owns all docs in docs/frontend/. |
 
 ---
 
@@ -138,6 +139,40 @@ Do not create beads until all questions here are resolved.
 - Every unresolved design question that blocks bead creation goes here
 - When resolved: mark ✅ Resolved and add the decision to the Decision Log
 - Do not delete resolved rows — mark them resolved so there is a record
+
+---
+
+## Governance — Who Can Change What
+
+**Platform Orchestrator** owns all documents in `docs/frontend/`. No other agent edits these documents without authorization.
+
+**App teams** (TrashTech Orchestrator, future app teams) read these documents and implement what they say. They do not maintain parallel versions of platform rules in their own repos.
+
+### Change Request Process
+
+When an app team needs a platform standard changed, they send a mail to the platform orchestrator with:
+- Subject: `Standards change request — [doc name] — [short description]`
+- Current rule (exact quote from the doc)
+- Proposed rule
+- Reason the current rule doesn't work
+- Which beads in their project are blocked without the change
+
+The platform orchestrator approves or rejects. If approved, the orchestrator commits the change to the platform doc. The app team implements after the platform commit is confirmed.
+
+**App teams never modify platform docs directly** — not even for typo fixes. Submit a change request.
+
+### What Requires a Change Request
+
+- Changing any rule in PLATFORM-FRONTEND-STANDARDS.md
+- Adding or removing a section
+- Changing the document structure (section order, required sections)
+- Registering a new app in the App Vision Documents table
+
+### What Does NOT Require a Change Request
+
+- App teams updating their own vision documents
+- The platform orchestrator updating any doc in `docs/frontend/`
+- Adding a new app symlink to `docs/apps/`
 
 ---
 

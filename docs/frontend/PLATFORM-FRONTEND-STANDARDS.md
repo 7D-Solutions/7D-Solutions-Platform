@@ -17,6 +17,7 @@
 | 1.4 | 2026-02-20 | Orchestrator | Added Revision History (this table), Decision Log, pointer to DOC-REVISION-STANDARDS.md. Adopted cross-app doc standard proposed by TrashTech Orchestrator. Moved to docs/frontend/ subfolder. Updated App Vision Documents paths. |
 | 1.5 | 2026-02-20 | Orchestrator | Replaced all absolute paths with repo-relative symlink paths (docs/apps/trashtech/, docs/reference/fireproof/). No content changes — path references only. |
 | 1.6 | 2026-02-20 | Orchestrator | Changed By and Decided By: replaced agent names with roles throughout. Agent names are session-ephemeral and must not appear in persistent documents. |
+| 1.7 | 2026-02-20 | Orchestrator | Formalized governance model: platform is single source of truth, app teams follow not fork. Converted Open Items to Deferred Decisions table. Genericized App Vision Documents to a registry with registration date. Added governance decisions to Decision Log. |
 
 ---
 
@@ -531,22 +532,28 @@ Rules for agents — not guidelines.
 
 ---
 
-## Open Items
+## Deferred Decisions
 
-- [ ] **Customer-facing language rules:** What additional plain-English rules apply specifically to customer-facing screens? Each app that serves customers should define these in its vision document. (Guideline: errors must tell users what to do next and include a contact method.)
-- [ ] **Standard app scaffold:** Should the platform provide a starter template repo that new apps fork from? Defer until second app is ready to begin.
-- [ ] **Shared package vs. per-app copy:** Should the component library live in a shared package (`packages/ui/`) that apps install as a dependency, or does each app own its own copy? Defer until duplication becomes a maintenance problem.
+These items are deliberately deferred — not unresolved, but not needed until the trigger condition is met. Do not open discussion on these until the trigger is reached.
+
+| Item | Trigger to revisit |
+|------|--------------------|
+| Standard app scaffold (starter template repo new apps fork from) | When second app team begins onboarding |
+| Shared component package (`packages/ui/`) vs per-app copy | When copy-divergence becomes a maintenance problem across 2+ apps |
+| WebSocket / SSE upgrade for real-time data | When TanStack Query polling creates visible lag at production scale |
 
 ---
 
-## App Vision Documents
+## Registered App Vision Documents
 
-Each app maintains its own vision document with app-specific decisions:
+Each app team registers their vision document here when onboarding to the platform.
 
-| App | Vision Document |
-|-----|----------------|
-| Tenant Control Plane UI | `docs/frontend/TCP-UI-VISION.md` (this repo) |
-| TrashTech Pro | `docs/apps/trashtech/VISION.md` |
+| App | Vision Document | Registered |
+|-----|----------------|-----------|
+| Tenant Control Plane UI | `docs/frontend/TCP-UI-VISION.md` (this repo) | 2026-02-20 |
+| TrashTech Pro | `docs/apps/trashtech/VISION.md` | 2026-02-20 |
+
+**To register a new app:** Submit a change request to the platform orchestrator (see DOC-REVISION-STANDARDS.md → Governance). Add a row to this table with the app name, vision doc path, and date.
 
 ---
 
@@ -564,6 +571,8 @@ Standards decisions that are settled. Agents must not re-open these without an e
 | 2026-02-20 | TanStack Query `refetchInterval` for real-time data — WebSocket/SSE deferred to Phase 2 | Polling is sufficient for MVP, simpler to implement and debug. WebSocket adds operational complexity. Rejected: WebSocket from day one (over-engineering for initial scale). | TrashTech Orchestrator |
 | 2026-02-20 | Playwright E2E against real backend only — no mocking, no MSW, no stubs | Tests that mock the backend don't catch backend contract changes. Real integration is the only valid proof. Rejected: MSW mocking (fast but doesn't catch real failures). | User |
 | 2026-02-20 | Document is product-agnostic — all app-specific content belongs in each app's vision doc | Platform doc must be usable by any future app team without mental search-and-replace. Rejected: including TrashTech-specific examples inline (confuses future app teams). | User |
+| 2026-02-20 | Platform standards are single source of truth — app teams follow, do not fork or restate | Parallel versions drift and contradict each other. If TrashTech restates a rule, agents don't know which version to follow. Rejected: each app maintains its own copy of shared rules. | User |
+| 2026-02-20 | Changes to platform docs require a formal change request through the platform orchestrator | Uncontrolled edits by app teams would make the doc an unreliable source. Rejected: any orchestrator can edit any doc (no ownership = no accountability). | User |
 
 ---
 
