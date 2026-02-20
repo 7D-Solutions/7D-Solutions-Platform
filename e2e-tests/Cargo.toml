@@ -292,6 +292,10 @@ name = "ap_po_receipt_bill_gl"
 path = "tests/ap_po_receipt_bill_gl.rs"
 
 [[test]]
+name = "treasury_cash_position_e2e"
+path = "tests/treasury_cash_position_e2e.rs"
+
+[[test]]
 name = "treasury_bank_recon_cash_position"
 path = "tests/treasury_bank_recon_cash_position.rs"
 
