@@ -6,7 +6,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
-import { Users, CreditCard, Settings, BarChart2, Shield, LogOut, Package, Boxes, Key, ClipboardList } from 'lucide-react';
+import { Users, CreditCard, Settings, BarChart2, Shield, LogOut, Package, Boxes, Key, ClipboardList, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { NotificationCenter } from '@/components/ui/NotificationCenter';
 import { UserMenu } from '@/components/ui/UserMenu';
@@ -23,6 +23,7 @@ const navItems = [
   { label: 'Entitlements',     href: '/entitlements',  icon: Key         },
   { label: 'Billing',          href: '/billing',       icon: CreditCard  },
   { label: 'Audit Log',         href: '/audit',    icon: ClipboardList },
+  { label: 'System Status',    href: '/system/status', icon: Activity },
   { label: 'Reports',          href: '/reports',  icon: BarChart2   },
   { label: 'IAM',              href: '/iam',      icon: Shield      },
   { label: 'Settings',         href: '/settings', icon: Settings    },
