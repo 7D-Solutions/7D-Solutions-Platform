@@ -18,8 +18,8 @@ services:
     restart: unless-stopped
     environment:
       JWT_SECRET: ${JWT_SECRET}
-      IDENTITY_AUTH_URL: http://7d-auth-lb:80
-      TENANT_REGISTRY_URL: http://7d-ttp:8100
+      IDENTITY_AUTH_BASE_URL: http://7d-auth-lb:80
+      TENANT_REGISTRY_BASE_URL: http://7d-ttp:8100
     ports:
       - "3000:3000"
     networks:
