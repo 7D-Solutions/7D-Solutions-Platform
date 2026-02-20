@@ -15,6 +15,8 @@ import { usePagination } from '@/infrastructure/hooks/usePagination';
 import { useSearchDebounce } from '@/infrastructure/hooks/useSearchDebounce';
 import { useSearchStore } from '@/infrastructure/state/useSearchStore';
 import { useFilterStore } from '@/infrastructure/state/useFilterStore';
+import { useTabModal } from '@/infrastructure/state/useTabModal';
+import { useModalStore } from '@/infrastructure/state/modalStore';
 import { REFETCH_INTERVAL_MS } from '@/lib/constants';
 import type { AuditListResponse, AuditEventSummary } from '@/lib/api/types';
 import {
@@ -104,8 +106,11 @@ export default function AuditPage() {
   // Date range state (not persisted — resets on page load)
   const [dateRange, setDateRange] = useState<DateRange>({ start: '', end: '' });
 
-  // Detail modal
-  const [selectedEvent, setSelectedEvent] = useState<AuditEventSummary | null>(null);
+  // Detail modal via tab-aware modal store (ESLint: no local selection state)
+  const AUDIT_DETAIL_MODAL = 'AUDIT_DETAIL';
+  const { openModal, closeModal } = useTabModal();
+  const detailModal = useModalStore((s) => s.getModal(AUDIT_DETAIL_MODAL));
+  const detailEvent = (detailModal?.props?.event as AuditEventSummary) ?? null;
 
   const pagination = usePagination({ totalCount: 0 });
 
@@ -165,17 +170,18 @@ export default function AuditPage() {
     }},
     { id: 'summary',   header: 'Summary', accessor: (row) => truncate((row as unknown as AuditEventSummary).summary, 60) },
     { id: 'detail',    header: '',        accessor: (row) => (
-      <button
-        onClick={(evt) => {
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={(evt: React.MouseEvent) => {
           evt.stopPropagation();
-          setSelectedEvent(row as unknown as AuditEventSummary);
+          openModal(AUDIT_DETAIL_MODAL, 'AUDIT_DETAIL', { event: row as unknown as AuditEventSummary });
         }}
-        className="rounded p-1 text-[--color-text-secondary] hover:bg-[--color-bg-tertiary] hover:text-[--color-text-primary] transition-[--transition-fast]"
         aria-label="View event detail"
         data-testid="audit-detail-btn"
-      >
-        <Eye className="h-4 w-4" />
-      </button>
+        icon={Eye}
+        iconPosition="left"
+      />
     )},
   ];
 
@@ -293,22 +299,22 @@ export default function AuditPage() {
 
       {/* Event Detail Modal */}
       <Modal
-        isOpen={!!selectedEvent}
+        isOpen={!!detailEvent}
         title="Audit Event Detail"
-        onClose={() => setSelectedEvent(null)}
+        onClose={() => closeModal(AUDIT_DETAIL_MODAL)}
         size="lg"
       >
         <Modal.Body>
-          {selectedEvent && (
+          {detailEvent && (
             <div className="space-y-4" data-testid="audit-detail-modal">
-              <DetailRow label="Event ID" value={selectedEvent.id} />
-              <DetailRow label="Timestamp" value={formatTimestamp(selectedEvent.timestamp)} />
-              <DetailRow label="Actor" value={selectedEvent.actor} />
-              <DetailRow label="Action" value={selectedEvent.action} />
-              <DetailRow label="Tenant" value={selectedEvent.tenant_name ?? selectedEvent.tenant_id ?? '—'} />
-              <DetailRow label="Resource Type" value={selectedEvent.resource_type ?? '—'} />
-              <DetailRow label="Resource ID" value={selectedEvent.resource_id ?? '—'} />
-              <DetailRow label="Summary" value={selectedEvent.summary ?? '—'} />
+              <DetailRow label="Event ID" value={detailEvent.id} />
+              <DetailRow label="Timestamp" value={formatTimestamp(detailEvent.timestamp)} />
+              <DetailRow label="Actor" value={detailEvent.actor} />
+              <DetailRow label="Action" value={detailEvent.action} />
+              <DetailRow label="Tenant" value={detailEvent.tenant_name ?? detailEvent.tenant_id ?? '—'} />
+              <DetailRow label="Resource Type" value={detailEvent.resource_type ?? '—'} />
+              <DetailRow label="Resource ID" value={detailEvent.resource_id ?? '—'} />
+              <DetailRow label="Summary" value={detailEvent.summary ?? '—'} />
 
               {/* Payload — rendered as safe pre-formatted JSON */}
               <div>
@@ -319,14 +325,14 @@ export default function AuditPage() {
                   className="mt-1 rounded-[--radius-default] bg-[--color-bg-secondary] border border-[--color-border-light] p-3 text-xs text-[--color-text-primary] overflow-x-auto whitespace-pre-wrap break-all max-h-64"
                   data-testid="audit-payload"
                 >
-                  {safeJsonDisplay(selectedEvent.payload)}
+                  {safeJsonDisplay(detailEvent.payload)}
                 </pre>
               </div>
             </div>
           )}
         </Modal.Body>
         <Modal.Actions>
-          <Button variant="secondary" size="sm" onClick={() => setSelectedEvent(null)}>
+          <Button variant="secondary" size="sm" onClick={() => closeModal(AUDIT_DETAIL_MODAL)}>
             Close
           </Button>
         </Modal.Actions>
