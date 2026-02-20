@@ -4,6 +4,7 @@
 // ============================================================
 'use client';
 import { create } from 'zustand';
+import type { UseBoundStore, StoreApi } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { useActiveTabId } from './tabStore';
 
@@ -19,7 +20,7 @@ interface SelectionStoreState {
   isSelected: (id: string) => boolean;
 }
 
-const storeCache = new Map<string, ReturnType<typeof create>>();
+const storeCache = new Map<string, UseBoundStore<StoreApi<unknown>>>();
 
 /**
  * Tab-scoped, persistent selection state factory.
@@ -31,9 +32,9 @@ export function useSelectionStore(selectionKey: string) {
   const activeTabId = useActiveTabId();
   const storageKey = `selection-${selectionKey}-${activeTabId}`;
 
-  let store: ReturnType<typeof create<SelectionStoreState>>;
+  let store: UseBoundStore<StoreApi<SelectionStoreState>>;
   if (storeCache.has(storageKey)) {
-    store = storeCache.get(storageKey) as ReturnType<typeof create<SelectionStoreState>>;
+    store = storeCache.get(storageKey) as UseBoundStore<StoreApi<SelectionStoreState>>;
   } else {
     store = create<SelectionStoreState>()(
       persist(

@@ -16,7 +16,7 @@ export interface Column {
   align?: 'left' | 'center' | 'right';
 }
 
-interface UseColumnManagerReturn {
+export interface UseColumnManagerReturn {
   columns: Column[];
   isEditMode: boolean;
   toggleEditMode: () => void;

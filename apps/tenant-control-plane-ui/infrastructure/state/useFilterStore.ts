@@ -4,6 +4,7 @@
 // ============================================================
 'use client';
 import { create } from 'zustand';
+import type { UseBoundStore, StoreApi } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { useActiveTabId } from './tabStore';
 
@@ -19,7 +20,7 @@ interface FilterStoreState<T extends Record<string, unknown>> {
   resetPendingFilters: () => void;
 }
 
-const storeCache = new Map<string, ReturnType<typeof create>>();
+const storeCache = new Map<string, UseBoundStore<StoreApi<unknown>>>();
 
 function computeHasActiveFilters<T extends Record<string, unknown>>(
   filters: T,
@@ -47,9 +48,9 @@ export function useFilterStore<T extends Record<string, unknown>>(
   const activeTabId = useActiveTabId();
   const storageKey = `filter-${filterKey}-${activeTabId}`;
 
-  let store: ReturnType<typeof create<FilterStoreState<T>>>;
+  let store: UseBoundStore<StoreApi<FilterStoreState<T>>>;
   if (storeCache.has(storageKey)) {
-    store = storeCache.get(storageKey) as ReturnType<typeof create<FilterStoreState<T>>>;
+    store = storeCache.get(storageKey) as UseBoundStore<StoreApi<FilterStoreState<T>>>;
   } else {
     store = create<FilterStoreState<T>>()(
       persist(

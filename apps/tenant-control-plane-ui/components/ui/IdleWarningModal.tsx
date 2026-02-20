@@ -52,7 +52,7 @@ export function IdleWarningModal({
     >
       <Modal.Body>
         <p className="text-sm text-[--color-text-secondary]">
-          You've been inactive for a while. For your security, you'll be automatically logged out
+          You&apos;ve been inactive for a while. For your security, you&apos;ll be automatically logged out
           in:
         </p>
         <p className="mt-3 text-center text-4xl font-bold text-[--color-danger] tabular-nums">

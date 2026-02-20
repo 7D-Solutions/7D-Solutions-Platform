@@ -5,6 +5,7 @@
 // ============================================================
 'use client';
 import { create } from 'zustand';
+import type { UseBoundStore, StoreApi } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
@@ -30,7 +31,7 @@ interface FormStoreState<T> {
   getChangedFieldsWithValues: () => Array<{ field: string; oldValue: unknown; newValue: unknown }>;
 }
 
-const storeCache = new Map<string, ReturnType<typeof create>>();
+const storeCache = new Map<string, UseBoundStore<StoreApi<unknown>>>();
 
 /**
  * Tab-scoped, persistent form state factory.
@@ -50,9 +51,9 @@ export function useFormStore<T extends Record<string, unknown>>(
   const activeTabId = useActiveTabId();
   const storageKey = `form-${formKey}-${activeTabId}`;
 
-  let store: ReturnType<typeof create<FormStoreState<T>>>;
+  let store: UseBoundStore<StoreApi<FormStoreState<T>>>;
   if (storeCache.has(storageKey)) {
-    store = storeCache.get(storageKey) as ReturnType<typeof create<FormStoreState<T>>>;
+    store = storeCache.get(storageKey) as UseBoundStore<StoreApi<FormStoreState<T>>>;
   } else {
     store = create<FormStoreState<T>>()(
       persist(

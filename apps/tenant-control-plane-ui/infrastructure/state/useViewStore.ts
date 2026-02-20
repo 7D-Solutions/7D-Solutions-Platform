@@ -4,6 +4,7 @@
 // ============================================================
 'use client';
 import { create } from 'zustand';
+import type { UseBoundStore, StoreApi } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { useActiveTabId } from './tabStore';
 
@@ -14,7 +15,7 @@ interface ViewStoreState<T extends Record<string, unknown>> {
   resetState: () => void;
 }
 
-const storeCache = new Map<string, ReturnType<typeof create>>();
+const storeCache = new Map<string, UseBoundStore<StoreApi<unknown>>>();
 
 /**
  * Tab-scoped, persistent view state factory.
@@ -31,9 +32,9 @@ export function useViewStore<T extends Record<string, unknown>>(
   const activeTabId = useActiveTabId();
   const storageKey = `view-${viewKey}-${activeTabId}`;
 
-  let store: ReturnType<typeof create<ViewStoreState<T>>>;
+  let store: UseBoundStore<StoreApi<ViewStoreState<T>>>;
   if (storeCache.has(storageKey)) {
-    store = storeCache.get(storageKey) as ReturnType<typeof create<ViewStoreState<T>>>;
+    store = storeCache.get(storageKey) as UseBoundStore<StoreApi<ViewStoreState<T>>>;
   } else {
     store = create<ViewStoreState<T>>()(
       persist(

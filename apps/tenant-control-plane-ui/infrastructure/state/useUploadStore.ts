@@ -4,6 +4,7 @@
 // ============================================================
 'use client';
 import { create } from 'zustand';
+import type { UseBoundStore, StoreApi } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { useActiveTabId } from './tabStore';
 
@@ -28,7 +29,7 @@ interface UploadStoreState {
   clearFiles: () => void;
 }
 
-const storeCache = new Map<string, ReturnType<typeof create>>();
+const storeCache = new Map<string, UseBoundStore<StoreApi<unknown>>>();
 
 /**
  * Tab-scoped, persistent upload state factory.
@@ -40,9 +41,9 @@ export function useUploadStore(uploadKey: string) {
   const activeTabId = useActiveTabId();
   const storageKey = `upload-${uploadKey}-${activeTabId}`;
 
-  let store: ReturnType<typeof create<UploadStoreState>>;
+  let store: UseBoundStore<StoreApi<UploadStoreState>>;
   if (storeCache.has(storageKey)) {
-    store = storeCache.get(storageKey) as ReturnType<typeof create<UploadStoreState>>;
+    store = storeCache.get(storageKey) as UseBoundStore<StoreApi<UploadStoreState>>;
   } else {
     store = create<UploadStoreState>()(
       persist(

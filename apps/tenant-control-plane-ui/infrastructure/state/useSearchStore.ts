@@ -4,6 +4,7 @@
 // ============================================================
 'use client';
 import { create } from 'zustand';
+import type { UseBoundStore, StoreApi } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { useActiveTabId } from './tabStore';
 
@@ -19,7 +20,7 @@ interface SearchStoreState {
   clearRecentSearches: () => void;
 }
 
-const storeCache = new Map<string, ReturnType<typeof create>>();
+const storeCache = new Map<string, UseBoundStore<StoreApi<unknown>>>();
 
 /**
  * Tab-scoped, persistent search state factory.
@@ -31,9 +32,9 @@ export function useSearchStore(searchKey: string) {
   const activeTabId = useActiveTabId();
   const storageKey = `search-${searchKey}-${activeTabId}`;
 
-  let store: ReturnType<typeof create<SearchStoreState>>;
+  let store: UseBoundStore<StoreApi<SearchStoreState>>;
   if (storeCache.has(storageKey)) {
-    store = storeCache.get(storageKey) as ReturnType<typeof create<SearchStoreState>>;
+    store = storeCache.get(storageKey) as UseBoundStore<StoreApi<SearchStoreState>>;
   } else {
     store = create<SearchStoreState>()(
       persist(
