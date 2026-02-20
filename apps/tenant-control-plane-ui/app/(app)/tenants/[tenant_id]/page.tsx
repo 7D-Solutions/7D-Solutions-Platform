@@ -1,8 +1,7 @@
 // ============================================================
 // /app/tenants/[tenant_id] — Tenant Detail page
-// Overview tab: status, plan summary, health snapshot, key dates.
-// Future tabs (Billing, Access, Features, Settings, Activity)
-// will be added by downstream beads.
+// Tabs: Overview, Billing, Access, Features, Settings, Activity
+// Settings: lifecycle actions (suspend/activate/terminate with re-auth).
 // ============================================================
 'use client';
 import { useParams } from 'next/navigation';
@@ -18,6 +17,7 @@ import type { TenantDetail, TenantPlanSummary, HealthSnapshot } from '@/lib/api/
 import { AccessTab } from './AccessTab';
 import { BillingTab } from './BillingTab';
 import { FeaturesTab } from './FeaturesTab';
+import { SettingsTab } from './SettingsTab';
 
 // ── Data fetchers ──────────────────────────────────────────
 
@@ -161,7 +161,11 @@ export default function TenantDetailPage() {
         <FeaturesTab tenantId={tenant_id} />
       )}
 
-      {activeTab && activeTab.id !== 'overview' && activeTab.id !== 'access' && activeTab.id !== 'billing' && activeTab.id !== 'features' && (
+      {activeTab?.id === 'settings' && (
+        <SettingsTab tenantId={tenant_id} tenant={tenant} />
+      )}
+
+      {activeTab && activeTab.id !== 'overview' && activeTab.id !== 'access' && activeTab.id !== 'billing' && activeTab.id !== 'features' && activeTab.id !== 'settings' && (
         <div
           className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-8 text-center text-[--color-text-muted]"
           data-testid="tab-placeholder"
