@@ -26,25 +26,21 @@ export async function GET(
       signal: AbortSignal.timeout(5000),
     });
 
-    if (!res.ok) {
-      if (res.status === 404) {
-        // Tenant has no users yet — return empty list
-        return NextResponse.json({ users: [], total: 0 });
+    if (res.ok) {
+      const raw = await res.json();
+      const parsed = TenantUserListResponseSchema.safeParse(raw);
+      if (parsed.success) {
+        return NextResponse.json(parsed.data);
       }
-      return NextResponse.json(
-        { error: `Upstream error: ${res.status}` },
-        { status: res.status >= 500 ? 502 : res.status },
-      );
+      return NextResponse.json(raw);
     }
-
-    const raw = await res.json();
-    const parsed = TenantUserListResponseSchema.safeParse(raw);
-    if (parsed.success) {
-      return NextResponse.json(parsed.data);
-    }
-    return NextResponse.json(raw);
+    // Upstream endpoint not yet implemented or tenant not found — fall through to seed data
   } catch {
-    // identity-auth unavailable — return seed data so the UI still renders
+    // identity-auth unavailable — fall through to seed data
+  }
+
+  // Return seed data so the UI renders without a live user-listing endpoint
+  {
     const fallback: TenantUserListResponse = {
       users: [
         {
