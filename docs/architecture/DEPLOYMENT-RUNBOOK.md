@@ -937,7 +937,7 @@ docker network rm 7d-platform
 
 ## See Also
 
-- [Release Policy](../governance/RELEASE-POLICY.md) - Release process and versioning
+- [Versioning & Release Gating](../VERSIONING.md) - Module versioning, three gates, product manifests
 - [Operations Standard](OPERATIONS-STANDARD.md) - Logging and metrics standards
 - [Troubleshooting Guide](../../TROUBLESHOOTING_RUNDOWN.md) - Detailed troubleshooting
 - [Test Standard](TEST-STANDARD.md) - E2E and integration testing

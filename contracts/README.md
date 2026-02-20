@@ -218,4 +218,4 @@ Contract tests validate that implementations match their specifications.
 - [MODULE-STANDARD.md](../docs/architecture/MODULE-STANDARD.md) - Module structure
 - [CONTRACT-STANDARD.md](../docs/architecture/CONTRACT-STANDARD.md) - Contract governance
 - [BOUNDARY-ENFORCEMENT.md](../docs/architecture/BOUNDARY-ENFORCEMENT.md) - Module boundaries
-- [VERSIONING-STANDARD.md](../docs/architecture/VERSIONING-STANDARD.md) - Version strategy
+- [VERSIONING.md](../docs/VERSIONING.md) - Module versioning, three gates, product manifests

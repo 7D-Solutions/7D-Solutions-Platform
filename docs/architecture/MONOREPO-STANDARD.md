@@ -365,5 +365,5 @@ NO business logic.
 
 - [Module Standard](MODULE-STANDARD.md) - Module structure details
 - [Contract Standard](CONTRACT-STANDARD.md) - API/event schema guidelines
-- [Versioning Standard](VERSIONING-STANDARD.md) - SemVer policies
+- [Versioning & Release Gating](../VERSIONING.md) - Module versioning, three gates, product manifests
 - [Layering Rules](LAYERING-RULES.md) - Dependency management

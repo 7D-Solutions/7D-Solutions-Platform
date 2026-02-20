@@ -185,15 +185,15 @@ pnpm dev
 - [Monorepo Standard](docs/architecture/MONOREPO-STANDARD.md) - Repository organization rules
 - [Module Standard](docs/architecture/MODULE-STANDARD.md) - Module structure and boundaries
 - [Contract Standard](docs/architecture/CONTRACT-STANDARD.md) - API and event schema guidelines
-- [Versioning Standard](docs/architecture/VERSIONING-STANDARD.md) - Semantic versioning policies
+- [Versioning & Release Gating](docs/VERSIONING.md) - Module versioning, three gates, product manifests
 - [Layering Rules](docs/architecture/LAYERING-RULES.md) - Dependency management
 - [CI Guardrails](docs/architecture/CI-GUARDRAILS.md) - Automated enforcement
 - [ADR Template](docs/architecture/ADR-TEMPLATE.md) - Architecture decision records
 
 ### Governance
-- [Code Ownership](docs/governance/CODE-OWNERSHIP.md) - Maintainer responsibilities
-- [Change Control](docs/governance/CHANGE-CONTROL.md) - Review and approval process
-- [Release Policy](docs/governance/RELEASE-POLICY.md) - Versioning and deployment
+- [Domain Ownership Registry](docs/governance/DOMAIN-OWNERSHIP-REGISTRY.md) - Module authority and ownership
+- [Mutation Classes](docs/governance/MUTATION-CLASSES.md) - Event mutation classification
+- [Retention Classes](docs/governance/RETENTION-CLASSES.md) - Data lifecycle management
 
 ## Technology Stack
 
