@@ -8,6 +8,7 @@
 
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
+| 1.3 | 2026-02-20 | Platform Orchestrator | ChatGPT round 3: canonical module naming, which-file-to-bump rules, docs-only exception, upgrade ordering for breaking changes, deployment config source of truth, proof completeness principle. |
 | 1.2 | 2026-02-20 | Platform Orchestrator | ChatGPT round 2: 1.0.0 reserved rule, no unproven in production, explicit bump mechanics, deploy-time manifest diff check, mandatory compat lines, proof command requirement, platform compat window definition. |
 | 1.1 | 2026-02-20 | Platform Orchestrator | ChatGPT round 1: added module identification section, tag immutability rule, rollback procedure, cross-module change guidance, event schema vs module versioning clarification, platform component adoption model. |
 | 1.0 | 2026-02-20 | Platform Orchestrator | Created. Replaces docs/architecture/VERSIONING-STANDARD.md, docs/architecture/CONTRACT-VERSIONING-POLICY.md, and docs/governance/RELEASE-POLICY.md — those documents described an aspirational system that was never implemented. This document describes the system that is implemented and enforced. |
@@ -33,6 +34,10 @@ A **module** is any directory in the workspace that produces a deployable servic
 modules/{name}/Cargo.toml          → product-facing modules (AR, GL, AP, etc.)
 platform/{name}/Cargo.toml         → shared platform services (identity-auth, tenant-registry, etc.)
 ```
+
+**Canonical module name:** The folder name under `modules/` or `platform/` (e.g., `ar`, `identity-auth`). Use this exact identifier in manifests, revision entries, image names, and git tags. Do not use alternate names (e.g., "accounts-receivable" for `ar`).
+
+**Which file to bump:** Rust modules bump version in `Cargo.toml`. Node/TS modules (e.g., UI apps under `apps/`) bump version in `package.json`. Never bump both. Never bump the workspace root `Cargo.toml` version.
 
 **How to tell if a module is proven:** Read the `version` field in the module's package file. If the version is `>= 1.0.0`, the module is proven and all versioning rules apply. If the version is `0.x.x`, the module is unproven — change freely.
 
@@ -103,6 +108,8 @@ Breaking changes. Removing or renaming a field. Changing a field type. Removing 
 - All products using this module must be notified (via agent mail or manifest CI warnings)
 - Products cannot adopt the new major version without updating their code
 
+**Upgrade ordering for breaking changes:** For additive (MINOR) changes, producers and consumers can upgrade in either order. For breaking (MAJOR) changes: deploy the producer with dual-write / backward compatibility first, then upgrade consumers, then remove old behavior after the compatibility window expires.
+
 ---
 
 ## The Three Gates
@@ -137,7 +144,7 @@ If either check fails, the commit is rejected. The agent must bump the version a
 
 **How the hook identifies a proven module:** If the module's package file has a version >= `1.0.0`, the module is proven. Modules at `0.x.x` skip this check.
 
-**Files that trigger the check:** Any file under the module's source directory (`src/`, `db/`, `migrations/`). Changes to test files, documentation, or CI configuration do not trigger the version check.
+**Files that trigger the check:** Any file under the module's source directory (`src/`, `db/`, `migrations/`). Changes to test files, documentation, or CI configuration do not trigger the version check. This means docs-only changes to a proven module do not require a version bump.
 
 ### Gate 2: CI pipeline (or manual build until CI is automated)
 
@@ -169,7 +176,7 @@ Every product has a `MODULE-MANIFEST.md` file (see template at `docs/templates/M
 4. If tests pass, commit the manifest change with a note explaining the adoption
 5. Deploy with the updated manifest
 
-**Before every deployment:** Diff `MODULE-MANIFEST.md` against the deployment configuration (Docker Compose, Kubernetes, ECS, etc.) and confirm every module version matches exactly. If there is a mismatch, block the deployment until reconciled.
+**Before every deployment:** Diff `MODULE-MANIFEST.md` against the deployment configuration and confirm every module version matches exactly. If there is a mismatch, block the deployment until reconciled. Each product must document which file(s) constitute its deployment config (e.g., `docker-compose.yml`, Helm values, ECS task definitions) so agents know what to diff against.
 
 **If the product team does not update their manifest, they stay on the old version.** The new module version exists in the registry but has no effect on the product.
 
@@ -302,7 +309,7 @@ Rollbacks are version changes like any other — they go through the manifest an
 1. Ensure all E2E tests pass.
 2. Bump the version to `1.0.0` in the module's `Cargo.toml` (not the workspace root).
 3. Create `REVISIONS.md` from the template.
-4. Ensure the module has a documented proof command in one of these locations: the module's `README.md` under a "Proof" heading, a `Makefile` target `make proof`, or `scripts/proof_{module}.sh`. This must exist before `1.0.0` is committed.
+4. Ensure the module has a documented proof command in one of these locations: the module's `README.md` under a "Proof" heading, a `Makefile` target `make proof`, or `scripts/proof_{module}.sh`. This must exist before `1.0.0` is committed. The proof command must be comprehensive — it is the single acceptance gate for `1.0.0`. A partial test suite does not qualify.
 5. Commit with: `[bd-xxx] {module} v1.0.0: initial proof`
 6. Tag the commit: `git tag {module-name}-v1.0.0`
 7. Build and push the versioned image (CI does this when automated; manual until then — see Implementation Status).
