@@ -342,12 +342,16 @@ export type AuditFilter = {
   actor: string;
   action: string;
   tenant_id: string;
+  date_from: string;
+  date_to: string;
 };
 
 export const DEFAULT_AUDIT_FILTERS: AuditFilter = {
   actor: '',
   action: '',
   tenant_id: '',
+  date_from: '',
+  date_to: '',
 };
 
 export const AUDIT_ACTION_OPTIONS = [
@@ -362,6 +366,26 @@ export const AUDIT_ACTION_OPTIONS = [
   { value: 'user.logout', label: 'User Logout' },
   { value: 'settings.changed', label: 'Settings Changed' },
 ] as const;
+
+// ── Tenant User (Access tab) ─────────────────────────────────
+
+export const TenantUserSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+  name: z.string().optional(),
+  status: z.string(),
+  last_seen: z.string().optional(),
+  created_at: z.string().optional(),
+});
+
+export type TenantUser = z.infer<typeof TenantUserSchema>;
+
+export const TenantUserListResponseSchema = z.object({
+  users: z.array(TenantUserSchema),
+  total: z.number(),
+});
+
+export type TenantUserListResponse = z.infer<typeof TenantUserListResponseSchema>;
 
 // ── Health Snapshot (service readiness) ─────────────────────
 
