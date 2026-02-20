@@ -55,3 +55,5 @@ export { NotificationItem } from './NotificationItem';
 export { IdleWarningModal } from './IdleWarningModal';
 
 export { Pagination } from './Pagination';
+
+export { TabBar } from './TabBar';

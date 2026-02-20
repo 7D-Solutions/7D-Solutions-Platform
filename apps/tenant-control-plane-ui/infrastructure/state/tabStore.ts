@@ -35,6 +35,8 @@ interface TabState {
   updateTab: (tabId: string, updates: Partial<TabData>) => void;
   reorderTabs: (tabIds: string[]) => void;
   promotePreviewTab: (tabId: string) => void;
+  openPreviewTab: (tab: Omit<TabData, 'id' | 'isPreview'> & { id?: string }) => string;
+  setTabDirty: (tabId: string, dirty: boolean) => void;
 
   enableSplitView: (leftTabId: string, rightTabId: string) => void;
   disableSplitView: () => void;
@@ -162,6 +164,10 @@ export const useTabStore = create<TabState>()(
 
       promotePreviewTab: (tabId) => get().updateTab(tabId, { isPreview: false }),
 
+      openPreviewTab: (tabData) => get().openTab({ ...tabData, isPreview: true }),
+
+      setTabDirty: (tabId, dirty) => get().updateTab(tabId, { isDirty: dirty }),
+
       enableSplitView: (leftTabId, rightTabId) => {
         const { tabs } = get();
         if (tabs.find((t) => t.id === leftTabId) && tabs.find((t) => t.id === rightTabId)) {
@@ -212,6 +218,8 @@ export const useTabActions = () =>
       updateTab: s.updateTab,
       reorderTabs: s.reorderTabs,
       promotePreviewTab: s.promotePreviewTab,
+      openPreviewTab: s.openPreviewTab,
+      setTabDirty: s.setTabDirty,
       enableSplitView: s.enableSplitView,
       disableSplitView: s.disableSplitView,
       setDividerPosition: s.setDividerPosition,

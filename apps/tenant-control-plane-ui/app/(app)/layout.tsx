@@ -10,7 +10,9 @@ import { Users, CreditCard, Settings, BarChart2, Shield, LogOut, Package } from 
 import { Button } from '@/components/ui/Button';
 import { NotificationCenter } from '@/components/ui/NotificationCenter';
 import { IdleWarningModal } from '@/components/ui/IdleWarningModal';
+import { TabBar } from '@/components/ui/TabBar';
 import { useIdleTimeout } from '@/infrastructure/hooks/useIdleTimeout';
+import { useSplitView, useTabActions, useActiveTabId } from '@/infrastructure/state/tabStore';
 import { useState, useCallback } from 'react';
 
 const navItems = [
@@ -29,6 +31,9 @@ async function logout() {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const splitView = useSplitView();
+  const { getTab, setDividerPosition } = useTabActions();
+  const activeTabId = useActiveTabId();
   const [showIdleWarning, setShowIdleWarning] = useState(false);
 
   // Stable callback refs — prevent useIdleTimeout effects from re-running
@@ -112,10 +117,36 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <NotificationCenter />
           </header>
 
-          {/* Page content */}
-          <main className="flex-1 overflow-y-auto p-6">
-            {children}
-          </main>
+          {/* Tab bar */}
+          <TabBar />
+
+          {/* Page content — split view or single pane */}
+          {splitView.enabled ? (
+            <div className="flex flex-1 overflow-hidden">
+              <div
+                className="overflow-y-auto p-6"
+                style={{ width: `${splitView.dividerPosition}%` }}
+                data-testid="split-left"
+              >
+                {children}
+              </div>
+              <div
+                className="w-1 cursor-col-resize bg-[--color-border-default] hover:bg-[--color-primary] transition-[--transition-fast]"
+                data-testid="split-divider"
+              />
+              <div
+                className="overflow-y-auto p-6"
+                style={{ width: `${100 - splitView.dividerPosition}%` }}
+                data-testid="split-right"
+              >
+                {children}
+              </div>
+            </div>
+          ) : (
+            <main className="flex-1 overflow-y-auto p-6">
+              {children}
+            </main>
+          )}
         </div>
       </div>
 
