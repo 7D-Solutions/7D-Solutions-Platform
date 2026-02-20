@@ -67,13 +67,23 @@ export const useModalStore = create<ModalStoreState>()((set, get) => ({
 export const useModalsForTab = (tabId: string) =>
   useModalStore((state) => state.modals.filter((m) => m.tabId === tabId));
 
-export const useModalActions = () =>
-  useModalStore((state) => ({
-    openModal: state.openModal,
-    closeModal: state.closeModal,
-    updateModalProps: state.updateModalProps,
-    closeAllModalsForTab: state.closeAllModalsForTab,
-    getModalsForTab: state.getModalsForTab,
-    getModal: state.getModal,
-    isModalOpen: state.isModalOpen,
-  }));
+/**
+ * Returns stable action references from the modal store.
+ * Uses individual selectors so each returns a referentially-stable
+ * function, avoiding the "getServerSnapshot should be cached" error
+ * that occurs when a selector creates a new object every render.
+ */
+export function useModalActions() {
+  const openModal = useModalStore((s) => s.openModal);
+  const closeModal = useModalStore((s) => s.closeModal);
+  const updateModalProps = useModalStore((s) => s.updateModalProps);
+  const closeAllModalsForTab = useModalStore((s) => s.closeAllModalsForTab);
+  const getModalsForTab = useModalStore((s) => s.getModalsForTab);
+  const getModal = useModalStore((s) => s.getModal);
+  const isModalOpen = useModalStore((s) => s.isModalOpen);
+
+  return {
+    openModal, closeModal, updateModalProps,
+    closeAllModalsForTab, getModalsForTab, getModal, isModalOpen,
+  };
+}
