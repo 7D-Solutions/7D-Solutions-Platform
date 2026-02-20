@@ -13,7 +13,7 @@ import { chromium } from "playwright";
  * 3. Never closing the browser until the process exits
  */
 
-const STORAGE_STATE = ".browser-profiles/chatgpt-state.json";
+const STORAGE_STATE = process.env.HOME + "/.flywheel/browser-profiles/chatgpt-state.json";
 const REQUEST_FILE = ".flywheel/browser-request.json";
 const RESPONSE_FILE = ".flywheel/browser-response.json";
 const READY_FILE = ".flywheel/browser-ready.txt";
@@ -75,7 +75,7 @@ while (true) {
       console.error(`[${new Date().toISOString()}] Processing request: ${request.conversation_url}`);
 
       // Navigate to conversation
-      await page.goto(request.conversation_url, { waitUntil: "networkidle", timeout: 30000 });
+      await page.goto(request.conversation_url, { waitUntil: "domcontentloaded", timeout: 30000 });
 
       // Wait for input
       const input = page.locator('[contenteditable="true"]').last();
@@ -112,23 +112,36 @@ while (true) {
         throw new Error("Timeout waiting for response");
       }
 
-      // Wait for completion
-      const stopButton = page.locator('button').filter({ hasText: /stop generating/i });
+      // Wait for completion — check for stop button by aria-label
+      const stopButton = page.locator('button[aria-label*="Stop" i], button[aria-label*="stop generating" i]');
+      const lastMessage = page.locator('[data-message-author-role="assistant"]').last();
       let stopButtonGone = false;
       const startTime = Date.now();
 
-      while (!stopButtonGone && (Date.now() - startTime < 120000)) {
-        await page.waitForTimeout(3000);
+      console.error(`  Looking for stop button...`);
+
+      while (!stopButtonGone && (Date.now() - startTime < 180000)) {
         const isGenerating = await stopButton.isVisible().catch(() => false);
-        if (!isGenerating) {
+        const currentText = await lastMessage.innerText().catch(() => "");
+        const charCount = currentText.length;
+
+        if (isGenerating) {
+          console.error(`  Polling... (${charCount} chars, still generating)`);
+        } else {
+          console.error(`  Stop button not visible (${charCount} chars)`);
           stopButtonGone = true;
+        }
+
+        if (!stopButtonGone) {
+          await page.waitForTimeout(3000);
         }
       }
 
       // Wait for stability
+      console.error(`  Waiting 5s for text stability...`);
       await page.waitForTimeout(5000);
-      const lastMessage = page.locator('[data-message-author-role="assistant"]').last();
       const rawText = await lastMessage.innerText().catch(() => "");
+      console.error(`  Final response: ${rawText.length} chars`);
 
       // Extract JSON if present
       let extracted_json = null;
