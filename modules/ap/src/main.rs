@@ -1,4 +1,5 @@
-use axum::{extract::DefaultBodyLimit, http::Method, routing::{get, post}, Extension, Router};
+use axum::{extract::DefaultBodyLimit, http::Method, routing::{get, post, put}, Extension, Router};
+use security::{optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::middleware::{
     default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
@@ -94,82 +95,66 @@ async fn main() {
         ])
         .allow_credentials(true);
 
+    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+
+    let ap_mutations = Router::new()
+        // Vendors — write
+        .route("/api/ap/vendors", post(http::vendors::create_vendor))
+        .route("/api/ap/vendors/{vendor_id}", put(http::vendors::update_vendor))
+        .route("/api/ap/vendors/{vendor_id}/deactivate", post(http::vendors::deactivate_vendor))
+        // Purchase orders — write
+        .route("/api/ap/pos", post(http::purchase_orders::create_po))
+        .route("/api/ap/pos/{po_id}/lines", put(http::purchase_orders::update_po_lines))
+        .route("/api/ap/pos/{po_id}/approve", post(http::purchase_orders::approve_po))
+        // Bills — write
+        .route("/api/ap/bills", post(http::bills::create_bill))
+        .route("/api/ap/bills/{bill_id}/match", post(http::bills::match_bill))
+        .route("/api/ap/bills/{bill_id}/approve", post(http::bills::approve_bill))
+        .route("/api/ap/bills/{bill_id}/void", post(http::bills::void_bill))
+        .route("/api/ap/bills/{bill_id}/tax-quote", post(http::bills::quote_bill_tax))
+        // Bill allocations — write
+        .route(
+            "/api/ap/bills/{bill_id}/allocations",
+            post(http::allocations::create_allocation),
+        )
+        // Payment runs — write
+        .route("/api/ap/payment-runs", post(http::payment_runs::create_run))
+        .route("/api/ap/payment-runs/{run_id}/execute", post(http::payment_runs::execute_run))
+        .route_layer(RequirePermissionsLayer::new(&[permissions::AP_MUTATE]))
+        .with_state(app_state.clone());
+
     let app = Router::new()
         .route("/api/health", get(http::health))
         .route("/api/ready", get(http::ready))
         .route("/api/version", get(http::version))
         .route("/metrics", get(metrics::metrics_handler))
-        // Vendor management
-        .route(
-            "/api/ap/vendors",
-            post(http::vendors::create_vendor).get(http::vendors::list_vendors),
-        )
-        .route(
-            "/api/ap/vendors/{vendor_id}",
-            get(http::vendors::get_vendor).put(http::vendors::update_vendor),
-        )
-        .route(
-            "/api/ap/vendors/{vendor_id}/deactivate",
-            post(http::vendors::deactivate_vendor),
-        )
-        // Purchase orders
-        .route(
-            "/api/ap/pos",
-            post(http::purchase_orders::create_po).get(http::purchase_orders::list_pos),
-        )
+        // Vendors — read
+        .route("/api/ap/vendors", get(http::vendors::list_vendors))
+        .route("/api/ap/vendors/{vendor_id}", get(http::vendors::get_vendor))
+        // Purchase orders — read
+        .route("/api/ap/pos", get(http::purchase_orders::list_pos))
         .route("/api/ap/pos/{po_id}", get(http::purchase_orders::get_po))
-        .route(
-            "/api/ap/pos/{po_id}/lines",
-            axum::routing::put(http::purchase_orders::update_po_lines),
-        )
-        .route(
-            "/api/ap/pos/{po_id}/approve",
-            post(http::purchase_orders::approve_po),
-        )
-        // Vendor bills
-        .route(
-            "/api/ap/bills",
-            post(http::bills::create_bill).get(http::bills::list_bills),
-        )
+        // Bills — read
+        .route("/api/ap/bills", get(http::bills::list_bills))
         .route("/api/ap/bills/{bill_id}", get(http::bills::get_bill))
-        .route("/api/ap/bills/{bill_id}/match", post(http::bills::match_bill))
-        .route("/api/ap/bills/{bill_id}/approve", post(http::bills::approve_bill))
-        .route("/api/ap/bills/{bill_id}/void", post(http::bills::void_bill))
-        .route("/api/ap/bills/{bill_id}/tax-quote", post(http::bills::quote_bill_tax))
-        // Bill allocations (append-only payment application)
-        .route(
-            "/api/ap/bills/{bill_id}/allocations",
-            post(http::allocations::create_allocation)
-                .get(http::allocations::list_allocations),
-        )
-        .route(
-            "/api/ap/bills/{bill_id}/balance",
-            get(http::allocations::get_balance),
-        )
-        // Payment runs
-        .route(
-            "/api/ap/payment-runs",
-            post(http::payment_runs::create_run),
-        )
-        .route(
-            "/api/ap/payment-runs/{run_id}",
-            get(http::payment_runs::get_run),
-        )
-        .route(
-            "/api/ap/payment-runs/{run_id}/execute",
-            post(http::payment_runs::execute_run),
-        )
-        // Reports
+        // Bill allocations — read
+        .route("/api/ap/bills/{bill_id}/allocations", get(http::allocations::list_allocations))
+        .route("/api/ap/bills/{bill_id}/balance", get(http::allocations::get_balance))
+        // Payment runs — read
+        .route("/api/ap/payment-runs/{run_id}", get(http::payment_runs::get_run))
+        // Reports — read
         .route("/api/ap/aging", get(http::reports::aging_report))
-        // Tax reporting / filing summaries (bd-1ai1)
         .route("/api/ap/tax/reports/summary", get(http::tax_reports::tax_report_summary))
         .route("/api/ap/tax/reports/export", get(http::tax_reports::tax_report_export))
         .with_state(app_state)
+        .merge(ap_mutations)
+        .merge(http::admin::admin_router(pool))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
+        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
         .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();

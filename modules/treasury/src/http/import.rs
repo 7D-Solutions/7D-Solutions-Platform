@@ -204,8 +204,14 @@ pub async fn import_statement(
     };
 
     match service::import_statement(&state.pool, &app_id, req, correlation_id).await {
-        Ok(result) => Ok((StatusCode::CREATED, Json(result))),
-        Err(e) => Err(import_error_response(e)),
+        Ok(result) => {
+            state.metrics.record_import_success();
+            Ok((StatusCode::CREATED, Json(result)))
+        }
+        Err(e) => {
+            state.metrics.record_import_fail();
+            Err(import_error_response(e))
+        }
     }
 }
 
