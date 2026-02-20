@@ -8,7 +8,8 @@
 
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
-| 1.1 | 2026-02-20 | Platform Orchestrator | ChatGPT review feedback: added module identification section, tag immutability rule, rollback procedure, cross-module change guidance, event schema vs module versioning clarification, platform component adoption model. |
+| 1.2 | 2026-02-20 | Platform Orchestrator | ChatGPT round 2: 1.0.0 reserved rule, no unproven in production, explicit bump mechanics, deploy-time manifest diff check, mandatory compat lines, proof command requirement, platform compat window definition. |
+| 1.1 | 2026-02-20 | Platform Orchestrator | ChatGPT round 1: added module identification section, tag immutability rule, rollback procedure, cross-module change guidance, event schema vs module versioning clarification, platform component adoption model. |
 | 1.0 | 2026-02-20 | Platform Orchestrator | Created. Replaces docs/architecture/VERSIONING-STANDARD.md, docs/architecture/CONTRACT-VERSIONING-POLICY.md, and docs/governance/RELEASE-POLICY.md — those documents described an aspirational system that was never implemented. This document describes the system that is implemented and enforced. |
 
 ---
@@ -35,6 +36,8 @@ platform/{name}/Cargo.toml         → shared platform services (identity-auth, 
 
 **How to tell if a module is proven:** Read the `version` field in the module's package file. If the version is `>= 1.0.0`, the module is proven and all versioning rules apply. If the version is `0.x.x`, the module is unproven — change freely.
 
+**1.0.0 is reserved for proof.** Agents must not set a module to `1.0.0` unless proof is complete (all E2E tests pass and the `REVISIONS.md` baseline entry is created). If a module accidentally crosses `1.0.0`, treat it as proven immediately and backfill the `REVISIONS.md` baseline entry.
+
 ---
 
 ## Module Lifecycle
@@ -47,11 +50,13 @@ The module is being built for the first time. Agents change it freely. No versio
 
 **Rule:** Do not create a `REVISIONS.md` file for unproven modules. It adds noise during active construction.
 
+**Rule:** Products must not deploy unproven modules to production. If a product must temporarily depend on an unproven module, the product manifest must pin to a specific git commit SHA in the notes column and document the rollback point.
+
 ### Proven (v1.0.0)
 
 The module has passed all E2E tests and is stable. At this point:
 
-1. Bump the version to `1.0.0` in the package file
+1. Bump the version to `1.0.0` in the module's `Cargo.toml` (or `package.json`). Do not bump the workspace root `Cargo.toml` version — only the module's own package file.
 2. Create `REVISIONS.md` in the module root — e.g., `modules/ar/REVISIONS.md` or `platform/identity-auth/REVISIONS.md` (use the template at `docs/templates/MODULE-REVISIONS.md`)
 3. Commit and push
 4. Build and push the first versioned image to the container registry (CI does this when automated; agent or orchestrator does it manually until then)
@@ -164,6 +169,8 @@ Every product has a `MODULE-MANIFEST.md` file (see template at `docs/templates/M
 4. If tests pass, commit the manifest change with a note explaining the adoption
 5. Deploy with the updated manifest
 
+**Before every deployment:** Diff `MODULE-MANIFEST.md` against the deployment configuration (Docker Compose, Kubernetes, ECS, etc.) and confirm every module version matches exactly. If there is a mismatch, block the deployment until reconciled.
+
 **If the product team does not update their manifest, they stay on the old version.** The new module version exists in the registry but has no effect on the product.
 
 ---
@@ -243,7 +250,7 @@ Platform components (`identity-auth`, `event-bus`, `tenant-registry`, etc.) foll
 - **Modules** (AR, GL, AP, etc.) are adopted per-product. Each product's `MODULE-MANIFEST.md` pins the module version it uses.
 - **Platform components** (identity-auth, event-bus, tenant-registry) are shared infrastructure. They are adopted at the **environment level**, not per-product. When a platform component is upgraded, all products in that environment use the new version.
 
-Platform component upgrades require backward compatibility for at least one prior version. If a platform component makes a breaking change, it must support both the old and new behavior until all products have migrated. This is enforced via the same REVISIONS.md process — the breaking change entry must document the compatibility window.
+Platform component upgrades require backward compatibility for at least one prior version. Concretely: all HTTP endpoints and event contracts used by any currently deployed product must remain valid for at least one prior minor/major version. Deprecated endpoints and event schemas must be documented in `REVISIONS.md` with a removal timeline. If a platform component makes a breaking change, it must support both the old and new behavior until all products have migrated. This is enforced via the same REVISIONS.md process — the breaking change entry must document the compatibility window and which products are affected.
 
 Products still list platform component versions in their manifests for documentation and traceability, but the platform team controls when the shared service is actually upgraded.
 
@@ -275,7 +282,7 @@ These rules are enforced via CLAUDE.md in every project. They are repeated here 
 If a single bead requires changes to more than one proven module, each module gets its own version bump and revision entry. The revision entries should cross-reference each other:
 
 - Bump and add a revision row in each module's `REVISIONS.md`
-- In each revision entry, note the paired module and version: "Requires {other-module} >= {version}"
+- In each revision entry, include a **Compatibility** line: "Requires {other-module} >= {version}". This is mandatory whenever a change creates a cross-module dependency.
 - Commit all module changes together so they are atomically deployed
 
 ### When rolling back a module version in a product
@@ -293,11 +300,12 @@ Rollbacks are version changes like any other — they go through the manifest an
 ### When proving a module for the first time
 
 1. Ensure all E2E tests pass.
-2. Bump the version to `1.0.0`.
+2. Bump the version to `1.0.0` in the module's `Cargo.toml` (not the workspace root).
 3. Create `REVISIONS.md` from the template.
-4. Commit with: `[bd-xxx] {module} v1.0.0: initial proof`
-5. Tag the commit: `git tag {module-name}-v1.0.0`
-6. Build and push the versioned image (CI does this when automated; manual until then — see Implementation Status).
+4. Ensure the module has a documented proof command in one of these locations: the module's `README.md` under a "Proof" heading, a `Makefile` target `make proof`, or `scripts/proof_{module}.sh`. This must exist before `1.0.0` is committed.
+5. Commit with: `[bd-xxx] {module} v1.0.0: initial proof`
+6. Tag the commit: `git tag {module-name}-v1.0.0`
+7. Build and push the versioned image (CI does this when automated; manual until then — see Implementation Status).
 
 ---
 
