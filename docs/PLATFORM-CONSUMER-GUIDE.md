@@ -198,7 +198,7 @@ Source: `modules/party/src/http/party.rs` (enforced pattern across all modules)
 
 ```
 x-app-id: trashtech-pro           # REQUIRED — wrong or missing = 400 or empty results
-x-tenant-id: <tenant-uuid>        # REQUIRED where enforced by auth middleware
+x-tenant-id: <tenant-uuid>        # REQUIRED — read directly from header by handlers (NOT extracted from JWT)
 x-correlation-id: <uuid>          # REQUIRED — propagated through audit trail
 x-actor-id: <user-or-service-uuid> # REQUIRED — who is performing the action
 Authorization: Bearer <jwt>        # REQUIRED — JWT from identity-auth
@@ -393,6 +393,8 @@ pub enum ActorType { User, Service, System }
 ### Wiring Into Axum Router
 
 Source: `platform/security/src/authz_middleware.rs`
+
+> **⚠ Axum route ordering is load-bearing.** `route_layer` protects ONLY the routes defined ABOVE it. Routes defined BELOW `.route_layer(...)` are NOT protected — they are publicly accessible. Never group all routes together and add layers at the end.
 
 ```rust
 use security::authz_middleware::{ClaimsLayer, RequirePermissionsLayer, optional_claims_mw};
@@ -612,6 +614,10 @@ Source: `modules/ar/src/models/customer.rs`, `modules/ar/src/models/invoice.rs`,
 ```
 POST /api/ar/customers
 x-app-id: trashtech-pro
+x-tenant-id: <tenant-uuid>
+Authorization: Bearer <jwt>
+x-correlation-id: <uuid>
+x-actor-id: <uuid>
 Content-Type: application/json
 ```
 
@@ -663,6 +669,10 @@ Error cases:
 ```
 POST /api/ar/invoices
 x-app-id: trashtech-pro
+x-tenant-id: <tenant-uuid>
+Authorization: Bearer <jwt>
+x-correlation-id: <uuid>
+x-actor-id: <uuid>
 Content-Type: application/json
 ```
 
@@ -750,19 +760,19 @@ This is the canonical sequence for billing a customer for the first time.
 
 3. Create party in Party Master (once per customer entity):
    POST http://7d-party:8098/api/party/companies
-   Headers: x-app-id, Authorization: Bearer <jwt>, x-correlation-id, x-actor-id
+   Headers: x-app-id, x-tenant-id, Authorization: Bearer <jwt>, x-correlation-id, x-actor-id
    Body: { display_name, legal_name, email, ... }
    → save party_id (UUID)
 
 4. Create AR customer (once per billing relationship):
    POST http://7d-ar:8086/api/ar/customers
-   Headers: x-app-id, Authorization: Bearer <jwt>, x-correlation-id, x-actor-id
+   Headers: x-app-id, x-tenant-id, Authorization: Bearer <jwt>, x-correlation-id, x-actor-id
    Body: { email, name, party_id: <from step 3>, external_customer_id }
    → save ar_customer_id (integer)
 
 5. Create invoice:
    POST http://7d-ar:8086/api/ar/invoices
-   Headers: x-app-id, Authorization: Bearer <jwt>, x-correlation-id, x-actor-id
+   Headers: x-app-id, x-tenant-id, Authorization: Bearer <jwt>, x-correlation-id, x-actor-id
    Body: { ar_customer_id: <from step 4>, amount_cents, party_id: <from step 3>, ... }
    → invoice created
 ```
