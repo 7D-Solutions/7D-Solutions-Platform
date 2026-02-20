@@ -8,6 +8,7 @@
 
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
+| 1.4 | 2026-02-20 | Platform Orchestrator | Gate 1 built: pre-commit hook installed. Doc audit: archived superseded docs, identity-auth REVISIONS.md backfilled. |
 | 1.3 | 2026-02-20 | Platform Orchestrator | ChatGPT round 3: canonical module naming, which-file-to-bump rules, docs-only exception, upgrade ordering for breaking changes, deployment config source of truth, proof completeness principle. |
 | 1.2 | 2026-02-20 | Platform Orchestrator | ChatGPT round 2: 1.0.0 reserved rule, no unproven in production, explicit bump mechanics, deploy-time manifest diff check, mandatory compat lines, proof command requirement, platform compat window definition. |
 | 1.1 | 2026-02-20 | Platform Orchestrator | ChatGPT round 1: added module identification section, tag immutability rule, rollback procedure, cross-module change guidance, event schema vs module versioning clarification, platform component adoption model. |
@@ -318,16 +319,14 @@ Rollbacks are version changes like any other — they go through the manifest an
 
 ## Implementation Status
 
-Not all gates are mechanically enforced yet. This section states what is operational today and what is coming. Agents must follow the rules regardless — CLAUDE.md enforcement applies even before hooks exist.
+This section states what is operational today and what is coming.
 
 | Gate | Status | Enforcement today |
 |------|--------|-------------------|
-| Gate 1: Pre-commit hook | **Not yet built.** | CLAUDE.md rules. Agents must self-enforce version bumps and revision entries. The hook will be added to mechanically prevent forgotten bumps. |
+| Gate 1: Pre-commit hook | **Built and installed.** | `scripts/pre-commit-version-check.sh` — rejects commits to proven modules without version bump + REVISIONS.md entry. Installed via symlink at `.git/hooks/pre-commit`. |
 | Gate 2: CI image pipeline | **Not yet built.** | Manual image build and push. Agent or orchestrator runs `docker build` and `docker push` after tests pass. CI automation will be added. |
 | Gate 3: Product manifests | **Convention.** | Products maintain `MODULE-MANIFEST.md` and reference pinned versions in deployment config. No automated manifest-vs-deployment validation yet. |
 | Container registry | **Not yet selected.** | Registry provider and credentials are a deployment decision. Until selected, images are built locally with version tags. |
-
-**Until Gate 1 is automated:** Agents are responsible for checking the module version before committing. If you change a file in a proven module and forget to bump, no hook will stop you — but you have violated the standard and created a deployment risk.
 
 **Until Gate 2 is automated:** After committing a version bump to a proven module, the agent or orchestrator must manually build and tag the Docker image. The commit message should note the version bump so the image build is not forgotten.
 
