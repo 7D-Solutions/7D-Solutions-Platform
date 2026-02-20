@@ -54,10 +54,9 @@ interface FeaturesTabProps {
 }
 
 export function FeaturesTab({ tenantId }: FeaturesTabProps) {
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const { searchTerm, setSearchTerm } = useSearchStore('features');
+  const debouncedSearch = useSearchDebounce(searchTerm);
   const [sourceFilter, setSourceFilter] = useState('');
-  const [debounceTimer, setDebounceTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
 
   const featuresQuery = useQuery({
     queryKey: ['tenant', tenantId, 'features', 'effective'],
@@ -65,7 +64,10 @@ export function FeaturesTab({ tenantId }: FeaturesTabProps) {
     refetchInterval: REFETCH_INTERVAL_MS,
   });
 
-  const entitlements = featuresQuery.data?.entitlements ?? [];
+  const entitlements = useMemo(
+    () => featuresQuery.data?.entitlements ?? [],
+    [featuresQuery.data?.entitlements],
+  );
 
   // Client-side search + source filter
   const filtered = useMemo(() => {
@@ -85,13 +87,6 @@ export function FeaturesTab({ tenantId }: FeaturesTabProps) {
     return result;
   }, [entitlements, debouncedSearch, sourceFilter]);
 
-  function handleSearchChange(value: string) {
-    setSearchInput(value);
-    if (debounceTimer) clearTimeout(debounceTimer);
-    const timer = setTimeout(() => setDebouncedSearch(value), SEARCH_DEBOUNCE_MS);
-    setDebounceTimer(timer);
-  }
-
   return (
     <div data-testid="features-tab">
       <div className="flex items-center justify-between mb-4">
@@ -108,8 +103,8 @@ export function FeaturesTab({ tenantId }: FeaturesTabProps) {
         <input
           type="text"
           placeholder="Search by code, name, or source..."
-          value={searchInput}
-          onChange={(e) => handleSearchChange(e.target.value)}
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
           className="flex-1 px-3 py-2 text-sm rounded-[--radius-md] border border-[--color-border-default] bg-[--color-bg-primary] text-[--color-text-primary] placeholder:text-[--color-text-muted] focus:outline-none focus:ring-2 focus:ring-[--color-primary]"
           data-testid="features-search"
         />
