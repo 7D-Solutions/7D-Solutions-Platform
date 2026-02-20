@@ -6,9 +6,7 @@
 // ============================================================
 'use client';
 
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import { useState, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Zap, RefreshCw } from 'lucide-react';
 import { Button, Modal, FormInput, FormTextarea } from '@/components/ui';
@@ -16,15 +14,14 @@ import {
   RunBillingRequestSchema,
   ReconcileMappingRequestSchema,
 } from '@/lib/api/types';
-import type {
-  RunBillingRequest,
-  ReconcileMappingRequest,
-  AdminToolResult,
-} from '@/lib/api/types';
+import type { AdminToolResult } from '@/lib/api/types';
 
 // ── API helpers ─────────────────────────────────────────────
 
-async function runBilling(payload: RunBillingRequest): Promise<AdminToolResult> {
+async function runBilling(payload: {
+  tenant_id?: string;
+  reason: string;
+}): Promise<AdminToolResult> {
   const res = await fetch('/api/system/run-billing', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -37,7 +34,10 @@ async function runBilling(payload: RunBillingRequest): Promise<AdminToolResult> 
   return data;
 }
 
-async function reconcileMapping(payload: ReconcileMappingRequest): Promise<AdminToolResult> {
+async function reconcileMapping(payload: {
+  tenant_id: string;
+  reason: string;
+}): Promise<AdminToolResult> {
   const res = await fetch('/api/system/reconcile-tenant-mapping', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -66,8 +66,13 @@ function ResultPanel({ result, error, onDismiss }: {
         data-testid="tool-result-error"
       >
         <p className="text-sm font-medium text-[--color-danger]">Error</p>
-        <p className="text-sm text-[--color-text-primary] mt-1">{error.message}</p>
-        <Button variant="ghost" size="xs" onClick={onDismiss} className="mt-2" disableCooldown>
+        <p className="text-sm text-[--color-text-primary] mt-1">
+          {error.message}
+        </p>
+        <Button
+          variant="ghost" size="xs" onClick={onDismiss}
+          className="mt-2" disableCooldown
+        >
           Dismiss
         </Button>
       </div>
@@ -80,9 +85,16 @@ function ResultPanel({ result, error, onDismiss }: {
         className="rounded-[--radius-default] border border-yellow-300 bg-yellow-50 p-4 mt-4"
         data-testid="tool-result-not-available"
       >
-        <p className="text-sm font-medium text-yellow-800">Not available in this environment</p>
-        <p className="text-sm text-[--color-text-primary] mt-1">{result.message}</p>
-        <Button variant="ghost" size="xs" onClick={onDismiss} className="mt-2" disableCooldown>
+        <p className="text-sm font-medium text-yellow-800">
+          Not available in this environment
+        </p>
+        <p className="text-sm text-[--color-text-primary] mt-1">
+          {result.message}
+        </p>
+        <Button
+          variant="ghost" size="xs" onClick={onDismiss}
+          className="mt-2" disableCooldown
+        >
           Dismiss
         </Button>
       </div>
@@ -96,8 +108,13 @@ function ResultPanel({ result, error, onDismiss }: {
         data-testid="tool-result-success"
       >
         <p className="text-sm font-medium text-green-800">Success</p>
-        <p className="text-sm text-[--color-text-primary] mt-1">{result.message}</p>
-        <Button variant="ghost" size="xs" onClick={onDismiss} className="mt-2" disableCooldown>
+        <p className="text-sm text-[--color-text-primary] mt-1">
+          {result.message}
+        </p>
+        <Button
+          variant="ghost" size="xs" onClick={onDismiss}
+          className="mt-2" disableCooldown
+        >
           Dismiss
         </Button>
       </div>
@@ -110,33 +127,44 @@ function ResultPanel({ result, error, onDismiss }: {
 // ── Run Billing Tool ────────────────────────────────────────
 
 function RunBillingTool() {
+  const [tenantId, setTenantId] = useState('');
+  const [reason, setReason] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [showConfirm, setShowConfirm] = useState(false);
-
-  const form = useForm<RunBillingRequest>({
-    resolver: zodResolver(RunBillingRequestSchema),
-    defaultValues: { tenant_id: '', reason: '' },
-  });
 
   const mutation = useMutation({
     mutationFn: runBilling,
     onSuccess: () => {
       setShowConfirm(false);
-      form.reset();
+      setTenantId('');
+      setReason('');
     },
-    onError: () => {
-      setShowConfirm(false);
-    },
+    onError: () => setShowConfirm(false),
   });
 
-  const handleFormSubmit = form.handleSubmit(() => {
+  const handleSubmit = useCallback(() => {
+    const result = RunBillingRequestSchema.safeParse({
+      tenant_id: tenantId,
+      reason,
+    });
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of result.error.issues) {
+        const key = issue.path[0];
+        if (key && !fieldErrors[String(key)]) {
+          fieldErrors[String(key)] = issue.message;
+        }
+      }
+      setErrors(fieldErrors);
+      return;
+    }
+    setErrors({});
     setShowConfirm(true);
-  });
+  }, [tenantId, reason]);
 
-  const handleConfirm = () => {
-    mutation.mutate(form.getValues());
-  };
-
-  const values = form.watch();
+  const handleConfirm = useCallback(() => {
+    mutation.mutate({ tenant_id: tenantId || undefined, reason });
+  }, [mutation, tenantId, reason]);
 
   return (
     <div
@@ -145,19 +173,26 @@ function RunBillingTool() {
     >
       <div className="flex items-center gap-3 mb-4 pb-3 border-b border-[--color-border-light]">
         <Zap className="h-5 w-5 text-[--color-primary]" />
-        <h2 className="text-sm font-semibold text-[--color-text-primary]">Run Billing Now</h2>
+        <h2 className="text-sm font-semibold text-[--color-text-primary]">
+          Run Billing Now
+        </h2>
       </div>
 
       <p className="text-sm text-[--color-text-secondary] mb-4">
-        Trigger an immediate billing cycle. Leave Tenant ID blank to run for all tenants.
+        Trigger an immediate billing cycle. Leave Tenant ID blank to run
+        for all tenants.
       </p>
 
-      <form onSubmit={handleFormSubmit} className="space-y-4">
+      <div className="space-y-4">
         <FormInput
           label="Tenant ID"
           placeholder="Optional — leave blank for all tenants"
-          {...form.register('tenant_id')}
-          error={form.formState.errors.tenant_id?.message}
+          value={tenantId}
+          onChange={(e) => {
+            setTenantId(e.target.value);
+            if (errors.tenant_id) setErrors((p) => ({ ...p, tenant_id: '' }));
+          }}
+          error={errors.tenant_id}
           data-testid="billing-tenant-id"
         />
 
@@ -167,22 +202,25 @@ function RunBillingTool() {
           placeholder="Why is this billing run needed?"
           maxLength={500}
           showCharCount
-          value={values.reason}
-          {...form.register('reason')}
-          error={form.formState.errors.reason?.message}
+          value={reason}
+          onChange={(e) => {
+            setReason(e.target.value);
+            if (errors.reason) setErrors((p) => ({ ...p, reason: '' }));
+          }}
+          error={errors.reason}
           data-testid="billing-reason"
         />
 
         <Button
-          type="submit"
           variant="primary"
           size="sm"
           disabled={mutation.isPending}
+          onClick={handleSubmit}
           data-testid="billing-submit-btn"
         >
           Review & Run
         </Button>
-      </form>
+      </div>
 
       <ResultPanel
         result={mutation.data}
@@ -190,7 +228,6 @@ function RunBillingTool() {
         onDismiss={() => mutation.reset()}
       />
 
-      {/* Confirmation modal */}
       <Modal
         isOpen={showConfirm}
         title="Confirm: Run Billing"
@@ -204,15 +241,25 @@ function RunBillingTool() {
             </p>
             <dl className="space-y-2 text-sm">
               <div>
-                <dt className="font-medium text-[--color-text-secondary]">Tenant</dt>
-                <dd className="text-[--color-text-primary]" data-testid="confirm-tenant-value">
-                  {values.tenant_id || 'All tenants'}
+                <dt className="font-medium text-[--color-text-secondary]">
+                  Tenant
+                </dt>
+                <dd
+                  className="text-[--color-text-primary]"
+                  data-testid="confirm-tenant-value"
+                >
+                  {tenantId || 'All tenants'}
                 </dd>
               </div>
               <div>
-                <dt className="font-medium text-[--color-text-secondary]">Reason</dt>
-                <dd className="text-[--color-text-primary]" data-testid="confirm-reason-value">
-                  {values.reason}
+                <dt className="font-medium text-[--color-text-secondary]">
+                  Reason
+                </dt>
+                <dd
+                  className="text-[--color-text-primary]"
+                  data-testid="confirm-reason-value"
+                >
+                  {reason}
                 </dd>
               </div>
             </dl>
@@ -220,16 +267,14 @@ function RunBillingTool() {
         </Modal.Body>
         <Modal.Actions>
           <Button
-            variant="ghost"
-            size="sm"
+            variant="ghost" size="sm"
             onClick={() => setShowConfirm(false)}
             disableCooldown
           >
             Cancel
           </Button>
           <Button
-            variant="primary"
-            size="sm"
+            variant="primary" size="sm"
             loading={mutation.isPending}
             onClick={handleConfirm}
             data-testid="billing-confirm-btn"
@@ -245,33 +290,44 @@ function RunBillingTool() {
 // ── Reconcile Tenant Mapping Tool ───────────────────────────
 
 function ReconcileMappingTool() {
+  const [tenantId, setTenantId] = useState('');
+  const [reason, setReason] = useState('');
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [showConfirm, setShowConfirm] = useState(false);
-
-  const form = useForm<ReconcileMappingRequest>({
-    resolver: zodResolver(ReconcileMappingRequestSchema),
-    defaultValues: { tenant_id: '', reason: '' },
-  });
 
   const mutation = useMutation({
     mutationFn: reconcileMapping,
     onSuccess: () => {
       setShowConfirm(false);
-      form.reset();
+      setTenantId('');
+      setReason('');
     },
-    onError: () => {
-      setShowConfirm(false);
-    },
+    onError: () => setShowConfirm(false),
   });
 
-  const handleFormSubmit = form.handleSubmit(() => {
+  const handleSubmit = useCallback(() => {
+    const result = ReconcileMappingRequestSchema.safeParse({
+      tenant_id: tenantId,
+      reason,
+    });
+    if (!result.success) {
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of result.error.issues) {
+        const key = issue.path[0];
+        if (key && !fieldErrors[String(key)]) {
+          fieldErrors[String(key)] = issue.message;
+        }
+      }
+      setErrors(fieldErrors);
+      return;
+    }
+    setErrors({});
     setShowConfirm(true);
-  });
+  }, [tenantId, reason]);
 
-  const handleConfirm = () => {
-    mutation.mutate(form.getValues());
-  };
-
-  const values = form.watch();
+  const handleConfirm = useCallback(() => {
+    mutation.mutate({ tenant_id: tenantId, reason });
+  }, [mutation, tenantId, reason]);
 
   return (
     <div
@@ -286,16 +342,21 @@ function ReconcileMappingTool() {
       </div>
 
       <p className="text-sm text-[--color-text-secondary] mb-4">
-        Re-sync the tenant mapping for a specific tenant with the upstream registry.
+        Re-sync the tenant mapping for a specific tenant with the upstream
+        registry.
       </p>
 
-      <form onSubmit={handleFormSubmit} className="space-y-4">
+      <div className="space-y-4">
         <FormInput
           label="Tenant ID"
           required
           placeholder="Enter the tenant ID to reconcile"
-          {...form.register('tenant_id')}
-          error={form.formState.errors.tenant_id?.message}
+          value={tenantId}
+          onChange={(e) => {
+            setTenantId(e.target.value);
+            if (errors.tenant_id) setErrors((p) => ({ ...p, tenant_id: '' }));
+          }}
+          error={errors.tenant_id}
           data-testid="reconcile-tenant-id"
         />
 
@@ -305,22 +366,24 @@ function ReconcileMappingTool() {
           placeholder="Why is this reconciliation needed?"
           maxLength={500}
           showCharCount
-          value={values.reason}
-          {...form.register('reason')}
-          error={form.formState.errors.reason?.message}
+          value={reason}
+          onChange={(e) => {
+            setReason(e.target.value);
+            if (errors.reason) setErrors((p) => ({ ...p, reason: '' }));
+          }}
+          error={errors.reason}
           data-testid="reconcile-reason"
         />
 
         <Button
-          type="submit"
-          variant="primary"
-          size="sm"
+          variant="primary" size="sm"
           disabled={mutation.isPending}
+          onClick={handleSubmit}
           data-testid="reconcile-submit-btn"
         >
           Review & Reconcile
         </Button>
-      </form>
+      </div>
 
       <ResultPanel
         result={mutation.data}
@@ -328,7 +391,6 @@ function ReconcileMappingTool() {
         onDismiss={() => mutation.reset()}
       />
 
-      {/* Confirmation modal */}
       <Modal
         isOpen={showConfirm}
         title="Confirm: Reconcile Tenant Mapping"
@@ -342,15 +404,25 @@ function ReconcileMappingTool() {
             </p>
             <dl className="space-y-2 text-sm">
               <div>
-                <dt className="font-medium text-[--color-text-secondary]">Tenant ID</dt>
-                <dd className="text-[--color-text-primary]" data-testid="confirm-reconcile-tenant">
-                  {values.tenant_id}
+                <dt className="font-medium text-[--color-text-secondary]">
+                  Tenant ID
+                </dt>
+                <dd
+                  className="text-[--color-text-primary]"
+                  data-testid="confirm-reconcile-tenant"
+                >
+                  {tenantId}
                 </dd>
               </div>
               <div>
-                <dt className="font-medium text-[--color-text-secondary]">Reason</dt>
-                <dd className="text-[--color-text-primary]" data-testid="confirm-reconcile-reason">
-                  {values.reason}
+                <dt className="font-medium text-[--color-text-secondary]">
+                  Reason
+                </dt>
+                <dd
+                  className="text-[--color-text-primary]"
+                  data-testid="confirm-reconcile-reason"
+                >
+                  {reason}
                 </dd>
               </div>
             </dl>
@@ -358,16 +430,14 @@ function ReconcileMappingTool() {
         </Modal.Body>
         <Modal.Actions>
           <Button
-            variant="ghost"
-            size="sm"
+            variant="ghost" size="sm"
             onClick={() => setShowConfirm(false)}
             disableCooldown
           >
             Cancel
           </Button>
           <Button
-            variant="primary"
-            size="sm"
+            variant="primary" size="sm"
             loading={mutation.isPending}
             onClick={handleConfirm}
             data-testid="reconcile-confirm-btn"
@@ -386,7 +456,9 @@ export default function AdminToolsPage() {
   return (
     <div data-testid="admin-tools-page">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[--color-text-primary]">Admin Tools</h1>
+        <h1 className="text-2xl font-bold text-[--color-text-primary]">
+          Admin Tools
+        </h1>
         <p className="text-sm text-[--color-text-secondary] mt-1">
           High-impact operations that require confirmation before execution.
         </p>
