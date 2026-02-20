@@ -53,3 +53,5 @@ export { NotificationCenter } from './NotificationCenter';
 export { NotificationItem } from './NotificationItem';
 
 export { IdleWarningModal } from './IdleWarningModal';
+
+export { Pagination } from './Pagination';
