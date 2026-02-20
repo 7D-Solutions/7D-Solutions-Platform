@@ -21,6 +21,8 @@ interface DataTableProps<T extends Record<string, unknown>> {
   className?: string;
   /** Slot for extra toolbar controls (e.g. ViewToggle) rendered before the column manager button */
   headerActions?: React.ReactNode;
+  /** Called when a data row is clicked — enables drill-down navigation */
+  onRowClick?: (row: T) => void;
 }
 
 export function DataTable<T extends Record<string, unknown>>({
@@ -32,6 +34,7 @@ export function DataTable<T extends Record<string, unknown>>({
   emptyMessage = 'No records found.',
   className,
   headerActions,
+  onRowClick,
 }: DataTableProps<T>) {
   const { columns: managedCols, isEditMode, toggleEditMode, resetToDefault,
           handleDragStart, handleDragOver, handleDrop, handleDragEnd,
@@ -142,8 +145,12 @@ export function DataTable<T extends Record<string, unknown>>({
               data.map((row) => (
                 <tr
                   key={String(row[keyField])}
-                  className="border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] transition-[--transition-fast]"
+                  className={clsx(
+                    'border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] transition-[--transition-fast]',
+                    onRowClick && 'cursor-pointer',
+                  )}
                   style={{ height: 'var(--table-row-height)' }}
+                  onClick={onRowClick ? () => onRowClick(row) : undefined}
                 >
                   {visibleColumns.map((mc) => {
                     const col = columns.find((c) => c.id === mc.id);

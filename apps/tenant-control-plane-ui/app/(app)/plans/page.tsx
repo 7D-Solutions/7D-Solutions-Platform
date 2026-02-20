@@ -3,12 +3,15 @@
 // row/card toggle, status filter, and TanStack Query
 // ============================================================
 'use client';
+import { useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Button, ViewToggle, DataTable, StatusBadge, Pagination } from '@/components/ui';
 import { usePersistedView } from '@/infrastructure/hooks/usePersistedView';
 import { useColumnManager } from '@/infrastructure/hooks/useColumnManager';
 import { usePagination } from '@/infrastructure/hooks/usePagination';
 import { useFilterStore } from '@/infrastructure/state/useFilterStore';
+import { useTabActions } from '@/infrastructure/state/tabStore';
 import { REFETCH_INTERVAL_MS } from '@/lib/constants';
 import { PLAN_STATUS_OPTIONS } from '@/lib/api/types';
 import type { PlanListResponse, PlanSummary } from '@/lib/api/types';
@@ -90,8 +93,19 @@ async function fetchPlans(params: {
 // ── Page component ──────────────────────────────────────────
 
 export default function PlansPage() {
+  const router = useRouter();
+  const { openTab } = useTabActions();
   const { viewMode, setViewMode } = usePersistedView('plans');
   const columnManager = useColumnManager('plan-list', DEFAULT_COLUMNS);
+
+  const navigateToPlan = useCallback(
+    (plan: PlanSummary) => {
+      const route = `/plans/${plan.id}`;
+      openTab({ title: plan.name, route, closeable: true, isPreview: false });
+      router.push(route);
+    },
+    [openTab, router],
+  );
 
   const { filters, setFilter, clearFilters, hasActiveFilters } = useFilterStore(
     'plan-list',
@@ -179,6 +193,7 @@ export default function PlansPage() {
                 ? 'No plans match your filters.'
                 : 'No plans found.'
             }
+            onRowClick={(row) => navigateToPlan(row as unknown as PlanSummary)}
           />
         </div>
       ) : (
@@ -199,7 +214,9 @@ export default function PlansPage() {
             plans.map((p) => (
               <div
                 key={p.id}
-                className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-4 hover:border-[--color-primary] transition-[--transition-fast]"
+                className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-4 hover:border-[--color-primary] transition-[--transition-fast] cursor-pointer"
+                onClick={() => navigateToPlan(p)}
+                data-testid={`plan-card-${p.id}`}
               >
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="font-semibold text-[--color-text-primary]">{p.name}</h3>
