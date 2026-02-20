@@ -17,6 +17,7 @@
 | [CG-EVENTS.md](./CG-EVENTS.md) | NATS event bus, EventEnvelope, MerchantContext, outbox pattern (migration + enqueue + publisher), Integrations module |
 | [CG-TENANCY.md](./CG-TENANCY.md) | Tenant provisioning, database-per-tenant routing, per-app roles, cross-app navigation, support sessions |
 | [CG-REFERENCE.md](./CG-REFERENCE.md) | Environment variables, Cargo.toml path dependencies, local development, reference E2E tests, source file index |
+| [DOC-STANDARDS.md](./DOC-STANDARDS.md) | **Standards doc** — how all platform docs are structured, maintained, and governed (single source of truth for all doc families) |
 
 ---
 
