@@ -92,6 +92,10 @@ name = "service_to_service_auth_e2e"
 path = "tests/service_to_service_auth_e2e.rs"
 
 [[test]]
+name = "service_account_auth_e2e"
+path = "tests/service_account_auth_e2e.rs"
+
+[[test]]
 name = "version_endpoints_smoke_e2e"
 path = "tests/version_endpoints_smoke_e2e.rs"
 
