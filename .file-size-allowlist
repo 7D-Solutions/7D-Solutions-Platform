@@ -26,3 +26,4 @@ modules/treasury/src/consumers/payments.rs     # ~545 LOC — payments consumer 
 platform/tenant-registry/src/routes.rs        # 537 LOC — control-plane routes (split in future bead)
 platform/identity-auth/src/clients/tenant_registry.rs  # 659 LOC — entitlement + status client (split in future bead)
 platform/identity-auth/src/auth/handlers.rs            # 535 LOC — login/register handlers (split in future bead)
+apps/tenant-control-plane-ui/lib/api/types.ts          # 572 LOC — shared Zod schemas grow with each tab

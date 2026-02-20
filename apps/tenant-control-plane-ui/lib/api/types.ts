@@ -407,6 +407,88 @@ export const EffectiveEntitlementListResponseSchema = z.object({
 
 export type EffectiveEntitlementListResponse = z.infer<typeof EffectiveEntitlementListResponseSchema>;
 
+// ── Invoice Summary (tenant-scoped list item) ────────────────
+
+export const InvoiceSummarySchema = z.object({
+  id: z.string(),
+  number: z.string().optional(),
+  status: z.string(),
+  total: z.number().optional(),
+  currency: z.string().optional(),
+  issued_at: z.string().optional(),
+  due_date: z.string().optional(),
+  paid_at: z.string().optional(),
+});
+
+export type InvoiceSummary = z.infer<typeof InvoiceSummarySchema>;
+
+// ── Invoice List Response (paginated) ────────────────────────
+
+export const InvoiceListResponseSchema = z.object({
+  invoices: z.array(InvoiceSummarySchema),
+  total: z.number(),
+  page: z.number(),
+  page_size: z.number(),
+});
+
+export type InvoiceListResponse = z.infer<typeof InvoiceListResponseSchema>;
+
+// ── Invoice Line Item ────────────────────────────────────────
+
+export const InvoiceLineItemSchema = z.object({
+  id: z.string(),
+  description: z.string(),
+  quantity: z.number(),
+  unit_price: z.number(),
+  amount: z.number(),
+  currency: z.string().optional(),
+});
+
+export type InvoiceLineItem = z.infer<typeof InvoiceLineItemSchema>;
+
+// ── Invoice Detail (single invoice with line items) ──────────
+
+export const InvoiceDetailSchema = z.object({
+  id: z.string(),
+  tenant_id: z.string(),
+  number: z.string().optional(),
+  status: z.string(),
+  total: z.number().optional(),
+  subtotal: z.number().optional(),
+  tax: z.number().optional(),
+  currency: z.string().optional(),
+  issued_at: z.string().optional(),
+  due_date: z.string().optional(),
+  paid_at: z.string().optional(),
+  line_items: z.array(InvoiceLineItemSchema),
+});
+
+export type InvoiceDetail = z.infer<typeof InvoiceDetailSchema>;
+
+// ── Invoice Filter defaults ──────────────────────────────────
+
+export type InvoiceFilter = {
+  [key: string]: string;
+  status: string;
+  date_from: string;
+  date_to: string;
+};
+
+export const DEFAULT_INVOICE_FILTERS: InvoiceFilter = {
+  status: '',
+  date_from: '',
+  date_to: '',
+};
+
+export const INVOICE_STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'issued', label: 'Issued' },
+  { value: 'paid', label: 'Paid' },
+  { value: 'overdue', label: 'Overdue' },
+  { value: 'void', label: 'Void' },
+] as const;
+
 // ── Health Snapshot (service readiness) ─────────────────────
 
 export const ServiceHealthSchema = z.object({
