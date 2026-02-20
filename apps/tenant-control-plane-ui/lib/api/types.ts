@@ -580,3 +580,52 @@ export const BillingOverviewSchema = z.object({
 });
 
 export type BillingOverview = z.infer<typeof BillingOverviewSchema>;
+
+// ── Support Session ─────────────────────────────────────────
+
+export const StartSupportSessionRequestSchema = z.object({
+  reason: z.string().min(1, 'Reason is required').max(500, 'Reason must be 500 characters or fewer'),
+});
+
+export type StartSupportSessionRequest = z.infer<typeof StartSupportSessionRequestSchema>;
+
+// ── RBAC Role (tenant-scoped) ─────────────────────────────
+
+export const RbacRoleSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  permissions: z.array(z.string()),
+});
+
+export type RbacRole = z.infer<typeof RbacRoleSchema>;
+
+// ── RBAC User Grant (user → roles mapping) ────────────────
+
+export const RbacUserGrantSchema = z.object({
+  user_id: z.string(),
+  email: z.string(),
+  name: z.string().optional(),
+  roles: z.array(z.string()),
+});
+
+export type RbacUserGrant = z.infer<typeof RbacUserGrantSchema>;
+
+// ── RBAC Snapshot (aggregated view) ───────────────────────
+
+export const RbacSnapshotResponseSchema = z.object({
+  roles: z.array(RbacRoleSchema),
+  user_roles: z.array(RbacUserGrantSchema),
+});
+
+export type RbacSnapshotResponse = z.infer<typeof RbacSnapshotResponseSchema>;
+
+// ── RBAC Grant/Revoke Request ─────────────────────────────
+
+export const RbacChangeRequestSchema = z.object({
+  user_id: z.string().min(1, 'User is required'),
+  role_id: z.string().min(1, 'Role is required'),
+  action: z.enum(['grant', 'revoke']),
+});
+
+export type RbacChangeRequest = z.infer<typeof RbacChangeRequestSchema>;

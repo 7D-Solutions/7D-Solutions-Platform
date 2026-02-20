@@ -1,6 +1,6 @@
 // ============================================================
-// AccessTab — Users list with deactivation
-// Shows tenant-scoped users fetched via BFF.
+// AccessTab — Users list + RBAC roles & permissions
+// Shows tenant-scoped users (with deactivation) and RBAC panel.
 // Deactivation requires confirmation modal and refetches on success.
 // ============================================================
 'use client';
@@ -11,6 +11,7 @@ import { Button, Modal, StatusBadge } from '@/components/ui';
 import { formatDate } from '@/infrastructure/utils/formatters';
 import { REFETCH_INTERVAL_MS } from '@/lib/constants';
 import type { TenantUser, TenantUserListResponse } from '@/lib/api/types';
+import { RbacPanel } from './RbacPanel';
 
 // ── Data fetchers ──────────────────────────────────────────
 
@@ -58,7 +59,7 @@ export function AccessTab({ tenantId }: AccessTabProps) {
   const users = usersQuery.data?.users ?? [];
 
   return (
-    <div data-testid="access-tab">
+    <div data-testid="access-tab" className="space-y-8">
       <h2 className="text-lg font-semibold text-[--color-text-primary] mb-4">Users</h2>
 
       {usersQuery.isLoading ? (
@@ -161,6 +162,9 @@ export function AccessTab({ tenantId }: AccessTabProps) {
           </Button>
         </Modal.Actions>
       </Modal>
+
+      {/* RBAC Roles & Permissions */}
+      <RbacPanel tenantId={tenantId} />
     </div>
   );
 }
