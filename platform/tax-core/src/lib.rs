@@ -14,10 +14,16 @@
 //! fine; field removals or renames require a coordinated migration bead.
 
 pub mod error;
+pub mod jurisdiction;
+pub mod local_tax;
 pub mod models;
 pub mod provider;
+pub mod zero_tax;
 
 // Convenience re-exports so consumers can write `tax_core::TaxProvider` etc.
 pub use error::TaxProviderError;
+pub use jurisdiction::{JurisdictionConfig, JurisdictionEntry, TaxRuleConfig};
+pub use local_tax::LocalTaxProvider;
 pub use models::*;
 pub use provider::TaxProvider;
+pub use zero_tax::ZeroTaxProvider;

@@ -85,6 +85,9 @@ pub struct TaxQuoteResponse {
     /// When this quote expires (provider may require re-quote after this)
     pub expires_at: Option<DateTime<Utc>>,
     pub quoted_at: DateTime<Utc>,
+    /// Warnings from the provider (e.g. "jurisdiction_not_configured")
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
 }
 
 // ============================================================================
