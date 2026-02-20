@@ -1402,6 +1402,39 @@ All 7D apps share an auth domain. The user's JWT is stored in an httpOnly cookie
 - App reads JWT from cookie, checks permissions, renders the appropriate role's view
 - If the user has no role in that app, the app shows a "you don't have access" page — not an error, just an appropriate no-access state
 
+### Support sessions — technical mechanism
+
+A support session is a time-limited JWT issued by the platform's identity-auth service with `actor_type: "support"`. Your app does not need to handle this specially in your permission enforcement — the JWT carries the tenant's permissions and `RequirePermissionsLayer` validates it normally.
+
+What your app *does* need to handle: detecting when a support session is active for your tenant and displaying the `SupportSessionBanner`. This is done by polling a BFF endpoint, not by inspecting the JWT.
+
+**The support token is only ever held by the 7D support person** — it is never sent to the customer's browser. The customer's session remains their own unchanged JWT. The banner is triggered by the customer's app detecting (via polling) that the platform has an active support session on their account.
+
+**Your BFF routes needed:**
+
+```typescript
+// GET /api/support-sessions/active
+// Calls platform: GET {AUTH_BASE_URL}/api/support-sessions/active?tenant_id={tenant_id}
+// Returns: { agent_name, reason, expires_at, session_id } | null
+
+// DELETE /api/support-sessions/{session_id}
+// Calls platform: DELETE {AUTH_BASE_URL}/api/support-sessions/{session_id}
+// Revokes the support token, ends the session immediately
+```
+
+**Your root layout:**
+
+```typescript
+const { data: supportSession } = useQuery({
+  queryKey: ['support-session'],
+  queryFn: () => fetch('/api/support-sessions/active').then(r => r.json()),
+  refetchInterval: SUPPORT_SESSION_POLL_MS,  // 30_000 — from lib/constants.ts
+  staleTime: 0,
+});
+```
+
+For the full `SupportSessionBanner` component spec — what it displays, rendering rules, and the "End Session Now" handler — see `docs/frontend/PLATFORM-COMPONENTS.md` → SupportSessionBanner.
+
 ---
 
 ## Data Ownership — Decision Table

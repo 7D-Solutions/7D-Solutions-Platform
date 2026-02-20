@@ -15,6 +15,7 @@
 | 1.4 | 2026-02-20 | Platform Orchestrator | Added notification center to Global Shell scope (B). Added idle timeout as required for TCP. Added TCP-specific re-auth decision for Terminate action. Captured infrastructure decisions from Fireproof gap evaluation. |
 | 1.5 | 2026-02-20 | Platform Orchestrator | Resolved all three remaining open questions (Q2, Q3, Q4). All open questions now resolved — bead creation can proceed. |
 | 1.6 | 2026-02-20 | Platform Orchestrator | Added App Launcher section: cross-app navigation via shared auth cookie, per-app role model (dot-notation perms), Settings tab app cards, Access tab per-app role assignment UI. Updated F (IAM/Access) and C (Tenants) scope descriptions. |
+| 1.7 | 2026-02-20 | Platform Orchestrator | Added Support Session section: Start Support Session from Access tab, time-limited impersonation JWT, customer-visible support session banner, early termination by customer, full audit trail. Updated F scope and actions list. |
 
 ---
 
@@ -109,6 +110,7 @@ The most-used screen in the application. One click from the Tenant List lands yo
 - Release a locked seat — on Access tab
 - End a session — on Access tab
 - Grant / revoke a feature override — on Features tab
+- Start Support Session — on Access tab (see Support Sessions section)
 
 ---
 
@@ -173,6 +175,7 @@ The full product. No phased MVP that requires tearing out and rebuilding. Agents
 - Per-app role assignment: each user shows their role in each subscribed app (admin / user / viewer / none). Staff can change a user's role per app independently.
 - Seat leases: allocated vs active, release locked seat
 - Active sessions: list, terminate session, policy violation flags
+- Support Sessions: active support sessions for this tenant (who, which app, started when, expires when), with a "Start Support Session" action and ability to terminate an active session from TCP
 
 ### G. Audit & Activity
 - Platform-wide audit log: filter by tenant, actor, action type, date range
@@ -352,6 +355,62 @@ Staff can change any role via the dropdown. Role changes take effect at the user
 
 ---
 
+## Support Sessions
+
+### Purpose
+
+When a customer contacts support, a 7D staff member can open a time-limited session inside the customer's app to see exactly what they see and take actions on their behalf. The customer always knows when a support session is active — a persistent, non-dismissable banner appears on their screen the moment support logs in, and disappears the moment the session ends.
+
+The customer can end the session at any time. Every support session is recorded in the audit log.
+
+### Starting a session — from TCP
+
+On the Access tab of any Tenant Detail page, the **Start Support Session** button opens a form:
+
+- **App** — which subscribed app to access (dropdown)
+- **Duration** — how long the session lasts (15 min / 30 min / 1 hour; default 30 min)
+- **Reason** — required free-text field (shown in audit log and to the customer on the banner)
+
+On confirm, the platform issues a support JWT and opens the app in a new browser tab. The support person sees the app exactly as the tenant's users do, authenticated under their own identity with `actor_type: "support"`.
+
+The Access tab shows a **Support Sessions** panel listing any active sessions for this tenant: who started it, which app, when it expires. TCP staff can terminate an active session from this panel.
+
+### The customer-facing banner
+
+When a support session is active, a non-dismissable banner appears at the top of the app — on every screen, above everything else.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  🔧  Support session active  —  Alex from 7D Solutions is logged in     │
+│      Reason: "Help with route scheduling"  ·  Ends at 3:45 PM           │
+│                                            [ End Session Now ]           │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+**Rules for the banner:**
+- Non-dismissable — cannot be hidden or minimized. Only disappears when the session ends.
+- Appears within 30 seconds of support logging in (driven by TanStack Query polling — the customer's app polls every 30 seconds for active support sessions on their account)
+- Shows: support agent name, reason given, session expiry time
+- "End Session Now" button terminates the session immediately — no confirmation required
+- When the session ends (by expiry, by support leaving, or by customer terminating), the banner disappears within 30 seconds
+
+### What the support person can do
+
+The support person sees and can do everything the customer can do in that app, scoped to that tenant's data. They are not elevated above the tenant's own admin role — if the customer is a dispatcher, the support session operates at dispatcher level.
+
+If support needs to take an admin action the customer cannot take, they do it from TCP (which is where staff-level platform actions live) — not from the support session.
+
+### Audit log
+
+Every support session generates audit events:
+- `support_session.started` — who, which app, which tenant, duration, reason
+- `support_session.ended` — how it ended (expiry / staff closed / customer terminated)
+- `support_session.action` — any mutation the support person takes during the session is tagged `actor_type: "support"`, visible to the tenant in their own Activity log
+
+The customer can see in their Activity log that support accessed their account and what actions were taken.
+
+---
+
 ## Unsaved Changes Protection
 
 Two layers of protection — neither is optional:
@@ -506,6 +565,11 @@ Decisions that are settled. Agents must not re-open these without an explicit us
 | 2026-02-20 | Cross-app authentication via shared auth cookie — no token exchange | All 7D apps share an auth domain. The httpOnly JWT cookie is valid across apps. Clicking Launch navigates to the app which reads the existing cookie. Zero friction, secure, no secrets in URLs. Rejected: query-string token hand-off (tokens in URLs appear in server logs and browser history). Rejected: per-app re-login (defeats the purpose of single sign-on). | Platform Orchestrator |
 | 2026-02-20 | Per-app roles encoded as dot-notation permission strings in JWT (`{app-id}.{role}`) | The JWT `perms` field already uses dot-notation (`ar.mutate`). Extending it to per-app roles keeps one consistent model across all access control. Each app defines its own permission strings and enforces them via RequirePermissionsLayer. TCP manages assignment; apps enforce. Rejected: a separate per-app roles field in the JWT (would require JWT schema change; existing pattern already covers this). | Platform Orchestrator |
 | 2026-02-20 | Role changes take effect at next JWT refresh — no forced per-app invalidation | Session invalidation is already handled by seat lease termination for cases requiring immediate effect. Adding per-app immediate invalidation would require platform-wide token revocation infrastructure. Rejected: forced immediate invalidation on role change (disproportionate complexity; seat termination already handles urgent cases). | Platform Orchestrator |
+| 2026-02-20 | Support sessions implemented as time-limited impersonation JWT (`actor_type: "support"`) — not remote screen sharing | Built-in support access gives full audit trail, scoped access, and is professional-grade SaaS behavior. The customer always sees when support is active. Rejected: remote screen sharing only (no audit trail, support cannot see system-level data the customer doesn't have on screen, not scalable for a SaaS product). | User + Platform Orchestrator |
+| 2026-02-20 | Customer sees a non-dismissable support session banner — always, for the full duration | Transparency is non-negotiable. The customer must always know when support is in their account. The banner cannot be hidden. Rejected: opt-in notification (customers might not see it). Rejected: notification-only with no persistent indicator (customer could forget support is active). | User + Platform Orchestrator |
+| 2026-02-20 | Customer can terminate the support session at any time via the banner | Customer consent and control are platform values. A customer who did not initiate the session or wants it ended should be able to end it immediately without calling support. Rejected: only TCP staff can terminate sessions (removes customer agency). | User + Platform Orchestrator |
+| 2026-02-20 | Support session banner polls every 30 seconds via TanStack Query — no WebSocket | Polling is sufficient for a session-start signal. The 30-second lag is acceptable for a support workflow (the customer and support agent are on a call together — a 30-second delay is not a UX problem). Rejected: WebSocket for real-time banner (adds infrastructure complexity for a feature that doesn't need sub-second latency). | Platform Orchestrator |
+| 2026-02-20 | Support sessions operate at the tenant's own permission level — not elevated | Support navigates the app as the customer would, to understand and assist. If a staff-level action is needed, it is taken in TCP. Rejected: granting support elevated permissions inside the app (risks unintended changes and muddles the audit trail). | Platform Orchestrator |
 
 ---
 

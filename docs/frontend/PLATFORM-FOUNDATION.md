@@ -9,6 +9,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-20 | Platform Orchestrator | Extracted from PLATFORM-FRONTEND-STANDARDS.md rev 1.8. Foundation bead checklist (all apps + staff apps + mobile apps), Infrastructure Map requirement, testing standards. Decision Log populated from master. |
+| 1.1 | 2026-02-20 | Platform Orchestrator | Added checklist section for apps supporting tech support sessions: SupportSessionBanner component, polling constant, BFF routes, root layout integration. |
 
 ---
 
@@ -108,6 +109,22 @@ Staff admin consoles add the following to the Foundation bead (in addition to th
 
 ### Nav Badge Counts
 - [ ] `infrastructure/hooks/useBadgeCounts.ts` — returns `Record<navKey, number>`, data source defined by the app's vision doc
+
+---
+
+## Checklist Additions — Apps Supporting Tech Support Sessions
+
+Any app where 7D Solutions support staff can open a support session must include the following. This applies to all vertical apps (TrashTech Pro, etc.) — not to TCP itself.
+
+### Support Session Banner
+- [ ] `components/ui/SupportSessionBanner.tsx` — non-dismissable banner rendered above all content when a support session is active. Shows agent name, reason, expiry time, and an "End Session Now" button.
+- [ ] `SUPPORT_SESSION_POLL_MS = 30_000` added to `lib/constants.ts`
+- [ ] BFF route `GET /api/support-sessions/active` — checks platform for active support sessions on the current tenant's account. Returns `{ agent_name, reason, expires_at, session_id }` or `null`.
+- [ ] BFF route `DELETE /api/support-sessions/{session_id}` — terminates the session by revoking the support token via the platform.
+- [ ] Root layout polls the active session endpoint and mounts `SupportSessionBanner` when a session exists.
+- [ ] Verified: banner appears within 30 seconds of a support session starting and disappears within 30 seconds of it ending.
+
+See `docs/frontend/PLATFORM-COMPONENTS.md` → SupportSessionBanner for the full component spec.
 
 ---
 

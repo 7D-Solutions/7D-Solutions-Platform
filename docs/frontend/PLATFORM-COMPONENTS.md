@@ -9,6 +9,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-20 | Platform Orchestrator | Extracted from PLATFORM-FRONTEND-STANDARDS.md rev 1.8. CSS token system, color system, component size scale, Button, StatusBadge, Modal, DataTable/ViewToggle, form components. Decision Log populated from master. |
+| 1.1 | 2026-02-20 | Platform Orchestrator | Added SupportSessionBanner component: non-dismissable banner for active support sessions, polling detection pattern, termination flow, constants. Required for all apps supporting tech support sessions. |
 
 ---
 
@@ -275,6 +276,72 @@ Never use raw HTML form elements. Import everything from `components/ui/`.
 | `FileInput` | `<input type="file">` | Drag-drop support |
 
 **Form state:** All form field values are managed through `useFormStore` (see `PLATFORM-STATE.md`) — not local `useState`. This ensures form data survives tab switches.
+
+---
+
+## SupportSessionBanner
+
+**Required in every app that supports tech support sessions.** This is not optional — it is the customer's guarantee that they always know when someone else is in their account.
+
+### What it does
+
+When a 7D support agent has an active session in the app, a persistent banner renders at the top of the page — above all other content, including the app's own navigation. It shows who is logged in, why, and when the session expires. The customer can end the session from the banner.
+
+### Rendering rules
+
+- **Non-dismissable.** No close button. No minimize. It renders as long as the session is active.
+- **Top of page, always.** Renders via portal to `document.body`, above the app shell. Not inside any layout that could hide it.
+- **Disappears automatically** when the session ends (polling detects expiry within 30 seconds).
+
+### What the banner shows
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  🔧  Support session active  —  Alex from 7D Solutions is logged in     │
+│      Reason: "Help with route scheduling"  ·  Ends at 3:45 PM           │
+│                                            [ End Session Now ]           │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+- Support agent's name (from session metadata, not their JWT — the session is stored server-side)
+- "from 7D Solutions" — always this exact company name, hardcoded, not configurable
+- Reason text — entered by the support agent when starting the session in TCP
+- Expiry time — displayed as a clock time ("Ends at 3:45 PM"), not a countdown
+- **End Session Now** button — variant `warning`, terminates the session immediately, no confirmation required
+
+### How the app detects an active support session
+
+The app polls `GET /api/support-sessions/active` every 30 seconds via TanStack Query.
+
+```typescript
+// In the root layout — runs on every page:
+const { data: supportSession } = useQuery({
+  queryKey: ['support-session'],
+  queryFn: () => fetch('/api/support-sessions/active').then(r => r.json()),
+  refetchInterval: SUPPORT_SESSION_POLL_MS,  // from lib/constants.ts — 30000
+  staleTime: 0,
+});
+
+// Banner renders when data is non-null:
+{supportSession && <SupportSessionBanner session={supportSession} />}
+```
+
+The BFF route (`/api/support-sessions/active`) calls the platform's identity-auth service with the tenant's JWT to check for active support sessions on that tenant's account. If none: returns `null`. If one exists: returns `{ agent_name, reason, expires_at, session_id }`.
+
+### Terminating a session from the banner
+
+"End Session Now" calls `DELETE /api/support-sessions/{session_id}` via the BFF. The BFF calls the platform to revoke the session token. TanStack Query's next poll (or an immediate invalidation) removes the banner.
+
+### Component file location
+
+`components/ui/SupportSessionBanner.tsx` — part of the Foundation bead for any app supporting tech support sessions.
+
+### Constants
+
+Add to `lib/constants.ts`:
+```typescript
+export const SUPPORT_SESSION_POLL_MS = 30_000;
+```
 
 ---
 
