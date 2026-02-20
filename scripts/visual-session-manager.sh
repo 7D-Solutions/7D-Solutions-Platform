@@ -114,9 +114,8 @@ ensure_disk_monitor() {
     return 0
 }
 
-# Ensure supervisord is running in tmux (foreground mode)
+# Ensure supervisord is running (as daemon, independent of tmux sessions)
 ensure_supervisord() {
-    local SESSION_NAME="${1:-agentcore}"  # Default to agentcore session
     local SOCKET_FILE="$PROJECT_ROOT/tmp/supervisor.sock"
     local CONFIG_FILE="$PROJECT_ROOT/config/supervisord.conf"
 
@@ -130,32 +129,22 @@ ensure_supervisord() {
         if supervisorctl -c "$CONFIG_FILE" status >/dev/null 2>&1; then
             return 0  # Already running
         fi
+        # Stale socket - clean up
+        rm -f "$SOCKET_FILE"
     fi
 
-    # Check if we're in a tmux session
-    if [ -z "${TMUX:-}" ]; then
-        echo -e "${YELLOW}⚠️  Not in tmux session, skipping supervisord${NC}" >&2
-        return 0
-    fi
+    # Start supervisord as a daemon (nodaemon=false in config)
+    echo -e "${CYAN}Starting supervisord...${NC}"
+    supervisord -c "$CONFIG_FILE" 2>/dev/null || true
 
-    # Check if supervisord window already exists
-    if tmux list-windows -t "$SESSION_NAME" 2>/dev/null | grep -q "supervisord"; then
-        return 0  # Window already exists
-    fi
-
-    # Create supervisord window and start in foreground mode
-    echo -e "${CYAN}Starting supervisord in tmux...${NC}"
-    tmux new-window -t "$SESSION_NAME" -n "supervisord" -c "$PROJECT_ROOT" \
-        "supervisord -c config/supervisord.conf -n" 2>/dev/null || true
-
-    # Wait a moment for supervisord to start
+    # Wait for it to start
     sleep 2
 
     # Verify it started
-    if [ -S "$SOCKET_FILE" ]; then
-        echo -e "${GREEN}✓ Supervisord running in tmux window${NC}"
+    if [ -S "$SOCKET_FILE" ] && supervisorctl -c "$CONFIG_FILE" status >/dev/null 2>&1; then
+        echo -e "${GREEN}✓ Supervisord running (manages mail monitors for all projects)${NC}"
     else
-        echo -e "${YELLOW}⚠️  Supervisord may not have started${NC}" >&2
+        echo -e "${YELLOW}⚠️  Supervisord may not have started — check logs/supervisord.log${NC}" >&2
     fi
 
     return 0
@@ -252,25 +241,74 @@ get_killed_sessions() {
     fi
 }
 
+# Resolve agent launch commands based on what scripts are available in project
+resolve_launch_commands() {
+    local project_path="$1"
+    ORCHESTRATOR_CMD=""
+    WORKER_CMD=""
+
+    if [ -f "$project_path/node_modules/@agentcore/flywheel-tools/scripts/core/start-orchestrator.sh" ]; then
+        ORCHESTRATOR_CMD="cd \"$project_path\" && ./node_modules/@agentcore/flywheel-tools/scripts/core/start-orchestrator.sh"
+        WORKER_CMD="cd \"$project_path\" && ./node_modules/@agentcore/flywheel-tools/scripts/core/agent-runner.sh"
+    elif [ -f "$project_path/flywheel_tools/scripts/core/start-orchestrator.sh" ]; then
+        ORCHESTRATOR_CMD="cd \"$project_path\" && ./flywheel_tools/scripts/core/start-orchestrator.sh"
+        WORKER_CMD="cd \"$project_path\" && ./flywheel_tools/scripts/core/agent-runner.sh"
+    elif [ -f "$project_path/scripts/start-orchestrator.sh" ]; then
+        ORCHESTRATOR_CMD="cd \"$project_path\" && ./scripts/start-orchestrator.sh"
+        WORKER_CMD="cd \"$project_path\" && ./scripts/agent-runner.sh"
+    fi
+}
+
 # Save session state before killing (for resurrection)
 save_session_state() {
     local session_name="$1"
     local state_file="$STATE_DIR/${session_name}.state"
+
+    # Get project path from first pane of window 1 (agents window)
+    local project_path
+    project_path=$(tmux display-message -t "${session_name}:1.1" -p "#{pane_current_path}" 2>/dev/null || echo "")
+
+    # Count panes in window 1 (the agents window)
+    local pane_count
+    pane_count=$(tmux list-panes -t "${session_name}:1" 2>/dev/null | wc -l | tr -d ' ')
+
+    # Get layout string for window 1
+    local pane_layout
+    pane_layout=$(tmux display-message -t "${session_name}:1" -p "#{window_layout}" 2>/dev/null || echo "tiled")
 
     # Save session metadata
     {
         echo "SESSION_NAME=$session_name"
         echo "KILLED_AT=$(date +%s)"
         echo "KILLED_DATE=$(date '+%Y-%m-%d %H:%M:%S')"
+        echo "PROJECT_PATH=$project_path"
+        echo "PANE_COUNT=$pane_count"
+        echo "PANE_LAYOUT=$pane_layout"
 
-        # Save session details
+        # Save session details (window names)
         tmux list-windows -t "$session_name" -F "WINDOW_#{window_index}=#{window_name}" 2>/dev/null || true
 
-        # Save pane information
+        # Save pane information (paths and commands)
         tmux list-panes -t "$session_name" -a -F "PANE_#{window_index}_#{pane_index}=#{pane_current_path}|#{pane_current_command}" 2>/dev/null || true
 
-        # Save agent names if available
+        # Save agent names from tmux pane option (fallback)
         tmux list-panes -t "$session_name" -a -F "AGENT_#{window_index}_#{pane_index}=#{@agent_name}" 2>/dev/null | grep -v "AGENT.*=$" || true
+
+        # Save agent types and names from .agent-name files (authoritative source)
+        if [ -n "$project_path" ] && [ -d "$project_path/pids" ]; then
+            for p in $(seq 1 "$pane_count"); do
+                local safe_pane="${session_name}-1-${p}"
+                local name_file="$project_path/pids/${safe_pane}.agent-name"
+                if [ -f "$name_file" ]; then
+                    echo "AGENT_NAME_1_${p}=$(cat "$name_file")"
+                fi
+                if [ "$p" -eq 1 ]; then
+                    echo "AGENT_TYPE_1_${p}=orchestrator"
+                else
+                    echo "AGENT_TYPE_1_${p}=worker"
+                fi
+            done
+        fi
     } > "$state_file"
 
     echo -e "${GREEN}✓ Saved session state: $session_name${NC}" >&2
@@ -293,9 +331,10 @@ resurrect_session() {
     fi
 
     # Read saved state
-    local project_path=""
-    if [ -f "$state_file" ]; then
-        # Extract project path from first pane's current path
+    local project_path
+    project_path=$(grep "^PROJECT_PATH=" "$state_file" | cut -d'=' -f2-)
+    if [ -z "$project_path" ]; then
+        # Legacy fallback: extract from first PANE_ entry
         project_path=$(grep "^PANE_" "$state_file" | head -1 | cut -d'=' -f2 | cut -d'|' -f1)
     fi
 
@@ -303,25 +342,93 @@ resurrect_session() {
         project_path="$HOME"
     fi
 
-    # Create basic tmux session in the background
-    tmux new-session -d -s "$session_name" -c "$project_path" 2>/dev/null
+    local pane_count
+    pane_count=$(grep "^PANE_COUNT=" "$state_file" | cut -d'=' -f2)
+    pane_count=${pane_count:-1}
 
-    if [ $? -eq 0 ]; then
-        echo -e "${GREEN}✓ Resurrected: $session_name${NC}"
-        # Ensure mail server is running for agent registration
-        ensure_mail_server
-        ensure_disk_monitor
-        ensure_supervisord "$session_name"
-        ensure_orchestrator "$session_name"
-        # Sync beads workflow to the project
-        if [ -n "$project_path" ] && [ -d "$project_path" ]; then
-            "$SCRIPT_DIR/sync-beads-to-project.sh" "$project_path" 2>/dev/null || true
-        fi
-        return 0
-    else
-        echo -e "${RED}❌ Failed to resurrect: $session_name${NC}"
+    # Create tmux session with first pane (window 1, pane 1)
+    if ! tmux new-session -d -s "$session_name" -c "$project_path" -n "agents" 2>/dev/null; then
+        echo -e "${RED}❌ Failed to create session: $session_name${NC}"
         return 1
     fi
+
+    # Ensure disk monitor is running
+    ensure_disk_monitor
+
+    # Sync beads workflow to the project
+    if [ -n "$project_path" ] && [ -d "$project_path" ]; then
+        "$SCRIPT_DIR/sync-beads-to-project.sh" "$project_path" 2>/dev/null || true
+    fi
+
+    # Restore saved agent names into .agent-name files so agents reuse their identities
+    local p
+    for p in $(seq 1 "$pane_count"); do
+        local saved_name
+        saved_name=$(grep "^AGENT_NAME_1_${p}=" "$state_file" | cut -d'=' -f2-)
+        if [ -n "$saved_name" ]; then
+            local safe_pane="${session_name}-1-${p}"
+            local name_file="$project_path/pids/${safe_pane}.agent-name"
+            mkdir -p "$project_path/pids"
+            printf "%s" "$saved_name" > "$name_file"
+            echo -e "${CYAN}  Restoring identity: pane $p → $saved_name${NC}"
+        fi
+    done
+
+    # Resolve launch commands for this project
+    local ORCHESTRATOR_CMD WORKER_CMD
+    resolve_launch_commands "$project_path"
+
+    if [ -z "$ORCHESTRATOR_CMD" ]; then
+        echo -e "${YELLOW}⚠️  Could not find orchestrator script — starting shell only${NC}"
+    fi
+
+    # Start orchestrator in pane 1
+    if [ -n "$ORCHESTRATOR_CMD" ]; then
+        echo -e "${CYAN}  Starting orchestrator in pane 1...${NC}"
+        tmux send-keys -t "${session_name}:1.1" "$ORCHESTRATOR_CMD" C-m
+    fi
+
+    # Create additional panes and start workers
+    local i
+    for i in $(seq 2 "$pane_count"); do
+        tmux split-window -t "${session_name}:1" -c "$project_path"
+        if [ -n "$WORKER_CMD" ]; then
+            echo -e "${CYAN}  Starting worker in pane $i...${NC}"
+            tmux send-keys -t "${session_name}:1.${i}" "$WORKER_CMD" C-m
+        fi
+    done
+
+    # Apply tiled layout to distribute panes evenly
+    if [ "$pane_count" -gt 1 ]; then
+        tmux select-layout -t "${session_name}:1" tiled 2>/dev/null || true
+    fi
+
+    # Create bv window (window 2)
+    tmux new-window -t "${session_name}:2" -n "bv" -c "$project_path" 2>/dev/null || true
+    tmux send-keys -t "${session_name}:2" "bv" C-m
+
+    # Focus on agents window, pane 1
+    tmux select-window -t "${session_name}:1" 2>/dev/null || true
+    tmux select-pane -t "${session_name}:1.1" 2>/dev/null || true
+
+    # Wait for agents to start, then run discover.sh to register identities
+    local discover_script="$project_path/panes/discover.sh"
+    if [ -f "$discover_script" ]; then
+        echo -e "${CYAN}  Waiting for agents to initialize (10s)...${NC}"
+        sleep 10
+        echo -e "${CYAN}  Registering agent identities...${NC}"
+        for p in $(seq 1 "$pane_count"); do
+            local pane_id="${session_name}:1.${p}"
+            if PROJECT_ROOT="$project_path" bash "$discover_script" --pane "$pane_id" --quiet 2>/dev/null; then
+                echo -e "${GREEN}  ✓ Pane $p registered${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ Pane $p registration failed${NC}"
+            fi
+        done
+    fi
+
+    echo -e "${GREEN}✓ Resurrected: $session_name (${pane_count} panes, agents restarted)${NC}"
+    return 0
 }
 
 # Permanently delete a killed session state and clean up all artifacts
@@ -860,10 +967,8 @@ attach_sessions() {
         return
     fi
 
-    # Ensure mail server is running for agent registration
-    ensure_mail_server
+    # Ensure disk monitor and orchestrator are running
     ensure_disk_monitor
-    ensure_supervisord "$(tmux display-message -p "#{session_name}" 2>/dev/null || echo "agentcore")"
     ensure_orchestrator "$(tmux display-message -p "#{session_name}" 2>/dev/null || echo "agentcore")"
 
     # Sync beads workflow to each session's project
@@ -1133,10 +1238,8 @@ smart_start() {
     )
     echo ""
 
-    # Ensure mail server is running for agent registration
-    ensure_mail_server
+    # Ensure disk monitor is running
     ensure_disk_monitor
-    ensure_supervisord "$session_name"
 
     # Step 2: How many worker agents?
     echo -e "${BLUE}Step 2: Number of worker agents${NC}"
@@ -1178,6 +1281,25 @@ smart_start() {
         return 1
     fi
 
+    # Clean up old agent-name, pid, and identity files for this session
+    # Fresh session = fresh names. Old files cause auto-register to reuse previous names.
+    local safe_session
+    safe_session=$(echo "$smart_session_name" | tr ' ' '_')
+    if [ -d "$project_path/pids" ]; then
+        local archive_dir="$project_path/archive/pids"
+        mkdir -p "$archive_dir"
+        for old_file in "$project_path/pids/${safe_session}-"*.agent-name "$project_path/pids/${safe_session}-"*.mail-monitor.pid; do
+            [ -f "$old_file" ] && mv "$old_file" "$archive_dir/"
+        done
+    fi
+    if [ -d "$project_path/panes" ]; then
+        local archive_dir="$project_path/archive/pids"
+        mkdir -p "$archive_dir"
+        for old_file in "$project_path/panes/${safe_session}-"*.identity; do
+            [ -f "$old_file" ] && mv "$old_file" "$archive_dir/"
+        done
+    fi
+
     # Create new session (window 1 will contain all agents)
     tmux new-session -d -s "$smart_session_name" -c "$project_path" -n "agents"
 
@@ -1194,23 +1316,61 @@ smart_start() {
         # Split window to create new pane
         tmux split-window -t "$smart_session_name:1" -c "$project_path"
 
+        # Apply tiled layout immediately so panes don't get too small to split
+        tmux select-layout -t "$smart_session_name:1" tiled
+
         # Launch agent-runner in the new pane
         tmux send-keys -t "$smart_session_name:1.$pane_num" \
             "cd \"$project_path\" && ./node_modules/@agentcore/flywheel-tools/scripts/core/agent-runner.sh" C-m
     done
 
-    # Apply tiled layout to distribute panes evenly
+    # Final tiled layout pass
     tmux select-layout -t "$smart_session_name:1" tiled
 
-    # Select first pane (orchestrator)
+    # Register agents and create identity files (required for mail monitors)
+    # discover.sh creates panes/<safe_pane>.identity so mail monitors can find the agent's pane
+    echo ""
+    echo -e "${CYAN}Waiting for agents to initialize (10s)...${NC}"
+    sleep 10
+
+    echo -e "${CYAN}Registering agents and creating identity files...${NC}"
+    local discover_script="$project_path/panes/discover.sh"
+    if [ -f "$discover_script" ]; then
+        local total_panes=$((agent_count + 1))  # workers + orchestrator
+        for ((p=1; p<=total_panes; p++)); do
+            local pane_id="$smart_session_name:1.$p"
+            echo -e "${CYAN}  Registering pane $pane_id...${NC}"
+            if PROJECT_ROOT="$project_path" bash "$discover_script" --pane "$pane_id" --quiet 2>/dev/null; then
+                echo -e "${GREEN}  ✓ Pane $pane_id registered${NC}"
+            else
+                echo -e "${YELLOW}  ⚠ Pane $pane_id registration failed (agent may still be initializing)${NC}"
+            fi
+        done
+
+        # Mail monitors are started by agent-runner.sh via mail-monitor-ctl.sh ensure
+        # (runs inside each pane where TMUX_PANE is naturally set)
+    else
+        echo -e "${YELLOW}  ⚠ discover.sh not found at $discover_script — skipping identity registration${NC}"
+        echo -e "${YELLOW}  Agents will need to be manually registered for mail notifications${NC}"
+    fi
+
+    # Create window 2 for bv (beads viewer)
+    echo -e "${CYAN}  Window 2: Beads Viewer (bv)${NC}"
+    tmux new-window -t "$smart_session_name:2" -n "bv" -c "$project_path"
+    tmux send-keys -t "$smart_session_name:2" "bv" C-m
+
+    # Select window 1 and first pane (orchestrator)
+    tmux select-window -t "$smart_session_name:1"
     tmux select-pane -t "$smart_session_name:1.1"
 
     echo ""
-    echo -e "${GREEN}✓ Created session with 1 orchestrator + $agent_count workers${NC}"
+    echo -e "${GREEN}✓ Created session with 1 orchestrator + $agent_count workers + bv${NC}"
+    echo -e "${CYAN}  Window 1: Agents (orchestrator + workers)${NC}"
+    echo -e "${CYAN}  Window 2: Beads Viewer (bv)${NC}"
     echo -e "${CYAN}  Attach with: tmux attach -t \"$smart_session_name\"${NC}"
     echo ""
 
-    # Attach to session
+    # Attach to session (will show window 1 by default)
     if [ -n "${TMUX:-}" ]; then
         # We're inside tmux, switch to new session
         tmux switch-client -t "$smart_session_name"
@@ -1538,6 +1698,8 @@ create_new_session() {
 # Main entry point
 main() {
     check_fzf
+    ensure_mail_server
+    ensure_supervisord
     show_visual_interface
 }
 
