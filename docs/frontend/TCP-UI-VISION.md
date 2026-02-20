@@ -13,6 +13,7 @@
 | 1.2 | 2026-02-20 | Platform Orchestrator | Replaced all absolute Fireproof paths with repo-relative symlink paths (docs/reference/fireproof/). No content changes — path references only. |
 | 1.3 | 2026-02-20 | Platform Orchestrator | Changed By and Decided By: replaced agent names with roles throughout (User, Orchestrator, TrashTech Orchestrator). Agent names are session-ephemeral. |
 | 1.4 | 2026-02-20 | Platform Orchestrator | Added notification center to Global Shell scope (B). Added idle timeout as required for TCP. Added TCP-specific re-auth decision for Terminate action. Captured infrastructure decisions from Fireproof gap evaluation. |
+| 1.5 | 2026-02-20 | Platform Orchestrator | Resolved all three remaining open questions (Q2, Q3, Q4). All open questions now resolved — bead creation can proceed. |
 
 ---
 
@@ -399,9 +400,9 @@ These are decisions still to be made. Do not create beads until these are resolv
 | # | Question | Status |
 |---|----------|--------|
 | 1 | Visual style | ✅ Resolved — see Decision Log |
-| 2 | Does the landing page after login show the Tenant List, or a dashboard home with system health? | Open |
-| 3 | Are there any screens that need charts or graphs (billing trends, seat usage over time)? | Open |
-| 4 | Module versioning strategy — what does versioning mean for this platform? | Open |
+| 2 | Does the landing page after login show the Tenant List, or a dashboard home with system health? | ✅ Resolved — Tenant List directly. See Decision Log. |
+| 3 | Are there any screens that need charts or graphs (billing trends, seat usage over time)? | ✅ Resolved — No charts in Phase 41. See Decision Log. |
+| 4 | Module versioning strategy — what does versioning mean for this platform? | ✅ Resolved — Not applicable to Phase 41. See Decision Log. |
 
 ---
 
@@ -431,6 +432,9 @@ Decisions that are settled. Agents must not re-open these without an explicit us
 | 2026-02-20 | TCP UI implements idle timeout (30 min, 5 min warning) | Staff console with access to terminate tenants and modify billing. Session must expire on inactivity. Rejected: short JWT TTL only (no warning, loses form state). Rejected: no idle timeout (unattended sessions with admin access are a security risk). | Platform Orchestrator |
 | 2026-02-20 | TCP UI implements re-authentication before Terminate Tenant action | Terminating a tenant is catastrophic and unrecoverable. Re-auth before this specific action ensures the session owner confirms the intent. Not a platform standard (risk profile is TCP-specific) — but required for TCP. Rejected: confirmation modal alone is sufficient (does not verify the operator is still the one at the keyboard). | Platform Orchestrator |
 | 2026-02-20 | Notification center in top bar — TCP events: tenant past due, service health degraded, billing run complete | Staff may miss a 4-second toast. Notification center provides persistent history. These are the events significant enough to persist: billing and health events affect platform reliability. Rejected: toast only (missed events are lost). | Platform Orchestrator |
+| 2026-02-20 | Landing page after login: Tenant List directly — no dashboard home | Design philosophy is minimum clicks to primary task. Staff use TCP primarily to work with tenants. A dashboard home screen adds a click for every session with no gain. System health (secondary use case) is one click away in the System section. Rejected: dashboard home with system health summary (adds a click to the most common task, system health is an edge-case action not a daily landing need). | Platform Orchestrator |
+| 2026-02-20 | No charts or graphs in Phase 41 — all data as tables | Charts add charting library dependencies, visual design decisions, and responsive rendering complexity. All billing and usage data is accessible via tables on the Billing tab and invoice list. Rejected: adding charts for billing trends and seat usage (out of scope for Phase 41, can be added as a dedicated analytics bead if demand emerges). | Platform Orchestrator |
+| 2026-02-20 | Module versioning: not applicable to Phase 41 | TCP UI is co-deployed with the platform in a monorepo. There is no independent versioning or API version prefix needed. The question was forward-looking; current scope has no versioning requirement. If the platform adopts versioned APIs in the future, the Consumer Guide will document it. Rejected: adding v1 URL prefixes speculatively (would require work throughout every BFF route with no current benefit). | Platform Orchestrator |
 
 ---
 
