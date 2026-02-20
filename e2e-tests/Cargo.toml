@@ -372,6 +372,10 @@ name = "ar_gl_journal_entries_e2e"
 path = "tests/ar_gl_journal_entries_e2e.rs"
 
 [[test]]
+name = "gl_ar_automation_e2e"
+path = "tests/gl_ar_automation_e2e.rs"
+
+[[test]]
 name = "ap_payment_run_e2e"
 path = "tests/ap_payment_run_e2e.rs"
 
