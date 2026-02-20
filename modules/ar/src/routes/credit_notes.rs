@@ -187,6 +187,32 @@ pub async fn issue_credit_note_handler(
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorResponse::new("invalid_currency", "currency must not be empty")),
         )),
+        Err(crate::credit_notes::CreditNoteError::OverCreditBalance {
+            invoice_id,
+            invoice_amount_cents,
+            existing_credits,
+            requested,
+        }) => {
+            tracing::warn!(
+                invoice_id,
+                invoice_amount_cents,
+                existing_credits,
+                requested,
+                "Credit note rejected: over-credit guard triggered"
+            );
+            Err((
+                StatusCode::UNPROCESSABLE_ENTITY,
+                Json(ErrorResponse::new(
+                    "over_credit",
+                    format!(
+                        "Credit of {} exceeds remaining balance {} on invoice {}",
+                        requested,
+                        invoice_amount_cents - existing_credits,
+                        invoice_id
+                    ),
+                )),
+            ))
+        }
         Err(crate::credit_notes::CreditNoteError::DatabaseError(msg)) => {
             tracing::error!("Credit note DB error: {}", msg);
             Err((

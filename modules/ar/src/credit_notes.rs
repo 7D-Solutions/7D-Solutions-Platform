@@ -111,6 +111,13 @@ pub enum CreditNoteError {
     InvalidAmount(i64),
     /// Currency must be non-empty
     InvalidCurrency,
+    /// Total credits (existing + new) would exceed the invoice amount — financial integrity guard
+    OverCreditBalance {
+        invoice_id: i32,
+        invoice_amount_cents: i64,
+        existing_credits: i64,
+        requested: i64,
+    },
     /// Database error
     DatabaseError(String),
 }
@@ -123,6 +130,14 @@ impl fmt::Display for CreditNoteError {
             }
             Self::InvalidAmount(n) => write!(f, "Amount must be > 0, got {}", n),
             Self::InvalidCurrency => write!(f, "Currency must not be empty"),
+            Self::OverCreditBalance { invoice_id, invoice_amount_cents, existing_credits, requested } => {
+                write!(
+                    f,
+                    "Credit of {} exceeds remaining balance ({} - {} = {}) on invoice {}",
+                    requested, invoice_amount_cents, existing_credits,
+                    invoice_amount_cents - existing_credits, invoice_id
+                )
+            }
             Self::DatabaseError(msg) => write!(f, "Database error: {}", msg),
         }
     }
@@ -161,22 +176,25 @@ pub async fn issue_credit_note(
 
     let mut tx = pool.begin().await?;
 
-    // 1. Verify invoice exists for this tenant (SELECT FOR SHARE to detect concurrent deletes)
-    let invoice_exists: Option<bool> = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM ar_invoices WHERE id = $1 AND app_id = $2)",
+    // 1. Fetch invoice amount and verify it belongs to this tenant
+    let invoice_amount_cents: Option<i64> = sqlx::query_scalar(
+        "SELECT amount_cents::BIGINT FROM ar_invoices WHERE id = $1 AND app_id = $2",
     )
     .bind(req.invoice_id)
     .bind(&req.app_id)
     .fetch_optional(&mut *tx)
     .await?;
 
-    if invoice_exists != Some(true) {
-        tx.rollback().await?;
-        return Err(CreditNoteError::InvoiceNotFound {
-            invoice_id: req.invoice_id,
-            app_id: req.app_id,
-        });
-    }
+    let invoice_amount_cents = match invoice_amount_cents {
+        Some(v) => v,
+        None => {
+            tx.rollback().await?;
+            return Err(CreditNoteError::InvoiceNotFound {
+                invoice_id: req.invoice_id,
+                app_id: req.app_id,
+            });
+        }
+    };
 
     // 2. Idempotency check: try to insert, skip if credit_note_id already exists
     let existing: Option<i32> = sqlx::query_scalar(
@@ -194,7 +212,26 @@ pub async fn issue_credit_note(
         });
     }
 
-    // 3. INSERT credit note (append-only)
+    // 3. Guard: total credits must not exceed invoice amount (no over-crediting)
+    let existing_credits: i64 = sqlx::query_scalar(
+        "SELECT COALESCE(SUM(amount_minor), 0)::BIGINT FROM ar_credit_notes WHERE invoice_id = $1 AND app_id = $2",
+    )
+    .bind(req.invoice_id)
+    .bind(&req.app_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    if existing_credits + req.amount_minor > invoice_amount_cents {
+        tx.rollback().await?;
+        return Err(CreditNoteError::OverCreditBalance {
+            invoice_id: req.invoice_id,
+            invoice_amount_cents,
+            existing_credits,
+            requested: req.amount_minor,
+        });
+    }
+
+    // 4. INSERT credit note (append-only)
     let now = Utc::now();
     let credit_note_row_id: i32 = sqlx::query_scalar(
         r#"

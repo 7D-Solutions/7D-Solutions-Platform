@@ -7,6 +7,8 @@
 //! 4. Unknown invoice rejected with InvoiceNotFound
 //! 5. Outbox atomicity: credit note row and outbox event are in the same transaction
 //!
+//! See ar_credit_note_balance_e2e.rs for bd-35dm tests (balance, NATS, over-credit guard).
+//!
 //! **Pattern:** No Docker, no mocks — uses live AR database pool via common::get_ar_pool()
 
 mod common;
