@@ -4,6 +4,14 @@
 > **What it covers:** NATS event bus, EventEnvelope, the outbox pattern (copy-paste ready), and the Integrations module.
 > **Parent:** [PLATFORM-CONSUMER-GUIDE.md](./PLATFORM-CONSUMER-GUIDE.md)
 
+## Contents
+
+1. [NATS Event Bus](#nats-event-bus) — subject naming, EventEnvelope (17 fields), creating envelopes, MerchantContext, idempotency, known subjects, evolution rules
+2. [Outbox Pattern — Copy This](#outbox-pattern--copy-this) — SQL migration, `enqueue_event_tx()`, background publisher
+3. [Integrations Module](#integrations-module) — inbound webhooks, external ID mapping
+
+---
+
 ## Revision History
 
 | Rev | Date | Changed By | Summary |

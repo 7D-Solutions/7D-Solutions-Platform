@@ -4,6 +4,15 @@
 > **What it covers:** Required HTTP headers, error format, identity-auth API, JWT verification in your service.
 > **Parent:** [PLATFORM-CONSUMER-GUIDE.md](./PLATFORM-CONSUMER-GUIDE.md)
 
+## Contents
+
+1. [Required HTTP Headers](#required-http-headers)
+2. [Error Response Format](#error-response-format)
+3. [Authentication (identity-auth)](#authentication-identity-auth) — register, login, refresh, JWKS, JWT claims
+4. [JWT Verification in Your Service](#jwt-verification-in-your-service) — JwtVerifier, VerifiedClaims, Axum wiring, permission strings
+
+---
+
 ## Revision History
 
 | Rev | Date | Changed By | Summary |

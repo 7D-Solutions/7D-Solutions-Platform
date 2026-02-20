@@ -4,6 +4,14 @@
 > **What it covers:** Party Master, AR Module, and the canonical "First Invoice" flow.
 > **Parent:** [PLATFORM-CONSUMER-GUIDE.md](./PLATFORM-CONSUMER-GUIDE.md)
 
+## Contents
+
+1. [Party Master](#party-master) — create company/individual, get, search, list, update, deactivate
+2. [AR Module — Customers and Invoices](#ar-module--customers-and-invoices) — create AR customer, create invoice, lookup, all endpoints
+3. [Complete "First Invoice" Flow](#complete-first-invoice-flow) — end-to-end sequence: register → login → party → AR customer → invoice
+
+---
+
 ## Revision History
 
 | Rev | Date | Changed By | Summary |

@@ -4,6 +4,19 @@
 > **What it covers:** Tenant provisioning, database-per-tenant routing, per-app roles, cross-app navigation, and support sessions.
 > **Parent:** [PLATFORM-CONSUMER-GUIDE.md](./PLATFORM-CONSUMER-GUIDE.md)
 
+## Contents
+
+1. [Tenant Provisioning](#tenant-provisioning) — provisioning flow, status check endpoint
+2. [Database-Per-Tenant Routing Pattern](#database-per-tenant-routing-pattern) — when to use, architecture overview
+   - [Axum Middleware Pattern](#axum-middleware-pattern) — pool map, request extension, handler access
+   - [Tenant Provisioning — Database Creation](#tenant-provisioning--database-creation) — NATS subscriber, create DB, run migrations, register pool
+   - [Migration Strategy](#migration-strategy) — migrate all tenants at startup
+   - [Management Database Schema](#management-database-schema-minimal)
+3. [Per-App Roles and Cross-App Navigation](#per-app-roles-and-cross-app-navigation) — permission naming, RequirePermissionsLayer, defining your strings, launch link mechanics
+4. [Support Sessions — Technical Mechanism](#support-sessions--technical-mechanism) — BFF routes, root layout polling, SupportSessionBanner
+
+---
+
 ## Revision History
 
 | Rev | Date | Changed By | Summary |

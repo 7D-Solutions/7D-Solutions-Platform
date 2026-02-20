@@ -4,6 +4,16 @@
 > **What it covers:** Environment variables, Cargo.toml path dependencies, local development setup, reference E2E test files, and the full source file index.
 > **Parent:** [PLATFORM-CONSUMER-GUIDE.md](./PLATFORM-CONSUMER-GUIDE.md)
 
+## Contents
+
+1. [Environment Variables](#environment-variables) — all required env vars, JWT_PUBLIC_KEY note, test RSA key generation
+2. [Cargo.toml Path Dependencies](#cargotoml-path-dependencies) — event-bus, security, and common dependency versions
+3. [Local Development](#local-development) — docker compose, verifying services, running your vertical app alongside platform
+4. [Reference E2E Tests](#reference-e2e-tests) — copy-from index by test file + what it demonstrates
+5. [Source File Index](#source-file-index) — find the source file for any platform topic
+
+---
+
 ## Revision History
 
 | Rev | Date | Changed By | Summary |

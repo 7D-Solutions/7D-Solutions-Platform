@@ -20,6 +20,48 @@
 
 ---
 
+## Quick Find — Go Directly to What You Need
+
+| I need to… | Go to |
+|------------|-------|
+| See all required HTTP headers | [CG-AUTH.md → Required HTTP Headers](./CG-AUTH.md#required-http-headers) |
+| Understand the error response format | [CG-AUTH.md → Error Response Format](./CG-AUTH.md#error-response-format) |
+| Register a user / log in | [CG-AUTH.md → Authentication (identity-auth)](./CG-AUTH.md#authentication-identity-auth) |
+| Refresh a JWT token | [CG-AUTH.md → Refresh Token](./CG-AUTH.md#3-refresh-token) |
+| Understand JWT claims fields | [CG-AUTH.md → JWT Claims Structure](./CG-AUTH.md#jwt-claims-structure) |
+| Set up JWT verification in my service | [CG-AUTH.md → JWT Verification in Your Service](./CG-AUTH.md#jwt-verification-in-your-service) |
+| Wire Axum auth middleware | [CG-AUTH.md → Wiring Into Axum Router](./CG-AUTH.md#wiring-into-axum-router) |
+| See available permission strings | [CG-AUTH.md → Permission Strings](./CG-AUTH.md#permission-strings) |
+| Create a company or individual (Party Master) | [CG-MODULE-APIS.md → Party Master](./CG-MODULE-APIS.md#party-master) |
+| Create an AR customer | [CG-MODULE-APIS.md → Step 1: Create an AR Customer](./CG-MODULE-APIS.md#step-1-create-an-ar-customer) |
+| Create an invoice | [CG-MODULE-APIS.md → Step 2: Create an Invoice](./CG-MODULE-APIS.md#step-2-create-an-invoice) |
+| See all AR endpoints | [CG-MODULE-APIS.md → Other AR Endpoints](./CG-MODULE-APIS.md#other-ar-endpoints) |
+| Follow the end-to-end billing flow | [CG-MODULE-APIS.md → Complete "First Invoice" Flow](./CG-MODULE-APIS.md#complete-first-invoice-flow) |
+| Understand NATS subject naming | [CG-EVENTS.md → Subject Naming Convention](./CG-EVENTS.md#subject-naming-convention) |
+| See all EventEnvelope fields | [CG-EVENTS.md → EventEnvelope Canonical Structure](./CG-EVENTS.md#eventenvelopecanonical-structure-17-fields) |
+| Build an EventEnvelope | [CG-EVENTS.md → Creating an Envelope](./CG-EVENTS.md#creating-an-envelope) |
+| Understand MerchantContext | [CG-EVENTS.md → MerchantContext](./CG-EVENTS.md#merchantcontext) |
+| Copy the outbox SQL migration | [CG-EVENTS.md → Migration: Create Outbox Tables](./CG-EVENTS.md#migration-create-outbox-tables) |
+| Copy the outbox enqueue function | [CG-EVENTS.md → Outbox Enqueue (Transactional)](./CG-EVENTS.md#outbox-enqueue-transactional) |
+| Wire the background publisher | [CG-EVENTS.md → Background Publisher](./CG-EVENTS.md#background-publisher) |
+| Receive external webhooks / GPS events | [CG-EVENTS.md → Integrations Module](./CG-EVENTS.md#integrations-module) |
+| Map internal IDs to external system IDs | [CG-EVENTS.md → External ID Mapping](./CG-EVENTS.md#external-id-mapping) |
+| Check tenant provisioning status | [CG-TENANCY.md → Tenant Provisioning](./CG-TENANCY.md#tenant-provisioning) |
+| Implement database-per-tenant isolation | [CG-TENANCY.md → Database-Per-Tenant Routing Pattern](./CG-TENANCY.md#database-per-tenant-routing-pattern) |
+| Route requests to the correct tenant DB | [CG-TENANCY.md → Axum Middleware Pattern](./CG-TENANCY.md#axum-middleware-pattern) |
+| React to `tenant.provisioned` NATS event | [CG-TENANCY.md → Tenant Provisioning — Database Creation](./CG-TENANCY.md#tenant-provisioning--database-creation) |
+| Run migrations across tenant DBs | [CG-TENANCY.md → Migration Strategy](./CG-TENANCY.md#migration-strategy) |
+| Define per-app permission strings | [CG-TENANCY.md → Per-App Roles and Cross-App Navigation](./CG-TENANCY.md#per-app-roles-and-cross-app-navigation) |
+| Understand how TCP launch links work | [CG-TENANCY.md → Cross-App Navigation](./CG-TENANCY.md#cross-app-navigation-the-launch-link) |
+| Handle support sessions in my app | [CG-TENANCY.md → Support Sessions — Technical Mechanism](./CG-TENANCY.md#support-sessions--technical-mechanism) |
+| Set required environment variables | [CG-REFERENCE.md → Environment Variables](./CG-REFERENCE.md#environment-variables) |
+| Add platform crates to Cargo.toml | [CG-REFERENCE.md → Cargo.toml Path Dependencies](./CG-REFERENCE.md#cargotoml-path-dependencies) |
+| Run platform services locally | [CG-REFERENCE.md → Local Development](./CG-REFERENCE.md#local-development) |
+| Find a reference E2E test to copy | [CG-REFERENCE.md → Reference E2E Tests](./CG-REFERENCE.md#reference-e2e-tests) |
+| Find the source file for a specific topic | [CG-REFERENCE.md → Source File Index](./CG-REFERENCE.md#source-file-index) |
+
+---
+
 ## Critical Concepts
 
 ### You are a TENANT
