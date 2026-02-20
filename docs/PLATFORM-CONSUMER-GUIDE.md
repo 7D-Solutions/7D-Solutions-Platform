@@ -12,22 +12,25 @@
 
 1. [Critical Concepts](#critical-concepts)
 2. [Ownership Boundary](#ownership-boundary)
-3. [Module Reference](#module-reference)
-4. [Required HTTP Headers](#required-http-headers)
-5. [Error Response Format](#error-response-format)
-6. [Authentication (identity-auth)](#authentication-identity-auth)
-7. [JWT Verification in Your Service](#jwt-verification-in-your-service)
-8. [Party Master](#party-master)
-9. [AR Module](#ar-module--customers-and-invoices)
-10. [Complete "First Invoice" Flow](#complete-first-invoice-flow)
-11. [NATS Event Bus](#nats-event-bus)
-12. [Outbox Pattern](#outbox-pattern--copy-this)
-13. [Integrations Module](#integrations-module)
-14. [Tenant Provisioning](#tenant-provisioning)
-15. [Data Ownership Decision Table](#data-ownership--decision-table)
-16. [Cargo.toml Dependencies](#cargotoml-path-dependencies)
-17. [Reference E2E Tests](#reference-e2e-tests)
-18. [Source File Index](#source-file-index)
+3. [Bootstrap Checklist](#bootstrap-checklist)
+4. [Module Reference](#module-reference)
+5. [Required HTTP Headers](#required-http-headers)
+6. [Error Response Format](#error-response-format)
+7. [Authentication (identity-auth)](#authentication-identity-auth)
+8. [JWT Verification in Your Service](#jwt-verification-in-your-service)
+9. [Party Master](#party-master)
+10. [AR Module](#ar-module--customers-and-invoices)
+11. [Complete "First Invoice" Flow](#complete-first-invoice-flow)
+12. [NATS Event Bus](#nats-event-bus)
+13. [Outbox Pattern](#outbox-pattern--copy-this)
+14. [Integrations Module](#integrations-module)
+15. [Tenant Provisioning](#tenant-provisioning)
+16. [Data Ownership Decision Table](#data-ownership--decision-table)
+17. [Environment Variables](#environment-variables)
+18. [Cargo.toml Dependencies](#cargotoml-path-dependencies)
+19. [Local Development](#local-development)
+20. [Reference E2E Tests](#reference-e2e-tests)
+21. [Source File Index](#source-file-index)
 
 ---
 
@@ -114,6 +117,47 @@ These crates live in the platform repo. You import them via path dependencies. N
 |-------|------|-------------|
 | `event-bus` | `platform/event-bus/` | `EventEnvelope<T>`, `MerchantContext`, `outbox::validate_and_serialize_envelope()` |
 | `security` | `platform/security/` | `JwtVerifier`, `VerifiedClaims`, `ActorType`, `ClaimsLayer`, `RequirePermissionsLayer`, permission constants |
+
+---
+
+## Bootstrap Checklist
+
+Before writing any application code, verify this sequence completes cleanly. If any step fails, stop — everything downstream depends on it.
+
+```
+1. Receive from BrightHill/orchestrator:
+   - tenant_id: UUID (your tenant's identity)
+   - app_id: string (your product slug, e.g. "trashtech-pro")
+   Both come from environment variables in production: TENANT_ID, APP_ID
+
+2. Confirm tenant is active:
+   GET http://7d-tenant-registry/api/tenants/{tenant_id}/status
+   → { "tenant_id": "<uuid>", "status": "active" }
+   If status ≠ "active" → stop. Tenant is not provisioned.
+
+3. Confirm platform modules are ready (run for each module you need):
+   GET http://7d-auth-lb:8080/api/ready   → "ok"
+   GET http://7d-party:8098/api/ready     → "ok"
+   GET http://7d-ar:8086/api/ready        → "ok"
+
+4. Create a test user and login:
+   POST http://7d-auth-lb:8080/api/auth/register
+   Body: { tenant_id, user_id: <new-uuid>, email, password }
+   → { "ok": true }
+
+   POST http://7d-auth-lb:8080/api/auth/login
+   Body: { tenant_id, email, password }
+   → { "access_token": "<jwt>", ... }
+
+5. Verify headers are correct — make one real query:
+   GET http://7d-party:8098/api/party/parties
+   Headers: x-app-id: trashtech-pro, Authorization: Bearer <jwt>, x-correlation-id: <uuid>
+   → 200 OK with empty list (not 400, not 401)
+
+   If you get 400: x-app-id is wrong or missing.
+   If you get 401: JWT is invalid or expired.
+   If you get 200 with empty list: headers are correct.
+```
 
 ---
 
@@ -269,7 +313,7 @@ Source: `platform/identity-auth/src/auth/jwt.rs` → `AccessClaims`
   "exp": 1708300900,
   "jti": "<unique-token-uuid>",
   "tenant_id": "<tenant-uuid>",
-  "app_id": "trashtech-pro",
+  "app_id": null,
   "roles": ["operator", "driver"],
   "perms": ["ar.mutate", "ar.read"],
   "actor_type": "user",
@@ -280,7 +324,7 @@ Source: `platform/identity-auth/src/auth/jwt.rs` → `AccessClaims`
 Field notes:
 - `sub` = `user_id` UUID string — use as `x-actor-id` in downstream calls
 - `actor_type` values: `"user"` | `"service"` | `"system"`
-- `app_id` may be absent (`null`) — do not rely on it always being present in token
+- `app_id`: currently always `null` in issued tokens (field exists in `AccessClaims` as `Option<String>` but is not populated). Do NOT rely on this field. The `x-app-id` HTTP header (your product slug like `"trashtech-pro"`) is separate and always required.
 - `ver` = `"1"` (current schema version)
 - For service-to-service calls: obtain a service account token with `actor_type: "service"`
 
@@ -711,7 +755,7 @@ Example schema for your `pickup_jobs` table:
 CREATE TABLE pickup_jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_party_id UUID NOT NULL,     -- Party Master party_id
-    ar_customer_id INTEGER NOT NULL,      -- AR module ar_customer_id
+    ar_customer_id INTEGER,               -- AR module ar_customer_id; NULL until billing relationship established
     status TEXT NOT NULL DEFAULT 'pending',
     scheduled_at TIMESTAMPTZ,
     -- ... your domain fields
@@ -834,7 +878,9 @@ Serialized JSON:
 { "type": "Tenant", "id": "550e8400-..." }
 ```
 
-**Always use `MerchantContext::Tenant(tenant_id)` for your events. Never use `Platform`.**
+**For TrashTech domain events: always use `MerchantContext::Tenant(tenant_id)`.** The `Platform` variant is reserved for 7D internal billing operations (e.g. when the platform invoices a tenant for its own SaaS fees). TrashTech events are never platform-of-record transactions.
+
+Rule: `merchant_context` must match the merchant of record for the transaction. TrashTech charges customers → `Tenant`. 7D charges TrashTech Pro → `Platform` (but you never emit those events).
 
 Required for financial events (invoicing, payments). Optional for non-financial (GPS pings, route updates).
 
@@ -1067,6 +1113,42 @@ When writing code, use this table to decide where data lives:
 
 ---
 
+## Environment Variables
+
+Required env vars for any module that uses platform crates. Set these in your `docker-compose.yml` and test scripts.
+
+```bash
+# Your module's Postgres connection
+DATABASE_URL=postgres://postgres:postgres@trashtech-postgres:5432/trashtech_db
+
+# NATS event bus (JetStream enabled)
+NATS_URL=nats://nats:4222
+
+# JWT public key for RS256 verification (from identity-auth)
+# In Docker: read from volume or env. In tests: set to test key.
+JWT_PUBLIC_KEY="-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
+
+# Your service's HTTP bind address
+LISTEN_ADDR=0.0.0.0
+LISTEN_PORT=8101   # pick an unused port
+
+# Your tenant identity (set by orchestrator during provisioning)
+TENANT_ID=550e8400-e29b-41d4-a716-446655440000
+APP_ID=trashtech-pro
+
+# Platform module base URLs (use container names in Docker, localhost in dev)
+PARTY_BASE_URL=http://7d-party:8098
+AR_BASE_URL=http://7d-ar:8086
+AUTH_BASE_URL=http://7d-auth-lb:8080
+
+# Log level
+RUST_LOG=info
+```
+
+**JwtVerifier::from_env() reads `JWT_PUBLIC_KEY`.** If that env var is absent, `from_env()` returns `None` (dev mode — auth bypassed). In production, always set it. In E2E tests against real platform, set it to the actual platform public key (read from identity-auth JWKS or platform ops team).
+
+---
+
 ## Cargo.toml Path Dependencies
 
 When your vertical app needs platform crates, add these to your `Cargo.toml`:
@@ -1124,6 +1206,38 @@ Source: `platform/security/Cargo.toml` confirms `event-bus = { path = "../event-
 - Never mock platform services in tests — tests must call real services
 - Never use `enqueue_event()` (non-transactional, deprecated) — use `enqueue_event_tx()` always
 - Never modify platform crates (`event-bus`, `security`) — request changes from 7D Platform agents
+
+---
+
+## Local Development
+
+To run platform services locally for integration tests:
+
+```bash
+# From the 7D Solutions Platform repo root
+docker compose up -d
+
+# Wait for services to be healthy
+docker compose ps   # all should show "healthy" or "running"
+
+# Verify key services are ready
+curl http://localhost:8080/api/ready  # identity-auth
+curl http://localhost:8086/api/ready  # AR
+curl http://localhost:8098/api/ready  # Party Master
+
+# Run a specific E2E test
+AUDIT_DATABASE_URL=postgres://postgres:postgres@localhost:5432/audit_db \
+PROJECTIONS_DATABASE_URL=postgres://postgres:postgres@localhost:5432/projections_db \
+TENANT_REGISTRY_DATABASE_URL=postgres://postgres:postgres@localhost:5432/tenant_registry_db \
+./scripts/cargo-slot.sh test -p e2e-tests -- party_master_e2e --nocapture
+```
+
+Platform services bind to localhost in development:
+- identity-auth: localhost:8080
+- AR: localhost:8086
+- Party Master: localhost:8098
+
+In Docker Compose networking (service-to-service), use container names: `7d-auth-lb`, `7d-ar`, `7d-party`.
 
 ---
 
