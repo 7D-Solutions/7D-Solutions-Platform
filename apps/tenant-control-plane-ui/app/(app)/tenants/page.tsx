@@ -4,6 +4,7 @@
 // ============================================================
 'use client';
 import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { Search, X } from 'lucide-react';
 import { Button, ViewToggle, DataTable, StatusBadge, Pagination } from '@/components/ui';
 import { usePersistedView } from '@/infrastructure/hooks/usePersistedView';
@@ -37,7 +38,15 @@ const TABLE_COLUMNS: Array<{
   header: string;
   accessor: keyof TenantSummary | ((row: TenantSummary) => React.ReactNode);
 }> = [
-  { id: 'name',       header: 'Name',    accessor: 'name' },
+  { id: 'name',       header: 'Name',    accessor: (row) => (
+    <a
+      href={`/tenants/${row.id}`}
+      className="text-[--color-primary] hover:underline font-medium"
+      data-testid="tenant-link"
+    >
+      {row.name}
+    </a>
+  ) },
   { id: 'status',     header: 'Status',  accessor: (row) => <StatusBadge status={row.status} /> },
   { id: 'plan',       header: 'Plan',    accessor: 'plan' },
   { id: 'app_id',     header: 'App ID',  accessor: (row) => row.app_id ?? '—' },
@@ -82,6 +91,7 @@ async function fetchTenants(params: {
 // ── Page component ──────────────────────────────────────────
 
 export default function TenantsPage() {
+  const router = useRouter();
   const { viewMode, setViewMode } = usePersistedView('tenants');
   const columnManager = useColumnManager('tenant-list', DEFAULT_COLUMNS);
 
@@ -240,7 +250,9 @@ export default function TenantsPage() {
             tenants.map((t) => (
               <div
                 key={t.id}
-                className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-4 hover:border-[--color-primary] transition-[--transition-fast]"
+                className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-4 hover:border-[--color-primary] transition-[--transition-fast] cursor-pointer"
+                onClick={() => router.push(`/tenants/${t.id}`)}
+                data-testid="tenant-card"
               >
                 <div className="flex items-start justify-between mb-2">
                   <h3 className="font-semibold text-[--color-text-primary]">{t.name}</h3>

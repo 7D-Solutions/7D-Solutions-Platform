@@ -88,6 +88,66 @@ export const PlanListResponseSchema = z.object({
 
 export type PlanListResponse = z.infer<typeof PlanListResponseSchema>;
 
+// ── Plan Detail (single plan with full associations) ────────
+
+export const PricingRuleSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  type: z.string(),
+  amount: z.number(),
+  currency: z.string().optional(),
+  per_unit: z.string().optional(),
+  tier_min: z.number().optional(),
+  tier_max: z.number().optional(),
+});
+
+export type PricingRule = z.infer<typeof PricingRuleSchema>;
+
+export const MeteredDimensionDetailSchema = z.object({
+  key: z.string(),
+  label: z.string(),
+  unit: z.string(),
+  included_quota: z.number().optional(),
+  overage_rate: z.number().optional(),
+});
+
+export type MeteredDimensionDetail = z.infer<typeof MeteredDimensionDetailSchema>;
+
+export const BundleRefSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.string(),
+});
+
+export type BundleRef = z.infer<typeof BundleRefSchema>;
+
+export const EntitlementRefSchema = z.object({
+  id: z.string(),
+  key: z.string(),
+  label: z.string(),
+  value_type: z.string(),
+  value: z.union([z.string(), z.number(), z.boolean()]),
+});
+
+export type EntitlementRef = z.infer<typeof EntitlementRefSchema>;
+
+export const PlanDetailSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  pricing_model: z.string(),
+  included_seats: z.number(),
+  status: z.string(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+  pricing_rules: z.array(PricingRuleSchema),
+  metered_dimensions: z.array(MeteredDimensionDetailSchema),
+  bundles: z.array(BundleRefSchema),
+  entitlements: z.array(EntitlementRefSchema),
+});
+
+export type PlanDetail = z.infer<typeof PlanDetailSchema>;
+
 // ── Plan Status Options ─────────────────────────────────────
 
 export const PLAN_STATUS_OPTIONS = [
@@ -125,3 +185,98 @@ export const MarkReadRequestSchema = z.object({
 });
 
 export type MarkReadRequest = z.infer<typeof MarkReadRequestSchema>;
+
+// ── Bundle Summary (list item — lightweight, no composition) ─
+
+export const BundleSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.string(),
+  entitlement_count: z.number(),
+  created_at: z.string().optional(),
+});
+
+export type BundleSummary = z.infer<typeof BundleSummarySchema>;
+
+// ── Bundle List Response (paginated) ─────────────────────────
+
+export const BundleListResponseSchema = z.object({
+  bundles: z.array(BundleSummarySchema),
+  total: z.number(),
+  page: z.number(),
+  page_size: z.number(),
+});
+
+export type BundleListResponse = z.infer<typeof BundleListResponseSchema>;
+
+// ── Bundle Detail (full composition) ─────────────────────────
+
+export const BundleDetailSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.string(),
+  description: z.string().optional(),
+  entitlements: z.array(EntitlementRefSchema),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+});
+
+export type BundleDetail = z.infer<typeof BundleDetailSchema>;
+
+// ── Bundle Status Options ────────────────────────────────────
+
+export const BUNDLE_STATUS_OPTIONS = [
+  { value: '', label: 'All statuses' },
+  { value: 'active', label: 'Active' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'archived', label: 'Archived' },
+] as const;
+
+// ── Tenant Detail (single tenant) ──────────────────────────
+
+export const TenantDetailSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.string(),
+  plan: z.string(),
+  app_id: z.string().optional(),
+  created_at: z.string().optional(),
+  updated_at: z.string().optional(),
+  activated_at: z.string().optional(),
+  suspended_at: z.string().optional(),
+  terminated_at: z.string().optional(),
+  user_count: z.number().optional(),
+  seat_limit: z.number().optional(),
+});
+
+export type TenantDetail = z.infer<typeof TenantDetailSchema>;
+
+// ── Tenant Plan Summary ─────────────────────────────────────
+
+export const TenantPlanSummarySchema = z.object({
+  plan_id: z.string(),
+  plan_name: z.string(),
+  pricing_model: z.string(),
+  included_seats: z.number(),
+  metered_dimensions: z.array(z.string()),
+  assigned_at: z.string().optional(),
+});
+
+export type TenantPlanSummary = z.infer<typeof TenantPlanSummarySchema>;
+
+// ── Health Snapshot (service readiness) ─────────────────────
+
+export const ServiceHealthSchema = z.object({
+  service: z.string(),
+  status: z.enum(['available', 'degraded', 'unavailable']),
+  latency_ms: z.number().optional(),
+});
+
+export type ServiceHealth = z.infer<typeof ServiceHealthSchema>;
+
+export const HealthSnapshotSchema = z.object({
+  services: z.array(ServiceHealthSchema),
+  checked_at: z.string(),
+});
+
+export type HealthSnapshot = z.infer<typeof HealthSnapshotSchema>;
