@@ -11,6 +11,7 @@
 | 1.0 | 2026-02-20 | Platform Orchestrator | Created. Unified standard consolidating docs/frontend/DOC-REVISION-STANDARDS.md and docs/CG-DOC-STANDARDS.md. Both reduced to pointers to this file. |
 | 1.1 | 2026-02-20 | Platform Orchestrator | Added Cross-Repo Reference section — single symlink convention, setup instructions, what apps must not do, app-level governance model. |
 | 1.2 | 2026-02-20 | Platform Orchestrator | Replaced per-app symlink pattern with canonical /Users/james/Projects/platform-docs/ folder. Single entry point for all projects; apps symlink to it. |
+| 1.3 | 2026-02-20 | Platform Orchestrator | Moved Consumer Guide files into docs/consumer-guide/ subfolder. Now matches docs/frontend/ naming pattern. Updated Cross-Repo Reference paths and Consumer Guide file listing. |
 
 ---
 
@@ -45,12 +46,12 @@ ln -s /Users/james/Projects/platform-docs docs/platform
 After that, every platform doc is accessible at a stable repo-relative path:
 
 ```
-docs/platform/PLATFORM-CONSUMER-GUIDE.md       ← master API reference index
-docs/platform/CG-AUTH.md                        ← authentication + HTTP protocol
-docs/platform/CG-TENANCY.md                     ← tenancy patterns + DB-per-tenant
-docs/platform/DOC-STANDARDS.md                  ← this file
-docs/platform/frontend/PLATFORM-COMPONENTS.md   ← UI component specs
-docs/platform/frontend/TCP-UI-VISION.md         ← TCP product vision
+docs/platform/consumer-guide/PLATFORM-CONSUMER-GUIDE.md  ← master API reference index
+docs/platform/consumer-guide/CG-AUTH.md                   ← authentication + HTTP protocol
+docs/platform/consumer-guide/CG-TENANCY.md                ← tenancy patterns + DB-per-tenant
+docs/platform/DOC-STANDARDS.md                             ← this file
+docs/platform/frontend/PLATFORM-COMPONENTS.md              ← UI component specs
+docs/platform/frontend/TCP-UI-VISION.md                    ← TCP product vision
 ```
 
 No copies. Changes to platform docs are immediately visible in all apps — no sync required.
@@ -230,12 +231,12 @@ These documents exist so agents can implement correctly without asking the user 
 
 ## Consumer Guide — Specific Rules
 
-*These rules apply only to `docs/CG-*.md` and `docs/PLATFORM-CONSUMER-GUIDE.md`.*
+*These rules apply only to `docs/consumer-guide/CG-*.md` and `docs/consumer-guide/PLATFORM-CONSUMER-GUIDE.md`.*
 
 ### What Files Belong Here
 
 ```
-docs/
+docs/consumer-guide/
   PLATFORM-CONSUMER-GUIDE.md    ← master index — first file any agent opens
   CG-DOC-STANDARDS.md           ← pointer to this file (DOC-STANDARDS.md)
   CG-AUTH.md                    ← HTTP headers, error format, identity-auth, JWT verification
@@ -283,8 +284,8 @@ Consumer Guide files are API reference, not vision or design docs. They do not h
 
 ### Adding a New Consumer Guide Topic File
 
-1. Create `docs/CG-[TOPIC].md` with the required structure
-2. Add a row to the Topic Files table in `PLATFORM-CONSUMER-GUIDE.md`
+1. Create `docs/consumer-guide/CG-[TOPIC].md` with the required structure
+2. Add a row to the Topic Files table in `docs/consumer-guide/PLATFORM-CONSUMER-GUIDE.md`
 3. Add Quick Find rows for every section in the new file
 4. Add the new file to "What Files Belong Here" in this standards doc
 5. Commit the new file and all index updates in the same commit
