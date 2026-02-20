@@ -5,7 +5,7 @@
 #
 # Usage:
 #   ./scripts/seed-platform-admin.sh                  # interactive prompts
-#   ./scripts/seed-platform-admin.sh --email james@7dsolutions.dev --password 'PlatformAdmin1'
+#   ./scripts/seed-platform-admin.sh --email james@7dsolutions.app --password 'PlatformAdmin1'
 #
 # Environment overrides:
 #   AUTH_URL           identity-auth base URL  (default: http://localhost:8080)
@@ -26,12 +26,12 @@ AUTH_DB_USER="${AUTH_DB_USER:-auth_user}"
 
 # ── Helper: run SQL against auth DB via docker exec ──────────
 run_sql() {
-  docker exec "$AUTH_DB_CONTAINER" \
+  docker exec -i "$AUTH_DB_CONTAINER" \
     psql -U "$AUTH_DB_USER" -d "$AUTH_DB_NAME" -v ON_ERROR_STOP=1 "$@"
 }
 
 run_sql_quiet() {
-  docker exec "$AUTH_DB_CONTAINER" \
+  docker exec -i "$AUTH_DB_CONTAINER" \
     psql -U "$AUTH_DB_USER" -d "$AUTH_DB_NAME" -v ON_ERROR_STOP=1 -tAq "$@"
 }
 
