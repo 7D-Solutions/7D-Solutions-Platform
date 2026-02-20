@@ -3,7 +3,7 @@
 // Filters: actor, action type, tenant ID, date range
 // ============================================================
 'use client';
-import { useState, useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Search, X, Eye } from 'lucide-react';
 import {
@@ -103,8 +103,18 @@ export default function AuditPage() {
 
   const debouncedActor = useSearchDebounce(searchTerm);
 
-  // Date range state (not persisted — resets on page load)
-  const [dateRange, setDateRange] = useState<DateRange>({ start: '', end: '' });
+  // Date range derived from filter store (date_from / date_to fields)
+  const dateRange: DateRange = useMemo(
+    () => ({ start: String(filters.date_from ?? ''), end: String(filters.date_to ?? '') }),
+    [filters.date_from, filters.date_to],
+  );
+  const setDateRange = useCallback(
+    (range: DateRange) => {
+      setFilter('date_from', range.start);
+      setFilter('date_to', range.end);
+    },
+    [setFilter],
+  );
 
   // Detail modal via tab-aware modal store (ESLint: no local selection state)
   const AUDIT_DETAIL_MODAL = 'AUDIT_DETAIL';
@@ -147,10 +157,9 @@ export default function AuditPage() {
   const handleClearAll = useCallback(() => {
     clearFilters();
     setSearchTerm('');
-    setDateRange({ start: '', end: '' });
   }, [clearFilters, setSearchTerm]);
 
-  const hasAnyFilter = hasActiveFilters || !!debouncedActor || !!dateRange.start || !!dateRange.end;
+  const hasAnyFilter = hasActiveFilters || !!debouncedActor;
 
   // Table column definitions with render functions
   const TABLE_COLUMNS: Array<{
