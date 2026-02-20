@@ -11,38 +11,42 @@ import { Button } from '@/components/ui/Button';
 import { NotificationCenter } from '@/components/ui/NotificationCenter';
 import { IdleWarningModal } from '@/components/ui/IdleWarningModal';
 import { useIdleTimeout } from '@/infrastructure/hooks/useIdleTimeout';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 
 const navItems = [
-  { label: 'Tenants',  href: '/app/tenants',  icon: Users       },
-  { label: 'Billing',  href: '/app/billing',   icon: CreditCard  },
-  { label: 'Reports',  href: '/app/reports',   icon: BarChart2   },
-  { label: 'IAM',      href: '/app/iam',        icon: Shield      },
-  { label: 'Settings', href: '/app/settings',  icon: Settings    },
+  { label: 'Tenants',  href: '/tenants',  icon: Users       },
+  { label: 'Billing',  href: '/billing',   icon: CreditCard  },
+  { label: 'Reports',  href: '/reports',   icon: BarChart2   },
+  { label: 'IAM',      href: '/iam',        icon: Shield      },
+  { label: 'Settings', href: '/settings',  icon: Settings    },
 ];
 
 async function logout() {
   await fetch('/api/auth/logout', { method: 'POST' });
-  window.location.href = '/app/login';
+  window.location.href = '/login';
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [showIdleWarning, setShowIdleWarning] = useState(false);
 
+  // Stable callback refs — prevent useIdleTimeout effects from re-running
+  const handleIdleWarning = useCallback(() => setShowIdleWarning(true), []);
+  const handleIdleTimeout = useCallback(() => {
+    setShowIdleWarning(false);
+    logout();
+  }, []);
+
   const { remainingMs, resetTimer } = useIdleTimeout({
-    onWarning: () => setShowIdleWarning(true),
-    onTimeout: () => {
-      setShowIdleWarning(false);
-      logout();
-    },
+    onWarning: handleIdleWarning,
+    onTimeout: handleIdleTimeout,
     enabled: true,
   });
 
-  const handleStayLoggedIn = () => {
+  const handleStayLoggedIn = useCallback(() => {
     setShowIdleWarning(false);
     resetTimer();
-  };
+  }, [resetTimer]);
 
   return (
     <>

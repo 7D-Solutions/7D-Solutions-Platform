@@ -11,7 +11,7 @@ test.describe('View Toggle', () => {
   });
 
   test('defaults to row view on first load', async ({ page }) => {
-    await page.goto('/app/tenants');
+    await page.goto('/tenants');
     await expect(page.getByTestId('row-view')).toBeVisible();
     await expect(page.getByTestId('card-view')).not.toBeVisible();
     // List button should be pressed
@@ -20,7 +20,7 @@ test.describe('View Toggle', () => {
   });
 
   test('toggle switches from row to card view', async ({ page }) => {
-    await page.goto('/app/tenants');
+    await page.goto('/tenants');
     await expect(page.getByTestId('row-view')).toBeVisible();
 
     await page.getByRole('button', { name: 'Card view' }).click();
@@ -31,7 +31,7 @@ test.describe('View Toggle', () => {
   });
 
   test('toggle switches from card back to row view', async ({ page }) => {
-    await page.goto('/app/tenants');
+    await page.goto('/tenants');
 
     await page.getByRole('button', { name: 'Card view' }).click();
     await expect(page.getByTestId('card-view')).toBeVisible();
@@ -42,7 +42,7 @@ test.describe('View Toggle', () => {
   });
 
   test('preference persists across page reload', async ({ page }) => {
-    await page.goto('/app/tenants');
+    await page.goto('/tenants');
 
     // Switch to card view
     await page.getByRole('button', { name: 'Card view' }).click();
@@ -60,7 +60,7 @@ test.describe('View Toggle', () => {
   });
 
   test('preference persists across navigation', async ({ page }) => {
-    await page.goto('/app/tenants');
+    await page.goto('/tenants');
 
     // Switch to card view
     await page.getByRole('button', { name: 'Card view' }).click();
@@ -70,7 +70,7 @@ test.describe('View Toggle', () => {
     await page.waitForTimeout(1500);
 
     // Navigate away and back
-    await page.goto('/app/tenants');
+    await page.goto('/tenants');
 
     // Card view should persist
     await expect(page.getByTestId('card-view')).toBeVisible();

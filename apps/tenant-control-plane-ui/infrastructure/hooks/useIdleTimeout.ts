@@ -25,12 +25,6 @@ export interface UseIdleTimeoutReturn {
  * Tracks user inactivity and fires onWarning / onTimeout callbacks.
  * Default: 30-minute timeout with a 5-minute warning window.
  * Activity events: mousemove, keydown, click, scroll, touchstart.
- *
- * @example
- * const { isWarning, resetTimer } = useIdleTimeout({
- *   onWarning: () => setShowWarningModal(true),
- *   onTimeout: () => logout(),
- * });
  */
 export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTimeoutReturn {
   const { onWarning, onTimeout, enabled = true } = options;
@@ -43,6 +37,13 @@ export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTime
   const warningFiredRef = useRef(false);
   const timeoutFiredRef = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Store callbacks in refs to avoid effect re-runs when caller
+  // passes inline arrow functions (which change identity every render).
+  const onWarningRef = useRef(onWarning);
+  const onTimeoutRef = useRef(onTimeout);
+  useEffect(() => { onWarningRef.current = onWarning; }, [onWarning]);
+  useEffect(() => { onTimeoutRef.current = onTimeout; }, [onTimeout]);
 
   const resetTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
@@ -96,13 +97,13 @@ export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTime
       if (remaining <= IDLE_WARNING_MS && remaining > 0 && !warningFiredRef.current) {
         warningFiredRef.current = true;
         setIsWarning(true);
-        onWarning?.();
+        onWarningRef.current?.();
       }
 
       if (remaining <= 0 && !timeoutFiredRef.current) {
         timeoutFiredRef.current = true;
         setIsWarning(false);
-        onTimeout?.();
+        onTimeoutRef.current?.();
       }
     };
 
@@ -112,7 +113,7 @@ export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTime
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [enabled, isPaused, onWarning, onTimeout]);
+  }, [enabled, isPaused]);
 
   return { remainingMs, isWarning, resetTimer, pauseTimer, resumeTimer };
 }

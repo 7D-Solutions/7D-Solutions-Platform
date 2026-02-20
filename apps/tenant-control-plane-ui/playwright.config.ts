@@ -25,13 +25,15 @@ export default defineConfig({
     },
   ],
 
-  // Start the Next.js dev server automatically if not already running
+  // Start the Next.js server automatically if not already running.
+  // Uses production build (npm run start) for faster startup; falls back to dev.
+  // CI skips auto-start — assumes server is already running.
   webServer: process.env.CI
     ? undefined
     : {
-        command: 'npm run dev',
+        command: process.env.PW_USE_DEV ? 'npm run dev' : 'npm run start',
         url: 'http://localhost:3000',
         reuseExistingServer: true,
-        timeout: 60_000,
+        timeout: 120_000,
       },
 });

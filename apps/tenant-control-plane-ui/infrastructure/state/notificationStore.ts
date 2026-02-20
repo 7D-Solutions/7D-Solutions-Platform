@@ -4,6 +4,7 @@
 // ============================================================
 'use client';
 import { create } from 'zustand';
+import { useShallow } from 'zustand/shallow';
 
 export type NotificationSeverity = 'info' | 'success' | 'warning' | 'error';
 
@@ -81,10 +82,12 @@ export const useNotificationStore = create<NotificationStoreState>()((set) => ({
 export const useNotifications = () => useNotificationStore((s) => s.notifications);
 export const useUnreadCount = () => useNotificationStore((s) => s.unreadCount);
 export const useNotificationActions = () =>
-  useNotificationStore((s) => ({
-    addNotification: s.addNotification,
-    markAsRead: s.markAsRead,
-    markAllAsRead: s.markAllAsRead,
-    dismissNotification: s.dismissNotification,
-    clearAll: s.clearAll,
-  }));
+  useNotificationStore(
+    useShallow((s) => ({
+      addNotification: s.addNotification,
+      markAsRead: s.markAsRead,
+      markAllAsRead: s.markAllAsRead,
+      dismissNotification: s.dismissNotification,
+      clearAll: s.clearAll,
+    }))
+  );

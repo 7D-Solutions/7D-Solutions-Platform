@@ -5,6 +5,7 @@
 'use client';
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/shallow';
 
 export interface TabData {
   id: string;
@@ -203,18 +204,20 @@ export const useTabs = () => useTabStore((s) => s.tabs);
 export const useActiveTabId = () => useTabStore((s) => s.activeTabId);
 export const useSplitView = () => useTabStore((s) => s.splitView);
 export const useTabActions = () =>
-  useTabStore((s) => ({
-    openTab: s.openTab,
-    closeTab: s.closeTab,
-    setActiveTab: s.setActiveTab,
-    updateTab: s.updateTab,
-    reorderTabs: s.reorderTabs,
-    promotePreviewTab: s.promotePreviewTab,
-    enableSplitView: s.enableSplitView,
-    disableSplitView: s.disableSplitView,
-    setDividerPosition: s.setDividerPosition,
-    closeAllTabs: s.closeAllTabs,
-    closeOtherTabs: s.closeOtherTabs,
-    getTab: s.getTab,
-    findTabByRoute: s.findTabByRoute,
-  }));
+  useTabStore(
+    useShallow((s) => ({
+      openTab: s.openTab,
+      closeTab: s.closeTab,
+      setActiveTab: s.setActiveTab,
+      updateTab: s.updateTab,
+      reorderTabs: s.reorderTabs,
+      promotePreviewTab: s.promotePreviewTab,
+      enableSplitView: s.enableSplitView,
+      disableSplitView: s.disableSplitView,
+      setDividerPosition: s.setDividerPosition,
+      closeAllTabs: s.closeAllTabs,
+      closeOtherTabs: s.closeOtherTabs,
+      getTab: s.getTab,
+      findTabByRoute: s.findTabByRoute,
+    }))
+  );
