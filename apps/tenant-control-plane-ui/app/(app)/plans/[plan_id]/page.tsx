@@ -4,7 +4,7 @@
 // and entitlements via a single BFF aggregation endpoint.
 // ============================================================
 'use client';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { Button, StatusBadge } from '@/components/ui';
@@ -39,6 +39,7 @@ function formatPricingModel(model: string): string {
 export default function PlanDetailPage() {
   const params = useParams<{ plan_id: string }>();
   const planId = params.plan_id;
+  const router = useRouter();
   const { openTab } = useTabActions();
 
   const { data: plan, isLoading, isError } = useQuery({
@@ -49,6 +50,7 @@ export default function PlanDetailPage() {
 
   const handleBackToList = () => {
     openTab({ id: 'plans-list', title: 'Plans & Pricing', route: '/plans', closeable: true, isPreview: false });
+    router.push('/plans');
   };
 
   // ── Loading state ─────────────────────────────────────────
