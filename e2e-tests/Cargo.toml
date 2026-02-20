@@ -148,6 +148,10 @@ name = "writeoff_gl_posting_e2e"
 path = "tests/writeoff_gl_posting_e2e.rs"
 
 [[test]]
+name = "ar_write_off_e2e"
+path = "tests/ar_write_off_e2e.rs"
+
+[[test]]
 name = "dunning_state_machine_e2e"
 path = "tests/dunning_state_machine_e2e.rs"
 
@@ -390,6 +394,10 @@ path = "tests/payments_ar_settlement_e2e.rs"
 [[test]]
 name = "ar_aging_report_e2e"
 path = "tests/ar_aging_report_e2e.rs"
+
+[[test]]
+name = "notifications_ar_chain_e2e"
+path = "tests/notifications_ar_chain_e2e.rs"
 
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
