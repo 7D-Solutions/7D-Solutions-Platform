@@ -19,9 +19,16 @@
 ```
 docs/
   frontend/
-    DOC-REVISION-STANDARDS.md          ← this file
-    PLATFORM-FRONTEND-STANDARDS.md     ← shared rules for all platform apps
-    TCP-UI-VISION.md                   ← Tenant Control Plane UI product vision
+    DOC-REVISION-STANDARDS.md          ← this file — how all docs in this folder are maintained
+    PLATFORM-FRONTEND-STANDARDS.md     ← INDEX — start here, then go to the topic file you need
+    PLATFORM-COMPONENTS.md             ← CSS tokens, Button, StatusBadge, Modal, DataTable, forms
+    PLATFORM-STATE.md                  ← Zustand stores, standard hooks, ESLint enforcement
+    PLATFORM-LANGUAGE.md               ← Language rules, formatter standards (date/currency/numeric)
+    PLATFORM-NOTIFICATIONS.md          ← Toast, notification center, browser notifications prohibited
+    PLATFORM-MOBILE.md                 ← Mobile constraints, offline pattern, multi-audience apps
+    PLATFORM-FOUNDATION.md             ← Foundation bead checklist, Infrastructure Map, testing
+    TCP-UI-VISION.md                   ← Tenant Control Plane UI product vision (Phase 41)
+    [app]-VISION.md                    ← Each app adds its vision doc here when planning begins
   apps/
     trashtech/                          ← symlink → /Users/james/Projects/TrashTech/docs/
     [next-app]/                         ← symlink → each app's docs/ folder
@@ -29,7 +36,7 @@ docs/
     fireproof/                          ← symlink → /Users/james/Projects/Fireproof/frontend
 ```
 
-Each app adds its own vision document here when its planning begins.
+Each app adds its own vision document here when its planning begins. Platform topic documents are maintained by the Platform Orchestrator — see Governance section.
 
 ---
 
