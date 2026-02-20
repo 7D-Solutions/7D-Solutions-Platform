@@ -10,48 +10,80 @@
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-20 | Platform Orchestrator | Created. Unified standard consolidating docs/frontend/DOC-REVISION-STANDARDS.md and docs/CG-DOC-STANDARDS.md. Both reduced to pointers to this file. |
 | 1.1 | 2026-02-20 | Platform Orchestrator | Added Cross-Repo Reference section — single symlink convention, setup instructions, what apps must not do, app-level governance model. |
+| 1.2 | 2026-02-20 | Platform Orchestrator | Replaced per-app symlink pattern with canonical /Users/james/Projects/platform-docs/ folder. Single entry point for all projects; apps symlink to it. |
 
 ---
 
 ## Cross-Repo Reference — How Apps Access Platform Docs
 
-All platform documentation lives in the platform repo under `docs/`. Vertical apps (TrashTech Pro, future apps) access it via a single symlink:
+### The Canonical Folder
+
+All platform documentation is accessible at a single, clearly-labeled location on this machine:
 
 ```
-[app-repo]/docs/platform/  →  symlink →  /path/to/7D-Solutions Platform/docs/
+/Users/james/Projects/platform-docs/
 ```
 
-**What the symlink gives you:** every platform doc at a stable repo-relative path.
+This is a symlink → `7D-Solutions Platform/docs/`. It is the single entry point for all platform documentation. Every project on this machine uses this path.
+
+If the platform repo ever moves, only this one symlink needs updating — nothing inside any app repo changes.
+
+### How Apps Point to It
+
+Each app repo creates one symlink under its own `docs/` folder:
 
 ```
-docs/platform/PLATFORM-CONSUMER-GUIDE.md    ← master API reference index
-docs/platform/CG-AUTH.md                    ← authentication details
-docs/platform/CG-TENANCY.md                 ← tenancy patterns
-docs/platform/DOC-STANDARDS.md              ← this file
-docs/platform/frontend/PLATFORM-COMPONENTS.md  ← UI component specs
-docs/platform/frontend/TCP-UI-VISION.md        ← TCP product vision
+[app-repo]/docs/platform/  →  /Users/james/Projects/platform-docs/
 ```
 
-**Setting up a new app:**
+**Setting up a new app (one-time):**
 ```bash
-ln -s "/path/to/7D-Solutions Platform/docs" docs/platform
+cd /path/to/your-app-repo
+ln -s /Users/james/Projects/platform-docs docs/platform
 ```
 
-One symlink. No copies. Changes to platform docs are immediately visible to all apps via the symlink — no sync required.
+After that, every platform doc is accessible at a stable repo-relative path:
 
-**The reverse direction** — platform reads app docs:
-The platform maintains its own symlinks into each app's docs folder:
 ```
-[platform-repo]/docs/apps/trashtech/  →  symlink →  /path/to/TrashTech/docs/
-[platform-repo]/docs/apps/[next-app]/ →  symlink →  /path/to/NextApp/docs/
+docs/platform/PLATFORM-CONSUMER-GUIDE.md       ← master API reference index
+docs/platform/CG-AUTH.md                        ← authentication + HTTP protocol
+docs/platform/CG-TENANCY.md                     ← tenancy patterns + DB-per-tenant
+docs/platform/DOC-STANDARDS.md                  ← this file
+docs/platform/frontend/PLATFORM-COMPONENTS.md   ← UI component specs
+docs/platform/frontend/TCP-UI-VISION.md         ← TCP product vision
 ```
 
-**What apps must NOT do:**
-- Never copy platform docs into your repo — copies go stale
+No copies. Changes to platform docs are immediately visible in all apps — no sync required.
+
+### The Reverse Direction — Platform Reads App Docs
+
+The platform also maintains symlinks into each app's docs folder, so platform agents can read app vision docs:
+
+```
+[platform-repo]/docs/apps/trashtech/  →  /Users/james/Projects/TrashTech/docs/
+[platform-repo]/docs/apps/[next-app]/ →  /Users/james/Projects/NextApp/docs/
+```
+
+**Adding a new app to the platform's view:**
+```bash
+cd "/Users/james/Projects/7D-Solutions Platform"
+ln -s /Users/james/Projects/NewApp/docs docs/apps/newapp
+```
+
+### What Apps Must NOT Do
+
+- Never copy platform docs into your repo — copies go stale immediately
 - Never write absolute paths in documents — use `docs/platform/...` (repo-relative via symlink)
-- Never modify files under `docs/platform/` — that directory is read-only from the app's perspective. Submit a change request.
+- Never modify files under `docs/platform/` — it is read-only from the app's perspective. Submit a change request to Platform Orchestrator.
 
-**App-level doc governance** belongs in the app's own standards file (e.g. `docs/standards/DOC-STANDARDS.md` in TrashTech). It covers app-specific rules and references this file for platform standards. It does not duplicate platform rules.
+### App-Level Doc Governance
+
+Each app maintains its own standards file (e.g. `docs/standards/DOC-STANDARDS.md` in TrashTech). It covers:
+- App-specific doc structure and rules
+- References to this file for platform-wide rules
+- How to submit change requests to Platform Orchestrator
+
+It does not duplicate platform rules.
 
 ---
 
