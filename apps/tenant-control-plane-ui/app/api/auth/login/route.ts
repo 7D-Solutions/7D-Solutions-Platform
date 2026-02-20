@@ -5,7 +5,7 @@
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify, decodeJwt } from 'jose';
-import { AUTH_COOKIE_NAME, REQUIRED_ROLE, IDENTITY_AUTH_BASE_URL } from '@/lib/constants';
+import { AUTH_COOKIE_NAME, REQUIRED_ROLE, IDENTITY_AUTH_BASE_URL, PLATFORM_TENANT_ID } from '@/lib/constants';
 
 export async function POST(req: NextRequest) {
   let body: { email?: string; password?: string };
@@ -23,10 +23,10 @@ export async function POST(req: NextRequest) {
   // Forward credentials to identity-auth service
   let upstreamRes: Response;
   try {
-    upstreamRes = await fetch(`${IDENTITY_AUTH_BASE_URL}/auth/login`, {
+    upstreamRes = await fetch(`${IDENTITY_AUTH_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ tenant_id: PLATFORM_TENANT_ID, email, password }),
     });
   } catch {
     return NextResponse.json({ error: 'Auth service unavailable' }, { status: 503 });
@@ -39,14 +39,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Login failed' }, { status: upstreamRes.status });
   }
 
-  let data: { token?: string };
+  let data: { access_token?: string };
   try {
     data = await upstreamRes.json();
   } catch {
     return NextResponse.json({ error: 'Invalid upstream response' }, { status: 502 });
   }
 
-  const token = data.token;
+  const token = data.access_token;
   if (!token) {
     return NextResponse.json({ error: 'No token in response' }, { status: 502 });
   }

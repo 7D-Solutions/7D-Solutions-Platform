@@ -7,7 +7,7 @@
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server';
 import { guardPlatformAdmin, getStaffClaims } from '@/lib/server/auth';
-import { IDENTITY_AUTH_BASE_URL } from '@/lib/constants';
+import { IDENTITY_AUTH_BASE_URL, PLATFORM_TENANT_ID } from '@/lib/constants';
 
 export async function POST(req: NextRequest) {
   const auth = await guardPlatformAdmin();
@@ -33,10 +33,10 @@ export async function POST(req: NextRequest) {
 
   // Forward re-auth to identity-auth login endpoint
   try {
-    const res = await fetch(`${IDENTITY_AUTH_BASE_URL}/auth/login`, {
+    const res = await fetch(`${IDENTITY_AUTH_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: claims.email, password }),
+      body: JSON.stringify({ tenant_id: PLATFORM_TENANT_ID, email: claims.email, password }),
       signal: AbortSignal.timeout(5000),
     });
 

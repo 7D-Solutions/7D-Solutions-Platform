@@ -36,6 +36,12 @@ export const SUPPORT_SESSION_COOKIE_NAME = 'tcp_support_session';
 // Required role for TCP access
 export const REQUIRED_ROLE = 'platform_admin';
 
+// Well-known tenant ID for the platform itself.
+// Platform staff accounts (admins who operate the TCP) live under this tenant.
+// This is NOT a customer tenant — it exists solely so identity-auth can scope
+// platform credentials the same way it scopes every other tenant's credentials.
+export const PLATFORM_TENANT_ID = '00000000-0000-0000-0000-000000000000';
+
 // Backend service base URLs (used ONLY in BFF routes — never in browser code)
 // These are set via environment variables
 export const IDENTITY_AUTH_BASE_URL = process.env.IDENTITY_AUTH_BASE_URL ?? 'http://localhost:8090';
