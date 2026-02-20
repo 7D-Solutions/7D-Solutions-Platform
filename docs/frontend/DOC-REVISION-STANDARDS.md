@@ -8,19 +8,48 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-20 | BrightHill | Created. Adopted as cross-app standard with TopazElk. |
+| 1.1 | 2026-02-20 | BrightHill | Added Cross-Repo Path Convention section and full docs/ directory structure. Symlinks created: docs/apps/trashtech and docs/reference/fireproof. Eliminates absolute paths across all docs. |
 
 ---
 
 ## What Documents Live Here
 
 ```
-docs/frontend/
-  DOC-REVISION-STANDARDS.md          ← this file
-  PLATFORM-FRONTEND-STANDARDS.md     ← shared rules for all platform apps
-  TCP-UI-VISION.md                   ← Tenant Control Plane UI product vision
+docs/
+  frontend/
+    DOC-REVISION-STANDARDS.md          ← this file
+    PLATFORM-FRONTEND-STANDARDS.md     ← shared rules for all platform apps
+    TCP-UI-VISION.md                   ← Tenant Control Plane UI product vision
+  apps/
+    trashtech/                          ← symlink → /Users/james/Projects/TrashTech/docs/
+    [next-app]/                         ← symlink → each app's docs/ folder
+  reference/
+    fireproof/                          ← symlink → /Users/james/Projects/Fireproof/frontend
 ```
 
 Each app adds its own vision document here when its planning begins.
+
+---
+
+## Cross-Repo Path Convention
+
+Never use absolute paths in documents. Use repo-relative paths via symlinks.
+
+**Structure:**
+- `docs/apps/<app-name>/` — symlink to each vertical app's `docs/` folder
+- `docs/reference/<project-name>/` — symlink to reference projects (Fireproof, etc.)
+
+**Examples:**
+- TrashTech vision doc: `docs/apps/trashtech/VISION.md`
+- Fireproof ESLint rules: `docs/reference/fireproof/eslint-local-rules/`
+- Platform standards (from TrashTech repo): `docs/platform/frontend/PLATFORM-FRONTEND-STANDARDS.md`
+
+**Adding a new app:** Create the symlink before writing any doc that references that app.
+```bash
+ln -s /Users/james/Projects/MyApp/docs docs/apps/myapp
+```
+
+**Why:** Absolute paths break when the machine changes or the repo moves. Repo-relative paths via symlinks work anywhere the symlinks are set up.
 
 ---
 

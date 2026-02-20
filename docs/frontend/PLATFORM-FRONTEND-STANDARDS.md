@@ -15,6 +15,7 @@
 | 1.2 | 2026-02-20 | BrightHill | Added Toast vs Modal Threshold section and Real-Time Updates section. Added customer-facing language rules. |
 | 1.3 | 2026-02-20 | BrightHill | Genericized per user directive: removed all product-specific content. TrashTech status types, navigation model specifics, and audience names removed — belong in each app's vision doc. Updated StatusBadge to document audience prop and extension pattern. Clarified shared vs app-specific colors. |
 | 1.4 | 2026-02-20 | BrightHill | Added Revision History (this table), Decision Log, pointer to DOC-REVISION-STANDARDS.md. Adopted cross-app doc standard proposed by TopazElk. Moved to docs/frontend/ subfolder. Updated App Vision Documents paths. |
+| 1.5 | 2026-02-20 | BrightHill | Replaced all absolute paths with repo-relative symlink paths (docs/apps/trashtech/, docs/reference/fireproof/). No content changes — path references only. |
 
 ---
 
@@ -127,7 +128,7 @@ All design values are defined as CSS custom properties in `app/globals.css`. Tai
 >   - Future apps: define in their vision doc
 
 ### Typography, Spacing, Shadows, Z-Index
-Full token reference: `/Users/james/Projects/Fireproof/frontend/src/styles/tokens.css`
+Full token reference: `docs/reference/fireproof/src/styles/tokens.css`
 Port this directly into each app's `globals.css`.
 
 ### Component Size System
@@ -353,7 +354,7 @@ Custom ESLint rules are active from day one. Violations fail the build. No excep
 | `no-local-selection-state` | `useState` for selections — use `useSelectionStore` |
 | `no-local-view-state` | `useState` for tab/step/collapse — use `useViewStore` |
 
-Reference implementation: `/Users/james/Projects/Fireproof/frontend/eslint-local-rules/`
+Reference implementation: `docs/reference/fireproof/eslint-local-rules/`
 
 ---
 
@@ -408,7 +409,7 @@ Every app must maintain an `INFRASTRUCTURE_MAP.md` in its `infrastructure/` dire
 - Is the first document an agent reads before touching any UI code
 - Is updated whenever new infrastructure is added
 
-Reference: `/Users/james/Projects/Fireproof/frontend/src/infrastructure/INFRASTRUCTURE_MAP.md`
+Reference: `docs/reference/fireproof/src/infrastructure/INFRASTRUCTURE_MAP.md`
 
 ---
 
@@ -544,7 +545,7 @@ Each app maintains its own vision document with app-specific decisions:
 | App | Vision Document |
 |-----|----------------|
 | Tenant Control Plane UI | `docs/frontend/TCP-UI-VISION.md` (this repo) |
-| TrashTech Pro | `/Users/james/Projects/TrashTech/docs/VISION.md` |
+| TrashTech Pro | `docs/apps/trashtech/VISION.md` |
 
 ---
 

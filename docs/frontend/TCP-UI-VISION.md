@@ -10,6 +10,7 @@
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-20 | BrightHill | Created document. Navigation structure, design philosophy, language standards, full scope (A–H), design system, tab system, unsaved changes, column manager, modal system, Zustand stores, ESLint rules, technical constraints, open questions, decision log. |
 | 1.1 | 2026-02-20 | BrightHill | Added Revision History, Decided By column to Decision Log, expanded rationale to include what was rejected. Moved to docs/frontend/TCP-UI-VISION.md. Adopted TopazElk cross-app doc standard. |
+| 1.2 | 2026-02-20 | BrightHill | Replaced all absolute Fireproof paths with repo-relative symlink paths (docs/reference/fireproof/). No content changes — path references only. |
 
 ---
 
@@ -244,7 +245,7 @@ Token categories defined here:
 - **Z-index** — named layers (dropdown, modal, tooltip, notification)
 - **Transitions** — named duration + easing values
 
-Reference: `/Users/james/Projects/Fireproof/frontend/src/styles/tokens.css` — port this directly, adapting values as needed.
+Reference: `docs/reference/fireproof/src/styles/tokens.css` — port this directly, adapting values as needed.
 
 ### What the Foundation Bead Must Deliver
 
@@ -276,7 +277,7 @@ The application uses a browser-tab-like interface — staff can have multiple te
 
 **Tab scoping:** All state (form data, filters, search, column config, modals) is scoped to the active tab ID. Switching tabs switches context completely without losing data in either tab.
 
-Reference implementation: `/Users/james/Projects/Fireproof/frontend/src/infrastructure/components/TabManager/` and `/infrastructure/state/tabStore.ts`
+Reference implementation: `docs/reference/fireproof/src/infrastructure/components/TabManager/` and `docs/reference/fireproof/src/infrastructure/state/tabStore.ts`
 
 ---
 
@@ -292,7 +293,7 @@ A collapsible panel shown on any form with pending changes. Shows a field-by-fie
 
 **Tab close:** If a tab has `isDirty: true`, closing it opens a confirmation modal (not a native dialog) listing unsaved fields. Staff confirm before the tab closes.
 
-Reference: `/Users/james/Projects/Fireproof/frontend/src/infrastructure/hooks/useBeforeUnload.ts` and `/infrastructure/components/UnsavedChangesPanel.tsx`
+Reference: `docs/reference/fireproof/src/infrastructure/hooks/useBeforeUnload.ts` and `docs/reference/fireproof/src/infrastructure/components/UnsavedChangesPanel.tsx`
 
 ---
 
@@ -307,7 +308,7 @@ Every data table in the application supports:
 
 A dedicated "edit columns" mode toggles drag handles and visibility checkboxes on the table header. Changes apply and save when exiting edit mode.
 
-Reference: `/Users/james/Projects/Fireproof/frontend/src/infrastructure/hooks/useColumnManager.ts`
+Reference: `docs/reference/fireproof/src/infrastructure/hooks/useColumnManager.ts`
 
 ---
 
@@ -324,7 +325,7 @@ All modals use the centralized `Modal` component. No `window.confirm()`, no `win
 - **Size from tokens** — sm / md / lg / xl, never hardcoded pixel widths
 - **Composition pattern**: `Modal.Header`, `Modal.Body`, `Modal.Actions`, `Modal.Tabs` — consistent structure everywhere
 
-Reference: `/Users/james/Projects/Fireproof/frontend/src/infrastructure/components/Modal.tsx`
+Reference: `docs/reference/fireproof/src/infrastructure/components/Modal.tsx`
 
 ---
 
@@ -364,7 +365,7 @@ Custom ESLint rules enforce the infrastructure — no agent or developer can acc
 
 These rules are active from day one. Violations fail the build.
 
-Reference: `/Users/james/Projects/Fireproof/frontend/eslint-local-rules/`
+Reference: `docs/reference/fireproof/eslint-local-rules/`
 
 ---
 
@@ -372,7 +373,7 @@ Reference: `/Users/james/Projects/Fireproof/frontend/eslint-local-rules/`
 
 The Foundation bead must produce an `INFRASTRUCTURE_MAP.md` in `apps/tenant-control-plane-ui/src/infrastructure/` documenting every centralized system — what it is, how to use it, and what it replaces. This is the first document new agents read.
 
-Reference: `/Users/james/Projects/Fireproof/frontend/src/infrastructure/INFRASTRUCTURE_MAP.md`
+Reference: `docs/reference/fireproof/src/infrastructure/INFRASTRUCTURE_MAP.md`
 
 ---
 
