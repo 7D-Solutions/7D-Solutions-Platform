@@ -316,6 +316,10 @@ name = "fixed_assets_end_to_end"
 path = "tests/fixed_assets_end_to_end.rs"
 
 [[test]]
+name = "fixed_assets_depreciation_e2e"
+path = "tests/fixed_assets_depreciation_e2e.rs"
+
+[[test]]
 name = "audit_oracle"
 path = "tests/audit_oracle.rs"
 
