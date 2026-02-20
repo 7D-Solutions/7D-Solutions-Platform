@@ -146,7 +146,7 @@ test.describe('Plan Assignment', () => {
     await page.getByTestId('change-plan-btn').click();
     await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
 
-    // Modal should show the current plan
-    await expect(page.getByText('Current plan:')).toBeVisible({ timeout: 5000 });
+    // Modal should show the current plan (scoped to dialog to avoid duplicate)
+    await expect(page.getByRole('dialog').getByText('Current plan:')).toBeVisible({ timeout: 5000 });
   });
 });

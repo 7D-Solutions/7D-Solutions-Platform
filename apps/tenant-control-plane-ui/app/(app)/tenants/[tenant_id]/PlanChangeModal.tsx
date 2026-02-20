@@ -101,7 +101,7 @@ export function PlanChangeModal({ tenantId, currentPlan, isOpen, onClose }: Plan
 
   return (
     <Modal isOpen={isOpen} title="Change Plan" onClose={onClose} size="sm">
-      <form onSubmit={onSubmit}>
+      <form onSubmit={onSubmit} noValidate>
         <Modal.Body>
           <div className="space-y-4">
             {currentPlan && (
