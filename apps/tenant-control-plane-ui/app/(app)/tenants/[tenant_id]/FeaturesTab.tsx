@@ -1,16 +1,18 @@
 // ============================================================
 // FeaturesTab — Effective entitlements with source attribution
 // Shows server-derived entitlements with plan/bundle/override source,
-// search filtering, and empty/loading/error states.
+// search filtering, Grant/Revoke override actions with justification modal.
 // ============================================================
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchStore } from '@/infrastructure/state/useSearchStore';
 import { useSearchDebounce } from '@/infrastructure/hooks/useSearchDebounce';
+import { Button, Modal } from '@/components/ui';
 import { REFETCH_INTERVAL_MS } from '@/lib/constants';
-import type { EffectiveEntitlementListResponse } from '@/lib/api/types';
+import { FeatureOverrideRequestSchema } from '@/lib/api/types';
+import type { EffectiveEntitlement, EffectiveEntitlementListResponse } from '@/lib/api/types';
 
 // ── Data fetcher ─────────────────────────────────────────────
 
@@ -18,6 +20,24 @@ async function fetchEffectiveFeatures(tenantId: string): Promise<EffectiveEntitl
   const res = await fetch(`/api/tenants/${encodeURIComponent(tenantId)}/features/effective`);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+async function submitOverride(
+  tenantId: string,
+  payload: { entitlement_code: string; action: 'grant' | 'revoke'; justification: string },
+): Promise<void> {
+  const res = await fetch(
+    `/api/tenants/${encodeURIComponent(tenantId)}/features/override`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: 'Unknown error' }));
+    throw new Error(body.error ?? `HTTP ${res.status}`);
+  }
 }
 
 // ── Source badge ─────────────────────────────────────────────
@@ -47,6 +67,131 @@ function formatGranted(value: string | number | boolean): string {
   return String(value);
 }
 
+// ── Override modal ───────────────────────────────────────────
+
+interface OverrideTarget {
+  entitlement: EffectiveEntitlement;
+  action: 'grant' | 'revoke';
+}
+
+function OverrideModal({
+  target,
+  tenantId,
+  onClose,
+  onSuccess,
+}: {
+  target: OverrideTarget;
+  tenantId: string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [justification, setJustification] = useState('');
+  const [validationError, setValidationError] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      submitOverride(tenantId, {
+        entitlement_code: target.entitlement.code,
+        action: target.action,
+        justification,
+      }),
+    onSuccess: () => {
+      onSuccess();
+      onClose();
+    },
+  });
+
+  const handleSubmit = () => {
+    // Client-side validation using the same Zod schema
+    const result = FeatureOverrideRequestSchema.shape.justification.safeParse(justification);
+    if (!result.success) {
+      setValidationError(result.error.issues[0]?.message ?? 'Justification is required');
+      return;
+    }
+    setValidationError('');
+    mutation.mutate();
+  };
+
+  const actionLabel = target.action === 'grant' ? 'Grant Override' : 'Revoke Override';
+  const actionVariant = target.action === 'grant' ? 'primary' : 'danger';
+
+  return (
+    <Modal
+      isOpen
+      title={actionLabel}
+      onClose={onClose}
+      size="sm"
+    >
+      <Modal.Body>
+        <div className="space-y-4">
+          <p className="text-sm text-[--color-text-primary]">
+            {target.action === 'grant'
+              ? <>Grant an override for <strong>{target.entitlement.name}</strong> (<code className="text-xs">{target.entitlement.code}</code>).</>
+              : <>Revoke the override for <strong>{target.entitlement.name}</strong> (<code className="text-xs">{target.entitlement.code}</code>). The entitlement will revert to its plan/bundle default.</>
+            }
+          </p>
+
+          <div>
+            <label
+              htmlFor="override-justification"
+              className="block text-sm font-medium text-[--color-text-primary] mb-1"
+            >
+              Justification <span className="text-[--color-danger]">*</span>
+            </label>
+            <textarea
+              id="override-justification"
+              value={justification}
+              onChange={(e) => {
+                setJustification(e.target.value);
+                if (validationError) setValidationError('');
+              }}
+              placeholder="Explain why this override is needed..."
+              rows={3}
+              maxLength={500}
+              className="w-full px-3 py-2 text-sm rounded-[--radius-md] border border-[--color-border-default] bg-[--color-bg-primary] text-[--color-text-primary] placeholder:text-[--color-text-muted] focus:outline-none focus:ring-2 focus:ring-[--color-primary] resize-none"
+              data-testid="override-justification"
+            />
+            <div className="flex justify-between mt-1">
+              <span className="text-xs text-[--color-danger]" data-testid="override-validation-error">
+                {validationError}
+              </span>
+              <span className="text-xs text-[--color-text-muted]">
+                {justification.length}/500
+              </span>
+            </div>
+          </div>
+
+          {mutation.isError && (
+            <p className="text-sm text-[--color-danger]" data-testid="override-mutation-error">
+              {mutation.error.message}
+            </p>
+          )}
+        </div>
+      </Modal.Body>
+      <Modal.Actions>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onClose}
+          // Cancel is not a mutation — no cooldown needed
+          disableCooldown
+        >
+          Cancel
+        </Button>
+        <Button
+          variant={actionVariant as 'primary' | 'danger'}
+          size="sm"
+          loading={mutation.isPending}
+          onClick={handleSubmit}
+          data-testid="override-confirm-btn"
+        >
+          {actionLabel}
+        </Button>
+      </Modal.Actions>
+    </Modal>
+  );
+}
+
 // ── Component ────────────────────────────────────────────────
 
 interface FeaturesTabProps {
@@ -54,9 +199,11 @@ interface FeaturesTabProps {
 }
 
 export function FeaturesTab({ tenantId }: FeaturesTabProps) {
+  const queryClient = useQueryClient();
   const { searchTerm, setSearchTerm } = useSearchStore('features');
   const debouncedSearch = useSearchDebounce(searchTerm);
   const [sourceFilter, setSourceFilter] = useState('');
+  const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
 
   const featuresQuery = useQuery({
     queryKey: ['tenant', tenantId, 'features', 'effective'],
@@ -86,6 +233,10 @@ export function FeaturesTab({ tenantId }: FeaturesTabProps) {
     }
     return result;
   }, [entitlements, debouncedSearch, sourceFilter]);
+
+  const handleOverrideSuccess = () => {
+    queryClient.invalidateQueries({ queryKey: ['tenant', tenantId, 'features', 'effective'] });
+  };
 
   return (
     <div data-testid="features-tab">
@@ -168,6 +319,9 @@ export function FeaturesTab({ tenantId }: FeaturesTabProps) {
                 <th className="px-4 py-3 text-left text-xs font-semibold text-[--color-text-secondary] uppercase tracking-wide">
                   Details
                 </th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-[--color-text-secondary] uppercase tracking-wide">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -200,12 +354,64 @@ export function FeaturesTab({ tenantId }: FeaturesTabProps) {
                     )}
                     {!ent.source_name && !ent.justification && '—'}
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    <OverrideActions
+                      entitlement={ent}
+                      onAction={(action) => setOverrideTarget({ entitlement: ent, action })}
+                    />
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       )}
+
+      {/* Override modal */}
+      {overrideTarget && (
+        <OverrideModal
+          target={overrideTarget}
+          tenantId={tenantId}
+          onClose={() => setOverrideTarget(null)}
+          onSuccess={handleOverrideSuccess}
+        />
+      )}
     </div>
+  );
+}
+
+// ── Override action buttons per row ──────────────────────────
+
+function OverrideActions({
+  entitlement,
+  onAction,
+}: {
+  entitlement: EffectiveEntitlement;
+  onAction: (action: 'grant' | 'revoke') => void;
+}) {
+  // Override source: show Revoke button
+  if (entitlement.source === 'override') {
+    return (
+      <Button
+        variant="danger"
+        size="xs"
+        onClick={() => onAction('revoke')}
+        data-testid="override-revoke-btn"
+      >
+        Revoke
+      </Button>
+    );
+  }
+
+  // Plan or bundle source: show Grant Override button
+  return (
+    <Button
+      variant="outline"
+      size="xs"
+      onClick={() => onAction('grant')}
+      data-testid="override-grant-btn"
+    >
+      Override
+    </Button>
   );
 }

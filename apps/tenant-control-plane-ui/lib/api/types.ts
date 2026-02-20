@@ -407,6 +407,16 @@ export const EffectiveEntitlementListResponseSchema = z.object({
 
 export type EffectiveEntitlementListResponse = z.infer<typeof EffectiveEntitlementListResponseSchema>;
 
+// ── Feature Override Request (grant/revoke) ─────────────────
+
+export const FeatureOverrideRequestSchema = z.object({
+  entitlement_code: z.string().min(1, 'Entitlement code is required'),
+  action: z.enum(['grant', 'revoke']),
+  justification: z.string().min(1, 'Justification is required').max(500, 'Justification must be 500 characters or fewer'),
+});
+
+export type FeatureOverrideRequest = z.infer<typeof FeatureOverrideRequestSchema>;
+
 // ── Invoice Summary (tenant-scoped list item) ────────────────
 
 export const InvoiceSummarySchema = z.object({
