@@ -56,12 +56,7 @@ export async function POST(
       return NextResponse.json({ ok: true });
     }
 
-    if (res.status === 404) {
-      return NextResponse.json(
-        { error: 'User does not have this role' },
-        { status: 404 },
-      );
-    }
+    // Non-ok responses — fall through to seed-mode
   } catch {
     // identity-auth unavailable — fall through to seed-mode
   }

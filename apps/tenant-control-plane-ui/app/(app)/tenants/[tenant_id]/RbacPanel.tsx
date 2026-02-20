@@ -8,7 +8,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Modal, StatusBadge } from '@/components/ui';
+import { Button, Modal } from '@/components/ui';
 import { REFETCH_INTERVAL_MS } from '@/lib/constants';
 import type {
   RbacSnapshotResponse,
@@ -367,14 +367,17 @@ function UserRoleRow({
                 data-testid="rbac-assigned-role"
               >
                 {role.name}
-                <button
+                <Button
+                  variant="ghost"
+                  size="xs"
                   onClick={() => onRevoke(userGrant, role)}
-                  className="ml-0.5 text-blue-600 hover:text-red-600 font-bold"
+                  className="ml-0.5 !p-0 !min-w-0 text-blue-600 hover:text-red-600 font-bold"
                   title={`Revoke ${role.name}`}
                   data-testid="rbac-revoke-btn"
+                  disableCooldown
                 >
                   ×
-                </button>
+                </Button>
               </span>
             ))
           )}
@@ -397,17 +400,20 @@ function UserRoleRow({
                 data-testid="rbac-grant-picker"
               >
                 {grantableRoles.map((role) => (
-                  <button
+                  <Button
                     key={role.id}
+                    variant="ghost"
+                    size="sm"
                     onClick={() => {
                       setShowGrantPicker(false);
                       onGrant(userGrant, role);
                     }}
-                    className="block w-full px-3 py-2 text-left text-sm text-[--color-text-primary] hover:bg-[--color-bg-secondary] transition-[--transition-fast]"
+                    className="!block w-full !text-left !rounded-none !px-3 !py-2 text-sm text-[--color-text-primary] hover:bg-[--color-bg-secondary]"
                     data-testid="rbac-grant-option"
+                    disableCooldown
                   >
                     {role.name}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}

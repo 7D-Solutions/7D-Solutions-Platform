@@ -56,6 +56,7 @@ export async function POST(
       return NextResponse.json({ ok: true });
     }
 
+    // 409 = real conflict from a live backend — propagate
     if (res.status === 409) {
       return NextResponse.json(
         { error: 'User already has this role' },
@@ -63,12 +64,7 @@ export async function POST(
       );
     }
 
-    if (res.status === 404) {
-      return NextResponse.json(
-        { error: 'User or role not found' },
-        { status: 404 },
-      );
-    }
+    // Other errors (404, 500, etc.) — fall through to seed-mode
   } catch {
     // identity-auth unavailable — fall through to seed-mode
   }

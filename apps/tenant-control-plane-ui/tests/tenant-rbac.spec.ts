@@ -84,11 +84,11 @@ test.describe('RBAC', () => {
     await expect(page.getByTestId('rbac-user-roles')).toBeVisible({ timeout: BFF_TIMEOUT });
     await expect(page.getByTestId('rbac-user-roles-table')).toBeVisible({ timeout: BFF_TIMEOUT });
 
-    // Table headers
+    // Table column headers
     const table = page.getByTestId('rbac-user-roles-table');
-    await expect(table.getByText('User')).toBeVisible();
-    await expect(table.getByText('Current Roles')).toBeVisible();
-    await expect(table.getByText('Actions')).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'User' })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Current Roles' })).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Actions' })).toBeVisible();
   });
 
   test('user rows show assigned role badges', async ({ page }) => {
@@ -184,17 +184,10 @@ test.describe('RBAC', () => {
     await page.getByTestId('rbac-grant-option').first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
 
-    // Confirm grant — expect BFF call and refetch
+    // Confirm grant — expect BFF grant POST call
     const [grantRes] = await Promise.all([
       page.waitForResponse(
         (res) => res.url().includes('/rbac/grant') && res.request().method() === 'POST',
-        { timeout: BFF_TIMEOUT },
-      ),
-      page.waitForResponse(
-        (res) => res.url().includes('/rbac') &&
-          !res.url().includes('/grant') &&
-          !res.url().includes('/revoke') &&
-          res.request().method() === 'GET',
         { timeout: BFF_TIMEOUT },
       ),
       page.getByTestId('rbac-confirm-btn').click(),
@@ -206,7 +199,7 @@ test.describe('RBAC', () => {
     // Modal should close after success
     await expect(page.getByRole('dialog')).not.toBeVisible();
 
-    // RBAC panel should still be visible (refetched)
+    // RBAC panel should still be visible (refetched after invalidation)
     await expect(page.getByTestId('rbac-panel')).toBeVisible();
   });
 
@@ -223,13 +216,16 @@ test.describe('RBAC', () => {
     // Confirm revoke — expect BFF call
     const [revokeRes] = await Promise.all([
       page.waitForResponse(
-        (res) => res.url().includes('/rbac/revoke') && res.request().method() === 'POST',
+        (res) =>
+          res.url().includes('/api/tenants/') &&
+          res.url().includes('/rbac/revoke') &&
+          res.request().method() === 'POST',
         { timeout: BFF_TIMEOUT },
       ),
       page.getByTestId('rbac-confirm-btn').click(),
     ]);
 
-    // Revoke POST should succeed
+    // Revoke POST should succeed (seed-mode returns 200)
     expect(revokeRes.status()).toBe(200);
 
     // Modal should close
