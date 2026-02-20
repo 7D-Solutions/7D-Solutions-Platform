@@ -7,7 +7,7 @@
 // via Playwright addInitScript to use shortened durations.
 // ============================================================
 'use client';
-import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { IDLE_TIMEOUT_MS, IDLE_WARNING_MS } from '@/lib/constants';
 
 /** Window-level test overrides (set by Playwright addInitScript) */
@@ -51,15 +51,13 @@ export interface UseIdleTimeoutReturn {
 export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTimeoutReturn {
   const { onWarning, onTimeout, enabled = true } = options;
 
-  // Read config once on mount (supports test overrides via window globals)
-  const { timeoutMs, warningMs } = useMemo(() => getIdleConfig(), []);
-  // Adaptive check interval: 1s for short timeouts (tests), 5s for production
-  const checkIntervalMs = timeoutMs < 60_000 ? 1000 : 5000;
-
-  const [remainingMs, setRemainingMs] = useState(timeoutMs);
+  const [remainingMs, setRemainingMs] = useState(IDLE_TIMEOUT_MS);
   const [isWarning, setIsWarning] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  // Delays checker start until client-side config (including test overrides) is loaded
+  const [configReady, setConfigReady] = useState(false);
 
+  const configRef = useRef({ timeoutMs: IDLE_TIMEOUT_MS, warningMs: IDLE_WARNING_MS });
   const lastActivityRef = useRef(Date.now());
   const warningFiredRef = useRef(false);
   const timeoutFiredRef = useRef(false);
@@ -72,13 +70,22 @@ export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTime
   useEffect(() => { onWarningRef.current = onWarning; }, [onWarning]);
   useEffect(() => { onTimeoutRef.current = onTimeout; }, [onTimeout]);
 
+  // Read config on mount — picks up test overrides from window globals
+  useEffect(() => {
+    const config = getIdleConfig();
+    configRef.current = config;
+    lastActivityRef.current = Date.now();
+    setRemainingMs(config.timeoutMs);
+    setConfigReady(true);
+  }, []);
+
   const resetTimer = useCallback(() => {
     lastActivityRef.current = Date.now();
-    setRemainingMs(timeoutMs);
+    setRemainingMs(configRef.current.timeoutMs);
     setIsWarning(false);
     warningFiredRef.current = false;
     timeoutFiredRef.current = false;
-  }, [timeoutMs]);
+  }, []);
 
   const pauseTimer = useCallback(() => setIsPaused(true), []);
 
@@ -95,7 +102,7 @@ export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTime
 
   // Activity listeners (throttled to 1s)
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !configReady) return;
 
     const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'] as const;
     let throttle: ReturnType<typeof setTimeout> | null = null;
@@ -111,11 +118,15 @@ export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTime
       events.forEach((e) => window.removeEventListener(e, throttled));
       if (throttle) clearTimeout(throttle);
     };
-  }, [handleActivity, enabled]);
+  }, [handleActivity, enabled, configReady]);
 
-  // Idle checker
+  // Idle checker — waits for configReady so test overrides are applied
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !configReady) return;
+
+    const { timeoutMs, warningMs } = configRef.current;
+    // Adaptive interval: 1s for short timeouts (tests), 5s for production
+    const checkMs = timeoutMs < 60_000 ? 1000 : 5000;
 
     const check = () => {
       if (isPaused) return;
@@ -136,13 +147,13 @@ export function useIdleTimeout(options: UseIdleTimeoutOptions = {}): UseIdleTime
       }
     };
 
-    intervalRef.current = setInterval(check, checkIntervalMs);
+    intervalRef.current = setInterval(check, checkMs);
     check();
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [enabled, isPaused, timeoutMs, warningMs, checkIntervalMs]);
+  }, [enabled, isPaused, configReady]);
 
   return { remainingMs, isWarning, resetTimer, pauseTimer, resumeTimer };
 }
