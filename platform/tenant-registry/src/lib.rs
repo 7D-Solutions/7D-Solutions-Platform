@@ -11,6 +11,7 @@ pub mod routes;
 pub mod plans;
 pub mod seed;
 pub mod health;
+pub mod tenant_crud;
 
 // Re-export commonly used types
 pub use schema::{
@@ -58,6 +59,15 @@ pub use routes::{
 };
 
 pub use plans::plans_router;
+
+pub use tenant_crud::{
+    derive_name,
+    tenant_list_router,
+    tenant_detail_router,
+    TenantListResponse,
+    TenantSummaryDto,
+    TenantDetailDto,
+};
 
 pub use seed::{
     seed_gl_module,

@@ -9,11 +9,14 @@
 ///   POST /api/control/platform-billing-runs            — Run the platform billing cycle for a period
 ///   GET  /api/tenants/:tenant_id/app-id               — Resolve tenant_id → app_id (for TTP billing)
 ///   GET  /api/ttp/plans                               — List platform billing plans (plan catalog)
+///   GET  /api/tenants                                 — Paginated tenant list (BFF-compatible)
+///   GET  /api/tenants/:tenant_id                      — Tenant detail with derived name and seat_limit
 
 use axum::{extract::State, http::StatusCode, routing::{get, post}, Json, Router};
 use std::sync::Arc;
 use tenant_registry::routes::{summary_router, entitlements_router, status_router, app_id_router, SummaryState};
 use tenant_registry::plans_router;
+use tenant_registry::{tenant_list_router, tenant_detail_router};
 
 use crate::handlers;
 use crate::state::AppState;
@@ -65,6 +68,8 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
         .merge(status_router(summary_state.clone()))
         .merge(app_id_router(summary_state.clone()))
         .merge(plans_router(summary_state.pool.clone()))
+        .merge(tenant_list_router(summary_state.pool.clone()))
+        .merge(tenant_detail_router(summary_state.pool.clone()))
 }
 
 /// Build only the provisioning router (for testing without summary state)
