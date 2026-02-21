@@ -8,6 +8,7 @@
 
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
+| 1.5 | 2026-02-21 | MaroonHarbor (bd-3gct) | Gate 2 built: detect_version_intent.sh + ci.yml gate2-detect-intent/gate2-image-build jobs. Documented tag scheme. Updated Implementation Status table. |
 | 1.4 | 2026-02-20 | Platform Orchestrator | Gate 1 built: pre-commit hook installed. Doc audit: archived superseded docs, identity-auth REVISIONS.md backfilled. |
 | 1.3 | 2026-02-20 | Platform Orchestrator | ChatGPT round 3: canonical module naming, which-file-to-bump rules, docs-only exception, upgrade ordering for breaking changes, deployment config source of truth, proof completeness principle. |
 | 1.2 | 2026-02-20 | Platform Orchestrator | ChatGPT round 2: 1.0.0 reserved rule, no unproven in production, explicit bump mechanics, deploy-time manifest diff check, mandatory compat lines, proof command requirement, platform compat window definition. |
@@ -78,7 +79,7 @@ Any change to a proven module creates a new revision. The agent must:
 2. Add a row to `REVISIONS.md` describing what changed, why, and whether it is breaking
 3. Commit with the bead ID and version bump: `[bd-xxx] {module} v1.0.0 → v1.0.1: description`
 4. Tag the commit: `git tag {module-name}-v1.0.1` (the committing agent creates the tag)
-5. CI builds and pushes the new versioned image to the registry (manual until CI is automated — see Implementation Status)
+5. Gate 2 CI builds and pushes the new versioned image to the registry automatically when the commit lands on main
 
 The new version is now available in the registry. No product uses it until the product team explicitly adopts it.
 
@@ -320,7 +321,7 @@ Rollbacks are version changes like any other — they go through the manifest an
    - Current proof scripts: `proof_ar.sh`, `proof_control_plane.sh`, `proof_payments.sh`, `proof_tenant_registry.sh`, `proof_ttp.sh`
 5. Commit with: `[bd-xxx] {module} v1.0.0: initial proof`
 6. Tag the commit: `git tag {module-name}-v1.0.0`
-7. Build and push the versioned image (CI does this when automated; manual until then — see Implementation Status).
+7. Build and push the versioned image — Gate 2 CI does this automatically when the version bump is pushed to main (see Implementation Status).
 
 ---
 
@@ -331,11 +332,40 @@ This section states what is operational today and what is coming.
 | Gate | Status | Enforcement today |
 |------|--------|-------------------|
 | Gate 1: Pre-commit hook | **Built and installed.** | `scripts/pre-commit-version-check.sh` — rejects commits to proven modules without version bump + REVISIONS.md entry. Installed via symlink at `.git/hooks/pre-commit`. |
-| Gate 2: CI image pipeline | **Not yet built.** | Manual image build and push. Agent or orchestrator runs `docker build` and `docker push` after tests pass. CI automation will be added. |
+| Gate 2: CI image pipeline | **Built and live.** | `scripts/versioning/detect_version_intent.sh` detects version bumps on push to main. `.github/workflows/ci.yml` jobs `gate2-detect-intent` + `gate2-image-build` then build and push immutable images. Tag format: `{version}-{git-sha7}`. No `latest`, no overwrite. |
 | Gate 3: Product manifests | **Convention.** | Products maintain `MODULE-MANIFEST.md` and reference pinned versions in deployment config. No automated manifest-vs-deployment validation yet. |
-| Container registry | **Not yet selected.** | Registry provider and credentials are a deployment decision. Until selected, images are built locally with version tags. |
+| Container registry | **Not yet selected.** | Registry provider and credentials are a deployment decision. `IMAGE_REGISTRY` repository variable controls the prefix (default: `7dsolutions`). `DOCKER_USERNAME` / `DOCKER_PASSWORD` secrets are required for Gate 2 pushes. |
 
-**Until Gate 2 is automated:** After committing a version bump to a proven module, the agent or orchestrator must manually build and tag the Docker image. The commit message should note the version bump so the image build is not forgotten.
+### Gate 2: Tag scheme
+
+Images pushed by Gate 2 use the following tag format:
+
+```
+{registry}/{module-name}:{version}-{git-sha7}
+```
+
+**Fields:**
+- `registry` — controlled by the `IMAGE_REGISTRY` repository variable (default: `7dsolutions`)
+- `module-name` — canonical module name (folder name under `modules/`, `platform/`, or `apps/`)
+- `version` — version from the module's package file (`Cargo.toml` or `package.json`) at the time of the push
+- `git-sha7` — first 7 characters of the commit SHA
+
+**Examples:**
+```
+7dsolutions/ar:1.0.1-a1b2c3d
+7dsolutions/identity-auth:1.1.0-f4e5d6c
+7dsolutions/tenant-control-plane-ui:0.3.0-b7c8d9e
+```
+
+**Invariants enforced by `scripts/staging/push_images.sh`:**
+1. Refuses to push any image tagged `latest`
+2. Refuses to overwrite an existing tag in the registry
+3. Requires `--confirm` flag (prevents accidental pushes)
+
+**Trigger condition:** Gate 2 fires on any push to `main` where `scripts/versioning/detect_version_intent.sh` detects one of:
+- A version field bump in a `modules/*/Cargo.toml` or `platform/*/Cargo.toml`
+- A version field bump in an `apps/*/package.json`
+- Any change to a `MODULE-MANIFEST.md` file
 
 ---
 

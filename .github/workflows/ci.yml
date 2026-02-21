@@ -885,3 +885,100 @@ jobs:
         env:
           RUST_LOG: info
           AUDIT_DATABASE_URL: postgresql://audit_user:audit_pass@localhost:5440/audit_db
+
+  # ---------------------------------------------------------------------------
+  # Gate 2: CI builds and publishes immutable images on version-intent merges.
+  # Only runs on push to main when a version-intent change is detected.
+  # Tag format: {version}-{git-sha7}  (never 'latest', never overwritten)
+  # See docs/VERSIONING.md § Gate 2 for the full spec.
+  # ---------------------------------------------------------------------------
+  gate2-detect-intent:
+    name: "Gate 2: Detect Version Intent"
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    outputs:
+      has_intent: ${{ steps.detect.outputs.has_intent }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect version intent
+        id: detect
+        run: |
+          BASE="${{ github.event.before }}"
+          HEAD="${{ github.sha }}"
+          # Guard: first push or force-push sends all-zero base SHA
+          if [[ -z "$BASE" || "$BASE" == "0000000000000000000000000000000000000000" ]]; then
+            BASE="HEAD~1"
+          fi
+          if bash scripts/versioning/detect_version_intent.sh "$BASE" "$HEAD"; then
+            echo "has_intent=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_intent=false" >> "$GITHUB_OUTPUT"
+            echo "No version intent detected — Gate 2 image build skipped."
+          fi
+
+  gate2-image-build:
+    name: "Gate 2: Build & Push Immutable Images"
+    runs-on: ubuntu-latest
+    needs: gate2-detect-intent
+    if: needs.gate2-detect-intent.outputs.has_intent == 'true'
+    env:
+      IMAGE_REGISTRY: ${{ vars.IMAGE_REGISTRY || '7dsolutions' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to container registry
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Set up Node.js (for npm version extraction)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build all service images
+        env:
+          IMAGE_REGISTRY: ${{ env.IMAGE_REGISTRY }}
+        run: |
+          bash scripts/staging/build_images.sh
+          echo "✓ All images built with immutable tags"
+
+      - name: Push images to registry (immutable tags, no overwrite)
+        env:
+          IMAGE_REGISTRY: ${{ env.IMAGE_REGISTRY }}
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          bash scripts/staging/push_images.sh --confirm
+          echo "✓ All images pushed"
+
+      - name: Record image manifest
+        run: |
+          bash scripts/staging/list_versions.sh --json > gate2-image-manifest.json
+          cat gate2-image-manifest.json
+
+      - name: Upload image manifest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gate2-image-manifest-${{ github.sha }}
+          path: gate2-image-manifest.json
+          retention-days: 90
+
+      - name: Summary
+        run: |
+          echo "## Gate 2: Immutable Images Published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Registry:** ${{ env.IMAGE_REGISTRY }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag format:** \`{version}-{git-sha7}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Images pushed:" >> $GITHUB_STEP_SUMMARY
+          bash scripts/staging/list_versions.sh >> $GITHUB_STEP_SUMMARY
