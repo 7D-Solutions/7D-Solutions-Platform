@@ -34,6 +34,7 @@ pub struct Config {
     pub host: String,
     pub port: u16,
     pub party_master_url: String,
+    pub webhook_secret: String,
 }
 
 impl Config {
@@ -102,6 +103,20 @@ impl Config {
         let party_master_url =
             env::var("PARTY_MASTER_URL").unwrap_or_else(|_| "http://7d-party:8098".to_string());
 
+        // Required: TILLED_WEBHOOK_SECRET_TRASHTECH or TILLED_WEBHOOK_SECRET
+        let webhook_secret = env::var("TILLED_WEBHOOK_SECRET_TRASHTECH")
+            .or_else(|_| env::var("TILLED_WEBHOOK_SECRET"))
+            .map_err(|_| {
+                "TILLED_WEBHOOK_SECRET (or TILLED_WEBHOOK_SECRET_TRASHTECH) is required. \
+                 Webhook signature verification cannot proceed without a configured secret. \
+                 Set this env var to the webhook signing secret from your Tilled dashboard."
+                    .to_string()
+            })?;
+
+        if webhook_secret.trim().is_empty() {
+            return Err("TILLED_WEBHOOK_SECRET cannot be empty".to_string());
+        }
+
         Ok(Config {
             database_url,
             bus_type,
@@ -109,6 +124,7 @@ impl Config {
             host,
             port,
             party_master_url,
+            webhook_secret,
         })
     }
 
@@ -129,6 +145,10 @@ impl Config {
             if url.trim().is_empty() {
                 return Err("NATS_URL cannot be empty".to_string());
             }
+        }
+
+        if self.webhook_secret.trim().is_empty() {
+            return Err("TILLED_WEBHOOK_SECRET cannot be empty".to_string());
         }
 
         Ok(())
@@ -160,6 +180,7 @@ mod tests {
             host: "0.0.0.0".to_string(),
             port: 8086,
             party_master_url: "http://7d-party:8098".to_string(),
+            webhook_secret: "whsec_test".to_string(),
         };
 
         let err = config.validate().unwrap_err();
@@ -175,10 +196,27 @@ mod tests {
             host: "0.0.0.0".to_string(),
             port: 8086,
             party_master_url: "http://7d-party:8098".to_string(),
+            webhook_secret: "whsec_test".to_string(),
         };
 
         let err = config.validate().unwrap_err();
         assert!(err.contains("NATS_URL is required when BUS_TYPE=nats"));
+    }
+
+    #[test]
+    fn test_validate_webhook_secret_required() {
+        let config = Config {
+            database_url: "postgresql://localhost/test".to_string(),
+            bus_type: BusType::InMemory,
+            nats_url: None,
+            host: "0.0.0.0".to_string(),
+            port: 8086,
+            party_master_url: "http://7d-party:8098".to_string(),
+            webhook_secret: "".to_string(),
+        };
+
+        let err = config.validate().unwrap_err();
+        assert!(err.contains("TILLED_WEBHOOK_SECRET cannot be empty"));
     }
 
     #[test]
@@ -190,6 +228,7 @@ mod tests {
             host: "0.0.0.0".to_string(),
             port: 8086,
             party_master_url: "http://7d-party:8098".to_string(),
+            webhook_secret: "whsec_test".to_string(),
         };
 
         assert!(config.validate().is_ok());
@@ -201,6 +240,7 @@ mod tests {
             host: "0.0.0.0".to_string(),
             port: 8086,
             party_master_url: "http://7d-party:8098".to_string(),
+            webhook_secret: "whsec_test".to_string(),
         };
 
         assert!(config_nats.validate().is_ok());

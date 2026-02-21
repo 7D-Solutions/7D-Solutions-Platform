@@ -110,7 +110,7 @@ mod tests {
 
     #[test]
     fn test_valid_signature_fresh_timestamp() {
-        let secret = "test-secret";
+        let secret = "whsec_unit_test_secret";
         let body = b"{}";
         let ts = now_unix();
         let header = make_sig(secret, ts, body);
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_invalid_signature_rejected() {
-        let secret = "test-secret";
+        let secret = "whsec_unit_test_secret";
         let body = b"{}";
         let ts = now_unix();
         let header = format!("t={},v1=deadbeef", ts);
@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn test_old_timestamp_rejected() {
-        let secret = "test-secret";
+        let secret = "whsec_unit_test_secret";
         let body = b"{}";
         let old_ts = now_unix() - 600; // 10 minutes ago
         let header = make_sig(secret, old_ts, body);
@@ -432,26 +432,32 @@ pub async fn receive_tilled_webhook(
     // TODO: Extract from auth middleware when available
     let app_id = "test-app";
 
-    // Get webhook secret from environment (use test secret in test mode)
+    // Get webhook secret from environment — required, no fallback
     let webhook_secret = std::env::var("TILLED_WEBHOOK_SECRET_TRASHTECH")
         .or_else(|_| std::env::var("TILLED_WEBHOOK_SECRET"))
-        .unwrap_or_else(|_| "test-secret".to_string());
+        .map_err(|_| {
+            tracing::error!("TILLED_WEBHOOK_SECRET not configured — rejecting webhook");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new(
+                    "config_error",
+                    "Webhook secret not configured",
+                )),
+            )
+        })?;
 
-    // Skip signature verification in test mode
-    if webhook_secret != "test-secret" {
-        // Verify signature in production mode
-        let signature = headers
-            .get("tilled-signature")
-            .or_else(|| headers.get("x-tilled-signature"))
-            .and_then(|v| v.to_str().ok());
+    // Always verify signature — no bypass
+    let signature = headers
+        .get("tilled-signature")
+        .or_else(|| headers.get("x-tilled-signature"))
+        .and_then(|v| v.to_str().ok());
 
-        if let Err(e) = verify_tilled_signature(&body, signature, &webhook_secret) {
-            tracing::warn!("Webhook signature verification failed: {}", e);
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                Json(ErrorResponse::new("signature_error", e)),
-            ));
-        }
+    if let Err(e) = verify_tilled_signature(&body, signature, &webhook_secret) {
+        tracing::warn!("Webhook signature verification failed: {}", e);
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorResponse::new("signature_error", e)),
+        ));
     }
 
     // Parse webhook event

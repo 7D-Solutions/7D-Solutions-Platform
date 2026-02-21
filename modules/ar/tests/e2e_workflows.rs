@@ -426,9 +426,9 @@ async fn test_invoice_workflow() {
 #[tokio::test]
 #[serial]
 async fn test_webhook_workflow() {
-    // Set test mode to skip signature verification
-    std::env::set_var("TILLED_WEBHOOK_SECRET", "test-secret");
-    std::env::set_var("TILLED_WEBHOOK_SECRET_TRASHTECH", "test-secret");
+    // Set test webhook secret — must match what generate_webhook_signature uses
+    std::env::set_var("TILLED_WEBHOOK_SECRET", TEST_WEBHOOK_SECRET);
+    std::env::set_var("TILLED_WEBHOOK_SECRET_TRASHTECH", TEST_WEBHOOK_SECRET);
 
     let pool = common::setup_pool().await;
     let app = common::app(&pool);
