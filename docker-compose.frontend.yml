@@ -20,12 +20,15 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       IDENTITY_AUTH_BASE_URL: http://7d-auth-lb:80
       TENANT_REGISTRY_BASE_URL: http://7d-ttp:8100
+      TTP_BASE_URL: http://7d-ttp:8100
+      AR_BASE_URL: http://7d-ar:8086
+      NOTIFICATIONS_BASE_URL: http://7d-notifications:8089
     ports:
       - "3000:3000"
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3000/login || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/login || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
