@@ -9,12 +9,20 @@ name: Promote Artifacts
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Immutable image tag to deploy (e.g. v0.5.0-abc1234)'
+      deploy_target:
+        description: 'Target environment'
         required: true
+        type: choice
+        options:
+          - staging
+          - production
+        default: staging
+      tag:
+        description: 'Immutable image tag (required for staging; production reads from deploy/production/MODULE-MANIFEST.md)'
+        required: false
         type: string
       skip_smoke:
-        description: 'Skip post-deploy smoke checks'
+        description: 'Skip post-deploy smoke checks (staging only)'
         required: false
         default: false
         type: boolean
@@ -23,6 +31,7 @@ jobs:
   deploy-staging:
     name: Deploy to Staging
     runs-on: ubuntu-latest
+    if: inputs.deploy_target == 'staging'
     environment: staging
 
     env:
@@ -35,11 +44,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Validate tag (no 'latest')
+      - name: Validate tag (required for staging, no 'latest')
         run: |
           TAG="${{ inputs.tag }}"
           if [[ -z "$TAG" ]]; then
-            echo "ERROR: tag input is empty." >&2
+            echo "ERROR: tag input is required for staging deploys." >&2
             exit 1
           fi
           if [[ "$TAG" == "latest" || "$TAG" == *":latest" ]]; then
@@ -177,3 +186,110 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "To roll back, run this workflow again with a prior tag." >> $GITHUB_STEP_SUMMARY
           echo "See docs/DEPLOYMENT-STAGING.md for the rollback runbook." >> $GITHUB_STEP_SUMMARY
+
+  # ---------------------------------------------------------------------------
+  # Production deploy — manual trigger only, environment protection required.
+  # Reads image tags from deploy/production/MODULE-MANIFEST.md; no --tag bypass.
+  # External ports are firewalled; smoke checks run via SSH from inside the VPS.
+  # Rollback: run workflow again with deploy_target=production after reverting manifest.
+  # See docs/DEPLOYMENT-PRODUCTION.md for the full operator runbook.
+  # ---------------------------------------------------------------------------
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    if: inputs.deploy_target == 'production'
+    environment: production
+
+    env:
+      PROD_HOST:         ${{ secrets.PROD_HOST }}
+      PROD_USER:         ${{ secrets.PROD_USER }}
+      PROD_REPO_PATH:    ${{ secrets.PROD_REPO_PATH }}
+      PROD_SSH_PORT:     ${{ secrets.PROD_SSH_PORT || '22' }}
+      IMAGE_REGISTRY:    ${{ vars.IMAGE_REGISTRY || '7dsolutions' }}
+      MANIFEST_FILE:     deploy/production/MODULE-MANIFEST.md
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          # Key is written to a file — not echoed or logged
+          printf '%s\n' "${{ secrets.PROD_SSH_PRIVATE_KEY }}" > ~/.ssh/prod_deploy
+          chmod 600 ~/.ssh/prod_deploy
+          ssh-keyscan -p "${{ env.PROD_SSH_PORT }}" "${{ env.PROD_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/prod_deploy
+
+      - name: Gate 3 — Validate manifest (pre-deploy)
+        env:
+          IMAGE_REGISTRY: ${{ env.IMAGE_REGISTRY }}
+          MANIFEST_FILE:  ${{ env.MANIFEST_FILE }}
+        run: |
+          bash scripts/production/manifest_validate.sh
+
+      - name: Deploy to production VPS
+        env:
+          PROD_HOST:      ${{ env.PROD_HOST }}
+          PROD_USER:      ${{ env.PROD_USER }}
+          PROD_REPO_PATH: ${{ env.PROD_REPO_PATH }}
+          PROD_SSH_PORT:  ${{ env.PROD_SSH_PORT }}
+          IMAGE_REGISTRY: ${{ env.IMAGE_REGISTRY }}
+        run: |
+          bash scripts/production/deploy_stack.sh \
+            --manifest "${{ env.MANIFEST_FILE }}"
+
+      - name: Gate 3 — Diff manifest vs running (post-deploy)
+        env:
+          PROD_HOST:      ${{ env.PROD_HOST }}
+          PROD_USER:      ${{ env.PROD_USER }}
+          PROD_SSH_PORT:  ${{ env.PROD_SSH_PORT }}
+          IMAGE_REGISTRY: ${{ env.IMAGE_REGISTRY }}
+          MANIFEST_FILE:  ${{ env.MANIFEST_FILE }}
+        run: |
+          bash scripts/production/manifest_diff.sh
+
+      - name: Record deployment artifact
+        run: |
+          TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          MANIFEST_HASH="$(git rev-parse HEAD:${{ env.MANIFEST_FILE }} 2>/dev/null || echo 'unknown')"
+          cat > deployment-record.json << EOF
+          {
+            "environment": "production",
+            "manifest": "${{ env.MANIFEST_FILE }}",
+            "manifest_git_sha": "${MANIFEST_HASH}",
+            "repo_sha": "${{ github.sha }}",
+            "timestamp": "${TIMESTAMP}",
+            "triggered_by": "${{ github.actor }}",
+            "run_id": "${{ github.run_id }}",
+            "run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF
+          cat deployment-record.json
+
+      - name: Upload deployment record
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-deployment-record-${{ github.run_id }}
+          path: deployment-record.json
+          retention-days: 365
+
+      - name: Summary
+        run: |
+          TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "## Production Deploy Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Manifest:** \`${{ env.MANIFEST_FILE }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Repo SHA:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** ${TIMESTAMP}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Gate 3 manifest validation:** passed ✓" >> $GITHUB_STEP_SUMMARY
+          echo "**Gate 3 drift diff:** passed ✓ (running images match manifest)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Rollback" >> $GITHUB_STEP_SUMMARY
+          echo "1. Revert \`deploy/production/MODULE-MANIFEST.md\` to the prior pinned tags." >> $GITHUB_STEP_SUMMARY
+          echo "2. Re-run this workflow with \`deploy_target=production\`." >> $GITHUB_STEP_SUMMARY
+          echo "3. Or use the CLI: \`bash scripts/production/rollback_stack.sh --previous\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "See [docs/DEPLOYMENT-PRODUCTION.md](docs/DEPLOYMENT-PRODUCTION.md) for the full runbook." >> $GITHUB_STEP_SUMMARY

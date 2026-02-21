@@ -261,11 +261,38 @@ bash scripts/production/manifest_diff.sh deploy/production/MODULE-MANIFEST.md
 Production deployments are manifest-governed. Update `deploy/production/MODULE-MANIFEST.md`
 with the promoted image tags, validate, then deploy.
 
-```bash
-# Via GitHub Actions (recommended):
-# Actions → Promote Artifacts → Run workflow → environment: production → approve
+### GitHub Actions Operator Flow (recommended)
 
-# CLI (emergency only):
+Production deploys are gated by GitHub Actions environment protection rules
+(configured in **Settings → Environments → production**). Any required reviewers
+must approve before the job runs.
+
+**Step-by-step:**
+
+1. Update `deploy/production/MODULE-MANIFEST.md` with the promoted image tags and
+   commit + push to main.
+2. Go to **Actions → Promote Artifacts → Run workflow**.
+3. Set inputs:
+   - **deploy_target:** `production`
+   - **tag:** _(leave blank — production reads from the manifest)_
+4. Click **Run workflow**.
+5. The job enters a pending state. Required reviewers (configured on the
+   `production` environment) must approve before execution begins.
+6. After approval, the workflow runs three gates automatically:
+   - **Gate 3 (pre-deploy):** `manifest_validate.sh` — asserts all manifest
+     image tags exist in the registry.
+   - **Deploy:** `deploy_stack.sh --manifest` — pulls and restarts containers;
+     smoke checks run via SSH from inside the VPS (ports are firewalled).
+   - **Gate 3 (post-deploy):** `manifest_diff.sh` — compares running containers
+     against the manifest; exits non-zero on any mismatch.
+7. On success, a deployment record artifact is uploaded and retained for 365 days.
+
+Secrets (`PROD_SSH_PRIVATE_KEY`, `PROD_HOST`, `PROD_USER`, etc.) are injected from
+the `production` environment secret store and are never echoed in logs.
+
+### CLI (emergency only)
+
+```bash
 export PROD_HOST=prod.7dsolutions.example.com
 export PROD_USER=deploy
 export PROD_REPO_PATH=/opt/7d-platform
