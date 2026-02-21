@@ -1,5 +1,6 @@
 pub mod billing;
 pub mod metering;
+pub mod service_agreements;
 
 use axum::{routing::{get, post}, Router};
 use std::sync::Arc;
@@ -20,5 +21,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         // Metering
         .route("/api/metering/events", post(metering::ingest_events))
         .route("/api/metering/trace", get(metering::get_trace))
+        // Service agreements (plans)
+        .route("/api/ttp/service-agreements", get(service_agreements::list_service_agreements))
         .with_state(state)
 }
