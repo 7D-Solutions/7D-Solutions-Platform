@@ -58,6 +58,12 @@ jobs:
           eval "$(ssh-agent -s)"
           ssh-add ~/.ssh/staging_deploy
 
+      - name: Gate 3 — Validate manifest (pre-deploy)
+        env:
+          IMAGE_REGISTRY: ${{ env.IMAGE_REGISTRY }}
+        run: |
+          bash scripts/staging/manifest_validate.sh
+
       - name: Deploy to staging VPS
         env:
           # deploy_stack.sh reads these from the environment
@@ -72,6 +78,15 @@ jobs:
             EXTRA_FLAGS="--skip-smoke"
           fi
           bash scripts/staging/deploy_stack.sh --tag "${{ inputs.tag }}" $EXTRA_FLAGS
+
+      - name: Gate 3 — Diff manifest vs running (post-deploy)
+        env:
+          STAGING_HOST:     ${{ env.STAGING_HOST }}
+          STAGING_USER:     ${{ env.STAGING_USER }}
+          STAGING_SSH_PORT: ${{ env.STAGING_SSH_PORT }}
+          IMAGE_REGISTRY:   ${{ env.IMAGE_REGISTRY }}
+        run: |
+          bash scripts/staging/manifest_diff.sh
 
       - name: Proof gate (smoke + isolation + payment loop)
         if: ${{ inputs.skip_smoke != true }}
