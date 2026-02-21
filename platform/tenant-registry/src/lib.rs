@@ -8,6 +8,7 @@ pub mod lifecycle;
 pub mod schema;
 pub mod summary;
 pub mod routes;
+pub mod plans;
 pub mod seed;
 pub mod health;
 
@@ -55,6 +56,8 @@ pub use routes::{
     app_id_router,
     status_router,
 };
+
+pub use plans::plans_router;
 
 pub use seed::{
     seed_gl_module,

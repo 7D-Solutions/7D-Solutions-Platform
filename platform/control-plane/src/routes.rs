@@ -7,10 +7,13 @@
 ///   PUT  /api/control/tenants/:tenant_id/retention     — Upsert retention policy
 ///   POST /api/control/tenants/:tenant_id/tombstone     — Tombstone tenant data (audited)
 ///   POST /api/control/platform-billing-runs            — Run the platform billing cycle for a period
+///   GET  /api/tenants/:tenant_id/app-id               — Resolve tenant_id → app_id (for TTP billing)
+///   GET  /api/ttp/plans                               — List platform billing plans (plan catalog)
 
 use axum::{extract::State, http::StatusCode, routing::{get, post}, Json, Router};
 use std::sync::Arc;
-use tenant_registry::routes::{summary_router, entitlements_router, status_router, SummaryState};
+use tenant_registry::routes::{summary_router, entitlements_router, status_router, app_id_router, SummaryState};
+use tenant_registry::plans_router;
 
 use crate::handlers;
 use crate::state::AppState;
@@ -59,7 +62,9 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
         .with_state(state)
         .merge(summary_router(summary_state.clone()))
         .merge(entitlements_router(summary_state.clone()))
-        .merge(status_router(summary_state))
+        .merge(status_router(summary_state.clone()))
+        .merge(app_id_router(summary_state.clone()))
+        .merge(plans_router(summary_state.pool.clone()))
 }
 
 /// Build only the provisioning router (for testing without summary state)
