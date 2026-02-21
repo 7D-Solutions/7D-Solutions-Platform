@@ -81,6 +81,38 @@ services:
       com.7dsolutions.instance: "2"
 
   # =========================
+  # CONTROL PLANE
+  # =========================
+  control-plane:
+    container_name: 7d-control-plane
+    build:
+      context: .
+      dockerfile: platform/control-plane/Dockerfile.workspace
+    restart: unless-stopped
+    ports:
+      - "8092:8092"
+    environment:
+      DATABASE_URL: postgres://tenant_registry_user:tenant_registry_pass@7d-tenant-registry-postgres:5432/tenant_registry_db
+      AR_DATABASE_URL: postgres://ar_user:ar_pass@7d-ar-postgres:5432/ar_db
+      PORT: 8092
+      HOST: 0.0.0.0
+      RUST_LOG: info
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8092/api/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "platform"
+      com.7dsolutions.component: "control-plane"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
+  # =========================
   # AUTH LOAD BALANCER
   # =========================
   auth-lb:
