@@ -10,6 +10,8 @@ modules/*/target/
 platform/*/target/
 tools/*/target/
 e2e-tests/target/
+products/*/target/
+products/*/*/target/
 
 # =============================================================================
 # Git & CI

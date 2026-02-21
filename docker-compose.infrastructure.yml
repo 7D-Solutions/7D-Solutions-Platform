@@ -480,7 +480,7 @@ services:
     container_name: 7d-ttp-postgres
     image: postgres:16-alpine
     ports:
-      - "5450:5432"
+      - "5451:5432"
     environment:
       POSTGRES_DB: ${TTP_POSTGRES_DB:-ttp_db}
       POSTGRES_USER: ${TTP_POSTGRES_USER:-ttp_user}
