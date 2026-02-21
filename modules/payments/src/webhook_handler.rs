@@ -130,19 +130,12 @@ pub async fn update_payment_status_from_webhook(
     webhook_source: WebhookSource,
     headers: &std::collections::HashMap<String, String>,
     body: &[u8],
+    tilled_secret: Option<&str>,
 ) -> Result<(), WebhookError> {
     // ==========================================================================
     // STEP 1: Signature Validation (BEFORE any database writes)
     // ==========================================================================
-    //
-    // **CRITICAL:** This MUST be first. Reject invalid signatures immediately.
-    // - NO database I/O before signature validation
-    // - NO envelope validation before signature validation
-    // - Returns Err immediately on invalid signature
-    //
-    // **Current:** Internal events always return Ok (no signature validation)
-    // **Future:** PSP webhooks (Stripe HMAC, Tilled signature)
-    validate_webhook_signature(webhook_source, headers, body)?;
+    validate_webhook_signature(webhook_source, headers, body, tilled_secret)?;
 
     // ==========================================================================
     // STEP 2: Envelope Validation (existing pattern - reuse if needed)

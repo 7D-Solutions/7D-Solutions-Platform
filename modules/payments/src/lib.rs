@@ -16,7 +16,7 @@ pub mod webhook_handler;
 pub mod webhook_signature;
 
 // Re-export config types for testing
-pub use config::Config;
+pub use config::{Config, PaymentsProvider};
 
 /// Payments application state shared across HTTP handlers
 pub struct AppState {
@@ -27,7 +27,7 @@ pub use consumer_task::start_payment_collection_consumer;
 pub use events::{enqueue_event, EventConsumer, EventEnvelope};
 pub use handlers::handle_payment_collection_requested;
 pub use models::{PaymentCollectionRequestedPayload, PaymentSucceededPayload};
-pub use processor::MockPaymentProcessor;
+pub use processor::{MockPaymentProcessor, TilledPaymentProcessor};
 pub use reconciliation::{
     reconcile_unknown_attempt, PspPaymentStatus, ReconciliationError, ReconciliationResult,
 };

@@ -1,9 +1,6 @@
-//! Webhook Signature Validation Module (Phase 15 - bd-1wg)
+//! Webhook Signature Validation Module
 //!
 //! **CRITICAL: Signature verification BEFORE any database writes.**
-//!
-//! **Current Implementation:** Stub for internal events (always returns Ok)
-//! **Future (PSP Integration):** Stripe HMAC, Tilled signature verification
 //!
 //! **Mutation Order Enforcement:**
 //! 1. Signature validation (this module) ← FIRST
@@ -12,17 +9,19 @@
 //! 4. Lifecycle mutation (bd-3lm guards)
 //! 5. Event emission
 //!
-//! **PSP-Specific Implementation (TODO in future beads):**
-//! - Stripe: HMAC-SHA256 verification with webhook secret
-//! - Tilled: Custom signature verification
-//! - Braintree: Custom signature verification
-//!
-//! **Design Pattern:**
-//! - validate_webhook_signature() returns Result immediately
-//! - Zero database I/O during signature validation
-//! - Reject invalid signatures before any side effects
+//! **Tilled Signature Format:**
+//! The `tilled-signature` header has the form `t=<unix_ts>,v1=<hex_sig>`.
+//! The HMAC-SHA256 is computed over `"<timestamp>.<raw_body>"`.
+//! Timestamp must be within 5 minutes to prevent replay attacks.
 
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
 use std::fmt;
+
+type HmacSha256 = Hmac<Sha256>;
+
+/// Replay-window tolerance for Tilled webhook timestamps (5 minutes).
+const TILLED_TIMESTAMP_TOLERANCE_SECS: i64 = 300;
 
 // ============================================================================
 // Error Types
@@ -73,105 +72,103 @@ pub enum WebhookSource {
 // Signature Validation
 // ============================================================================
 
-/// Validate webhook signature BEFORE any database writes
+/// Validate webhook signature BEFORE any database writes.
 ///
-/// **CRITICAL INVARIANT:** This function MUST be called FIRST in webhook processing.
-/// - NO database writes before signature validation
-/// - NO envelope validation before signature validation
-/// - NO attempt ledger mutations before signature validation
-/// - Returns Result<(), SignatureError> ONLY
+/// **CRITICAL INVARIANT:** Must be called first — no DB I/O before this.
 ///
-/// **Current Implementation (Internal Events Only):**
-/// - Internal events: Always returns Ok (no signature validation needed)
-/// - PSP webhooks: Returns Err(UnsupportedSource) with TODO marker
+/// - `Internal` events always pass (no external signature needed).
+/// - `Tilled` events require `tilled_secret` to be `Some(secret)`.
+/// - `Stripe` is not yet implemented.
 ///
-/// **Future Implementation (PSP Webhooks - bd-XXX):**
-/// ```ignore
-/// match source {
-///     WebhookSource::Stripe => {
-///         // Stripe HMAC-SHA256 verification
-///         // 1. Extract signature from Stripe-Signature header
-///         // 2. Compute HMAC-SHA256(webhook_secret, raw_body)
-///         // 3. Compare signatures (constant-time)
-///         // 4. Verify timestamp to prevent replay attacks
-///     }
-///     WebhookSource::Tilled => {
-///         // Tilled signature verification
-///         // (PSP-specific implementation)
-///     }
-///     WebhookSource::Internal => Ok(())
-/// }
-/// ```
-///
-/// **Example Usage:**
-/// ```ignore
-/// use payments::webhook_signature::{validate_webhook_signature, WebhookSource};
-///
-/// // Step 1: Signature validation (FIRST - before any DB writes)
-/// validate_webhook_signature(WebhookSource::Internal, &headers, &body)?;
-///
-/// // Step 2: Envelope validation
-/// // Step 3: Attempt ledger gating
-/// // Step 4: Lifecycle mutation
-/// // Step 5: Event emission
-/// ```
-///
-/// **Security Properties:**
-/// - Prevents replay attacks (Stripe: timestamp validation)
-/// - Prevents tampering (HMAC verification)
-/// - Constant-time comparison (prevents timing attacks)
-/// - Zero side effects on failure (no database writes)
+/// Tilled signature format: `tilled-signature: t=<unix_ts>,v1=<hex_sig>`
+/// HMAC-SHA256 is over `"<timestamp>.<raw_body>"`.
 pub fn validate_webhook_signature(
     source: WebhookSource,
-    _headers: &std::collections::HashMap<String, String>,
-    _body: &[u8],
+    headers: &std::collections::HashMap<String, String>,
+    body: &[u8],
+    tilled_secret: Option<&str>,
 ) -> Result<(), SignatureError> {
     match source {
-        WebhookSource::Internal => {
-            // Internal events do not require signature validation
-            // (event envelope validation happens in step 2)
-            Ok(())
-        }
-        WebhookSource::Stripe => {
-            // TODO (bd-XXX): Implement Stripe HMAC-SHA256 verification
-            // 1. Extract Stripe-Signature header (format: "t=timestamp,v1=signature")
-            // 2. Parse timestamp and signature components
-            // 3. Construct signed payload: format!("{}.{}", timestamp, String::from_utf8_lossy(body))
-            // 4. Compute HMAC-SHA256 with webhook secret: hmac_sha256(secret, signed_payload)
-            // 5. Constant-time compare computed signature with header signature
-            // 6. Verify timestamp is within tolerance (prevent replay attacks)
-            // 7. Return Ok if valid, Err(InvalidSignature) if not
-            //
-            // Example implementation:
-            // let signature_header = headers.get("stripe-signature")
-            //     .ok_or(SignatureError::MissingSignature)?;
-            // let (timestamp, signature) = parse_stripe_signature(signature_header)?;
-            // let computed = compute_stripe_signature(webhook_secret, timestamp, body)?;
-            // if !constant_time_compare(&computed, &signature) {
-            //     return Err(SignatureError::InvalidSignature {
-            //         reason: "HMAC verification failed".to_string()
-            //     });
-            // }
-            // if !is_timestamp_valid(timestamp, TOLERANCE_SECONDS) {
-            //     return Err(SignatureError::InvalidSignature {
-            //         reason: "Timestamp outside tolerance window".to_string()
-            //     });
-            // }
-            // Ok(())
-
-            Err(SignatureError::UnsupportedSource {
-                source: "stripe".to_string(),
-            })
-        }
+        WebhookSource::Internal => Ok(()),
+        WebhookSource::Stripe => Err(SignatureError::UnsupportedSource {
+            source: "stripe".to_string(),
+        }),
         WebhookSource::Tilled => {
-            // TODO (bd-XXX): Implement Tilled signature verification
-            // (PSP-specific verification logic - consult Tilled API docs)
-
-            Err(SignatureError::UnsupportedSource {
-                source: "tilled".to_string(),
-            })
+            let secret = tilled_secret.ok_or(SignatureError::InvalidSignature {
+                reason: "Tilled webhook secret not configured".to_string(),
+            })?;
+            verify_tilled_signature(body, headers, secret)
         }
     }
+}
+
+/// Verify Tilled HMAC-SHA256 webhook signature.
+///
+/// Header format: `tilled-signature: t=<unix_ts>,v1=<hex_sig>`
+/// Signed payload: `"<timestamp>.<raw_body>"`
+fn verify_tilled_signature(
+    body: &[u8],
+    headers: &std::collections::HashMap<String, String>,
+    secret: &str,
+) -> Result<(), SignatureError> {
+    // Header lookup is case-insensitive in HTTP — normalise to lowercase.
+    let sig_header = headers
+        .get("tilled-signature")
+        .or_else(|| headers.get("Tilled-Signature"))
+        .map(String::as_str)
+        .ok_or(SignatureError::MissingSignature)?;
+
+    let mut timestamp = "";
+    let mut sig_value = "";
+    for part in sig_header.split(',') {
+        if let Some(v) = part.strip_prefix("t=") {
+            timestamp = v;
+        } else if let Some(v) = part.strip_prefix("v1=") {
+            sig_value = v;
+        }
+    }
+
+    if timestamp.is_empty() || sig_value.is_empty() {
+        return Err(SignatureError::InvalidSignature {
+            reason: "Malformed tilled-signature header (expected t=...,v1=...)".to_string(),
+        });
+    }
+
+    // Replay-window check.
+    let ts_unix: i64 = timestamp.parse().map_err(|_| SignatureError::InvalidSignature {
+        reason: "Invalid timestamp in tilled-signature header".to_string(),
+    })?;
+    let now_unix = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let age = now_unix - ts_unix;
+    if age.abs() > TILLED_TIMESTAMP_TOLERANCE_SECS {
+        return Err(SignatureError::InvalidSignature {
+            reason: format!(
+                "Webhook timestamp outside replay window (age={}s, tolerance={}s)",
+                age, TILLED_TIMESTAMP_TOLERANCE_SECS
+            ),
+        });
+    }
+
+    // Compute expected HMAC: HMAC-SHA256("<timestamp>.<body>")
+    let signed_payload = format!("{}.{}", timestamp, String::from_utf8_lossy(body));
+    let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).map_err(|_| {
+        SignatureError::InvalidSignature {
+            reason: "Invalid Tilled webhook secret".to_string(),
+        }
+    })?;
+    mac.update(signed_payload.as_bytes());
+    let expected = hex::encode(mac.finalize().into_bytes());
+
+    if expected != sig_value {
+        return Err(SignatureError::InvalidSignature {
+            reason: "HMAC-SHA256 signature mismatch".to_string(),
+        });
+    }
+
+    Ok(())
 }
 
 // ============================================================================
@@ -183,61 +180,107 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
+    fn make_tilled_sig(secret: &str, ts: i64, body: &[u8]) -> String {
+        let signed = format!("{}.{}", ts, String::from_utf8_lossy(body));
+        let mut mac = HmacSha256::new_from_slice(secret.as_bytes()).unwrap();
+        mac.update(signed.as_bytes());
+        let sig = hex::encode(mac.finalize().into_bytes());
+        format!("t={},v1={}", ts, sig)
+    }
+
+    fn now_ts() -> i64 {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs() as i64
+    }
+
     #[test]
     fn test_internal_webhook_always_valid() {
         let headers = HashMap::new();
         let body = b"{}";
-
-        let result = validate_webhook_signature(WebhookSource::Internal, &headers, body);
-        assert!(result.is_ok());
+        assert!(validate_webhook_signature(WebhookSource::Internal, &headers, body, None).is_ok());
     }
 
     #[test]
     fn test_stripe_webhook_unsupported() {
         let headers = HashMap::new();
         let body = b"{}";
-
-        let result = validate_webhook_signature(WebhookSource::Stripe, &headers, body);
-        assert!(result.is_err());
+        let result = validate_webhook_signature(WebhookSource::Stripe, &headers, body, None);
         assert_eq!(
             result.unwrap_err(),
-            SignatureError::UnsupportedSource {
-                source: "stripe".to_string()
-            }
+            SignatureError::UnsupportedSource { source: "stripe".to_string() }
         );
     }
 
     #[test]
-    fn test_tilled_webhook_unsupported() {
+    fn test_tilled_missing_header() {
         let headers = HashMap::new();
         let body = b"{}";
-
-        let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body);
-        assert!(result.is_err());
-        assert_eq!(
-            result.unwrap_err(),
-            SignatureError::UnsupportedSource {
-                source: "tilled".to_string()
-            }
+        let result = validate_webhook_signature(
+            WebhookSource::Tilled, &headers, body, Some("secret"),
         );
+        assert_eq!(result.unwrap_err(), SignatureError::MissingSignature);
+    }
+
+    #[test]
+    fn test_tilled_valid_signature() {
+        let secret = "whsec_test_1234";
+        let body = b"{\"type\":\"payment_intent.succeeded\"}";
+        let ts = now_ts();
+        let sig_header = make_tilled_sig(secret, ts, body);
+        let mut headers = HashMap::new();
+        headers.insert("tilled-signature".to_string(), sig_header);
+        assert!(
+            validate_webhook_signature(WebhookSource::Tilled, &headers, body, Some(secret)).is_ok()
+        );
+    }
+
+    #[test]
+    fn test_tilled_invalid_signature() {
+        let secret = "whsec_test_1234";
+        let body = b"{\"type\":\"payment_intent.succeeded\"}";
+        let ts = now_ts();
+        let sig_header = format!("t={},v1=badbadbadbad", ts);
+        let mut headers = HashMap::new();
+        headers.insert("tilled-signature".to_string(), sig_header);
+        let result =
+            validate_webhook_signature(WebhookSource::Tilled, &headers, body, Some(secret));
+        assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignature { .. }));
+    }
+
+    #[test]
+    fn test_tilled_replay_rejected() {
+        let secret = "whsec_test_1234";
+        let body = b"{}";
+        // Timestamp 10 minutes in the past
+        let ts = now_ts() - 601;
+        let sig_header = make_tilled_sig(secret, ts, body);
+        let mut headers = HashMap::new();
+        headers.insert("tilled-signature".to_string(), sig_header);
+        let result =
+            validate_webhook_signature(WebhookSource::Tilled, &headers, body, Some(secret));
+        assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignature { reason } if reason.contains("replay window")));
+    }
+
+    #[test]
+    fn test_tilled_no_secret_configured() {
+        let body = b"{}";
+        let mut headers = HashMap::new();
+        headers.insert("tilled-signature".to_string(), "t=123,v1=abc".to_string());
+        let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, None);
+        assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignature { .. }));
     }
 
     #[test]
     fn test_signature_error_display() {
-        let err = SignatureError::InvalidSignature {
-            reason: "HMAC mismatch".to_string(),
-        };
-        assert_eq!(
-            err.to_string(),
-            "Webhook signature verification failed: HMAC mismatch"
-        );
+        let err = SignatureError::InvalidSignature { reason: "HMAC mismatch".to_string() };
+        assert_eq!(err.to_string(), "Webhook signature verification failed: HMAC mismatch");
 
         let err = SignatureError::MissingSignature;
         assert_eq!(err.to_string(), "Missing required webhook signature headers");
 
-        let err = SignatureError::UnsupportedSource {
-            source: "stripe".to_string(),
-        };
+        let err = SignatureError::UnsupportedSource { source: "stripe".to_string() };
         assert_eq!(err.to_string(), "Unsupported webhook source: stripe");
     }
 }
