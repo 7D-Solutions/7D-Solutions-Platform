@@ -198,13 +198,14 @@ The proof gate logs are uploaded as a GitHub Actions artifact named
 
 The CI path produces **immutable Docker images** tagged `{semver}-{git-sha7}` (e.g. `v0.5.0-abc1234`) — `latest` is never pushed.
 
+**The manifest is the single source of truth.** `deploy_stack.sh` reads image tags exclusively from `deploy/staging/MODULE-MANIFEST.md`. No ad-hoc tag overrides are accepted in production.
+
 ### How it works
 
 1. `git tag v0.5.0 && git push origin v0.5.0`
-2. `release.yml` runs automatically: builds Rust binaries, builds + pushes Docker images.
-3. Run `promote.yml` manually (Actions → Promote Artifacts → Run workflow):
-   - Enter the immutable tag (e.g. `v0.5.0-abc1234` — visible in the release.yml summary)
-   - Click **Run workflow**
+2. `release.yml` runs automatically: builds Rust binaries, builds + pushes Docker images, updates `deploy/staging/MODULE-MANIFEST.md` with resolved image tags, commits.
+3. Gate 3 validates the manifest (all pinned tags exist in the registry).
+4. Run `promote.yml` manually (Actions → Promote Artifacts → Run workflow → click **Run workflow**). The workflow calls `deploy_stack.sh` — no tag argument needed; it reads the manifest.
 
 ### Required GitHub Secrets (environment: `staging`)
 
@@ -228,16 +229,31 @@ export STAGING_USER=deploy
 export STAGING_REPO_PATH=/opt/7d-platform
 export IMAGE_REGISTRY=7dsolutions
 
-bash scripts/staging/deploy_stack.sh --tag v0.5.0-abc1234
+# Deploy exactly what the manifest declares — no tag argument
+bash scripts/staging/deploy_stack.sh
+
+# Dry-run to see what would happen
+bash scripts/staging/deploy_stack.sh --dry-run
+
+# Deploy a specific manifest (e.g. for testing a rollback manifest)
+bash scripts/staging/deploy_stack.sh --manifest /path/to/MODULE-MANIFEST.md
 ```
 
-## Rollback (Immutable Image Path)
+> **Dev-only override (guarded):** To force a single tag across all services during local testing,
+> set `DEPLOY_ALLOW_TAG_OVERRIDE=1` and pass `--tag-override <tag>`. This flag is rejected without
+> the guard variable. Never use it in CI or against the real staging environment.
 
-Rollback = run `promote.yml` again with a prior tag.  No special tooling required.
+## Rollback (Manifest Selection)
 
-### Step 1 — Find the prior tag
+Rollback = restore a prior `MODULE-MANIFEST.md` and re-deploy. Since the manifest is the deploy
+contract, rolling back means deploying exactly what the prior manifest declared — all images are
+immutable and still present in the registry.
 
-View recent deployment history:
+Every successful deploy archives the manifest it used to the VPS at
+`${STAGING_REPO_PATH}/.manifest-snapshots/`. The deployment log records the manifest hash and
+snapshot filename.
+
+### Step 1 — View deployment history and available snapshots
 
 ```bash
 export STAGING_HOST=staging.7dsolutions.example.com
@@ -249,30 +265,60 @@ bash scripts/staging/rollback_stack.sh --history
 
 Sample output:
 ```
-2026-02-20T14:00:00Z tag=v0.4.9-def5678 registry=7dsolutions
-2026-02-21T09:30:00Z tag=v0.5.0-abc1234 registry=7dsolutions
+=== Staging deployment history ===
+2026-02-20T14:00:00Z manifest_hash=a1b2c3d4e5f6 manifest_git_sha=def5678 snapshot=2026-02-20T14:00:00Z-MODULE-MANIFEST.md
+2026-02-21T09:30:00Z manifest_hash=b2c3d4e5f6a1 manifest_git_sha=abc1234 snapshot=2026-02-21T09:30:00Z-MODULE-MANIFEST.md
+
+=== Available manifest snapshots (/opt/7d-platform/.manifest-snapshots) ===
+2026-02-21T09:30:00Z-MODULE-MANIFEST.md
+2026-02-20T14:00:00Z-MODULE-MANIFEST.md
 ```
 
-### Step 2 — Apply the prior tag
+### Step 2 — Roll back
 
-**Via GitHub Actions (recommended):**
-- Actions → Promote Artifacts → Run workflow → enter prior tag.
-
-**Roll back to immediately-preceding deployment (CLI):**
+**Roll back to the immediately-preceding deployment (most common):**
 ```bash
 bash scripts/staging/rollback_stack.sh --previous
 ```
 
-**Explicit tag (CLI):**
+**Roll back to a specific named snapshot:**
 ```bash
-bash scripts/staging/rollback_stack.sh --tag v0.4.9-def5678
+bash scripts/staging/rollback_stack.sh \
+    --snapshot 2026-02-20T14:00:00Z-MODULE-MANIFEST.md
 ```
+
+**Roll back to the manifest at a specific git commit:**
+```bash
+bash scripts/staging/rollback_stack.sh --manifest-sha def5678
+```
+
+Rollback runs manifest validation (Gate 3 pre-check) before deploying to confirm all images
+in the rollback manifest still exist in the registry. If validation fails, the rollback is
+aborted — inspect the registry before retrying.
 
 Data volumes are preserved during rollback; only service containers are replaced.
 
+### Step 3 — Commit the rollback manifest
+
+After a successful rollback, the old manifest was used temporarily. Make the rollback permanent
+by overwriting the current manifest with the prior one and committing:
+
+```bash
+# Copy the snapshot you rolled back to into the working tree
+scp deploy@staging.7dsolutions.example.com:\
+  /opt/7d-platform/.manifest-snapshots/2026-02-20T14:00:00Z-MODULE-MANIFEST.md \
+  deploy/staging/MODULE-MANIFEST.md
+
+# Review, then commit
+git diff deploy/staging/MODULE-MANIFEST.md
+git add deploy/staging/MODULE-MANIFEST.md
+git commit -m "[rollback] Revert staging manifest to 2026-02-20 (def5678)"
+git push
+```
+
 ## Rollback (Source Build Path — legacy)
 
-Use this path if the CI image pipeline is unavailable.
+Use this path only if the CI image pipeline is unavailable.
 
 1. SSH into the VPS: `ssh ${STAGING_USER}@${STAGING_HOST}`
 2. `cd ${STAGING_REPO_PATH}`
@@ -291,10 +337,12 @@ Use this path if the CI image pipeline is unavailable.
 | `scripts/staging/build_images.sh` | Build Docker images with immutable tags (CI step 1) |
 | `scripts/staging/push_images.sh --confirm` | Push built images to registry (CI step 2) |
 | `scripts/staging/list_versions.sh [--json]` | List resolved image tags for current HEAD |
-| `scripts/staging/deploy_stack.sh --tag <tag>` | Deploy a pinned image tag to staging VPS |
-| `scripts/staging/rollback_stack.sh --tag <tag>` | Roll back to a specific prior tag |
-| `scripts/staging/rollback_stack.sh --previous` | Roll back to the tag before the current one |
-| `scripts/staging/rollback_stack.sh --history` | Show deployment log on VPS |
+| `scripts/staging/deploy_stack.sh` | Deploy manifest-pinned images to staging VPS (reads `deploy/staging/MODULE-MANIFEST.md`) |
+| `scripts/staging/deploy_stack.sh --manifest <path>` | Deploy using an alternate manifest (e.g. rollback manifest) |
+| `scripts/staging/rollback_stack.sh --previous` | Roll back to the manifest snapshot before the last deploy |
+| `scripts/staging/rollback_stack.sh --snapshot <name>` | Roll back to a specific named manifest snapshot |
+| `scripts/staging/rollback_stack.sh --manifest-sha <sha>` | Roll back to manifest at a prior git commit |
+| `scripts/staging/rollback_stack.sh --history` | Show deployment log and available manifest snapshots |
 | `scripts/staging/proof_gate.sh [--host H] [--secret S] [--jwt J]` | Phase 43 proof gate: smoke + isolation + payment loop |
 | `scripts/staging/smoke.sh` | Health checks + data endpoints only |
 | `scripts/staging/isolation_check.sh` | Multi-tenant denial assertions only |
