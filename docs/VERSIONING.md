@@ -310,7 +310,14 @@ Rollbacks are version changes like any other — they go through the manifest an
 1. Ensure all E2E tests pass.
 2. Bump the version to `1.0.0` in the module's `Cargo.toml` (not the workspace root).
 3. Create `REVISIONS.md` from the template.
-4. Ensure the module has a documented proof command in one of these locations: the module's `README.md` under a "Proof" heading, a `Makefile` target `make proof`, or `scripts/proof_{module}.sh`. This must exist before `1.0.0` is committed. The proof command must be comprehensive — it is the single acceptance gate for `1.0.0`. A partial test suite does not qualify.
+4. Ensure the module has a repo-owned proof script at `scripts/proof_{module}.sh` (preferred) or a `README.md` "Proof" section. This must exist before `1.0.0` is committed. The proof command must be comprehensive — it is the single acceptance gate for `1.0.0`. A partial test suite does not qualify.
+
+   **Proof script convention (`scripts/proof_{module}.sh`):**
+   - Uses `./scripts/cargo-slot.sh test -p {package}` for all Rust test execution (never raw `cargo`)
+   - Exits non-zero immediately on any failure (`set -euo pipefail`)
+   - Prints clear pass/fail diagnostics for each gate
+   - Optionally accepts `--staging <host>` to curl `/healthz` and `/api/ready` on a live instance
+   - Current proof scripts: `proof_ar.sh`, `proof_control_plane.sh`, `proof_payments.sh`, `proof_tenant_registry.sh`, `proof_ttp.sh`
 5. Commit with: `[bd-xxx] {module} v1.0.0: initial proof`
 6. Tag the commit: `git tag {module-name}-v1.0.0`
 7. Build and push the versioned image (CI does this when automated; manual until then — see Implementation Status).
