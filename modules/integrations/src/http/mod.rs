@@ -1,3 +1,4 @@
+pub mod connectors;
 pub mod external_refs;
 pub mod webhooks;
 
@@ -41,6 +42,23 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(external_refs::get_external_ref)
                 .put(external_refs::update_external_ref)
                 .delete(external_refs::delete_external_ref),
+        )
+        // Connectors — static routes before parameterized
+        .route(
+            "/api/integrations/connectors/types",
+            get(connectors::list_connector_types),
+        )
+        .route(
+            "/api/integrations/connectors",
+            get(connectors::list_connectors).post(connectors::register_connector),
+        )
+        .route(
+            "/api/integrations/connectors/{id}/test",
+            post(connectors::run_connector_test),
+        )
+        .route(
+            "/api/integrations/connectors/{id}",
+            get(connectors::get_connector),
         )
         .with_state(state)
 }
