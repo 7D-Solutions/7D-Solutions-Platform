@@ -526,6 +526,11 @@ export const INVOICE_STATUS_OPTIONS = [
 
 export const RunBillingRequestSchema = z.object({
   tenant_id: z.string().optional().or(z.literal('')),
+  billing_period: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, 'Must be in YYYY-MM format')
+    .optional()
+    .or(z.literal('')),
   reason: z.string().min(1, 'Reason is required').max(500, 'Reason must be 500 characters or fewer'),
 });
 

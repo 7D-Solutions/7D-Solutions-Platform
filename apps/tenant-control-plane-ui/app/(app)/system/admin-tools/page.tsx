@@ -20,6 +20,7 @@ import type { AdminToolResult } from '@/lib/api/types';
 
 async function runBilling(payload: {
   tenant_id?: string;
+  billing_period?: string;
   reason: string;
 }): Promise<AdminToolResult> {
   const res = await fetch('/api/system/run-billing', {
@@ -126,8 +127,16 @@ function ResultPanel({ result, error, onDismiss }: {
 
 // ── Run Billing Tool ────────────────────────────────────────
 
+function currentPeriod(): string {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  return `${yyyy}-${mm}`;
+}
+
 function RunBillingTool() {
   const [tenantId, setTenantId] = useState('');
+  const [billingPeriod, setBillingPeriod] = useState(currentPeriod());
   const [reason, setReason] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showConfirm, setShowConfirm] = useState(false);
@@ -137,6 +146,7 @@ function RunBillingTool() {
     onSuccess: () => {
       setShowConfirm(false);
       setTenantId('');
+      setBillingPeriod(currentPeriod());
       setReason('');
     },
     onError: () => setShowConfirm(false),
@@ -145,6 +155,7 @@ function RunBillingTool() {
   const handleSubmit = useCallback(() => {
     const result = RunBillingRequestSchema.safeParse({
       tenant_id: tenantId,
+      billing_period: billingPeriod,
       reason,
     });
     if (!result.success) {
@@ -160,11 +171,15 @@ function RunBillingTool() {
     }
     setErrors({});
     setShowConfirm(true);
-  }, [tenantId, reason]);
+  }, [tenantId, billingPeriod, reason]);
 
   const handleConfirm = useCallback(() => {
-    mutation.mutate({ tenant_id: tenantId || undefined, reason });
-  }, [mutation, tenantId, reason]);
+    mutation.mutate({
+      tenant_id: tenantId || undefined,
+      billing_period: billingPeriod || undefined,
+      reason,
+    });
+  }, [mutation, tenantId, billingPeriod, reason]);
 
   return (
     <div
@@ -186,7 +201,7 @@ function RunBillingTool() {
       <div className="space-y-4">
         <FormInput
           label="Tenant ID"
-          placeholder="Optional — leave blank for all tenants"
+          placeholder="Required — enter a tenant UUID"
           value={tenantId}
           onChange={(e) => {
             setTenantId(e.target.value);
@@ -194,6 +209,18 @@ function RunBillingTool() {
           }}
           error={errors.tenant_id}
           data-testid="billing-tenant-id"
+        />
+
+        <FormInput
+          label="Billing Period"
+          placeholder="YYYY-MM"
+          value={billingPeriod}
+          onChange={(e) => {
+            setBillingPeriod(e.target.value);
+            if (errors.billing_period) setErrors((p) => ({ ...p, billing_period: '' }));
+          }}
+          error={errors.billing_period}
+          data-testid="billing-period"
         />
 
         <FormTextarea
@@ -248,7 +275,18 @@ function RunBillingTool() {
                   className="text-[--color-text-primary]"
                   data-testid="confirm-tenant-value"
                 >
-                  {tenantId || 'All tenants'}
+                  {tenantId || '—'}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-medium text-[--color-text-secondary]">
+                  Billing Period
+                </dt>
+                <dd
+                  className="text-[--color-text-primary]"
+                  data-testid="confirm-billing-period-value"
+                >
+                  {billingPeriod}
                 </dd>
               </div>
               <div>

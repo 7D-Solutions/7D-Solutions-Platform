@@ -451,6 +451,7 @@ services:
       BUS_TYPE: nats
       HOST: 0.0.0.0
       PORT: 8100
+      TENANT_REGISTRY_URL: http://7d-control-plane:8091
       RUST_LOG: ${RUST_LOG:-info}
     ports:
       - "8100:8100"

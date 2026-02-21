@@ -19,7 +19,7 @@ services:
     environment:
       JWT_SECRET: ${JWT_SECRET}
       IDENTITY_AUTH_BASE_URL: http://7d-auth-lb:80
-      TENANT_REGISTRY_BASE_URL: http://7d-ttp:8100
+      TENANT_REGISTRY_BASE_URL: http://7d-control-plane:8091
       TTP_BASE_URL: http://7d-ttp:8100
       AR_BASE_URL: http://7d-ar:8086
       NOTIFICATIONS_BASE_URL: http://7d-notifications:8089
