@@ -113,7 +113,7 @@ pub struct ExternalRef {
 // Composite Responses
 // ============================================================================
 
-/// Full party view with typed extension and external refs.
+/// Full party view with typed extension, external refs, contacts, and addresses.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PartyView {
     #[serde(flatten)]
@@ -121,6 +121,10 @@ pub struct PartyView {
     pub company: Option<PartyCompany>,
     pub individual: Option<PartyIndividual>,
     pub external_refs: Vec<ExternalRef>,
+    #[serde(default)]
+    pub contacts: Vec<crate::domain::contact::Contact>,
+    #[serde(default)]
+    pub addresses: Vec<crate::domain::address::Address>,
 }
 
 // ============================================================================

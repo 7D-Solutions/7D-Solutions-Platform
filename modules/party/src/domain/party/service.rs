@@ -92,11 +92,21 @@ pub async fn get_party(
     .fetch_all(pool)
     .await?;
 
+    let contacts = crate::domain::contact_service::list_contacts(pool, app_id, party_id)
+        .await
+        .unwrap_or_default();
+
+    let addresses = crate::domain::address_service::list_addresses(pool, app_id, party_id)
+        .await
+        .unwrap_or_default();
+
     Ok(Some(PartyView {
         party,
         company,
         individual,
         external_refs,
+        contacts,
+        addresses,
     }))
 }
 
@@ -331,6 +341,8 @@ pub async fn create_company(
         company: Some(company),
         individual: None,
         external_refs: vec![],
+        contacts: vec![],
+        addresses: vec![],
     })
 }
 
@@ -443,6 +455,8 @@ pub async fn create_individual(
         company: None,
         individual: Some(individual),
         external_refs: vec![],
+        contacts: vec![],
+        addresses: vec![],
     })
 }
 
