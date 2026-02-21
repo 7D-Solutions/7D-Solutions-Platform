@@ -1,0 +1,21 @@
+# UBS ignore file — exclude build artifacts and large non-source directories
+target/
+target-slot-1/
+target-slot-2/
+target-slot-3/
+target-slot-4/
+apps/tenant-control-plane-ui/.next/
+apps/tenant-control-plane-ui/.next-old-tmp/
+apps/tenant-control-plane-ui/node_modules/
+apps/trashtech-pro/.next/
+node_modules/
+tmp/
+logs/
+pids/
+panes/
+review-for-delete/
+.git/
+.playwright-mcp/
+.flywheel/
+.beads/
+state/

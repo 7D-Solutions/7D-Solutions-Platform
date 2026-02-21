@@ -1,0 +1,59 @@
+{
+  "project": "/Users/james/Projects/7D-Solutions Platform",
+  "timestamp": "2026-02-21 10:51:50",
+  "scanners": [
+    {
+      "language": "js",
+      "project": "/Users/james/Projects/7D-Solutions Platform",
+      "files": 185,
+      "critical": 14,
+      "warning": 2056,
+      "info": 7580,
+      "timestamp": "2026-02-21 10:51:43",
+      "extras": {
+        "deep_guard": {
+          "unguarded": 6,
+          "guarded": 8,
+          "samples": [
+            {
+              "file": "/var/folders/rm/gm1_f2cn5hn2gw36x6kycvwr0000gn/T/tmp.MPCBS3Msf2/scan/apps/tenant-control-plane-ui/infrastructure/hooks/useColumnManager.ts",
+              "line": 216,
+              "code": "returnValueRef.current.dragState.draggedIndex = draggedIndex;"
+            },
+            {
+              "file": "/var/folders/rm/gm1_f2cn5hn2gw36x6kycvwr0000gn/T/tmp.MPCBS3Msf2/scan/apps/tenant-control-plane-ui/infrastructure/hooks/useColumnManager.ts",
+              "line": 217,
+              "code": "returnValueRef.current.dragState.targetIndex = targetIndex;"
+            },
+            {
+              "file": "/var/folders/rm/gm1_f2cn5hn2gw36x6kycvwr0000gn/T/tmp.MPCBS3Msf2/scan/apps/tenant-control-plane-ui/components/ui/Modal.tsx",
+              "line": 78,
+              "code": "document.body.style.overflow = 'hidden';"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "language": "rust",
+      "project": "/Users/james/Projects/7D-Solutions Platform",
+      "files": 1007,
+      "critical": 209,
+      "warning": 37105,
+      "info": 8735,
+      "timestamp": "2026-02-21 10:51:50"
+    }
+  ],
+  "totals": {
+    "critical": 223,
+    "warning": 39161,
+    "info": 16315,
+    "files": 1192
+  },
+  "generated_at": "2026-02-21 10:51:50",
+  "git": {
+    "repository": "https://github.com/7D-Solutions/7D-Solutions-Platform",
+    "commit": "b6a04470280cac294c24611f14b040a4fd5d5705",
+    "blob_base": "https://github.com/7D-Solutions/7D-Solutions-Platform/blob/b6a04470280cac294c24611f14b040a4fd5d5705"
+  }
+}
