@@ -8,6 +8,7 @@
 
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
+| 1.6 | 2026-02-21 | CopperRiver (bd-17u3) | Promotion runner added: scripts/versioning/promote_module.sh. Single-command end-to-end pipeline respecting Gates 1/2/3. Documented in Implementation Status. |
 | 1.5 | 2026-02-21 | MaroonHarbor (bd-3gct) | Gate 2 built: detect_version_intent.sh + ci.yml gate2-detect-intent/gate2-image-build jobs. Documented tag scheme. Updated Implementation Status table. |
 | 1.4 | 2026-02-20 | Platform Orchestrator | Gate 1 built: pre-commit hook installed. Doc audit: archived superseded docs, identity-auth REVISIONS.md backfilled. |
 | 1.3 | 2026-02-20 | Platform Orchestrator | ChatGPT round 3: canonical module naming, which-file-to-bump rules, docs-only exception, upgrade ordering for breaking changes, deployment config source of truth, proof completeness principle. |
@@ -366,6 +367,51 @@ Images pushed by Gate 2 use the following tag format:
 - A version field bump in a `modules/*/Cargo.toml` or `platform/*/Cargo.toml`
 - A version field bump in an `apps/*/package.json`
 - Any change to a `MODULE-MANIFEST.md` file
+
+### Promotion runner (single-command)
+
+`scripts/versioning/promote_module.sh` executes the full promotion pipeline locally in one command.
+
+**Usage:**
+
+```bash
+bash scripts/versioning/promote_module.sh \
+  --module modules/ar \
+  --version 1.0.0 \
+  --bead bd-qvbg
+
+# Or compute next version automatically:
+bash scripts/versioning/promote_module.sh \
+  --module modules/ar \
+  --bump-type minor \
+  --bead bd-qvbg \
+  --push-tag
+```
+
+**What it does (in order):**
+
+1. Validates prerequisites: proof script exists, version is not `latest`, tag does not already exist, working tree is clean.
+2. Checks `REVISIONS.md` for the target version — if missing, generates a stub and exits with instructions to fill in the TODOs.
+3. Runs the module's proof script (`scripts/proof_{module}.sh`) — must pass.
+4. Runs REVISIONS lint to confirm all fields are filled.
+5. Bumps the version in `Cargo.toml` or `package.json`.
+6. Updates `deploy/staging/MODULE-MANIFEST.md` with the new version and image tag.
+7. Commits both changes with a `[bead-id] module v{old} → v{new}: promote` message.
+8. Creates git tag `{module}-v{version}`.
+9. (If `--push-tag`) pushes the tag to origin — triggers Gate 2 CI.
+10. (If `--staging-host`) runs the staging proof gate after deploy.
+
+**Guards enforced:**
+
+| Guard | Trigger |
+|-------|---------|
+| No `latest` | Refuses if target version is `latest` or matches `*:latest` |
+| No overwrite | Refuses if git tag `{module}-v{version}` already exists |
+| Proof required | Refuses if `scripts/proof_{module}.sh` does not exist |
+| Clean worktree | Refuses if there are uncommitted changes |
+| REVISIONS complete | Refuses if REVISIONS.md row has unfilled TODO placeholders |
+
+**Dry-run mode** — use `--dry-run` to preview all steps without making any changes.
 
 ---
 
