@@ -2781,6 +2781,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "hex",
  "hmac",
  "lazy_static",
  "projections",
