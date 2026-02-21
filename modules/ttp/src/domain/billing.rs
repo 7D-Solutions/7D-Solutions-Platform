@@ -23,6 +23,7 @@ use uuid::Uuid;
 
 use crate::clients::ar::{ArClient, ArClientError};
 use crate::clients::tenant_registry::{TenantRegistryClient, TenantRegistryError};
+use super::metering;
 
 // ---------------------------------------------------------------------------
 // Error
@@ -38,6 +39,9 @@ pub enum BillingError {
 
     #[error("AR client error: {0}")]
     Ar(#[from] ArClientError),
+
+    #[error("metering error: {0}")]
+    Metering(#[from] metering::MeteringError),
 }
 
 // ---------------------------------------------------------------------------
@@ -47,12 +51,14 @@ pub enum BillingError {
 /// A party that needs to be billed in this run.
 pub struct PartyBillingWork {
     pub party_id: Uuid,
-    /// Total amount to invoice (agreement + pending charges), minor units.
+    /// Total amount to invoice (agreement + pending charges + metering), minor units.
     pub total_amount_minor: i64,
     /// Currency code (e.g. "usd").
     pub currency: String,
     /// Pending one-time charge IDs to mark billed.
     pub charge_ids: Vec<Uuid>,
+    /// SHA-256 hash of the metering PriceTrace, if metered usage is included.
+    pub trace_hash: Option<String>,
 }
 
 /// Summary returned after a run completes.
@@ -82,7 +88,7 @@ pub async fn run_billing(
     billing_period: &str,
     idempotency_key: &str,
 ) -> Result<BillingRunSummary, BillingError> {
-    use super::billing_db::{collect_parties_to_bill, fetch_run_summary};
+    use super::billing_db::fetch_run_summary;
 
     // 1. Idempotency check: has this period already been billed?
     let existing = sqlx::query(
@@ -110,7 +116,7 @@ pub async fn run_billing(
         }
 
         if status == "processing" || status == "failed" {
-            return execute_run(pool, ar_client, tenant_id, run_id).await;
+            return execute_run(pool, ar_client, tenant_id, run_id, billing_period).await;
         }
     }
 
@@ -142,7 +148,7 @@ pub async fn run_billing(
     .fetch_one(pool)
     .await?;
 
-    execute_run(pool, ar_client, tenant_id, canonical).await
+    execute_run(pool, ar_client, tenant_id, canonical, billing_period).await
 }
 
 // ---------------------------------------------------------------------------
@@ -155,6 +161,7 @@ async fn execute_run(
     ar_client: &ArClient,
     tenant_id: Uuid,
     run_id: Uuid,
+    billing_period: &str,
 ) -> Result<BillingRunSummary, BillingError> {
     use super::billing_db::collect_parties_to_bill;
 
@@ -165,7 +172,20 @@ async fn execute_run(
     .execute(pool)
     .await?;
 
-    let parties = collect_parties_to_bill(pool, tenant_id, run_id).await?;
+    let mut parties = collect_parties_to_bill(pool, tenant_id, run_id).await?;
+
+    // Compute metering trace and add metered usage as a billing item
+    let trace = metering::compute_price_trace(pool, tenant_id, billing_period).await?;
+    if trace.total_minor > 0 {
+        let hash = compute_trace_hash(&trace);
+        parties.push(PartyBillingWork {
+            party_id: tenant_id,
+            total_amount_minor: trace.total_minor,
+            currency: trace.currency.clone(),
+            charge_ids: vec![],
+            trace_hash: Some(hash),
+        });
+    }
 
     let mut parties_billed: u32 = 0;
     let mut total_amount_minor: i64 = 0;
@@ -253,10 +273,10 @@ async fn bill_party(
 
     sqlx::query(
         r#"
-        INSERT INTO ttp_billing_run_items (run_id, party_id, ar_invoice_id, amount_minor, currency, status)
-        VALUES ($1, $2, $3, $4, $5, 'invoiced')
+        INSERT INTO ttp_billing_run_items (run_id, party_id, ar_invoice_id, amount_minor, currency, status, trace_hash)
+        VALUES ($1, $2, $3, $4, $5, 'invoiced', $6)
         ON CONFLICT (run_id, party_id) DO UPDATE
-          SET ar_invoice_id = EXCLUDED.ar_invoice_id, status = 'invoiced'
+          SET ar_invoice_id = EXCLUDED.ar_invoice_id, status = 'invoiced', trace_hash = EXCLUDED.trace_hash
         "#,
     )
     .bind(run_id)
@@ -264,6 +284,7 @@ async fn bill_party(
     .bind(ar_invoice_uuid)
     .bind(party.total_amount_minor)
     .bind(&party.currency)
+    .bind(&party.trace_hash)
     .execute(pool)
     .await?;
 
@@ -302,6 +323,17 @@ pub fn derive_item_key(run_id: Uuid, party_id: Uuid) -> String {
     format!("{:x}", digest)
 }
 
+/// Compute a deterministic SHA-256 hash of a PriceTrace.
+///
+/// The trace's line_items are already sorted by dimension, so JSON serialization
+/// produces a stable string. Same trace inputs → same hash, always.
+pub fn compute_trace_hash(trace: &metering::PriceTrace) -> String {
+    use sha2::{Digest, Sha256};
+    let json = serde_json::to_string(trace).expect("PriceTrace serializes to JSON");
+    let digest = Sha256::digest(json.as_bytes());
+    format!("{:x}", digest)
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -335,6 +367,45 @@ mod tests {
         let key = derive_item_key(run_id, party_id);
         assert_eq!(key.len(), 64);
         assert!(key.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn compute_trace_hash_is_deterministic() {
+        use chrono::NaiveDate;
+        use metering::{PriceTrace, TraceLineItem};
+
+        let tenant_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let trace = PriceTrace {
+            tenant_id,
+            period: "2026-02".to_string(),
+            period_start: NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),
+            period_end: NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+            line_items: vec![
+                TraceLineItem {
+                    dimension: "api_calls".to_string(),
+                    total_quantity: 175,
+                    event_count: 3,
+                    unit_price_minor: 10,
+                    currency: "usd".to_string(),
+                    line_total_minor: 1750,
+                },
+                TraceLineItem {
+                    dimension: "storage_gb".to_string(),
+                    total_quantity: 5,
+                    event_count: 1,
+                    unit_price_minor: 500,
+                    currency: "usd".to_string(),
+                    line_total_minor: 2500,
+                },
+            ],
+            total_minor: 4250,
+            currency: "usd".to_string(),
+        };
+
+        let hash1 = compute_trace_hash(&trace);
+        let hash2 = compute_trace_hash(&trace);
+        assert_eq!(hash1, hash2, "trace hash must be deterministic");
+        assert_eq!(hash1.len(), 64, "sha256 hex is 64 chars");
     }
 
     /// Integration: billing run creates items in DB and is idempotent on repeat.

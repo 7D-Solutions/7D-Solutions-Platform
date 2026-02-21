@@ -70,6 +70,7 @@ pub async fn collect_parties_to_bill(
                 total_amount_minor: 0,
                 currency: currency.clone(),
                 charge_ids: vec![],
+                trace_hash: None,
             })
             .total_amount_minor += amount;
     }
@@ -88,6 +89,7 @@ pub async fn collect_parties_to_bill(
             total_amount_minor: 0,
             currency: currency.clone(),
             charge_ids: vec![],
+            trace_hash: None,
         });
         entry.total_amount_minor += amount;
         entry.charge_ids.extend(charge_ids);
