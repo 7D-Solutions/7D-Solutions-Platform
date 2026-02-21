@@ -51,8 +51,10 @@ pub fn unique_reference_id() -> String {
 }
 
 /// Build the full AR API router with pool state for testing.
+/// Uses the permissive variant (no permission enforcement) so mutation routes
+/// can be exercised without JWT infrastructure.
 pub fn app(pool: &PgPool) -> Router {
-    ar_rs::routes::ar_router(pool.clone())
+    ar_rs::routes::ar_router_permissive(pool.clone())
 }
 
 /// Read response body as JSON.

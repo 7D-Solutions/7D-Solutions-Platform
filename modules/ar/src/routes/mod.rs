@@ -33,7 +33,20 @@ use std::sync::Arc;
 use crate::idempotency::check_idempotency;
 use crate::middleware::{webhook_ratelimit_middleware, WebhookRateLimitState};
 
+/// Build the AR router with full permission enforcement (production).
 pub fn ar_router(db: PgPool) -> Router {
+    build_ar_router(db, true)
+}
+
+/// Build the AR router without permission enforcement — integration tests only.
+///
+/// Bypasses the `ar.mutate` permission gate so mutation routes can be exercised
+/// without JWT infrastructure. Do NOT use in production code.
+pub fn ar_router_permissive(db: PgPool) -> Router {
+    build_ar_router(db, false)
+}
+
+fn build_ar_router(db: PgPool, enforce_permissions: bool) -> Router {
     // Shared IP-based rate limiter for inbound webhook endpoints.
     let webhook_rl_state = Arc::new(WebhookRateLimitState {
         limiter: Arc::new(WebhookRateLimiter::new()),
@@ -48,8 +61,8 @@ pub fn ar_router(db: PgPool) -> Router {
         ))
         .with_state(db.clone());
 
-    // Mutation routes — require ar.mutate permission.
-    let mutations = Router::new()
+    // Mutation routes — in production require ar.mutate permission.
+    let mutations_core = Router::new()
         // Customers — write
         .route("/api/ar/customers", post(customers::create_customer))
         .route("/api/ar/customers/{id}", put(customers::update_customer))
@@ -103,9 +116,15 @@ pub fn ar_router(db: PgPool) -> Router {
         .route("/api/ar/tax/config/jurisdictions", post(tax_config::create_jurisdiction))
         .route("/api/ar/tax/config/jurisdictions/{id}", put(tax_config::update_jurisdiction))
         .route("/api/ar/tax/config/rules", post(tax_config_rules::create_rule))
-        .route("/api/ar/tax/config/rules/{id}", put(tax_config_rules::update_rule))
-        .route_layer(RequirePermissionsLayer::new(&[permissions::AR_MUTATE]))
-        .with_state(db.clone());
+        .route("/api/ar/tax/config/rules/{id}", put(tax_config_rules::update_rule));
+
+    let mutations = if enforce_permissions {
+        mutations_core
+            .route_layer(RequirePermissionsLayer::new(&[permissions::AR_MUTATE]))
+            .with_state(db.clone())
+    } else {
+        mutations_core.with_state(db.clone())
+    };
 
     // Read routes — no permission required at this stage.
     let reads = Router::new()

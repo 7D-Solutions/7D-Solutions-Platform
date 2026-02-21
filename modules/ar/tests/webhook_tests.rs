@@ -432,7 +432,115 @@ async fn test_replay_webhook_with_force() {
     common::teardown_pool(pool).await;
 }
 
-/// TEST 10: Process out-of-order webhook events
+/// TEST 10: Reject webhook with missing signature header — no state mutation
+#[tokio::test]
+#[serial]
+async fn test_receive_webhook_missing_signature_header() {
+    setup_test_env();
+    let pool = common::setup_pool().await;
+    let app = common::app(&pool);
+
+    let event_id = format!("evt_{}", uuid::Uuid::new_v4());
+    let timestamp = chrono::Utc::now().timestamp();
+    let payload = serde_json::json!({
+        "id": event_id,
+        "type": "payment_intent.succeeded",
+        "data": {"object": {"id": "pi_test123"}},
+        "created_at": timestamp,
+        "livemode": false
+    });
+
+    let payload_str = serde_json::to_string(&payload).unwrap();
+
+    // No tilled-signature header included
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/ar/webhooks/tilled")
+                .header("content-type", "application/json")
+                .body(Body::from(payload_str))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNAUTHORIZED,
+        "Webhook with missing signature header must be rejected with 401"
+    );
+
+    // Verify no state mutation occurred
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ar_webhooks WHERE event_id = $1"
+    )
+    .bind(&event_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count, 0, "Webhook with missing signature must not be stored");
+
+    common::teardown_pool(pool).await;
+}
+
+/// TEST 11: Reject webhook with stale timestamp (replay-window protection) — no state mutation
+#[tokio::test]
+#[serial]
+async fn test_receive_webhook_stale_timestamp_rejected() {
+    setup_test_env();
+    let pool = common::setup_pool().await;
+    let app = common::app(&pool);
+
+    let event_id = format!("evt_{}", uuid::Uuid::new_v4());
+    // 10 minutes in the past — beyond the 5-minute tolerance window
+    let stale_ts = chrono::Utc::now().timestamp() - 600;
+
+    let payload = serde_json::json!({
+        "id": event_id,
+        "type": "payment_intent.succeeded",
+        "data": {"object": {"id": "pi_test123"}},
+        "created_at": stale_ts,
+        "livemode": false
+    });
+
+    let payload_str = serde_json::to_string(&payload).unwrap();
+    // Sign with valid secret but old timestamp — signature itself is correct
+    let signature = generate_webhook_signature(&payload_str, stale_ts, TEST_WEBHOOK_SECRET);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/ar/webhooks/tilled")
+                .header("content-type", "application/json")
+                .header("tilled-signature", format!("t={},v1={}", stale_ts, signature))
+                .body(Body::from(payload_str))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(
+        response.status(),
+        StatusCode::UNAUTHORIZED,
+        "Webhook with stale timestamp must be rejected with 401 (replay protection)"
+    );
+
+    // Verify no state mutation occurred
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM ar_webhooks WHERE event_id = $1"
+    )
+    .bind(&event_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count, 0, "Stale webhook must not be stored in database");
+
+    common::teardown_pool(pool).await;
+}
+
+/// TEST 12: Process out-of-order webhook events
 #[tokio::test]
 #[serial]
 async fn test_receive_webhooks_out_of_order() {
