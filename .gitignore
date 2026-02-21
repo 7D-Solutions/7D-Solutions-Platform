@@ -26,6 +26,9 @@
 .env.local
 .env.*.local
 scripts/staging/.env.staging
+scripts/production/.env.production
+secrets.env
+*.secrets.env
 
 # Logs
 *.log

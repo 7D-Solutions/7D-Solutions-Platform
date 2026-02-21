@@ -108,7 +108,8 @@ This guided script:
 
 ### Step 4 — Populate secrets
 
-See the next section: [Environment Contract](#environment-contract).
+Create `/etc/7d/production/secrets.env` on the VPS and run the validation script.
+See [Environment Contract](#environment-contract) for the full procedure.
 
 ### Step 5 — First production deploy
 
@@ -127,20 +128,100 @@ bash scripts/staging/deploy_stack.sh --tag v1.0.0-abc1234
 
 ## Environment Contract
 
-Application secrets are managed separately from provisioning variables.
+Application secrets are stored on the VPS at a root-owned location. They are
+**never committed to the repository** and never appear in CI logs.
 
-**Do not store secrets in the repo.** Recommended injection approaches (choose one):
+### Secrets directory on the VPS
 
-| Approach | How |
-|----------|-----|
-| Local file | Populate `.env.production` locally; upload via `scp` before deploy. |
-| VPS secrets manager | Store in Hetzner Vault / DO Secrets / HashiCorp Vault; export before deploy. |
-| CI environment | Set as masked variables in GitHub Actions `production` environment; workflow writes `.env` on VPS. |
+| Property | Value |
+|----------|-------|
+| Path | `/etc/7d/production/secrets.env` |
+| Owner | `root:root` |
+| Mode | `0600` |
+| Readable by | root only (the deploy user uses `sudo` to load via `export_env.sh`) |
 
-Required secrets are documented in `scripts/production/env.example`.
-Application-level secrets (DB passwords, JWT keys) are defined in `bd-1itw`.
+### Creating the secrets file (first-time, on the VPS)
 
-**Never commit `.env.production` to git.** It is listed in `.gitignore`.
+```bash
+# SSH into the VPS as deploy user
+ssh -p 22 deploy@prod.7dsolutions.example.com
+
+# Create the secrets directory and file as root
+sudo mkdir -p /etc/7d/production
+sudo install -m 0600 -o root /dev/null /etc/7d/production/secrets.env
+
+# Populate — paste contents adapted from scripts/production/env.example
+# (provisioning vars are not needed here; only DB passwords, JWT keys, JWT_SECRET)
+sudo nano /etc/7d/production/secrets.env
+```
+
+### Loading secrets before a deploy
+
+On the VPS, source `export_env.sh` with `sudo -E` so the deploy user's shell
+receives the exported variables:
+
+```bash
+sudo -E bash -c 'source /opt/7d-platform/scripts/production/export_env.sh && \
+  bash /opt/7d-platform/scripts/staging/deploy_stack.sh --tag <tag>'
+```
+
+Or in an explicit two-step:
+
+```bash
+# As root (or via sudo), export into a sub-shell:
+sudo bash -c 'source /opt/7d-platform/scripts/production/export_env.sh && \
+  env | grep -E "POSTGRES|JWT" > /run/7d-prod-env && chmod 0600 /run/7d-prod-env'
+
+# Then deploy reads /run/7d-prod-env (cleaned up by deploy_stack.sh)
+```
+
+### Validating secrets before deploying
+
+```bash
+# Run the secrets check (must be root or sudo to read the 0600 file)
+sudo bash scripts/production/secrets_check.sh
+```
+
+The script asserts:
+- File exists at `/etc/7d/production/secrets.env`
+- Owner is `root` (uid 0)
+- Mode is `0600`
+- No `CHANGE_ME` placeholders remain
+- No test/development secret patterns
+- All 21 required variables are present and non-empty
+
+Exit code 0 = ready to deploy. Non-zero = fix the reported issues first.
+
+### Required secrets (full list)
+
+| Variable | Description |
+|----------|-------------|
+| `JWT_PRIVATE_KEY_PEM` | Ed25519 private key for JWT signing |
+| `JWT_PUBLIC_KEY_PEM` | Ed25519 public key |
+| `JWT_KID` | Key ID (e.g. `production-key-1`) |
+| `JWT_SECRET` | BFF session secret (32+ random bytes, hex) |
+| `AUTH_POSTGRES_PASSWORD` | auth service DB |
+| `AR_POSTGRES_PASSWORD` | AR module DB |
+| `SUBSCRIPTIONS_POSTGRES_PASSWORD` | Subscriptions module DB |
+| `PAYMENTS_POSTGRES_PASSWORD` | Payments module DB |
+| `NOTIFICATIONS_POSTGRES_PASSWORD` | Notifications module DB |
+| `GL_POSTGRES_PASSWORD` | GL module DB |
+| `PROJECTIONS_POSTGRES_PASSWORD` | Projections DB |
+| `AUDIT_POSTGRES_PASSWORD` | Audit DB |
+| `TENANT_REGISTRY_POSTGRES_PASSWORD` | Tenant registry DB |
+| `INVENTORY_POSTGRES_PASSWORD` | Inventory module DB |
+| `AP_POSTGRES_PASSWORD` | AP module DB |
+| `TREASURY_POSTGRES_PASSWORD` | Treasury module DB |
+| `FIXED_ASSETS_POSTGRES_PASSWORD` | Fixed Assets module DB |
+| `CONSOLIDATION_POSTGRES_PASSWORD` | Consolidation module DB |
+| `TIMEKEEPING_POSTGRES_PASSWORD` | Timekeeping module DB |
+| `PARTY_POSTGRES_PASSWORD` | Party module DB |
+| `INTEGRATIONS_POSTGRES_PASSWORD` | Integrations module DB |
+| `TTP_POSTGRES_PASSWORD` | TTP module DB |
+
+Variable names and DB usernames are documented in full in `scripts/production/env.example`.
+
+**Never commit `.env.production` or `secrets.env` to git.** Both are listed in `.gitignore`.
 
 ## Ongoing Deploys
 
@@ -211,7 +292,9 @@ See `bd-1itw` for the full production secrets contract.
 
 | Script | Purpose |
 |--------|---------|
-| `scripts/production/env.example` | Template for provisioning variables |
+| `scripts/production/env.example` | Template for all production variables (provisioning + app secrets) |
+| `scripts/production/export_env.sh` | Source this on the VPS to export `/etc/7d/production/secrets.env` |
+| `scripts/production/secrets_check.sh` | Validate secrets file before deploying (run as root/sudo) |
 | `scripts/production/provision_vps.sh` | Guided walkthrough for first-time provisioning |
 | `scripts/production/ssh_bootstrap.sh` | Harden host and install Docker on a fresh VPS |
 | `scripts/staging/deploy_stack.sh --tag <tag>` | Deploy a pinned image tag (works for both staging and prod) |
