@@ -249,6 +249,71 @@ jobs:
         run: |
           bash scripts/production/manifest_diff.sh
 
+      - name: Stabilise — wait for services after deploy
+        run: |
+          echo "Waiting 20s for production services to stabilise..."
+          sleep 20
+
+      - name: Production smoke — curl health checks (via SSH)
+        env:
+          PROD_HOST:       ${{ env.PROD_HOST }}
+          PROD_USER:       ${{ env.PROD_USER }}
+          PROD_SSH_PORT:   ${{ env.PROD_SSH_PORT }}
+          SMOKE_STAFF_JWT: ${{ secrets.SMOKE_STAFF_JWT }}
+        run: |
+          bash scripts/production/smoke.sh
+
+      - name: Set up Node.js for Playwright smoke
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: apps/tenant-control-plane-ui/package-lock.json
+
+      - name: Install Playwright dependencies
+        working-directory: apps/tenant-control-plane-ui
+        run: |
+          npm ci --prefer-offline
+          npx playwright install chromium --with-deps
+
+      - name: Open SSH tunnel to production TCP UI
+        run: |
+          # Forward localhost:3001 → VPS:3000 so Playwright can reach the UI
+          # without requiring production to expose port 3000 publicly.
+          ssh -o StrictHostKeyChecking=no -o BatchMode=yes \
+            -p "${{ env.PROD_SSH_PORT }}" \
+            -L 3001:localhost:3000 \
+            -N "${{ env.PROD_USER }}@${{ env.PROD_HOST }}" &
+          TUNNEL_PID=$!
+          echo "TUNNEL_PID=${TUNNEL_PID}" >> "$GITHUB_ENV"
+          # Wait for tunnel to be ready
+          for i in $(seq 1 10); do
+            if curl -s -o /dev/null http://localhost:3001/login; then
+              echo "SSH tunnel ready (attempt ${i})"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Playwright production smoke
+        working-directory: apps/tenant-control-plane-ui
+        env:
+          BASE_URL:            "http://localhost:3001"
+          TEST_STAFF_EMAIL:    ${{ secrets.SMOKE_STAFF_EMAIL }}
+          TEST_STAFF_PASSWORD: ${{ secrets.SMOKE_STAFF_PASSWORD }}
+          CI: "true"
+        run: |
+          npx playwright test tests/e2e/production/smoke.spec.ts \
+            --reporter=list \
+            --timeout=60000
+
+      - name: Close SSH tunnel
+        if: always()
+        run: |
+          if [[ -n "${TUNNEL_PID:-}" ]]; then
+            kill "$TUNNEL_PID" 2>/dev/null || true
+          fi
+
       - name: Record deployment artifact
         run: |
           TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -286,6 +351,8 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Gate 3 manifest validation:** passed ✓" >> $GITHUB_STEP_SUMMARY
           echo "**Gate 3 drift diff:** passed ✓ (running images match manifest)" >> $GITHUB_STEP_SUMMARY
+          echo "**Production smoke (curl):** passed ✓ (all services healthy via SSH)" >> $GITHUB_STEP_SUMMARY
+          echo "**Production smoke (Playwright):** passed ✓ (TCP UI nav + BFF endpoints)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Rollback" >> $GITHUB_STEP_SUMMARY
           echo "1. Revert \`deploy/production/MODULE-MANIFEST.md\` to the prior pinned tags." >> $GITHUB_STEP_SUMMARY
