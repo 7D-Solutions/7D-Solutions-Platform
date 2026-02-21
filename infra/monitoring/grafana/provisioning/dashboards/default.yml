@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: '7D Platform Dashboards'
+    orgId: 1
+    folder: '7D Solutions Platform'
+    type: file
+    disableDeletion: true
+    editable: false
+    options:
+      path: /var/lib/grafana/dashboards

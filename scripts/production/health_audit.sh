@@ -215,6 +215,72 @@ for _entry in "${DB_MATRIX[@]}"; do
 done
 
 # ---------------------------------------------------------------------------
+# HTTP endpoint audit (production mode only, skip in drill mode)
+# Curls /healthz (liveness) and /api/ready or /api/health (readiness) for
+# all critical services on localhost. Ports must be reachable from wherever
+# this script runs (on the VPS they are always accessible via 127.0.0.1).
+# ---------------------------------------------------------------------------
+if ! $DRILL_MODE && [[ "${SKIP_HTTP:-false}" != "true" ]]; then
+    echo ""
+    log "HTTP endpoint checks"
+    printf '  %-42s %s\n' "Endpoint" "Result"
+    printf '  %-42s %s\n' "--------" "------"
+
+    # label|port|liveness_path|readiness_path
+    declare -a HTTP_MATRIX=(
+        "identity-auth|8080|/healthz|/api/health"
+        "control-plane|8091|/healthz|/api/ready"
+        "ar|8086|/healthz|/api/health"
+        "payments|8088|/healthz|/api/health"
+        "subscriptions|8087|/healthz|/api/health"
+        "ttp|8100|/healthz|/api/health"
+        "gl|8090|/healthz|/api/health"
+        "notifications|8089|/healthz|/api/health"
+        "party|8098|/healthz|/api/health"
+    )
+
+    HTTP_TIMEOUT="${HTTP_AUDIT_TIMEOUT:-5}"
+    HTTP_HOST="${HTTP_AUDIT_HOST:-127.0.0.1}"
+
+    for _entry in "${HTTP_MATRIX[@]}"; do
+        IFS='|' read -r _svc _port _live_path _ready_path <<< "$_entry"
+
+        # Liveness check
+        _live_url="http://${HTTP_HOST}:${_port}${_live_path}"
+        _live_status=$(curl -s -o /dev/null -w '%{http_code}' \
+            --max-time "$HTTP_TIMEOUT" "$_live_url" 2>/dev/null || echo "000")
+        if [[ "$_live_status" == "200" ]]; then
+            ok "${_svc}/healthz" "HTTP ${_live_status}"
+            PASS=$((PASS + 1))
+        elif [[ "$_live_status" == "000" ]]; then
+            warn "${_svc}/healthz" "unreachable (service not running?)"
+            SKIP=$((SKIP + 1))
+        else
+            fail "${_svc}/healthz" "HTTP ${_live_status} (want 200)"
+            FAIL=$((FAIL + 1))
+        fi
+
+        # Readiness check
+        _ready_url="http://${HTTP_HOST}:${_port}${_ready_path}"
+        _ready_status=$(curl -s -o /dev/null -w '%{http_code}' \
+            --max-time "$HTTP_TIMEOUT" "$_ready_url" 2>/dev/null || echo "000")
+        if [[ "$_ready_status" == "200" ]]; then
+            ok "${_svc}${_ready_path}" "HTTP ${_ready_status}"
+            PASS=$((PASS + 1))
+        elif [[ "$_ready_status" == "503" ]]; then
+            fail "${_svc}${_ready_path}" "HTTP 503 (service degraded/down)"
+            FAIL=$((FAIL + 1))
+        elif [[ "$_ready_status" == "000" ]]; then
+            warn "${_svc}${_ready_path}" "unreachable (service not running?)"
+            SKIP=$((SKIP + 1))
+        else
+            fail "${_svc}${_ready_path}" "HTTP ${_ready_status} (want 200)"
+            FAIL=$((FAIL + 1))
+        fi
+    done
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
@@ -224,14 +290,14 @@ printf 'Health audit results: %d passed, %d failed, %d skipped\n' \
 
 if [[ $FAIL -gt 0 ]]; then
     echo ""
-    log "Health audit FAILED — ${FAIL} database(s) are not accessible"
+    log "Health audit FAILED — ${FAIL} check(s) failed"
     exit 1
 fi
 
 if [[ $PASS -eq 0 && $SKIP -gt 0 ]]; then
-    log "Health audit: no databases audited (all skipped)"
+    log "Health audit: no checks executed (all skipped)"
     exit 0
 fi
 
-log "Health audit PASSED — all reachable databases are accessible"
+log "Health audit PASSED — all reachable services are accessible"
 exit 0

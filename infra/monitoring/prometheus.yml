@@ -1,0 +1,99 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: 'production'
+    project: '7d-solutions-platform'
+
+rule_files:
+  - '/etc/prometheus/alerts/*.yml'
+
+scrape_configs:
+  # ── Platform Services ──────────────────────────────────────────────────────
+  - job_name: 'identity-auth'
+    static_configs:
+      - targets: ['7d-auth-1:8080', '7d-auth-2:8080']
+    metrics_path: '/metrics'
+
+  - job_name: 'control-plane'
+    static_configs:
+      - targets: ['7d-control-plane:8091']
+    metrics_path: '/metrics'
+
+  # ── Billing Spine ──────────────────────────────────────────────────────────
+  - job_name: 'ar'
+    static_configs:
+      - targets: ['7d-ar:8086']
+    metrics_path: '/metrics'
+
+  - job_name: 'payments'
+    static_configs:
+      - targets: ['7d-payments:8088']
+    metrics_path: '/metrics'
+
+  - job_name: 'subscriptions'
+    static_configs:
+      - targets: ['7d-subscriptions:8087']
+    metrics_path: '/metrics'
+
+  - job_name: 'ttp'
+    static_configs:
+      - targets: ['7d-ttp:8100']
+    metrics_path: '/metrics'
+
+  # ── Other Modules ──────────────────────────────────────────────────────────
+  - job_name: 'gl'
+    static_configs:
+      - targets: ['7d-gl:8090']
+    metrics_path: '/metrics'
+
+  - job_name: 'notifications'
+    static_configs:
+      - targets: ['7d-notifications:8089']
+    metrics_path: '/metrics'
+
+  - job_name: 'inventory'
+    static_configs:
+      - targets: ['7d-inventory:8092']
+    metrics_path: '/metrics'
+
+  - job_name: 'ap'
+    static_configs:
+      - targets: ['7d-ap:8093']
+    metrics_path: '/metrics'
+
+  - job_name: 'treasury'
+    static_configs:
+      - targets: ['7d-treasury:8094']
+    metrics_path: '/metrics'
+
+  - job_name: 'fixed-assets'
+    static_configs:
+      - targets: ['7d-fixed-assets:8095']
+    metrics_path: '/metrics'
+
+  - job_name: 'consolidation'
+    static_configs:
+      - targets: ['7d-consolidation:8096']
+    metrics_path: '/metrics'
+
+  - job_name: 'timekeeping'
+    static_configs:
+      - targets: ['7d-timekeeping:8097']
+    metrics_path: '/metrics'
+
+  - job_name: 'party'
+    static_configs:
+      - targets: ['7d-party:8098']
+    metrics_path: '/metrics'
+
+  - job_name: 'integrations'
+    static_configs:
+      - targets: ['7d-integrations:8099']
+    metrics_path: '/metrics'
+
+  # ── Infrastructure ─────────────────────────────────────────────────────────
+  - job_name: 'nats'
+    static_configs:
+      - targets: ['7d-nats:8222']
+    metrics_path: '/varz'

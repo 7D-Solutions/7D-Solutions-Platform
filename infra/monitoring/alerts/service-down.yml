@@ -1,0 +1,155 @@
+# Prometheus Alert Rules: Service Down + Billing/Payment Critical Failures
+#
+# Phase 45: Production Observability (bd-2ubc)
+#
+# These alerts surface service outages and billing/payment failures quickly
+# enough to detect silent failures before customer impact.
+#
+# Severity levels:
+#   critical — immediate action required (page on-call)
+#   warning  — investigate promptly (non-paging alert)
+
+groups:
+  # ── Service Availability ───────────────────────────────────────────────────
+  - name: service_down
+    interval: 30s
+    rules:
+      # Critical billing spine services — any outage is immediately critical
+      - alert: BillingServiceDown
+        expr: up{job=~"ar|payments|subscriptions|ttp"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Billing service {{ $labels.job }} is DOWN"
+          description: >
+            Service {{ $labels.job }} ({{ $labels.instance }}) has been unreachable
+            for more than 1 minute. Billing operations are impacted.
+            Immediate investigation required.
+          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/SERVICE-DOWN"
+
+      # Critical platform services (auth + control-plane)
+      - alert: PlatformServiceDown
+        expr: up{job=~"identity-auth|control-plane"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Platform service {{ $labels.job }} is DOWN"
+          description: >
+            Platform service {{ $labels.job }} ({{ $labels.instance }}) has been
+            unreachable for more than 2 minutes. Authentication or tenant operations
+            are impacted.
+          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/SERVICE-DOWN"
+
+      # Warning: non-billing module down
+      - alert: ModuleServiceDown
+        expr: up{job=~"gl|notifications|inventory|ap|treasury|fixed-assets|consolidation|timekeeping|party|integrations"} == 0
+        for: 5m
+        labels:
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Module {{ $labels.job }} is DOWN"
+          description: >
+            Module {{ $labels.job }} ({{ $labels.instance }}) has been unreachable
+            for more than 5 minutes. Non-billing operations may be impacted.
+          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/SERVICE-DOWN"
+
+      # Warning: NATS message bus degraded (critical if sustained)
+      - alert: NATSDown
+        expr: up{job="nats"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "NATS message bus is DOWN"
+          description: >
+            NATS ({{ $labels.instance }}) has been unreachable for more than 1 minute.
+            All event-driven workflows (billing, provisioning, notifications) are impacted.
+          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/NATS-DOWN"
+
+  # ── Billing Cycle Failures ─────────────────────────────────────────────────
+  - name: billing_critical
+    interval: 60s
+    rules:
+      # Critical: billing cycles consistently failing (attempts >> completions)
+      - alert: BillingCycleFailureRateCritical
+        expr: >
+          (rate(subscriptions_cycles_attempted_total[10m]) > 0)
+          and
+          (rate(subscriptions_cycles_completed_total[10m]) /
+           rate(subscriptions_cycles_attempted_total[10m])) < 0.5
+        for: 5m
+        labels:
+          severity: critical
+          module: subscriptions
+          category: billing_reliability
+        annotations:
+          summary: "Billing cycle completion rate below 50%"
+          description: >
+            Fewer than 50% of billing cycles are completing over the last 10 minutes.
+            This indicates a systemic billing failure. Revenue collection is impacted.
+          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/BILLING-CYCLE-FAILURE"
+
+      # Warning: billing cycles stalling
+      - alert: BillingCycleStalled
+        expr: >
+          (rate(subscriptions_cycles_attempted_total[30m]) > 0)
+          and
+          (rate(subscriptions_cycles_completed_total[30m]) == 0)
+        for: 10m
+        labels:
+          severity: critical
+          module: subscriptions
+          category: billing_reliability
+        annotations:
+          summary: "No billing cycles completing in 30 minutes"
+          description: >
+            Billing cycles are being attempted but none are completing over the last
+            30 minutes. Billing engine may be stuck or blocked. Immediate investigation
+            required — invoices will not be generated.
+          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/BILLING-CYCLE-FAILURE"
+
+  # ── Payment Processing Failures ────────────────────────────────────────────
+  - name: payment_critical
+    interval: 60s
+    rules:
+      # Critical: payment failure rate too high (> 20% of attempts)
+      - alert: PaymentFailureRateCritical
+        expr: >
+          (rate(payment_attempts_total{status="failed"}[10m]) /
+           rate(payment_attempts_total[10m])) > 0.2
+        for: 5m
+        labels:
+          severity: critical
+          module: payments
+          category: payment_reliability
+        annotations:
+          summary: "Payment failure rate exceeds 20%"
+          description: >
+            More than 20% of payment attempts are failing over the last 10 minutes.
+            May indicate gateway issues, credential problems, or service degradation.
+            Check payment processor status and service logs.
+          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/PAYMENT-FAILURE-RATE"
+
+      # Critical: no successful payments when attempts exist
+      - alert: PaymentProcessingStalled
+        expr: >
+          (rate(payment_attempts_total[15m]) > 0)
+          and
+          (rate(payment_attempts_total{status="succeeded"}[15m]) == 0)
+        for: 10m
+        labels:
+          severity: critical
+          module: payments
+          category: payment_reliability
+        annotations:
+          summary: "No payment successes in 15 minutes despite attempts"
+          description: >
+            Payment attempts are being made but none are succeeding over 15 minutes.
+            Likely a gateway or credentials failure. All tenant billing is blocked.
+          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/PAYMENT-PROCESSING-STALLED"

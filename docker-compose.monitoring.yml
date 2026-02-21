@@ -1,0 +1,78 @@
+name: 7d-monitoring
+
+# Minimal production observability stack: Prometheus + Grafana.
+#
+# Start AFTER the platform and services stacks:
+#   docker compose -f docker-compose.monitoring.yml up -d
+#
+# In production, Prometheus and Grafana ports are firewalled by UFW.
+# Access Grafana via SSH tunnel:
+#   ssh -L 3001:localhost:3001 deploy@prod.7dsolutions.example.com
+# Access Prometheus via SSH tunnel:
+#   ssh -L 9090:localhost:9090 deploy@prod.7dsolutions.example.com
+#
+# Prometheus scrapes /metrics from all platform services on the 7d-platform network.
+# Alert rules live in infra/monitoring/alerts/*.yml.
+# Grafana dashboards live in infra/monitoring/grafana/dashboards/*.json.
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.50.1
+    container_name: 7d-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./infra/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./infra/monitoring/alerts:/etc/prometheus/alerts:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - 7d-platform
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "monitoring"
+      com.7dsolutions.component: "prometheus"
+      com.7dsolutions.env: "production"
+
+  grafana:
+    image: grafana/grafana:10.2.3
+    container_name: 7d-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD must be set}"
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/billing-unknown.json
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks:
+      - 7d-platform
+    depends_on:
+      - prometheus
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "monitoring"
+      com.7dsolutions.component: "grafana"
+      com.7dsolutions.env: "production"
+
+volumes:
+  prometheus_data:
+    name: 7d-prometheus-data
+  grafana_data:
+    name: 7d-grafana-data
+
+networks:
+  7d-platform:
+    name: 7d-platform
+    external: true
