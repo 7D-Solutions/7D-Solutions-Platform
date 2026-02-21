@@ -45,11 +45,11 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
             post(handlers::create_tenant),
         )
         .route(
-            "/api/control/tenants/:tenant_id/retention",
+            "/api/control/tenants/{tenant_id}/retention",
             get(handlers::get_retention).put(handlers::set_retention),
         )
         .route(
-            "/api/control/tenants/:tenant_id/tombstone",
+            "/api/control/tenants/{tenant_id}/tombstone",
             post(handlers::tombstone_tenant),
         )
         .route(

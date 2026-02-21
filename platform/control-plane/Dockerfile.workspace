@@ -38,14 +38,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libssl3 curl \
     && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /app
+
 COPY --from=builder /app/target/release/control-plane /usr/local/bin/control-plane
-# Copy migrations so the container can resolve the path used in main.rs
+# Copy migrations so the container can resolve the relative path used in main.rs:
+#   ./platform/tenant-registry/db/migrations (relative to WORKDIR /app)
 COPY --from=builder /app/platform/tenant-registry/db/migrations /app/platform/tenant-registry/db/migrations
 
 ENV HOST=0.0.0.0
-ENV PORT=8092
+ENV PORT=8091
 
-EXPOSE 8092
+EXPOSE 8091
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=60s \
     CMD curl -f http://localhost:${PORT}/api/ready || exit 1
