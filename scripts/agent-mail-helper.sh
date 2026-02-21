@@ -1,1 +1,0 @@
-/Users/james/Projects/AgentCore/scripts/agent-mail-helper.sh

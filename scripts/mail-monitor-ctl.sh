@@ -1,1 +1,0 @@
-/Users/james/Projects/AgentCore/scripts/mail-monitor-ctl.sh

@@ -67,18 +67,42 @@ dr_reports/
 # RTF and other generated documents
 *.rtf
 
+# Next.js build output
+**/.next/
+**/.next-old-tmp/
+
+# Playwright test results
+**/test-results/
+
+# TypeScript incremental build cache
+**/tsconfig.tsbuildinfo
+
 # AgentCore symlinked scripts (created by create-symlinks.sh)
 # Only track scripts that are actual project files, not AgentCore symlinks.
 # The symlinks are created at runtime and point outside this repo.
 scripts/*.mjs
+scripts/agent-mail-helper.sh
+scripts/arrange-panes.sh
 scripts/assign-tasks.sh
+scripts/auto-register-agent.sh
 scripts/bead-quality-scorer.sh
+scripts/bead-stale-monitor.sh
+scripts/br-create.sh
+scripts/br-start-work.sh
+scripts/br-wrapper.sh
+scripts/broadcast-to-swarm.sh
 scripts/bv-all-open.sh
 scripts/bv-all.sh
+scripts/bv-claim.sh
 scripts/bv-open.sh
 scripts/bv-sync.sh
+scripts/bv.sh
+scripts/cass.sh
 scripts/check-worker.sh
+scripts/cleanup-after-pane-removal.sh
+scripts/cm.sh
 scripts/create-symlinks.sh
+scripts/deepseek-claude-wrapper.sh
 scripts/doctor.sh
 scripts/expiry-notify-monitor.sh
 scripts/file-picker.sh
@@ -87,23 +111,35 @@ scripts/fleet-metrics.sh
 scripts/fleet-status.sh
 scripts/fleet-tmux-status.sh
 scripts/generate-task-graph.sh
+scripts/grok-claude-wrapper.sh
+scripts/hook-bypass.sh
 scripts/inc-version.sh
 scripts/launch-persistent-browser.sh
 scripts/launcher.sh
+scripts/log-bead-activity.sh
 scripts/macro-helpers.sh
+scripts/mail-monitor-ctl.sh
 scripts/metrics-summary.sh
+scripts/monitor-agent-mail-to-terminal.sh
+scripts/next-bead.sh
 scripts/ntm-dashboard.sh
+scripts/ntm.sh
 scripts/pane-init.sh
 scripts/prepare-for-fresh-start.sh
 scripts/project-config.sh
+scripts/renumber-panes.sh
 scripts/reservation-metrics.sh
 scripts/reservation-status.sh
+scripts/ru.sh
 scripts/search-history.sh
 scripts/search-metrics.sh
 scripts/self-review.sh
 scripts/set-conversation.sh
 scripts/setup-codex-oauth.sh
+scripts/slb.sh
+scripts/start-deepseek-proxy.sh
 scripts/start-mail-server.sh
+scripts/start-orchestrator.sh
 scripts/start-worker.sh
 scripts/stop-mail-server.sh
 scripts/stop-worker.sh
@@ -112,9 +148,12 @@ scripts/swarm-metrics.sh
 scripts/swarm-status.sh
 scripts/task-analyzer.sh
 scripts/task-lifecycle-tracker.sh
+scripts/terminal-inject.sh
 scripts/test.sh
 scripts/transpile.sh
+scripts/ubs.sh
 scripts/validate-agent-session.sh
+scripts/visual-session-manager.sh
 scripts/wake-agents.sh
 
 # Logs directory

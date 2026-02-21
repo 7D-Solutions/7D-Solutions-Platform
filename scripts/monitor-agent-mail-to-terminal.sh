@@ -1,1 +1,0 @@
-/Users/james/Projects/AgentCore/scripts/monitor-agent-mail-to-terminal.sh
