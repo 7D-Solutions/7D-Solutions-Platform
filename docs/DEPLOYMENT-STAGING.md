@@ -145,17 +145,90 @@ bash scripts/staging/deploy_compose.sh --smoke-only
 Curls `/api/health` (or `/api/ready` for control-plane) on every service and
 reports pass/fail.
 
-## Rollback
+## CI/CD Deploy (Immutable Images)
 
-Docker Compose has no built-in rollback. To roll back:
+The CI path produces **immutable Docker images** tagged `{semver}-{git-sha7}` (e.g. `v0.5.0-abc1234`) — `latest` is never pushed.
+
+### How it works
+
+1. `git tag v0.5.0 && git push origin v0.5.0`
+2. `release.yml` runs automatically: builds Rust binaries, builds + pushes Docker images.
+3. Run `promote.yml` manually (Actions → Promote Artifacts → Run workflow):
+   - Enter the immutable tag (e.g. `v0.5.0-abc1234` — visible in the release.yml summary)
+   - Click **Run workflow**
+
+### Required GitHub Secrets (environment: `staging`)
+
+| Secret | Description |
+|--------|-------------|
+| `STAGING_SSH_PRIVATE_KEY` | Private key matching the deploy user's `authorized_keys` on the VPS |
+| `STAGING_HOST` | VPS hostname or IP |
+| `STAGING_USER` | SSH user (e.g. `deploy`) |
+| `STAGING_REPO_PATH` | Repo path on VPS (e.g. `/opt/7d-platform`) |
+| `STAGING_SSH_PORT` | SSH port (default: `22`) |
+| `DOCKER_USERNAME` | Registry username |
+| `DOCKER_PASSWORD` | Registry password or token |
+
+**Repository variable:** `IMAGE_REGISTRY` (default: `7dsolutions`)
+
+### CLI deploy (emergency / local testing)
+
+```bash
+export STAGING_HOST=staging.7dsolutions.example.com
+export STAGING_USER=deploy
+export STAGING_REPO_PATH=/opt/7d-platform
+export IMAGE_REGISTRY=7dsolutions
+
+bash scripts/staging/deploy_stack.sh --tag v0.5.0-abc1234
+```
+
+## Rollback (Immutable Image Path)
+
+Rollback = run `promote.yml` again with a prior tag.  No special tooling required.
+
+### Step 1 — Find the prior tag
+
+View recent deployment history:
+
+```bash
+export STAGING_HOST=staging.7dsolutions.example.com
+export STAGING_USER=deploy
+export STAGING_REPO_PATH=/opt/7d-platform
+
+bash scripts/staging/rollback_stack.sh --history
+```
+
+Sample output:
+```
+2026-02-20T14:00:00Z tag=v0.4.9-def5678 registry=7dsolutions
+2026-02-21T09:30:00Z tag=v0.5.0-abc1234 registry=7dsolutions
+```
+
+### Step 2 — Apply the prior tag
+
+**Via GitHub Actions (recommended):**
+- Actions → Promote Artifacts → Run workflow → enter prior tag.
+
+**Roll back to immediately-preceding deployment (CLI):**
+```bash
+bash scripts/staging/rollback_stack.sh --previous
+```
+
+**Explicit tag (CLI):**
+```bash
+bash scripts/staging/rollback_stack.sh --tag v0.4.9-def5678
+```
+
+Data volumes are preserved during rollback; only service containers are replaced.
+
+## Rollback (Source Build Path — legacy)
+
+Use this path if the CI image pipeline is unavailable.
 
 1. SSH into the VPS: `ssh ${STAGING_USER}@${STAGING_HOST}`
 2. `cd ${STAGING_REPO_PATH}`
 3. `git checkout <previous-tag-or-sha>`
-4. `docker compose up -d --build` (and similarly for other compose files)
-
-For zero-downtime rollback, see Phase 43 bead bd-3lia (GitHub workflow with
-rollback job).
+4. `bash scripts/staging/deploy_compose.sh` (rebuilds from source)
 
 ## Scripts Reference
 
@@ -165,7 +238,14 @@ rollback job).
 | `scripts/staging/export_env.sh` | Source this to export `.env.staging` into current shell |
 | `scripts/staging/provision_vps.sh` | Interactive guided walkthrough for first-time provisioning |
 | `scripts/staging/ssh_bootstrap.sh` | Install Docker + create network/volumes on a fresh VPS |
-| `scripts/staging/deploy_compose.sh` | Pull + build + start all four compose stacks |
+| `scripts/staging/deploy_compose.sh` | Pull + build + start all four compose stacks (source build) |
+| `scripts/staging/build_images.sh` | Build Docker images with immutable tags (CI step 1) |
+| `scripts/staging/push_images.sh --confirm` | Push built images to registry (CI step 2) |
+| `scripts/staging/list_versions.sh [--json]` | List resolved image tags for current HEAD |
+| `scripts/staging/deploy_stack.sh --tag <tag>` | Deploy a pinned image tag to staging VPS |
+| `scripts/staging/rollback_stack.sh --tag <tag>` | Roll back to a specific prior tag |
+| `scripts/staging/rollback_stack.sh --previous` | Roll back to the tag before the current one |
+| `scripts/staging/rollback_stack.sh --history` | Show deployment log on VPS |
 
 ## Platform-Local Parity
 

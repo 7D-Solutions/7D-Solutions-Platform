@@ -1,54 +1,106 @@
 name: Promote Artifacts
 
-# ⚠️ PLACEHOLDER WORKFLOW - NOT YET IMPLEMENTED
+# Deploy a specific immutable image tag to the staging VPS.
+# Images must already exist in the registry (published by release.yml on tag push).
 #
-# This workflow is a placeholder for environment promotion logic.
-# Full implementation depends on Phase 17 versioning conventions.
-#
-# Planned functionality:
-# - Promote artifacts from dev -> staging -> prod
-# - Use immutable artifacts (no rebuild)
-# - Record provenance and deployment metadata
-# - Track schema version, projection version, audit version
-#
-# Current status: Awaiting Phase 17 completion for versioning contracts
+# Rollback = run this workflow again with a prior tag.
+# See docs/DEPLOYMENT-STAGING.md for the full runbook.
 
 on:
   workflow_dispatch:
     inputs:
-      environment:
-        description: 'Target environment'
-        required: true
-        type: choice
-        options:
-          - dev
-          - staging
-          - prod
-      artifact_sha:
-        description: 'Git SHA of artifacts to promote'
+      tag:
+        description: 'Immutable image tag to deploy (e.g. v0.5.0-abc1234)'
         required: true
         type: string
+      skip_smoke:
+        description: 'Skip post-deploy smoke checks'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
-  promote:
-    name: Promote Artifacts (Placeholder)
+  deploy-staging:
+    name: Deploy to Staging
     runs-on: ubuntu-latest
+    environment: staging
+
+    env:
+      STAGING_HOST:      ${{ secrets.STAGING_HOST }}
+      STAGING_USER:      ${{ secrets.STAGING_USER }}
+      STAGING_REPO_PATH: ${{ secrets.STAGING_REPO_PATH }}
+      STAGING_SSH_PORT:  ${{ secrets.STAGING_SSH_PORT || '22' }}
+      IMAGE_REGISTRY:    ${{ vars.IMAGE_REGISTRY || '7dsolutions' }}
 
     steps:
-      - name: Placeholder - Not Implemented
+      - uses: actions/checkout@v4
+
+      - name: Validate tag (no 'latest')
         run: |
-          echo "⚠️ PROMOTION WORKFLOW NOT YET IMPLEMENTED"
-          echo ""
-          echo "This workflow is reserved for Phase 17+ implementation."
-          echo ""
-          echo "Requested promotion:"
-          echo "  Environment: ${{ inputs.environment }}"
-          echo "  Artifact SHA: ${{ inputs.artifact_sha }}"
-          echo ""
-          echo "To implement after Phase 17:"
-          echo "  1. Download artifacts by SHA"
-          echo "  2. Verify checksums match"
-          echo "  3. Record promotion metadata (env, versions, timestamp)"
-          echo "  4. Deploy to target environment"
-          echo "  5. Track schema/projection/audit version compatibility"
-          exit 1
+          TAG="${{ inputs.tag }}"
+          if [[ -z "$TAG" ]]; then
+            echo "ERROR: tag input is empty." >&2
+            exit 1
+          fi
+          if [[ "$TAG" == "latest" || "$TAG" == *":latest" ]]; then
+            echo "ERROR: Cannot deploy 'latest' tag. Specify an immutable tag." >&2
+            exit 1
+          fi
+          echo "Tag validated: ${TAG}"
+
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.STAGING_SSH_PRIVATE_KEY }}" > ~/.ssh/staging_deploy
+          chmod 600 ~/.ssh/staging_deploy
+          # Add VPS to known hosts to avoid interactive prompt
+          ssh-keyscan -p "${{ env.STAGING_SSH_PORT }}" "${{ env.STAGING_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          eval "$(ssh-agent -s)"
+          ssh-add ~/.ssh/staging_deploy
+
+      - name: Deploy to staging VPS
+        env:
+          # deploy_stack.sh reads these from the environment
+          STAGING_HOST:      ${{ env.STAGING_HOST }}
+          STAGING_USER:      ${{ env.STAGING_USER }}
+          STAGING_REPO_PATH: ${{ env.STAGING_REPO_PATH }}
+          STAGING_SSH_PORT:  ${{ env.STAGING_SSH_PORT }}
+          IMAGE_REGISTRY:    ${{ env.IMAGE_REGISTRY }}
+        run: |
+          EXTRA_FLAGS=""
+          if [[ "${{ inputs.skip_smoke }}" == "true" ]]; then
+            EXTRA_FLAGS="--skip-smoke"
+          fi
+          bash scripts/staging/deploy_stack.sh --tag "${{ inputs.tag }}" $EXTRA_FLAGS
+
+      - name: Record deployment artifact
+        run: |
+          TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          cat > deployment-record.json << EOF
+          {
+            "tag": "${{ inputs.tag }}",
+            "timestamp": "${TIMESTAMP}",
+            "triggered_by": "${{ github.actor }}",
+            "run_id": "${{ github.run_id }}",
+            "run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          }
+          EOF
+          cat deployment-record.json
+
+      - name: Upload deployment record
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-record-${{ inputs.tag }}
+          path: deployment-record.json
+          retention-days: 365
+
+      - name: Summary
+        run: |
+          echo "## Staging Deploy Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** ${{ inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To roll back, run this workflow again with a prior tag." >> $GITHUB_STEP_SUMMARY
+          echo "See docs/DEPLOYMENT-STAGING.md for the rollback runbook." >> $GITHUB_STEP_SUMMARY
