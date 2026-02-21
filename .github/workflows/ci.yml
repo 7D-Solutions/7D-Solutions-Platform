@@ -414,6 +414,15 @@ jobs:
       - name: Check source file sizes
         run: bash scripts/lint-file-size.sh
 
+  lint-revisions:
+    name: Lint - REVISIONS.md Completeness (proven modules)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate REVISIONS.md entries for all proven modules (>= 1.0.0)
+        run: bash scripts/versioning/lint_revisions.sh
+
   lint-no-ignored-tests:
     name: Lint - Forbid Unapproved #[ignore] in E2E Tests
     runs-on: ubuntu-latest
