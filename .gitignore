@@ -25,6 +25,7 @@
 .env
 .env.local
 .env.*.local
+scripts/staging/.env.staging
 
 # Logs
 *.log

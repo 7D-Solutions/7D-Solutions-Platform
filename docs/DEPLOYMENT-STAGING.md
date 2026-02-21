@@ -1,0 +1,180 @@
+# Staging Deployment
+
+This document is the single source of truth for provisioning a fresh staging VPS
+and running the full 7D Solutions Platform stack on it.
+
+## Overview
+
+The platform uses four Docker Compose files that must be started in order:
+
+| File | Contents | Start order |
+|------|----------|-------------|
+| `docker-compose.data.yml` | NATS + all Postgres databases | 1 |
+| `docker-compose.platform.yml` | Auth service (×2), control-plane, auth-lb | 2 |
+| `docker-compose.yml` (includes services.yml) | All backend modules (AR, GL, AP, …) | 3 |
+| `docker-compose.frontend.yml` | TCP UI (Next.js) | 4 |
+
+All four share the `7d-platform` Docker bridge network (external, created by bootstrap).
+
+## VPS Specification
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| vCPU | 4 | 8 |
+| RAM | 16 GB | 32 GB |
+| Disk | 80 GB SSD | 160 GB SSD |
+| OS | Ubuntu 24.04 LTS | Ubuntu 24.04 LTS |
+
+Provider-agnostic. Tested on Hetzner CX41, DigitalOcean c-4, Linode Dedicated 16.
+
+## Staging Base URLs
+
+| Service | Port | Path |
+|---------|------|------|
+| TCP UI | 3000 | `/` |
+| Auth (load balanced) | 8080 | `/api/health` |
+| Control Plane | 8091 | `/api/ready` |
+| AR | 8086 | `/api/health` |
+| Subscriptions | 8087 | `/api/health` |
+| Payments | 8088 | `/api/health` |
+| Notifications | 8089 | `/api/health` |
+| GL | 8090 | `/api/health` |
+| Inventory | 8092 | `/api/health` |
+| AP | 8093 | `/api/health` |
+| Treasury | 8094 | `/api/health` |
+| Fixed Assets | 8095 | `/api/health` |
+| Consolidation | 8096 | `/api/health` |
+| Timekeeping | 8097 | `/api/health` |
+| Party | 8098 | `/api/health` |
+| Integrations | 8099 | `/api/health` |
+| TTP | 8100 | `/api/health` |
+
+## Environment Variable Contract
+
+All variables are documented in `scripts/staging/env.example`.
+Copy it to `scripts/staging/.env.staging` and populate before deploying.
+**Never commit `.env.staging` to git.**
+
+### Required secrets (no defaults — must be set)
+
+| Variable | Description |
+|----------|-------------|
+| `JWT_PRIVATE_KEY_PEM` | Ed25519 private key for JWT signing |
+| `JWT_PUBLIC_KEY_PEM` | Ed25519 public key |
+| `JWT_SECRET` | BFF session secret (32+ random bytes) |
+| `*_POSTGRES_PASSWORD` | One per database (19 total) |
+
+### Optional with defaults
+
+| Variable | Default | Notes |
+|----------|---------|-------|
+| `JWT_KID` | `auth-key-1` | Rotate when cycling keys |
+| `RUST_LOG` | `info` | Set `debug` for troubleshooting |
+
+### Secret injection approach
+
+Secrets are **never stored in the repo**. Recommended approaches (choose one):
+
+1. **Local file:** Populate `.env.staging` locally, upload via `scp` in `deploy_compose.sh`.
+2. **VPS secrets manager:** Store in Hetzner Vault / DO Secrets / HashiCorp Vault;
+   export into shell before running deploy.
+3. **CI environment variables:** Set as masked variables in GitHub Actions; the
+   staging workflow reads them and writes a `.env` file on the VPS.
+
+## Provisioning a New VPS
+
+### Step 1 — Create the instance (manual)
+
+1. Create a VPS with the recommended spec at your cloud provider.
+2. Enable SSH key authentication. Disable password login.
+3. Configure firewall: allow only SSH (22) from your IP; ports 3000 and 8080–8100
+   for service access (restrict to known IPs for staging).
+4. Note the public IP or hostname.
+
+### Step 2 — Configure `.env.staging`
+
+```bash
+cp scripts/staging/env.example scripts/staging/.env.staging
+# Edit .env.staging — set STAGING_HOST, STAGING_USER, all passwords, JWT keys
+```
+
+### Step 3 — Bootstrap Docker on the VPS
+
+```bash
+ssh user@your-staging-host 'bash -s' < scripts/staging/ssh_bootstrap.sh
+```
+
+This installs Docker Engine, creates the `7d-platform` network, and creates all
+named volumes. Idempotent — safe to run multiple times.
+
+### Step 4 — Clone the repo on the VPS
+
+```bash
+ssh user@your-staging-host
+git clone git@github.com:your-org/7d-platform.git /opt/7d-platform
+exit
+```
+
+### Step 5 — Deploy
+
+```bash
+bash scripts/staging/deploy_compose.sh
+```
+
+This:
+1. Pulls latest code on the VPS
+2. Uploads `.env.staging` as `.env` on the VPS
+3. Starts data stack → waits 15s → starts platform → backend → frontend
+4. Waits 30s, then runs smoke checks against all `/api/health` endpoints
+
+## Ongoing Deployments (Re-deploy)
+
+```bash
+bash scripts/staging/deploy_compose.sh
+```
+
+Docker Compose will rebuild only changed services. Existing volumes (database
+data) are preserved.
+
+## Smoke Checks Only
+
+```bash
+bash scripts/staging/deploy_compose.sh --smoke-only
+```
+
+Curls `/api/health` (or `/api/ready` for control-plane) on every service and
+reports pass/fail.
+
+## Rollback
+
+Docker Compose has no built-in rollback. To roll back:
+
+1. SSH into the VPS: `ssh ${STAGING_USER}@${STAGING_HOST}`
+2. `cd ${STAGING_REPO_PATH}`
+3. `git checkout <previous-tag-or-sha>`
+4. `docker compose up -d --build` (and similarly for other compose files)
+
+For zero-downtime rollback, see Phase 43 bead bd-3lia (GitHub workflow with
+rollback job).
+
+## Scripts Reference
+
+| Script | Purpose |
+|--------|---------|
+| `scripts/staging/env.example` | Template for all env vars — copy to `.env.staging` |
+| `scripts/staging/export_env.sh` | Source this to export `.env.staging` into current shell |
+| `scripts/staging/provision_vps.sh` | Interactive guided walkthrough for first-time provisioning |
+| `scripts/staging/ssh_bootstrap.sh` | Install Docker + create network/volumes on a fresh VPS |
+| `scripts/staging/deploy_compose.sh` | Pull + build + start all four compose stacks |
+
+## Platform-Local Parity
+
+Staging intentionally mirrors local dev:
+- Same Docker Compose files, same service names, same internal hostnames
+- Same `7d-platform` network name
+- Same port assignments
+- Differences: real secrets, no `dev` env labels (labels are informational only)
+
+Do **not** create staging-specific compose overrides unless absolutely necessary.
+If a difference is needed, extend the base compose file with a
+`docker-compose.staging.yml` override and document it here.
