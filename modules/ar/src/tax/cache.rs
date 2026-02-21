@@ -213,6 +213,7 @@ pub async fn quote_tax_cached(
             provider_quote_ref: cached.provider_quote_ref,
             expires_at: cached.expires_at,
             quoted_at: cached.quoted_at,
+            warnings: vec![],
         });
     }
 

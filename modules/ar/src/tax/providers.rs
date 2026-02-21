@@ -34,6 +34,7 @@ impl TaxProvider for ZeroTaxProvider {
             provider_quote_ref: format!("zero-quote-{}", Uuid::new_v4()),
             expires_at: None,
             quoted_at: Utc::now(),
+            warnings: vec![],
         })
     }
 
@@ -129,6 +130,7 @@ impl TaxProvider for LocalTaxProvider {
             provider_quote_ref: format!("local-quote-{}", Uuid::new_v4()),
             expires_at: None,
             quoted_at: Utc::now(),
+            warnings: vec![],
         })
     }
 
