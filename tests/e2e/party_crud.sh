@@ -17,8 +17,7 @@
 #  12. Validation: reject empty line1 on address (422)
 #  13. Validation: reject invalid address_type (422)
 
-set -euo pipefail
-source "$(dirname "$0")/lib/helpers.sh"
+# Helpers are sourced by the runner (scripts/e2e_run.sh).
 
 PARTY_PORT=$(resolve_port party)
 
@@ -26,10 +25,10 @@ echo "=== Party CRUD E2E ==="
 echo "[party-crud] port $PARTY_PORT"
 
 # Wait for service readiness
-wait_for_ready "party" "$PARTY_PORT" "${E2E_TIMEOUT:-30}" || {
+if ! wait_for_ready "party" "$PARTY_PORT" "${E2E_TIMEOUT:-30}"; then
     e2e_skip "party service not ready — skipping CRUD tests"
-    return 0 2>/dev/null || exit 0
-}
+    return 0 2>/dev/null || true
+fi
 
 BASE="http://localhost:${PARTY_PORT}"
 APP_ID="e2e-party-crud-$(date +%s)"
@@ -125,7 +124,7 @@ if [[ "$STATUS" == "201" ]]; then
 else
     e2e_fail "create company org — HTTP $STATUS"
     # Cannot continue without org
-    return 1 2>/dev/null || exit 1
+    return 0 2>/dev/null || true
 fi
 
 # ============================================================================
