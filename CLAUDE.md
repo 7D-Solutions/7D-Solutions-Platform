@@ -102,6 +102,14 @@ If running inside `scripts/agent-runner.sh`:
 3. Run your product's E2E tests against the new version.
 4. Commit the manifest change with a note explaining the adoption.
 
+## Frontend Work
+
+**Plugin:** `frontend-design@claude-code-plugins` is installed. Use it when working on any frontend bead (TCP UI or future apps).
+
+**Frontend location:** `apps/tenant-control-plane-ui/` (Next.js App Router + TypeScript, shadcn/ui + Tailwind)
+
+**Standards:** See `docs/frontend/PLATFORM-FRONTEND-STANDARDS.md` and `docs/frontend/TCP-UI-VISION.md`.
+
 📧 **Multi-Agent Communication**: See [AGENT_MAIL.md](./AGENT_MAIL.md) for commands.
 
 🎯 **Beads Workflow**: See [AGENTS.md](./AGENTS.md) for task tracking with BV.
