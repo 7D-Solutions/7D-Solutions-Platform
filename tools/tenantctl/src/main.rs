@@ -18,6 +18,9 @@
 //! cargo run -p tenantctl -- fleet migrate --tenants 10 --parallel 4
 //! ```
 
+mod bulk;
+mod fleet_health;
+mod fleet_list;
 mod fleet_migrate;
 mod lifecycle;
 mod output;
@@ -131,13 +134,30 @@ enum TenantOperation {
         #[arg(long)]
         output: Option<String>,
     },
+    /// Bulk operation on tenants matching a status filter
+    Bulk {
+        /// Action to perform (suspend, activate, verify)
+        #[arg(long)]
+        action: String,
+        /// Filter tenants by status (required)
+        #[arg(long)]
+        status: String,
+        /// Confirm destructive actions (required for suspend)
+        #[arg(long)]
+        confirm: bool,
+        /// Dry run — show what would happen without executing (default)
+        #[arg(long, default_value_t = true)]
+        dry_run: bool,
+    },
 }
 
 #[derive(Subcommand, Debug)]
 enum FleetOperation {
-    /// Show fleet status
+    /// Check health of all services via /api/ready
+    Health,
+    /// Show fleet status (tenant counts by state)
     Status,
-    /// List all tenants
+    /// List all tenants with state and metadata
     List,
     /// Migrate N tenants with bounded parallelism
     Migrate {
@@ -270,15 +290,40 @@ async fn main() -> Result<()> {
                 render(&out, json_output);
                 Ok(())
             }
+            TenantOperation::Bulk {
+                action,
+                status,
+                confirm,
+                dry_run,
+            } => {
+                let bulk_action = bulk::BulkAction::from_str(&action)?;
+                let effective_dry_run = if confirm { false } else { dry_run };
+                let out = bulk::run_bulk(
+                    role,
+                    actor,
+                    bulk_action,
+                    &status,
+                    effective_dry_run,
+                    confirm,
+                )
+                .await?;
+                render(&out, json_output);
+                Ok(())
+            }
         },
         Commands::Fleet { operation } => match operation {
+            FleetOperation::Health => {
+                let out = fleet_health::fleet_health().await?;
+                render(&out, json_output);
+                Ok(())
+            }
             FleetOperation::Status => {
-                let out = CommandOutput::fail("fleet-status", "-", "not yet implemented");
+                let out = fleet_list::fleet_status().await?;
                 render(&out, json_output);
                 Ok(())
             }
             FleetOperation::List => {
-                let out = CommandOutput::fail("fleet-list", "-", "not yet implemented");
+                let out = fleet_list::fleet_list().await?;
                 render(&out, json_output);
                 Ok(())
             }
