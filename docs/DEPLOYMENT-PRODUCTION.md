@@ -310,6 +310,38 @@ bash scripts/production/manifest_diff.sh
 
 Docker Compose replaces only changed containers. Postgres volumes are preserved.
 
+## Production Proof Gate
+
+Every production deploy runs `scripts/production/proof_gate.sh` as the single
+authoritative green-light for production readiness. The gate must pass before the
+workflow marks the deploy complete.
+
+```bash
+# Run the full proof gate (CI sets these env vars from secrets):
+export PROD_HOST=prod.7dsolutions.example.com
+export PROD_USER=deploy
+export TILLED_WEBHOOK_SECRET=<secret>
+export SMOKE_STAFF_JWT=<jwt>          # optional — enables data assertions in smoke suite
+bash scripts/production/proof_gate.sh
+```
+
+### Proof gate suites
+
+| Suite | What it proves |
+|-------|---------------|
+| `smoke` | All `/healthz` + `/api/ready` endpoints pass; data endpoints return 200 with JWT |
+| `isolation_check` | 12 cross-tenant API denial assertions — tenant A cannot read tenant B's data |
+| `payment_verify` | Full money path: customer → invoice → Tilled webhook → paid status, idempotency (livemode=false) |
+| `rollback_rehearsal` | SSH connectivity + deployment log readable — rollback infrastructure confirmed |
+
+Per-suite logs are uploaded as a GitHub Actions artifact
+(`production-proof-gate-logs-<run-id>`, retained 90 days).
+
+### Blocking behaviour
+
+`promote.yml` runs `proof_gate.sh` after deploy and before the Playwright checks.
+A non-zero exit code from any suite fails the step and blocks the workflow.
+
 ## Rollback
 
 Rollback = redeploy a prior immutable tag. Production-specific rollback script keeps the
@@ -332,6 +364,33 @@ After rollback, update `deploy/production/MODULE-MANIFEST.md` to reflect the rol
 tag and commit the change so the manifest stays in sync with what is running.
 
 Data volumes are never touched during rollback; only service containers are replaced.
+
+### Rollback rehearsal
+
+Every proof gate run executes a **rollback rehearsal** — a read-only SSH operation that:
+1. Reads `.production-deployments` on the VPS to confirm the deployment log is accessible.
+2. Validates that SSH connectivity required for rollback is working.
+3. Prints the exact rollback command for operators.
+
+This is not an actual rollback. It proves that when you *need* to roll back, the
+infrastructure is reachable and the prior tag is recorded.
+
+**Expected output from a successful rollback rehearsal:**
+```
+=== Deployment history (last 10 entries) ===
+2026-02-21T12:00:00Z tag=v1.0.0-abc1234 registry=7dsolutions
+
+Rollback preflight: PASSED
+
+To roll back production, run one of:
+  bash scripts/production/rollback_stack.sh --previous
+  bash scripts/production/rollback_stack.sh --tag <prior-tag>
+
+Rollback rehearsal PROVEN: SSH connectivity and deployment log confirmed.
+```
+
+If the rehearsal fails (SSH unreachable, log missing), fix connectivity before
+deploying. A deploy without a working rollback path is not safe.
 
 ## SSH Access
 
@@ -373,6 +432,7 @@ See `bd-1itw` for the full production secrets contract.
 | `scripts/production/secrets_check.sh` | Validate secrets file before deploying (run as root/sudo) |
 | `scripts/production/provision_vps.sh` | Guided walkthrough for first-time provisioning |
 | `scripts/production/ssh_bootstrap.sh` | Harden host and install Docker on a fresh VPS |
+| `scripts/production/proof_gate.sh` | Single authoritative proof gate: smoke + isolation + payment verify + rollback rehearsal |
 | `scripts/production/manifest_validate.sh` | Assert all manifest image tags exist in the registry |
 | `scripts/production/manifest_diff.sh` | Compare manifest vs what is actually running on the production VPS |
 | `scripts/production/deploy_stack.sh --manifest <file>` | Deploy from `deploy/production/MODULE-MANIFEST.md` |
