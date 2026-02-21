@@ -8,7 +8,7 @@
 
 | Service | Canonical Name | Version | Git SHA | Full Image Tag | Notes |
 |---------|---------------|---------|---------|----------------|-------|
-| Platform: Control Plane | `control-plane` | 0.1.0 | — | `7dsolutions/control-plane:0.1.0-{sha}` | Pending first staging push |
+| Platform: Control Plane | `control-plane` | 1.0.0 | 4a968f7a | `7dsolutions/control-plane:1.0.0-4a968f7a` | Gate 2 build pending; deploy via promote.yml after image push |
 | Platform: Identity Auth | `identity-auth` | 1.1.0 | — | `7dsolutions/identity-auth:1.1.0-{sha}` | Pending first staging push |
 | Module: TTP | `ttp` | 0.1.0 | — | `7dsolutions/ttp:0.1.0-{sha}` | Pending first staging push |
 | Module: AR | `ar` | 0.1.0 | — | `7dsolutions/ar:0.1.0-{sha}` | Pending first staging push |
