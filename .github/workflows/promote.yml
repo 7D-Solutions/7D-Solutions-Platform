@@ -307,6 +307,28 @@ jobs:
             --reporter=list \
             --timeout=60000
 
+      - name: Production isolation check (curl via SSH)
+        env:
+          PROD_HOST:     ${{ env.PROD_HOST }}
+          PROD_USER:     ${{ env.PROD_USER }}
+          PROD_SSH_PORT: ${{ env.PROD_SSH_PORT }}
+        run: |
+          bash scripts/production/isolation_check.sh
+
+      - name: Playwright production isolation
+        working-directory: apps/tenant-control-plane-ui
+        env:
+          BASE_URL:              "http://localhost:3001"
+          ISOLATION_TOKEN_A:     ${{ env.ISOLATION_TOKEN_A }}
+          ISOLATION_TOKEN_B:     ${{ env.ISOLATION_TOKEN_B }}
+          ISOLATION_TENANT_A_ID: ${{ env.ISOLATION_TENANT_A_ID }}
+          ISOLATION_TENANT_B_ID: ${{ env.ISOLATION_TENANT_B_ID }}
+          CI: "true"
+        run: |
+          npx playwright test tests/e2e/production/isolation.spec.ts \
+            --reporter=list \
+            --timeout=60000
+
       - name: Close SSH tunnel
         if: always()
         run: |
@@ -353,6 +375,8 @@ jobs:
           echo "**Gate 3 drift diff:** passed ✓ (running images match manifest)" >> $GITHUB_STEP_SUMMARY
           echo "**Production smoke (curl):** passed ✓ (all services healthy via SSH)" >> $GITHUB_STEP_SUMMARY
           echo "**Production smoke (Playwright):** passed ✓ (TCP UI nav + BFF endpoints)" >> $GITHUB_STEP_SUMMARY
+          echo "**Production isolation (curl):** passed ✓ (12 cross-tenant denial assertions via SSH)" >> $GITHUB_STEP_SUMMARY
+          echo "**Production isolation (Playwright):** passed ✓ (UI redirect + BFF denial via SSH tunnel)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Rollback" >> $GITHUB_STEP_SUMMARY
           echo "1. Revert \`deploy/production/MODULE-MANIFEST.md\` to the prior pinned tags." >> $GITHUB_STEP_SUMMARY
