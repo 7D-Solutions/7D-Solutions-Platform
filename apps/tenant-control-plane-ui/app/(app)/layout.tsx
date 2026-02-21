@@ -123,7 +123,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                   key={href}
                   href={href}
                   className={clsx(
-                    'flex items-center gap-3 px-6 py-2.5 text-sm transition-[--transition-fast]',
+                    'flex items-center gap-3 px-6 py-2.5 text-sm [transition:var(--transition-fast)]',
                     isActive
                       ? 'bg-[--color-primary] text-[--color-text-inverse] font-medium'
                       : 'text-[--color-text-secondary] hover:bg-[--color-bg-secondary] hover:text-[--color-text-primary]'
@@ -205,7 +205,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {children}
               </div>
               <div
-                className="w-1 cursor-col-resize bg-[--color-border-default] hover:bg-[--color-primary] transition-[--transition-fast]"
+                className="w-1 cursor-col-resize bg-[--color-border-default] hover:bg-[--color-primary] [transition:var(--transition-fast)]"
                 data-testid="split-divider"
               />
               <div

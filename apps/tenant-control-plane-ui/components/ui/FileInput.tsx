@@ -67,7 +67,7 @@ export function FileInput({
         }}
         className={clsx(
           'flex flex-col items-center justify-center gap-2 rounded-[--radius-lg] border-2 border-dashed px-6 py-8',
-          'cursor-pointer transition-[--transition-fast]',
+          'cursor-pointer [transition:var(--transition-fast)]',
           disabled && 'opacity-50 cursor-not-allowed',
           dragging
             ? 'border-[--color-primary] bg-[--color-bg-secondary]'

@@ -146,7 +146,7 @@ export default function InvoiceDetailPage() {
                   invoice.line_items.map((item) => (
                     <tr
                       key={item.id}
-                      className="border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] transition-[--transition-fast]"
+                      className="border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] [transition:var(--transition-fast)]"
                       data-testid="line-item-row"
                     >
                       <td className="px-4 py-3 text-[--color-text-primary]">

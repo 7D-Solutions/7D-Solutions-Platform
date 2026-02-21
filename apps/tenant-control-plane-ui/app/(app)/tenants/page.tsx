@@ -267,7 +267,7 @@ export default function TenantsPage() {
             tenants.map((t) => (
               <div
                 key={t.id}
-                className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-4 hover:border-[--color-primary] transition-[--transition-fast] cursor-pointer"
+                className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-4 hover:border-[--color-primary] [transition:var(--transition-fast)] cursor-pointer"
                 onClick={() => router.push(`/tenants/${t.id}`)}
                 data-testid="tenant-card"
               >

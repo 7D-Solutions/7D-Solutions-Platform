@@ -139,7 +139,7 @@ export default function BundleDetailPage() {
                 {bundle.entitlements.map((ent) => (
                   <tr
                     key={ent.id}
-                    className="border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] transition-[--transition-fast]"
+                    className="border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] [transition:var(--transition-fast)]"
                   >
                     <td className="px-4 py-2 text-[--color-text-primary] font-medium">{ent.label}</td>
                     <td className="px-4 py-2 text-[--color-text-secondary] font-mono text-xs">{ent.key}</td>

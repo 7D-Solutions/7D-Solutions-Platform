@@ -56,7 +56,7 @@ function TabItem({ tab, isActive, onClose, onContextMenu }: TabItemProps) {
       data-tab-dirty={tab.isDirty ? 'true' : undefined}
       className={clsx(
         'group relative flex items-center gap-1.5 px-3 cursor-pointer select-none',
-        'border-r border-[--color-border-light] transition-[--transition-fast]',
+        'border-r border-[--color-border-light] [transition:var(--transition-fast)]',
         'min-w-[120px] max-w-[200px]',
         isActive
           ? 'bg-[--color-bg-primary] text-[--color-text-primary]'
@@ -98,7 +98,7 @@ function TabItem({ tab, isActive, onClose, onContextMenu }: TabItemProps) {
           className={clsx(
             'flex-shrink-0 rounded-[--radius-sm] p-0.5',
             'text-[--color-text-muted] hover:text-[--color-text-primary] hover:bg-[--color-bg-tertiary]',
-            'opacity-0 group-hover:opacity-100 transition-[--transition-fast]',
+            'opacity-0 group-hover:opacity-100 [transition:var(--transition-fast)]',
             isActive && 'opacity-100'
           )}
           aria-label={`Close ${tab.title}`}

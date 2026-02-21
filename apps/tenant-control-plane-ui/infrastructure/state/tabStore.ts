@@ -53,7 +53,7 @@ const generateTabId = () => `tab_${Date.now()}_${Math.random().toString(36).subs
 const HOME_TAB: TabData = {
   id: 'home',
   title: 'Tenants',
-  route: '/app/tenants',
+  route: '/tenants',
   closeable: false,
   isPreview: false,
 };

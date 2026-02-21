@@ -328,7 +328,7 @@ export function FeaturesTab({ tenantId }: FeaturesTabProps) {
               {filtered.map((ent) => (
                 <tr
                   key={ent.code}
-                  className="border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] transition-[--transition-fast]"
+                  className="border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] [transition:var(--transition-fast)]"
                   data-testid="feature-row"
                 >
                   <td className="px-4 py-3 font-mono text-xs text-[--color-text-primary]">

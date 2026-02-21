@@ -37,7 +37,7 @@ export const FormTextarea = forwardRef<HTMLTextAreaElement, FormTextareaProps>(
           className={clsx(
             'rounded-[--radius-default] border px-3 py-2 text-sm min-h-[80px] resize-y',
             'text-[--color-text-primary] placeholder:text-[--color-text-muted]',
-            'bg-[--color-bg-primary] transition-[--transition-fast]',
+            'bg-[--color-bg-primary] [transition:var(--transition-fast)]',
             'focus:outline-none focus:ring-2 focus:ring-[--color-primary] focus:border-[--color-primary]',
             'disabled:bg-[--color-bg-secondary] disabled:cursor-not-allowed',
             error ? 'border-[--color-danger]' : 'border-[--color-border-default]',

@@ -77,7 +77,7 @@ export function SearchableSelect({
           onClick={() => !disabled && setOpen(!open)}
           className={clsx(
             'flex w-full items-center justify-between rounded-[--radius-default] border px-3 py-2 text-sm',
-            'bg-[--color-bg-primary] text-left transition-[--transition-fast]',
+            'bg-[--color-bg-primary] text-left [transition:var(--transition-fast)]',
             'focus:outline-none focus:ring-2 focus:ring-[--color-primary]',
             'disabled:bg-[--color-bg-secondary] disabled:cursor-not-allowed',
             error ? 'border-[--color-danger]' : 'border-[--color-border-default]',
@@ -97,7 +97,7 @@ export function SearchableSelect({
                 <X className="h-3 w-3 text-[--color-text-secondary]" />
               </span>
             )}
-            <ChevronDown className={clsx('h-4 w-4 text-[--color-text-secondary] transition-[--transition-fast]', open && 'rotate-180')} />
+            <ChevronDown className={clsx('h-4 w-4 text-[--color-text-secondary] [transition:var(--transition-fast)]', open && 'rotate-180')} />
           </div>
         </button>
 
@@ -133,7 +133,7 @@ export function SearchableSelect({
                       }
                     }}
                     className={clsx(
-                      'px-3 py-2 text-sm cursor-pointer transition-[--transition-fast]',
+                      'px-3 py-2 text-sm cursor-pointer [transition:var(--transition-fast)]',
                       opt.disabled
                         ? 'opacity-50 cursor-not-allowed'
                         : 'hover:bg-[--color-bg-secondary]',

@@ -346,7 +346,7 @@ function UserRoleRow({
 
   return (
     <tr
-      className="border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] transition-[--transition-fast]"
+      className="border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] [transition:var(--transition-fast)]"
       data-testid="rbac-user-row"
     >
       <td className="px-4 py-3">

@@ -37,12 +37,12 @@ const variantClasses: Record<ButtonVariant, string> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  compact: 'px-[--component-size-compact-padding-x] py-[--component-size-compact-padding-y] text-[--component-size-compact-font-size] min-h-[--component-size-compact-min-height] leading-[--component-size-compact-line-height]',
-  xs:      'px-[--component-size-xs-padding-x] py-[--component-size-xs-padding-y] text-[--component-size-xs-font-size] min-h-[--component-size-xs-min-height]',
-  sm:      'px-[--component-size-sm-padding-x] py-[--component-size-sm-padding-y] text-[--component-size-sm-font-size] min-h-[--component-size-sm-min-height]',
-  md:      'px-[--component-size-md-padding-x] py-[--component-size-md-padding-y] text-[--component-size-md-font-size] min-h-[--component-size-md-min-height]',
-  lg:      'px-[--component-size-lg-padding-x] py-[--component-size-lg-padding-y] text-[--component-size-lg-font-size] min-h-[--component-size-lg-min-height]',
-  xl:      'px-[--component-size-xl-padding-x] py-[--component-size-xl-padding-y] text-[--component-size-xl-font-size] min-h-[--component-size-xl-min-height]',
+  compact: 'px-[--component-size-compact-padding-x] py-[--component-size-compact-padding-y] text-[length:var(--component-size-compact-font-size)] min-h-[--component-size-compact-min-height] leading-[--component-size-compact-line-height]',
+  xs:      'px-[--component-size-xs-padding-x] py-[--component-size-xs-padding-y] text-[length:var(--component-size-xs-font-size)] min-h-[--component-size-xs-min-height]',
+  sm:      'px-[--component-size-sm-padding-x] py-[--component-size-sm-padding-y] text-[length:var(--component-size-sm-font-size)] min-h-[--component-size-sm-min-height]',
+  md:      'px-[--component-size-md-padding-x] py-[--component-size-md-padding-y] text-[length:var(--component-size-md-font-size)] min-h-[--component-size-md-min-height]',
+  lg:      'px-[--component-size-lg-padding-x] py-[--component-size-lg-padding-y] text-[length:var(--component-size-lg-font-size)] min-h-[--component-size-lg-min-height]',
+  xl:      'px-[--component-size-xl-padding-x] py-[--component-size-xl-padding-y] text-[length:var(--component-size-xl-font-size)] min-h-[--component-size-xl-min-height]',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -86,7 +86,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         onClick={handleClick}
         className={clsx(
           'inline-flex items-center justify-center gap-2 rounded-[--radius-default] border font-medium',
-          'transition-[--transition-default] focus-visible:outline-none focus-visible:ring-2',
+          '[transition:var(--transition-default)] focus-visible:outline-none focus-visible:ring-2',
           'focus-visible:ring-[--color-primary] focus-visible:ring-offset-2',
           'disabled:opacity-50 disabled:cursor-not-allowed',
           variantClasses[variant],

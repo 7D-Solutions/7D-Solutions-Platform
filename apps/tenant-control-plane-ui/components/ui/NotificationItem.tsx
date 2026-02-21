@@ -27,7 +27,7 @@ export function NotificationItem({ notification, onDismiss, onMarkRead }: Notifi
     <div
       onClick={() => !notification.read && onMarkRead(notification.id)}
       className={clsx(
-        'flex items-start gap-3 px-4 py-3 hover:bg-[--color-bg-secondary] transition-[--transition-fast] cursor-pointer',
+        'flex items-start gap-3 px-4 py-3 hover:bg-[--color-bg-secondary] [transition:var(--transition-fast)] cursor-pointer',
         !notification.read && 'bg-blue-50'
       )}
     >

@@ -214,7 +214,7 @@ export default function PlansPage() {
             plans.map((p) => (
               <div
                 key={p.id}
-                className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-4 hover:border-[--color-primary] transition-[--transition-fast] cursor-pointer"
+                className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-4 hover:border-[--color-primary] [transition:var(--transition-fast)] cursor-pointer"
                 onClick={() => navigateToPlan(p)}
                 data-testid={`plan-card-${p.id}`}
               >

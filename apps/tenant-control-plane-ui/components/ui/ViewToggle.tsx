@@ -29,7 +29,7 @@ export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
         aria-label="Row view"
         aria-pressed={value === 'row'}
         className={clsx(
-          'flex items-center gap-1.5 px-3 py-1.5 text-sm transition-[--transition-fast]',
+          'flex items-center gap-1.5 px-3 py-1.5 text-sm [transition:var(--transition-fast)]',
           value === 'row'
             ? 'bg-[--color-primary] text-[--color-text-inverse]'
             : 'bg-[--color-bg-primary] text-[--color-text-secondary] hover:bg-[--color-bg-secondary]'
@@ -43,7 +43,7 @@ export function ViewToggle({ value, onChange, className }: ViewToggleProps) {
         aria-label="Card view"
         aria-pressed={value === 'card'}
         className={clsx(
-          'flex items-center gap-1.5 px-3 py-1.5 text-sm transition-[--transition-fast]',
+          'flex items-center gap-1.5 px-3 py-1.5 text-sm [transition:var(--transition-fast)]',
           value === 'card'
             ? 'bg-[--color-primary] text-[--color-text-inverse]'
             : 'bg-[--color-bg-primary] text-[--color-text-secondary] hover:bg-[--color-bg-secondary]'

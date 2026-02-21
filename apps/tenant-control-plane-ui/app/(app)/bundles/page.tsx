@@ -196,7 +196,7 @@ export default function BundlesPage() {
                 tabIndex={0}
                 onClick={() => handleBundleClick(b)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleBundleClick(b); }}
-                className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-4 hover:border-[--color-primary] transition-[--transition-fast] cursor-pointer"
+                className="rounded-[--radius-lg] border border-[--color-border-light] bg-[--color-bg-primary] p-4 hover:border-[--color-primary] [transition:var(--transition-fast)] cursor-pointer"
                 data-testid={`bundle-card-${b.id}`}
               >
                 <div className="flex items-start justify-between mb-2">

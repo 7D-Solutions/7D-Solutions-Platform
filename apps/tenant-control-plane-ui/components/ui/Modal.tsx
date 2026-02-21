@@ -112,14 +112,14 @@ function ModalComponent({
         <div className="flex items-center justify-between border-b border-[--color-border-light] px-6 py-4">
           <h2
             id="modal-title"
-            className="text-[--font-size-lg] font-[--font-weight-semibold] text-[--color-text-primary]"
+            className="text-[length:var(--font-size-lg)] font-[--font-weight-semibold] text-[--color-text-primary]"
           >
             {title}
           </h2>
           {!preventClosing && (
             <button
               onClick={onFullClose ?? onClose}
-              className="rounded-[--radius-default] p-1 text-[--color-text-secondary] hover:bg-[--color-bg-tertiary] hover:text-[--color-text-primary] transition-[--transition-fast]"
+              className="rounded-[--radius-default] p-1 text-[--color-text-secondary] hover:bg-[--color-bg-tertiary] hover:text-[--color-text-primary] [transition:var(--transition-fast)]"
               aria-label="Close"
             >
               <X className="h-5 w-5" />

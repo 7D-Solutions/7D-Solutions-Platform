@@ -52,7 +52,7 @@ export function DataTable<T extends Record<string, unknown>>({
         {isEditMode && (
           <button
             onClick={resetToDefault}
-            className="flex items-center gap-1 text-xs text-[--color-text-secondary] hover:text-[--color-text-primary] transition-[--transition-fast]"
+            className="flex items-center gap-1 text-xs text-[--color-text-secondary] hover:text-[--color-text-primary] [transition:var(--transition-fast)]"
           >
             <RotateCcw className="h-3 w-3" />
             Reset
@@ -61,7 +61,7 @@ export function DataTable<T extends Record<string, unknown>>({
         <button
           onClick={toggleEditMode}
           className={clsx(
-            'flex items-center gap-1 rounded px-2 py-1 text-xs transition-[--transition-fast]',
+            'flex items-center gap-1 rounded px-2 py-1 text-xs [transition:var(--transition-fast)]',
             isEditMode
               ? 'bg-[--color-primary] text-[--color-text-inverse]'
               : 'text-[--color-text-secondary] hover:bg-[--color-bg-tertiary]'
@@ -114,7 +114,7 @@ export function DataTable<T extends Record<string, unknown>>({
                     onDragEnd={isEditMode ? handleDragEnd : undefined}
                     className={clsx(
                       'px-[--table-cell-padding-x] py-[--table-cell-padding-y]',
-                      'text-[--table-header-font-size] font-[--font-weight-semibold]',
+                      'text-[length:var(--table-header-font-size)] font-[--font-weight-semibold]',
                       'text-[--color-text-secondary] uppercase tracking-wide select-none',
                       align === 'right' && 'text-right',
                       align === 'center' && 'text-center',
@@ -146,7 +146,7 @@ export function DataTable<T extends Record<string, unknown>>({
                 <tr
                   key={String(row[keyField])}
                   className={clsx(
-                    'border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] transition-[--transition-fast]',
+                    'border-b border-[--color-border-light] hover:bg-[--color-bg-secondary] [transition:var(--transition-fast)]',
                     onRowClick && 'cursor-pointer',
                   )}
                   style={{ height: 'var(--table-row-height)' }}

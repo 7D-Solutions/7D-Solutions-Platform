@@ -70,7 +70,7 @@ export function UserMenu() {
         aria-expanded={open}
         aria-haspopup="true"
         className={clsx(
-          'flex items-center gap-2 rounded-[--radius-default] px-3 py-1.5 text-sm transition-[--transition-fast]',
+          'flex items-center gap-2 rounded-[--radius-default] px-3 py-1.5 text-sm [transition:var(--transition-fast)]',
           'text-[--color-text-secondary] hover:bg-[--color-bg-secondary] hover:text-[--color-text-primary]',
           open && 'bg-[--color-bg-secondary] text-[--color-text-primary]'
         )}

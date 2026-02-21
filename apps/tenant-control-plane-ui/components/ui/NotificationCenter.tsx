@@ -103,7 +103,7 @@ export function NotificationCenter() {
     <div ref={ref} className="relative">
       <button
         onClick={handleOpen}
-        className="relative rounded-[--radius-default] p-2 text-[--color-text-secondary] hover:bg-[--color-bg-tertiary] transition-[--transition-fast]"
+        className="relative rounded-[--radius-default] p-2 text-[--color-text-secondary] hover:bg-[--color-bg-tertiary] [transition:var(--transition-fast)]"
         aria-label={`Notifications${totalUnread > 0 ? `, ${totalUnread} unread` : ''}`}
         data-testid="notification-bell"
       >
