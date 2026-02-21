@@ -123,7 +123,9 @@ export PROD_USER=deploy
 export PROD_REPO_PATH=/opt/7d-platform
 export IMAGE_REGISTRY=ghcr.io/7d-solutions
 
-bash scripts/staging/deploy_stack.sh --tag v1.0.0-abc1234
+# Update deploy/production/MODULE-MANIFEST.md with real image tags, then:
+bash scripts/production/manifest_validate.sh
+bash scripts/production/deploy_stack.sh --manifest deploy/production/MODULE-MANIFEST.md
 ```
 
 ## Environment Contract
@@ -162,17 +164,8 @@ receives the exported variables:
 
 ```bash
 sudo -E bash -c 'source /opt/7d-platform/scripts/production/export_env.sh && \
-  bash /opt/7d-platform/scripts/staging/deploy_stack.sh --tag <tag>'
-```
-
-Or in an explicit two-step:
-
-```bash
-# As root (or via sudo), export into a sub-shell:
-sudo bash -c 'source /opt/7d-platform/scripts/production/export_env.sh && \
-  env | grep -E "POSTGRES|JWT" > /run/7d-prod-env && chmod 0600 /run/7d-prod-env'
-
-# Then deploy reads /run/7d-prod-env (cleaned up by deploy_stack.sh)
+  bash /opt/7d-platform/scripts/production/deploy_stack.sh \
+    --manifest /opt/7d-platform/deploy/production/MODULE-MANIFEST.md'
 ```
 
 ### Validating secrets before deploying
@@ -223,37 +216,93 @@ Variable names and DB usernames are documented in full in `scripts/production/en
 
 **Never commit `.env.production` or `secrets.env` to git.** Both are listed in `.gitignore`.
 
+## Production Manifest
+
+The file `deploy/production/MODULE-MANIFEST.md` is the **only authoritative source of image tags for production**. The deploy script reads this file; no ad-hoc tag overrides are permitted.
+
+### Updating the manifest
+
+After a successful staging proof gate and promotion approval:
+
+```bash
+# 1. Edit deploy/production/MODULE-MANIFEST.md — update version, SHA, full image tag columns.
+# 2. Validate all images exist in the registry:
+bash scripts/production/manifest_validate.sh
+
+# 3. Detect any drift between manifest and what is running on production:
+export PROD_HOST=prod.7dsolutions.example.com
+export PROD_USER=deploy
+bash scripts/production/manifest_diff.sh
+```
+
+### manifest_validate.sh
+
+Checks that every non-pending image tag in the manifest can be found via `docker manifest inspect`.
+
+```bash
+bash scripts/production/manifest_validate.sh
+# or, to also fail on pending (unresolved) entries:
+bash scripts/production/manifest_validate.sh --strict
+```
+
+### manifest_diff.sh
+
+SSHes into the production VPS and compares what is **actually running** against the manifest.
+Exits non-zero on any mismatch or container not running.
+
+```bash
+export PROD_HOST=prod.7dsolutions.example.com
+export PROD_USER=deploy
+bash scripts/production/manifest_diff.sh deploy/production/MODULE-MANIFEST.md
+```
+
 ## Ongoing Deploys
 
-Deployment process is identical to staging: promote an immutable image tag.
+Production deployments are manifest-governed. Update `deploy/production/MODULE-MANIFEST.md`
+with the promoted image tags, validate, then deploy.
 
 ```bash
 # Via GitHub Actions (recommended):
-# Actions → Promote Artifacts → Run workflow → environment: production → tag
+# Actions → Promote Artifacts → Run workflow → environment: production → approve
 
-# CLI (emergency):
-bash scripts/staging/deploy_stack.sh --tag v1.0.1-def5678
+# CLI (emergency only):
+export PROD_HOST=prod.7dsolutions.example.com
+export PROD_USER=deploy
+export PROD_REPO_PATH=/opt/7d-platform
+export IMAGE_REGISTRY=7dsolutions
+
+# Validate images exist before deploying:
+bash scripts/production/manifest_validate.sh
+
+# Deploy from manifest:
+bash scripts/production/deploy_stack.sh --manifest deploy/production/MODULE-MANIFEST.md
+
+# Verify running images match manifest:
+bash scripts/production/manifest_diff.sh
 ```
 
 Docker Compose replaces only changed containers. Postgres volumes are preserved.
 
 ## Rollback
 
-Rollback = promote a prior tag.
+Rollback = redeploy a prior immutable tag. Production-specific rollback script keeps the
+deployment log on the production VPS (`.production-deployments`).
 
 ```bash
-# Via GitHub Actions (recommended):
-# Actions → Promote Artifacts → Run workflow → environment: production → prior tag
+# Show deployment history on production VPS:
+export PROD_HOST=prod.7dsolutions.example.com
+export PROD_USER=deploy
+bash scripts/production/rollback_stack.sh --history
 
-# CLI:
-bash scripts/staging/rollback_stack.sh --tag v1.0.0-abc1234
+# Roll back to a specific prior tag:
+bash scripts/production/rollback_stack.sh --tag v1.0.0-abc1234
+
+# Roll back to the tag before the current one (automatic):
+bash scripts/production/rollback_stack.sh --previous
 ```
 
-View deployment history on the VPS:
-
-```bash
-bash scripts/staging/rollback_stack.sh --history
-```
+After rollback, update `deploy/production/MODULE-MANIFEST.md` to reflect the rolled-back
+tag and commit the change so the manifest stays in sync with what is running.
 
 Data volumes are never touched during rollback; only service containers are replaced.
 
@@ -297,9 +346,13 @@ See `bd-1itw` for the full production secrets contract.
 | `scripts/production/secrets_check.sh` | Validate secrets file before deploying (run as root/sudo) |
 | `scripts/production/provision_vps.sh` | Guided walkthrough for first-time provisioning |
 | `scripts/production/ssh_bootstrap.sh` | Harden host and install Docker on a fresh VPS |
-| `scripts/staging/deploy_stack.sh --tag <tag>` | Deploy a pinned image tag (works for both staging and prod) |
-| `scripts/staging/rollback_stack.sh --tag <tag>` | Roll back to a specific prior tag |
-| `scripts/staging/rollback_stack.sh --history` | Show deployment log on VPS |
+| `scripts/production/manifest_validate.sh` | Assert all manifest image tags exist in the registry |
+| `scripts/production/manifest_diff.sh` | Compare manifest vs what is actually running on the production VPS |
+| `scripts/production/deploy_stack.sh --manifest <file>` | Deploy from `deploy/production/MODULE-MANIFEST.md` |
+| `scripts/production/deploy_stack.sh --tag <tag>` | Deploy a specific tag directly (emergency bypass — use manifest normally) |
+| `scripts/production/rollback_stack.sh --tag <tag>` | Roll back to a specific prior tag |
+| `scripts/production/rollback_stack.sh --previous` | Roll back to the tag before the current one |
+| `scripts/production/rollback_stack.sh --history` | Show deployment log on the production VPS |
 
 ## Staging Parity
 
