@@ -73,15 +73,27 @@ jobs:
           fi
           bash scripts/staging/deploy_stack.sh --tag "${{ inputs.tag }}" $EXTRA_FLAGS
 
-      - name: Curl smoke suite
+      - name: Proof gate (smoke + isolation + payment loop)
         if: ${{ inputs.skip_smoke != true }}
         env:
-          STAGING_HOST: ${{ env.STAGING_HOST }}
-          SMOKE_STAFF_JWT: ${{ secrets.SMOKE_STAFF_JWT }}
+          STAGING_HOST:          ${{ env.STAGING_HOST }}
+          SMOKE_STAFF_JWT:       ${{ secrets.SMOKE_STAFF_JWT }}
+          TILLED_WEBHOOK_SECRET: ${{ secrets.TILLED_WEBHOOK_SECRET }}
+          PROOF_GATE_LOG_DIR:    ${{ runner.temp }}/proof_gate_logs
         run: |
           echo "Waiting 20s for services to stabilise after deploy..."
           sleep 20
-          bash scripts/staging/smoke.sh --host "$STAGING_HOST"
+          mkdir -p "$PROOF_GATE_LOG_DIR"
+          bash scripts/staging/proof_gate.sh
+
+      - name: Upload proof gate logs
+        if: ${{ inputs.skip_smoke != true }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: proof-gate-logs-${{ inputs.tag }}
+          path: ${{ runner.temp }}/proof_gate_logs/
+          retention-days: 90
+          if-no-files-found: warn
 
       - name: Set up Node.js for Playwright smoke
         if: ${{ inputs.skip_smoke != true }}
@@ -141,9 +153,11 @@ jobs:
           echo "**Time:** $(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [[ "${{ inputs.skip_smoke }}" == "true" ]]; then
-            echo "**Smoke checks:** skipped (skip_smoke=true)" >> $GITHUB_STEP_SUMMARY
+            echo "**Proof gate:** skipped (skip_smoke=true)" >> $GITHUB_STEP_SUMMARY
           else
-            echo "**Smoke checks:** passed ✓" >> $GITHUB_STEP_SUMMARY
+            echo "**Proof gate:** passed ✓ (smoke + isolation + payment loop)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Proof gate logs stored as artifact: \`proof-gate-logs-${{ inputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "To roll back, run this workflow again with a prior tag." >> $GITHUB_STEP_SUMMARY

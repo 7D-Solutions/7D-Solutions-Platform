@@ -145,6 +145,55 @@ bash scripts/staging/deploy_compose.sh --smoke-only
 Curls `/api/health` (or `/api/ready` for control-plane) on every service and
 reports pass/fail.
 
+## Phase 43 Proof Gate
+
+The proof gate is the authoritative staging health check. It runs three suites
+in sequence and exits non-zero if any suite fails:
+
+| Suite | What it checks |
+|-------|---------------|
+| `smoke` | `/healthz` + `/api/ready` for all services, TCP UI login page, key data endpoints |
+| `isolation_check` | Cross-tenant denial assertions (tenant A/B cannot read each other's resources) |
+| `payment_loop` | Invoice → Tilled webhook → AR posting + idempotency (replay must not duplicate) |
+
+### Run locally against staging
+
+```bash
+# Required for all suites:
+export STAGING_HOST=staging.7dsolutions.example.com
+
+# Required for the payment loop suite:
+export TILLED_WEBHOOK_SECRET=<your-tilled-webhook-secret>
+
+# Optional — enables data content assertions in smoke (not just auth enforcement):
+export SMOKE_STAFF_JWT=<staff-jwt>
+
+bash scripts/staging/proof_gate.sh
+```
+
+Override log directory (default `/tmp/proof_gate_logs`):
+
+```bash
+PROOF_GATE_LOG_DIR=/tmp/my_gate_run bash scripts/staging/proof_gate.sh
+```
+
+Individual per-suite log files and a `proof_gate_report.txt` summary are written
+to `PROOF_GATE_LOG_DIR`.
+
+### Run in CI (promote.yml)
+
+The proof gate runs automatically as part of `promote.yml` whenever a tag is
+promoted to staging and `skip_smoke` is `false` (the default). Required GitHub
+Secrets:
+
+| Secret | Used by |
+|--------|---------|
+| `SMOKE_STAFF_JWT` | smoke suite — data content assertions |
+| `TILLED_WEBHOOK_SECRET` | payment_loop suite — HMAC signature generation |
+
+The proof gate logs are uploaded as a GitHub Actions artifact named
+`proof-gate-logs-<tag>` (retained 90 days) and linked in the workflow summary.
+
 ## CI/CD Deploy (Immutable Images)
 
 The CI path produces **immutable Docker images** tagged `{semver}-{git-sha7}` (e.g. `v0.5.0-abc1234`) — `latest` is never pushed.
@@ -246,6 +295,10 @@ Use this path if the CI image pipeline is unavailable.
 | `scripts/staging/rollback_stack.sh --tag <tag>` | Roll back to a specific prior tag |
 | `scripts/staging/rollback_stack.sh --previous` | Roll back to the tag before the current one |
 | `scripts/staging/rollback_stack.sh --history` | Show deployment log on VPS |
+| `scripts/staging/proof_gate.sh [--host H] [--secret S] [--jwt J]` | Phase 43 proof gate: smoke + isolation + payment loop |
+| `scripts/staging/smoke.sh` | Health checks + data endpoints only |
+| `scripts/staging/isolation_check.sh` | Multi-tenant denial assertions only |
+| `scripts/staging/payment_loop.sh` | Payment money path + idempotency proof only |
 
 ## Platform-Local Parity
 
