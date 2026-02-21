@@ -692,3 +692,15 @@ export const TenantAppListResponseSchema = z.object({
 });
 
 export type TenantAppListResponse = z.infer<typeof TenantAppListResponseSchema>;
+
+// ── Create Tenant Request ─────────────────────────────────
+
+export const CreateTenantRequestSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(100, 'Name must be 100 characters or fewer'),
+  plan: z.string().min(1, 'Plan is required'),
+  environment: z.enum(['development', 'staging', 'production'], {
+    errorMap: () => ({ message: 'Environment is required' }),
+  }),
+});
+
+export type CreateTenantRequest = z.infer<typeof CreateTenantRequestSchema>;
