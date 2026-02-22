@@ -9,11 +9,12 @@
 
 | Service | Canonical Name | Version | Git SHA | Full Image Tag | Notes |
 |---------|---------------|---------|---------|----------------|-------|
-| Platform: Control Plane | `control-plane` | 0.1.0 | — | `7dsolutions/control-plane:0.1.0-{sha}` | Pending first production deploy |
-| Platform: Identity Auth | `identity-auth` | 1.1.0 | — | `7dsolutions/identity-auth:1.1.0-{sha}` | Pending first production deploy |
-| Module: TTP | `ttp` | 0.1.0 | — | `7dsolutions/ttp:0.1.0-{sha}` | Pending first production deploy |
-| Module: AR | `ar` | 0.1.0 | — | `7dsolutions/ar:0.1.0-{sha}` | Pending first production deploy |
-| Module: Payments | `payments` | 0.1.0 | — | `7dsolutions/payments:0.1.0-{sha}` | Pending first production deploy |
+| Platform: Control Plane | `control-plane` | 1.0.0 | — | `7dsolutions/control-plane:1.0.0-{sha}` | Promoted P44 (bd-qvbg). Pending image build/push via promote.yml |
+| Platform: Tenant Registry | `tenant-registry` | 1.0.2 | — | `7dsolutions/tenant-registry:1.0.2-{sha}` | Promoted P44 (bd-tzsh), patched P46 (bd-2t65 seed-password fix). Pending image build/push |
+| Platform: Identity Auth | `identity-auth` | 1.2.1 | — | `7dsolutions/identity-auth:1.2.1-{sha}` | Promoted P48 (bd-26ro key rotation + proof gate). Pending image build/push |
+| Module: TTP | `ttp` | 1.0.0 | — | `7dsolutions/ttp:1.0.0-{sha}` | Promoted P44 (bd-2dq8). Pending image build/push via promote.yml |
+| Module: AR | `ar` | 1.0.0 | — | `7dsolutions/ar:1.0.0-{sha}` | Promoted P44 (bd-rqbr). Pending image build/push via promote.yml |
+| Module: Payments | `payments` | 1.0.0 | — | `7dsolutions/payments:1.0.0-{sha}` | Promoted P44 (bd-1b1x). Pending image build/push via promote.yml |
 | App: TCP UI | `tenant-control-plane-ui` | 0.1.0 | — | `7dsolutions/tenant-control-plane-ui:0.1.0-{sha}` | Pending first production deploy |
 
 ## How to Update This File
