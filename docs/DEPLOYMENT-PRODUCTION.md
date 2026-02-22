@@ -335,6 +335,81 @@ bash scripts/production/manifest_diff.sh
 
 Docker Compose replaces only changed containers. Postgres volumes are preserved.
 
+## First Tenant and Admin Bootstrap
+
+After the first successful production deploy, provision the initial platform admin account
+and real production tenants. All tenant provisioning uses supported API flows (no direct
+DB edits); platform admin RBAC setup uses the documented seed script which calls the
+auth HTTP API for registration.
+
+### Quick reference
+
+```bash
+export PROD_HOST=prod.7dsolutions.example.com
+
+# 1. Provision 2 initial production tenants and validate:
+bash scripts/production/provision_tenants.sh --host "$PROD_HOST"
+
+# 2. Bootstrap the platform admin account (replace with a strong password):
+ADMIN_PASSWORD="$(openssl rand -base64 18)" \
+bash scripts/production/provision_tenants.sh \
+  --host "$PROD_HOST" \
+  --with-admin \
+  --admin-email admin@7dsolutions.app
+
+# 3. Confirm services + data visibility:
+bash scripts/production/smoke.sh --host "$PROD_HOST"
+PROD_HOST="$PROD_HOST" bash scripts/production/isolation_check.sh
+```
+
+### What provision_tenants.sh does
+
+1. **Plan catalog check** — asserts `GET /api/ttp/plans?status=active` returns ≥ 1 plan.
+   If empty, migrations have not run; run them on the VPS first (see below).
+2. **Provision Tenant A** — `POST /api/control/tenants` with `product_code=starter`,
+   idempotency key `prod-initial-tenant-a-starter-v1` (safe to replay).
+3. **Provision Tenant B** — `POST /api/control/tenants` with `product_code=professional`,
+   idempotency key `prod-initial-tenant-b-professional-v1` (safe to replay).
+4. **Validate tenant list** — both tenants visible in `GET /api/tenants`.
+5. **Validate summaries** — `GET /api/control/tenants/:id/summary` returns 200.
+6. **Bootstrap admin** _(optional `--with-admin`)_ — runs `scripts/seed-platform-admin.sh`
+   on the VPS for the given email and password; creates platform_admin RBAC binding.
+7. **Final plan confirmation** — asserts plans still visible after provisioning.
+
+### Ensure migrations have run
+
+If `cp_plans` is empty on first access, run migrations inside the control-plane container
+on the VPS:
+
+```bash
+ssh deploy@prod.7dsolutions.example.com \
+  "docker compose -f /opt/7d-platform/docker-compose.platform.yml exec control-plane \
+    sh -c 'sqlx migrate run --database-url \$DATABASE_URL \
+           --source /opt/7d-platform/platform/tenant-registry/db/migrations'"
+```
+
+Migrations are idempotent — safe to run multiple times.
+
+### Idempotency
+
+`provision_tenants.sh` uses stable idempotency keys. Re-running after a partial failure
+re-uses existing tenant records (status 200 replay) without creating duplicates.
+
+### Rotating the admin password
+
+The platform admin password is stored as a bcrypt hash in the auth database.
+To rotate it, remove the credential row and re-run `--with-admin` with the new password:
+
+```bash
+# On the VPS (as deploy user):
+docker exec -i 7d-auth-postgres psql -U auth_user -d auth_db \
+  -c "DELETE FROM credentials WHERE email = 'admin@7dsolutions.app'"
+
+# Then re-run provision_tenants.sh --with-admin with the new password.
+```
+
+Never store the plaintext admin password in the repository, scripts, or CI logs.
+
 ## Production Proof Gate
 
 Every production deploy runs `scripts/production/proof_gate.sh` as the single
