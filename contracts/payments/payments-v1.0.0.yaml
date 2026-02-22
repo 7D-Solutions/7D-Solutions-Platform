@@ -1,0 +1,267 @@
+openapi: 3.0.3
+info:
+  title: Payments API
+  version: 1.0.0
+  description: |
+    Payments module — version 1.0.0 (proven 2026-02-22, bead bd-1b1x).
+
+    Owns Tilled.js checkout sessions, webhook ingestion, payment collection,
+    retry scheduling, and reconciliation of UNKNOWN payment states.
+
+    **Ownership Boundaries:**
+    - Owns: checkout_sessions, payment_collection, processor webhooks, retry queue
+    - Does NOT own: invoices, ledger entries, customer master data
+
+    **Key Principles:**
+    - Never mutates AR database
+    - Never stores raw card data (PCI-DSS scope minimization)
+    - All processor secrets encrypted at rest
+    - Idempotent webhook processing (HMAC-SHA256, ±5 min replay window)
+    - UNKNOWN status blocked from retry until reconciled
+    - Key rotation: two webhook secrets accepted simultaneously during transition
+
+servers:
+  - url: https://payments.7dsolutions.io
+    description: Production
+  - url: http://localhost:8088
+    description: Local development
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: healthz
+      responses:
+        '200':
+          description: Service alive
+
+  /api/health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/ready:
+    get:
+      summary: Readiness probe
+      operationId: getReady
+      responses:
+        '200':
+          description: Service ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+
+  /api/version:
+    get:
+      summary: Module version
+      operationId: getVersion
+      responses:
+        '200':
+          description: Version info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+
+  /api/payments/checkout-sessions:
+    post:
+      summary: Create checkout session
+      operationId: createCheckoutSession
+      description: |
+        Create a Tilled.js checkout session. Returns a client_secret for use
+        with the Tilled.js SDK in the browser. The session tracks payment intent
+        state through the UNKNOWN → succeeded/failed lifecycle.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCheckoutSessionRequest'
+      responses:
+        '200':
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSession'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/payments/checkout-sessions/{id}:
+    get:
+      summary: Get checkout session
+      operationId: getCheckoutSession
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Checkout session ID
+      responses:
+        '200':
+          description: Checkout session details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CheckoutSession'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/payments/webhook/tilled:
+    post:
+      summary: Receive Tilled webhook
+      operationId: tilledWebhook
+      description: |
+        Ingests Tilled payment processor webhooks. Verifies HMAC-SHA256 signature
+        (tilled-signature header). Replay window: ±5 minutes. During key rotation,
+        both old and new secrets are accepted simultaneously.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Tilled webhook payload (format defined by Tilled)
+      responses:
+        '200':
+          description: Webhook accepted and processed
+        '400':
+          description: Invalid signature or malformed payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    CreateCheckoutSessionRequest:
+      type: object
+      required:
+        - app_id
+        - payment_id
+        - amount_minor
+        - currency
+      properties:
+        app_id:
+          type: string
+          description: Platform application identifier
+        payment_id:
+          type: string
+          description: Internal payment record ID
+        amount_minor:
+          type: integer
+          description: Amount in minor currency units (e.g., cents)
+        currency:
+          type: string
+          minLength: 3
+          maxLength: 3
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code
+        tilled_account_id:
+          type: string
+          description: Tilled merchant account ID
+
+    CheckoutSession:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Checkout session ID
+        payment_id:
+          type: string
+        app_id:
+          type: string
+        amount_minor:
+          type: integer
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [pending, succeeded, failed, unknown]
+          description: |
+            pending: awaiting payment
+            succeeded: payment confirmed
+            failed: payment failed
+            unknown: webhook received but outcome unclear — excluded from retry until reconciled
+        client_secret:
+          type: string
+          description: Tilled.js client secret for browser-side payment form
+        tilled_payment_intent_id:
+          type: string
+          description: Tilled payment intent reference
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: healthy
+        module:
+          type: string
+          example: payments
+        version:
+          type: string
+          example: 1.0.0
+
+    ReadyResponse:
+      type: object
+      properties:
+        ready:
+          type: boolean
+        checks:
+          type: object
+
+    VersionResponse:
+      type: object
+      properties:
+        version:
+          type: string
+          example: 1.0.0
+        module:
+          type: string
+          example: payments
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error context (optional)

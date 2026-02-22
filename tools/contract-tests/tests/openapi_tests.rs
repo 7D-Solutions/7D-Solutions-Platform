@@ -10,23 +10,40 @@ fn contracts_dir() -> PathBuf {
         .join("contracts")
 }
 
+fn check_spec_version(spec: &serde_json::Value, expected_major: u64, spec_name: &str) {
+    let version = spec
+        .get("info")
+        .and_then(|i| i.get("version"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("0.0.0");
+    let major: u64 = version.split('.').next().unwrap_or("0").parse().unwrap_or(0);
+    assert!(
+        major >= expected_major,
+        "{spec_name}: spec version {version} is below expected major {expected_major}"
+    );
+    println!("✓ {spec_name} version {version} (major >= {expected_major})");
+}
+
 #[test]
 fn test_payments_openapi_spec_valid() {
-    let spec_path = contracts_dir().join("payments/payments-v0.1.0.yaml");
+    // payments-v1.0.0.yaml is the 1.0.0-proven spec (bead bd-1b1x)
+    let spec_path = contracts_dir().join("payments/payments-v1.0.0.yaml");
 
     let spec = validate_openapi_spec(&spec_path)
         .expect("Failed to parse payments OpenAPI spec");
 
     println!("✓ Payments OpenAPI spec is valid YAML");
+    check_spec_version(&spec, 1, "payments-v1.0.0.yaml");
 
-    // Check required paths
+    // Actual 1.0.0 endpoints: checkout sessions + webhook ingestion
     let required_paths = vec![
         "/api/health",
-        "/api/payment-methods",
-        "/api/refunds",
+        "/api/payments/checkout-sessions",
+        "/api/payments/checkout-sessions/{id}",
+        "/api/payments/webhook/tilled",
     ];
 
-    check_required_paths(&spec, &required_paths, "payments-v0.1.0.yaml")
+    check_required_paths(&spec, &required_paths, "payments-v1.0.0.yaml")
         .expect("Payments spec missing required paths");
 
     println!("✓ Payments spec contains all required paths");
@@ -83,17 +100,24 @@ fn test_ar_openapi_spec_valid() {
         .expect("Failed to parse AR OpenAPI spec");
 
     println!("✓ AR OpenAPI spec is valid YAML");
+    check_spec_version(&spec, 1, "ar-v1.yaml");
 
-    // AR module should have at minimum these paths
+    // 1.0.0 core paths (customers, invoices, aging, credit notes, write-offs, tax)
     let required_paths = vec![
         "/api/ar/customers",
         "/api/ar/invoices",
+        "/api/ar/invoices/{id}/credit-notes",
+        "/api/ar/invoices/{id}/write-off",
+        "/api/ar/aging",
+        "/api/ar/payments/allocate",
+        "/api/ar/tax/config/jurisdictions",
+        "/healthz",
     ];
 
     check_required_paths(&spec, &required_paths, "ar-v1.yaml")
         .expect("AR spec missing required paths");
 
-    println!("✓ AR spec contains all required paths");
+    println!("✓ AR spec contains all required 1.0.0 paths");
 }
 
 #[test]
@@ -104,11 +128,14 @@ fn test_auth_openapi_spec_valid() {
         .expect("Failed to parse Auth OpenAPI spec");
 
     println!("✓ Auth OpenAPI spec is valid YAML");
+    check_spec_version(&spec, 1, "auth-v1.yaml");
 
-    // Auth module should have at minimum these paths
+    // Auth module endpoints — login, healthz (1.1.0+), readiness
     let required_paths = vec![
         "/health/live",
         "/api/auth/login",
+        "/healthz",
+        "/api/ready",
     ];
 
     check_required_paths(&spec, &required_paths, "auth-v1.yaml")

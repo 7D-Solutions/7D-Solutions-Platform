@@ -32,11 +32,12 @@ See [CONTRACT-STANDARD.md](../docs/architecture/CONTRACT-STANDARD.md) for full g
 **Purpose:** Authentication and authorization API
 
 **Endpoints:**
-- User authentication
-- Token management
-- Session handling
+- User registration and login
+- Token refresh and logout
+- JWKS endpoint for RS256 verification
+- Health and readiness probes (`/healthz`, `/api/ready` — added 1.1.0)
 
-**Version:** 0.1.0
+**Version:** 1.2.1 (proven module — see `platform/identity-auth/REVISIONS.md`)
 
 **Documentation:** See [auth-v1.yaml](auth/auth-v1.yaml)
 
@@ -46,22 +47,27 @@ See [CONTRACT-STANDARD.md](../docs/architecture/CONTRACT-STANDARD.md) for full g
 
 **Path:** `ar/ar-v1.yaml`
 
-**Purpose:** Billing records and payment method references
+**Purpose:** Billing records, payment method references, aging, dunning, reconciliation, tax
 
 **Endpoints:**
-- Customer management
-- Invoice management
-- Charge and refund operations
-- Payment method references (non-sensitive)
-- Dispute handling
-- Webhook management
+- Customer lifecycle (create/update/suspend/reactivate)
+- Invoice lifecycle (draft → open → paid/void/written-off)
+- Credit notes and write-offs
+- Aging report (0-30/31-60/61-90/90+ day buckets)
+- Usage billing ingestion
+- Payment allocation
+- Dunning scheduler
+- Reconciliation (run/schedule/poll)
+- Tax configuration (jurisdictions, rules, reports)
+- Tilled webhook ingestion (HMAC-SHA256)
+- Health and readiness probes
 
 **Key Principles:**
 - Does NOT store raw card data or sensitive payment secrets
-- Delegates actual payment processing to external processor
+- Delegates actual payment processing to Payments module
 - Stores only processor-issued identifiers and metadata
 
-**Version:** 0.1.0
+**Version:** 1.0.0 (proven module — see `modules/ar/REVISIONS.md`)
 
 **Documentation:** See [ar-v1.yaml](ar/ar-v1.yaml)
 
@@ -84,7 +90,7 @@ See [CONTRACT-STANDARD.md](../docs/architecture/CONTRACT-STANDARD.md) for full g
 - Does NOT own payment state or ledger entries
 - Never stores financial truth
 
-**Version:** 0.1.0
+**Version:** 0.1.0 (unproven — no version bump required for changes)
 
 **State Machine:**
 ```
@@ -94,6 +100,32 @@ active → paused → resumed → cancelled
 **Idempotency:** Bill runs use `bill_run_id` to prevent duplicate invoices
 
 **Documentation:** See [subscriptions-v1.yaml](subscriptions/subscriptions-v1.yaml)
+
+---
+
+### Module: Payments
+
+**Path:** `payments/payments-v1.0.0.yaml`
+
+**Purpose:** Tilled.js checkout sessions, webhook ingestion, payment collection
+
+**Endpoints:**
+- Checkout session lifecycle (create/get)
+- Tilled webhook ingestion (HMAC-SHA256, ±5 min replay window)
+- Health and readiness probes
+
+**Key Principles:**
+- Never mutates AR database
+- Never stores raw card data (PCI-DSS scope minimization)
+- Idempotent webhook processing
+- UNKNOWN status blocked from retry until reconciled
+- Key rotation: two webhook secrets accepted simultaneously during transition
+
+**Version:** 1.0.0 (proven module — see `modules/payments/REVISIONS.md`)
+
+**Documentation:** See [payments-v1.0.0.yaml](payments/payments-v1.0.0.yaml)
+
+> **Note:** `payments-v0.1.0.yaml` is superseded by `payments-v1.0.0.yaml` and retained only for historical reference.
 
 ---
 

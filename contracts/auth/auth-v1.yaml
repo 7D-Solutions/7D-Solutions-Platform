@@ -2,10 +2,11 @@ openapi: 3.0.3
 
 info:
   title: Identity Auth API
-  version: 1.0.0
+  version: 1.2.1
   description: >
     Public authentication and token issuance API for 7D Solutions Platform.
     Standalone identity service using JWKS-based token validation.
+    Version 1.2.1: zero-downtime JWT key rotation (dual-key overlap window).
 
 servers:
   - url: https://auth.7dsolutions.io
@@ -15,9 +16,16 @@ servers:
 
 paths:
 
+  /healthz:
+    get:
+      summary: Liveness probe (standard platform endpoint, added 1.1.0)
+      responses:
+        "200":
+          description: Service is alive
+
   /health/live:
     get:
-      summary: Liveness probe
+      summary: Liveness probe (legacy endpoint, kept for backward compatibility)
       description: Returns 200 if service is running
       responses:
         "200":
@@ -25,11 +33,18 @@ paths:
 
   /health/ready:
     get:
-      summary: Readiness probe
+      summary: Readiness probe (legacy endpoint, kept for backward compatibility)
       description: Returns 200 if service is ready to accept traffic
       responses:
         "200":
           description: Service is ready
+
+  /api/ready:
+    get:
+      summary: Readiness probe (standard platform endpoint, added 1.1.0)
+      responses:
+        "200":
+          description: Service ready
 
   /api/auth/register:
     post:

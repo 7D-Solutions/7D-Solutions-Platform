@@ -1,18 +1,16 @@
 openapi: 3.0.3
 info:
   title: Accounts Receivable API
-  version: 0.1.0
-  description: 'This Accounts Receivable API manages billing records and payment method references only.
+  version: 1.0.0
+  description: 'Accounts Receivable module — version 1.0.0 (proven 2026-02-22, bead bd-rqbr).
 
 
-    The `payment-methods` endpoints store and manage processor-issued payment method identifiers and non-sensitive metadata
-    (e.g., last4, brand, expiration).
+    Manages billing records, payment method references, aging, dunning, reconciliation,
+    credit notes, write-offs, usage billing, tax configuration, and GL journal emission.
 
 
-    No raw card data, API keys, gateway credentials, or sensitive secrets are accepted or stored by this module.
-
-
-    Sensitive payment processing is delegated to the external payment processor.'
+    No raw card data, API keys, gateway credentials, or sensitive secrets are accepted
+    or stored. Sensitive payment processing is delegated to the Payments module.'
 servers:
 - url: https://ar.7dsolutions.io
   description: Production
@@ -626,6 +624,284 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Event'
+
+  # ── Health (added in 1.0.0) ─────────────────────────────────────────────
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: healthz
+      responses:
+        '200':
+          description: Service alive
+  /api/ready:
+    get:
+      summary: Readiness probe
+      operationId: ready
+      responses:
+        '200':
+          description: Service ready
+
+  # ── Usage billing (added in 1.0.0) ──────────────────────────────────────
+  /api/ar/usage:
+    post:
+      summary: Capture usage event
+      operationId: captureUsage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Usage captured
+  /api/ar/invoices/{id}/bill-usage:
+    post:
+      summary: Bill accrued usage onto an invoice
+      operationId: billUsage
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Usage billed
+
+  # ── Credit notes (added in 1.0.0) ───────────────────────────────────────
+  /api/ar/invoices/{id}/credit-notes:
+    post:
+      summary: Issue credit note against invoice
+      operationId: issueCreditNote
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Credit note issued
+
+  # ── Write-offs (added in 1.0.0) ──────────────────────────────────────────
+  /api/ar/invoices/{id}/write-off:
+    post:
+      summary: Write off invoice balance
+      operationId: writeOffInvoice
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Invoice written off
+
+  # ── Aging (added in 1.0.0) ───────────────────────────────────────────────
+  /api/ar/aging:
+    get:
+      summary: Get aging report (0-30, 31-60, 61-90, 90+ day buckets)
+      operationId: getAging
+      responses:
+        '200':
+          description: Aging report
+          content:
+            application/json:
+              schema:
+                type: object
+  /api/ar/aging/refresh:
+    post:
+      summary: Refresh aging snapshot
+      operationId: refreshAging
+      responses:
+        '200':
+          description: Aging refreshed
+
+  # ── Dunning (added in 1.0.0) ─────────────────────────────────────────────
+  /api/ar/dunning/poll:
+    post:
+      summary: Poll dunning scheduler (trigger overdue actions)
+      operationId: dunningPoll
+      responses:
+        '200':
+          description: Dunning poll complete
+
+  # ── Reconciliation (added in 1.0.0) ──────────────────────────────────────
+  /api/ar/recon/run:
+    post:
+      summary: Run reconciliation pass
+      operationId: reconRun
+      responses:
+        '200':
+          description: Reconciliation complete
+  /api/ar/recon/schedule:
+    post:
+      summary: Schedule reconciliation job
+      operationId: reconSchedule
+      responses:
+        '200':
+          description: Reconciliation scheduled
+  /api/ar/recon/poll:
+    post:
+      summary: Poll reconciliation queue
+      operationId: reconPoll
+      responses:
+        '200':
+          description: Reconciliation polled
+
+  # ── Payment allocation (added in 1.0.0) ──────────────────────────────────
+  /api/ar/payments/allocate:
+    post:
+      summary: Allocate payment to invoices
+      operationId: allocatePayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Payment allocated
+
+  # ── Tax configuration (added in 1.0.0) ───────────────────────────────────
+  /api/ar/tax/config/jurisdictions:
+    get:
+      summary: List tax jurisdictions
+      operationId: listJurisdictions
+      responses:
+        '200':
+          description: Jurisdictions list
+    post:
+      summary: Create tax jurisdiction
+      operationId: createJurisdiction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Jurisdiction created
+  /api/ar/tax/config/jurisdictions/{id}:
+    get:
+      summary: Get tax jurisdiction
+      operationId: getJurisdiction
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Jurisdiction found
+    put:
+      summary: Update tax jurisdiction
+      operationId: updateJurisdiction
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Jurisdiction updated
+  /api/ar/tax/config/rules:
+    get:
+      summary: List tax rules
+      operationId: listTaxRules
+      responses:
+        '200':
+          description: Tax rules list
+    post:
+      summary: Create tax rule
+      operationId: createTaxRule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Tax rule created
+  /api/ar/tax/config/rules/{id}:
+    get:
+      summary: Get tax rule
+      operationId: getTaxRule
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Tax rule found
+    put:
+      summary: Update tax rule
+      operationId: updateTaxRule
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Tax rule updated
+
+  # ── Tax reports (added in 1.0.0) ──────────────────────────────────────────
+  /api/ar/tax/reports/summary:
+    get:
+      summary: Tax report summary
+      operationId: taxReportSummary
+      responses:
+        '200':
+          description: Tax report summary
+  /api/ar/tax/reports/export:
+    get:
+      summary: Export tax report
+      operationId: taxReportExport
+      responses:
+        '200':
+          description: Tax report export
+
 components:
   schemas:
     Customer:
