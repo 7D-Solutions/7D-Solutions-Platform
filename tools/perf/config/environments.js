@@ -22,12 +22,14 @@ const PRESETS = {
     controlPlane: 'http://localhost:8091',
     ar:           'http://localhost:8086',
     ttp:          'http://localhost:8100',
+    payments:     'http://localhost:8088',
   },
   staging: {
     auth:         `http://${stagingHost}:8080`,
     controlPlane: `http://${stagingHost}:8091`,
     ar:           `http://${stagingHost}:8086`,
     ttp:          `http://${stagingHost}:8100`,
+    payments:     `http://${stagingHost}:8088`,
   },
 };
 
@@ -49,6 +51,7 @@ export const urls = {
   controlPlane: __ENV.PERF_CONTROL_PLANE_URL || preset.controlPlane,
   ar:           __ENV.PERF_AR_URL            || preset.ar,
   ttp:          __ENV.PERF_TTP_URL           || preset.ttp,
+  payments:     __ENV.PERF_PAYMENTS_URL      || preset.payments,
 };
 
 /**

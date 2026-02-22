@@ -175,6 +175,124 @@ metrics.billing_write_ops.values.count
 Compare successive runs to detect regressions.  A >20% increase in p95
 latency vs the prior recorded baseline warrants investigation.
 
+## Scale: multi-tenant (P50-010)
+
+`tools/perf/scale_multitenant.js` models ≥5 tenants concurrently across three
+sequential phases: read burst, billing runs, and webhook burst.
+
+### Load shape
+
+| Phase            | Start  | Duration    | VUs | Exec function   |
+|------------------|--------|-------------|-----|-----------------|
+| Read burst       | t=0s   | ramp 30s, sustain 60s, down 10s | 0→20→0 | `readPhase`   |
+| Billing runs     | t=30s  | ramp 10s, sustain 60s, down 5s  | 0→5→0  | `billingPhase` |
+| Webhook burst    | t=115s | ramp 10s, sustain 30s, down 5s  | 0→10→0 | `webhookPhase` |
+
+Total wall time: ~165s.  Phases overlap (billing starts while reads are at
+sustained load).
+
+### Running locally
+
+```bash
+PERF_AUTH_EMAIL=perf@test.7d.local \
+PERF_AUTH_PASSWORD='PerfTest1!' \
+PERF_TILLED_WEBHOOK_SECRET='whsec_test' \
+k6 run tools/perf/scale_multitenant.js \
+     --summary-export=scale_multitenant_summary.json
+```
+
+### Running against staging
+
+```bash
+PERF_ENV=staging \
+STAGING_HOST=staging.7dsolutions.app \
+PERF_AUTH_EMAIL=perf@staging.7d.internal \
+PERF_AUTH_PASSWORD='StrongPass1!' \
+PERF_TILLED_WEBHOOK_SECRET='<tilled-webhook-secret-from-vault>' \
+k6 run tools/perf/scale_multitenant.js \
+     --summary-export=scale_multitenant_summary.json
+```
+
+### Environment variables (scale_multitenant-specific)
+
+| Variable                   | Default                              | Purpose                                      |
+|----------------------------|--------------------------------------|----------------------------------------------|
+| `PERF_TILLED_WEBHOOK_SECRET` | —                                  | HMAC secret for webhook signatures (required for Phase 3) |
+| `PERF_BILLING_PERIOD`      | `2099-01`                            | Billing period for safe/idempotent billing runs |
+| `PERF_TENANT_1` … `PERF_TENANT_5` | `00000000-…-000000000001` … `5` | Override per-slot tenant UUIDs |
+| `PERF_PROMETHEUS_URL`      | `http://localhost:9090`              | Prometheus base URL for teardown lag query   |
+| `PERF_PAYMENTS_URL`        | from preset (port 8088)              | Override payments service base URL           |
+
+All standard variables (`PERF_ENV`, `STAGING_HOST`, `PERF_AUTH_*`, etc.) still apply.
+
+### Thresholds (scale pass/fail gate)
+
+| Metric                       | Threshold        | Tier                        |
+|------------------------------|------------------|-----------------------------|
+| `http_req_failed`            | `rate < 1%`      | All requests                |
+| `http_req_duration` (p95)    | `< 2 000 ms`     | All requests                |
+| `scale_cp_reads_ms` (p95)    | `< 500 ms`       | Control-plane reads         |
+| `scale_ar_reads_ms` (p95)    | `< 800 ms`       | AR module reads             |
+| `scale_billing_run_ms` (p95) | `< 3 000 ms`     | Billing run (multi-service) |
+| `scale_webhook_ms` (p95)     | `< 500 ms`       | Tilled webhook ingest       |
+| `scale_errors`               | `rate < 1%`      | check() failures            |
+
+### Endpoints exercised
+
+| Phase    | Method | Path                                       | Auth? |
+|----------|--------|--------------------------------------------|-------|
+| reads    | GET    | /api/ready                                 | No    |
+| reads    | GET    | /api/tenants                               | Yes   |
+| reads    | GET    | /api/ttp/plans                             | Yes   |
+| reads    | GET    | /api/ar/customers                          | Yes   |
+| reads    | GET    | /api/ar/invoices                           | Yes   |
+| reads    | GET    | /api/ar/subscriptions                      | Yes   |
+| reads    | GET    | /api/ar/aging                              | Yes   |
+| billing  | POST   | /api/control/platform-billing-runs         | Yes   |
+| webhooks | POST   | /api/payments/webhook/tilled               | No (HMAC) |
+
+### Billing safe mode
+
+`billingPhase` posts a fixed far-future period (`PERF_BILLING_PERIOD`, default
+`2099-01`).  The first iteration creates invoices; all subsequent iterations
+hit the idempotency guard and return `already_billed` — no duplicate charges.
+This exercises the full control-plane → tenant-registry → AR write path under
+concurrent load without polluting production or staging billing data.
+
+### Webhook safe payloads
+
+`webhookPhase` sends `payment_intent.succeeded` events with randomly-generated
+`data.object.id` values (`pi_perf_<ts>_<vu>`).  These IDs do not exist in the
+`checkout_sessions` table, so the `UPDATE … WHERE processor_payment_id = ?`
+affects 0 rows — the service returns 200 OK, exercising the signature-validate
+→ parse → DB-update path at load without mutating real payment records.
+
+Each request carries a freshly-computed `tilled-signature: t=<ts>,v1=<hmac>`
+header using the `PERF_TILLED_WEBHOOK_SECRET` value.  If the secret is not set,
+Phase 3 VUs sleep and skip silently.
+
+### Projection lag reporting
+
+After all VUs finish, `teardown()` queries Prometheus for the
+`payments_event_consumer_lag_messages` metric and logs the result.  If
+Prometheus is unreachable, operators should check the Grafana
+"Payments — Consumer Lag" panel manually.
+
+### CI artifact — scale_multitenant_summary.json
+
+Key fields consumed by bd-24h9 (P50-020 bottleneck analysis):
+
+```
+metrics.scale_cp_reads_ms.values.p(95)
+metrics.scale_ar_reads_ms.values.p(95)
+metrics.scale_billing_run_ms.values.p(95)
+metrics.scale_webhook_ms.values.p(95)
+metrics.scale_errors.values.rate
+metrics.scale_billing_ops.values.count
+metrics.scale_webhook_ops.values.count
+metrics.http_req_failed.values.rate
+```
+
 ## Adding new scenarios
 
 1. Create `tools/perf/<scenario>.js`
