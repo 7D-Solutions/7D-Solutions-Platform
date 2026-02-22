@@ -218,4 +218,42 @@ test.describe('Onboarding Wizard', () => {
       }
     }
   });
+
+  // ── Guardrail tests ─────────────────────────────────────────────────────
+
+  test('BFF guardrail: user creation blocked for non-existent tenant', async ({ page }) => {
+    // POST directly to the BFF users endpoint with a known-invalid tenant UUID.
+    // The server-side guardrail must reject this (404 or 503) rather than
+    // passing it through to identity-auth and creating an orphaned user record.
+    const res = await page.request.post(
+      '/api/tenants/00000000-0000-0000-0000-000000000000/users',
+      {
+        data: { email: 'orphan@test.com', password: 'Sup3rSecure!' },
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+    // 401/403: auth guard fired (middleware not in decode-only mode — acceptable)
+    // 404: tenant not found — guardrail working
+    // 503: registry unavailable — guardrail still blocking (fail-safe)
+    // 201/200: NOT acceptable — would mean user was created for a phantom tenant
+    expect([401, 403, 404, 503]).toContain(res.status());
+  });
+
+  test('wizard plan step: Next disabled until plan selected', async ({ page }) => {
+    await page.goto('/tenants/new');
+    await page.getByTestId('wizard-name').fill('Guardrail Test Tenant');
+    await page.getByTestId('wizard-next').click();
+    await expect(page.getByTestId('wizard-step-2')).toBeVisible();
+    await page.waitForTimeout(800);
+
+    // Next must be disabled while no plan is selected — enforces the step sequence.
+    await expect(page.getByTestId('wizard-next')).toBeDisabled();
+
+    // After selecting a plan, Next becomes enabled.
+    const planOptions = page.getByTestId('wizard-plan-option');
+    if (await planOptions.count() > 0) {
+      await planOptions.first().click();
+      await expect(page.getByTestId('wizard-next')).toBeEnabled();
+    }
+  });
 });

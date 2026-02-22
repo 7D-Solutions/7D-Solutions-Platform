@@ -8,7 +8,7 @@
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server';
 import { guardPlatformAdmin } from '@/lib/server/auth';
-import { IDENTITY_AUTH_BASE_URL } from '@/lib/constants';
+import { IDENTITY_AUTH_BASE_URL, TENANT_REGISTRY_BASE_URL } from '@/lib/constants';
 import { TenantUserListResponseSchema, CreateTenantUserRequestSchema } from '@/lib/api/types';
 import type { TenantUserListResponse } from '@/lib/api/types';
 
@@ -84,6 +84,34 @@ export async function POST(
   if (auth instanceof Response) return auth;
 
   const { tenant_id } = await params;
+
+  // Guardrail: verify the tenant exists in the registry before provisioning a user.
+  // Prevents orphaned user records and unusable tenants (Step N+1 refused if Step N absent).
+  try {
+    const tenantCheckUrl = `${TENANT_REGISTRY_BASE_URL}/api/tenants/${encodeURIComponent(tenant_id)}`;
+    const tenantCheck = await fetch(tenantCheckUrl, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (tenantCheck.status === 404) {
+      return NextResponse.json(
+        { error: 'Tenant not found. Complete tenant creation before provisioning users.' },
+        { status: 404 },
+      );
+    }
+    if (!tenantCheck.ok) {
+      return NextResponse.json(
+        { error: 'Cannot verify tenant existence. Retry or contact support.' },
+        { status: 503 },
+      );
+    }
+  } catch {
+    // Registry unreachable — fail safe rather than allow user creation for unknown tenant.
+    return NextResponse.json(
+      { error: 'Tenant registry unavailable. Cannot provision user without tenant verification.' },
+      { status: 503 },
+    );
+  }
 
   let body: unknown;
   try {
