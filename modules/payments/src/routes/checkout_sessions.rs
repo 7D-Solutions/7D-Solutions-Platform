@@ -65,7 +65,7 @@ struct ErrorBody {
 }
 
 /// HTTP error wrapper
-struct ApiError {
+pub struct ApiError {
     status: StatusCode,
     message: String,
 }
