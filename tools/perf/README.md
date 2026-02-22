@@ -89,12 +89,16 @@ k6 run tools/perf/smoke.js
 
 The workflow at `.github/workflows/perf.yml` exposes a manual trigger:
 
-1. Go to **Actions → Performance — k6 Smoke → Run workflow**
+1. Go to **Actions → Performance — k6 → Run workflow**
 2. Set **env** to `staging`, supply the **staging_host**, and optionally the tenant UUID
 3. Add `PERF_AUTH_EMAIL` and `PERF_AUTH_PASSWORD` as repository secrets (Settings → Secrets → Actions)
 4. Click **Run workflow**
 
-The job installs k6, runs `tools/perf/smoke.js`, and fails the workflow if any threshold is breached.
+The job installs k6, runs the smoke scenario followed by the baseline billing-spine
+scenario, and fails the workflow if any threshold is breached in either run.
+k6 summary JSON files are uploaded as workflow artifacts (retained 90 days) under
+`perf-summaries-<git-sha>-<timestamp>`, even when a threshold fails, so engineers
+can inspect the numbers that tripped the gate.
 
 ## Thresholds (smoke)
 

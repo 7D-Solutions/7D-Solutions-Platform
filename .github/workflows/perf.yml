@@ -1,7 +1,7 @@
-name: Performance — k6 Smoke
+name: Performance — k6
 
 # Triggered manually from GitHub UI or via API.
-# Supply a running environment (staging or production) and credentials.
+# Runs both smoke (fast sanity) and baseline (billing spine capacity) scenarios.
 #
 # Required secrets (set in repo → Settings → Secrets → Actions):
 #   PERF_AUTH_EMAIL    — email for the test account
@@ -34,14 +34,21 @@ on:
         default: '00000000-0000-0000-0000-000000000000'
 
 jobs:
-  smoke:
-    name: k6 smoke — ${{ inputs.env }}
+  perf:
+    name: k6 — smoke + baseline on ${{ inputs.env }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # smoke ~1 min + baseline ~2 min + install/upload overhead → cap at 20 min
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Compute a run stamp (UTC ISO, no colons) used in artifact names so
+      # successive dispatches are distinguishable even on the same commit.
+      - name: Set run stamp
+        id: stamp
+        run: echo "value=$(date -u +%Y%m%dT%H%M%SZ)" >> "$GITHUB_OUTPUT"
 
       - name: Install k6
         run: |
@@ -50,6 +57,9 @@ jobs:
           sudo mv k6 /usr/local/bin/k6
           k6 version
 
+      # ── Smoke scenario ───────────────────────────────────────────────────────
+      # 1 VU × 1 iteration — fast readiness gate.  Fails immediately on any
+      # threshold breach; k6 exits non-zero which fails the workflow step.
       - name: Run smoke scenario
         env:
           PERF_ENV:           ${{ inputs.env }}
@@ -58,4 +68,33 @@ jobs:
           PERF_AUTH_EMAIL:    ${{ secrets.PERF_AUTH_EMAIL }}
           PERF_AUTH_PASSWORD: ${{ secrets.PERF_AUTH_PASSWORD }}
           PERF_AUTH_TOKEN:    ${{ secrets.PERF_AUTH_TOKEN }}
-        run: k6 run tools/perf/smoke.js
+        run: |
+          k6 run tools/perf/smoke.js \
+            --summary-export="perf-smoke-${{ github.sha }}-${{ steps.stamp.outputs.value }}.json"
+
+      # ── Baseline scenario — billing spine ────────────────────────────────────
+      # 10 VU sustained 100 s load against control-plane + AR.  Threshold
+      # breach exits non-zero → workflow fails.
+      - name: Run baseline — billing spine
+        env:
+          PERF_ENV:           ${{ inputs.env }}
+          STAGING_HOST:       ${{ inputs.staging_host }}
+          PERF_TENANT_ID:     ${{ inputs.tenant_id }}
+          PERF_AUTH_EMAIL:    ${{ secrets.PERF_AUTH_EMAIL }}
+          PERF_AUTH_PASSWORD: ${{ secrets.PERF_AUTH_PASSWORD }}
+          PERF_AUTH_TOKEN:    ${{ secrets.PERF_AUTH_TOKEN }}
+        run: |
+          k6 run tools/perf/baseline_billing_spine.js \
+            --summary-export="perf-baseline-${{ github.sha }}-${{ steps.stamp.outputs.value }}.json"
+
+      # ── Upload summary artifacts ─────────────────────────────────────────────
+      # always() ensures we retain whatever was written even on threshold
+      # breach so engineers can inspect the numbers that tripped the gate.
+      - name: Upload k6 summaries
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-summaries-${{ github.sha }}-${{ steps.stamp.outputs.value }}
+          path: perf-*.json
+          retention-days: 90
+          if-no-files-found: warn
