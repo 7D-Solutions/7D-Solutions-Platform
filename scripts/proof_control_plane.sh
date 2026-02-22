@@ -11,6 +11,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
 
 STAGING_HOST="${2:-}"
+CP_PORT="${CONTROL_PLANE_PORT:-8091}"
 PASS=0
 FAIL=0
 
@@ -41,13 +42,13 @@ fi
 # ── Gate 3: Staging health check (optional) ──────────────────────────────────
 if [[ -n "$STAGING_HOST" ]]; then
   log_step "Staging health (${STAGING_HOST})"
-  HEALTH_URL="http://${STAGING_HOST}/healthz"
+  HEALTH_URL="http://${STAGING_HOST}:${CP_PORT}/healthz"
   if curl --silent --fail --max-time 10 "$HEALTH_URL" > /dev/null 2>&1; then
     log_pass "GET $HEALTH_URL → 200"
   else
     log_fail "GET $HEALTH_URL did not return 200"
   fi
-  READY_URL="http://${STAGING_HOST}/api/ready"
+  READY_URL="http://${STAGING_HOST}:${CP_PORT}/api/ready"
   if curl --silent --fail --max-time 10 "$READY_URL" > /dev/null 2>&1; then
     log_pass "GET $READY_URL → 200"
   else
