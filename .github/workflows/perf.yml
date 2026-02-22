@@ -1,0 +1,61 @@
+name: Performance — k6 Smoke
+
+# Triggered manually from GitHub UI or via API.
+# Supply a running environment (staging or production) and credentials.
+#
+# Required secrets (set in repo → Settings → Secrets → Actions):
+#   PERF_AUTH_EMAIL    — email for the test account
+#   PERF_AUTH_PASSWORD — password for the test account
+#
+# Optional secrets:
+#   PERF_AUTH_TOKEN    — pre-minted JWT (skips login step)
+#
+# Required inputs:
+#   env          — 'local' | 'staging'  (default: staging)
+#   staging_host — hostname/IP of the target VPS         (required when env=staging)
+on:
+  workflow_dispatch:
+    inputs:
+      env:
+        description: 'Target environment'
+        required: true
+        default: staging
+        type: choice
+        options: [local, staging]
+
+      staging_host:
+        description: 'Staging VPS hostname or IP (required when env=staging)'
+        required: false
+        default: ''
+
+      tenant_id:
+        description: 'Tenant UUID for auth (default: platform tenant 00000000-...)'
+        required: false
+        default: '00000000-0000-0000-0000-000000000000'
+
+jobs:
+  smoke:
+    name: k6 smoke — ${{ inputs.env }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install k6
+        run: |
+          curl -fsSL https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz \
+            | tar -xzf - --strip-components=1 k6-v0.55.0-linux-amd64/k6
+          sudo mv k6 /usr/local/bin/k6
+          k6 version
+
+      - name: Run smoke scenario
+        env:
+          PERF_ENV:           ${{ inputs.env }}
+          STAGING_HOST:       ${{ inputs.staging_host }}
+          PERF_TENANT_ID:     ${{ inputs.tenant_id }}
+          PERF_AUTH_EMAIL:    ${{ secrets.PERF_AUTH_EMAIL }}
+          PERF_AUTH_PASSWORD: ${{ secrets.PERF_AUTH_PASSWORD }}
+          PERF_AUTH_TOKEN:    ${{ secrets.PERF_AUTH_TOKEN }}
+        run: k6 run tools/perf/smoke.js
