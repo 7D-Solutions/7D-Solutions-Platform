@@ -109,7 +109,7 @@ impl From<sqlx::Error> for RetryError {
 /// **Returns:** Array of 3 dates: [attempt_0_date, attempt_1_date, attempt_2_date]
 ///
 /// **Example:**
-/// ```rust
+/// ```rust,no_run
 /// let due_date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
 /// let windows = calculate_retry_windows(due_date);
 /// // windows = [2026-02-15, 2026-02-18, 2026-02-22]
@@ -129,7 +129,7 @@ pub fn calculate_retry_windows(due_date: NaiveDate) -> [NaiveDate; 3] {
 /// - None if no window is active yet or all windows have passed
 ///
 /// **Example:**
-/// ```rust
+/// ```rust,no_run
 /// let due_date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
 /// let today = NaiveDate::from_ymd_opt(2026, 2, 18).unwrap();
 /// let window = determine_current_window(due_date, today);

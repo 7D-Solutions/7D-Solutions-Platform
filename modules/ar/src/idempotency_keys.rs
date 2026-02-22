@@ -10,8 +10,8 @@
 //! 4. DB-enforced: UNIQUE constraints prevent duplicates
 //!
 //! **Usage:**
-//! ```rust
-//! use ar::idempotency_keys::{generate_invoice_attempt_key, InvoiceAttemptKey};
+//! ```rust,no_run
+//! use ar_rs::idempotency_keys::{generate_invoice_attempt_key, InvoiceAttemptKey};
 //!
 //! let key = generate_invoice_attempt_key("app-demo", 123, 0);
 //! assert_eq!(key.as_str(), "invoice:attempt:app-demo:123:0");

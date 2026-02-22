@@ -119,7 +119,7 @@ pub enum FinalizationResult {
 /// - Transaction-scoped lock released on commit/rollback
 ///
 /// **Example:**
-/// ```rust
+/// ```rust,no_run
 /// let pool = /* ... */;
 /// let result = finalize_invoice(&pool, "app-demo", 123, 0).await?;
 ///

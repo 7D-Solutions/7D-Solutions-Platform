@@ -12,7 +12,7 @@
 //! 3. Lifecycle function emits events (after mutation succeeds)
 //!
 //! **Invoice State Machine:**
-//! ```
+//! ```text
 //! OPEN ──> ATTEMPTING ──> PAID
 //!   |                       |
 //!   └──> FAILED_FINAL <─────┘
@@ -201,7 +201,7 @@ async fn validate_transition(
 /// - Emit events (NOT YET IMPLEMENTED - placeholder for future beads)
 ///
 /// **Usage:**
-/// ```rust
+/// ```rust,no_run
 /// let pool = /* ... */;
 /// transition_to_attempting(&pool, invoice_id, "Initiating payment collection").await?;
 /// ```

@@ -11,7 +11,7 @@
 //! 5. Attempt count limits (MAX_ATTEMPTS = 3)
 //!
 //! **Usage:**
-//! ```rust
+//! ```rust,no_run
 //! use ar_rs::invariants::*;
 //!
 //! // Check invoice attempt ledger integrity
