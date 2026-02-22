@@ -181,7 +181,7 @@ The script asserts:
 - Mode is `0600`
 - No `CHANGE_ME` placeholders remain
 - No test/development secret patterns
-- All 21 required variables are present and non-empty
+- All 22 required variables are present and non-empty
 
 Exit code 0 = ready to deploy. Non-zero = fix the reported issues first.
 
@@ -211,8 +211,33 @@ Exit code 0 = ready to deploy. Non-zero = fix the reported issues first.
 | `PARTY_POSTGRES_PASSWORD` | Party module DB |
 | `INTEGRATIONS_POSTGRES_PASSWORD` | Integrations module DB |
 | `TTP_POSTGRES_PASSWORD` | TTP module DB |
+| `SEED_ADMIN_PASSWORD` | Initial admin password for new tenant seed (see below) |
 
 Variable names and DB usernames are documented in full in `scripts/production/env.example`.
+
+### Secure Tenant Bootstrap
+
+When a new tenant is provisioned, `seed_identity_module` creates an `admin@<tenant_id>.local`
+credential in the auth database. It reads the password from `SEED_ADMIN_PASSWORD` at runtime and
+**refuses to seed** if:
+
+- The variable is unset or empty
+- The value matches a known-bad default (`changeme123`, `password`, `admin`, etc.)
+
+**To set `SEED_ADMIN_PASSWORD` on the VPS:**
+
+```bash
+# Generate a strong random password (do this offline or on the VPS)
+openssl rand -base64 24
+
+# Append to the secrets file (as root)
+sudo sh -c 'echo "SEED_ADMIN_PASSWORD=<generated-password>" >> /etc/7d/production/secrets.env'
+sudo chmod 0600 /etc/7d/production/secrets.env
+```
+
+**Rotation:** If you need to rotate the seed password (for future tenant provisions), update
+`SEED_ADMIN_PASSWORD` in `/etc/7d/production/secrets.env`. Previously seeded credentials are
+unaffected (they store bcrypt hashes and are not re-seeded on retry).
 
 **Never commit `.env.production` or `secrets.env` to git.** Both are listed in `.gitignore`.
 

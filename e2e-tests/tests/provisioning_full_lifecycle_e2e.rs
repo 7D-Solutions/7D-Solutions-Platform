@@ -287,6 +287,7 @@ async fn test_seed_subscriptions_is_idempotent() {
 
 #[tokio::test]
 async fn test_seed_identity_creates_admin_user() {
+    std::env::set_var("SEED_ADMIN_PASSWORD", "TestSeedPw@Integration1!");
     let auth_pool = get_auth_pool().await;
     let tenant_id = Uuid::new_v4();
     let expected_email = format!("admin@{}.local", tenant_id);
@@ -316,6 +317,7 @@ async fn test_seed_identity_creates_admin_user() {
 
 #[tokio::test]
 async fn test_seed_identity_is_idempotent() {
+    std::env::set_var("SEED_ADMIN_PASSWORD", "TestSeedPw@Integration1!");
     let auth_pool = get_auth_pool().await;
     let tenant_id = Uuid::new_v4();
 

@@ -27,6 +27,9 @@ pub enum SeedError {
 
     #[error("Identity seed failed: {0}")]
     IdentitySeedFailed(sqlx::Error),
+
+    #[error("Invalid seed password: {0}")]
+    InvalidSeedPassword(String),
 }
 
 pub type SeedResult<T> = Result<T, SeedError>;
@@ -156,18 +159,56 @@ pub async fn seed_subscriptions_module(
 // Identity Module Seeding
 // ============================================================================
 
+/// Passwords that are never allowed as seed admin passwords.
+const FORBIDDEN_SEED_PASSWORDS: &[&str] = &[
+    "changeme123",
+    "password",
+    "password123",
+    "admin",
+    "admin123",
+    "123456",
+    "12345678",
+    "secret",
+    "letmein",
+    "qwerty",
+    "test",
+    "1234",
+];
+
 /// Seed the identity module: create a default admin user for the tenant.
 ///
 /// Creates an admin credential record using PostgreSQL's pgcrypto crypt()
-/// with bcrypt salt. Default credentials: admin@<tenant_id>.local / changeme123
+/// with bcrypt salt. The admin email is `admin@<tenant_id>.local`.
+///
+/// **Requires `SEED_ADMIN_PASSWORD` env var.** Seeding is refused if the
+/// variable is unset, empty, or matches a known-bad default.
+///
 /// Idempotent: ON CONFLICT DO NOTHING on (tenant_id, email).
 pub async fn seed_identity_module(
     identity_pool: &PgPool,
     tenant_id: Uuid,
 ) -> SeedResult<()> {
+    let admin_password = std::env::var("SEED_ADMIN_PASSWORD").map_err(|_| {
+        SeedError::InvalidSeedPassword(
+            "SEED_ADMIN_PASSWORD env var is required but not set".to_string(),
+        )
+    })?;
+
+    if admin_password.is_empty() {
+        return Err(SeedError::InvalidSeedPassword(
+            "SEED_ADMIN_PASSWORD must not be empty".to_string(),
+        ));
+    }
+
+    if FORBIDDEN_SEED_PASSWORDS.contains(&admin_password.as_str()) {
+        return Err(SeedError::InvalidSeedPassword(format!(
+            "'{}' is a known-bad default — set SEED_ADMIN_PASSWORD to a secure value",
+            admin_password
+        )));
+    }
+
     let admin_user_id = Uuid::new_v4();
     let admin_email = format!("admin@{}.local", tenant_id);
-    let default_password = "changeme123";
 
     // Use PostgreSQL's pgcrypto crypt() with bcrypt for password hashing
     sqlx::query(
@@ -180,7 +221,7 @@ pub async fn seed_identity_module(
     .bind(tenant_id)
     .bind(admin_user_id)
     .bind(&admin_email)
-    .bind(default_password)
+    .bind(&admin_password)
     .execute(identity_pool)
     .await
     .map_err(SeedError::IdentitySeedFailed)?;
@@ -251,5 +292,55 @@ mod tests {
 
         let err = SeedError::SubscriptionsSeedFailed(sqlx::Error::RowNotFound);
         assert!(err.to_string().contains("Subscriptions seed failed"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Seed password enforcement — these tests verify env-var guard logic.
+    // The pool is never contacted because errors are returned before the query.
+    // -------------------------------------------------------------------------
+
+    fn lazy_dummy_pool() -> sqlx::PgPool {
+        sqlx::postgres::PgPoolOptions::new()
+            .max_connections(0)
+            .connect_lazy("postgres://localhost/dummy_never_connects")
+            .expect("lazy pool creation must not fail")
+    }
+
+    #[tokio::test]
+    async fn seed_identity_rejects_missing_password() {
+        std::env::remove_var("SEED_ADMIN_PASSWORD");
+        let err = seed_identity_module(&lazy_dummy_pool(), Uuid::new_v4())
+            .await
+            .expect_err("must fail when SEED_ADMIN_PASSWORD is unset");
+        assert!(
+            err.to_string().contains("SEED_ADMIN_PASSWORD"),
+            "error should mention the env var, got: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn seed_identity_rejects_forbidden_password() {
+        std::env::set_var("SEED_ADMIN_PASSWORD", "changeme123");
+        let err = seed_identity_module(&lazy_dummy_pool(), Uuid::new_v4())
+            .await
+            .expect_err("must fail with known-bad password");
+        assert!(
+            err.to_string().contains("known-bad"),
+            "error should mention known-bad, got: {err}"
+        );
+        std::env::remove_var("SEED_ADMIN_PASSWORD");
+    }
+
+    #[tokio::test]
+    async fn seed_identity_rejects_empty_password() {
+        std::env::set_var("SEED_ADMIN_PASSWORD", "");
+        let err = seed_identity_module(&lazy_dummy_pool(), Uuid::new_v4())
+            .await
+            .expect_err("must fail with empty password");
+        assert!(
+            err.to_string().contains("must not be empty"),
+            "error should describe empty password, got: {err}"
+        );
+        std::env::remove_var("SEED_ADMIN_PASSWORD");
     }
 }

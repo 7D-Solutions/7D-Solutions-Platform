@@ -72,7 +72,8 @@ fi
 
 # --- Check 5: No obvious test/development secrets ---
 TEST_PATTERNS=("test_password" "test_secret" "test_key" "dev_password" "dev_secret" \
-               "localhost_password" "changeit" "password123" "secret123" "insecure")
+               "localhost_password" "changeit" "password123" "secret123" "insecure" \
+               "changeme123")
 FOUND_TEST=0
 for pattern in "${TEST_PATTERNS[@]}"; do
     if grep -qi "$pattern" "$SECRETS_FILE"; then
@@ -108,6 +109,7 @@ REQUIRED_VARS=(
     "JWT_PRIVATE_KEY_PEM"
     "JWT_PUBLIC_KEY_PEM"
     "JWT_SECRET"
+    "SEED_ADMIN_PASSWORD"
 )
 
 MISSING=()

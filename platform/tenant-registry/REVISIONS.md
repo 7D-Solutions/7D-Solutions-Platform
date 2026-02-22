@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.0.1 | 2026-02-22 | bd-2t65 | Security: removed hardcoded `changeme123` default from `seed_identity_module`. Now requires `SEED_ADMIN_PASSWORD` env var; refuses to seed if unset, empty, or matching a known-bad default (changeme123, password, admin, etc.). Added `InvalidSeedPassword` error variant. E2E tests updated to supply the env var. No API surface change. | REVIEW-1 remediation — production must never ship with a deterministic default credential path. | No |
 | 1.0.0 | 2026-02-22 | bd-tzsh | Initial proof. All tests passing (unit + integration against real DB). Handles tenant list/detail, plan catalog, entitlements, app-id mapping, tenant status, and tenant summary (parallel module fanout). Key routes consumed by control-plane (app-id, summary), TTP (app-id), and identity-auth (entitlements, status). Proof command: `./scripts/proof_tenant_registry.sh` | Module build complete. Phase 44 Track B promotion — second in dependency order after control-plane. | — |
 
 ## How to read this table
