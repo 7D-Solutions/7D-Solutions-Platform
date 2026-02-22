@@ -33,14 +33,19 @@ set -uo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Argument parsing ────────────────────────────────────────────────────────────
+DRY_RUN=false
+
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --host)   PROD_HOST="$2";              shift 2 ;;
-        --secret) TILLED_WEBHOOK_SECRET="$2";  shift 2 ;;
-        --jwt)    SMOKE_STAFF_JWT="$2";        shift 2 ;;
+        --host)    PROD_HOST="$2";             shift 2 ;;
+        --secret)  TILLED_WEBHOOK_SECRET="$2"; shift 2 ;;
+        --jwt)     SMOKE_STAFF_JWT="$2";       shift 2 ;;
+        --dry-run) DRY_RUN=true;               shift   ;;
         *) printf 'ERROR: Unknown argument: %s\n' "$1" >&2; exit 1 ;;
     esac
 done
+
+export DRY_RUN
 
 # Export so sub-scripts inherit these values.
 export PROD_HOST="${PROD_HOST:-}"
@@ -52,14 +57,24 @@ export SMOKE_STAFF_JWT="${SMOKE_STAFF_JWT:-}"
 
 # ── Required environment validation ─────────────────────────────────────────────
 if [[ -z "$PROD_HOST" ]]; then
-    printf 'ERROR: PROD_HOST must be set (via env var or --host).\n' >&2
-    printf '       Copy scripts/production/env.example → scripts/production/.env.production\n' >&2
-    exit 1
+    if $DRY_RUN; then
+        PROD_HOST="rehearsal.dry-run.local"
+        printf 'DRY-RUN: PROD_HOST not set — using placeholder: %s\n' "$PROD_HOST" >&2
+    else
+        printf 'ERROR: PROD_HOST must be set (via env var or --host).\n' >&2
+        printf '       Copy scripts/production/env.example → scripts/production/.env.production\n' >&2
+        exit 1
+    fi
 fi
 
 if [[ -z "$TILLED_WEBHOOK_SECRET" ]]; then
-    printf 'WARNING: TILLED_WEBHOOK_SECRET is not set — payment_verify suite will fail.\n' >&2
-    printf '         Set TILLED_WEBHOOK_SECRET (env var or --secret) to run the full payment proof.\n' >&2
+    if $DRY_RUN; then
+        TILLED_WEBHOOK_SECRET="dry-run-placeholder-secret"
+        printf 'DRY-RUN: TILLED_WEBHOOK_SECRET not set — using placeholder.\n' >&2
+    else
+        printf 'WARNING: TILLED_WEBHOOK_SECRET is not set — payment_verify suite will fail.\n' >&2
+        printf '         Set TILLED_WEBHOOK_SECRET (env var or --secret) to run the full payment proof.\n' >&2
+    fi
 fi
 
 # ── Log directory setup ──────────────────────────────────────────────────────────
@@ -79,11 +94,14 @@ run_suite() {
     local name="$1" script="$2"
     local log_file="${LOG_DIR}/${name}.log"
     local start_ts end_ts local_status
+    local dry_flag=""
+    $DRY_RUN && dry_flag="--dry-run"
 
     banner "Suite: ${name}"
     start_ts=$(date +%s)
 
-    bash "$script" 2>&1 | tee "$log_file"
+    # shellcheck disable=SC2086
+    bash "$script" $dry_flag 2>&1 | tee "$log_file"
     local_status=${PIPESTATUS[0]}
 
     end_ts=$(date +%s)
@@ -111,15 +129,24 @@ run_rollback_rehearsal() {
         printf 'PROD_REPO_PATH:  %s\n' "$PROD_REPO_PATH"
         printf '\n'
 
-        printf '=== Deployment history (last 10 entries) ===\n'
-        bash "${SCRIPT_DIR}/rollback_stack.sh" --history
-        status=$?
+        if $DRY_RUN; then
+            printf 'DRY-RUN: Skipping live SSH — simulating deployment history read.\n'
+            printf '\n'
+            printf '=== Deployment history (simulated) ===\n'
+            printf '  (No real VPS in dry-run mode — history would be read from %s:%s/.production-deployments)\n' \
+                "$PROD_HOST" "$PROD_REPO_PATH"
+            status=0
+        else
+            printf '=== Deployment history (last 10 entries) ===\n'
+            bash "${SCRIPT_DIR}/rollback_stack.sh" --history
+            status=$?
 
-        if [[ $status -ne 0 ]]; then
-            printf 'ERROR: Could not read deployment history from %s:%s/%s\n' \
-                "$PROD_HOST" "$PROD_REPO_PATH" ".production-deployments" >&2
-            printf '       Check SSH connectivity and that at least one deploy has run.\n' >&2
-            return $status
+            if [[ $status -ne 0 ]]; then
+                printf 'ERROR: Could not read deployment history from %s:%s/%s\n' \
+                    "$PROD_HOST" "$PROD_REPO_PATH" ".production-deployments" >&2
+                printf '       Check SSH connectivity and that at least one deploy has run.\n' >&2
+                return $status
+            fi
         fi
 
         printf '\n'

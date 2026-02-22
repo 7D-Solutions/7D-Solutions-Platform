@@ -143,3 +143,92 @@ fn test_auth_openapi_spec_valid() {
 
     println!("✓ Auth spec contains all required paths");
 }
+
+#[test]
+fn test_ttp_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("ttp/ttp-v1.0.0.yaml");
+
+    let spec = validate_openapi_spec(&spec_path)
+        .expect("Failed to parse TTP OpenAPI spec");
+
+    println!("✓ TTP OpenAPI spec is valid YAML");
+    check_spec_version(&spec, 1, "ttp-v1.0.0.yaml");
+
+    // All public TTP routes
+    let required_paths = vec![
+        "/healthz",
+        "/api/health",
+        "/api/ready",
+        "/api/version",
+        "/metrics",
+        "/api/ttp/billing-runs",
+        "/api/metering/events",
+        "/api/metering/trace",
+        "/api/ttp/service-agreements",
+    ];
+
+    check_required_paths(&spec, &required_paths, "ttp-v1.0.0.yaml")
+        .expect("TTP spec missing required paths");
+
+    println!("✓ TTP spec contains all required paths");
+}
+
+#[test]
+fn test_control_plane_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("control-plane/control-plane-v1.0.0.yaml");
+
+    let spec = validate_openapi_spec(&spec_path)
+        .expect("Failed to parse control-plane OpenAPI spec");
+
+    println!("✓ Control-plane OpenAPI spec is valid YAML");
+    check_spec_version(&spec, 1, "control-plane-v1.0.0.yaml");
+
+    // Core control-plane routes + merged tenant-registry routes
+    let required_paths = vec![
+        "/healthz",
+        "/api/ready",
+        "/api/control/tenants",
+        "/api/control/tenants/{tenant_id}/summary",
+        "/api/control/tenants/{tenant_id}/retention",
+        "/api/control/tenants/{tenant_id}/tombstone",
+        "/api/control/platform-billing-runs",
+        "/api/tenants/{tenant_id}/entitlements",
+        "/api/tenants/{tenant_id}/app-id",
+        "/api/tenants/{tenant_id}/status",
+        "/api/ttp/plans",
+        "/api/tenants",
+        "/api/tenants/{tenant_id}",
+    ];
+
+    check_required_paths(&spec, &required_paths, "control-plane-v1.0.0.yaml")
+        .expect("Control-plane spec missing required paths");
+
+    println!("✓ Control-plane spec contains all required paths");
+}
+
+#[test]
+fn test_tenant_registry_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("tenant-registry/tenant-registry-v1.0.2.yaml");
+
+    let spec = validate_openapi_spec(&spec_path)
+        .expect("Failed to parse tenant-registry OpenAPI spec");
+
+    println!("✓ Tenant-registry OpenAPI spec is valid YAML");
+    check_spec_version(&spec, 1, "tenant-registry-v1.0.2.yaml");
+
+    // All routes contributed by the tenant-registry library
+    let required_paths = vec![
+        "/api/control/tenants/{tenant_id}/summary",
+        "/api/tenants/{tenant_id}/entitlements",
+        "/api/tenants/{tenant_id}/app-id",
+        "/api/tenants/{tenant_id}/status",
+        "/api/ttp/plans",
+        "/api/tenants",
+        "/api/tenants/{tenant_id}",
+    ];
+
+    check_required_paths(&spec, &required_paths, "tenant-registry-v1.0.2.yaml")
+        .expect("Tenant-registry spec missing required paths");
+
+    println!("✓ Tenant-registry spec contains all required paths");
+}

@@ -1,0 +1,1028 @@
+openapi: 3.0.3
+info:
+  title: Control-Plane API
+  version: 1.0.0
+  description: >
+    Platform control-plane service — version 1.0.0.
+
+    Manages tenant provisioning, lifecycle, retention policies, and platform billing.
+    All mutating endpoints require a platform_admin JWT (staff JWT, httpOnly cookie)
+    enforced by the API gateway or middleware.
+
+    Auth model:
+      - platform_admin role required for all /api/control/* and /api/control/platform-billing-runs
+      - Internal-only endpoints (entitlements, app-id, status) are network-restricted
+        and do not require a JWT in normal operation
+
+servers:
+  - url: http://localhost:8091
+    description: Local development
+  - url: https://control.7dsolutions.io
+    description: Production
+
+paths:
+  # ── Operations / health ──────────────────────────────────────────────────
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: healthz
+      tags: [ops]
+      responses:
+        '200':
+          description: Service alive
+
+  /api/ready:
+    get:
+      summary: Readiness probe (checks DB connectivity)
+      operationId: ready
+      tags: [ops]
+      responses:
+        '200':
+          description: Service ready — all dependencies reachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+        '503':
+          description: Service not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+
+  # ── Tenant provisioning ──────────────────────────────────────────────────
+  /api/control/tenants:
+    post:
+      summary: Create and provision a new tenant
+      operationId: createTenant
+      description: >
+        Atomically creates a tenant record, assigns a default bundle, seeds entitlements,
+        and writes a provisioning_started outbox event.
+
+        Idempotency: if idempotency_key was already used, returns 200 OK with the
+        original result instead of 202 Accepted.
+
+        Returns 409 Conflict if tenant_id is explicitly supplied and already exists.
+      tags: [tenants]
+      security:
+        - platformAdmin: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+      responses:
+        '202':
+          description: Tenant creation accepted; provisioning started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTenantResponse'
+        '200':
+          description: Idempotency replay — tenant was already created with this key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateTenantResponse'
+        '409':
+          description: Tenant with the supplied tenant_id already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Validation error (empty idempotency_key, product_code, or plan_code; invalid concurrent_user_limit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Tenant summary (read-only) ───────────────────────────────────────────
+  /api/control/tenants/{tenant_id}/summary:
+    get:
+      summary: Tenant summary with module readiness
+      operationId: getTenantSummary
+      description: >
+        Returns the tenant registry record plus parallel readiness checks against
+        each module (AR, GL, Payments, Subscriptions, Notifications).
+        No direct cross-module DB reads — uses HTTP fanout.
+      tags: [tenants]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Tenant summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantSummary'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Retention policy ─────────────────────────────────────────────────────
+  /api/control/tenants/{tenant_id}/retention:
+    get:
+      summary: Read tenant retention policy
+      operationId: getRetentionPolicy
+      description: >
+        Returns the retention configuration for a tenant. If no policy row exists,
+        returns the default values (data_retention_days=2555, auto_tombstone_days=30).
+      tags: [tenants, retention]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Retention configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionConfig'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+    put:
+      summary: Upsert tenant retention policy
+      operationId: setRetentionPolicy
+      description: >
+        Creates or updates the retention configuration for a tenant.
+        Only supplied fields are updated; omitted fields take their defaults.
+      tags: [tenants, retention]
+      security:
+        - platformAdmin: []
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetRetentionRequest'
+      responses:
+        '200':
+          description: Updated retention configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RetentionConfig'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Validation error (data_retention_days <= 0 or auto_tombstone_days < 0)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Tombstone ────────────────────────────────────────────────────────────
+  /api/control/tenants/{tenant_id}/tombstone:
+    post:
+      summary: Tombstone tenant data (audited, irreversible)
+      operationId: tombstoneTenant
+      description: >
+        Marks a tenant's data as tombstoned, enabling downstream purge jobs to
+        safely delete the data. Tenant must already be in 'deleted' status.
+        Idempotent: re-calling on an already-tombstoned tenant returns 200.
+
+        Side effects:
+          - Sets cp_retention_policies.data_tombstoned_at
+          - Writes a tenant.data_tombstoned outbox event
+      tags: [tenants, retention]
+      security:
+        - platformAdmin: []
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Tombstone set (or already set — idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TombstoneResponse'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Tenant is not in 'deleted' status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Platform billing ─────────────────────────────────────────────────────
+  /api/control/platform-billing-runs:
+    post:
+      summary: Run the platform billing cycle for a period
+      operationId: platformBillingRun
+      description: >
+        Bills all active tenants for the specified period by creating invoices in AR
+        under the PLATFORM app_id. Idempotent per period per tenant — re-running for
+        a period that has already been billed skips existing invoices (already_billed).
+
+        Emits platform.billing.invoice_created events to the provisioning outbox with
+        merchant_context=PLATFORM to enforce money-mixing prevention.
+      tags: [billing]
+      security:
+        - platformAdmin: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlatformBillingRunRequest'
+      responses:
+        '200':
+          description: Billing run complete
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformBillingRunResponse'
+        '422':
+          description: Invalid period format (must be YYYY-MM)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '503':
+          description: AR database not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Unexpected error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Tenant-registry read routes (merged from tenant-registry library) ────
+  /api/tenants/{tenant_id}/entitlements:
+    get:
+      summary: Get tenant entitlements (internal — for identity-auth)
+      operationId: getTenantEntitlements
+      description: >
+        Returns the plan and concurrent_user_limit for a tenant.
+        Consumed by identity-auth to enforce login gates.
+        404 in either direction (tenant not found or no entitlements row) is
+        treated as deny by identity-auth (fail-closed).
+      tags: [tenants, internal]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Entitlements row
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntitlementRow'
+        '404':
+          description: Tenant not found or no entitlements configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/tenants/{tenant_id}/app-id:
+    get:
+      summary: Resolve tenant_id → app_id (internal — for TTP billing)
+      operationId: getTenantAppId
+      description: >
+        Returns the AR app_id and product_code for a tenant.
+        Used by TTP billing to translate tenant_id → AR app_id.
+        Returns 409 if tenant exists but app_id is NULL (data integrity problem).
+      tags: [tenants, internal]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Tenant app_id resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAppIdRow'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          description: Tenant exists but app_id is NULL
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/tenants/{tenant_id}/status:
+    get:
+      summary: Get tenant lifecycle status (internal — for identity-auth login gating)
+      operationId: getTenantStatus
+      description: >
+        Returns the lifecycle status for a tenant without performing any module fanout.
+        Consumed by identity-auth to gate login and token refresh by tenant lifecycle.
+        Suspended tenants should be blocked from logging in.
+      tags: [tenants, internal]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Tenant status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantStatusRow'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/ttp/plans:
+    get:
+      summary: List platform billing plans (plan catalog)
+      operationId: listPlans
+      description: >
+        Returns a paginated list of platform billing plans from the cp_plans table.
+        Used by the TCP UI to display available plans during tenant onboarding.
+      tags: [plans]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by plan status (e.g. "active", "archived"); omit for all
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: 1-based page number
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+          description: Plans per page
+      responses:
+        '200':
+          description: Paginated plan list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanListResponse'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/tenants:
+    get:
+      summary: Paginated tenant list (BFF-compatible)
+      operationId: listTenants
+      description: >
+        Returns a paginated list of non-deleted tenants with optional filters.
+        Supports full-text search across product_code, app_id, and tenant_id.
+        Used by the TCP UI tenant browser.
+      tags: [tenants]
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: ILIKE search across product_code, app_id, and tenant_id
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by lifecycle status (e.g. "active", "suspended")
+        - name: plan
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by plan_code
+        - name: app_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by exact app_id
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: 1-based page number
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+          description: Tenants per page
+      responses:
+        '200':
+          description: Paginated tenant list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantListResponse'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/tenants/{tenant_id}:
+    get:
+      summary: Tenant detail with derived name and seat_limit
+      operationId: getTenantDetail
+      description: >
+        Returns full tenant detail including the concurrent session limit from
+        cp_entitlements (seat_limit). Name is derived from product_code > app_id >
+        first 8 chars of tenant_id.
+      tags: [tenants]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Tenant detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantDetailDto'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+components:
+  securitySchemes:
+    platformAdmin:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        Platform admin JWT. Issued by identity-auth with role=platform_admin.
+        Transmitted as httpOnly cookie in browser contexts; as Bearer token
+        in service-to-service calls.
+
+  parameters:
+    TenantIdPath:
+      name: tenant_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: UUID of the tenant
+
+  schemas:
+    # ── Requests ─────────────────────────────────────────────────────────
+    CreateTenantRequest:
+      type: object
+      required:
+        - idempotency_key
+        - environment
+        - product_code
+        - plan_code
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional explicit tenant UUID; generated if omitted
+        idempotency_key:
+          type: string
+          minLength: 1
+          description: Caller-supplied deduplication key; must not be empty
+        environment:
+          type: string
+          enum: [development, staging, production]
+          description: Deployment environment for this tenant
+        product_code:
+          type: string
+          minLength: 1
+          description: Purchased product (e.g. "starter", "professional", "enterprise")
+        plan_code:
+          type: string
+          minLength: 1
+          description: Billing plan within the product (e.g. "monthly", "annual")
+        concurrent_user_limit:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Maximum concurrent sessions; defaults to 5 if omitted
+
+    SetRetentionRequest:
+      type: object
+      properties:
+        data_retention_days:
+          type: integer
+          minimum: 1
+          nullable: true
+          description: Days data must be retained after deletion (default 2555 ≈ 7 years)
+        auto_tombstone_days:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Grace window between export_ready_at and permitted tombstone (default 30)
+
+    PlatformBillingRunRequest:
+      type: object
+      required:
+        - period
+      properties:
+        period:
+          type: string
+          pattern: '^\d{4}-(0[1-9]|1[0-2])$'
+          description: Billing period in YYYY-MM format (e.g. "2026-02")
+          example: "2026-02"
+
+    # ── Responses ────────────────────────────────────────────────────────
+    CreateTenantResponse:
+      type: object
+      required:
+        - tenant_id
+        - status
+        - idempotency_key
+        - app_id
+        - product_code
+        - plan_code
+        - concurrent_user_limit
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          description: Current provisioning status (e.g. "pending")
+        idempotency_key:
+          type: string
+          description: Echoed idempotency key
+        app_id:
+          type: string
+          description: Stable AR namespace identifier derived from tenant_id (e.g. "app-550e8400e29b")
+        product_code:
+          type: string
+        plan_code:
+          type: string
+        concurrent_user_limit:
+          type: integer
+          description: Concurrent session limit seeded into cp_entitlements
+        bundle_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Default bundle assigned from cp_bundles; null if no default bundle for product
+
+    TenantSummary:
+      type: object
+      description: Tenant registry record plus parallel module readiness checks
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        environment:
+          type: string
+        module_readiness:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleReadiness'
+
+    ModuleReadiness:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Module name (e.g. "ar", "gl", "payments")
+        status:
+          type: string
+          enum: [ready, degraded, unreachable]
+        latency_ms:
+          type: integer
+          nullable: true
+
+    RetentionConfig:
+      type: object
+      required:
+        - tenant_id
+        - data_retention_days
+        - export_format
+        - auto_tombstone_days
+        - created_at
+        - updated_at
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        data_retention_days:
+          type: integer
+          description: Days data is retained after deletion (default 2555 ≈ 7 years)
+        export_format:
+          type: string
+          description: Export artifact format (currently "jsonl")
+        auto_tombstone_days:
+          type: integer
+          description: Grace window between export ready and permitted tombstone
+        export_ready_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When a deterministic export artifact was last produced
+        data_tombstoned_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When tenant data was tombstoned; null if not yet tombstoned
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TombstoneResponse:
+      type: object
+      required:
+        - tenant_id
+        - data_tombstoned_at
+        - audit_note
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        data_tombstoned_at:
+          type: string
+          format: date-time
+        audit_note:
+          type: string
+          description: Audit message describing what happened
+
+    PlatformBillingRunResponse:
+      type: object
+      required:
+        - period
+        - eligible_tenant_count
+        - processed
+        - skipped
+        - merchant_context
+      properties:
+        period:
+          type: string
+          description: Billing period that was processed
+        eligible_tenant_count:
+          type: integer
+          description: Number of active tenants considered for billing
+        processed:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProcessedEntry'
+          description: Tenants for which new invoices were created
+        skipped:
+          type: array
+          items:
+            $ref: '#/components/schemas/SkippedEntry'
+          description: Tenants that were skipped (already billed or error)
+        merchant_context:
+          type: string
+          description: Always "PLATFORM" — enforces money-mixing prevention rule
+
+    ProcessedEntry:
+      type: object
+      required:
+        - tenant_id
+        - invoice_id
+        - amount_cents
+        - plan_code
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        invoice_id:
+          type: integer
+        amount_cents:
+          type: integer
+          description: Invoice amount in minor currency units (cents)
+        plan_code:
+          type: string
+
+    SkippedEntry:
+      type: object
+      required:
+        - tenant_id
+        - reason
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          description: Skip reason (e.g. "already_billed", "plan_fee_lookup_failed", "invoice_creation_failed")
+
+    EntitlementRow:
+      type: object
+      required:
+        - tenant_id
+        - plan_code
+        - concurrent_user_limit
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        plan_code:
+          type: string
+        concurrent_user_limit:
+          type: integer
+          minimum: 1
+        effective_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TenantAppIdRow:
+      type: object
+      required:
+        - tenant_id
+        - app_id
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          description: AR namespace identifier (e.g. "app-550e8400e29b")
+        product_code:
+          type: string
+          nullable: true
+
+    TenantStatusRow:
+      type: object
+      required:
+        - tenant_id
+        - status
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, provisioning, active, suspended, deleted]
+          description: Current lifecycle status
+
+    PlanSummary:
+      type: object
+      required:
+        - id
+        - name
+        - pricing_model
+        - included_seats
+        - metered_dimensions
+        - status
+      properties:
+        id:
+          type: string
+          description: Plan code (e.g. "starter", "professional", "enterprise")
+        name:
+          type: string
+          description: Human-readable plan name
+        pricing_model:
+          type: string
+          description: Pricing model (e.g. "flat_monthly")
+        included_seats:
+          type: integer
+          description: Number of included concurrent sessions
+        metered_dimensions:
+          type: array
+          items:
+            type: object
+          description: Metered billing dimensions (empty for flat plans)
+        status:
+          type: string
+          description: Plan availability status (e.g. "active", "archived")
+
+    PlanListResponse:
+      type: object
+      required:
+        - plans
+        - total
+        - page
+        - page_size
+      properties:
+        plans:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanSummary'
+        total:
+          type: integer
+          format: int64
+          description: Total number of plans matching the filter
+        page:
+          type: integer
+          format: int64
+        page_size:
+          type: integer
+          format: int64
+
+    TenantSummaryDto:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - plan
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Derived display name (product_code > app_id > first 8 chars of tenant_id)
+        status:
+          type: string
+        plan:
+          type: string
+          description: Billing plan code; "None" if unset
+        app_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TenantListResponse:
+      type: object
+      required:
+        - tenants
+        - total
+        - page
+        - page_size
+      properties:
+        tenants:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantSummaryDto'
+        total:
+          type: integer
+          format: int64
+        page:
+          type: integer
+          format: int64
+        page_size:
+          type: integer
+          format: int64
+
+    TenantDetailDto:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - plan
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Derived display name
+        status:
+          type: string
+        plan:
+          type: string
+        app_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        seat_limit:
+          type: integer
+          nullable: true
+          description: Concurrent session limit from cp_entitlements; null if no entitlements row
+
+    # ── Shared ───────────────────────────────────────────────────────────
+    ReadyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        service:
+          type: string
+        version:
+          type: string
+        checks:
+          type: array
+          items:
+            type: object
+
+    ErrorBody:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error description

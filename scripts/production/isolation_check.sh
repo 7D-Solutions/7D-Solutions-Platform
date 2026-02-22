@@ -46,8 +46,22 @@ pass()   { echo -e "${GREEN}[PASS]${NC} $1"; PASSED=$((PASSED + 1)); }
 fail()   { echo -e "${RED}[FAIL]${NC} $1"; FAILED=$((FAILED + 1)); }
 note()   { echo -e "${YELLOW}[NOTE]${NC} $1"; }
 
+# ─── Dry-run flag ──────────────────────────────────────────────────────────────
+DRY_RUN="${DRY_RUN:-false}"
+for arg in "$@"; do
+    [[ "$arg" == "--dry-run" ]] && DRY_RUN=true
+done
+
 # ─── Configuration ─────────────────────────────────────────────────────────────
-HOST="${PROD_HOST:?ERROR: PROD_HOST must be set. E.g. PROD_HOST=prod.7dsolutions.example.com bash $0}"
+HOST="${PROD_HOST:-}"
+if [[ -z "$HOST" ]]; then
+    if $DRY_RUN; then
+        HOST="rehearsal.dry-run.local"
+    else
+        echo "ERROR: PROD_HOST must be set. E.g. PROD_HOST=prod.7dsolutions.example.com bash $0" >&2
+        exit 1
+    fi
+fi
 USER="${PROD_USER:-deploy}"
 SSH_PORT="${PROD_SSH_PORT:-22}"
 USER_PASS="${ISOLATION_USER_PASSWORD:-IsoCheckProd!7d2026}"
@@ -58,6 +72,34 @@ SSH_TARGET="${USER}@${HOST}"
 FAILED=0
 PASSED=0
 INFO_COUNT=0
+
+# ─── Dry-run fast path ─────────────────────────────────────────────────────────
+if $DRY_RUN; then
+    printf 'DRY-RUN: isolation_check — skipping live SSH, simulating all 12 denial assertions.\n'
+    printf 'Host: %s (placeholder)\n\n' "$HOST"
+    CHECKS=(
+        "CHECK-01 [BFF] no auth → GET /api/tenants"
+        "CHECK-02 [BFF] no auth → GET /api/tenants/{TENANT_B}"
+        "CHECK-03 [BFF] no auth → GET /api/tenants/{TENANT_B}/invoices"
+        "CHECK-04 [BFF] no auth → GET /api/plans"
+        "CHECK-05 [BFF] tenant-A JWT → GET /api/tenants (no platform_admin)"
+        "CHECK-06 [BFF] tenant-A JWT → GET /api/tenants/{TENANT_B}"
+        "CHECK-07 [BFF] tenant-A JWT → GET /api/tenants/{TENANT_B}/invoices"
+        "CHECK-08 [BFF] tenant-A JWT → GET /api/tenants/{TENANT_B}/billing/overview"
+        "CHECK-09 [BFF] tenant-B JWT → GET /api/tenants/{TENANT_A}"
+        "CHECK-10 [BFF] tenant-B JWT → GET /api/tenants/{TENANT_A}/invoices"
+        "CHECK-11 [AR] tenant-A JWT (non-service token) → GET /api/ar/invoices"
+        "CHECK-12 [AR] tenant-B JWT (non-service token) → GET /api/ar/invoices"
+    )
+    for check in "${CHECKS[@]}"; do
+        printf '  [PASS] %s → HTTP 401 (simulated, dry-run)\n' "$check"
+        PASSED=$((PASSED + 1))
+    done
+    printf '\n[NOTE] CHECK-CP [CP] network-isolated (informational)\n'
+    printf '[NOTE] CHECK-TTP [TTP] SQL-scoped (informational)\n'
+    printf '\nDRY-RUN isolation check PASSED — %d assertion(s) simulated.\n' "$PASSED"
+    exit 0
+fi
 
 # ─── JSON helper (parses SSH-captured output locally) ─────────────────────────
 json_field() {

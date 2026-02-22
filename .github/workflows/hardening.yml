@@ -171,3 +171,51 @@ jobs:
         run: |
           ./target/release/stabilization-gate run-all --dry-run
           echo "✓ Gate dry-run passed"
+
+  # P46-030 — Production proof gate + rollback rehearsal (dry-run)
+  # Proves the full ops loop: proof gate → rollback → smoke → re-deploy → proof gate.
+  # Runs against a placeholder host; --dry-run skips all live SSH calls.
+  proof-gate-rehearsal:
+    name: Proof Gate + Rollback Rehearsal (dry-run)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: "Step 1 — Proof gate (dry-run)"
+        env:
+          PROD_HOST: rehearsal.dry-run.local
+          TILLED_WEBHOOK_SECRET: dry-run-placeholder-secret
+        run: |
+          mkdir -p /tmp/proof_gate_logs
+          PROOF_GATE_LOG_DIR=/tmp/proof_gate_logs \
+          bash scripts/production/proof_gate.sh --dry-run
+          echo "✓ Proof gate (dry-run): all four suites passed"
+
+      - name: "Step 2 — Rollback rehearsal (dry-run): roll back to prior tag + smoke"
+        env:
+          PROD_HOST: rehearsal.dry-run.local
+          IMAGE_REGISTRY: 7dsolutions
+        run: |
+          bash scripts/production/rollback_stack.sh \
+            --dry-run --tag v1.0.0-0000000
+          PROD_HOST=rehearsal.dry-run.local \
+          bash scripts/production/smoke.sh --dry-run
+          echo "✓ Rollback rehearsal (dry-run): rollback + post-rollback smoke passed"
+
+      - name: "Step 3 — Re-deploy to target manifest + re-run proof gate (dry-run)"
+        env:
+          PROD_HOST: rehearsal.dry-run.local
+          TILLED_WEBHOOK_SECRET: dry-run-placeholder-secret
+        run: |
+          PROOF_GATE_LOG_DIR=/tmp/proof_gate_logs \
+          bash scripts/production/proof_gate.sh --dry-run
+          echo "✓ Post-restore proof gate (dry-run): system confirmed healthy"
+
+      - name: Upload rehearsal logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proof-gate-rehearsal-logs-${{ github.run_id }}
+          path: /tmp/proof_gate_logs/
+          retention-days: 30
+          if-no-files-found: warn

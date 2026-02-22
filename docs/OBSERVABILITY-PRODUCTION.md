@@ -98,6 +98,13 @@ Alert rules are stored in `infra/monitoring/alerts/` and loaded by Prometheus au
 | `service-down.yml` | Service unreachable (billing spine: 1 min, platform: 2 min, modules: 5 min), NATS down |
 | `payment-unknown.yml` | Payments stuck in UNKNOWN state >30 min (warning) / >1 h (critical) |
 | `invariant-failure.yml` | GL / AR / Payments / Subscriptions invariant violations |
+| `latency-slo.yml` | Per-endpoint HTTP latency SLOs and 5xx error rates (auth, AR, payments, TTP) |
+
+> **SLO baseline re-sampling:** Thresholds in `latency-slo.yml` are pre-production baselines derived
+> from k6 load testing and staging drills. After the first 72 h of real production traffic, re-sample
+> p95/p99 using the PromQL queries in `docs/ALERT-THRESHOLDS.md §7` and update the alert rules.
+> Repeat monthly (first Monday) and after any major release. See `docs/ALERT-THRESHOLDS.md` for the
+> full re-sampling procedure.
 
 ### Critical Alerts — Immediate Action Required
 

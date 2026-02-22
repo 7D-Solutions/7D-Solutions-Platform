@@ -1,0 +1,582 @@
+openapi: 3.0.3
+info:
+  title: Tenant-Registry API
+  version: 1.0.2
+  description: >
+    Platform tenant-registry library — version 1.0.2.
+
+    The tenant-registry is a Rust library crate (not a standalone service).
+    It is embedded in the control-plane service (port 8091) and provides
+    route builders for all tenant lifecycle and read endpoints.
+
+    This spec documents the HTTP API surface contributed by the tenant-registry
+    library as mounted in the control-plane. All routes in this spec are served
+    at http://localhost:8091 (local) and https://control.7dsolutions.io (production).
+
+    Auth model:
+      - /api/tenants/{tenant_id}/entitlements — network-restricted, no JWT
+      - /api/tenants/{tenant_id}/app-id — network-restricted, no JWT
+      - /api/tenants/{tenant_id}/status — network-restricted, no JWT
+      - /api/control/tenants/{tenant_id}/summary — platform_admin JWT recommended
+      - /api/ttp/plans — no auth (read-only catalog)
+      - /api/tenants — platform_admin JWT recommended
+      - /api/tenants/{tenant_id} (detail) — platform_admin JWT recommended
+
+servers:
+  - url: http://localhost:8091
+    description: Local development (via control-plane)
+  - url: https://control.7dsolutions.io
+    description: Production (via control-plane)
+
+paths:
+  # ── Summary ──────────────────────────────────────────────────────────────
+  /api/control/tenants/{tenant_id}/summary:
+    get:
+      summary: Tenant summary with parallel module readiness checks
+      operationId: getTenantSummary
+      description: >
+        Returns the tenant registry record plus parallel HTTP readiness checks against
+        each platform module (AR, GL, Payments, Subscriptions, Notifications).
+        Uses a 3-second timeout per module. No cross-module DB reads.
+      tags: [summary]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Tenant summary with module readiness
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantSummary'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Entitlements (internal — identity-auth) ──────────────────────────────
+  /api/tenants/{tenant_id}/entitlements:
+    get:
+      summary: Get tenant entitlements (internal — for identity-auth login gating)
+      operationId: getTenantEntitlements
+      description: >
+        Returns the plan_code and concurrent_user_limit for a tenant from cp_entitlements.
+        Consumed by identity-auth to enforce concurrent session limits.
+
+        Fail-closed: identity-auth treats any 404 as deny.
+          - 404 if the tenant does not exist
+          - 404 if the tenant exists but has no entitlements row
+      tags: [entitlements]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Entitlements row
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntitlementRow'
+        '404':
+          description: Tenant not found or no entitlements configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── App-ID mapping (internal — TTP billing) ──────────────────────────────
+  /api/tenants/{tenant_id}/app-id:
+    get:
+      summary: Resolve tenant_id → app_id (internal — for TTP billing)
+      operationId: getTenantAppId
+      description: >
+        Translates a tenant UUID to the AR app_id used for invoice namespacing.
+        The app_id is derived deterministically from the tenant_id at provisioning time.
+        Returns 409 if the tenant exists but app_id is NULL — this indicates a data
+        integrity problem that must be investigated.
+      tags: [app-id]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Tenant app_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantAppIdRow'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          description: Tenant exists but has no app_id (data integrity problem)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Status (internal — identity-auth login gating) ───────────────────────
+  /api/tenants/{tenant_id}/status:
+    get:
+      summary: Get tenant lifecycle status (lightweight — no module fanout)
+      operationId: getTenantStatus
+      description: >
+        Returns only the lifecycle status of a tenant. No module readiness checks.
+        Consumed by identity-auth to block login for suspended or deleted tenants.
+      tags: [status]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Tenant status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantStatusRow'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Plan catalog ─────────────────────────────────────────────────────────
+  /api/ttp/plans:
+    get:
+      summary: List platform billing plans
+      operationId: listPlans
+      description: >
+        Returns a paginated list of platform billing plans from the cp_plans table.
+        Used by the TCP UI to present plan options during tenant onboarding.
+        No auth required (read-only public catalog).
+      tags: [plans]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Optional filter by plan status (e.g. "active", "archived")
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+          description: 1-based page number (default 1)
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+          description: Plans per page (default 25, max 100)
+      responses:
+        '200':
+          description: Paginated plan list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanListResponse'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Tenant CRUD (read-only) ──────────────────────────────────────────────
+  /api/tenants:
+    get:
+      summary: Paginated tenant list
+      operationId: listTenants
+      description: >
+        Returns a paginated list of non-deleted tenants.
+        Supports filtering by status, plan_code, app_id, and a free-text
+        search across product_code, app_id, and tenant_id (ILIKE match).
+        Results are ordered by created_at DESC.
+      tags: [tenants]
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Free-text search (ILIKE) over product_code, app_id, and tenant_id
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by lifecycle status (e.g. "active", "suspended")
+        - name: plan
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by plan_code
+        - name: app_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by exact app_id
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 25
+      responses:
+        '200':
+          description: Paginated tenant list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantListResponse'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/tenants/{tenant_id}:
+    get:
+      summary: Tenant detail with seat_limit
+      operationId: getTenantDetail
+      description: >
+        Returns full tenant detail. Includes the concurrent session limit (seat_limit)
+        from cp_entitlements if a row exists. Name is derived: product_code > app_id >
+        first 8 chars of tenant_id.
+      tags: [tenants]
+      parameters:
+        - $ref: '#/components/parameters/TenantIdPath'
+      responses:
+        '200':
+          description: Tenant detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantDetailDto'
+        '404':
+          description: Tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '500':
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+components:
+  parameters:
+    TenantIdPath:
+      name: tenant_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: UUID of the tenant
+
+  schemas:
+    TenantSummary:
+      type: object
+      description: Tenant registry record with parallel module readiness checks
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, provisioning, active, suspended, deleted]
+        environment:
+          type: string
+          enum: [development, staging, production]
+        product_code:
+          type: string
+          nullable: true
+        plan_code:
+          type: string
+          nullable: true
+        app_id:
+          type: string
+          nullable: true
+        module_readiness:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleReadiness'
+          description: Per-module readiness status from HTTP fanout
+
+    ModuleReadiness:
+      type: object
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+          description: Module name (e.g. "ar", "gl", "payments", "subscriptions", "notifications")
+        status:
+          type: string
+          enum: [ready, degraded, unreachable]
+        latency_ms:
+          type: integer
+          nullable: true
+          description: Round-trip latency to the module health endpoint in milliseconds
+
+    EntitlementRow:
+      type: object
+      required:
+        - tenant_id
+        - plan_code
+        - concurrent_user_limit
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        plan_code:
+          type: string
+          description: Billing plan code assigned to this tenant
+        concurrent_user_limit:
+          type: integer
+          minimum: 1
+          description: Maximum number of concurrent authenticated sessions
+        effective_at:
+          type: string
+          format: date-time
+          description: When this entitlements row became effective
+        updated_at:
+          type: string
+          format: date-time
+
+    TenantAppIdRow:
+      type: object
+      required:
+        - tenant_id
+        - app_id
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+          description: >
+            AR namespace identifier derived deterministically from tenant_id.
+            Format: "app-" + first 12 hex digits of tenant_id (e.g. "app-550e8400e29b").
+        product_code:
+          type: string
+          nullable: true
+          description: Product tier assigned at provisioning
+
+    TenantStatusRow:
+      type: object
+      required:
+        - tenant_id
+        - status
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, provisioning, active, suspended, deleted]
+          description: Current lifecycle status of the tenant
+
+    PlanSummary:
+      type: object
+      required:
+        - id
+        - name
+        - pricing_model
+        - included_seats
+        - metered_dimensions
+        - status
+      properties:
+        id:
+          type: string
+          description: Plan code (e.g. "starter", "professional", "enterprise")
+        name:
+          type: string
+          description: Human-readable plan display name
+        pricing_model:
+          type: string
+          description: Pricing model type (e.g. "flat_monthly")
+        included_seats:
+          type: integer
+          description: Number of concurrent sessions included at the base price
+        metered_dimensions:
+          type: array
+          items:
+            type: object
+          description: Metered billing dimensions; empty array for flat-rate plans
+        status:
+          type: string
+          description: Plan status (e.g. "active", "archived")
+
+    PlanListResponse:
+      type: object
+      required:
+        - plans
+        - total
+        - page
+        - page_size
+      properties:
+        plans:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanSummary'
+        total:
+          type: integer
+          format: int64
+          description: Total number of plans matching the filter (for pagination)
+        page:
+          type: integer
+          format: int64
+          description: Current page number (1-based)
+        page_size:
+          type: integer
+          format: int64
+          description: Number of plans per page
+
+    TenantSummaryDto:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - plan
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Tenant UUID as string
+        name:
+          type: string
+          description: >
+            Derived display name using priority: product_code > app_id > first 8 chars of tenant_id
+        status:
+          type: string
+          description: Lifecycle status
+        plan:
+          type: string
+          description: Billing plan code; "None" if not yet assigned
+        app_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    TenantListResponse:
+      type: object
+      required:
+        - tenants
+        - total
+        - page
+        - page_size
+      properties:
+        tenants:
+          type: array
+          items:
+            $ref: '#/components/schemas/TenantSummaryDto'
+        total:
+          type: integer
+          format: int64
+          description: Total matching tenants (for pagination)
+        page:
+          type: integer
+          format: int64
+        page_size:
+          type: integer
+          format: int64
+
+    TenantDetailDto:
+      type: object
+      required:
+        - id
+        - name
+        - status
+        - plan
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Derived display name
+        status:
+          type: string
+        plan:
+          type: string
+        app_id:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        seat_limit:
+          type: integer
+          nullable: true
+          description: Concurrent session limit from cp_entitlements; null if no entitlements row
+
+    ErrorBody:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error description

@@ -1,0 +1,399 @@
+# Prometheus Alert Rules: HTTP Latency & Error Rate SLOs
+#
+# Phase 48: P48-020 — Replace provisional SLO baselines with observed p95/p99 (bd-1zkv)
+#
+# Evidence basis (pre-production baselines — update after 72 h real traffic):
+#   - SCALE-ENVELOPE.md (P50-020): k6 targets at 20 VU reads / 5 VU billing / 10 VU webhook
+#   - Phase 45 proof gate: container restart healthy in 30–45 s; NATS reconnect < 10 s
+#   - Phase 46 staging: payment UNKNOWN resolved via webhook in ~5 s; smoke suite all-pass
+#   - Argon2 cost analysis: bcrypt-class hash ~50 ms on production-grade vCPU
+#
+# Instrumentation notes:
+#   - identity-auth metric: http_request_duration_seconds{path, method, status}
+#   - ar metric:            ar_http_request_duration_seconds{method, route, status}
+#   - payments metric:      payments_http_request_duration_seconds{method, route, status}
+#   - ttp metric:           ttp_http_request_duration_seconds{method, route, status}
+#   - control-plane:        NO latency histogram — gap documented in docs/ALERT-THRESHOLDS.md §6
+#
+# Threshold derivation:
+#   Warning  = 2× pre-production p95 baseline
+#   Critical = 4× pre-production p95 baseline (or k6 p99 ceiling when lower)
+#
+# Runbooks:
+#   Latency degradation:   docs/OPS-TRIAGE.md#error-spike
+#   Auth latency:          docs/OPS-TRIAGE.md#service-down
+#   Re-sampling procedure: docs/ALERT-THRESHOLDS.md#7-re-sampling-ops-checklist
+#
+# Severity levels:
+#   critical — immediate action required (page on-call)
+#   warning  — investigate promptly (non-paging alert)
+
+groups:
+  # ── Auth / Session Latency ────────────────────────────────────────────────
+  - name: auth_latency
+    interval: 60s
+    rules:
+      # Warning: login p95 > 250 ms — approaching Argon2 contention threshold
+      - alert: AuthLoginLatencyWarning
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{path="/api/auth/login"}[5m])) by (le))
+          > 0.250
+        for: 5m
+        labels:
+          severity: warning
+          service: identity-auth
+          category: latency_slo
+        annotations:
+          summary: "Auth login p95 latency > 250 ms"
+          description: >
+            Auth login p95 = {{ $value | printf "%.0f" }} ms (baseline 100 ms).
+            May indicate CPU contention on Argon2 hashing or DB connection pressure.
+            Check auth service CPU and DB pool utilization.
+          runbook_url: "docs/OPS-TRIAGE.md#error-spike"
+
+      # Critical: login p95 > 500 ms — login latency materially degraded
+      - alert: AuthLoginLatencyCritical
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{path="/api/auth/login"}[5m])) by (le))
+          > 0.500
+        for: 2m
+        labels:
+          severity: critical
+          service: identity-auth
+          category: latency_slo
+        annotations:
+          summary: "Auth login p95 latency > 500 ms — login experience degraded"
+          description: >
+            Auth login p95 = {{ $value | printf "%.0f" }} ms (baseline 100 ms, critical 500 ms).
+            Login latency is unacceptable. Investigate Argon2 CPU load, DB pool exhaustion,
+            or hardware throttling. Tenant login is blocked for slow users.
+          runbook_url: "docs/OPS-TRIAGE.md#error-spike"
+
+      # Warning: token refresh p95 > 50 ms
+      - alert: AuthRefreshLatencyWarning
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{path="/api/auth/refresh"}[5m])) by (le))
+          > 0.050
+        for: 5m
+        labels:
+          severity: warning
+          service: identity-auth
+          category: latency_slo
+        annotations:
+          summary: "Auth token refresh p95 latency > 50 ms"
+          description: >
+            Auth refresh p95 = {{ $value | printf "%.0f" }} ms (baseline 20 ms).
+            No Argon2 involved — investigate DB slow queries or JWT key load.
+          runbook_url: "docs/OPS-TRIAGE.md#error-spike"
+
+      # Critical: token refresh p95 > 150 ms
+      - alert: AuthRefreshLatencyCritical
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{path="/api/auth/refresh"}[5m])) by (le))
+          > 0.150
+        for: 2m
+        labels:
+          severity: critical
+          service: identity-auth
+          category: latency_slo
+        annotations:
+          summary: "Auth token refresh p95 latency > 150 ms — session renewal degraded"
+          description: >
+            Auth refresh p95 = {{ $value | printf "%.0f" }} ms (baseline 20 ms, critical 150 ms).
+            Slow refresh blocks background session renewal across all active tenants.
+          runbook_url: "docs/OPS-TRIAGE.md#error-spike"
+
+      # Warning: /api/ready readiness probe p95 > 100 ms — DB latency rising
+      - alert: AuthReadinessLatencyWarning
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{path="/api/ready"}[5m])) by (le))
+          > 0.100
+        for: 5m
+        labels:
+          severity: warning
+          service: identity-auth
+          category: latency_slo
+        annotations:
+          summary: "Auth /api/ready p95 > 100 ms — readiness check DB is slow"
+          description: >
+            Auth readiness probe p95 = {{ $value | printf "%.0f" }} ms (baseline 15 ms).
+            The DB ping embedded in /api/ready is taking longer than expected.
+            May indicate DB connection saturation or disk I/O pressure.
+          runbook_url: "docs/OPS-TRIAGE.md#db-nats"
+
+      # Auth 5xx error rate — server errors on any auth route
+      - alert: AuthHTTPErrorRateWarning
+        expr: >
+          (sum(rate(http_request_duration_seconds_count{status=~"5.."}[5m]))
+           / sum(rate(http_request_duration_seconds_count[5m]))) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: identity-auth
+          category: error_rate
+        annotations:
+          summary: "Auth service 5xx error rate > 1 %"
+          description: >
+            {{ $value | printf "%.1f" | humanizePercentage }} of auth requests returning 5xx.
+            Excludes 4xx credential rejections. Check auth service logs for panics or DB errors.
+          runbook_url: "docs/OPS-TRIAGE.md#error-spike"
+
+      - alert: AuthHTTPErrorRateCritical
+        expr: >
+          (sum(rate(http_request_duration_seconds_count{status=~"5.."}[5m]))
+           / sum(rate(http_request_duration_seconds_count[5m]))) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: identity-auth
+          category: error_rate
+        annotations:
+          summary: "Auth service 5xx error rate > 5 % — login severely degraded"
+          description: >
+            {{ $value | printf "%.1f" | humanizePercentage }} of auth requests returning 5xx.
+            Login and refresh are failing at high rate. All tenant sessions at risk.
+          runbook_url: "docs/OPS-TRIAGE.md#error-spike"
+
+  # ── TTP Billing Run Latency ───────────────────────────────────────────────
+  - name: ttp_latency
+    interval: 60s
+    rules:
+      # Warning: billing run p95 > 3 000 ms — at k6 design-time gate
+      - alert: TTPBillingRunLatencyWarning
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(ttp_http_request_duration_seconds_bucket{route="/api/ttp/billing-runs"}[5m])) by (le))
+          > 3.000
+        for: 5m
+        labels:
+          severity: warning
+          service: ttp
+          category: latency_slo
+        annotations:
+          summary: "TTP billing run p95 latency > 3 000 ms — at scale envelope limit"
+          description: >
+            TTP billing run p95 = {{ $value | humanizeDuration }} (baseline 1 200 ms, gate 3 000 ms).
+            Multi-service fanout (TTP → AR) is taking longer than the k6 design envelope.
+            Check AR write latency and DB connection saturation on the AR instance.
+          runbook_url: "docs/OPS-TRIAGE.md#billing-cycle-failure"
+
+      # Critical: billing run p95 > 5 000 ms — at k6 p99 ceiling
+      - alert: TTPBillingRunLatencyCritical
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(ttp_http_request_duration_seconds_bucket{route="/api/ttp/billing-runs"}[5m])) by (le))
+          > 5.000
+        for: 2m
+        labels:
+          severity: critical
+          service: ttp
+          category: latency_slo
+        annotations:
+          summary: "TTP billing run p95 latency > 5 000 ms — billing severely degraded"
+          description: >
+            TTP billing run p95 = {{ $value | humanizeDuration }} (critical 5 000 ms).
+            Billing cycles are breaching the k6 p99 ceiling. Revenue collection at risk.
+            Investigate AR DB write contention and TTP → AR client timeout settings.
+          runbook_url: "docs/OPS-TRIAGE.md#billing-cycle-failure"
+
+      # TTP 5xx error rate
+      - alert: TTPHTTPErrorRateWarning
+        expr: >
+          (sum(rate(ttp_http_requests_total{status=~"5.."}[5m]))
+           / sum(rate(ttp_http_requests_total[5m]))) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: ttp
+          category: error_rate
+        annotations:
+          summary: "TTP 5xx error rate > 1 %"
+          description: >
+            {{ $value | humanizePercentage }} of TTP requests returning 5xx.
+            Billing runs may be failing. Check TTP and AR service logs.
+          runbook_url: "docs/OPS-TRIAGE.md#billing-cycle-failure"
+
+      - alert: TTPHTTPErrorRateCritical
+        expr: >
+          (sum(rate(ttp_http_requests_total{status=~"5.."}[5m]))
+           / sum(rate(ttp_http_requests_total[5m]))) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: ttp
+          category: error_rate
+        annotations:
+          summary: "TTP 5xx error rate > 5 % — billing severely degraded"
+          description: >
+            {{ $value | humanizePercentage }} of TTP requests failing with 5xx.
+            Billing revenue collection is impacted. Treat as billing spine incident.
+          runbook_url: "docs/OPS-TRIAGE.md#billing-cycle-failure"
+
+  # ── AR Webhook Latency ────────────────────────────────────────────────────
+  - name: ar_latency
+    interval: 60s
+    rules:
+      # Warning: AR Tilled webhook p95 > 500 ms — at k6 gate
+      - alert: ARWebhookLatencyWarning
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(ar_http_request_duration_seconds_bucket{route="/api/ar/webhooks/tilled"}[5m])) by (le))
+          > 0.500
+        for: 5m
+        labels:
+          severity: warning
+          service: ar
+          category: latency_slo
+        annotations:
+          summary: "AR Tilled webhook p95 > 500 ms — at k6 envelope limit"
+          description: >
+            AR webhook ingest p95 = {{ $value | humanizeDuration }} (baseline 200 ms, gate 500 ms).
+            HMAC verify + DB write is slow. Check AR DB write latency and connection pool.
+          runbook_url: "docs/OPS-TRIAGE.md#webhook-failure"
+
+      # Critical: AR Tilled webhook p95 > 1 000 ms
+      - alert: ARWebhookLatencyCritical
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(ar_http_request_duration_seconds_bucket{route="/api/ar/webhooks/tilled"}[5m])) by (le))
+          > 1.000
+        for: 2m
+        labels:
+          severity: critical
+          service: ar
+          category: latency_slo
+        annotations:
+          summary: "AR Tilled webhook p95 > 1 000 ms — webhook ingest severely degraded"
+          description: >
+            AR webhook ingest p95 = {{ $value | humanizeDuration }} (critical 1 000 ms).
+            Slow webhook ingest causes UNKNOWN payment accumulation. AR DB may be overloaded.
+          runbook_url: "docs/OPS-TRIAGE.md#webhook-failure"
+
+      # AR 5xx error rate
+      - alert: ARHTTPErrorRateWarning
+        expr: >
+          (sum(rate(ar_http_requests_total{status=~"5.."}[5m]))
+           / sum(rate(ar_http_requests_total[5m]))) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: ar
+          category: error_rate
+        annotations:
+          summary: "AR 5xx error rate > 1 %"
+          description: >
+            {{ $value | humanizePercentage }} of AR requests returning 5xx.
+            Check AR service logs for DB errors or invariant failures.
+          runbook_url: "docs/OPS-TRIAGE.md#error-spike"
+
+      - alert: ARHTTPErrorRateCritical
+        expr: >
+          (sum(rate(ar_http_requests_total{status=~"5.."}[5m]))
+           / sum(rate(ar_http_requests_total[5m]))) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: ar
+          category: error_rate
+        annotations:
+          summary: "AR 5xx error rate > 5 % — billing data writes failing"
+          description: >
+            {{ $value | humanizePercentage }} of AR requests failing with 5xx.
+            Invoice creation and webhook processing are at risk. Treat as billing incident.
+          runbook_url: "docs/OPS-TRIAGE.md#error-spike"
+
+  # ── Payments Checkout Session Latency ─────────────────────────────────────
+  - name: payments_latency
+    interval: 60s
+    rules:
+      # Warning: checkout create p95 > 500 ms
+      - alert: PaymentsCheckoutLatencyWarning
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(payments_http_request_duration_seconds_bucket{route="/api/payments/checkout-sessions", method="POST"}[5m])) by (le))
+          > 0.500
+        for: 5m
+        labels:
+          severity: warning
+          service: payments
+          category: latency_slo
+        annotations:
+          summary: "Payments checkout session create p95 > 500 ms"
+          description: >
+            Checkout session creation p95 = {{ $value | humanizeDuration }} (baseline 200 ms).
+            DB insert + outbox write is slow. Check payments DB pool utilization.
+          runbook_url: "docs/OPS-TRIAGE.md#payment-failure-rate"
+
+      # Critical: checkout create p95 > 1 000 ms
+      - alert: PaymentsCheckoutLatencyCritical
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(payments_http_request_duration_seconds_bucket{route="/api/payments/checkout-sessions", method="POST"}[5m])) by (le))
+          > 1.000
+        for: 2m
+        labels:
+          severity: critical
+          service: payments
+          category: latency_slo
+        annotations:
+          summary: "Payments checkout session create p95 > 1 000 ms — customer checkout degraded"
+          description: >
+            Checkout session creation p95 = {{ $value | humanizeDuration }} (critical 1 000 ms).
+            Customer-facing payment flow is severely degraded. Revenue impact imminent.
+          runbook_url: "docs/OPS-TRIAGE.md#payment-failure-rate"
+
+      # Warning: Tilled webhook ingest p95 > 500 ms
+      - alert: PaymentsWebhookIngestLatencyWarning
+        expr: >
+          histogram_quantile(0.95,
+            sum(rate(payments_http_request_duration_seconds_bucket{route="/api/payments/checkout-sessions/:id", method="POST"}[5m])) by (le))
+          > 0.500
+        for: 5m
+        labels:
+          severity: warning
+          service: payments
+          category: latency_slo
+        annotations:
+          summary: "Payments Tilled webhook ingest p95 > 500 ms"
+          description: >
+            Payment webhook ingest p95 = {{ $value | humanizeDuration }} (baseline 200 ms).
+            HMAC verify + DB update + outbox is slow. UNKNOWN payments may accumulate.
+          runbook_url: "docs/OPS-TRIAGE.md#webhook-failure"
+
+      # Payments 5xx error rate
+      - alert: PaymentsHTTPErrorRateWarning
+        expr: >
+          (sum(rate(payments_http_requests_total{status=~"5.."}[5m]))
+           / sum(rate(payments_http_requests_total[5m]))) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          service: payments
+          category: error_rate
+        annotations:
+          summary: "Payments 5xx error rate > 1 %"
+          description: >
+            {{ $value | humanizePercentage }} of payments requests returning 5xx.
+            Check payments service logs; verify DB connectivity and gateway credentials.
+          runbook_url: "docs/OPS-TRIAGE.md#payment-failure-rate"
+
+      - alert: PaymentsHTTPErrorRateCritical
+        expr: >
+          (sum(rate(payments_http_requests_total{status=~"5.."}[5m]))
+           / sum(rate(payments_http_requests_total[5m]))) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: payments
+          category: error_rate
+        annotations:
+          summary: "Payments 5xx error rate > 5 % — checkout and webhook failing"
+          description: >
+            {{ $value | humanizePercentage }} of payments requests failing with 5xx.
+            Customer checkout and payment webhook processing are severely degraded.
+          runbook_url: "docs/OPS-TRIAGE.md#payment-processing-stalled"
