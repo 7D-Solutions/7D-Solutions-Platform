@@ -3,7 +3,13 @@
 // Proves the page renders for a real checkout session created
 // against the live Payments service (no mocks, no stubs).
 //
+// Also proves:
+//   - Status polling endpoint returns correct status after page load
+//   - BFF present route is idempotent (200 on repeated calls)
+//
 // Requires: Payments service running at PAYMENTS_BASE_URL (default: http://localhost:8088)
+//
+// State machine: created → presented → completed | failed | canceled | expired
 // ============================================================
 import { test, expect } from '@playwright/test';
 
@@ -65,7 +71,9 @@ test.describe('Hosted Pay Portal', () => {
 
     const body = await res.json();
     expect(body.session_id).toBe(sessionId);
-    expect(body.status).toBe('pending');
+    // After page load (which calls present), status is 'created' or 'presented'
+    // depending on whether a previous test visited the page
+    expect(['created', 'presented']).toContain(body.status);
     expect(body.amount).toBe(2499);
     expect(body.currency).toBe('usd');
     // client_secret is returned (needed for Tilled.js init)
@@ -98,5 +106,96 @@ test.describe('Hosted Pay Portal', () => {
     // Should render, not redirect to /login
     await expect(page).not.toHaveURL(/\/login/);
     await expect(page.getByTestId('pay-portal')).toBeVisible({ timeout: 10000 });
+  });
+
+  // ── Status polling BFF endpoint ──────────────────────────────────────────
+
+  test('status BFF route returns session_id and status', async ({ request }) => {
+    const res = await request.get(`/api/payments/checkout-sessions/${sessionId}/status`);
+    expect(res.ok()).toBeTruthy();
+
+    const body = await res.json();
+    expect(body.session_id).toBe(sessionId);
+    // Status is one of the valid non-terminal states (page may or may not have been visited)
+    expect(['created', 'presented']).toContain(body.status);
+    // client_secret must NOT be present in the status poll response
+    expect(body.client_secret).toBeUndefined();
+  });
+
+  test('status BFF route returns 404 for unknown session', async ({ request }) => {
+    const res = await request.get(
+      '/api/payments/checkout-sessions/00000000-0000-0000-0000-000000000000/status',
+    );
+    expect(res.status()).toBe(404);
+  });
+
+  test('status BFF route rejects invalid session ID', async ({ request }) => {
+    const res = await request.get('/api/payments/checkout-sessions/not-a-uuid/status');
+    expect(res.status()).toBe(400);
+  });
+
+  // ── Present BFF route (idempotency) ─────────────────────────────────────
+
+  test('present BFF route transitions session to presented (idempotent)', async ({
+    request,
+  }) => {
+    // Create a fresh session so we can test the present transition
+    const createRes = await request.post(`${PAYMENTS_BASE_URL}/api/payments/checkout-sessions`, {
+      data: {
+        invoice_id: `inv-e2e-present-${Date.now()}`,
+        tenant_id: 'tenant-test-e2e-001',
+        amount: 500,
+        currency: 'usd',
+        return_url: 'https://example.com/payment/success',
+        cancel_url: 'https://example.com/payment/cancel',
+      },
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const { session_id: freshId } = await createRes.json();
+
+    // Verify initial status is 'created'
+    const statusBefore = await request.get(
+      `/api/payments/checkout-sessions/${freshId}/status`,
+    );
+    expect(statusBefore.ok()).toBeTruthy();
+    const { status: s1 } = await statusBefore.json();
+    expect(s1).toBe('created');
+
+    // First present call
+    const p1 = await request.post(`/api/payments/checkout-sessions/${freshId}/present`);
+    expect(p1.ok()).toBeTruthy();
+
+    // Status is now 'presented'
+    const statusAfter = await request.get(
+      `/api/payments/checkout-sessions/${freshId}/status`,
+    );
+    expect(statusAfter.ok()).toBeTruthy();
+    const { status: s2 } = await statusAfter.json();
+    expect(s2).toBe('presented');
+
+    // Second present call — idempotent, must also return 200
+    const p2 = await request.post(`/api/payments/checkout-sessions/${freshId}/present`);
+    expect(p2.ok()).toBeTruthy();
+
+    // Status is still 'presented'
+    const statusFinal = await request.get(
+      `/api/payments/checkout-sessions/${freshId}/status`,
+    );
+    expect(statusFinal.ok()).toBeTruthy();
+    const { status: s3 } = await statusFinal.json();
+    expect(s3).toBe('presented');
+  });
+
+  test('present BFF route returns 400 for invalid session ID', async ({ request }) => {
+    const res = await request.post('/api/payments/checkout-sessions/not-a-uuid/present');
+    expect(res.status()).toBe(400);
+  });
+
+  test('present BFF route returns 404 for unknown session', async ({ request }) => {
+    const res = await request.post(
+      '/api/payments/checkout-sessions/00000000-0000-0000-0000-000000000000/present',
+    );
+    expect(res.status()).toBe(404);
   });
 });

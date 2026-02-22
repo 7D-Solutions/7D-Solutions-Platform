@@ -9,6 +9,9 @@
 //   - client_secret never appears in URLs
 //   - return_url / cancel_url validated as absolute HTTPS at Rust level
 //   - No session data leaked in HTML beyond what's needed for Tilled.js
+//
+// State machine: created → presented → completed | failed | canceled | expired
+// On load: server component calls present (idempotent, best-effort).
 // ============================================================
 import type { Metadata } from 'next';
 import { PaymentForm } from './PaymentForm';
@@ -44,6 +47,19 @@ async function fetchSession(sessionId: string): Promise<SessionData | null> {
   }
 }
 
+/** Best-effort: transition session from 'created' → 'presented' on page load.
+ *  Idempotent — already-presented or terminal sessions return 200. */
+async function markSessionPresented(sessionId: string): Promise<void> {
+  try {
+    await fetch(
+      `${PAYMENTS_BASE_URL}/api/payments/checkout-sessions/${sessionId}/present`,
+      { method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(3000) },
+    );
+  } catch {
+    // Best-effort: do not block page render on failure
+  }
+}
+
 function formatAmount(amount: number, currency: string): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
@@ -74,7 +90,7 @@ export default async function PayPage({ params }: PageProps) {
   }
 
   // Already-terminal sessions: show status instead of form
-  if (session.status === 'succeeded') {
+  if (session.status === 'completed') {
     return (
       <div
         className="min-h-screen bg-gray-50 flex items-center justify-center px-4"
@@ -89,7 +105,11 @@ export default async function PayPage({ params }: PageProps) {
     );
   }
 
-  if (session.status === 'cancelled' || session.status === 'failed') {
+  if (
+    session.status === 'canceled' ||
+    session.status === 'failed' ||
+    session.status === 'expired'
+  ) {
     return (
       <div
         className="min-h-screen bg-gray-50 flex items-center justify-center px-4"
@@ -105,6 +125,9 @@ export default async function PayPage({ params }: PageProps) {
       </div>
     );
   }
+
+  // Non-terminal: mark session as presented (idempotent, best-effort)
+  await markSessionPresented(session_id);
 
   // Read Tilled publishable credentials from server env
   // NEXT_PUBLIC_ prefix makes them available to client components too
