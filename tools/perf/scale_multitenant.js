@@ -45,6 +45,7 @@ import { acquireToken, bearerHeaders } from './lib/auth.js';
 
 // ── Custom metrics ─────────────────────────────────────────────────────────────
 const errorRate      = new Rate('scale_errors');
+const webhookErrors  = new Rate('scale_webhook_errors');  // webhook-specific success gate
 const cpLatency      = new Trend('scale_cp_reads_ms',    true);
 const arLatency      = new Trend('scale_ar_reads_ms',    true);
 const billingLatency = new Trend('scale_billing_run_ms', true);
@@ -120,19 +121,24 @@ export const options = {
 
   thresholds: {
     // Global failure rate must stay under 1%.
-    http_req_failed:      ['rate<0.01'],
+    http_req_failed:       ['rate<0.01'],
 
-    // Wall-clock p95 across all requests.
-    http_req_duration:    ['p(95)<2000'],
+    // Wall-clock p95/p99 across all requests.
+    http_req_duration:     ['p(95)<2000', 'p(99)<4000'],
 
-    // Per-tier latency gates.
-    scale_cp_reads_ms:    ['p(95)<500'],
-    scale_ar_reads_ms:    ['p(95)<800'],
-    scale_billing_run_ms: ['p(95)<3000'],
-    scale_webhook_ms:     ['p(95)<500'],
+    // Per-tier latency gates — p95 (SLO) and p99 (hard ceiling).
+    // See docs/SCALE-ENVELOPE.md for rationale and safe operating limits.
+    scale_cp_reads_ms:     ['p(95)<500',  'p(99)<1000'],
+    scale_ar_reads_ms:     ['p(95)<800',  'p(99)<1500'],
+    scale_billing_run_ms:  ['p(95)<3000', 'p(99)<5000'],
+    scale_webhook_ms:      ['p(95)<500',  'p(99)<1000'],
 
     // Custom error rate (check() failures, not HTTP errors).
-    scale_errors:         ['rate<0.01'],
+    scale_errors:          ['rate<0.01'],
+
+    // Webhook-specific success gate: ≥99% of signed Tilled events must return 200.
+    // A >1% failure here indicates HMAC mismatch or payments service degradation.
+    scale_webhook_errors:  ['rate<0.01'],
   },
 };
 
@@ -287,6 +293,7 @@ export function webhookPhase() {
       'POST /webhook/tilled: not 500': (r) => r.status !== 500,
     });
     errorRate.add(!ok);
+    webhookErrors.add(!ok);  // webhook-specific gate (scale_webhook_errors threshold)
     webhookLatency.add(res.timings.duration);
     webhookOps.add(1);
   });
@@ -308,8 +315,14 @@ export function teardown() {
       const result = body.data && body.data.result;
       if (result && result.length > 0) {
         result.forEach((r) => {
+          const lag = parseFloat(r.value[1]);
+          // Acceptable: < 50 messages (consumer draining normally).
+          // Warning:    50–200 messages (consumer falling behind; check NATS config).
+          // Critical:   > 200 messages (consumer overloaded; scaling action required).
+          // See docs/SCALE-ENVELOPE.md — "Projection Lag" for full rationale.
+          const level = lag > 200 ? 'CRITICAL' : lag > 50 ? 'WARNING' : 'OK';
           console.log(
-            `Projection lag [${JSON.stringify(r.metric)}]: ${r.value[1]} messages`
+            `Projection lag [${level}] [${JSON.stringify(r.metric)}]: ${r.value[1]} messages`
           );
         });
       } else {

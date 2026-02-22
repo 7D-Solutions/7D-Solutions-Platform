@@ -227,15 +227,26 @@ All standard variables (`PERF_ENV`, `STAGING_HOST`, `PERF_AUTH_*`, etc.) still a
 
 ### Thresholds (scale pass/fail gate)
 
-| Metric                       | Threshold        | Tier                        |
-|------------------------------|------------------|-----------------------------|
-| `http_req_failed`            | `rate < 1%`      | All requests                |
-| `http_req_duration` (p95)    | `< 2 000 ms`     | All requests                |
-| `scale_cp_reads_ms` (p95)    | `< 500 ms`       | Control-plane reads         |
-| `scale_ar_reads_ms` (p95)    | `< 800 ms`       | AR module reads             |
-| `scale_billing_run_ms` (p95) | `< 3 000 ms`     | Billing run (multi-service) |
-| `scale_webhook_ms` (p95)     | `< 500 ms`       | Tilled webhook ingest       |
-| `scale_errors`               | `rate < 1%`      | check() failures            |
+| Metric                        | p95 SLO      | p99 Ceiling  | Tier                        |
+|-------------------------------|--------------|--------------|------------------------------|
+| `http_req_failed`             | `rate < 1%`  | —            | All requests (HTTP errors)   |
+| `http_req_duration`           | `< 2 000 ms` | `< 4 000 ms` | All requests, wall-clock     |
+| `scale_cp_reads_ms`           | `< 500 ms`   | `< 1 000 ms` | Control-plane reads          |
+| `scale_ar_reads_ms`           | `< 800 ms`   | `< 1 500 ms` | AR module reads              |
+| `scale_billing_run_ms`        | `< 3 000 ms` | `< 5 000 ms` | Billing run (multi-service)  |
+| `scale_webhook_ms`            | `< 500 ms`   | `< 1 000 ms` | Tilled webhook ingest        |
+| `scale_errors`                | `rate < 1%`  | —            | check() failures (all phases)|
+| `scale_webhook_errors`        | `rate < 1%`  | —            | Webhook-specific success gate|
+
+**Projection lag** (Prometheus, checked in teardown — not a k6 gate):
+
+| Level    | Threshold            |
+|----------|----------------------|
+| OK       | < 50 messages        |
+| WARNING  | 50 – 200 messages    |
+| CRITICAL | > 200 messages       |
+
+See `docs/SCALE-ENVELOPE.md` for full bottleneck analysis and safe operating limits.
 
 ### Endpoints exercised
 
@@ -280,14 +291,19 @@ Prometheus is unreachable, operators should check the Grafana
 
 ### CI artifact — scale_multitenant_summary.json
 
-Key fields consumed by bd-24h9 (P50-020 bottleneck analysis):
+Key fields consumed by bd-t47u (P50-030 CI workflow) and documented in `docs/SCALE-ENVELOPE.md`:
 
 ```
 metrics.scale_cp_reads_ms.values.p(95)
+metrics.scale_cp_reads_ms.values.p(99)
 metrics.scale_ar_reads_ms.values.p(95)
+metrics.scale_ar_reads_ms.values.p(99)
 metrics.scale_billing_run_ms.values.p(95)
+metrics.scale_billing_run_ms.values.p(99)
 metrics.scale_webhook_ms.values.p(95)
+metrics.scale_webhook_ms.values.p(99)
 metrics.scale_errors.values.rate
+metrics.scale_webhook_errors.values.rate
 metrics.scale_billing_ops.values.count
 metrics.scale_webhook_ops.values.count
 metrics.http_req_failed.values.rate
