@@ -134,7 +134,7 @@ async fn main() {
             post(payments_rs::routes::checkout_sessions::create_checkout_session),
         )
         .route(
-            "/api/payments/checkout-sessions/:id",
+            "/api/payments/checkout-sessions/{id}",
             get(payments_rs::routes::checkout_sessions::get_checkout_session),
         )
         .route(
