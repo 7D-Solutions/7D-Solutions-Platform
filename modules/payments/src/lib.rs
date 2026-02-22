@@ -21,6 +21,12 @@ pub use config::{Config, PaymentsProvider};
 /// Payments application state shared across HTTP handlers
 pub struct AppState {
     pub pool: sqlx::PgPool,
+    /// Tilled API key (set when PAYMENTS_PROVIDER=tilled)
+    pub tilled_api_key: Option<String>,
+    /// Tilled account ID (set when PAYMENTS_PROVIDER=tilled)
+    pub tilled_account_id: Option<String>,
+    /// Tilled webhook HMAC secret (set when PAYMENTS_PROVIDER=tilled)
+    pub tilled_webhook_secret: Option<String>,
 }
 
 pub use consumer_task::start_payment_collection_consumer;

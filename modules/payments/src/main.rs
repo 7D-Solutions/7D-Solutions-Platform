@@ -1,4 +1,4 @@
-use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
+use axum::{extract::DefaultBodyLimit, routing::{get, post}, Extension, Router};
 use event_bus::{EventBus, InMemoryBus};
 use security::{
     middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
@@ -115,6 +115,9 @@ async fn main() {
     // Create application state
     let app_state = Arc::new(payments_rs::AppState {
         pool: pool.clone(),
+        tilled_api_key: config.tilled_api_key.clone(),
+        tilled_account_id: config.tilled_account_id.clone(),
+        tilled_webhook_secret: config.tilled_webhook_secret.clone(),
     });
 
     let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
@@ -125,6 +128,19 @@ async fn main() {
         .route("/api/ready", get(payments_rs::routes::health::ready))
         .route("/api/version", get(payments_rs::routes::health::version))
         .route("/metrics", get(metrics_handler))
+        // Checkout session endpoints (bd-ddsm)
+        .route(
+            "/api/payments/checkout-sessions",
+            post(payments_rs::routes::checkout_sessions::create_checkout_session),
+        )
+        .route(
+            "/api/payments/checkout-sessions/:id",
+            get(payments_rs::routes::checkout_sessions::get_checkout_session),
+        )
+        .route(
+            "/api/payments/webhook/tilled",
+            post(payments_rs::routes::checkout_sessions::tilled_webhook),
+        )
         .with_state(app_state)
         .merge(payments_rs::routes::admin::admin_router(pool))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
