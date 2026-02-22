@@ -96,22 +96,28 @@ docker rm -f 7d-drill-postgres && docker network rm 7d-drill-net
 6. **Cleans up** — The drill container and network are removed on exit unless
    `--no-cleanup` is specified.
 
-## Expected Timings
+## Observed Timings (2026-02-22 drill)
 
-Benchmarks vary by backup size and hardware. Rough estimates for a complete
-18-database restore on a Hetzner CX41 (4 vCPU / 8 GB RAM):
+Measured on a local Mac running all 18 Postgres containers via Docker Compose.
+See `docs/ops/DRILL-LOG.md` for full per-database breakdown.
 
-| Phase | Expected duration |
-|-------|-----------------|
-| Manifest verification | < 5 seconds |
-| Container start (Postgres 16) | 5–15 seconds |
-| Per-database restore (small DB) | 2–15 seconds |
-| Per-database restore (large DB with years of data) | 1–10 minutes |
-| health_audit.sh | < 10 seconds |
-| **Total (fresh install, small data)** | **2–5 minutes** |
-| **Total (production data volume)** | **15–60 minutes** |
+| Phase | Observed |
+|-------|---------|
+| Manifest verification | < 1s |
+| Container start (postgres:16, image already pulled) | 3s |
+| Container start (postgres:16, fresh pull) | ~60s |
+| Platform tier (auth + tenant_registry + audit) | 37s cumulative |
+| Critical financial tier (GL + AR + AP + Payments + Treasury) | 11s cumulative |
+| Remaining 10 modules | 8s cumulative |
+| health_audit.sh | < 2s |
+| **Total (current production data volume)** | **105s (1m 45s)** |
 
-If total restore time exceeds the 4-hour RTO for critical databases, investigate:
+**RPO achieved:** < 1 hour (backups run hourly via `install_backup_timer.sh`).
+**RTO achieved:** 1m 45s actual vs 4-hour target — 99% headroom at current volume.
+
+At 10× data scale, expect 10–20 minutes total — still well within RTO.
+Recheck after each order-of-magnitude growth. If total restore time exceeds
+the 4-hour RTO for critical databases, investigate:
 - Whether backup dumps can be parallelized
 - Whether Postgres instance sizing needs improvement
 - Whether WAL streaming replication (lower RTO) is warranted
@@ -265,4 +271,5 @@ stack, not an empty initialization.
 
 ## Changelog
 
+- **2026-02-22**: Restore drill with real production snapshot — 18/18 PASS, 105s total (bd-12fv, P46-220)
 - **2026-02-21**: Initial restore drill (bd-1xdz, P45-130)
