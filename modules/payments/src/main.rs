@@ -129,7 +129,7 @@ async fn main() {
         .route("/api/ready", get(payments_rs::routes::health::ready))
         .route("/api/version", get(payments_rs::routes::health::version))
         .route("/metrics", get(metrics_handler))
-        // Checkout session endpoints (bd-ddsm)
+        // Checkout session endpoints (bd-ddsm, bd-x0rt)
         .route(
             "/api/payments/checkout-sessions",
             post(payments_rs::routes::checkout_sessions::create_checkout_session),
@@ -137,6 +137,14 @@ async fn main() {
         .route(
             "/api/payments/checkout-sessions/{id}",
             get(payments_rs::routes::checkout_sessions::get_checkout_session),
+        )
+        .route(
+            "/api/payments/checkout-sessions/{id}/present",
+            post(payments_rs::routes::checkout_sessions::present_checkout_session),
+        )
+        .route(
+            "/api/payments/checkout-sessions/{id}/status",
+            get(payments_rs::routes::checkout_sessions::poll_checkout_session_status),
         )
         .route(
             "/api/payments/webhook/tilled",

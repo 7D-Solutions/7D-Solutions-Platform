@@ -1,12 +1,16 @@
-//! Customer-facing checkout session endpoints (bd-ddsm)
+//! Customer-facing checkout session endpoints
 //!
 //! Exposes a Tilled.js-compatible checkout flow. Platform owns Tilled integration
 //! — product apps never call Tilled directly.
 //!
 //! Endpoints:
-//!   POST /api/payments/checkout-sessions   — create session, return client_secret
-//!   GET  /api/payments/checkout-sessions/:id — poll session status
-//!   POST /api/payments/webhook/tilled      — Tilled webhook callbacks
+//!   POST /api/payments/checkout-sessions            — create session, return client_secret
+//!   GET  /api/payments/checkout-sessions/:id        — full session data (includes client_secret)
+//!   POST /api/payments/checkout-sessions/:id/present — idempotent: created → presented
+//!   GET  /api/payments/checkout-sessions/:id/status  — lightweight status poll (no secret)
+//!   POST /api/payments/webhook/tilled               — Tilled webhook callbacks
+//!
+//! State machine: created → presented → completed | failed | canceled | expired
 
 use axum::{
     extract::{Path, State},
@@ -63,6 +67,13 @@ pub struct CheckoutSessionStatusResponse {
     pub return_url: Option<String>,
     /// URL to redirect after cancelled payment (stored at creation time)
     pub cancel_url: Option<String>,
+}
+
+/// GET /api/payments/checkout-sessions/:id/status response (no secrets)
+#[derive(Debug, Serialize)]
+pub struct SessionStatusPollResponse {
+    pub session_id: String,
+    pub status: String,
 }
 
 /// Error response body
@@ -245,7 +256,8 @@ pub async fn get_checkout_session(
     }
 
     // For non-terminal sessions, poll Tilled for live status
-    let status = if session.status == "pending" {
+    let is_non_terminal = matches!(session.status.as_str(), "created" | "presented");
+    let status = if is_non_terminal {
         if let (Some(api_key), Some(account_id)) = (
             state.tilled_api_key.as_deref(),
             state.tilled_account_id.as_deref(),
@@ -283,6 +295,87 @@ pub async fn get_checkout_session(
         client_secret: session.client_secret,
         return_url: session.return_url,
         cancel_url: session.cancel_url,
+    }))
+}
+
+// ============================================================================
+// POST /api/payments/checkout-sessions/:id/present
+// Idempotent: transitions 'created' → 'presented' on hosted page load.
+// If already in 'presented' or a terminal state, returns 200 (no-op).
+// ============================================================================
+
+pub async fn present_checkout_session(
+    State(state): State<Arc<crate::AppState>>,
+    Path(session_id): Path<Uuid>,
+) -> Result<StatusCode, ApiError> {
+    let rows = sqlx::query(
+        "UPDATE checkout_sessions \
+         SET status = 'presented', presented_at = NOW(), updated_at = NOW() \
+         WHERE id = $1 AND status = 'created'",
+    )
+    .bind(session_id)
+    .execute(&state.pool)
+    .await
+    .map_err(|e| ApiError {
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+        message: format!("Database error: {}", e),
+    })?
+    .rows_affected();
+
+    if rows == 0 {
+        // 0 rows: either already in a later state (idempotent) or session not found
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM checkout_sessions WHERE id = $1)",
+        )
+        .bind(session_id)
+        .fetch_one(&state.pool)
+        .await
+        .map_err(|e| ApiError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: format!("Database error: {}", e),
+        })?;
+
+        if !exists {
+            return Err(ApiError {
+                status: StatusCode::NOT_FOUND,
+                message: format!("Checkout session not found: {}", session_id),
+            });
+        }
+        // Already presented or terminal — idempotent no-op
+    }
+
+    tracing::info!(session_id = %session_id, rows_updated = rows, "Session present called");
+    Ok(StatusCode::OK)
+}
+
+// ============================================================================
+// GET /api/payments/checkout-sessions/:id/status
+// Lightweight status poll — does not return client_secret.
+// Used by the hosted pay page for client-side status polling after payment.
+// ============================================================================
+
+pub async fn poll_checkout_session_status(
+    State(state): State<Arc<crate::AppState>>,
+    Path(session_id): Path<Uuid>,
+) -> Result<Json<SessionStatusPollResponse>, ApiError> {
+    let status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
+            .bind(session_id)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(|e| ApiError {
+                status: StatusCode::INTERNAL_SERVER_ERROR,
+                message: format!("Database error: {}", e),
+            })?;
+
+    let status = status.ok_or_else(|| ApiError {
+        status: StatusCode::NOT_FOUND,
+        message: format!("Checkout session not found: {}", session_id),
+    })?;
+
+    Ok(Json(SessionStatusPollResponse {
+        session_id: session_id.to_string(),
+        status,
     }))
 }
 
@@ -334,14 +427,19 @@ pub async fn tilled_webhook(
     }
 
     let new_status = match event_type {
-        "payment_intent.succeeded" => "succeeded",
+        "payment_intent.succeeded" => "completed",
         "payment_intent.payment_failed" => "failed",
-        "payment_intent.canceled" => "cancelled",
+        "payment_intent.canceled" => "canceled",
         _ => return Ok(StatusCode::OK), // ack unknown events
     };
 
+    // Idempotent: only transition from non-terminal states.
+    // If already in completed/failed/canceled/expired, UPDATE matches 0 rows — no-op.
     let rows_updated = sqlx::query(
-        "UPDATE checkout_sessions SET status = $1, updated_at = NOW() WHERE processor_payment_id = $2 AND status = 'pending'",
+        "UPDATE checkout_sessions \
+         SET status = $1, updated_at = NOW() \
+         WHERE processor_payment_id = $2 \
+         AND status IN ('created', 'presented')",
     )
     .bind(new_status)
     .bind(pi_id)
@@ -440,12 +538,12 @@ async fn poll_tilled_intent_status(
 
     let pi: serde_json::Value = resp.json().await?;
     let status = match pi["status"].as_str().unwrap_or("unknown") {
-        "succeeded" => "succeeded",
-        "canceled" => "cancelled",
+        "succeeded" => "completed",
+        "canceled" => "canceled",
         "requires_payment_method" | "requires_action" | "processing" | "requires_confirmation" => {
-            "pending"
+            "presented"
         }
-        _ => "pending",
+        _ => "created",
     };
     Ok(status.to_string())
 }
