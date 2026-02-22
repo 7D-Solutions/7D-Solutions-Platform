@@ -1,0 +1,128 @@
+name: Scale Test — k6 multi-tenant
+
+# Manual dispatch only.  Runs the multi-tenant scale scenario against staging
+# and uploads artifacts (k6 summary JSON, SCALE-ENVELOPE.md snapshot, optional
+# Prometheus consumer-lag dump).  The job fails if any k6 threshold is breached.
+#
+# Required secrets (repo → Settings → Secrets → Actions):
+#   PERF_AUTH_EMAIL              — email for the test account
+#   PERF_AUTH_PASSWORD           — password for the test account
+#   SCALE_TILLED_WEBHOOK_SECRET  — HMAC secret for Tilled webhook signatures
+#                                  (Phase 3 skips silently if not set)
+#
+# Optional secrets:
+#   PERF_AUTH_TOKEN  — pre-minted JWT (skips login step)
+
+on:
+  workflow_dispatch:
+    inputs:
+      staging_host:
+        description: 'Staging VPS hostname or IP (e.g. staging.7dsolutions.app)'
+        required: true
+        default: ''
+
+      tenant_id:
+        description: 'Tenant UUID for auth scope (default: platform tenant)'
+        required: false
+        default: '00000000-0000-0000-0000-000000000000'
+
+      billing_period:
+        description: 'Safe billing period — far-future keeps runs idempotent (default: 2099-01)'
+        required: false
+        default: '2099-01'
+
+      prometheus_url:
+        description: 'Prometheus base URL for consumer-lag dump (optional, e.g. http://staging.7dsolutions.app:9090)'
+        required: false
+        default: ''
+
+jobs:
+  scale-test:
+    name: k6 scale — multi-tenant on staging
+    runs-on: ubuntu-latest
+    # scale scenario wall time ~165 s + k6 install + upload → cap at 15 min
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Compute a run stamp (UTC ISO, no colons) so successive dispatches on
+      # the same commit produce distinct artifact names.
+      - name: Set run stamp
+        id: stamp
+        run: echo "value=$(date -u +%Y%m%dT%H%M%SZ)" >> "$GITHUB_OUTPUT"
+
+      - name: Install k6
+        run: |
+          curl -fsSL https://github.com/grafana/k6/releases/download/v0.55.0/k6-v0.55.0-linux-amd64.tar.gz \
+            | tar -xzf - --strip-components=1 k6-v0.55.0-linux-amd64/k6
+          sudo mv k6 /usr/local/bin/k6
+          k6 version
+
+      # ── Scale scenario ────────────────────────────────────────────────────────
+      # Three overlapping phases: read burst (20 VUs × 100 s), billing runs
+      # (5 VUs × 75 s, safe/idempotent), webhook burst (10 VUs × 45 s, HMAC).
+      # k6 exits non-zero on any threshold breach → step fails → job fails.
+      # Subsequent steps use if: always() so artifacts are always uploaded.
+      - name: Run scale scenario
+        env:
+          PERF_ENV:                   staging
+          STAGING_HOST:               ${{ inputs.staging_host }}
+          PERF_TENANT_ID:             ${{ inputs.tenant_id }}
+          PERF_BILLING_PERIOD:        ${{ inputs.billing_period }}
+          PERF_AUTH_EMAIL:            ${{ secrets.PERF_AUTH_EMAIL }}
+          PERF_AUTH_PASSWORD:         ${{ secrets.PERF_AUTH_PASSWORD }}
+          PERF_AUTH_TOKEN:            ${{ secrets.PERF_AUTH_TOKEN }}
+          PERF_TILLED_WEBHOOK_SECRET: ${{ secrets.SCALE_TILLED_WEBHOOK_SECRET }}
+          # Prometheus URL is passed to the k6 teardown() lag query.
+          # If empty, teardown() logs "Prometheus unavailable" but does not fail.
+          PERF_PROMETHEUS_URL: >-
+            ${{ inputs.prometheus_url != '' && inputs.prometheus_url || 'http://localhost:9090' }}
+        run: |
+          k6 run tools/perf/scale_multitenant.js \
+            --summary-export="scale-summary-${{ github.sha }}-${{ steps.stamp.outputs.value }}.json"
+
+      # ── Prometheus consumer-lag dump (optional) ───────────────────────────────
+      # Runs only when prometheus_url is supplied.  Writes a JSON file that CI
+      # operators can inspect alongside the k6 summary to confirm lag cleared.
+      # Runs even if k6 failed (if: always()) so the dump is always captured.
+      - name: Dump Prometheus consumer lag
+        if: always() && inputs.prometheus_url != ''
+        run: |
+          PROM_URL="${{ inputs.prometheus_url }}"
+          OUTFILE="prometheus-lag-dump-${{ steps.stamp.outputs.value }}.json"
+          echo "Querying ${PROM_URL}/api/v1/query?query=payments_event_consumer_lag_messages"
+          curl -sf \
+            "${PROM_URL}/api/v1/query?query=payments_event_consumer_lag_messages" \
+            -o "${OUTFILE}" \
+            || echo '{"status":"error","error":"prometheus_unreachable","data":{"result":[]}}' \
+               > "${OUTFILE}"
+          echo "Lag dump written to ${OUTFILE}"
+          cat "${OUTFILE}"
+
+      # ── Snapshot SCALE-ENVELOPE.md ────────────────────────────────────────────
+      # Captures the thresholds doc at the point of this run so artifacts are
+      # self-contained.  Runs even on k6 failure.
+      - name: Snapshot SCALE-ENVELOPE.md
+        if: always()
+        run: |
+          cp docs/SCALE-ENVELOPE.md \
+            "SCALE-ENVELOPE-snapshot-${{ steps.stamp.outputs.value }}.md"
+
+      # ── Upload artifacts ──────────────────────────────────────────────────────
+      # Retained 90 days.  Bundle includes:
+      #   scale-summary-*.json          — k6 metrics (thresholds, timings, counters)
+      #   SCALE-ENVELOPE-snapshot-*.md  — thresholds in effect at time of run
+      #   prometheus-lag-dump-*.json    — consumer-lag point-in-time (if url supplied)
+      - name: Upload scale test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scale-test-${{ github.sha }}-${{ steps.stamp.outputs.value }}
+          path: |
+            scale-summary-*.json
+            SCALE-ENVELOPE-snapshot-*.md
+            prometheus-lag-dump-*.json
+          retention-days: 90
+          if-no-files-found: warn

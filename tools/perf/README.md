@@ -309,6 +309,96 @@ metrics.scale_webhook_ops.values.count
 metrics.http_req_failed.values.rate
 ```
 
+## Scale test CI workflow (manual dispatch)
+
+The workflow at `.github/workflows/scale.yml` runs the full multi-tenant scale
+scenario against staging on demand.
+
+### Triggering the workflow
+
+1. Go to **Actions → Scale Test — k6 multi-tenant → Run workflow**
+2. Fill in the inputs:
+
+   | Input             | Required | Description                                        |
+   |-------------------|----------|----------------------------------------------------|
+   | `staging_host`    | Yes      | VPS hostname or IP (e.g. `staging.7dsolutions.app`) |
+   | `tenant_id`       | No       | Tenant UUID for auth scope (default: platform tenant) |
+   | `billing_period`  | No       | Safe billing period (default: `2099-01`)           |
+   | `prometheus_url`  | No       | Prometheus base URL for lag dump (e.g. `http://staging.7dsolutions.app:9090`) |
+
+3. Click **Run workflow**.
+
+### Required secrets
+
+Set these in **repo → Settings → Secrets → Actions**:
+
+| Secret                       | Purpose                                       |
+|------------------------------|-----------------------------------------------|
+| `PERF_AUTH_EMAIL`            | Login email for the test account              |
+| `PERF_AUTH_PASSWORD`         | Login password                                |
+| `SCALE_TILLED_WEBHOOK_SECRET`| HMAC secret for Tilled webhook signatures (Phase 3) |
+| `PERF_AUTH_TOKEN`            | (Optional) Pre-minted JWT; skips the login step |
+
+If `SCALE_TILLED_WEBHOOK_SECRET` is not set, webhook Phase 3 VUs sleep and
+skip silently — the run still validates Phases 1 and 2.
+
+### Artifacts
+
+Every run (including threshold failures) uploads an artifact bundle retained
+for 90 days:
+
+```
+scale-test-<sha>-<timestamp>/
+  scale-summary-<sha>-<timestamp>.json      # k6 metrics (timings, thresholds, counters)
+  SCALE-ENVELOPE-snapshot-<timestamp>.md   # thresholds in effect at run time
+  prometheus-lag-dump-<timestamp>.json     # consumer-lag point-in-time (only if prometheus_url set)
+```
+
+### Interpreting results
+
+**Job status:**
+
+- **Green** — all k6 thresholds passed. Check the Prometheus lag dump (if captured) to confirm
+  the payments consumer drained before marking the run clean.
+- **Red** — at least one threshold breached. Download `scale-summary-*.json` and look for
+  `"thresholds"` entries with `"ok": false`. Compare against the values in
+  `SCALE-ENVELOPE-snapshot-*.md` to identify which tier failed.
+
+**Key fields in `scale-summary-*.json`:**
+
+```
+metrics.scale_cp_reads_ms.values.p(95)      # Control-plane p95 — gate: < 500 ms
+metrics.scale_cp_reads_ms.values.p(99)      # Control-plane p99 — gate: < 1 000 ms
+metrics.scale_ar_reads_ms.values.p(95)      # AR reads p95 — gate: < 800 ms
+metrics.scale_ar_reads_ms.values.p(99)      # AR reads p99 — gate: < 1 500 ms
+metrics.scale_billing_run_ms.values.p(95)   # Billing run p95 — gate: < 3 000 ms
+metrics.scale_billing_run_ms.values.p(99)   # Billing run p99 — gate: < 5 000 ms
+metrics.scale_webhook_ms.values.p(95)       # Webhook ingest p95 — gate: < 500 ms
+metrics.scale_webhook_ms.values.p(99)       # Webhook ingest p99 — gate: < 1 000 ms
+metrics.http_req_failed.values.rate         # HTTP error rate — gate: < 1%
+metrics.scale_errors.values.rate            # check() failure rate — gate: < 1%
+metrics.scale_webhook_errors.values.rate    # Webhook-specific error rate — gate: < 1%
+```
+
+**Consumer lag (`prometheus-lag-dump-*.json`):**
+
+The `data.result[*].value[1]` field holds the current lag in messages.
+
+| Lag              | Level    | Action                                                    |
+|------------------|----------|-----------------------------------------------------------|
+| < 50 messages    | OK       | Consumer draining normally; no action                     |
+| 50 – 200         | WARNING  | Consumer falling behind; review NATS consumer config      |
+| > 200 messages   | CRITICAL | Consumer overloaded; scale payments service or tune batch |
+
+If Prometheus was unreachable, the dump contains `"status":"error"` — check the
+Grafana **Payments — Consumer Lag** panel manually.
+
+**After a breach:** Update `docs/SCALE-ENVELOPE.md` (Run History section) with the
+actual p95/p99 values, classify the bottleneck against Section 3, and apply the
+relevant mitigation from Section 5.
+
+---
+
 ## Adding new scenarios
 
 1. Create `tools/perf/<scenario>.js`
