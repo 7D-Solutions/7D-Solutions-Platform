@@ -87,6 +87,7 @@ async fn main() {
         .route("/api/reporting/ar-aging", get(http::aging::get_ar_aging))
         .route("/api/reporting/ap-aging", get(http::aging::get_ap_aging))
         .route("/api/reporting/kpis", get(http::kpis::get_kpis))
+        .route("/api/reporting/forecast", get(http::forecast::get_forecast))
         .with_state(app_state)
         .merge(reporting_mutations)
         .merge(http::admin::admin_router(pool.clone()))
