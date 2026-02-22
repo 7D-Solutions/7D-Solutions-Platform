@@ -1,13 +1,9 @@
 //! AR event ingestion for the reporting module.
 //!
-//! Provides an [`ArAgingHandler`] that subscribes to `ar.events.ar.ar_aging_updated`
-//! and populates the `rpt_ar_aging_cache` table with aging bucket data.
-//!
-//! ## Design
-//!
-//! The AR module emits `ar.ar_aging_updated` events when aging projections are
-//! refreshed for a customer. This handler ingests those events and upserts bucket
-//! data into the reporting cache for cross-module queries and KPI aggregation.
+//! Handlers:
+//! - [`ArAgingHandler`]: `ar.events.ar.ar_aging_updated` → `rpt_ar_aging_cache`
+//! - [`InvoiceOpenedHandler`]: `ar.events.ar.invoice_opened` → `rpt_open_invoices_cache`
+//! - [`InvoicePaidHandler`]: `ar.events.ar.invoice_paid` → `rpt_payment_history` + cache transition
 //!
 //! ## Idempotency
 //!
@@ -15,14 +11,10 @@
 //! 1. **Framework layer** (`IngestConsumer`): skips events whose `event_id` matches
 //!    the checkpoint — covers normal re-delivery.
 //! 2. **Handler layer** (`ON CONFLICT DO UPDATE`): upserts replace values on the
-//!    cache's unique constraint `(tenant_id, as_of, customer_id, currency)`.
-//!
-//! ## Limitation (v1)
-//!
-//! The current AR event payload does not include `customer_id`. Events are stored
-//! with `customer_id = "_total"` as a tenant-level snapshot. Per-customer breakdowns
-//! require querying the AR module directly. The cache total reconciles with the
-//! most-recently-refreshed customer's aging.
+//!    cache's unique constraint.
+
+pub mod invoice_opened;
+pub mod invoice_paid;
 
 use std::sync::Arc;
 
@@ -34,6 +26,8 @@ use sqlx::PgPool;
 use event_bus::EventBus;
 
 use crate::ingest::{start_consumer, IngestConsumer, StreamHandler};
+use invoice_opened::{InvoiceOpenedHandler, CONSUMER_INVOICE_OPENED, SUBJECT_INVOICE_OPENED};
+use invoice_paid::{InvoicePaidHandler, CONSUMER_INVOICE_PAID, SUBJECT_INVOICE_PAID};
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -132,12 +126,25 @@ impl StreamHandler for ArAgingHandler {
 
 /// Register all AR ingestion consumers.
 ///
-/// Spawns a background task subscribing to `ar.events.ar.ar_aging_updated`
-/// and driving [`ArAgingHandler`].
+/// Spawns background tasks subscribing to:
+/// - `ar.events.ar.ar_aging_updated` → aging cache
+/// - `ar.events.ar.invoice_opened` → open invoices cache
+/// - `ar.events.ar.invoice_paid` → payment history + cache transition
 pub fn register_consumers(pool: PgPool, bus: Arc<dyn EventBus>) {
-    let handler = Arc::new(ArAgingHandler);
-    let consumer = IngestConsumer::new(CONSUMER_AR_AGING, pool, handler);
-    start_consumer(consumer, bus, SUBJECT_AR_AGING_UPDATED);
+    // Aging
+    let aging = Arc::new(ArAgingHandler);
+    let aging_consumer = IngestConsumer::new(CONSUMER_AR_AGING, pool.clone(), aging);
+    start_consumer(aging_consumer, bus.clone(), SUBJECT_AR_AGING_UPDATED);
+
+    // Invoice opened → rpt_open_invoices_cache
+    let opened = Arc::new(InvoiceOpenedHandler);
+    let opened_consumer = IngestConsumer::new(CONSUMER_INVOICE_OPENED, pool.clone(), opened);
+    start_consumer(opened_consumer, bus.clone(), SUBJECT_INVOICE_OPENED);
+
+    // Invoice paid → rpt_payment_history + cache transition
+    let paid = Arc::new(InvoicePaidHandler);
+    let paid_consumer = IngestConsumer::new(CONSUMER_INVOICE_PAID, pool, paid);
+    start_consumer(paid_consumer, bus, SUBJECT_INVOICE_PAID);
 }
 
 // ── Integrated tests (real DB + InMemoryBus, no mocks) ───────────────────────
