@@ -709,3 +709,22 @@ export const CreateTenantRequestSchema = z.object({
 });
 
 export type CreateTenantRequest = z.infer<typeof CreateTenantRequestSchema>;
+
+// ── Onboarding: Create Initial Tenant User ────────────────
+
+export const CreateTenantUserRequestSchema = z.object({
+  email: z.string().email('Valid email required'),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128, 'Password too long'),
+});
+
+export type CreateTenantUserRequest = z.infer<typeof CreateTenantUserRequestSchema>;
+
+export const CreateTenantUserResponseSchema = z.object({
+  id: z.string(),
+  email: z.string(),
+});
+
+export type CreateTenantUserResponse = z.infer<typeof CreateTenantUserResponseSchema>;

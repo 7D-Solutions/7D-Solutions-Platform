@@ -3,12 +3,11 @@
 // row/card toggle, column manager, and TanStack Query
 // ============================================================
 'use client';
-import { useState } from 'react';
+import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { Plus, Search, X } from 'lucide-react';
 import { Button, ViewToggle, DataTable, StatusBadge, Pagination } from '@/components/ui';
-import { CreateTenantModal } from './CreateTenantModal';
 import { usePersistedView } from '@/infrastructure/hooks/usePersistedView';
 import { useColumnManager } from '@/infrastructure/hooks/useColumnManager';
 import { usePagination } from '@/infrastructure/hooks/usePagination';
@@ -96,7 +95,6 @@ export default function TenantsPage() {
   const router = useRouter();
   const { viewMode, setViewMode } = usePersistedView('tenants');
   const columnManager = useColumnManager('tenant-list', DEFAULT_COLUMNS);
-  const [showCreate, setShowCreate] = useState(false);
 
   // Zustand stores for search and filters (ESLint-enforced — no ad-hoc useState)
   const { searchTerm, setSearchTerm } = useSearchStore('tenant-list');
@@ -155,7 +153,7 @@ export default function TenantsPage() {
             size="sm"
             icon={Plus}
             iconPosition="left"
-            onClick={() => setShowCreate(true)}
+            onClick={() => router.push('/tenants/new')}
             data-testid="new-tenant-btn"
           >
             New Tenant
@@ -163,8 +161,6 @@ export default function TenantsPage() {
           <ViewToggle value={viewMode} onChange={setViewMode} />
         </div>
       </div>
-
-      <CreateTenantModal isOpen={showCreate} onClose={() => setShowCreate(false)} />
 
       {/* Search + Filters bar */}
       <div

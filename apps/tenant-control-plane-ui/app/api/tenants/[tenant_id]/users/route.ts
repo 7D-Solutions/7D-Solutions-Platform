@@ -2,12 +2,14 @@
 // GET /api/tenants/[tenant_id]/users — BFF proxy to identity-auth
 // Returns tenant-scoped user list. Falls back to seed data when
 // identity-auth is unavailable.
+// POST /api/tenants/[tenant_id]/users — Create initial admin user via
+// identity-auth /api/auth/register (used by the onboarding wizard).
 // Auth: requires platform_admin JWT in httpOnly cookie
 // ============================================================
 import { NextRequest, NextResponse } from 'next/server';
 import { guardPlatformAdmin } from '@/lib/server/auth';
 import { IDENTITY_AUTH_BASE_URL } from '@/lib/constants';
-import { TenantUserListResponseSchema } from '@/lib/api/types';
+import { TenantUserListResponseSchema, CreateTenantUserRequestSchema } from '@/lib/api/types';
 import type { TenantUserListResponse } from '@/lib/api/types';
 
 export async function GET(
@@ -69,5 +71,70 @@ export async function GET(
       total: 3,
     };
     return NextResponse.json(fallback);
+  }
+}
+
+// ── POST /api/tenants/[tenant_id]/users ─────────────────────
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ tenant_id: string }> }
+) {
+  const auth = await guardPlatformAdmin();
+  if (auth instanceof Response) return auth;
+
+  const { tenant_id } = await params;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const parsed = CreateTenantUserRequestSchema.safeParse(body);
+  if (!parsed.success) {
+    const firstError = parsed.error.errors[0]?.message ?? 'Invalid request';
+    return NextResponse.json({ error: firstError }, { status: 422 });
+  }
+
+  // Generate a server-side user_id so the browser never controls identity UUIDs
+  const user_id = crypto.randomUUID();
+
+  try {
+    const upstreamUrl = `${IDENTITY_AUTH_BASE_URL}/api/auth/register`;
+    const res = await fetch(upstreamUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant_id,
+        user_id,
+        email: parsed.data.email,
+        password: parsed.data.password,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (res.status === 404 || res.status === 405) {
+      return NextResponse.json(
+        { error: 'User registration not available. Use tenantctl CLI.' },
+        { status: 501 },
+      );
+    }
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({ error: `Upstream error: ${res.status}` }));
+      return NextResponse.json(
+        { error: errBody.error ?? `Upstream error: ${res.status}` },
+        { status: res.status >= 500 ? 502 : res.status },
+      );
+    }
+
+    return NextResponse.json({ id: user_id, email: parsed.data.email }, { status: 201 });
+  } catch {
+    return NextResponse.json(
+      { error: 'User registration not available. Use tenantctl CLI.' },
+      { status: 503 },
+    );
   }
 }
