@@ -11,6 +11,8 @@ import { AUTH_COOKIE_NAME, REQUIRED_ROLE } from '@/lib/constants';
 function isPublicRoute(pathname: string): boolean {
   if (pathname === '/login' || pathname.startsWith('/login')) return true;
   if (pathname === '/forbidden' || pathname.startsWith('/forbidden')) return true;
+  // Hosted pay portal — customer-facing, no staff auth required
+  if (pathname.startsWith('/pay/')) return true;
   if (pathname.startsWith('/api/')) return true;
   if (pathname.startsWith('/_next/')) return true;
   if (pathname === '/favicon.ico') return true;

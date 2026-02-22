@@ -54,8 +54,15 @@ pub struct CheckoutSessionStatusResponse {
     pub status: String,
     pub payment_intent_id: String,
     pub invoice_id: String,
+    pub tenant_id: String,
     pub amount: i32,
     pub currency: String,
+    /// Tilled.js client secret — used by hosted pay page to init Tilled.js
+    pub client_secret: String,
+    /// URL to redirect after successful payment (stored at creation time)
+    pub return_url: Option<String>,
+    /// URL to redirect after cancelled payment (stored at creation time)
+    pub cancel_url: Option<String>,
 }
 
 /// Error response body
@@ -77,6 +84,26 @@ impl IntoResponse for ApiError {
 }
 
 // ============================================================================
+// URL validation
+// ============================================================================
+
+/// Validate that a redirect URL is absolute HTTPS with no injection characters.
+/// Enforces: https:// scheme, max 2048 chars, no control characters.
+fn validate_https_url(url: &str) -> bool {
+    if !url.starts_with("https://") {
+        return false;
+    }
+    if url.len() > 2048 {
+        return false;
+    }
+    // Reject control characters (injection prevention)
+    if url.chars().any(|c| (c as u32) < 0x20) {
+        return false;
+    }
+    true
+}
+
+// ============================================================================
 // POST /api/payments/checkout-sessions
 // ============================================================================
 
@@ -95,6 +122,24 @@ pub async fn create_checkout_session(
             status: StatusCode::BAD_REQUEST,
             message: "amount must be positive".to_string(),
         });
+    }
+
+    // Strict URL validation: absolute HTTPS only, no injection
+    if let Some(ref url) = req.return_url {
+        if !validate_https_url(url) {
+            return Err(ApiError {
+                status: StatusCode::BAD_REQUEST,
+                message: "return_url must be an absolute HTTPS URL".to_string(),
+            });
+        }
+    }
+    if let Some(ref url) = req.cancel_url {
+        if !validate_https_url(url) {
+            return Err(ApiError {
+                status: StatusCode::BAD_REQUEST,
+                message: "cancel_url must be an absolute HTTPS URL".to_string(),
+            });
+        }
     }
 
     let (pi_id, client_secret) = if let (Some(api_key), Some(account_id)) = (
@@ -165,12 +210,18 @@ pub async fn get_checkout_session(
         status: String,
         processor_payment_id: String,
         invoice_id: String,
+        tenant_id: String,
         amount_minor: i32,
         currency: String,
+        client_secret: String,
+        return_url: Option<String>,
+        cancel_url: Option<String>,
     }
 
     let row: Option<SessionRow> = sqlx::query_as(
-        "SELECT status, processor_payment_id, invoice_id, amount_minor, currency FROM checkout_sessions WHERE id = $1",
+        r#"SELECT status, processor_payment_id, invoice_id, tenant_id,
+                  amount_minor, currency, client_secret, return_url, cancel_url
+           FROM checkout_sessions WHERE id = $1"#,
     )
     .bind(session_id)
     .fetch_optional(&state.pool)
@@ -184,6 +235,14 @@ pub async fn get_checkout_session(
         status: StatusCode::NOT_FOUND,
         message: format!("Checkout session not found: {}", session_id),
     })?;
+
+    // Tenant validation: session must belong to a real tenant
+    if session.tenant_id.is_empty() {
+        return Err(ApiError {
+            status: StatusCode::NOT_FOUND,
+            message: "Checkout session not found".to_string(),
+        });
+    }
 
     // For non-terminal sessions, poll Tilled for live status
     let status = if session.status == "pending" {
@@ -218,8 +277,12 @@ pub async fn get_checkout_session(
         status,
         payment_intent_id: session.processor_payment_id,
         invoice_id: session.invoice_id,
+        tenant_id: session.tenant_id,
         amount: session.amount_minor,
         currency: session.currency,
+        client_secret: session.client_secret,
+        return_url: session.return_url,
+        cancel_url: session.cancel_url,
     }))
 }
 

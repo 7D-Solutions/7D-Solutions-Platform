@@ -429,7 +429,6 @@ mod tests {
         let mut rng = rand::thread_rng();
         let old_priv = RsaPrivateKey::new(&mut rng, 2048).unwrap();
         let old_pub_pem = old_priv.to_public_key().to_public_key_pem(LineEnding::LF).unwrap();
-        let old_priv_pem = old_priv.to_pkcs8_pem(LineEnding::LF).unwrap();
 
         let new_priv = RsaPrivateKey::new(&mut rng, 2048).unwrap();
         let new_pub_pem = new_priv.to_public_key().to_public_key_pem(LineEnding::LF).unwrap();

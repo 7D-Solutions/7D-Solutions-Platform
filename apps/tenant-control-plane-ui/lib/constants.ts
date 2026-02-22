@@ -58,3 +58,6 @@ export const AUDIT_SERVICE_BASE_URL = process.env.AUDIT_SERVICE_BASE_URL ?? 'htt
 
 // Audit max page size — hard ceiling for BFF validation
 export const AUDIT_MAX_PAGE_SIZE = 100;
+
+// Payments service URL (server-side only — BFF routes and server components)
+export const PAYMENTS_BASE_URL = process.env.PAYMENTS_BASE_URL ?? 'http://localhost:8088';
