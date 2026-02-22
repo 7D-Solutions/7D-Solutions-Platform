@@ -74,7 +74,7 @@ async fn main() {
         metrics,
     });
 
-    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+    let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
     let inv_mutations = Router::new()
         // Item master — write

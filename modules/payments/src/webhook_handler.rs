@@ -130,12 +130,12 @@ pub async fn update_payment_status_from_webhook(
     webhook_source: WebhookSource,
     headers: &std::collections::HashMap<String, String>,
     body: &[u8],
-    tilled_secret: Option<&str>,
+    tilled_secrets: &[&str],
 ) -> Result<(), WebhookError> {
     // ==========================================================================
     // STEP 1: Signature Validation (BEFORE any database writes)
     // ==========================================================================
-    validate_webhook_signature(webhook_source, headers, body, tilled_secret)?;
+    validate_webhook_signature(webhook_source, headers, body, tilled_secrets)?;
 
     // ==========================================================================
     // STEP 2: Envelope Validation (existing pattern - reuse if needed)

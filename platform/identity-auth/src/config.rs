@@ -11,6 +11,10 @@ pub struct Config {
     pub jwt_private_key_pem: String,
     pub jwt_public_key_pem: String,
     pub jwt_kid: String,
+    /// Previous (retiring) JWT public key — present only during rotation overlap.
+    pub jwt_prev_public_key_pem: Option<String>,
+    /// key ID for the previous JWT key.
+    pub jwt_prev_kid: Option<String>,
 
     pub access_token_ttl_minutes: i64,
     pub refresh_token_ttl_days: i64,
@@ -63,6 +67,8 @@ impl Config {
             jwt_private_key_pem: env::var("JWT_PRIVATE_KEY_PEM")?,
             jwt_public_key_pem: env::var("JWT_PUBLIC_KEY_PEM")?,
             jwt_kid: env::var("JWT_KID").unwrap_or_else(|_| "auth-key-1".to_string()),
+            jwt_prev_public_key_pem: env::var("JWT_PREV_PUBLIC_KEY_PEM").ok().filter(|s| !s.is_empty()),
+            jwt_prev_kid: env::var("JWT_PREV_KID").ok().filter(|s| !s.is_empty()),
 
             access_token_ttl_minutes: env::var("ACCESS_TOKEN_TTL_MINUTES")
                 .unwrap_or_else(|_| "15".to_string())

@@ -73,7 +73,7 @@ async fn main() {
     consumer_tasks::start_payment_failed_consumer(bus.clone(), db.clone()).await;
 
     // HTTP server configuration
-    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+    let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
     let app = Router::new()
         .route("/healthz", get(health::healthz))

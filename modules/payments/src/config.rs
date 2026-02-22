@@ -61,6 +61,10 @@ pub struct Config {
     pub tilled_account_id: Option<String>,
     /// Tilled webhook secret for signature verification (required when PAYMENTS_PROVIDER=tilled)
     pub tilled_webhook_secret: Option<String>,
+    /// Previous Tilled webhook secret — present only during rotation overlap window.
+    /// Set `TILLED_WEBHOOK_SECRET_PREV` to the retiring secret, deploy, then clear it
+    /// once Tilled is no longer sending webhooks signed with the old secret.
+    pub tilled_webhook_secret_prev: Option<String>,
 }
 
 impl Config {
@@ -138,6 +142,7 @@ impl Config {
         let tilled_api_key = env::var("TILLED_API_KEY").ok();
         let tilled_account_id = env::var("TILLED_ACCOUNT_ID").ok();
         let tilled_webhook_secret = env::var("TILLED_WEBHOOK_SECRET").ok();
+        let tilled_webhook_secret_prev = env::var("TILLED_WEBHOOK_SECRET_PREV").ok();
 
         let config = Config {
             database_url,
@@ -149,6 +154,7 @@ impl Config {
             tilled_api_key,
             tilled_account_id,
             tilled_webhook_secret,
+            tilled_webhook_secret_prev,
         };
 
         config.validate()?;
@@ -223,6 +229,7 @@ mod tests {
             tilled_api_key: None,
             tilled_account_id: None,
             tilled_webhook_secret: None,
+            tilled_webhook_secret_prev: None,
         }
     }
 

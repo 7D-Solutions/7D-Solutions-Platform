@@ -47,11 +47,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     crate::events::validate::load_schemas_from_dir(&schema_dir)?;
 
     // JWT keys
-    let jwt = crate::auth::jwt::JwtKeys::from_pem(
+    let mut jwt = crate::auth::jwt::JwtKeys::from_pem(
         &cfg.jwt_private_key_pem.replace("\\n", "\n"),
         &cfg.jwt_public_key_pem.replace("\\n", "\n"),
         cfg.jwt_kid.clone(),
     )?;
+    // Attach previous key during zero-downtime rotation overlap window.
+    if let (Some(prev_pem), Some(prev_kid)) = (&cfg.jwt_prev_public_key_pem, &cfg.jwt_prev_kid) {
+        jwt.with_prev_key(&prev_pem.replace("\\n", "\n"), prev_kid.clone())?;
+        tracing::info!(prev_kid = %prev_kid, "JWT rotation overlap: accepting tokens signed by previous key");
+    }
 
     // Password policy
     let pwd = crate::auth::password::PasswordPolicy {

@@ -27,6 +27,8 @@ pub struct AppState {
     pub tilled_account_id: Option<String>,
     /// Tilled webhook HMAC secret (set when PAYMENTS_PROVIDER=tilled)
     pub tilled_webhook_secret: Option<String>,
+    /// Previous Tilled webhook secret — set only during rotation overlap window.
+    pub tilled_webhook_secret_prev: Option<String>,
 }
 
 pub use consumer_task::start_payment_collection_consumer;

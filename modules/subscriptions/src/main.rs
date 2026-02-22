@@ -107,7 +107,7 @@ async fn main() {
         .parse()
         .expect("PORT must be a valid u16");
 
-    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+    let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
     let app = Router::new()
         .route("/healthz", get(health::healthz))

@@ -118,9 +118,10 @@ async fn main() {
         tilled_api_key: config.tilled_api_key.clone(),
         tilled_account_id: config.tilled_account_id.clone(),
         tilled_webhook_secret: config.tilled_webhook_secret.clone(),
+        tilled_webhook_secret_prev: config.tilled_webhook_secret_prev.clone(),
     });
 
-    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+    let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
     let app = Router::new()
         .route("/healthz", get(health::healthz))

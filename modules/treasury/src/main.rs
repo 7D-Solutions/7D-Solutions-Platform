@@ -95,7 +95,7 @@ async fn main() {
         ])
         .allow_credentials(true);
 
-    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+    let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
     let treasury_mutations = Router::new()
         // Accounts — write

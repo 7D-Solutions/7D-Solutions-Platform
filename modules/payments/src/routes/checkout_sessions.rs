@@ -240,9 +240,17 @@ pub async fn tilled_webhook(
         })
         .collect();
 
-    let secret = state.tilled_webhook_secret.as_deref();
+    let secret_str = state.tilled_webhook_secret.as_deref().unwrap_or("");
+    let prev_str = state.tilled_webhook_secret_prev.as_deref().unwrap_or("");
+    let mut secrets: Vec<&str> = Vec::with_capacity(2);
+    if !secret_str.is_empty() {
+        secrets.push(secret_str);
+    }
+    if !prev_str.is_empty() {
+        secrets.push(prev_str);
+    }
 
-    validate_webhook_signature(WebhookSource::Tilled, &header_map, &body, secret).map_err(|e| {
+    validate_webhook_signature(WebhookSource::Tilled, &header_map, &body, &secrets).map_err(|e| {
         ApiError {
             status: StatusCode::UNAUTHORIZED,
             message: format!("Webhook signature invalid: {}", e),

@@ -147,7 +147,7 @@ async fn main() {
     });
 
     // Optional JWT verifier for claims extraction (requires JWT_PUBLIC_KEY env var).
-    let maybe_verifier = JwtVerifier::from_env().map(Arc::new);
+    let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
     // GL mutation routes — require gl.post permission.
     let gl_mutations = Router::new()

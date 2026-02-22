@@ -83,6 +83,8 @@ struct RawAccessClaims {
 pub struct JwtVerifier {
     decoding: DecodingKey,
     validation: Validation,
+    // Previous key present during zero-downtime JWT key rotation overlap.
+    prev_decoding: Option<DecodingKey>,
 }
 
 impl JwtVerifier {
@@ -99,7 +101,21 @@ impl JwtVerifier {
         Ok(Self {
             decoding,
             validation,
+            prev_decoding: None,
         })
+    }
+
+    /// Attach a previous (retiring) public key for zero-downtime rotation.
+    ///
+    /// During the rotation overlap window, tokens signed by either key are
+    /// accepted. Remove `JWT_PUBLIC_KEY_PREV` once all outstanding tokens
+    /// signed by the old key have expired (typically after one TTL cycle).
+    pub fn with_prev_key(&mut self, pem: &str) -> Result<(), String> {
+        self.prev_decoding = Some(
+            DecodingKey::from_rsa_pem(pem.as_bytes())
+                .map_err(|e| format!("invalid prev public key: {e}"))?,
+        );
+        Ok(())
     }
 
     /// Create a verifier from the `JWT_PUBLIC_KEY` environment variable.
@@ -116,19 +132,47 @@ impl JwtVerifier {
             .ok()
     }
 
+    /// Like [`from_env`] but also reads `JWT_PUBLIC_KEY_PREV` for the rotation
+    /// overlap window. Use this constructor in all service startup paths so that
+    /// key rotation requires only an env-var update + rolling restart.
+    pub fn from_env_with_overlap() -> Option<Self> {
+        let pem = std::env::var("JWT_PUBLIC_KEY").ok()?;
+        let mut verifier = Self::from_public_pem(&pem)
+            .map_err(|e| tracing::warn!("JWT_PUBLIC_KEY is set but invalid: {}", e))
+            .ok()?;
+
+        if let Ok(prev_pem) = std::env::var("JWT_PUBLIC_KEY_PREV") {
+            if let Err(e) = verifier.with_prev_key(&prev_pem) {
+                tracing::warn!("JWT_PUBLIC_KEY_PREV is set but invalid: {}", e);
+            }
+        }
+
+        Some(verifier)
+    }
+
     /// Verify a Bearer token and return structured claims.
     pub fn verify(&self, token: &str) -> Result<VerifiedClaims, SecurityError> {
-        let data =
-            jsonwebtoken::decode::<RawAccessClaims>(token, &self.decoding, &self.validation)
-                .map_err(|e| match e.kind() {
+        match jsonwebtoken::decode::<RawAccessClaims>(token, &self.decoding, &self.validation) {
+            Ok(data) => Self::convert_raw(data.claims),
+            Err(primary_err) => {
+                // During rotation overlap: try the previous key before failing.
+                if let Some(ref prev) = self.prev_decoding {
+                    if let Ok(data) = jsonwebtoken::decode::<RawAccessClaims>(
+                        token,
+                        prev,
+                        &self.validation,
+                    ) {
+                        return Self::convert_raw(data.claims);
+                    }
+                }
+                Err(match primary_err.kind() {
                     jsonwebtoken::errors::ErrorKind::ExpiredSignature => {
                         SecurityError::TokenExpired
                     }
                     _ => SecurityError::InvalidToken,
-                })?;
-
-        let raw = data.claims;
-        Self::convert_raw(raw)
+                })
+            }
+        }
     }
 
     fn convert_raw(raw: RawAccessClaims) -> Result<VerifiedClaims, SecurityError> {
@@ -290,5 +334,43 @@ mod tests {
         assert_eq!(ActorType::User.as_str(), "user");
         assert_eq!(ActorType::Service.as_str(), "service");
         assert_eq!(ActorType::System.as_str(), "system");
+    }
+
+    /// Zero-downtime JWT rotation: verifier configured with new primary key and
+    /// old retiring key must accept tokens signed by either key during the overlap window.
+    #[test]
+    fn rotation_overlap_accepts_token_from_prev_key() {
+        let (old_enc, old_pub_pem) = make_keys();
+        let (_new_enc, new_pub_pem) = make_keys();
+
+        // Token was issued before rotation — signed with the OLD key
+        let old_claims = default_claims();
+        let token_signed_with_old_key = sign_test_token(&old_enc, &old_claims);
+
+        // New verifier uses new primary key + old key as prev (overlap window)
+        let mut verifier = JwtVerifier::from_public_pem(&new_pub_pem).unwrap();
+        verifier.with_prev_key(&old_pub_pem).unwrap();
+
+        // Old token must still verify successfully during overlap
+        let verified = verifier.verify(&token_signed_with_old_key).unwrap();
+        assert_eq!(verified.roles, vec!["admin"]);
+        assert_eq!(verified.actor_type, ActorType::User);
+    }
+
+    /// After the overlap window ends (prev key cleared), tokens signed by the old
+    /// key must be rejected.
+    #[test]
+    fn rotation_overlap_ends_old_token_rejected() {
+        let (old_enc, _old_pub_pem) = make_keys();
+        let (_new_enc, new_pub_pem) = make_keys();
+
+        let old_claims = default_claims();
+        let token_signed_with_old_key = sign_test_token(&old_enc, &old_claims);
+
+        // Verifier with ONLY the new key (overlap has ended)
+        let verifier = JwtVerifier::from_public_pem(&new_pub_pem).unwrap();
+
+        // Old-key token must now be rejected
+        assert!(matches!(verifier.verify(&token_signed_with_old_key), Err(SecurityError::InvalidToken)));
     }
 }

@@ -77,7 +77,8 @@ pub enum WebhookSource {
 /// **CRITICAL INVARIANT:** Must be called first — no DB I/O before this.
 ///
 /// - `Internal` events always pass (no external signature needed).
-/// - `Tilled` events require `tilled_secret` to be `Some(secret)`.
+/// - `Tilled` events require at least one secret in `tilled_secrets`.
+///   Pass two secrets during zero-downtime rotation (old + new both valid).
 /// - `Stripe` is not yet implemented.
 ///
 /// Tilled signature format: `tilled-signature: t=<unix_ts>,v1=<hex_sig>`
@@ -86,7 +87,7 @@ pub fn validate_webhook_signature(
     source: WebhookSource,
     headers: &std::collections::HashMap<String, String>,
     body: &[u8],
-    tilled_secret: Option<&str>,
+    tilled_secrets: &[&str],
 ) -> Result<(), SignatureError> {
     match source {
         WebhookSource::Internal => Ok(()),
@@ -94,10 +95,20 @@ pub fn validate_webhook_signature(
             source: "stripe".to_string(),
         }),
         WebhookSource::Tilled => {
-            let secret = tilled_secret.ok_or(SignatureError::InvalidSignature {
-                reason: "Tilled webhook secret not configured".to_string(),
-            })?;
-            verify_tilled_signature(body, headers, secret)
+            if tilled_secrets.is_empty() {
+                return Err(SignatureError::InvalidSignature {
+                    reason: "Tilled webhook secret not configured".to_string(),
+                });
+            }
+            // Try each secret; succeed on the first match (supports rotation overlap).
+            let mut last_err = SignatureError::MissingSignature;
+            for secret in tilled_secrets {
+                match verify_tilled_signature(body, headers, secret) {
+                    Ok(()) => return Ok(()),
+                    Err(e) => last_err = e,
+                }
+            }
+            Err(last_err)
         }
     }
 }
@@ -199,14 +210,14 @@ mod tests {
     fn test_internal_webhook_always_valid() {
         let headers = HashMap::new();
         let body = b"{}";
-        assert!(validate_webhook_signature(WebhookSource::Internal, &headers, body, None).is_ok());
+        assert!(validate_webhook_signature(WebhookSource::Internal, &headers, body, &[]).is_ok());
     }
 
     #[test]
     fn test_stripe_webhook_unsupported() {
         let headers = HashMap::new();
         let body = b"{}";
-        let result = validate_webhook_signature(WebhookSource::Stripe, &headers, body, None);
+        let result = validate_webhook_signature(WebhookSource::Stripe, &headers, body, &[]);
         assert_eq!(
             result.unwrap_err(),
             SignatureError::UnsupportedSource { source: "stripe".to_string() }
@@ -218,7 +229,7 @@ mod tests {
         let headers = HashMap::new();
         let body = b"{}";
         let result = validate_webhook_signature(
-            WebhookSource::Tilled, &headers, body, Some("secret"),
+            WebhookSource::Tilled, &headers, body, &["secret"],
         );
         assert_eq!(result.unwrap_err(), SignatureError::MissingSignature);
     }
@@ -232,7 +243,7 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert("tilled-signature".to_string(), sig_header);
         assert!(
-            validate_webhook_signature(WebhookSource::Tilled, &headers, body, Some(secret)).is_ok()
+            validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]).is_ok()
         );
     }
 
@@ -245,7 +256,7 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert("tilled-signature".to_string(), sig_header);
         let result =
-            validate_webhook_signature(WebhookSource::Tilled, &headers, body, Some(secret));
+            validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
         assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignature { .. }));
     }
 
@@ -259,7 +270,7 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert("tilled-signature".to_string(), sig_header);
         let result =
-            validate_webhook_signature(WebhookSource::Tilled, &headers, body, Some(secret));
+            validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
         assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignature { reason } if reason.contains("replay window")));
     }
 
@@ -268,7 +279,37 @@ mod tests {
         let body = b"{}";
         let mut headers = HashMap::new();
         headers.insert("tilled-signature".to_string(), "t=123,v1=abc".to_string());
-        let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, None);
+        let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[]);
+        assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignature { .. }));
+    }
+
+    #[test]
+    fn test_tilled_rotation_overlap_accepts_prev_secret() {
+        let new_secret = "whsec_new_secret";
+        let old_secret = "whsec_old_secret";
+        let body = b"{\"type\":\"payment_intent.succeeded\"}";
+        let ts = now_ts();
+        // Webhook arrives signed with the OLD secret (rotation in progress)
+        let sig_header = make_tilled_sig(old_secret, ts, body);
+        let mut headers = HashMap::new();
+        headers.insert("tilled-signature".to_string(), sig_header);
+        // Both secrets in the slice — should pass via old_secret fallback
+        assert!(
+            validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[new_secret, old_secret]).is_ok()
+        );
+    }
+
+    #[test]
+    fn test_tilled_rotation_overlap_rejects_unknown_secret() {
+        let new_secret = "whsec_new_secret";
+        let old_secret = "whsec_old_secret";
+        let body = b"{}";
+        let ts = now_ts();
+        let sig_header = make_tilled_sig("whsec_unknown", ts, body);
+        let mut headers = HashMap::new();
+        headers.insert("tilled-signature".to_string(), sig_header);
+        // Neither new nor old match
+        let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[new_secret, old_secret]);
         assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignature { .. }));
     }
 
