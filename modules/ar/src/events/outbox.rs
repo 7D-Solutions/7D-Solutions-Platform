@@ -69,6 +69,67 @@ pub async fn enqueue_event<T: Serialize>(
     Ok(())
 }
 
+/// Idempotent transactional enqueue: ON CONFLICT (event_id) DO NOTHING
+///
+/// Use when the caller supplies a deterministic event_id derived from a
+/// business key (e.g. `Uuid::new_v5(NAMESPACE_OID, key.as_bytes())`).
+/// Duplicate inserts silently succeed — exactly-once guaranteed by the
+/// UNIQUE constraint on events_outbox.event_id.
+pub async fn enqueue_event_tx_idempotent<T: Serialize>(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    event_type: &str,
+    aggregate_type: &str,
+    aggregate_id: &str,
+    envelope: &EventEnvelope<T>,
+) -> Result<(), sqlx::Error> {
+    let payload = validate_and_serialize_envelope(envelope)
+        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Envelope validation failed: {}", e),
+        ))))?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO events_outbox (
+            event_id, event_type, aggregate_type, aggregate_id, payload,
+            tenant_id, source_module, source_version, schema_version,
+            occurred_at, replay_safe, trace_id, correlation_id, causation_id,
+            reverses_event_id, supersedes_event_id, side_effect_id, mutation_class
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+        ON CONFLICT (event_id) DO NOTHING
+        "#,
+    )
+    .bind(envelope.event_id)
+    .bind(event_type)
+    .bind(aggregate_type)
+    .bind(aggregate_id)
+    .bind(payload)
+    .bind(&envelope.tenant_id)
+    .bind(&envelope.source_module)
+    .bind(&envelope.source_version)
+    .bind(&envelope.schema_version)
+    .bind(envelope.occurred_at)
+    .bind(envelope.replay_safe)
+    .bind(&envelope.trace_id)
+    .bind(&envelope.correlation_id)
+    .bind(&envelope.causation_id)
+    .bind(&envelope.reverses_event_id)
+    .bind(&envelope.supersedes_event_id)
+    .bind(&envelope.side_effect_id)
+    .bind(&envelope.mutation_class)
+    .execute(&mut **tx)
+    .await?;
+
+    tracing::debug!(
+        event_id = %envelope.event_id,
+        event_type = %event_type,
+        "Event enqueued to outbox (idempotent)"
+    );
+
+    Ok(())
+}
+
 /// Fetch unpublished events from outbox (used by background publisher)
 pub async fn fetch_unpublished_events(
     db: &PgPool,

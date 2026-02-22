@@ -5,6 +5,9 @@ use axum::{
 };
 use sqlx::PgPool;
 
+use crate::events::contracts::{
+    build_invoice_opened_envelope, InvoiceLifecyclePayload, EVENT_TYPE_INVOICE_OPENED,
+};
 use crate::models::{
     CreateInvoiceRequest, Customer, ErrorResponse, FinalizeInvoiceRequest, Invoice,
     ListInvoicesQuery, PaymentCollectionRequestedPayload, Subscription, UpdateInvoiceRequest,
@@ -146,6 +149,18 @@ pub async fn create_invoice(
     let tilled_invoice_id = format!("in_{}_{}", app_id, uuid::Uuid::new_v4());
     let currency = req.currency.unwrap_or_else(|| "usd".to_string());
 
+    // Begin transaction: INSERT + outbox emit must be atomic
+    let mut tx = db.begin().await.map_err(|e| {
+        tracing::error!("Failed to begin transaction: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new(
+                "database_error",
+                format!("Failed to begin transaction: {}", e),
+            )),
+        )
+    })?;
+
     // Create invoice
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"
@@ -178,7 +193,7 @@ pub async fn create_invoice(
     .bind(req.compliance_codes)
     .bind(req.correlation_id)
     .bind(req.party_id)
-    .fetch_one(&db)
+    .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
         tracing::error!("Failed to create invoice: {:?}", e);
@@ -191,8 +206,55 @@ pub async fn create_invoice(
         )
     })?;
 
+    // Emit ar.invoice_opened — idempotency key: ar.events.ar.invoice_opened:{invoice_id}
+    let idem_key = format!("ar.events.ar.invoice_opened:{}", invoice.id);
+    let event_id = uuid::Uuid::new_v5(&uuid::Uuid::NAMESPACE_OID, idem_key.as_bytes());
+    let event_payload = InvoiceLifecyclePayload {
+        invoice_id: invoice.id.to_string(),
+        customer_id: invoice.ar_customer_id.to_string(),
+        app_id: app_id.to_string(),
+        amount_cents: invoice.amount_cents,
+        currency: invoice.currency.clone(),
+        created_at: invoice.created_at,
+        due_at: invoice.due_at,
+        paid_at: invoice.paid_at,
+    };
+    let envelope = build_invoice_opened_envelope(
+        event_id,
+        app_id.to_string(),
+        uuid::Uuid::new_v4().to_string(),
+        None,
+        event_payload,
+    );
+    crate::events::outbox::enqueue_event_tx_idempotent(
+        &mut tx,
+        EVENT_TYPE_INVOICE_OPENED,
+        "invoice",
+        &invoice.id.to_string(),
+        &envelope,
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("Failed to enqueue invoice_opened event: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new("outbox_error", format!("Failed to enqueue event: {}", e))),
+        )
+    })?;
+
+    tx.commit().await.map_err(|e| {
+        tracing::error!("Failed to commit create_invoice transaction: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new(
+                "transaction_error",
+                format!("Failed to commit transaction: {}", e),
+            )),
+        )
+    })?;
+
     tracing::info!(
-        "Created invoice {} for customer {} (amount: {})",
+        "Created invoice {} for customer {} (amount: {}), invoice_opened event enqueued",
         invoice.id,
         req.ar_customer_id,
         req.amount_cents

@@ -1,11 +1,15 @@
 use event_bus::consumer_retry::{retry_with_backoff, RetryConfig};
 use event_bus::{BusMessage, EventBus};
 use futures::StreamExt;
-use sqlx::PgPool;
+use sqlx::{PgPool, Row};
 use std::sync::Arc;
 use tracing::Instrument;
 use uuid::Uuid;
 
+use crate::events::contracts::{
+    build_invoice_paid_envelope, InvoiceLifecyclePayload, EVENT_TYPE_INVOICE_PAID,
+};
+use crate::events::outbox::enqueue_event_tx_idempotent;
 use crate::events::{is_event_processed, mark_event_processed};
 use crate::models::PaymentSucceededPayload;
 
@@ -157,39 +161,86 @@ pub async fn process_payment_succeeded(
     Ok(())
 }
 
-/// Handle payment.succeeded event by marking the invoice as paid
-async fn handle_payment_succeeded(
+/// Handle payment.succeeded event: mark invoice paid + emit ar.invoice_paid outbox event.
+///
+/// Guard: only emits if previous status != 'paid' (UPDATE WHERE status != 'paid').
+/// Idempotency key: ar.events.ar.invoice_paid:{invoice_id} → deterministic UUID v5.
+/// The outbox INSERT uses ON CONFLICT DO NOTHING — replay-safe.
+pub async fn handle_payment_succeeded(
     pool: &PgPool,
     payload: &PaymentSucceededPayload,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // Parse invoice_id from String to i32
     let invoice_id: i32 = payload.invoice_id.parse()
         .map_err(|e| format!("Failed to parse invoice_id '{}': {}", payload.invoice_id, e))?;
 
-    // Update invoice status to 'paid'
-    let result = sqlx::query(
+    let mut tx = pool.begin().await?;
+
+    // UPDATE with RETURNING — only fires if status != 'paid' (guard)
+    let row = sqlx::query(
         r#"
         UPDATE ar_invoices
         SET status = 'paid',
+            paid_at = NOW(),
             updated_at = NOW()
         WHERE id = $1
           AND status != 'paid'
+        RETURNING id, app_id, ar_customer_id, amount_cents, currency,
+                  created_at, due_at, paid_at
         "#,
     )
     .bind(invoice_id)
-    .execute(pool)
+    .fetch_optional(&mut *tx)
     .await?;
 
-    if result.rows_affected() == 0 {
-        tracing::warn!(
-            invoice_id = %payload.invoice_id,
-            "Invoice not found or already paid"
+    if let Some(row) = row {
+        let app_id: String = row.get("app_id");
+        let customer_id: i32 = row.get("ar_customer_id");
+        let amount_cents: i32 = row.get("amount_cents");
+        let currency: String = row.get("currency");
+        let created_at = row.get("created_at");
+        let due_at = row.get("due_at");
+        let paid_at = row.get("paid_at");
+
+        let idem_key = format!("ar.events.ar.invoice_paid:{}", invoice_id);
+        let event_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, idem_key.as_bytes());
+        let event_payload = InvoiceLifecyclePayload {
+            invoice_id: invoice_id.to_string(),
+            customer_id: customer_id.to_string(),
+            app_id: app_id.clone(),
+            amount_cents,
+            currency,
+            created_at,
+            due_at,
+            paid_at,
+        };
+        let envelope = build_invoice_paid_envelope(
+            event_id,
+            app_id,
+            Uuid::new_v4().to_string(),
+            None,
+            event_payload,
+        );
+        enqueue_event_tx_idempotent(
+            &mut tx,
+            EVENT_TYPE_INVOICE_PAID,
+            "invoice",
+            &invoice_id.to_string(),
+            &envelope,
+        )
+        .await?;
+
+        tx.commit().await?;
+
+        tracing::info!(
+            invoice_id = invoice_id,
+            payment_id = %payload.payment_id,
+            "Invoice marked as paid, invoice_paid event enqueued"
         );
     } else {
-        tracing::info!(
-            invoice_id = %payload.invoice_id,
-            payment_id = %payload.payment_id,
-            "Invoice marked as paid"
+        tx.rollback().await?;
+        tracing::warn!(
+            invoice_id = invoice_id,
+            "Invoice not found or already paid — no event emitted"
         );
     }
 

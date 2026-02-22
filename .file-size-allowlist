@@ -13,7 +13,7 @@ modules/ar/src/routes/webhooks.rs         # 746 LOC — webhook handlers
 modules/ar/src/routes/payment_methods.rs  # 743 LOC — payment method routes
 modules/gl/src/routes/revrec.rs           # 740 LOC — revrec HTTP routes
 modules/ar/src/finalization.rs            # 734 LOC — invoice finalization
-modules/ar/src/routes/invoices.rs         # 689 LOC — invoice routes
+modules/ar/src/routes/invoices.rs         # 771 LOC — invoice routes (bd-18wm: tx wrapping for invoice_opened emit)
 modules/ar/src/routes/subscriptions.rs    # 562 LOC — subscription routes
 modules/ar/src/routes/charges.rs          # 511 LOC — charge routes
 modules/inventory/src/domain/issue_service.rs       # 530 LOC — issue service (refactor in future bead)

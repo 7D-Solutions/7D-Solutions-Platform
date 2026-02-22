@@ -7,6 +7,10 @@ pub mod publisher;
 
 pub use consumer::{is_event_processed, mark_event_processed, process_event_idempotent};
 pub use contracts::{
+    // Phase 51 invoice lifecycle types
+    InvoiceLifecyclePayload,
+    EVENT_TYPE_INVOICE_OPENED, EVENT_TYPE_INVOICE_PAID,
+    build_invoice_opened_envelope, build_invoice_paid_envelope,
     // Phase 21 types
     AgingBuckets, ArAgingUpdatedPayload, CreditNoteIssuedPayload, InvoiceWrittenOffPayload,
     UsageCapturedPayload, UsageInvoicedPayload,
