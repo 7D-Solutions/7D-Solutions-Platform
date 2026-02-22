@@ -232,3 +232,105 @@ fn test_tenant_registry_openapi_spec_valid() {
 
     println!("✓ Tenant-registry spec contains all required paths");
 }
+
+#[test]
+fn test_inventory_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("inventory/inventory-v0.1.0.yaml");
+
+    let spec = validate_openapi_spec(&spec_path)
+        .expect("Failed to parse inventory OpenAPI spec");
+
+    println!("✓ Inventory OpenAPI spec is valid YAML");
+
+    // Core inventory endpoints: ops, item master, movements, locations
+    let required_paths = vec![
+        "/healthz",
+        "/api/health",
+        "/api/ready",
+        "/api/version",
+        "/api/inventory/items",
+        "/api/inventory/items/{id}",
+        "/api/inventory/items/{id}/deactivate",
+        "/api/inventory/receipts",
+        "/api/inventory/issues",
+        "/api/inventory/adjustments",
+        "/api/inventory/transfers",
+        "/api/inventory/reservations/reserve",
+        "/api/inventory/reservations/release",
+        "/api/inventory/locations",
+        "/api/inventory/locations/{id}",
+        "/api/inventory/uoms",
+        "/api/inventory/valuation-snapshots",
+        "/api/inventory/cycle-count-tasks",
+    ];
+
+    check_required_paths(&spec, &required_paths, "inventory-v0.1.0.yaml")
+        .expect("Inventory spec missing required paths");
+
+    println!("✓ Inventory spec contains all required paths");
+}
+
+#[test]
+fn test_party_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("party/party-v0.1.0.yaml");
+
+    let spec = validate_openapi_spec(&spec_path)
+        .expect("Failed to parse party OpenAPI spec");
+
+    println!("✓ Party OpenAPI spec is valid YAML");
+
+    // Core party endpoints: ops, parties, contacts, addresses
+    let required_paths = vec![
+        "/healthz",
+        "/api/health",
+        "/api/ready",
+        "/api/version",
+        "/api/party/companies",
+        "/api/party/individuals",
+        "/api/party/parties",
+        "/api/party/parties/search",
+        "/api/party/parties/{id}",
+        "/api/party/parties/{id}/deactivate",
+        "/api/party/parties/{party_id}/contacts",
+        "/api/party/contacts/{id}",
+        "/api/party/parties/{party_id}/addresses",
+        "/api/party/addresses/{id}",
+    ];
+
+    check_required_paths(&spec, &required_paths, "party-v0.1.0.yaml")
+        .expect("Party spec missing required paths");
+
+    println!("✓ Party spec contains all required paths");
+}
+
+#[test]
+fn test_integrations_hub_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("integrations-hub/integrations-hub-v0.1.0.yaml");
+
+    let spec = validate_openapi_spec(&spec_path)
+        .expect("Failed to parse integrations-hub OpenAPI spec");
+
+    println!("✓ Integrations-hub OpenAPI spec is valid YAML");
+
+    // Core integrations-hub endpoints: ops, webhooks, external-refs, connectors
+    let required_paths = vec![
+        "/healthz",
+        "/api/health",
+        "/api/ready",
+        "/api/version",
+        "/api/webhooks/inbound/{system}",
+        "/api/integrations/external-refs",
+        "/api/integrations/external-refs/by-entity",
+        "/api/integrations/external-refs/by-system",
+        "/api/integrations/external-refs/{id}",
+        "/api/integrations/connectors/types",
+        "/api/integrations/connectors",
+        "/api/integrations/connectors/{id}",
+        "/api/integrations/connectors/{id}/test",
+    ];
+
+    check_required_paths(&spec, &required_paths, "integrations-hub-v0.1.0.yaml")
+        .expect("Integrations-hub spec missing required paths");
+
+    println!("✓ Integrations-hub spec contains all required paths");
+}

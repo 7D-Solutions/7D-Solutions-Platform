@@ -1,0 +1,691 @@
+openapi: 3.0.3
+info:
+  title: Integrations Hub API
+  version: 0.1.0
+  description: >
+    Integrations Hub module — version 0.1.0.
+
+    Manages inbound webhook ingestion, external ID cross-reference mapping
+    (entity ↔ external system), and outbound connector registrations (echo,
+    and future third-party connectors).
+
+    The integrations hub is the platform's integration surface: it receives
+    webhooks from external systems, routes them to internal handlers, and
+    maintains bidirectional ID mappings so other modules can look up their
+    counterparts in external systems (e.g. Stripe customer ID ↔ AR customer ID).
+
+    Auth model: App identity is carried in the X-App-Id header (read from
+    auth context or request). Webhooks use signature verification per source
+    system.
+
+servers:
+  - url: http://localhost:8098
+    description: Local development
+  - url: https://integrations.7dsolutions.io
+    description: Production
+
+paths:
+  # ── Operations / health ──────────────────────────────────────────────────
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: healthz
+      tags: [ops]
+      responses:
+        '200':
+          description: Service alive
+
+  /api/health:
+    get:
+      summary: Health check
+      operationId: health
+      tags: [ops]
+      responses:
+        '200':
+          description: Service health summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/ready:
+    get:
+      summary: Readiness probe (checks DB connectivity)
+      operationId: ready
+      tags: [ops]
+      responses:
+        '200':
+          description: Service ready
+        '503':
+          description: Service not ready
+
+  /api/version:
+    get:
+      summary: Module version info
+      operationId: version
+      tags: [ops]
+      responses:
+        '200':
+          description: Module identity and schema version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+
+  /metrics:
+    get:
+      summary: Prometheus metrics scrape endpoint
+      operationId: metrics
+      tags: [ops]
+      responses:
+        '200':
+          description: Prometheus text format metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  # ── Inbound webhooks ──────────────────────────────────────────────────────
+  /api/webhooks/inbound/{system}:
+    post:
+      summary: Receive an inbound webhook from an external system
+      operationId: inboundWebhook
+      tags: [webhooks]
+      description: >
+        Accepts a raw JSON payload from an external system (e.g. "stripe",
+        "quickbooks"). The payload is persisted verbatim and routed to
+        internal consumers via NATS. Idempotent: duplicate payloads identified
+        by the same idempotency key (from system-specific headers) are silently
+        accepted but not re-processed.
+      parameters:
+        - name: system
+          in: path
+          required: true
+          schema:
+            type: string
+          description: External system name (e.g. "stripe", "quickbooks", "echo")
+        - name: X-App-Id
+          in: header
+          required: false
+          schema:
+            type: string
+          description: Optional tenant/app identifier (may be resolved from auth context)
+      requestBody:
+        required: true
+        description: Raw JSON payload from the external system
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '202':
+          description: Webhook accepted and queued for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookAcceptedResponse'
+        '200':
+          description: Duplicate webhook — silently accepted (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookAcceptedResponse'
+        '400':
+          description: Invalid payload
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '401':
+          description: Signature verification failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── External refs ─────────────────────────────────────────────────────────
+  /api/integrations/external-refs:
+    post:
+      summary: Create an external ref (or upsert by system+external_id)
+      operationId: createExternalRef
+      tags: [external-refs]
+      description: >
+        Links an internal entity (by entity_type + entity_id) to an identifier
+        in an external system. If a ref already exists for the same
+        (app_id, system, external_id) it is updated rather than duplicated.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateExternalRefRequest'
+      responses:
+        '201':
+          description: External ref created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalRef'
+        '200':
+          description: Existing ref returned (upserted)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalRef'
+        '409':
+          description: Conflict (entity already mapped to a different external ID in this system)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/integrations/external-refs/by-entity:
+    get:
+      summary: List all external refs for an internal entity
+      operationId: listExternalRefsByEntity
+      tags: [external-refs]
+      parameters:
+        - name: entity_type
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Internal entity type (e.g. "invoice", "customer")
+        - name: entity_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Internal entity ID
+        - name: app_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: External refs for the entity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExternalRef'
+
+  /api/integrations/external-refs/by-system:
+    get:
+      summary: Look up an internal entity by its external system identifier
+      operationId: getExternalRefBySystem
+      tags: [external-refs]
+      parameters:
+        - name: system
+          in: query
+          required: true
+          schema:
+            type: string
+          description: External system name (e.g. "stripe")
+        - name: external_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The identifier in the external system
+        - name: app_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: External ref found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalRef'
+        '404':
+          description: No ref found for this system+external_id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/integrations/external-refs/{id}:
+    get:
+      summary: Get an external ref by its internal ID
+      operationId: getExternalRef
+      tags: [external-refs]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: External ref found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalRef'
+        '404':
+          description: External ref not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    put:
+      summary: Update mutable fields on an external ref
+      operationId: updateExternalRef
+      tags: [external-refs]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateExternalRefRequest'
+      responses:
+        '200':
+          description: External ref updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExternalRef'
+        '404':
+          description: External ref not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    delete:
+      summary: Delete an external ref
+      operationId: deleteExternalRef
+      tags: [external-refs]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: External ref deleted
+        '404':
+          description: External ref not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Connectors ────────────────────────────────────────────────────────────
+  /api/integrations/connectors/types:
+    get:
+      summary: List all registered connector types and their capabilities
+      operationId: listConnectorTypes
+      tags: [connectors]
+      responses:
+        '200':
+          description: Available connector types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConnectorCapabilities'
+
+  /api/integrations/connectors:
+    get:
+      summary: List connector configs for the current app
+      operationId: listConnectors
+      tags: [connectors]
+      responses:
+        '200':
+          description: Connector configs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ConnectorConfig'
+    post:
+      summary: Register a connector configuration
+      operationId: registerConnector
+      tags: [connectors]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterConnectorRequest'
+      responses:
+        '201':
+          description: Connector registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorConfig'
+        '400':
+          description: Unknown connector type or invalid config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Config validation failed against connector schema
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/integrations/connectors/{id}:
+    get:
+      summary: Get a connector config by ID
+      operationId: getConnector
+      tags: [connectors]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Connector config
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConnectorConfig'
+        '404':
+          description: Connector not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/integrations/connectors/{id}/test:
+    post:
+      summary: Run the connector's test action
+      operationId: runConnectorTest
+      tags: [connectors]
+      description: >
+        Invokes the connector's deterministic test action using its stored config.
+        The result is predictable given the same idempotency key, so callers can
+        safely retry. The echo connector always returns the key as its payload.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunTestActionRequest'
+      responses:
+        '200':
+          description: Test action result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TestActionResult'
+        '404':
+          description: Connector not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Connector disabled or config invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+components:
+  schemas:
+    # ── Shared ────────────────────────────────────────────────────────────────
+    ErrorBody:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error description
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+
+    VersionResponse:
+      type: object
+      properties:
+        module:
+          type: string
+        version:
+          type: string
+        schema_version:
+          type: string
+
+    # ── Webhooks ──────────────────────────────────────────────────────────────
+    WebhookAcceptedResponse:
+      type: object
+      required: [ingest_id, is_duplicate]
+      properties:
+        ingest_id:
+          type: integer
+          format: int64
+          description: Internal ID of the ingested webhook record
+        is_duplicate:
+          type: boolean
+          description: True if this payload was already received (idempotency hit)
+
+    # ── External refs ─────────────────────────────────────────────────────────
+    ExternalRef:
+      type: object
+      required: [id, app_id, entity_type, entity_id, system, external_id, created_at, updated_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        app_id:
+          type: string
+        entity_type:
+          type: string
+          description: Internal entity type (e.g. "invoice", "customer", "order")
+        entity_id:
+          type: string
+          description: Internal entity ID (UUID or opaque string)
+        system:
+          type: string
+          description: External system name (e.g. "stripe", "quickbooks")
+        external_id:
+          type: string
+          description: The identifier in the external system
+        label:
+          type: string
+          nullable: true
+          description: Optional human-readable label
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateExternalRefRequest:
+      type: object
+      required: [entity_type, entity_id, system, external_id]
+      properties:
+        entity_type:
+          type: string
+          description: Internal entity type (e.g. "invoice", "customer", "order")
+        entity_id:
+          type: string
+          description: Internal entity ID (UUID or opaque string)
+        system:
+          type: string
+          description: External system name (e.g. "stripe", "quickbooks", "salesforce")
+        external_id:
+          type: string
+          description: The identifier in the external system
+        label:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    UpdateExternalRefRequest:
+      type: object
+      properties:
+        label:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    # ── Connectors ────────────────────────────────────────────────────────────
+    ConfigFieldType:
+      type: string
+      enum: [text, secret, url, boolean, integer]
+      description: Supported config field types for UI rendering
+
+    ConfigField:
+      type: object
+      required: [key, label, field_type, required]
+      properties:
+        key:
+          type: string
+          description: Machine-readable field key
+        label:
+          type: string
+          description: Human-readable label for UIs
+        field_type:
+          $ref: '#/components/schemas/ConfigFieldType'
+        required:
+          type: boolean
+        default:
+          type: string
+          nullable: true
+          description: Optional default value (serialised as string)
+
+    ConnectorCapabilities:
+      type: object
+      required: [connector_type, display_name, config_schema]
+      properties:
+        connector_type:
+          type: string
+          description: Unique type discriminator (e.g. "echo")
+        display_name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        config_schema:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfigField'
+        supports_test_action:
+          type: boolean
+          default: true
+
+    ConnectorConfig:
+      type: object
+      required: [id, app_id, connector_type, name, enabled, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+        connector_type:
+          type: string
+        name:
+          type: string
+        config:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Connector-specific configuration (secrets redacted)
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    RegisterConnectorRequest:
+      type: object
+      required: [connector_type, name]
+      properties:
+        connector_type:
+          type: string
+          description: Must be a registered connector type (e.g. "echo")
+        name:
+          type: string
+          description: Human-readable name for this registration
+        config:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Connector-specific config; validated against the connector's schema
+
+    RunTestActionRequest:
+      type: object
+      required: [idempotency_key]
+      properties:
+        idempotency_key:
+          type: string
+          description: Caller-supplied idempotency key; echoed back in the result
+
+    TestActionResult:
+      type: object
+      required: [connector_type, idempotency_key, success]
+      properties:
+        connector_type:
+          type: string
+        idempotency_key:
+          type: string
+        success:
+          type: boolean
+        payload:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Connector-specific result payload (echo returns the key as payload)
+        error:
+          type: string
+          nullable: true

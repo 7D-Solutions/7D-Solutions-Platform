@@ -1,0 +1,1661 @@
+openapi: 3.0.3
+info:
+  title: Inventory API
+  version: 0.1.0
+  description: >
+    Inventory module — version 0.1.0.
+
+    Manages the item master, stock movements (receipts, issues, adjustments,
+    transfers), lot/serial tracking, cycle counts, reorder policies, valuation
+    snapshots, and physical locations within warehouses.
+
+    Auth model: JWT bearer with INVENTORY_MUTATE permission for write operations;
+    read operations are available with optional JWT. Tenant scope is carried in
+    request body fields (tenant_id).
+
+servers:
+  - url: http://localhost:8090
+    description: Local development
+  - url: https://inventory.7dsolutions.io
+    description: Production
+
+paths:
+  # ── Operations / health ──────────────────────────────────────────────────
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: healthz
+      tags: [ops]
+      responses:
+        '200':
+          description: Service alive
+
+  /api/health:
+    get:
+      summary: Health check
+      operationId: health
+      tags: [ops]
+      responses:
+        '200':
+          description: Service health summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/ready:
+    get:
+      summary: Readiness probe
+      operationId: ready
+      tags: [ops]
+      responses:
+        '200':
+          description: Service ready
+        '503':
+          description: Service not ready
+
+  /api/version:
+    get:
+      summary: Module version info
+      operationId: version
+      tags: [ops]
+      responses:
+        '200':
+          description: Module identity and schema version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+
+  /metrics:
+    get:
+      summary: Prometheus metrics scrape endpoint
+      operationId: metrics
+      tags: [ops]
+      responses:
+        '200':
+          description: Prometheus text format metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  # ── Item master ──────────────────────────────────────────────────────────
+  /api/inventory/items:
+    post:
+      summary: Create item
+      operationId: createItem
+      tags: [items]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateItemRequest'
+      responses:
+        '201':
+          description: Item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '409':
+          description: Duplicate SKU for tenant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/inventory/items/{id}:
+    get:
+      summary: Get item by ID
+      operationId: getItem
+      tags: [items]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '404':
+          description: Item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    put:
+      summary: Update item
+      operationId: updateItem
+      tags: [items]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateItemRequest'
+      responses:
+        '200':
+          description: Item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '404':
+          description: Item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/inventory/items/{id}/deactivate:
+    post:
+      summary: Deactivate item (soft-delete)
+      operationId: deactivateItem
+      tags: [items]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id]
+              properties:
+                tenant_id:
+                  type: string
+      responses:
+        '200':
+          description: Item deactivated
+        '404':
+          description: Item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Stock receipts ────────────────────────────────────────────────────────
+  /api/inventory/receipts:
+    post:
+      summary: Record stock receipt
+      operationId: postReceipt
+      tags: [movements]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiptRequest'
+      responses:
+        '200':
+          description: Receipt recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MovementResult'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Stock issues ──────────────────────────────────────────────────────────
+  /api/inventory/issues:
+    post:
+      summary: Issue stock (consume from inventory)
+      operationId: postIssue
+      tags: [movements]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueRequest'
+      responses:
+        '200':
+          description: Issue recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MovementResult'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Reservations ──────────────────────────────────────────────────────────
+  /api/inventory/reservations/reserve:
+    post:
+      summary: Reserve stock
+      operationId: reserveStock
+      tags: [reservations]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReserveRequest'
+      responses:
+        '200':
+          description: Reservation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationResult'
+        '422':
+          description: Insufficient stock or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/inventory/reservations/release:
+    post:
+      summary: Release a reservation
+      operationId: releaseReservation
+      tags: [reservations]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReleaseRequest'
+      responses:
+        '200':
+          description: Reservation released
+
+  /api/inventory/reservations/{id}/fulfill:
+    post:
+      summary: Fulfill a reservation (convert to issue)
+      operationId: fulfillReservation
+      tags: [reservations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id]
+              properties:
+                tenant_id:
+                  type: string
+      responses:
+        '200':
+          description: Reservation fulfilled
+
+  # ── Adjustments ───────────────────────────────────────────────────────────
+  /api/inventory/adjustments:
+    post:
+      summary: Record a stock adjustment
+      operationId: postAdjustment
+      tags: [movements]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdjustmentRequest'
+      responses:
+        '200':
+          description: Adjustment recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MovementResult'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Transfers ─────────────────────────────────────────────────────────────
+  /api/inventory/transfers:
+    post:
+      summary: Transfer stock between locations or warehouses
+      operationId: postTransfer
+      tags: [movements]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransferRequest'
+      responses:
+        '200':
+          description: Transfer recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MovementResult'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/inventory/status-transfers:
+    post:
+      summary: Transfer stock between statuses (e.g. quarantine → available)
+      operationId: postStatusTransfer
+      tags: [movements]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StatusTransferRequest'
+      responses:
+        '200':
+          description: Status transfer recorded
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── UoM ───────────────────────────────────────────────────────────────────
+  /api/inventory/uoms:
+    get:
+      summary: List units of measure
+      operationId: listUoms
+      tags: [uom]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of UoMs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Uom'
+    post:
+      summary: Create unit of measure
+      operationId: createUom
+      tags: [uom]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUomRequest'
+      responses:
+        '201':
+          description: UoM created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Uom'
+
+  /api/inventory/items/{id}/uom-conversions:
+    get:
+      summary: List UoM conversions for an item
+      operationId: listConversions
+      tags: [uom]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of UoM conversions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UomConversion'
+    post:
+      summary: Create a UoM conversion for an item
+      operationId: createConversion
+      tags: [uom]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversionRequest'
+      responses:
+        '201':
+          description: Conversion created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UomConversion'
+
+  # ── Movement history ───────────────────────────────────────────────────────
+  /api/inventory/items/{item_id}/history:
+    get:
+      summary: Get movement history for an item
+      operationId: getMovementHistory
+      tags: [history]
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Movement history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MovementHistory'
+
+  # ── Lot / serial queries ───────────────────────────────────────────────────
+  /api/inventory/items/{item_id}/lots:
+    get:
+      summary: List lots for an item
+      operationId: getLotsForItem
+      tags: [lots-serials]
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LotBalance'
+
+  /api/inventory/items/{item_id}/serials:
+    get:
+      summary: List serials for an item
+      operationId: getSerialsForItem
+      tags: [lots-serials]
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Serials
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SerialStatus'
+
+  /api/inventory/items/{item_id}/lots/{lot_code}/trace:
+    get:
+      summary: Trace a lot through all movements
+      operationId: traceLot
+      tags: [lots-serials]
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: lot_code
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Lot trace
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MovementHistory'
+
+  /api/inventory/items/{item_id}/serials/{serial_code}/trace:
+    get:
+      summary: Trace a serial number through all movements
+      operationId: traceSerial
+      tags: [lots-serials]
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: serial_code
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Serial trace
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MovementHistory'
+
+  # ── Reorder policies ───────────────────────────────────────────────────────
+  /api/inventory/reorder-policies:
+    post:
+      summary: Create a reorder policy
+      operationId: postReorderPolicy
+      tags: [reorder]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReorderPolicyRequest'
+      responses:
+        '201':
+          description: Reorder policy created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReorderPolicy'
+
+  /api/inventory/reorder-policies/{id}:
+    get:
+      summary: Get a reorder policy
+      operationId: getReorderPolicy
+      tags: [reorder]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reorder policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReorderPolicy'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    put:
+      summary: Update a reorder policy
+      operationId: putReorderPolicy
+      tags: [reorder]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReorderPolicyRequest'
+      responses:
+        '200':
+          description: Reorder policy updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReorderPolicy'
+
+  /api/inventory/items/{item_id}/reorder-policies:
+    get:
+      summary: List reorder policies for an item
+      operationId: listReorderPolicies
+      tags: [reorder]
+      parameters:
+        - name: item_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reorder policies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReorderPolicy'
+
+  # ── Cycle counts ───────────────────────────────────────────────────────────
+  /api/inventory/cycle-count-tasks:
+    post:
+      summary: Create a cycle count task
+      operationId: postCycleCountTask
+      tags: [cycle-counts]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCycleCountTaskRequest'
+      responses:
+        '201':
+          description: Cycle count task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CycleCountTask'
+
+  /api/inventory/cycle-count-tasks/{task_id}/submit:
+    post:
+      summary: Submit counted quantities for a cycle count task
+      operationId: submitCycleCount
+      tags: [cycle-counts]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitCycleCountRequest'
+      responses:
+        '200':
+          description: Cycle count submitted
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/inventory/cycle-count-tasks/{task_id}/approve:
+    post:
+      summary: Approve a submitted cycle count (posts adjustments)
+      operationId: approveCycleCount
+      tags: [cycle-counts]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: task_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id]
+              properties:
+                tenant_id:
+                  type: string
+      responses:
+        '200':
+          description: Cycle count approved
+        '422':
+          description: Not in submitted state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Valuation snapshots ────────────────────────────────────────────────────
+  /api/inventory/valuation-snapshots:
+    get:
+      summary: List valuation snapshots
+      operationId: listValuationSnapshots
+      tags: [valuation]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Valuation snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ValuationSnapshot'
+    post:
+      summary: Create a valuation snapshot
+      operationId: postValuationSnapshot
+      tags: [valuation]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateValuationSnapshotRequest'
+      responses:
+        '201':
+          description: Snapshot created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValuationSnapshot'
+
+  /api/inventory/valuation-snapshots/{id}:
+    get:
+      summary: Get a valuation snapshot
+      operationId: getValuationSnapshot
+      tags: [valuation]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Valuation snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValuationSnapshot'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Locations ──────────────────────────────────────────────────────────────
+  /api/inventory/locations:
+    post:
+      summary: Create a warehouse location
+      operationId: createLocation
+      tags: [locations]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLocationRequest'
+      responses:
+        '201':
+          description: Location created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        '409':
+          description: Duplicate location code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/inventory/locations/{id}:
+    get:
+      summary: Get a location
+      operationId: getLocation
+      tags: [locations]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Location found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    put:
+      summary: Update a location
+      operationId: updateLocation
+      tags: [locations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLocationRequest'
+      responses:
+        '200':
+          description: Location updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Location'
+
+  /api/inventory/locations/{id}/deactivate:
+    post:
+      summary: Deactivate a location
+      operationId: deactivateLocation
+      tags: [locations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id]
+              properties:
+                tenant_id:
+                  type: string
+      responses:
+        '200':
+          description: Location deactivated
+
+  /api/inventory/warehouses/{warehouse_id}/locations:
+    get:
+      summary: List locations in a warehouse
+      operationId: listLocations
+      tags: [locations]
+      parameters:
+        - name: warehouse_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Locations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Location'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ── Shared ────────────────────────────────────────────────────────────────
+    ErrorBody:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error description
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+
+    VersionResponse:
+      type: object
+      properties:
+        module:
+          type: string
+        version:
+          type: string
+        schema_version:
+          type: string
+
+    # ── Items ─────────────────────────────────────────────────────────────────
+    TrackingMode:
+      type: string
+      enum: [none, lot, serial]
+      description: How stock movements are tracked for this item
+
+    Item:
+      type: object
+      required: [id, tenant_id, sku, name, inventory_account_ref, cogs_account_ref, variance_account_ref, tracking_mode, is_active, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        inventory_account_ref:
+          type: string
+        cogs_account_ref:
+          type: string
+        variance_account_ref:
+          type: string
+        tracking_mode:
+          $ref: '#/components/schemas/TrackingMode'
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateItemRequest:
+      type: object
+      required: [tenant_id, sku, name, inventory_account_ref, cogs_account_ref, variance_account_ref]
+      properties:
+        tenant_id:
+          type: string
+        sku:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        inventory_account_ref:
+          type: string
+        cogs_account_ref:
+          type: string
+        variance_account_ref:
+          type: string
+        tracking_mode:
+          $ref: '#/components/schemas/TrackingMode'
+
+    UpdateItemRequest:
+      type: object
+      required: [tenant_id]
+      properties:
+        tenant_id:
+          type: string
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        inventory_account_ref:
+          type: string
+          nullable: true
+        cogs_account_ref:
+          type: string
+          nullable: true
+        variance_account_ref:
+          type: string
+          nullable: true
+
+    # ── Movements ─────────────────────────────────────────────────────────────
+    MovementResult:
+      type: object
+      properties:
+        movement_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+
+    ReceiptRequest:
+      type: object
+      required: [tenant_id, item_id, quantity]
+      properties:
+        tenant_id:
+          type: string
+        item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+          format: double
+        lot_code:
+          type: string
+          nullable: true
+        serial_codes:
+          type: array
+          items:
+            type: string
+          nullable: true
+        location_id:
+          type: string
+          format: uuid
+          nullable: true
+        reference:
+          type: string
+          nullable: true
+        unit_cost_cents:
+          type: integer
+          nullable: true
+
+    IssueRequest:
+      type: object
+      required: [tenant_id, item_id, quantity]
+      properties:
+        tenant_id:
+          type: string
+        item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+          format: double
+        lot_code:
+          type: string
+          nullable: true
+        serial_codes:
+          type: array
+          items:
+            type: string
+          nullable: true
+        location_id:
+          type: string
+          format: uuid
+          nullable: true
+        reference:
+          type: string
+          nullable: true
+
+    AdjustmentRequest:
+      type: object
+      required: [tenant_id, item_id, quantity_delta]
+      properties:
+        tenant_id:
+          type: string
+        item_id:
+          type: string
+          format: uuid
+        quantity_delta:
+          type: number
+          format: double
+          description: Positive to add stock, negative to remove
+        reason:
+          type: string
+          nullable: true
+        lot_code:
+          type: string
+          nullable: true
+        location_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    TransferRequest:
+      type: object
+      required: [tenant_id, item_id, quantity, from_location_id, to_location_id]
+      properties:
+        tenant_id:
+          type: string
+        item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+          format: double
+        from_location_id:
+          type: string
+          format: uuid
+        to_location_id:
+          type: string
+          format: uuid
+        lot_code:
+          type: string
+          nullable: true
+
+    StatusTransferRequest:
+      type: object
+      required: [tenant_id, item_id, quantity, from_status, to_status]
+      properties:
+        tenant_id:
+          type: string
+        item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+          format: double
+        from_status:
+          type: string
+        to_status:
+          type: string
+        lot_code:
+          type: string
+          nullable: true
+
+    # ── Reservations ──────────────────────────────────────────────────────────
+    ReserveRequest:
+      type: object
+      required: [tenant_id, item_id, quantity, reference]
+      properties:
+        tenant_id:
+          type: string
+        item_id:
+          type: string
+          format: uuid
+        quantity:
+          type: number
+          format: double
+        reference:
+          type: string
+
+    ReleaseRequest:
+      type: object
+      required: [tenant_id, reservation_id]
+      properties:
+        tenant_id:
+          type: string
+        reservation_id:
+          type: string
+          format: uuid
+
+    ReservationResult:
+      type: object
+      properties:
+        reservation_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+
+    # ── UoM ───────────────────────────────────────────────────────────────────
+    Uom:
+      type: object
+      required: [id, tenant_id, code, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+
+    CreateUomRequest:
+      type: object
+      required: [tenant_id, code, name]
+      properties:
+        tenant_id:
+          type: string
+        code:
+          type: string
+        name:
+          type: string
+
+    UomConversion:
+      type: object
+      required: [id, item_id, from_uom_id, to_uom_id, factor]
+      properties:
+        id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+        from_uom_id:
+          type: string
+          format: uuid
+        to_uom_id:
+          type: string
+          format: uuid
+        factor:
+          type: number
+          format: double
+
+    CreateConversionRequest:
+      type: object
+      required: [tenant_id, from_uom_id, to_uom_id, factor]
+      properties:
+        tenant_id:
+          type: string
+        from_uom_id:
+          type: string
+          format: uuid
+        to_uom_id:
+          type: string
+          format: uuid
+        factor:
+          type: number
+          format: double
+
+    # ── Movement history ───────────────────────────────────────────────────────
+    MovementHistory:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        item_id:
+          type: string
+          format: uuid
+        movement_type:
+          type: string
+        quantity:
+          type: number
+          format: double
+        lot_code:
+          type: string
+          nullable: true
+        serial_code:
+          type: string
+          nullable: true
+        location_id:
+          type: string
+          format: uuid
+          nullable: true
+        reference:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Lot / serial ───────────────────────────────────────────────────────────
+    LotBalance:
+      type: object
+      properties:
+        lot_code:
+          type: string
+        quantity_on_hand:
+          type: number
+          format: double
+
+    SerialStatus:
+      type: object
+      properties:
+        serial_code:
+          type: string
+        status:
+          type: string
+
+    # ── Reorder ───────────────────────────────────────────────────────────────
+    ReorderPolicy:
+      type: object
+      required: [id, tenant_id, item_id]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        item_id:
+          type: string
+          format: uuid
+        reorder_point:
+          type: number
+          format: double
+        reorder_quantity:
+          type: number
+          format: double
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateReorderPolicyRequest:
+      type: object
+      required: [tenant_id, item_id, reorder_point, reorder_quantity]
+      properties:
+        tenant_id:
+          type: string
+        item_id:
+          type: string
+          format: uuid
+        reorder_point:
+          type: number
+          format: double
+        reorder_quantity:
+          type: number
+          format: double
+
+    UpdateReorderPolicyRequest:
+      type: object
+      required: [tenant_id]
+      properties:
+        tenant_id:
+          type: string
+        reorder_point:
+          type: number
+          format: double
+          nullable: true
+        reorder_quantity:
+          type: number
+          format: double
+          nullable: true
+
+    # ── Cycle counts ───────────────────────────────────────────────────────────
+    CycleCountTask:
+      type: object
+      required: [id, tenant_id, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        status:
+          type: string
+          enum: [open, submitted, approved]
+        created_at:
+          type: string
+          format: date-time
+
+    CreateCycleCountTaskRequest:
+      type: object
+      required: [tenant_id]
+      properties:
+        tenant_id:
+          type: string
+        location_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    SubmitCycleCountRequest:
+      type: object
+      required: [tenant_id, counts]
+      properties:
+        tenant_id:
+          type: string
+        counts:
+          type: array
+          items:
+            type: object
+            required: [item_id, counted_quantity]
+            properties:
+              item_id:
+                type: string
+                format: uuid
+              counted_quantity:
+                type: number
+                format: double
+              lot_code:
+                type: string
+                nullable: true
+
+    # ── Valuation ──────────────────────────────────────────────────────────────
+    ValuationSnapshot:
+      type: object
+      required: [id, tenant_id, snapshot_date, total_value_cents]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        snapshot_date:
+          type: string
+          format: date
+        total_value_cents:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    CreateValuationSnapshotRequest:
+      type: object
+      required: [tenant_id, snapshot_date]
+      properties:
+        tenant_id:
+          type: string
+        snapshot_date:
+          type: string
+          format: date
+
+    # ── Locations ──────────────────────────────────────────────────────────────
+    Location:
+      type: object
+      required: [id, tenant_id, warehouse_id, code, name, is_active, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        warehouse_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateLocationRequest:
+      type: object
+      required: [tenant_id, warehouse_id, code, name]
+      properties:
+        tenant_id:
+          type: string
+        warehouse_id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    UpdateLocationRequest:
+      type: object
+      required: [tenant_id]
+      properties:
+        tenant_id:
+          type: string
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true

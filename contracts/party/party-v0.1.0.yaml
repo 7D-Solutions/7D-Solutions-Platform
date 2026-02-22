@@ -1,0 +1,1084 @@
+openapi: 3.0.3
+info:
+  title: Party API
+  version: 0.1.0
+  description: >
+    Party module — version 0.1.0.
+
+    Manages parties (companies and individuals), their contacts, and addresses.
+    A party is any legal or natural person that the platform interacts with:
+    customers, vendors, employees, and partners.
+
+    Auth model: internal service-to-service. App identity is carried in the
+    X-App-Id header, which is required on all write operations. X-Correlation-Id
+    and X-Actor-Id are optional context headers.
+
+servers:
+  - url: http://localhost:8095
+    description: Local development
+  - url: https://party.7dsolutions.io
+    description: Production
+
+paths:
+  # ── Operations / health ──────────────────────────────────────────────────
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: healthz
+      tags: [ops]
+      responses:
+        '200':
+          description: Service alive
+
+  /api/health:
+    get:
+      summary: Health check
+      operationId: health
+      tags: [ops]
+      responses:
+        '200':
+          description: Service health summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/ready:
+    get:
+      summary: Readiness probe (checks DB connectivity)
+      operationId: ready
+      tags: [ops]
+      responses:
+        '200':
+          description: Service ready
+        '503':
+          description: Service not ready
+
+  /api/version:
+    get:
+      summary: Module version info
+      operationId: version
+      tags: [ops]
+      responses:
+        '200':
+          description: Module identity and schema version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+
+  /metrics:
+    get:
+      summary: Prometheus metrics scrape endpoint
+      operationId: metrics
+      tags: [ops]
+      responses:
+        '200':
+          description: Prometheus text format metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  # ── Party CRUD ────────────────────────────────────────────────────────────
+  /api/party/companies:
+    post:
+      summary: Create a company party
+      operationId: createCompany
+      tags: [parties]
+      parameters:
+        - $ref: '#/components/parameters/AppId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/ActorId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCompanyRequest'
+      responses:
+        '201':
+          description: Company created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartyView'
+        '400':
+          description: Missing X-App-Id header or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '409':
+          description: Conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/party/individuals:
+    post:
+      summary: Create an individual party
+      operationId: createIndividual
+      tags: [parties]
+      parameters:
+        - $ref: '#/components/parameters/AppId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/ActorId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIndividualRequest'
+      responses:
+        '201':
+          description: Individual created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartyView'
+        '400':
+          description: Missing X-App-Id header or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/party/parties:
+    get:
+      summary: List parties
+      operationId: listParties
+      tags: [parties]
+      parameters:
+        - $ref: '#/components/parameters/AppId'
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of parties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Party'
+
+  /api/party/parties/search:
+    get:
+      summary: Search parties by name, type, or external ref
+      operationId: searchParties
+      tags: [parties]
+      parameters:
+        - $ref: '#/components/parameters/AppId'
+        - name: q
+          in: query
+          schema:
+            type: string
+        - name: party_type
+          in: query
+          schema:
+            type: string
+            enum: [company, individual]
+        - name: external_ref
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Matching parties
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Party'
+
+  /api/party/parties/{id}:
+    get:
+      summary: Get a party by ID (with extension and external refs)
+      operationId: getParty
+      tags: [parties]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/AppId'
+      responses:
+        '200':
+          description: Party found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartyView'
+        '404':
+          description: Party not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    put:
+      summary: Update base party fields
+      operationId: updateParty
+      tags: [parties]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/AppId'
+        - $ref: '#/components/parameters/CorrelationId'
+        - $ref: '#/components/parameters/ActorId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePartyRequest'
+      responses:
+        '200':
+          description: Party updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartyView'
+        '404':
+          description: Party not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/party/parties/{id}/deactivate:
+    post:
+      summary: Deactivate a party (soft-delete)
+      operationId: deactivateParty
+      tags: [parties]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/AppId'
+        - $ref: '#/components/parameters/ActorId'
+      responses:
+        '200':
+          description: Party deactivated
+        '404':
+          description: Party not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Contact CRUD ─────────────────────────────────────────────────────────
+  /api/party/parties/{party_id}/contacts:
+    post:
+      summary: Create a contact linked to a party
+      operationId: createContact
+      tags: [contacts]
+      parameters:
+        - name: party_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/AppId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContactRequest'
+      responses:
+        '201':
+          description: Contact created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '404':
+          description: Party not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    get:
+      summary: List contacts for a party
+      operationId: listContacts
+      tags: [contacts]
+      parameters:
+        - name: party_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/AppId'
+      responses:
+        '200':
+          description: List of contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Contact'
+
+  /api/party/contacts/{id}:
+    get:
+      summary: Get a contact by ID
+      operationId: getContact
+      tags: [contacts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contact found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '404':
+          description: Contact not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    put:
+      summary: Update a contact
+      operationId: updateContact
+      tags: [contacts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContactRequest'
+      responses:
+        '200':
+          description: Contact updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '404':
+          description: Contact not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    delete:
+      summary: Delete a contact
+      operationId: deleteContact
+      tags: [contacts]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Contact deleted
+        '404':
+          description: Contact not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  # ── Address CRUD ─────────────────────────────────────────────────────────
+  /api/party/parties/{party_id}/addresses:
+    post:
+      summary: Create an address for a party
+      operationId: createAddress
+      tags: [addresses]
+      parameters:
+        - name: party_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/AppId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAddressRequest'
+      responses:
+        '201':
+          description: Address created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    get:
+      summary: List addresses for a party
+      operationId: listAddresses
+      tags: [addresses]
+      parameters:
+        - name: party_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/AppId'
+      responses:
+        '200':
+          description: List of addresses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Address'
+
+  /api/party/addresses/{id}:
+    get:
+      summary: Get an address by ID
+      operationId: getAddress
+      tags: [addresses]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Address found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '404':
+          description: Address not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    put:
+      summary: Update an address
+      operationId: updateAddress
+      tags: [addresses]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAddressRequest'
+      responses:
+        '200':
+          description: Address updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+        '404':
+          description: Address not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+    delete:
+      summary: Delete an address
+      operationId: deleteAddress
+      tags: [addresses]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Address deleted
+        '404':
+          description: Address not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+components:
+  parameters:
+    AppId:
+      name: X-App-Id
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Tenant/app identifier scope
+
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Optional request correlation ID for tracing
+
+    ActorId:
+      name: X-Actor-Id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Optional actor identifier (user or service making the change)
+
+  schemas:
+    # ── Shared ────────────────────────────────────────────────────────────────
+    ErrorBody:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code
+        message:
+          type: string
+          description: Human-readable error description
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+
+    VersionResponse:
+      type: object
+      properties:
+        module:
+          type: string
+        version:
+          type: string
+        schema_version:
+          type: string
+
+    # ── Party ─────────────────────────────────────────────────────────────────
+    Party:
+      type: object
+      required: [id, app_id, party_type, status, display_name, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+        party_type:
+          type: string
+          enum: [company, individual]
+        status:
+          type: string
+          enum: [active, inactive]
+        display_name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        address_line1:
+          type: string
+          nullable: true
+        address_line2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        postal_code:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PartyView:
+      description: Party with optional type-specific extension (company or individual details)
+      allOf:
+        - $ref: '#/components/schemas/Party'
+        - type: object
+          properties:
+            company:
+              $ref: '#/components/schemas/PartyCompany'
+              nullable: true
+            individual:
+              $ref: '#/components/schemas/PartyIndividual'
+              nullable: true
+            external_refs:
+              type: array
+              items:
+                $ref: '#/components/schemas/ExternalRef'
+
+    PartyCompany:
+      type: object
+      required: [party_id, legal_name, created_at, updated_at]
+      properties:
+        party_id:
+          type: string
+          format: uuid
+        legal_name:
+          type: string
+        trade_name:
+          type: string
+          nullable: true
+        registration_number:
+          type: string
+          nullable: true
+        tax_id:
+          type: string
+          nullable: true
+        country_of_incorporation:
+          type: string
+          nullable: true
+        industry_code:
+          type: string
+          nullable: true
+        founded_date:
+          type: string
+          format: date
+          nullable: true
+        employee_count:
+          type: integer
+          nullable: true
+        annual_revenue_cents:
+          type: integer
+          format: int64
+          nullable: true
+        currency:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PartyIndividual:
+      type: object
+      required: [party_id, first_name, last_name, created_at, updated_at]
+      properties:
+        party_id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        middle_name:
+          type: string
+          nullable: true
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        tax_id:
+          type: string
+          nullable: true
+        nationality:
+          type: string
+          nullable: true
+        job_title:
+          type: string
+          nullable: true
+        department:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ExternalRef:
+      type: object
+      required: [system, external_id]
+      properties:
+        system:
+          type: string
+        external_id:
+          type: string
+        label:
+          type: string
+          nullable: true
+
+    CreateCompanyRequest:
+      type: object
+      required: [legal_name, display_name]
+      properties:
+        legal_name:
+          type: string
+        display_name:
+          type: string
+        trade_name:
+          type: string
+          nullable: true
+        registration_number:
+          type: string
+          nullable: true
+        tax_id:
+          type: string
+          nullable: true
+        country_of_incorporation:
+          type: string
+          nullable: true
+        industry_code:
+          type: string
+          nullable: true
+        founded_date:
+          type: string
+          format: date
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    CreateIndividualRequest:
+      type: object
+      required: [first_name, last_name, display_name]
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        middle_name:
+          type: string
+          nullable: true
+        display_name:
+          type: string
+        date_of_birth:
+          type: string
+          format: date
+          nullable: true
+        tax_id:
+          type: string
+          nullable: true
+        nationality:
+          type: string
+          nullable: true
+        job_title:
+          type: string
+          nullable: true
+        department:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    UpdatePartyRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        website:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    # ── Contacts ──────────────────────────────────────────────────────────────
+    Contact:
+      type: object
+      required: [id, party_id, app_id, first_name, last_name, is_primary, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        party_id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateContactRequest:
+      type: object
+      required: [first_name, last_name]
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+          default: false
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    UpdateContactRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          nullable: true
+        last_name:
+          type: string
+          nullable: true
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+          nullable: true
+        role:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+          nullable: true
+
+    # ── Addresses ─────────────────────────────────────────────────────────────
+    Address:
+      type: object
+      required: [id, party_id, app_id, address_type, line1, city, country, is_primary, created_at, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        party_id:
+          type: string
+          format: uuid
+        app_id:
+          type: string
+        address_type:
+          type: string
+          enum: [billing, shipping, registered, mailing, other]
+        label:
+          type: string
+          nullable: true
+        line1:
+          type: string
+        line2:
+          type: string
+          nullable: true
+        city:
+          type: string
+        state:
+          type: string
+          nullable: true
+        postal_code:
+          type: string
+          nullable: true
+        country:
+          type: string
+        is_primary:
+          type: boolean
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateAddressRequest:
+      type: object
+      required: [address_type, line1, city, country]
+      properties:
+        address_type:
+          type: string
+          enum: [billing, shipping, registered, mailing, other]
+        label:
+          type: string
+          nullable: true
+        line1:
+          type: string
+        line2:
+          type: string
+          nullable: true
+        city:
+          type: string
+        state:
+          type: string
+          nullable: true
+        postal_code:
+          type: string
+          nullable: true
+        country:
+          type: string
+        is_primary:
+          type: boolean
+          default: false
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    UpdateAddressRequest:
+      type: object
+      properties:
+        address_type:
+          type: string
+          enum: [billing, shipping, registered, mailing, other]
+          nullable: true
+        label:
+          type: string
+          nullable: true
+        line1:
+          type: string
+          nullable: true
+        line2:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        state:
+          type: string
+          nullable: true
+        postal_code:
+          type: string
+          nullable: true
+        country:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+          nullable: true
