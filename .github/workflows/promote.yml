@@ -239,6 +239,20 @@ jobs:
           bash scripts/production/deploy_stack.sh \
             --manifest "${{ env.MANIFEST_FILE }}"
 
+      - name: Post-deploy secrets check (via SSH)
+        env:
+          PROD_HOST:     ${{ env.PROD_HOST }}
+          PROD_USER:     ${{ env.PROD_USER }}
+          PROD_SSH_PORT: ${{ env.PROD_SSH_PORT }}
+        run: |
+          LOG_DIR="${{ runner.temp }}/prod_deploy_artifacts"
+          mkdir -p "$LOG_DIR"
+          ssh -o StrictHostKeyChecking=no -o BatchMode=yes \
+            -p "$PROD_SSH_PORT" \
+            "$PROD_USER@$PROD_HOST" \
+            "sudo bash ${PROD_REPO_PATH}/scripts/production/secrets_check.sh" \
+            2>&1 | tee "$LOG_DIR/secrets_check.log"
+
       - name: Gate 3 — Diff manifest vs running (post-deploy)
         env:
           PROD_HOST:      ${{ env.PROD_HOST }}
@@ -366,6 +380,17 @@ jobs:
           path: deployment-record.json
           retention-days: 365
 
+      - name: Upload deploy artifacts (manifest + secrets check log)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-deploy-artifacts-${{ github.run_id }}
+          path: |
+            ${{ env.MANIFEST_FILE }}
+            ${{ runner.temp }}/prod_deploy_artifacts/
+          retention-days: 365
+          if-no-files-found: warn
+
       - name: Summary
         run: |
           TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -378,11 +403,13 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Gate 3 manifest validation:** passed ✓" >> $GITHUB_STEP_SUMMARY
           echo "**Gate 3 drift diff:** passed ✓ (running images match manifest)" >> $GITHUB_STEP_SUMMARY
+          echo "**Secrets check:** passed ✓ (no defaults, mode 0600, root-owned)" >> $GITHUB_STEP_SUMMARY
           echo "**Production proof gate:** passed ✓ (smoke + isolation + payment verify + rollback rehearsal)" >> $GITHUB_STEP_SUMMARY
           echo "**Production smoke (Playwright):** passed ✓ (TCP UI nav + BFF endpoints)" >> $GITHUB_STEP_SUMMARY
           echo "**Production isolation (Playwright):** passed ✓ (UI redirect + BFF denial via SSH tunnel)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Proof gate logs stored as artifact: \`production-proof-gate-logs-${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "Deploy artifacts (manifest + secrets check log) stored as: \`production-deploy-artifacts-${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Rollback" >> $GITHUB_STEP_SUMMARY
           echo "1. Revert \`deploy/production/MODULE-MANIFEST.md\` to the prior pinned tags." >> $GITHUB_STEP_SUMMARY
