@@ -2,23 +2,28 @@
 #
 # Phase 45: Production Observability (bd-2ubc)
 # Phase 46: Runbook links updated (bd-1v9b)
+# Phase 48: DLQ, outbox, webhook groups added; runbook links fixed to local docs (bd-4nh7)
 #
-# Runbook source: docs/OPS-TRIAGE.md#9-alert-runbooks
-#   SERVICE-DOWN      → docs/OPS-TRIAGE.md#service-down
-#   NATS-DOWN         → docs/OPS-TRIAGE.md#nats-down
-#   BILLING-CYCLE     → docs/OPS-TRIAGE.md#billing-cycle-failure
-#   PAYMENT-FAILURE   → docs/OPS-TRIAGE.md#payment-failure-rate
-#   PAYMENT-STALLED   → docs/OPS-TRIAGE.md#payment-processing-stalled
+# Evidence basis (Phase 45 proof gate):
+#   - Container restart (docker compose restart) → healthy within 30–45s
+#   - Billing service for: 1m prevents flapping during restarts
+#   - NATS reconnect observed in <10s; for: 1m is conservative and appropriate
+#   - Payment failure rate baseline 0% in test mode; 20% critical is reasonable
+#   - DLQ/outbox baselines: zero events in all proof suites (clean baseline)
 #
-# These alerts surface service outages and billing/payment failures quickly
-# enough to detect silent failures before customer impact.
+# Runbooks:
+#   Service/NATS down:  docs/runbooks/incident_response.md#service-recovery
+#   Billing failure:    docs/runbooks/incident_response.md#service-recovery
+#   DLQ replay:        docs/runbooks/incident_response.md#dlq-replay
+#   Outbox failures:   docs/runbooks/incident_response.md#outbox-atomicity-failures
+#   Webhook failures:  docs/runbooks/incident_response.md#decision-trees (Scenario 2)
 #
 # Severity levels:
 #   critical — immediate action required (page on-call)
 #   warning  — investigate promptly (non-paging alert)
 
 groups:
-  # ── Service Availability ───────────────────────────────────────────────────
+  # ── Service Availability ─────────────────────────────────────────────────────
   - name: service_down
     interval: 30s
     rules:
@@ -35,7 +40,7 @@ groups:
             Service {{ $labels.job }} ({{ $labels.instance }}) has been unreachable
             for more than 1 minute. Billing operations are impacted.
             Immediate investigation required.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/SERVICE-DOWN"
+          runbook_url: "docs/runbooks/incident_response.md#service-recovery"
 
       # Critical platform services (auth + control-plane)
       - alert: PlatformServiceDown
@@ -50,7 +55,7 @@ groups:
             Platform service {{ $labels.job }} ({{ $labels.instance }}) has been
             unreachable for more than 2 minutes. Authentication or tenant operations
             are impacted.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/SERVICE-DOWN"
+          runbook_url: "docs/runbooks/incident_response.md#service-recovery"
 
       # Warning: non-billing module down
       - alert: ModuleServiceDown
@@ -64,9 +69,9 @@ groups:
           description: >
             Module {{ $labels.job }} ({{ $labels.instance }}) has been unreachable
             for more than 5 minutes. Non-billing operations may be impacted.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/SERVICE-DOWN"
+          runbook_url: "docs/runbooks/incident_response.md#service-recovery"
 
-      # Warning: NATS message bus degraded (critical if sustained)
+      # Critical: NATS message bus down — all event-driven workflows blocked
       - alert: NATSDown
         expr: up{job="nats"} == 0
         for: 1m
@@ -78,9 +83,9 @@ groups:
           description: >
             NATS ({{ $labels.instance }}) has been unreachable for more than 1 minute.
             All event-driven workflows (billing, provisioning, notifications) are impacted.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/NATS-DOWN"
+          runbook_url: "docs/runbooks/incident_response.md#nats-connectivity-check"
 
-  # ── Billing Cycle Failures ─────────────────────────────────────────────────
+  # ── Billing Cycle Failures ───────────────────────────────────────────────────
   - name: billing_critical
     interval: 60s
     rules:
@@ -101,9 +106,9 @@ groups:
           description: >
             Fewer than 50% of billing cycles are completing over the last 10 minutes.
             This indicates a systemic billing failure. Revenue collection is impacted.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/BILLING-CYCLE-FAILURE"
+          runbook_url: "docs/runbooks/incident_response.md#service-recovery"
 
-      # Warning: billing cycles stalling
+      # Critical: billing cycles stalling — attempts but zero completions
       - alert: BillingCycleStalled
         expr: >
           (rate(subscriptions_cycles_attempted_total[30m]) > 0)
@@ -120,9 +125,9 @@ groups:
             Billing cycles are being attempted but none are completing over the last
             30 minutes. Billing engine may be stuck or blocked. Immediate investigation
             required — invoices will not be generated.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/BILLING-CYCLE-FAILURE"
+          runbook_url: "docs/runbooks/incident_response.md#service-recovery"
 
-  # ── Payment Processing Failures ────────────────────────────────────────────
+  # ── Payment Processing Failures ──────────────────────────────────────────────
   - name: payment_critical
     interval: 60s
     rules:
@@ -142,7 +147,7 @@ groups:
             More than 20% of payment attempts are failing over the last 10 minutes.
             May indicate gateway issues, credential problems, or service degradation.
             Check payment processor status and service logs.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/PAYMENT-FAILURE-RATE"
+          runbook_url: "docs/runbooks/incident_response.md#decision-trees"
 
       # Critical: no successful payments when attempts exist
       - alert: PaymentProcessingStalled
@@ -160,4 +165,107 @@ groups:
           description: >
             Payment attempts are being made but none are succeeding over 15 minutes.
             Likely a gateway or credentials failure. All tenant billing is blocked.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/PAYMENT-PROCESSING-STALLED"
+          runbook_url: "docs/runbooks/incident_response.md#decision-trees"
+
+  # ── DLQ Exhaustion ───────────────────────────────────────────────────────────
+  - name: dlq_exhaustion
+    interval: 60s
+    rules:
+      # Critical: high overall DLQ arrival rate — systemic retry exhaustion
+      - alert: DLQEventRateCritical
+        expr: rate(dlq_events_total[5m]) * 60 > 20
+        for: 2m
+        labels:
+          severity: critical
+          category: platform_health
+        annotations:
+          summary: "Critical DLQ event rate: >20/min"
+          description: >
+            {{ $value | printf "%.1f" }} DLQ events/min — sustained retry exhaustion
+            indicates a platform-wide failure. Halt upstream producers if possible.
+          runbook_url: "docs/runbooks/incident_response.md#dlq-replay"
+
+      # Warning: elevated DLQ arrival rate
+      - alert: DLQEventRateWarning
+        expr: rate(dlq_events_total[5m]) * 60 > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: platform_health
+        annotations:
+          summary: "Elevated DLQ event rate: >5/min"
+          description: >
+            {{ $value | printf "%.1f" }} DLQ events/min. Review DLQ contents, identify
+            patterns, and prepare a hotfix before the rate escalates.
+          runbook_url: "docs/runbooks/incident_response.md#dlq-replay"
+
+      # Critical: GL posting events exhausting retries — financial integrity loop broken
+      - alert: GLPostingDLQCritical
+        expr: rate(dlq_events_by_subject{subject="gl.posting.requested"}[5m]) * 60 > 5
+        for: 1m
+        labels:
+          severity: critical
+          module: gl
+          category: financial_integrity
+        annotations:
+          summary: "GL posting events exhausting retries (>5/min)"
+          description: >
+            {{ $value | printf "%.1f" }} GL posting events/min landing in DLQ.
+            Financial integrity loop is broken. Immediate intervention required.
+          runbook_url: "docs/runbooks/incident_response.md#dlq-replay"
+
+      # Critical: invoice finalization events exhausting retries
+      - alert: InvoiceFinalizationDLQCritical
+        expr: rate(dlq_events_by_subject{subject="invoice.finalization.requested"}[5m]) * 60 > 10
+        for: 2m
+        labels:
+          severity: critical
+          module: ar
+          category: billing_reliability
+        annotations:
+          summary: "Invoice finalization events exhausting retries (>10/min)"
+          description: >
+            {{ $value | printf "%.1f" }} invoice finalization events/min in DLQ.
+            Customer invoices are not being finalized. Revenue impact imminent.
+          runbook_url: "docs/runbooks/incident_response.md#dlq-replay"
+
+  # ── Outbox Atomicity Failures ────────────────────────────────────────────────
+  - name: outbox_atomicity
+    interval: 30s
+    rules:
+      # Critical: outbox insert failed — state mutation without event (state drift risk)
+      - alert: OutboxInsertFailureCritical
+        expr: increase(outbox_insert_failures_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          category: data_integrity
+        annotations:
+          summary: "Outbox insert failure detected in {{ $labels.module }}"
+          description: >
+            {{ $value }} outbox insert failures in last 5 minutes for {{ $labels.module }}.
+            Domain mutation occurred without a corresponding outbox event — state drift
+            is possible. Rollback deployment and verify transaction boundaries.
+          runbook_url: "docs/runbooks/incident_response.md#outbox-atomicity-failures"
+
+  # ── Webhook Failure Rate ─────────────────────────────────────────────────────
+  - name: webhook_failure
+    interval: 60s
+    rules:
+      # Critical: high inbound webhook failure rate (Tilled → Payments)
+      - alert: WebhookFailureRateCritical
+        expr: >
+          (rate(webhook_delivery_failures_total[10m]) /
+           rate(webhook_delivery_attempts_total[10m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+          module: payments
+          category: payment_reliability
+        annotations:
+          summary: "Webhook failure rate exceeds 10% over 10 minutes"
+          description: >
+            More than 10% of webhook deliveries are failing. May indicate a signature
+            secret mismatch, network issue, or Tilled gateway problem. Check payments
+            logs for signature or 4xx errors. Payments in UNKNOWN may accumulate.
+          runbook_url: "docs/runbooks/incident_response.md#decision-trees"

@@ -1,20 +1,22 @@
-# Prometheus Alert Rules: Payment UNKNOWN Duration
+# Prometheus Alert Rules: UNKNOWN Entity Duration
 #
 # Phase 16: Operational Readiness - Payment Reliability Guardian
 # Phase 46: Runbook links updated (bd-1v9b)
+# Phase 48: Added invoice/subscription UNKNOWN alerts; tuned systemic threshold (bd-4nh7)
 #
-# Runbook source: docs/OPS-TRIAGE.md#9-alert-runbooks
-#   UNKNOWN-RESOLUTION       → docs/OPS-TRIAGE.md#unknown-resolution
-#   PAYMENT-SYSTEMIC-FAILURE → docs/OPS-TRIAGE.md#payment-systemic-failure
+# Evidence basis (Phase 45 proof gate, payment_verify suite):
+#   - Payment UNKNOWN resolved via Tilled webhook within ~5s in test mode
+#   - No invoices stayed UNKNOWN beyond 1 retry cycle during proof gate
+#   - Warning at 30 min / critical at 1 h for payments appropriate (customer-facing)
+#   - Invoice/subscription UNKNOWN windows aligned with 6-hour billing retry limit
+#   - Systemic threshold lowered: > 3 payments UNKNOWN > 30 min catches gateway
+#     failures at our current tenant scale before reaching the prior > 10 trigger
 #
-# These alerts surface payment UNKNOWN states before customer impact.
-# UNKNOWN indicates business logic uncertainty requiring manual resolution.
-#
-# Thresholds (from docs/ops/ALERT-THRESHOLDS.md):
-# - Warning: > 1800s (30 minutes) - Investigate root cause, prepare intervention
-# - Critical: > 3600s (1 hour) - Immediate manual resolution required
+# Runbook: docs/runbooks/incident_response.md#unknown-protocol-resolution
+#   See also: docs/ops/ALERT-THRESHOLDS.md#1-unknown-protocol-violations
 
 groups:
+  # ── Payment UNKNOWN Duration ────────────────────────────────────────────────
   - name: payment_unknown_duration
     interval: 60s
     rules:
@@ -33,7 +35,7 @@ groups:
             has been in UNKNOWN state for {{ $value | humanizeDuration }}.
             Critical threshold (1 hour) exceeded. Customer experience blocked.
             Manual resolution required immediately.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/UNKNOWN-RESOLUTION"
+          runbook_url: "docs/runbooks/incident_response.md#unknown-protocol-resolution"
           dashboard_url: "https://grafana.7dsolutions.com/d/payments/payment-details?var-payment_id={{ $labels.payment_id }}"
 
       # Warning: Payment stuck in UNKNOWN for >30 minutes
@@ -50,22 +52,97 @@ groups:
             Payment {{ $labels.payment_id }} (tenant: {{ $labels.tenant_id }})
             has been in UNKNOWN state for {{ $value | humanizeDuration }}.
             Approaching critical threshold (1 hour). Investigate root cause.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/UNKNOWN-RESOLUTION"
+          runbook_url: "docs/runbooks/incident_response.md#unknown-protocol-resolution"
           dashboard_url: "https://grafana.7dsolutions.com/d/payments/payment-details?var-payment_id={{ $labels.payment_id }}"
 
-      # Critical: Multiple payments stuck in UNKNOWN (systemic issue)
+      # Critical: Multiple payments stuck in UNKNOWN — systemic gateway failure
+      # Threshold: > 3 (tuned from > 10 based on Phase 45 tenant scale evidence)
       - alert: PaymentUnknownSystemicCritical
-        expr: count(unknown_payment_age_seconds > 1800) > 10
+        expr: count(unknown_payment_age_seconds > 1800) > 3
         for: 2m
         labels:
           severity: critical
           module: payments
           category: platform_health
         annotations:
-          summary: "Systemic payment UNKNOWN failures detected"
+          summary: "Systemic payment UNKNOWN failures detected ({{ $value }} payments)"
           description: >
             {{ $value }} payments currently stuck in UNKNOWN state (>30min).
             This indicates a systemic failure in payment processing or external gateway.
             Immediate platform investigation required.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/PAYMENT-SYSTEMIC-FAILURE"
+          runbook_url: "docs/runbooks/incident_response.md#unknown-protocol-resolution"
           dashboard_url: "https://grafana.7dsolutions.com/d/payments/payment-overview"
+
+  # ── Invoice UNKNOWN Duration ────────────────────────────────────────────────
+  - name: invoice_unknown_duration
+    interval: 60s
+    rules:
+      # Critical: Invoice stuck in UNKNOWN for >4 hours (leaves 2h before retry window expires)
+      - alert: InvoiceUnknownDurationCritical
+        expr: unknown_invoice_age_seconds > 14400
+        for: 5m
+        labels:
+          severity: critical
+          module: ar
+          category: billing_reliability
+        annotations:
+          summary: "Invoice in UNKNOWN state for >4 hours"
+          description: >
+            Invoice {{ $labels.invoice_id }} (tenant: {{ $labels.tenant_id }})
+            has been in UNKNOWN state for {{ $value | humanizeDuration }}.
+            6-hour billing retry window will expire in ~2 hours.
+            Manual resolution required before cycle is permanently blocked.
+          runbook_url: "docs/runbooks/incident_response.md#unknown-protocol-resolution"
+          dashboard_url: "https://grafana.7dsolutions.com/d/ar/invoice-details?var-invoice_id={{ $labels.invoice_id }}"
+
+      # Warning: Invoice stuck in UNKNOWN for >1 hour
+      - alert: InvoiceUnknownDurationWarning
+        expr: unknown_invoice_age_seconds > 3600
+        for: 5m
+        labels:
+          severity: warning
+          module: ar
+          category: billing_reliability
+        annotations:
+          summary: "Invoice in UNKNOWN state for >1 hour"
+          description: >
+            Invoice {{ $labels.invoice_id }} (tenant: {{ $labels.tenant_id }})
+            has been in UNKNOWN state for {{ $value | humanizeDuration }}.
+            Approaching critical window. Investigate root cause.
+          runbook_url: "docs/runbooks/incident_response.md#unknown-protocol-resolution"
+
+  # ── Subscription UNKNOWN Duration ───────────────────────────────────────────
+  - name: subscription_unknown_duration
+    interval: 60s
+    rules:
+      # Critical: Subscription stuck in UNKNOWN for >4 hours
+      - alert: SubscriptionUnknownDurationCritical
+        expr: unknown_subscription_age_seconds > 14400
+        for: 5m
+        labels:
+          severity: critical
+          module: subscriptions
+          category: billing_reliability
+        annotations:
+          summary: "Subscription in UNKNOWN state for >4 hours"
+          description: >
+            Subscription {{ $labels.subscription_id }} (tenant: {{ $labels.tenant_id }})
+            has been in UNKNOWN state for {{ $value | humanizeDuration }}.
+            Billing cycle state drift — renewal may not complete correctly.
+          runbook_url: "docs/runbooks/incident_response.md#unknown-protocol-resolution"
+
+      # Warning: Subscription stuck in UNKNOWN for >1 hour
+      - alert: SubscriptionUnknownDurationWarning
+        expr: unknown_subscription_age_seconds > 3600
+        for: 5m
+        labels:
+          severity: warning
+          module: subscriptions
+          category: billing_reliability
+        annotations:
+          summary: "Subscription in UNKNOWN state for >1 hour"
+          description: >
+            Subscription {{ $labels.subscription_id }} (tenant: {{ $labels.tenant_id }})
+            has been in UNKNOWN state for {{ $value | humanizeDuration }}.
+            Monitor — may resolve on next retry cycle.
+          runbook_url: "docs/runbooks/incident_response.md#unknown-protocol-resolution"

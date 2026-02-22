@@ -2,20 +2,16 @@
 #
 # Phase 16: Operational Readiness - Data Integrity Sentinel
 # Phase 46: Runbook links updated (bd-1v9b)
+# Phase 48: Thresholds confirmed against Phase 45 proof-gate evidence (bd-4nh7)
 #
-# Runbook source: docs/OPS-TRIAGE.md#9-alert-runbooks
-#   INVARIANT-INVESTIGATION        → docs/OPS-TRIAGE.md#invariant-investigation
-#   DUPLICATE-INVOICE-RESOLUTION   → docs/OPS-TRIAGE.md#duplicate-invoice-resolution
-#   LIFECYCLE-INTEGRITY            → docs/OPS-TRIAGE.md#lifecycle-integrity
-#   REFERENTIAL-INTEGRITY          → docs/OPS-TRIAGE.md#referential-integrity
-#   UNKNOWN-RESOLUTION             → docs/OPS-TRIAGE.md#unknown-resolution
+# Evidence basis (Phase 45 proof gate):
+#   - Zero invariant violations observed during smoke, isolation, and payment suites
+#   - GL balance maintained at 0 imbalance throughout all test cycles
+#   - Warning threshold (> 0) appropriate: any violation warrants investigation
+#   - Critical GL threshold (> 5) appropriate: sustained violations require rollback
 #
-# These alerts surface invariant violations immediately. Invariant failures
-# indicate data corruption and require zero tolerance in production.
-#
-# Thresholds (from docs/ops/ALERT-THRESHOLDS.md):
-# - Warning: > 0 (any violation is concerning)
-# - Critical: > 5-10 (sustained violations require rollback)
+# Runbook: docs/runbooks/incident_response.md#invariant-violations
+#   See also: docs/ops/ALERT-THRESHOLDS.md#3-invariant-violations
 
 groups:
   - name: invariant_failures
@@ -35,7 +31,7 @@ groups:
             {{ $value }} GL invariant violations detected in last 5 minutes.
             Financial integrity at risk. Immediate rollback may be required.
             Type: {{ $labels.violation_type }}, Tenant: {{ $labels.tenant_id }}
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/INVARIANT-INVESTIGATION"
+          runbook_url: "docs/runbooks/incident_response.md#invariant-violations"
           dashboard_url: "https://grafana.7dsolutions.com/d/gl/invariant-dashboard"
 
       - alert: GLInvariantViolationWarning
@@ -51,7 +47,7 @@ groups:
             GL invariant violation: {{ $labels.violation_type }}.
             Investigate immediately. Freeze related deployments.
             Tenant: {{ $labels.tenant_id }}
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/INVARIANT-INVESTIGATION"
+          runbook_url: "docs/runbooks/incident_response.md#invariant-violations"
 
       # Critical: AR invariant violations
       - alert: ARInvariantViolationCritical
@@ -67,7 +63,7 @@ groups:
             {{ $value }} AR invariant violations in last 5 minutes.
             Billing state corruption detected. Rollback may be required.
             Type: {{ $labels.violation_type }}
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/INVARIANT-INVESTIGATION"
+          runbook_url: "docs/runbooks/incident_response.md#invariant-violations"
           dashboard_url: "https://grafana.7dsolutions.com/d/ar/invariant-dashboard"
 
       - alert: ARInvariantViolationWarning
@@ -82,7 +78,7 @@ groups:
           description: >
             AR invariant violation: {{ $labels.violation_type }}.
             Investigate immediately. May impact billing accuracy.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/INVARIANT-INVESTIGATION"
+          runbook_url: "docs/runbooks/incident_response.md#invariant-violations"
 
       # Critical: Payments invariant violations
       - alert: PaymentsInvariantViolationCritical
@@ -98,7 +94,7 @@ groups:
             {{ $value }} Payments invariant violations in last 5 minutes.
             Payment state drift can cause double-charging or revenue loss.
             Type: {{ $labels.violation_type }}
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/INVARIANT-INVESTIGATION"
+          runbook_url: "docs/runbooks/incident_response.md#invariant-violations"
           dashboard_url: "https://grafana.7dsolutions.com/d/payments/invariant-dashboard"
 
       - alert: PaymentsInvariantViolationWarning
@@ -113,7 +109,7 @@ groups:
           description: >
             Payments invariant violation: {{ $labels.violation_type }}.
             Investigate immediately. Payment integrity at risk.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/INVARIANT-INVESTIGATION"
+          runbook_url: "docs/runbooks/incident_response.md#invariant-violations"
 
       # Critical: Subscriptions invariant violations
       - alert: SubscriptionsInvariantViolationCritical
@@ -129,7 +125,7 @@ groups:
             {{ $value }} Subscriptions invariant violations in last 5 minutes.
             Billing cycle state corruption impacts revenue accuracy.
             Type: {{ $labels.violation_type }}
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/INVARIANT-INVESTIGATION"
+          runbook_url: "docs/runbooks/incident_response.md#invariant-violations"
           dashboard_url: "https://grafana.7dsolutions.com/d/subscriptions/invariant-dashboard"
 
       - alert: SubscriptionsInvariantViolationWarning
@@ -144,7 +140,7 @@ groups:
           description: >
             Subscriptions invariant violation: {{ $labels.violation_type }}.
             Investigate immediately. Billing cycle integrity at risk.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/INVARIANT-INVESTIGATION"
+          runbook_url: "docs/runbooks/incident_response.md#invariant-violations"
 
       # Specific invariant type alerts (Phase 15 invariants)
       - alert: UnknownOutsideRetryWindowCritical
@@ -159,7 +155,7 @@ groups:
           description: >
             {{ $value }} invoices in UNKNOWN state beyond 6-hour retry window.
             Manual intervention required. Billing cycle blocked.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/UNKNOWN-RESOLUTION"
+          runbook_url: "docs/runbooks/incident_response.md#unknown-protocol-resolution"
 
       - alert: DuplicateInvoicesPerCycleCritical
         expr: increase(subscriptions_invariant_violations_total{violation_type="no_duplicate_invoices_per_cycle"}[5m]) > 0
@@ -173,7 +169,7 @@ groups:
           description: >
             {{ $value }} billing cycles with duplicate invoices.
             Double-billing detected! Immediate investigation required.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/DUPLICATE-INVOICE-RESOLUTION"
+          runbook_url: "docs/runbooks/incident_response.md#invariant-violations"
 
       - alert: RetroactiveStateChangesCritical
         expr: increase(ar_invariant_violations_total{violation_type="no_retroactive_state_changes"}[5m]) > 0
@@ -187,7 +183,7 @@ groups:
           description: >
             {{ $value }} invoices with retroactive state mutations outside valid windows.
             Lifecycle integrity violated. Investigate immediately.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/LIFECYCLE-INTEGRITY"
+          runbook_url: "docs/runbooks/incident_response.md#invariant-violations"
 
       - alert: OrphanedFinalizationAttemptsCritical
         expr: increase(ar_invariant_violations_total{violation_type="no_orphaned_finalization_attempts"}[5m]) > 0
@@ -201,4 +197,4 @@ groups:
           description: >
             {{ $value }} finalization attempts without parent invoice records.
             Referential integrity violated. Database corruption suspected.
-          runbook_url: "https://docs.7dsolutions.com/ops/runbooks/REFERENTIAL-INTEGRITY"
+          runbook_url: "docs/runbooks/incident_response.md#invariant-violations"
