@@ -1,6 +1,11 @@
 # Prometheus Alert Rules: Payment UNKNOWN Duration
 #
 # Phase 16: Operational Readiness - Payment Reliability Guardian
+# Phase 46: Runbook links updated (bd-1v9b)
+#
+# Runbook source: docs/OPS-TRIAGE.md#9-alert-runbooks
+#   UNKNOWN-RESOLUTION       → docs/OPS-TRIAGE.md#unknown-resolution
+#   PAYMENT-SYSTEMIC-FAILURE → docs/OPS-TRIAGE.md#payment-systemic-failure
 #
 # These alerts surface payment UNKNOWN states before customer impact.
 # UNKNOWN indicates business logic uncertainty requiring manual resolution.

@@ -412,3 +412,148 @@ bash /opt/7d-platform/scripts/production/rollback_stack.sh
 | `scripts/production/health_audit.sh` | Automated DB + HTTP audit |
 | `scripts/production/smoke.sh` | Full smoke suite (off-host) |
 | `scripts/production/log_bundle.sh` | Capture diagnostic log bundle |
+
+---
+
+## 9. Alert Runbooks
+
+> These sections are the authoritative runbooks referenced by Prometheus alert
+> `runbook_url` annotations in `infra/monitoring/alerts/`. Each heading maps
+> directly to an alert group.
+
+### SERVICE-DOWN
+
+**Alerts:** `BillingServiceDown`, `PlatformServiceDown`, `ModuleServiceDown`
+
+1. Open `infra/monitoring/grafana/dashboards/service-health.json` in Grafana — identify which service shows DOWN.
+2. Check container status: `docker ps --filter 'status=exited' --format '{{.Names}}\t{{.Status}}'`
+3. Tail logs for the affected service: `docker logs --tail 200 7d-<service>`
+4. Attempt restart: `docker compose -f docker-compose.modules.yml restart 7d-<service>`
+5. If restart fails, check DB connectivity (section 5 above) and NATS status.
+6. Escalate if service does not recover within 5 minutes of restart.
+
+### NATS-DOWN
+
+**Alert:** `NATSDown`
+
+1. Check NATS container: `docker ps | grep nats`
+2. Tail NATS logs: `docker logs --tail 200 7d-nats`
+3. Restart NATS: `docker compose -f docker-compose.infrastructure.yml restart 7d-nats`
+4. Verify outbox relay resumes: watch `outbox_pending_events` metric drop in Grafana.
+5. After recovery, verify no events were lost — check outbox tables for stranded rows.
+
+### BILLING-CYCLE-FAILURE
+
+**Alerts:** `BillingCycleFailureRateCritical`, `BillingCycleStalled`
+
+1. Open `infra/monitoring/grafana/dashboards/billing-runs.json` in Grafana.
+2. Check completion rate panel — if 0%, subscriptions service may be stuck.
+3. Inspect subscriptions logs: `docker logs --tail 500 7d-subscriptions | grep -i 'error\|cycle\|billing'`
+4. Check for DB lock contention on the subscriptions database.
+5. Verify NATS is healthy — billing cycles emit events that trigger downstream work.
+6. If stalled: restart subscriptions service, then verify cycles resume within 5 minutes.
+
+### PAYMENT-FAILURE-RATE
+
+**Alert:** `PaymentFailureRateCritical`
+
+1. Open `infra/monitoring/grafana/dashboards/webhook-failures.json` — check Payments webhook failures.
+2. Check payment gateway status (Tilled dashboard / status page).
+3. Inspect payments logs: `docker logs --tail 500 7d-payments | grep -i 'error\|fail\|gateway'`
+4. Verify payment credentials are not expired: check `.env` payment API key expiry.
+5. If gateway is healthy but failures persist, check payments DB for stuck records.
+
+### PAYMENT-PROCESSING-STALLED
+
+**Alert:** `PaymentProcessingStalled`
+
+1. Confirm payment attempts are being made but nothing succeeds (Grafana billing-runs dashboard).
+2. Check payment gateway connectivity from the container:
+   `docker exec 7d-payments curl -sf https://api.tilled.com/health`
+3. Inspect payments logs for gateway timeout or credential errors.
+4. Rotate payment credentials if expired; restart payments service after update.
+
+### UNKNOWN-RESOLUTION
+
+**Alerts:** `PaymentUnknownDurationWarning`, `PaymentUnknownDurationCritical`
+
+1. Query payments DB for stuck UNKNOWN records:
+   `psql $PAYMENTS_DB_URL -c "SELECT id, tenant_id, created_at FROM payments WHERE status='UNKNOWN' ORDER BY created_at"`
+2. For each UNKNOWN payment, check gateway status via Tilled API.
+3. If gateway confirms success → manually transition to SUCCEEDED via admin API.
+4. If gateway confirms failure → manually transition to FAILED and trigger retry.
+5. If gateway is unreachable → wait for gateway recovery, then re-query.
+
+### PAYMENT-SYSTEMIC-FAILURE
+
+**Alert:** `PaymentUnknownSystemicCritical`
+
+Treat as critical incident. More than 10 payments stuck in UNKNOWN indicates gateway or network failure.
+
+1. Page on-call. Freeze non-critical deployments.
+2. Follow `UNKNOWN-RESOLUTION` steps above in bulk.
+3. Review `docs/runbooks/incident_response.md` for P0 severity escalation path.
+
+### INVARIANT-INVESTIGATION
+
+**Alerts:** `GLInvariantViolationCritical`, `ARInvariantViolationCritical`, etc.
+
+1. Open `infra/monitoring/grafana/dashboards/audit-integrity.json` in Grafana.
+2. Identify the violation type and affected tenant from the alert label.
+3. **Freeze related deployments immediately.**
+4. Query the affected module's DB for the violating records.
+5. Review recent commits for logic changes touching the violated invariant.
+6. If data corruption is confirmed, follow `docs/runbooks/incident_response.md` rollback procedure.
+
+### DUPLICATE-INVOICE-RESOLUTION
+
+**Alert:** `DuplicateInvoicesPerCycleCritical`
+
+1. Query subscriptions DB: `SELECT subscription_id, billing_period, COUNT(*) FROM invoices GROUP BY subscription_id, billing_period HAVING COUNT(*) > 1`
+2. Identify which billing cycle triggered duplicate creation.
+3. Mark duplicate invoices as VOID via admin API (do not delete — preserve audit trail).
+4. File bug with subscription billing cycle idempotency key implementation.
+
+### LIFECYCLE-INTEGRITY
+
+**Alert:** `RetroactiveStateChangesCritical`
+
+1. Identify which invoice had a retroactive state change from the alert label.
+2. Query AR DB for the invoice state history.
+3. If caused by a code bug, roll back the deployment and restore the correct state from audit log.
+4. If caused by a manual operation, document the deviation in the incident record.
+
+### REFERENTIAL-INTEGRITY
+
+**Alert:** `OrphanedFinalizationAttemptsCritical`
+
+1. Query AR DB for finalization attempts without parent invoice:
+   `SELECT * FROM finalization_attempts fa WHERE NOT EXISTS (SELECT 1 FROM invoices i WHERE i.id = fa.invoice_id)`
+2. This indicates a DB-level bug or a failed transaction that wrote partial state.
+3. Treat as P0. Freeze billing operations. Engage DB restore if data loss is confirmed.
+
+### ERROR-SPIKE
+
+For HTTP 5xx spikes observed in `infra/monitoring/grafana/dashboards/error-rates.json`:
+
+1. Identify the service with elevated 5xx rate from the Grafana panel.
+2. Tail service logs for error details: `docker logs --tail 500 7d-<service> | grep -c 'ERROR\|500'`
+3. Correlate with recent deploys: `git log --oneline -10`
+4. If spike follows a deploy, initiate rollback via `docs/OPS-TRIAGE.md#7-emergency-restart-procedures`.
+
+### WEBHOOK-FAILURE
+
+For webhook failures observed in `infra/monitoring/grafana/dashboards/webhook-failures.json`:
+
+1. Check the failing webhook endpoint (AR or Payments) for reachability.
+2. Inspect webhook delivery logs: `docker logs 7d-ar | grep -i webhook` / `docker logs 7d-payments | grep -i webhook`
+3. Verify the target endpoint URL is still valid (tenant webhook URL config).
+4. For exhausted retries: manually trigger re-delivery via admin API if the target is now healthy.
+
+### DB-NATS
+
+For DB/NATS issues observed in `infra/monitoring/grafana/dashboards/db-nats-status.json`:
+
+1. **NATS down:** follow `NATS-DOWN` runbook above.
+2. **DB connection exhaustion:** identify which service is exhausting its pool; check for slow queries or connection leaks via `SHOW PROCESSLIST` / `pg_stat_activity`.
+3. **Outbox lag:** if pending event count is rising, check NATS status first, then check relay consumer logs.

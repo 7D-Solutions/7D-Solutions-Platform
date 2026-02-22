@@ -1,6 +1,14 @@
 # Prometheus Alert Rules: Invariant Failures
 #
 # Phase 16: Operational Readiness - Data Integrity Sentinel
+# Phase 46: Runbook links updated (bd-1v9b)
+#
+# Runbook source: docs/OPS-TRIAGE.md#9-alert-runbooks
+#   INVARIANT-INVESTIGATION        → docs/OPS-TRIAGE.md#invariant-investigation
+#   DUPLICATE-INVOICE-RESOLUTION   → docs/OPS-TRIAGE.md#duplicate-invoice-resolution
+#   LIFECYCLE-INTEGRITY            → docs/OPS-TRIAGE.md#lifecycle-integrity
+#   REFERENTIAL-INTEGRITY          → docs/OPS-TRIAGE.md#referential-integrity
+#   UNKNOWN-RESOLUTION             → docs/OPS-TRIAGE.md#unknown-resolution
 #
 # These alerts surface invariant violations immediately. Invariant failures
 # indicate data corruption and require zero tolerance in production.

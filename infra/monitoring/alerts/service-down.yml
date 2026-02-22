@@ -1,6 +1,14 @@
 # Prometheus Alert Rules: Service Down + Billing/Payment Critical Failures
 #
 # Phase 45: Production Observability (bd-2ubc)
+# Phase 46: Runbook links updated (bd-1v9b)
+#
+# Runbook source: docs/OPS-TRIAGE.md#9-alert-runbooks
+#   SERVICE-DOWN      → docs/OPS-TRIAGE.md#service-down
+#   NATS-DOWN         → docs/OPS-TRIAGE.md#nats-down
+#   BILLING-CYCLE     → docs/OPS-TRIAGE.md#billing-cycle-failure
+#   PAYMENT-FAILURE   → docs/OPS-TRIAGE.md#payment-failure-rate
+#   PAYMENT-STALLED   → docs/OPS-TRIAGE.md#payment-processing-stalled
 #
 # These alerts surface service outages and billing/payment failures quickly
 # enough to detect silent failures before customer impact.
