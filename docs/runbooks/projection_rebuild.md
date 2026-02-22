@@ -1,6 +1,6 @@
 # Projection Rebuild Runbook
 
-**Phase 34 — Hardening / Launch Readiness**
+**Phase 48 — Production Hardening (last updated: bd-3len)**
 
 ## Purpose
 
@@ -246,4 +246,5 @@ If rebuild is interrupted mid-swap:
 
 ## Changelog
 
+- **2026-02-22**: Phase 48 — update header (bd-3len)
 - **2026-02-19**: Phase 34 — initial projection rebuild runbook (bd-x48w)

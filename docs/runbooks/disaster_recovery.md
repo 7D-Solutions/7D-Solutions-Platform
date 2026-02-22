@@ -1,6 +1,6 @@
 # Disaster Recovery Runbook
 
-**Phase 34 — Hardening / Launch Readiness**
+**Phase 48 — Production Hardening (last updated: bd-3len)**
 
 ## Purpose
 
@@ -98,9 +98,14 @@ module databases because services depend on auth tokens and tenant routing.
 
 ```bash
 # Restore platform databases individually (order matters)
+# auth → tenant_registry → audit
 for MODULE in auth tenant_registry audit; do
   DB="${MODULE}_db"
-  # ... use single-database restore procedure from backup_restore.md
+  USER="${MODULE}_user"
+  PORT_MAP="auth:5433 tenant_registry:5441 audit:5440"
+  PORT=$(echo "$PORT_MAP" | tr ' ' '\n' | grep "^${MODULE}:" | cut -d: -f2)
+  gunzip -c "${BACKUP_DIR}/${MODULE}.sql.gz" | \
+    docker exec -i "7d-${MODULE//_/-}-postgres" psql -U "${USER}" -d "${DB}"
 done
 ```
 
@@ -162,17 +167,29 @@ docker compose -f docker-compose.modules.yml ps
 
 1. **Hit each service health endpoint** to confirm connectivity:
    ```bash
-   for port in 8081 8082 8083 8084 8085 8086 8087 8088 8089 8090 8091 8092 8093 8094 8095 8096 8097 8098 8099; do
-     curl -sf "http://localhost:${port}/health" && echo " OK :${port}" || echo " FAIL :${port}"
+   # Platform
+   curl -sf http://localhost:8080/healthz    && echo " OK auth"         || echo " FAIL auth"
+   curl -sf http://localhost:8091/api/ready  && echo " OK control-plane" || echo " FAIL control-plane"
+
+   # Billing spine (check first)
+   for svc_port in "ar:8086" "subscriptions:8087" "payments:8088" "ttp:8100"; do
+     svc="${svc_port%%:*}"; port="${svc_port##*:}"
+     curl -sf "http://localhost:${port}/api/health" && echo " OK ${svc}" || echo " FAIL ${svc}"
+   done
+
+   # All other modules
+   for svc_port in \
+     "notifications:8089" "gl:8090" "inventory:8092" \
+     "ap:8093" "treasury:8094" "fixed-assets:8095" \
+     "consolidation:8096" "timekeeping:8097" "party:8098" "integrations:8099"; do
+     svc="${svc_port%%:*}"; port="${svc_port##*:}"
+     curl -sf "http://localhost:${port}/api/health" && echo " OK ${svc}" || echo " FAIL ${svc}"
    done
    ```
 
 2. **Run E2E test suite** (non-destructive read-only checks):
    ```bash
-   AUDIT_DATABASE_URL=postgres://postgres:postgres@localhost:5432/audit_db \
-   PROJECTIONS_DATABASE_URL=postgres://postgres:postgres@localhost:5432/projections_db \
-   TENANT_REGISTRY_DATABASE_URL=postgres://postgres:postgres@localhost:5432/tenant_registry_db \
-   cargo test -p e2e-tests --no-fail-fast -- --nocapture
+   ./scripts/cargo-slot.sh test -p e2e-tests --no-fail-fast -- --nocapture
    ```
 
 3. **Verify NATS consumers are draining** (no stuck messages):
@@ -242,15 +259,68 @@ If a restored database causes issues (e.g., schema mismatch after migration):
 3. Re-run smoke test
 4. If persistent: escalate to DBA for manual inspection
 
+---
+
+## Decision Trees
+
+### Scope Classification
+
+Use this tree to classify the incident before taking action:
+
+```
+All services down?
+├── YES → Total loss (disk, VPS, or Docker daemon failure)
+│   → Declare DR immediately. Follow full recovery procedure above.
+└── NO  → One or more services affected
+    Are databases intact (docker exec psql connects)?
+    ├── NO  → Partial DB loss → restore only affected module DBs (Phase 4)
+    └── YES → Service degradation → skip restore, go to Phase 7 (restart services)
+              Check for outbox lag or NATS issue before assuming DB problem.
+```
+
+### Rollback vs. DR Decision
+
+```
+Did a deploy precede the failure (within 30 min)?
+├── YES → Attempt rollback first (faster than DR):
+│   1. bash /opt/7d-platform/scripts/production/rollback_stack.sh
+│   2. bash /opt/7d-platform/scripts/production/smoke.sh
+│   3. If rollback succeeds → exit DR mode. Verify GL balance.
+│   4. If rollback fails (DB schema already migrated) → proceed with DR restore
+└── NO  → Infrastructure failure → go directly to DR procedure above.
+```
+
+### Webhook Failure During DR Recovery
+
+If webhook failures appear after services restart:
+
+```
+Are NATS consumers draining (nats consumer report PLATFORM)?
+├── NO (lag rising) → NATS relay is stuck. Restart affected service.
+└── YES → Check outbox tables for un-published events:
+    docker exec 7d-payments-postgres psql -U payments_user -d payments_db \
+      -c "SELECT COUNT(*) FROM outbox WHERE published_at IS NULL;"
+    If > 0 → restart the service; the relay will re-publish on startup.
+    If 0 but webhook deliveries failing → tenant endpoint is down; events will
+    exhaust retries into DLQ. Follow DLQ Replay procedure in incident_response.md.
+```
+
+---
+
 ## References
 
+- `scripts/production/rollback_stack.sh` — automated rollback
+- `scripts/production/smoke.sh` — post-recovery smoke test
+- `scripts/production/log_bundle.sh` — capture diagnostic log bundle
 - `scripts/backup_all.sh` — automated backup
 - `scripts/restore_all.sh` — automated restore + smoke-test
 - `scripts/dr_drill.sh` — quarterly drill automation
 - `docs/runbooks/backup_restore.md` — detailed backup/restore procedures
+- `docs/runbooks/incident_response.md` — rollback and webhook failure decision trees
 - `docker-compose.infrastructure.yml` — database port/credential defaults
 - `docker-compose.modules.yml` — application services
 
 ## Changelog
 
+- **2026-02-22**: Phase 48 — add Decision Trees for scope classification, rollback vs DR, and post-DR webhook failure; fix Phase 3 restore commands; fix Phase 8 health check port list to match actual service ports; update E2E test command to use cargo-slot.sh (bd-3len)
 - **2026-02-19**: Phase 34 — initial DR runbook with RPO/RTO targets (bd-12k9)

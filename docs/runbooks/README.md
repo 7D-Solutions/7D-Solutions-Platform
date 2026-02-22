@@ -6,9 +6,9 @@ Operational runbooks for the 7D Solutions Platform.
 
 | Runbook | Description |
 |---------|-------------|
-| [incident_response.md](incident_response.md) | Incident response: UNKNOWN resolution, DLQ replay, invariant violations |
+| [incident_response.md](incident_response.md) | Incident response: UNKNOWN resolution, DLQ replay, invariant violations; Decision Trees for rollback and webhook failure |
 | [support_checklist.md](support_checklist.md) | On-call shift start/end checklist and daily ops tasks |
-| [disaster_recovery.md](disaster_recovery.md) | DR runbook with RPO/RTO targets + quarterly drill |
+| [disaster_recovery.md](disaster_recovery.md) | DR runbook with RPO/RTO targets + quarterly drill; Decision Trees for rollback vs DR and post-recovery |
 | [backup_restore.md](backup_restore.md) | Scripted backup/restore with smoke verification |
 | [projection_rebuild.md](projection_rebuild.md) | Projection rebuild via CLI tool and admin endpoints |
 | [BACKUP-RESTORE-RUNBOOK.md](../ops/BACKUP-RESTORE-RUNBOOK.md) | Legacy per-tenant DB backup/restore reference |

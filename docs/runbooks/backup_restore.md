@@ -1,6 +1,6 @@
 # Backup & Restore Runbook
 
-**Phase 34 — Hardening / Launch Readiness**
+**Phase 48 — Production Hardening (last updated: bd-3len)**
 
 ## Purpose
 
@@ -28,6 +28,7 @@ Covers full-platform backup, full-platform restore, and smoke-restore verificati
 | timekeeping | 7d-timekeeping-postgres | 5447 | timekeeping_db |
 | party | 7d-party-postgres | 5448 | party_db |
 | integrations | 7d-integrations-postgres | 5449 | integrations_db |
+| ttp | 7d-ttp-postgres | 5451 | ttp_db |
 
 ## Prerequisites
 
@@ -286,4 +287,5 @@ gunzip -t backups/YYYY-MM-DD/ar.sql.gz
 
 ## Changelog
 
+- **2026-02-22**: Phase 48 — add TTP database to coverage table (bd-3len)
 - **2026-02-19**: Phase 34 — scripted backup/restore with automated smoke test (bd-tet1)
