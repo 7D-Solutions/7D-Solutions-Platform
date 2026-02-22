@@ -106,10 +106,73 @@ The job installs k6, runs `tools/perf/smoke.js`, and fails the workflow if any t
 | `smoke_ar_ms` (p95)          | `< 1 500 ms`    |
 | `smoke_errors`               | `rate < 1%`     |
 
+## Baseline — billing spine capacity
+
+`tools/perf/baseline_billing_spine.js` establishes the operating envelope for
+the billing spine (control-plane + tenant-registry + AR module).  Run it
+against a live stack and export results as a CI artifact:
+
+```bash
+PERF_AUTH_EMAIL=perf@test.7d.local \
+PERF_AUTH_PASSWORD='PerfTest1!' \
+k6 run tools/perf/baseline_billing_spine.js \
+     --summary-export=perf_summary.json
+```
+
+### Load shape
+
+| Stage      | Duration | VUs |
+|------------|----------|-----|
+| Ramp-up    | 30 s     | 1 → 10 |
+| Sustain    | 60 s     | 10 |
+| Ramp-down  | 10 s     | 10 → 0 |
+
+Total run time: ~100 s.  No real charges are created.  ~20% of iterations
+issue a single customer-create (write-light); the remaining 80% are pure reads.
+
+### Thresholds (baseline pass/fail gate)
+
+| Metric                      | Threshold        | Tier               |
+|-----------------------------|------------------|--------------------|
+| `http_req_failed`           | `rate < 1%`      | All requests       |
+| `http_req_duration` (p95)   | `< 1 000 ms`     | All requests       |
+| `billing_cp_reads_ms` (p95) | `< 500 ms`       | Control-plane reads |
+| `billing_ar_reads_ms` (p95) | `< 800 ms`       | AR module reads    |
+| `billing_errors`            | `rate < 1%`      | check() failures   |
+
+k6 exits non-zero if any threshold is breached, making it a hard CI gate.
+
+### Endpoints exercised
+
+| Group                         | Method | Path                          | Auth? |
+|-------------------------------|--------|-------------------------------|-------|
+| cp: readiness                 | GET    | /api/ready                    | No    |
+| cp: tenant list               | GET    | /api/tenants                  | Yes   |
+| cp: ttp plan catalog          | GET    | /api/ttp/plans                | Yes   |
+| ar: customer list             | GET    | /api/ar/customers             | Yes   |
+| ar: invoice list              | GET    | /api/ar/invoices              | Yes   |
+| ar: subscription list         | GET    | /api/ar/subscriptions         | Yes   |
+| ar: aging report              | GET    | /api/ar/aging                 | Yes   |
+| ar: write-light customer create | POST | /api/ar/customers             | Yes   |
+
+### CI artifact — perf_summary.json
+
+The `--summary-export` flag writes a JSON file compatible with k6 Cloud and
+standard CI artifact retention.  Key fields consumed downstream (bd-1obl):
+
+```
+metrics.billing_cp_reads_ms.values.p(95)
+metrics.billing_ar_reads_ms.values.p(95)
+metrics.http_req_failed.values.rate
+metrics.billing_errors.values.rate
+metrics.billing_write_ops.values.count
+```
+
+Compare successive runs to detect regressions.  A >20% increase in p95
+latency vs the prior recorded baseline warrants investigation.
+
 ## Adding new scenarios
 
 1. Create `tools/perf/<scenario>.js`
 2. Import from `./config/environments.js` and `./lib/auth.js`
 3. Add a new step to `.github/workflows/perf.yml` or create a separate workflow
-
-Capacity baseline scenarios live in `tools/perf/baseline.js` (added in bd-38aw).
