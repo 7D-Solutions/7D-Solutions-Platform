@@ -23,6 +23,7 @@ services:
       TTP_BASE_URL: http://7d-ttp:8100
       AR_BASE_URL: http://7d-ar:8086
       NOTIFICATIONS_BASE_URL: http://7d-notifications:8089
+      PAYMENTS_BASE_URL: http://7d-payments:8088
     ports:
       - "3000:3000"
     networks:
