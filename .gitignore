@@ -2,6 +2,17 @@
 /target/
 /target-slot-1/
 /target-slot-2/
+/target-slot-3/
+/target-slot-4/
+
+# Cargo per-slot home dirs (registry cache created by cargo-slot.sh)
+/.cargo-slot-1/
+/.cargo-slot-2/
+/.cargo-slot-3/
+/.cargo-slot-4/
+
+# Beads active-bead tracking (runtime state, not source)
+/.beads_active
 
 # DR drill reports (generated artifacts)
 /dr-reports/
