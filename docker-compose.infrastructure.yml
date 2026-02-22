@@ -86,6 +86,8 @@ services:
   subscriptions-postgres:
     container_name: 7d-subscriptions-postgres
     image: postgres:16-alpine
+    entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
+    command: ["postgres"]
     ports:
       - "5435:5432"
     environment:
@@ -271,6 +273,8 @@ services:
   inventory-postgres:
     container_name: 7d-inventory-postgres
     image: postgres:16-alpine
+    entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
+    command: ["postgres"]
     ports:
       - "5442:5432"
     environment:
@@ -323,6 +327,8 @@ services:
   treasury-postgres:
     container_name: 7d-treasury-postgres
     image: postgres:16-alpine
+    entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
+    command: ["postgres"]
     ports:
       - "5444:5432"
     environment:
@@ -401,6 +407,8 @@ services:
   timekeeping-postgres:
     container_name: 7d-timekeeping-postgres
     image: postgres:16-alpine
+    entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
+    command: ["postgres"]
     ports:
       - "5447:5432"
     environment:
@@ -453,6 +461,8 @@ services:
   integrations-postgres:
     container_name: 7d-integrations-postgres
     image: postgres:16-alpine
+    entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
+    command: ["postgres"]
     ports:
       - "5449:5432"
     environment:
