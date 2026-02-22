@@ -1,12 +1,14 @@
 //! Integration tests for Payments Retry Window Discipline (bd-1it)
 //!
 //! Tests verify:
-//! 1. Retry window calculation and eligibility
+//! 1. Retry window calculation and eligibility (unit-level)
 //! 2. UNKNOWN blocking protocol (bd-2uw integration)
 //! 3. Exactly-once enforcement via UNIQUE constraints
-//! 4. Cross-module integration with AR invoices (due_at dates)
+//! 4. Retry scheduling using attempted_at anchor (no AR cross-module dependency)
+//!
+//! NOTE: get_payments_for_retry uses the first attempt's attempted_at as the
+//! retry anchor (bd-2wtz module isolation). AR invoice due_at is NOT used.
 
-use chrono::NaiveDate;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -29,27 +31,35 @@ async fn setup_test_pool() -> PgPool {
     pool
 }
 
-// Test helper to create an AR invoice with due date
-async fn create_ar_invoice_with_due_date(
+// Test helper to create a payment attempt with a specific attempted_at timestamp
+async fn create_payment_attempt_at(
     pool: &PgPool,
     app_id: &str,
-    due_date: NaiveDate,
-) -> String {
-    let invoice_id: i32 = sqlx::query_scalar(
-        "INSERT INTO ar.ar_invoices (app_id, ar_customer_id, status, amount_cents, currency, due_at)
-         VALUES ($1, 'cust-123', 'open', 10000, 'USD', $2)
+    payment_id: Uuid,
+    invoice_id: &str,
+    attempt_no: i32,
+    status: &str,
+    attempted_at: &str,
+) -> Uuid {
+    let attempt_id: Uuid = sqlx::query_scalar(
+        "INSERT INTO payment_attempts (app_id, payment_id, invoice_id, attempt_no, status, attempted_at)
+         VALUES ($1, $2, $3, $4, $5::payment_attempt_status, $6::timestamp)
          RETURNING id"
     )
     .bind(app_id)
-    .bind(due_date)
+    .bind(payment_id)
+    .bind(invoice_id)
+    .bind(attempt_no)
+    .bind(status)
+    .bind(attempted_at)
     .fetch_one(pool)
     .await
-    .expect("Failed to create AR invoice");
+    .expect("Failed to create payment attempt");
 
-    invoice_id.to_string()
+    attempt_id
 }
 
-// Test helper to create a payment attempt
+// Test helper to create a payment attempt with NOW() as attempted_at
 async fn create_payment_attempt(
     pool: &PgPool,
     app_id: &str,
@@ -75,13 +85,22 @@ async fn create_payment_attempt(
     attempt_id
 }
 
+// Clean up payment attempts for a payment_id
+async fn cleanup_payment(pool: &PgPool, payment_id: Uuid) {
+    sqlx::query("DELETE FROM payment_attempts WHERE payment_id = $1")
+        .bind(payment_id)
+        .execute(pool)
+        .await
+        .ok();
+}
+
 // ============================================================================
-// Retry Window Calculation Tests
+// Retry Window Calculation Tests (unit-level, no DB required)
 // ============================================================================
 
 #[tokio::test]
 async fn test_retry_windows_calculation() {
-    // Unit test coverage via module tests
+    use chrono::NaiveDate;
     use payments_rs::retry::{calculate_retry_windows, determine_current_window};
 
     let due_date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
@@ -103,7 +122,7 @@ async fn test_retry_windows_calculation() {
 }
 
 // ============================================================================
-// Eligibility Tests
+// Eligibility Tests (unit-level, no DB required)
 // ============================================================================
 
 #[tokio::test]
@@ -131,13 +150,13 @@ async fn test_unknown_status_blocks_retry() {
     let pool = setup_test_pool().await;
     let app_id = &format!("app-{}", Uuid::new_v4());
     let payment_id = Uuid::new_v4();
+    let invoice_id = format!("inv-{}", Uuid::new_v4());
 
-    // Create AR invoice with due date in the past (eligible window)
-    let due_date = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-    let invoice_id = create_ar_invoice_with_due_date(&pool, app_id, due_date).await;
-
-    // Create payment attempt with status='unknown'
-    create_payment_attempt(&pool, app_id, payment_id, &invoice_id, 0, "unknown").await;
+    // Create payment attempt with status='unknown', anchored in the past
+    create_payment_attempt_at(
+        &pool, app_id, payment_id, &invoice_id, 0, "unknown",
+        "2026-01-01 00:00:00",
+    ).await;
 
     // Query for retry-eligible payments
     let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)
@@ -150,17 +169,7 @@ async fn test_unknown_status_blocks_retry() {
         "Payment with status='unknown' must not appear in retry list (UNKNOWN blocking protocol)"
     );
 
-    // Clean up
-    sqlx::query("DELETE FROM payment_attempts WHERE payment_id = $1")
-        .bind(payment_id)
-        .execute(&pool)
-        .await
-        .ok();
-    sqlx::query("DELETE FROM ar.ar_invoices WHERE id = $1::integer")
-        .bind(&invoice_id)
-        .execute(&pool)
-        .await
-        .ok();
+    cleanup_payment(&pool, payment_id).await;
 }
 
 #[tokio::test]
@@ -168,15 +177,16 @@ async fn test_failed_retry_is_eligible() {
     let pool = setup_test_pool().await;
     let app_id = &format!("app-{}", Uuid::new_v4());
     let payment_id = Uuid::new_v4();
+    let invoice_id = format!("inv-{}", Uuid::new_v4());
 
-    // Create AR invoice with due date in the past (attempt 1 window: +3 days)
-    let due_date = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-    let invoice_id = create_ar_invoice_with_due_date(&pool, app_id, due_date).await;
+    // Create payment attempt with status='failed_retry', anchored far in the past
+    // so that multiple retry windows are now active
+    create_payment_attempt_at(
+        &pool, app_id, payment_id, &invoice_id, 0, "failed_retry",
+        "2026-01-01 00:00:00",
+    ).await;
 
-    // Create payment attempt with status='failed_retry' and attempt_no=0
-    create_payment_attempt(&pool, app_id, payment_id, &invoice_id, 0, "failed_retry").await;
-
-    // Query for retry-eligible payments (today is well past due date)
+    // Query for retry-eligible payments (today is well past anchor date)
     let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)
         .await
         .expect("Failed to get payments for retry");
@@ -187,17 +197,7 @@ async fn test_failed_retry_is_eligible() {
         "Payment with status='failed_retry' should be eligible for retry"
     );
 
-    // Clean up
-    sqlx::query("DELETE FROM payment_attempts WHERE payment_id = $1")
-        .bind(payment_id)
-        .execute(&pool)
-        .await
-        .ok();
-    sqlx::query("DELETE FROM ar.ar_invoices WHERE id = $1::integer")
-        .bind(&invoice_id)
-        .execute(&pool)
-        .await
-        .ok();
+    cleanup_payment(&pool, payment_id).await;
 }
 
 // ============================================================================
@@ -209,37 +209,39 @@ async fn test_no_duplicate_attempts_per_window() {
     let pool = setup_test_pool().await;
     let app_id = &format!("app-{}", Uuid::new_v4());
     let payment_id = Uuid::new_v4();
+    let invoice_id = format!("inv-{}", Uuid::new_v4());
 
-    // Create AR invoice with due date in the past
-    let due_date = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-    let invoice_id = create_ar_invoice_with_due_date(&pool, app_id, due_date).await;
+    // Create attempt 0 in a past window with 'attempting' status
+    create_payment_attempt_at(
+        &pool, app_id, payment_id, &invoice_id, 0, "attempting",
+        "2026-01-01 00:00:00",
+    ).await;
 
-    // Create attempt for window 0
-    create_payment_attempt(&pool, app_id, payment_id, &invoice_id, 0, "attempting").await;
+    // Also create attempt 1 to fill the first retry window
+    create_payment_attempt_at(
+        &pool, app_id, payment_id, &invoice_id, 1, "attempting",
+        "2026-01-04 00:00:00",
+    ).await;
+
+    // Also create attempt 2 to fill the second retry window
+    create_payment_attempt_at(
+        &pool, app_id, payment_id, &invoice_id, 2, "attempting",
+        "2026-01-08 00:00:00",
+    ).await;
 
     // Query for retry-eligible payments
     let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)
         .await
         .expect("Failed to get payments for retry");
 
-    // ASSERTION: Should not return payment because attempt already exists for window 0
+    // ASSERTION: Should not return payment because attempts exist for all windows
     let has_payment = retry_list.iter().any(|(id, _)| *id == payment_id);
     assert!(
         !has_payment,
-        "Payment should not be in retry list if attempt already exists for current window"
+        "Payment should not be in retry list if attempts already exist for all windows"
     );
 
-    // Clean up
-    sqlx::query("DELETE FROM payment_attempts WHERE payment_id = $1")
-        .bind(payment_id)
-        .execute(&pool)
-        .await
-        .ok();
-    sqlx::query("DELETE FROM ar.ar_invoices WHERE id = $1::integer")
-        .bind(&invoice_id)
-        .execute(&pool)
-        .await
-        .ok();
+    cleanup_payment(&pool, payment_id).await;
 }
 
 #[tokio::test]
@@ -247,10 +249,7 @@ async fn test_unique_constraint_prevents_duplicates() {
     let pool = setup_test_pool().await;
     let app_id = &format!("app-{}", Uuid::new_v4());
     let payment_id = Uuid::new_v4();
-
-    // Create AR invoice
-    let due_date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
-    let invoice_id = create_ar_invoice_with_due_date(&pool, app_id, due_date).await;
+    let invoice_id = format!("inv-{}", Uuid::new_v4());
 
     // Create first attempt
     create_payment_attempt(&pool, app_id, payment_id, &invoice_id, 0, "attempting").await;
@@ -274,96 +273,75 @@ async fn test_unique_constraint_prevents_duplicates() {
         "UNIQUE constraint should prevent duplicate (app_id, payment_id, attempt_no)"
     );
 
-    // Clean up
-    sqlx::query("DELETE FROM payment_attempts WHERE payment_id = $1")
-        .bind(payment_id)
-        .execute(&pool)
-        .await
-        .ok();
-    sqlx::query("DELETE FROM ar.ar_invoices WHERE id = $1::integer")
-        .bind(&invoice_id)
-        .execute(&pool)
-        .await
-        .ok();
+    cleanup_payment(&pool, payment_id).await;
 }
 
 // ============================================================================
-// Cross-Module Integration Tests (AR Invoices)
+// Retry Scheduling Uses attempted_at Anchor (bd-2wtz Module Isolation)
 // ============================================================================
 
 #[tokio::test]
-async fn test_join_to_ar_invoices_for_due_date() {
+async fn test_retry_scheduling_uses_attempted_at_anchor() {
     let pool = setup_test_pool().await;
     let app_id = &format!("app-{}", Uuid::new_v4());
     let payment_id = Uuid::new_v4();
+    let invoice_id = format!("inv-{}", Uuid::new_v4());
 
-    // Create AR invoice with specific due date
-    let due_date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
-    let invoice_id = create_ar_invoice_with_due_date(&pool, app_id, due_date).await;
+    // Create attempt 0 with a timestamp far enough in the past that window 1 (+3 days) is now active
+    // Use a date 10 days ago so all windows have passed
+    create_payment_attempt_at(
+        &pool, app_id, payment_id, &invoice_id, 0, "failed_retry",
+        "2026-01-01 00:00:00",
+    ).await;
 
-    // Create payment attempt referencing the invoice
-    create_payment_attempt(&pool, app_id, payment_id, &invoice_id, 0, "attempting").await;
-
-    // Verify the JOIN works by querying for retry-eligible payments
-    // (This implicitly tests the JOIN to ar.ar_invoices)
-    let result = payments_rs::retry::get_payments_for_retry(&pool, app_id).await;
-    assert!(result.is_ok(), "JOIN to ar.ar_invoices should succeed");
-
-    // Clean up
-    sqlx::query("DELETE FROM payment_attempts WHERE payment_id = $1")
-        .bind(payment_id)
-        .execute(&pool)
+    // Query for retry-eligible payments
+    let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)
         .await
-        .ok();
-    sqlx::query("DELETE FROM ar.ar_invoices WHERE id = $1::integer")
-        .bind(&invoice_id)
-        .execute(&pool)
-        .await
-        .ok();
+        .expect("Retry scheduling using attempted_at anchor must succeed");
+
+    // ASSERTION: Should return payment (windows 1 or 2 are active based on attempted_at)
+    let found = retry_list.iter().find(|(id, _)| *id == payment_id);
+    assert!(
+        found.is_some(),
+        "Payment should be eligible for retry based on attempted_at anchor (no AR dependency)"
+    );
+
+    if let Some((_, attempt_no)) = found {
+        assert!(
+            *attempt_no > 0,
+            "Next attempt should be in window 1 or 2 (not 0, which already exists)"
+        );
+    }
+
+    cleanup_payment(&pool, payment_id).await;
 }
 
 #[tokio::test]
-async fn test_payment_without_due_date_excluded() {
+async fn test_payment_with_no_attempt_zero_excluded() {
     let pool = setup_test_pool().await;
     let app_id = &format!("app-{}", Uuid::new_v4());
     let payment_id = Uuid::new_v4();
+    let invoice_id = format!("inv-{}", Uuid::new_v4());
 
-    // Create AR invoice WITHOUT due date
-    let invoice_id: String = sqlx::query_scalar(
-        "INSERT INTO ar.ar_invoices (app_id, ar_customer_id, status, amount_cents, currency)
-         VALUES ($1, 'cust-123', 'open', 10000, 'USD')
-         RETURNING id::text"
-    )
-    .bind(app_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to create AR invoice");
-
-    // Create payment attempt with status='attempting'
-    create_payment_attempt(&pool, app_id, payment_id, &invoice_id, 0, "attempting").await;
+    // Create only attempt 1 (no attempt_no=0 exists) — scheduler requires attempt 0 as anchor
+    create_payment_attempt_at(
+        &pool, app_id, payment_id, &invoice_id, 1, "failed_retry",
+        "2026-01-01 00:00:00",
+    ).await;
 
     // Query for retry-eligible payments
     let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)
         .await
         .expect("Failed to get payments for retry");
 
-    // ASSERTION: Payment without due date should be excluded from retry list
+    // ASSERTION: Payment with no attempt_no=0 is excluded (no anchor date)
+    let has_payment = retry_list.iter().any(|(id, _)| *id == payment_id);
     assert!(
-        retry_list.is_empty(),
-        "Payment without AR invoice due_at should be excluded from retry list"
+        !has_payment,
+        "Payment with no attempt_no=0 should be excluded (no retry anchor date)"
     );
 
-    // Clean up
-    sqlx::query("DELETE FROM payment_attempts WHERE payment_id = $1")
-        .bind(payment_id)
-        .execute(&pool)
-        .await
-        .ok();
-    sqlx::query("DELETE FROM ar.ar_invoices WHERE id = $1::integer")
-        .bind(&invoice_id)
-        .execute(&pool)
-        .await
-        .ok();
+    cleanup_payment(&pool, payment_id).await;
 }
 
 // ============================================================================
@@ -375,15 +353,15 @@ async fn test_multi_window_progression() {
     let pool = setup_test_pool().await;
     let app_id = &format!("app-{}", Uuid::new_v4());
     let payment_id = Uuid::new_v4();
+    let invoice_id = format!("inv-{}", Uuid::new_v4());
 
-    // Create AR invoice with due date far in the past (all windows active)
-    let due_date = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
-    let invoice_id = create_ar_invoice_with_due_date(&pool, app_id, due_date).await;
+    // Create attempt 0 far in the past (all windows active)
+    create_payment_attempt_at(
+        &pool, app_id, payment_id, &invoice_id, 0, "failed_retry",
+        "2026-01-01 00:00:00",
+    ).await;
 
-    // Create attempt for window 0 only
-    create_payment_attempt(&pool, app_id, payment_id, &invoice_id, 0, "failed_retry").await;
-
-    // Query for retry-eligible payments (today >> due date + 7 days)
+    // Query for retry-eligible payments (today >> anchor + 7 days)
     let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)
         .await
         .expect("Failed to get payments for retry");
@@ -402,15 +380,5 @@ async fn test_multi_window_progression() {
         );
     }
 
-    // Clean up
-    sqlx::query("DELETE FROM payment_attempts WHERE payment_id = $1")
-        .bind(payment_id)
-        .execute(&pool)
-        .await
-        .ok();
-    sqlx::query("DELETE FROM ar.ar_invoices WHERE id = $1::integer")
-        .bind(&invoice_id)
-        .execute(&pool)
-        .await
-        .ok();
+    cleanup_payment(&pool, payment_id).await;
 }

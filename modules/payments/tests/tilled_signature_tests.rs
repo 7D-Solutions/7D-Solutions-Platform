@@ -42,7 +42,7 @@ fn test_valid_tilled_signature_accepted() {
         WebhookSource::Tilled,
         &headers,
         body,
-        Some(secret),
+        &[secret],
     );
     assert!(result.is_ok(), "Valid signature must be accepted: {:?}", result);
 }
@@ -63,7 +63,7 @@ fn test_tampered_body_rejected() {
         WebhookSource::Tilled,
         &headers,
         tampered_body,
-        Some(secret),
+        &[secret],
     );
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
@@ -87,7 +87,7 @@ fn test_wrong_secret_rejected() {
         WebhookSource::Tilled,
         &headers,
         body,
-        Some(wrong_secret),
+        &[wrong_secret],
     );
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
@@ -110,7 +110,7 @@ fn test_replay_rejected_old_timestamp() {
         WebhookSource::Tilled,
         &headers,
         body,
-        Some(secret),
+        &[secret],
     );
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { ref reason }) if reason.contains("replay")),
@@ -133,7 +133,7 @@ fn test_replay_rejected_future_timestamp() {
         WebhookSource::Tilled,
         &headers,
         body,
-        Some(secret),
+        &[secret],
     );
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
@@ -149,7 +149,7 @@ fn test_missing_header_produces_error() {
         WebhookSource::Tilled,
         &headers,
         b"{}",
-        Some("secret"),
+        &["secret"],
     );
     assert_eq!(
         result.unwrap_err(),
@@ -168,7 +168,7 @@ fn test_malformed_header_rejected() {
         WebhookSource::Tilled,
         &headers,
         b"{}",
-        Some("secret"),
+        &["secret"],
     );
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
@@ -189,7 +189,7 @@ fn test_no_secret_configured() {
         WebhookSource::Tilled,
         &headers,
         b"{}",
-        None,
+        &[],
     );
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { ref reason }) if reason.contains("not configured")),

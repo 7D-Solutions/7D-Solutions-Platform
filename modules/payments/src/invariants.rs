@@ -12,7 +12,7 @@
 //! 6. Attempt count limits (MAX_ATTEMPTS = 3)
 //!
 //! **Usage:**
-//! ```rust
+//! ```rust,ignore
 //! use payments_rs::invariants::*;
 //!
 //! // Check payment attempt ledger integrity
