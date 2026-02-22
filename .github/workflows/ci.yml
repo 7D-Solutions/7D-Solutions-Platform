@@ -55,6 +55,26 @@ jobs:
               sys.exit(1)
           "
 
+  # ---------------------------------------------------------------------------
+  # Contract breaking-change gate — required on every PR and push to main.
+  # Fails if an OpenAPI spec has removed endpoints or required fields without
+  # a corresponding version bump in info.version (the acknowledgment mechanism).
+  # See scripts/ci/check-openapi-breaking-changes.sh for detection rules.
+  # See docs/architecture/CONTRACT-VERSIONING-POLICY.md for the full policy.
+  # ---------------------------------------------------------------------------
+  contract-breaking-change-gate:
+    name: "Contract Breaking-Change Gate"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history required for cross-branch diff
+
+      - name: Check for breaking contract changes
+        run: |
+          chmod +x scripts/ci/check-openapi-breaking-changes.sh
+          scripts/ci/check-openapi-breaking-changes.sh
+
   validate-module-structure:
     name: Validate Module Structure
     runs-on: ubuntu-latest
