@@ -6,7 +6,7 @@
 
 ---
 
-## Prerequisites Check
+## REQUIRED: Search Before You Grep\n\n**Do NOT use `grep -r`, `rg`, `Glob`, or `read_file` for codebase exploration without trying this loop first:**\n\n1. `cass search "query"` — search prior agent sessions for prior solutions (fastest)\n2. `fsfs search "query" --format json --limit 6` — hybrid semantic + keyword search over the codebase\n3. `grep` / `read_file` — only if steps 1 and 2 return nothing useful\n\n```bash\n# Preferred pattern\ncass search "how retry logic is implemented" --limit 5\nfsfs search "retry logic" --format json --limit 6\n\n# Semantic-only (for conceptual queries)\nfsfs search "how dependency injection is wired" --semantic --format json\n\n# NOT preferred for codebase questions\ngrep -r "retry" .        # ← a hook will warn you if you do this first\n```\n\nA live hook fires whenever you run `grep -r` or `rg` without trying `fsfs` first. It is advisory — it won't block you — but it means you skipped a step.\n\n---\n\n## Prerequisites Check
 
 Before starting installation, verify these are installed:
 

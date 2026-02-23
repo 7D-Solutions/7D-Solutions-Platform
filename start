@@ -85,5 +85,5 @@ if [ -f "./scripts/disk-space-monitor.sh" ]; then
     ./scripts/disk-space-monitor.sh start
 fi
 
-# Always try visual interface first - it will handle fzf installation
+# Index project with fsfs for semantic codebase search (background, non-blocking)\nif command -v fsfs &>/dev/null; then\n    echo "🔍 Indexing project with fsfs..."\n    fsfs index . >/dev/null 2>&1 &\nfi\n# Always try visual interface first - it will handle fzf installation
 ./scripts/visual-session-manager.sh "$@"

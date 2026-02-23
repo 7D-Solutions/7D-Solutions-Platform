@@ -113,3 +113,5 @@ If running inside `scripts/agent-runner.sh`:
 📧 **Multi-Agent Communication**: See [AGENT_MAIL.md](./AGENT_MAIL.md) for commands.
 
 🎯 **Beads Workflow**: See [AGENTS.md](./AGENTS.md) for task tracking with BV.
+
+🔍 **Codebase Search**: Use `fsfs search "query" --format json` for semantic codebase search. See [AGENTS.md](./AGENTS.md) for the full reasoning loop (cass → fsfs → grep).
