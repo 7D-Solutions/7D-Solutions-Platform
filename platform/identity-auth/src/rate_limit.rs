@@ -14,6 +14,7 @@ pub struct KeyedLimiters {
     refresh: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
     forgot_email: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
     forgot_ip: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
+    reset_ip: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
 }
 
 impl KeyedLimiters {
@@ -24,6 +25,7 @@ impl KeyedLimiters {
             refresh: Arc::new(DashMap::new()),
             forgot_email: Arc::new(DashMap::new()),
             forgot_ip: Arc::new(DashMap::new()),
+            reset_ip: Arc::new(DashMap::new()),
         }
     }
 
@@ -68,6 +70,11 @@ impl KeyedLimiters {
 
     pub fn check_forgot_ip(&self, ip: &str, per_min: u32) -> Result<(), Duration> {
         let lim = Self::limiter_for(&self.forgot_ip, ip, per_min);
+        lim.check().map_err(|n| n.wait_time_from(DefaultClock::default().now()))
+    }
+
+    pub fn check_reset_ip(&self, ip: &str, per_min: u32) -> Result<(), Duration> {
+        let lim = Self::limiter_for(&self.reset_ip, ip, per_min);
         lim.check().map_err(|n| n.wait_time_from(DefaultClock::default().now()))
     }
 }

@@ -1,7 +1,9 @@
 use crate::{
     auth::{
-        handlers::{ApiErr, AuthState, err, err_retry_after},
-        password_reset_repo::insert_reset_token,
+        handlers::{ApiErr, AuthState, OkResponse, err, err_retry_after},
+        password::{hash_password},
+        password_policy::{validate_password, PasswordRules},
+        password_reset_repo::{claim_reset_token, insert_reset_token},
         password_reset_tokens::{generate_raw_token, sha256_token_hash},
     },
     events::envelope::EventEnvelope,
@@ -133,4 +135,123 @@ pub async fn forgot_password(
     }
 
     Ok((StatusCode::OK, Json(GenericOkResponse { message: FORGOT_PWD_MSG })))
+}
+
+// ---------------------------------------------------------------------------
+// POST /api/auth/reset-password
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct ResetPasswordRequest {
+    pub token: String,
+    pub new_password: String,
+}
+
+pub async fn reset_password(
+    State(state): State<Arc<AuthState>>,
+    extensions: Extensions,
+    Json(req): Json<ResetPasswordRequest>,
+) -> Result<impl IntoResponse, ApiErr> {
+    let trace_id = get_trace_id_from_extensions(&extensions);
+    let ip = get_client_meta(&extensions)
+        .map(|m| m.ip)
+        .unwrap_or_else(|| "unknown".to_string());
+
+    // 1. Rate limit per-IP BEFORE any DB work
+    if let Err(wait) = state.keyed_limits.check_reset_ip(&ip, state.reset_per_min_per_ip) {
+        return Err(err_retry_after(StatusCode::TOO_MANY_REQUESTS, wait, "rate limited"));
+    }
+
+    // 2. Validate new_password BEFORE touching DB
+    let rules = PasswordRules::default();
+    if let Err(e) = validate_password(&rules, &req.new_password) {
+        return Err(err(StatusCode::BAD_REQUEST, e.to_string()));
+    }
+
+    // 3. Compute SHA-256 hash and atomically claim the reset token
+    let token_hash = sha256_token_hash(&req.token);
+    let user_id = match claim_reset_token(&state.db, &token_hash).await {
+        Ok(Some(uid)) => uid,
+        Ok(None) => return Err(err(StatusCode::BAD_REQUEST, "invalid or expired token")),
+        Err(e) => return Err(err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))),
+    };
+
+    // 4. Hash new password with argon2id
+    let new_hash = hash_password(&state.pwd, &req.new_password)
+        .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
+
+    // 5. Update password in credentials
+    sqlx::query(
+        r#"UPDATE credentials SET password_hash = $1, updated_at = NOW() WHERE user_id = $2"#,
+    )
+    .bind(&new_hash)
+    .bind(user_id)
+    .execute(&state.db)
+    .await
+    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("password update: {e}")))?;
+
+    // 6. Hard-delete all session leases for this user (any error → 500)
+    sqlx::query("DELETE FROM session_leases WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("session revocation: {e}")))?;
+
+    // 7. Hard-delete all refresh tokens for this user (any error → 500)
+    sqlx::query("DELETE FROM refresh_tokens WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&state.db)
+        .await
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("token revocation: {e}")))?;
+
+    // 8. Publish completion event
+    //    Resolve tenant_id from credentials for the event envelope (LIMIT 1 — v1 acceptable).
+    let tenant_id = sqlx::query(
+        "SELECT tenant_id FROM credentials WHERE user_id = $1 LIMIT 1",
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .map(|r| r.get::<Uuid, _>("tenant_id"))
+    .unwrap_or_else(Uuid::nil);
+
+    #[derive(Serialize)]
+    struct PasswordResetCompletedData {
+        user_id: String,
+        correlation_id: String,
+    }
+
+    let env = EventEnvelope {
+        event_id: Uuid::new_v4(),
+        event_type: "auth.events.password_reset_completed".to_string(),
+        schema_version: "auth.events.password_reset_completed/v1".to_string(),
+        occurred_at: Utc::now(),
+        producer: state.producer.clone(),
+        tenant_id,
+        aggregate_type: "user".to_string(),
+        aggregate_id: user_id,
+        trace_id: trace_id.clone(),
+        causation_id: None,
+        data: PasswordResetCompletedData {
+            user_id: user_id.to_string(),
+            correlation_id: trace_id,
+        },
+    };
+
+    if let Err(_) = state
+        .events
+        .publish(
+            "auth.events.password_reset_completed",
+            "auth.events.password_reset_completed.v1.json",
+            &env,
+        )
+        .await
+    {
+        tracing::warn!(user_id = %user_id, "auth.reset_password.event_publish_failed");
+        // Event failure is logged but does not fail the response — password is already reset.
+    }
+
+    Ok((StatusCode::OK, Json(OkResponse { ok: true })))
 }

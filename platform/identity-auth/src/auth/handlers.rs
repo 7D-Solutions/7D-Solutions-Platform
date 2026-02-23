@@ -48,6 +48,7 @@ pub struct AuthState {
     pub refresh_per_min_per_token: u32,
     pub forgot_per_min_per_email: u32,
     pub forgot_per_min_per_ip: u32,
+    pub reset_per_min_per_ip: u32,
 
     // Password reset TTL
     pub password_reset_ttl_minutes: i64,
