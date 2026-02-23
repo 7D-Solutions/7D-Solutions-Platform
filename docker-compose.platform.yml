@@ -7,8 +7,8 @@ services:
   auth-1:
     container_name: 7d-auth-1
     build:
-      context: ./platform/identity-auth
-      dockerfile: deploy/Dockerfile
+      context: .
+      dockerfile: platform/identity-auth/Dockerfile.workspace
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}
@@ -45,8 +45,8 @@ services:
   auth-2:
     container_name: 7d-auth-2
     build:
-      context: ./platform/identity-auth
-      dockerfile: deploy/Dockerfile
+      context: .
+      dockerfile: platform/identity-auth/Dockerfile.workspace
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}
