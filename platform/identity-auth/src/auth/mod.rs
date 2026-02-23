@@ -5,3 +5,5 @@ pub mod refresh;
 pub mod handlers;
 pub mod session;
 pub mod concurrency;
+pub mod password_reset_tokens;
+pub mod password_reset_repo;
