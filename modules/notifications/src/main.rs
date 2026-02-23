@@ -1,12 +1,16 @@
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use ::event_bus::{EventBus, InMemoryBus, NatsBus};
-use notifications_rs::{config, config::Config, db, event_bus, consumer_tasks, metrics, routes};
+use notifications_rs::{
+    config, config::Config, db, event_bus, consumer_tasks, metrics, routes,
+    scheduled::{dispatch_once, reset_orphaned_claims, LoggingSender, NotificationSender},
+};
 use security::{
     middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
     optional_claims_mw, JwtVerifier,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber::EnvFilter;
 
@@ -63,6 +67,36 @@ async fn main() {
             Arc::new(InMemoryBus::new())
         }
     };
+
+    // Startup: recover any notifications that were claimed but never completed
+    // (e.g., process crashed mid-dispatch).
+    {
+        use chrono::Utc;
+        let cutoff = Utc::now() - chrono::Duration::minutes(5);
+        match reset_orphaned_claims(&db, cutoff).await {
+            Ok(n) if n > 0 => tracing::warn!(count = n, "reset orphaned claimed notifications on startup"),
+            Ok(_) => tracing::debug!("no orphaned claimed notifications found on startup"),
+            Err(e) => tracing::error!(error = %e, "failed to reset orphaned claims on startup"),
+        }
+    }
+
+    // Spawn background notification dispatcher loop.
+    {
+        let interval_secs: u64 = std::env::var("NOTIFICATIONS_DISPATCH_INTERVAL_SECS")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(60);
+        let dispatch_pool = db.clone();
+        let dispatch_sender: Arc<dyn NotificationSender> = Arc::new(LoggingSender);
+        tokio::spawn(async move {
+            loop {
+                if let Err(e) = dispatch_once(&dispatch_pool, dispatch_sender.clone()).await {
+                    tracing::error!(error = %e, "dispatch_once error");
+                }
+                tokio::time::sleep(Duration::from_secs(interval_secs)).await;
+            }
+        });
+    }
 
     // Spawn outbox publisher task
     tokio::spawn(event_bus::start_outbox_publisher(db.clone(), bus.clone()));
