@@ -1,0 +1,1 @@
+../flywheel_tools/scripts/grok/start-grok-worker.sh

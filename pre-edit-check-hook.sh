@@ -1,0 +1,1 @@
+../flywheel_tools/scripts/deprecated/hooks-moved-to-global-2026-02-10/pre-edit-check-hook.sh

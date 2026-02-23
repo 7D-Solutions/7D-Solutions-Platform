@@ -1,0 +1,1 @@
+../flywheel_tools/scripts/terminal/arrange-panes.sh

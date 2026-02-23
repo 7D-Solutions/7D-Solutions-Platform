@@ -1,0 +1,1 @@
+../flywheel_tools/scripts/retro/prune-learned-patterns.sh
