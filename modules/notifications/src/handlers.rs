@@ -1,7 +1,8 @@
+use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::event_bus::{enqueue_event, EventEnvelope};
+use crate::event_bus::enqueue_event;
 use crate::models::{
     EnvelopeMetadata, InvoiceIssuedPayload, LowStockTriggeredPayload,
     NotificationDeliverySucceededPayload, PaymentFailedPayload, PaymentSucceededPayload,
@@ -9,10 +10,8 @@ use crate::models::{
 
 /// Handle ar.invoice.issued event
 ///
-/// This handler:
-/// 1. Receives invoice issued notification from AR
-/// 2. Mocks sending a notification (e.g., email)
-/// 3. Emits notifications.delivery.succeeded event
+/// Schedules an `invoice_due_soon` reminder 3 days before the invoice due date.
+/// Replay safety is enforced upstream by the `processed_events` idempotency gate.
 pub async fn handle_invoice_issued(
     pool: &PgPool,
     payload: InvoiceIssuedPayload,
@@ -25,53 +24,47 @@ pub async fn handle_invoice_issued(
         "Handling invoice issued notification"
     );
 
-    // Mock: Send invoice notification (email, SMS, etc.)
-    let notification_id = Uuid::new_v4().to_string();
-    let channel = "email";
-    let template_id = "invoice_issued";
-
-    tracing::info!(
-        notification_id = %notification_id,
-        channel = %channel,
-        template = %template_id,
-        "Mock: Sending invoice issued notification"
-    );
-
-    // Simulate successful delivery
-    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-
-    // Construct delivery success event payload
-    let success_payload = NotificationDeliverySucceededPayload {
-        notification_id: notification_id.clone(),
-        channel: channel.to_string(),
-        to: Some(format!("customer-{}", payload.customer_id)),
-        template_id: Some(template_id.to_string()),
-        status: "succeeded".to_string(),
-        provider_message_id: Some(format!("mock-msg-{}", Uuid::new_v4())),
-        attempts: 1,
+    let due_date_str = match &payload.due_date {
+        Some(d) => d.clone(),
+        None => {
+            tracing::debug!(
+                invoice_id = %payload.invoice_id,
+                "No due_date in payload, skipping reminder scheduling"
+            );
+            return Ok(());
+        }
     };
 
-    // Create event envelope
-    let envelope = crate::event_bus::create_notifications_envelope(
-        Uuid::new_v4(),
-        metadata.tenant_id.clone(),
-        "notifications.delivery.succeeded".to_string(),
-        metadata.correlation_id.clone(),
-        Some(metadata.event_id.to_string()),
-        "SIDE_EFFECT".to_string(), // Phase 16: Email/SMS delivery is a non-idempotent side effect
-        serde_json::to_value(success_payload)?,
-    );
+    let naive_date = chrono::NaiveDate::parse_from_str(&due_date_str, "%Y-%m-%d")
+        .map_err(|e| format!("Failed to parse due_date '{}': {}", due_date_str, e))?;
+    let due_at = naive_date
+        .and_hms_opt(0, 0, 0)
+        .ok_or("Invalid due_date time")?
+        .and_utc();
+    let deliver_at = due_at - chrono::Duration::days(3);
 
-    // Enqueue delivery success event to outbox
-    let mut tx = pool.begin().await?;
-    enqueue_event(&mut tx, "notifications.delivery.succeeded", &envelope).await?;
-    tx.commit().await?;
+    let recipient_ref = format!("{}:{}", metadata.tenant_id, payload.customer_id);
+    let payload_json = serde_json::json!({
+        "invoice_id": payload.invoice_id,
+        "amount": payload.amount_due_minor,
+        "due_date": due_date_str,
+    });
+
+    let id = crate::scheduled::insert_pending(
+        pool,
+        &recipient_ref,
+        "email",
+        "invoice_due_soon",
+        payload_json,
+        deliver_at,
+    )
+    .await?;
 
     tracing::info!(
-        notification_id = %notification_id,
+        scheduled_notification_id = %id,
         invoice_id = %payload.invoice_id,
-        event_id = %envelope.event_id,
-        "Invoice notification delivery succeeded event enqueued"
+        deliver_at = %deliver_at,
+        "Scheduled invoice_due_soon reminder"
     );
 
     Ok(())
@@ -150,10 +143,8 @@ pub async fn handle_payment_succeeded(
 
 /// Handle payments.payment.failed event
 ///
-/// This handler:
-/// 1. Receives payment failure notification from Payments
-/// 2. Mocks sending a notification (e.g., email, SMS)
-/// 3. Emits notifications.delivery.succeeded event
+/// Schedules a `payment_retry` reminder 24 hours from now.
+/// Replay safety is enforced upstream by the `processed_events` idempotency gate.
 pub async fn handle_payment_failed(
     pool: &PgPool,
     payload: PaymentFailedPayload,
@@ -163,58 +154,33 @@ pub async fn handle_payment_failed(
         payment_id = %payload.payment_id,
         invoice_id = %payload.invoice_id,
         customer_id = %payload.ar_customer_id,
-        amount = payload.amount_minor,
         failure_code = %payload.failure_code,
         "Handling payment failed notification"
     );
 
-    // Mock: Send payment failure notification (email, SMS, etc.)
-    let notification_id = Uuid::new_v4().to_string();
-    let channel = "email";
-    let template_id = "payment_failed";
+    let deliver_at = Utc::now() + chrono::Duration::hours(24);
+    let recipient_ref = format!("{}:{}", metadata.tenant_id, payload.ar_customer_id);
+    let payload_json = serde_json::json!({
+        "payment_id": payload.payment_id,
+        "invoice_id": payload.invoice_id,
+        "failure_code": payload.failure_code,
+    });
+
+    let id = crate::scheduled::insert_pending(
+        pool,
+        &recipient_ref,
+        "email",
+        "payment_retry",
+        payload_json,
+        deliver_at,
+    )
+    .await?;
 
     tracing::info!(
-        notification_id = %notification_id,
-        channel = %channel,
-        template = %template_id,
-        "Mock: Sending payment failed notification"
-    );
-
-    // Simulate successful delivery
-    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-
-    // Construct delivery success event payload
-    let success_payload = NotificationDeliverySucceededPayload {
-        notification_id: notification_id.clone(),
-        channel: channel.to_string(),
-        to: Some(format!("customer-{}", payload.ar_customer_id)),
-        template_id: Some(template_id.to_string()),
-        status: "succeeded".to_string(),
-        provider_message_id: Some(format!("mock-msg-{}", Uuid::new_v4())),
-        attempts: 1,
-    };
-
-    // Create event envelope
-    let envelope = crate::event_bus::create_notifications_envelope(
-        Uuid::new_v4(),
-        metadata.tenant_id.clone(),
-        "notifications.delivery.succeeded".to_string(),
-        metadata.correlation_id.clone(),
-        Some(metadata.event_id.to_string()),
-        "SIDE_EFFECT".to_string(), // Phase 16: Email/SMS delivery is a non-idempotent side effect
-        serde_json::to_value(success_payload)?,
-    );
-
-    // Enqueue delivery success event to outbox
-    let mut tx = pool.begin().await?;
-    enqueue_event(&mut tx, "notifications.delivery.succeeded", &envelope).await?;
-    tx.commit().await?;
-
-    tracing::info!(
-        notification_id = %notification_id,
+        scheduled_notification_id = %id,
         payment_id = %payload.payment_id,
-        event_id = %envelope.event_id,
-        "Payment failed notification delivery event enqueued"
+        deliver_at = %deliver_at,
+        "Scheduled payment_retry reminder"
     );
 
     Ok(())
