@@ -333,7 +333,7 @@ dependencies = [
 
 [[package]]
 name = "auth-rs"
-version = "1.2.1"
+version = "1.2.2"
 dependencies = [
  "argon2",
  "async-nats 0.33.0",
@@ -342,6 +342,7 @@ dependencies = [
  "chrono",
  "dashmap 6.1.0",
  "dotenvy",
+ "futures",
  "governor 0.6.3",
  "health",
  "hex",
@@ -2493,7 +2494,9 @@ checksum = "38bf9645c8b145698bb0b18a4637dcacbc421ea49bef2317e4fd8065a387cf21"
 name = "notifications-rs"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-nats 0.33.0",
+ "async-trait",
  "axum 0.8.8",
  "chrono",
  "dotenvy",

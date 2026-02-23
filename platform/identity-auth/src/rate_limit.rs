@@ -12,6 +12,8 @@ pub struct KeyedLimiters {
     email_login: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
     email_register: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
     refresh: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
+    forgot_email: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
+    forgot_ip: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
 }
 
 impl KeyedLimiters {
@@ -20,6 +22,8 @@ impl KeyedLimiters {
             email_login: Arc::new(DashMap::new()),
             email_register: Arc::new(DashMap::new()),
             refresh: Arc::new(DashMap::new()),
+            forgot_email: Arc::new(DashMap::new()),
+            forgot_ip: Arc::new(DashMap::new()),
         }
     }
 
@@ -54,6 +58,16 @@ impl KeyedLimiters {
         // hash prefix avoids storing raw token in memory key, but still buckets repeats
         let key = format!("{}:{}", tenant_id, refresh_token_hash_prefix);
         let lim = Self::limiter_for(&self.refresh, &key, per_min);
+        lim.check().map_err(|n| n.wait_time_from(DefaultClock::default().now()))
+    }
+
+    pub fn check_forgot_email(&self, email: &str, per_min: u32) -> Result<(), Duration> {
+        let lim = Self::limiter_for(&self.forgot_email, email, per_min);
+        lim.check().map_err(|n| n.wait_time_from(DefaultClock::default().now()))
+    }
+
+    pub fn check_forgot_ip(&self, ip: &str, per_min: u32) -> Result<(), Duration> {
+        let lim = Self::limiter_for(&self.forgot_ip, ip, per_min);
         lim.check().map_err(|n| n.wait_time_from(DefaultClock::default().now()))
     }
 }

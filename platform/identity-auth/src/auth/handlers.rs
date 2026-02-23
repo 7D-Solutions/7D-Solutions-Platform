@@ -46,6 +46,11 @@ pub struct AuthState {
     pub login_per_min_per_email: u32,
     pub register_per_min_per_email: u32,
     pub refresh_per_min_per_token: u32,
+    pub forgot_per_min_per_email: u32,
+    pub forgot_per_min_per_ip: u32,
+
+    // Password reset TTL
+    pub password_reset_ttl_minutes: i64,
 
     // DB-backed concurrent seat limit per tenant (static fallback when registry unavailable)
     pub max_concurrent_sessions: i64,

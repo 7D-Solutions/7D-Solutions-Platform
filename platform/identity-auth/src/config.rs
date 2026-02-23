@@ -51,6 +51,11 @@ pub struct Config {
     pub tenant_registry_url: Option<String>,
     /// TTL in seconds for the per-tenant entitlement cache. Default: 60.
     pub entitlement_ttl_secs: u64,
+
+    // Password reset
+    pub password_reset_ttl_minutes: i64,
+    pub forgot_per_min_per_email: u32,
+    pub forgot_per_min_per_ip: u32,
 }
 
 impl Config {
@@ -98,6 +103,10 @@ impl Config {
 
             tenant_registry_url: env::var("TENANT_REGISTRY_URL").ok().filter(|s| !s.is_empty()),
             entitlement_ttl_secs: env::var("ENTITLEMENT_TTL_SECS").unwrap_or_else(|_| "60".to_string()).parse()?,
+
+            password_reset_ttl_minutes: env::var("PASSWORD_RESET_TTL_MINUTES").unwrap_or_else(|_| "30".to_string()).parse()?,
+            forgot_per_min_per_email: env::var("FORGOT_PER_MIN_PER_EMAIL").unwrap_or_else(|_| "3".to_string()).parse()?,
+            forgot_per_min_per_ip: env::var("FORGOT_PER_MIN_PER_IP").unwrap_or_else(|_| "10".to_string()).parse()?,
         })
     }
 }

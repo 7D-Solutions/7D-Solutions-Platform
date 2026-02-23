@@ -3,6 +3,7 @@ pub mod password_policy;
 pub mod jwt;
 pub mod refresh;
 pub mod handlers;
+pub mod handlers_password_reset;
 pub mod session;
 pub mod concurrency;
 pub mod password_reset_tokens;

@@ -109,6 +109,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         login_per_min_per_email: cfg.login_per_min_per_email,
         register_per_min_per_email: cfg.register_per_min_per_email,
         refresh_per_min_per_token: cfg.refresh_per_min_per_token,
+        forgot_per_min_per_email: cfg.forgot_per_min_per_email,
+        forgot_per_min_per_ip: cfg.forgot_per_min_per_ip,
+        password_reset_ttl_minutes: cfg.password_reset_ttl_minutes,
         max_concurrent_sessions: cfg.max_concurrent_sessions,
         tenant_registry,
     });
