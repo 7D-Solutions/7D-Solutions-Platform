@@ -39,3 +39,35 @@ impl NotificationSender for LoggingSender {
         Ok(())
     }
 }
+
+/// Test-only sender that fails for the first `fail_count` calls, then succeeds.
+///
+/// Uses an atomic counter so the struct is `Send + Sync` without a Mutex.
+/// Only compiled during unit tests (`cargo test` within the crate).
+#[cfg(test)]
+pub struct FailingSender {
+    remaining: std::sync::atomic::AtomicI32,
+}
+
+#[cfg(test)]
+impl FailingSender {
+    pub fn new(fail_count: i32) -> Self {
+        Self {
+            remaining: std::sync::atomic::AtomicI32::new(fail_count),
+        }
+    }
+}
+
+#[cfg(test)]
+#[async_trait]
+impl NotificationSender for FailingSender {
+    async fn send(&self, _notif: &ScheduledNotification) -> Result<(), NotificationError> {
+        use std::sync::atomic::Ordering;
+        let prev = self.remaining.fetch_sub(1, Ordering::SeqCst);
+        if prev > 0 {
+            Err(NotificationError::DeliveryFailed("simulated failure".to_string()))
+        } else {
+            Ok(())
+        }
+    }
+}
