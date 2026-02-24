@@ -11,6 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | DarkOwl | Initial vision doc — documented from existing codebase (v1.0.1). Business problem, user personas, design principles, structural decisions, full data ownership, events, API surface, invariants, decision log. |
+| 1.1 | 2026-02-24 | CopperRiver | Fresh-eyes review (bd-3i6y). Fixed state machine (removed unimplemented DRAFT→OPEN, added UNCOLLECTIBLE note). Removed invented `ar.payment.received` event. Added missing tax lifecycle API routes. Added `ar_tax_rules` and `ar_invoice_tax_snapshots` tables. Added `payment_intent` to Tilled client list. |
 
 ---
 
@@ -87,7 +88,7 @@ Every mutation that produces side effects uses deterministic idempotency keys, `
 All state-changing operations follow a three-phase pattern: (1) a pure guard validates the transition with zero side effects, (2) the mutation is applied, (3) events are emitted — all within a single database transaction. This prevents partial state and ensures every mutation either fully commits or fully rolls back.
 
 ### Invoice Lifecycle Is a State Machine
-Invoice status transitions (draft → open → attempting → paid/failed_final, or open → void) are enforced by a domain state machine. No direct SQL updates to status columns. Every transition is validated, logged, and event-emitted.
+Invoice status transitions (open→attempting, attempting→paid/failed_final, open→void) are enforced by a domain state machine in `src/lifecycle.rs`. No direct SQL updates to status columns. Every transition is validated, logged, and event-emitted. Status constants for `draft` and `uncollectible` exist but have no guarded transitions in v1.0.1.
 
 ### Financial Artifacts Are Append-Only
 Credit notes, write-offs, and reconciliation matches are never updated or deleted. Corrections require new compensating entries. This provides a complete audit trail and makes GL integration reliable.
@@ -105,7 +106,7 @@ The module boots and runs without Payments, GL, Notifications, or Party Master. 
 ### Built and Proven
 - Customer lifecycle (create/update/suspend/reactivate, status-gated operations)
 - Subscription management (create/update/cancel with period tracking)
-- Invoice lifecycle (draft → open → paid/void/written-off), aging buckets (0-30/31-60/61-90/90+)
+- Invoice lifecycle (open → attempting → paid/failed_final, open → void), aging buckets (0-30/31-60/61-90/90+)
 - Invoice attempt ledger with exactly-once finalization gating
 - Fixed retry windows (attempt 0: immediate, +3 days, +7 days, max 3 attempts)
 - Charge management (one-time and recurring, authorize/capture flow)
@@ -165,10 +166,10 @@ The module boots and runs without Payments, GL, Notifications, or Party Master. 
 ## Structural Decisions (The "Walls")
 
 ### 1. Tilled as the single payment processor — no PSP abstraction layer
-The module integrates directly with Tilled via HTTP client and webhook verification. There is no generic "payment service provider" abstraction because the business uses Tilled exclusively. The integration surface is contained in `src/tilled/` with per-entity clients (customer, payment_method, subscription, refund, dispute, webhook). If a second PSP is ever needed, the Tilled-specific code is isolated and can be wrapped.
+The module integrates directly with Tilled via HTTP client and webhook verification. There is no generic "payment service provider" abstraction because the business uses Tilled exclusively. The integration surface is contained in `src/tilled/` with per-entity clients (customer, payment_method, payment_intent, subscription, refund, dispute, webhook). If a second PSP is ever needed, the Tilled-specific code is isolated and can be wrapped.
 
 ### 2. Invoice lifecycle enforced by domain state machine
-All invoice status transitions go through `src/lifecycle.rs`, which validates allowed transitions (open→attempting, attempting→paid, attempting→failed_final, open→void). Direct SQL updates to `ar_invoices.status` are forbidden. This guarantees every transition is logged, event-emitted, and auditable.
+All invoice status transitions go through `src/lifecycle.rs`, which validates allowed transitions (open→attempting, attempting→paid, attempting→failed_final, open→void). Direct SQL updates to `ar_invoices.status` are forbidden. This guarantees every transition is logged, event-emitted, and auditable. Note: `draft` and `uncollectible` exist as status constants (used in query filters and as initial insert values) but have no guarded transitions in the state machine.
 
 ### 3. Exactly-once finalization via SELECT FOR UPDATE + attempt ledger
 Invoice finalization uses `SELECT FOR UPDATE` to lock the invoice row, then inserts into `ar_invoice_attempts` with a `UNIQUE(app_id, invoice_id, attempt_no)` constraint. Duplicate attempts return `AlreadyProcessed` (deterministic no-op). Side effects only fire when the attempt row is newly created. This prevents double-charging under concurrent requests.
@@ -204,7 +205,7 @@ AR is the **source of truth** for:
 |---------------|-------------|
 | **Customers** | Customer accounts with email, name, external ID, Tilled customer ID, status (active/suspended), delinquency tracking, optional Party Master link. |
 | **Subscriptions** | Recurring billing agreements: plan, price, interval, period tracking, cancellation state. Tilled subscription reference. |
-| **Invoices** | Receivables with status lifecycle (draft → open → attempting → paid/failed_final/void), amount, currency, due date, billing period, line items, compliance codes. |
+| **Invoices** | Receivables with status lifecycle (open → attempting → paid/failed_final, open → void), amount, currency, due date, billing period, line items, compliance codes. |
 | **Invoice Attempts** | Deterministic attempt ledger per invoice: attempt number, status, idempotency key. Enforces exactly-once finalization. |
 | **Charges** | One-time and recurring charges: amount, type, service date, product details, location reference. Linked to invoices and customers. |
 | **Refunds** | Refunds against charges: amount, status, Tilled refund reference. |
@@ -268,6 +269,8 @@ All tables use `app_id` for multi-tenant isolation. Every query **MUST** filter 
 | **ar_tax_quote_cache** | Cached tax quotes | `app_id`, `invoice_id`, `idempotency_key`, `provider_quote_ref`, `total_tax_minor`, `tax_by_line` (JSONB), UNIQUE(app_id, invoice_id, idempotency_key) |
 | **ar_tax_commits** | Tax commit/void ledger | `app_id`, `invoice_id`, `provider_commit_ref`, `total_tax_minor`, `status` (committed/voided), UNIQUE(app_id, invoice_id) |
 | **ar_tax_jurisdictions** | Tax jurisdiction config | `app_id`, per-jurisdiction tax configuration |
+| **ar_tax_rules** | Tax rate rules per jurisdiction | `app_id`, `jurisdiction_id`, `tax_code`, `rate` (NUMERIC), `flat_amount_minor`, `effective_from`, `effective_to` |
+| **ar_invoice_tax_snapshots** | Resolved jurisdiction snapshot per invoice | `app_id`, `invoice_id`, `jurisdiction_id`, `jurisdiction_name`, `country_code`, `state_code`, `tax_code`, `rate_applied`, `taxable_minor`, `tax_minor` |
 | **ar_webhooks** | Inbound webhook log | `app_id`, `event_id`, `event_type`, `status` (enum), `payload` (JSONB), `attempt_count`, UNIQUE(event_id, app_id) |
 | **ar_webhook_attempts** | Webhook processing attempts | `app_id`, `event_id`, `attempt_number`, `status`, `error_code` |
 | **ar_dunning_config** | Per-tenant dunning settings | `app_id` (UNIQUE), `grace_period_days`, `retry_schedule_days` (JSONB), `max_retry_attempts` |
@@ -295,18 +298,19 @@ AR **MUST NOT** store:
 ## Invoice State Machine
 
 ```
-DRAFT ──→ OPEN ──→ ATTEMPTING ──→ PAID (terminal)
-                      |
-                      └──→ FAILED_FINAL (terminal)
-            |
-            └──→ VOID (terminal)
+OPEN ──→ ATTEMPTING ──→ PAID (terminal)
+  |            |
+  |            └──→ FAILED_FINAL (terminal)
+  |
+  └──→ VOID (terminal)
 ```
 
-### Transition Rules
+**Note:** `draft` and `uncollectible` exist as status constants in `lifecycle.rs` and `models/invoice.rs` (used in query filters and as initial insert values) but are not wired into the `validate_transition` guard. Invoices are typically inserted as `open` directly. Future versions may add guarded transitions for these statuses.
+
+### Transition Rules (enforced by `validate_transition` in `src/lifecycle.rs`)
 
 | From | Allowed To | Guard |
 |------|-----------|-------|
-| draft | open | Invoice is ready for collection |
 | open | attempting | Payment collection initiated (via finalization) |
 | open | void | Invoice cancelled before collection |
 | attempting | paid | Payment succeeded |
@@ -353,10 +357,10 @@ All events use the platform `EventEnvelope` and are written to the outbox atomic
 | `tax.committed` | Tax committed on finalization | DATA_MUTATION | `invoice_id`, `total_tax_minor`, `provider_commit_ref` |
 | `tax.voided` | Committed tax voided | REVERSAL | `invoice_id`, `provider_commit_ref`, `void_reason` |
 | `ar.invoice_settled_fx` | FX settlement gain/loss | DATA_MUTATION | `invoice_id`, FX rate and gain/loss details |
-| `ar.invoice.created` | Legacy: invoice created | — | Invoice details for GL |
-| `ar.payment.received` | Legacy: payment received | — | Payment details for GL |
 | `ar.payment.collection.requested` | Payment collection request | — | `invoice_id`, `customer_id`, `amount_minor`, `payment_method_id` |
 | `gl.posting.requested` | GL journal entry request | — | `posting_date`, `currency`, `source_doc_type/id`, `lines` (account_ref, debit, credit) |
+
+**Removed from initial draft:** `ar.invoice.created` and `ar.payment.received` were listed as "Legacy" events for GL integration. `ar.invoice.created` exists only as a test string constant (not emitted in production code). `ar.payment.received` does not exist in the codebase at all. GL integration uses `gl.posting.requested` for journal entries.
 
 ---
 
@@ -372,7 +376,7 @@ All events use the platform `EventEnvelope` and are written to the outbox atomic
 
 ### Tilled (Payment Processor, HTTP + Webhooks)
 
-AR integrates with Tilled for payment processing. The `src/tilled/` module provides typed HTTP clients for customers, payment methods, subscriptions, refunds, disputes, and webhooks. Inbound webhooks are HMAC-SHA256 verified and deduplicated by `event_id`. **Tilled is the only payment processor supported** — no PSP abstraction layer exists.
+AR integrates with Tilled for payment processing. The `src/tilled/` module provides typed HTTP clients for customers, payment methods, payment intents, subscriptions, refunds, disputes, and webhooks. Inbound webhooks are HMAC-SHA256 verified and deduplicated by `event_id`. **Tilled is the only payment processor supported** — no PSP abstraction layer exists.
 
 ### Payments Module (Event-Driven, Bidirectional)
 
@@ -380,7 +384,7 @@ AR emits `ar.payment.collection.requested` when it needs a payment collected. Th
 
 ### GL Module (Event-Driven, One-Way)
 
-AR emits `gl.posting.requested` with journal entry lines (debit/credit, account refs, amounts). GL subscribes and posts the entries. AR also emits `ar.invoice.created` and `ar.payment.received` for legacy GL integration. **AR never calls GL.** GL subscribes to events.
+AR emits `gl.posting.requested` with journal entry lines (debit/credit, account refs, amounts). GL subscribes and posts the entries. **AR never calls GL.** GL subscribes to events.
 
 ### Cash Flow Module (Event-Driven, One-Way)
 
@@ -503,6 +507,12 @@ The Notifications module subscribes to AR events (dunning state changes, overdue
 - `GET /api/ar/tax/config/rules` — List rules
 - `GET /api/ar/tax/config/rules/{id}` — Get rule
 - `PUT /api/ar/tax/config/rules/{id}` — Update rule
+
+### Tax Lifecycle
+- `POST /api/ar/tax/quote` — Request tax quote for invoice draft
+- `GET /api/ar/tax/quote` — Look up cached tax quote by app_id + invoice_id
+- `POST /api/ar/tax/commit` — Commit tax when invoice is finalized
+- `POST /api/ar/tax/void` — Void committed tax on refund/cancellation
 
 ### Tax Reports
 - `GET /api/ar/tax/reports/summary` — Tax report summary
