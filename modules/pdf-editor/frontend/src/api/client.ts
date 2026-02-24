@@ -21,7 +21,7 @@ import type {
 } from './types.ts';
 
 const BASE_URL: string =
-  import.meta.env?.VITE_PDF_API_BASE_URL ?? 'http://localhost:3100';
+  import.meta.env?.VITE_PDF_API_BASE_URL ?? 'http://localhost:8102';
 
 let authToken: string | null = null;
 

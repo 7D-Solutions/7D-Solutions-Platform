@@ -85,9 +85,9 @@ Events use the platform EventEnvelope pattern via the events_outbox table.
 DATABASE_URL=postgres://...
 BUS_TYPE=nats          # or "in_memory"
 NATS_URL=nats://...    # required when BUS_TYPE=nats
-CORS_ORIGINS=http://localhost:5173   # match the frontend dev server origin
+CORS_ORIGINS=http://localhost:5173   # match the frontend dev server origin; use * for dev
 HOST=0.0.0.0
-PORT=8092
+PORT=8102
 
 cargo run -p pdf-editor-rs
 ```
@@ -109,7 +109,7 @@ Set `VITE_PDF_API_BASE_URL` to point at the running backend. Default: `http://lo
 
 Create `.env.local`:
 ```
-VITE_PDF_API_BASE_URL=http://localhost:8092
+VITE_PDF_API_BASE_URL=http://localhost:8102
 ```
 
 The backend must have `CORS_ORIGINS` set to allow the frontend's origin (e.g. `http://localhost:5173` for the Vite dev server).
