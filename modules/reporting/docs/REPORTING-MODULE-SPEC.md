@@ -12,6 +12,7 @@
 | Rev | Date       | Author    | Summary |
 |-----|------------|-----------|---------|
 | 0.1 | 2026-02-24 | DarkOwl   | Initial vision doc from source audit |
+| 0.2 | 2026-02-24 | SageDesert | Fix 4 inaccuracies: AP event subjects (vendor_ prefix), handler names (3 wrong), statement_type value (pl not income_statement), rebuild auth (add X-Admin-Token) |
 
 ---
 
@@ -229,7 +230,7 @@ Persisted financial statement line items (daily snapshot runner output).
 |--------|------|-------|
 | id | UUID PK | |
 | tenant_id | TEXT | |
-| statement_type | TEXT | `income_statement` or `balance_sheet` |
+| statement_type | TEXT | `pl` or `balance_sheet` |
 | as_of | DATE | |
 | line_code | TEXT | e.g. `4000_revenue`, `5000_cogs` |
 | line_label | TEXT | |
@@ -364,15 +365,15 @@ Bootstrap table for migration tracking.
 
 | Subject | Source Module | Handler | Target Cache |
 |---------|-------------|---------|--------------|
-| `gl.events.posting.requested` | GL | `GlTrialBalanceHandler` | `rpt_trial_balance_cache` |
+| `gl.events.posting.requested` | GL | `TrialBalanceHandler` | `rpt_trial_balance_cache` |
 | `ar.events.ar.ar_aging_updated` | AR | `ArAgingHandler` | `rpt_ar_aging_cache` |
 | `ar.events.ar.invoice_opened` | AR | `InvoiceOpenedHandler` | `rpt_open_invoices_cache` |
 | `ar.events.ar.invoice_paid` | AR | `InvoicePaidHandler` | `rpt_payment_history`, `rpt_open_invoices_cache` |
-| `ap.events.ap.bill_created` | AP | `ApBillCreatedHandler` | `rpt_ap_aging_cache` |
-| `ap.events.ap.bill_voided` | AP | `ApBillVoidedHandler` | `rpt_ap_aging_cache` |
+| `ap.events.ap.vendor_bill_created` | AP | `ApBillCreatedHandler` | `rpt_ap_aging_cache` |
+| `ap.events.ap.vendor_bill_voided` | AP | `ApBillVoidedHandler` | `rpt_ap_aging_cache` |
 | `ap.events.ap.payment_executed` | AP | `ApPaymentExecutedHandler` | `rpt_ap_aging_cache` |
-| `payments.events.payment.succeeded` | Payments | `PaymentSucceededHandler` | `rpt_cashflow_cache` |
-| `inventory.events.inventory.valuation_snapshot` | Inventory | `InventoryValuationHandler` | `rpt_kpi_cache` |
+| `payments.events.payment.succeeded` | Payments | `PaymentsHandler` | `rpt_cashflow_cache` |
+| `inventory.events.inventory.valuation_snapshot` | Inventory | `InventoryValueHandler` | `rpt_kpi_cache` |
 
 ---
 
@@ -433,7 +434,7 @@ Bootstrap table for migration tracking.
 
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
-| POST | `/api/reporting/rebuild` | JWT + `REPORTING_MUTATE` | Trigger snapshot cache rebuild |
+| POST | `/api/reporting/rebuild` | JWT + `REPORTING_MUTATE` + `X-Admin-Token` | Trigger snapshot cache rebuild |
 | POST | `/api/reporting/admin/projection-status` | Admin token | Projection health status |
 | POST | `/api/reporting/admin/consistency-check` | Admin token | Cache consistency verification |
 | GET | `/api/reporting/admin/projections` | Admin token | List projection consumers |
