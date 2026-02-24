@@ -13,6 +13,10 @@ tokio = { version = "1", features = ["full"] }
 thiserror = "2"
 prometheus = "0.13"
 sha2 = "0.10"
+regex = "1"
 futures = "0.3"
 
 [dev-dependencies]
+
+[lints]
+workspace = true

@@ -6,7 +6,7 @@
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 
-use crate::rebuild::RebuildResult;
+use crate::rebuild::{RebuildError, RebuildResult};
 
 /// Current digest algorithm version
 pub const DIGEST_VERSION: &str = "v1";
@@ -38,6 +38,12 @@ pub async fn compute_versioned_digest(
     table_name: &str,
     order_by: &str,
 ) -> RebuildResult<VersionedDigest> {
+    // Validate identifiers before using in dynamic SQL
+    crate::validate::validate_projection_name(table_name)
+        .map_err(|e| RebuildError::Failed(e.to_string()))?;
+    crate::validate::validate_order_column(order_by)
+        .map_err(|e| RebuildError::Failed(e.to_string()))?;
+
     // Get row count
     let row_count: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", table_name))
         .fetch_one(pool)

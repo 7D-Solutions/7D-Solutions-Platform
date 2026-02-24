@@ -194,13 +194,18 @@ pub async fn query_consistency_check(
         });
     }
 
+    let table = crate::validate::validate_projection_name(&req.projection_name)
+        .map_err(|e| format!("Validation error: {e}"))?;
+    let order = crate::validate::validate_order_column(&req.order_by)
+        .map_err(|e| format!("Validation error: {e}"))?;
+
     let row_count: i64 =
-        sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", req.projection_name))
+        sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", table))
             .fetch_one(pool)
             .await
             .map_err(|e| format!("DB error: {e}"))?;
 
-    let versioned = crate::digest::compute_versioned_digest(pool, &req.projection_name, &req.order_by)
+    let versioned = crate::digest::compute_versioned_digest(pool, table, order)
         .await
         .map_err(|e| format!("Digest error: {e}"))?;
 
@@ -333,5 +338,29 @@ mod tests {
         let req: ProjectionStatusRequest = serde_json::from_str(json).unwrap();
         assert_eq!(req.projection_name, "invoice_totals");
         assert_eq!(req.tenant_id, Some("acme".to_string()));
+    }
+
+    #[test]
+    fn test_consistency_request_rejects_sql_injection() {
+        let json = r#"{"projection_name":"users; DROP TABLE credentials; --"}"#;
+        let req: ConsistencyCheckRequest = serde_json::from_str(json).unwrap();
+        let result = crate::validate::validate_projection_name(&req.projection_name);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_consistency_request_rejects_unknown_table() {
+        let json = r#"{"projection_name":"not_a_real_table"}"#;
+        let req: ConsistencyCheckRequest = serde_json::from_str(json).unwrap();
+        let result = crate::validate::validate_projection_name(&req.projection_name);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_consistency_request_accepts_allowlisted_table() {
+        let json = r#"{"projection_name":"projection_cursors"}"#;
+        let req: ConsistencyCheckRequest = serde_json::from_str(json).unwrap();
+        let result = crate::validate::validate_projection_name(&req.projection_name);
+        assert!(result.is_ok());
     }
 }

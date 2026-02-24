@@ -50,6 +50,7 @@ pub mod digest;
 pub mod fallback;
 pub mod metrics;
 pub mod rebuild;
+pub mod validate;
 
 // Re-export main types for convenience
 pub use cursor::{try_apply_event, CursorError, CursorResult, ProjectionCursor};
@@ -61,4 +62,8 @@ pub use rebuild::{
     compute_digest, create_shadow_cursor_table, create_shadow_table, drop_shadow_table,
     load_shadow_cursor, save_shadow_cursor, swap_cursor_tables_atomic, swap_tables_atomic,
     RebuildError, RebuildResult, RebuildSummary,
+};
+pub use validate::{
+    validate_order_column, validate_projection_name, ValidationError, ALLOWED_ORDER_COLUMNS,
+    ALLOWED_PROJECTION_TABLES,
 };
