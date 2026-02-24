@@ -11,6 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | CopperRiver | Initial vision doc — documented from source code, migrations, event contracts, and integration tests |
+| 2.0 | 2026-02-24 | CopperRiver | Fresh-eyes review: fixed 9 inaccuracies — table names (valuation, low_stock_state), missing columns (reorder_policies.safety_stock/max_qty), invented columns (cycle_count_lines.variance_qty/adjustment_id), test count, missing events |
 
 ---
 
@@ -111,7 +112,7 @@ Every mutating endpoint requires a caller-supplied `idempotency_key`. The key is
 - Movement history query (full ledger with lot/serial traceability)
 - Lot and serial traceability (trace a lot_code or serial_code through movements)
 - Valuation snapshots from FIFO layer state as-of a timestamp
-- 9 domain events emitted via outbox
+- 9 canonical domain events + 3 internal events emitted via outbox
 - OpenAPI contract: `contracts/inventory/inventory-v0.1.0.yaml`
 - Prometheus metrics: operations counter, HTTP request duration/count, event consumer lag
 - Docker image: multi-stage build with cargo-chef caching
@@ -171,7 +172,7 @@ Items carry `inventory_account_ref`, `cogs_account_ref`, and `variance_account_r
 Standard platform multi-tenant pattern. Every table has `tenant_id` as a non-nullable field. Every index has `tenant_id` as the leading column. Every query filters by `tenant_id`. No exceptions.
 
 ### 8. No mocking in tests
-Integration tests hit real Postgres. Tests that mock the database test nothing useful. This is a platform-wide standard. The module has 18 integration test files covering receipts, issues, reservations, transfers, adjustments, cycle counts, locations, lot/serial tracking, reorder policies, valuation, history, and status transfers.
+Integration tests hit real Postgres. Tests that mock the database test nothing useful. This is a platform-wide standard. The module has 17 integration test files covering receipts, issues, reservations, transfers, adjustments, cycle counts (create, submit, approve), locations, lot/serial tracking, reorder policies, valuation (snapshot, query), low stock, history, and status transfers.
 
 ---
 
@@ -187,7 +188,7 @@ Inventory is the **source of truth** for:
 | **On-Hand Projections** | Materialized quantity_on_hand, quantity_reserved, quantity_available (generated column), total_cost_minor per item/warehouse/location. |
 | **Status Buckets** | Per-item/warehouse quantity broken down by status (available, quarantine, damaged). |
 | **Reservations** | Stock holds with compensating entry lifecycle (active → released or fulfilled). |
-| **Lots** | Named lot groupings per item/tenant with optional expiry. |
+| **Lots** | Named lot groupings per item/tenant with optional attributes (JSONB: expiry, supplier batch, etc.). |
 | **Serial Instances** | Individual serial-tracked units with status (on_hand, issued) and layer association. |
 | **Locations** | Physical or logical bins/shelves/zones within warehouses. |
 | **UoM Catalog** | Unit of measure definitions and per-item conversion factors. |
@@ -223,19 +224,20 @@ All tables use `tenant_id` for multi-tenant isolation. Every query **MUST** filt
 | **item_on_hand_by_status** | Status-bucketed on-hand | `tenant_id`, `item_id`, `warehouse_id`, `status` (available\|quarantine\|damaged), `quantity_on_hand` |
 | **uoms** | Unit of measure catalog | `id`, `tenant_id`, `code`, `name` |
 | **item_uom_conversions** | Per-item UoM conversion factors | `id`, `tenant_id`, `item_id`, `from_uom_id`, `to_uom_id`, `factor` |
-| **inventory_lots** | Named lot groups | `id`, `tenant_id`, `item_id`, `lot_code`, `expiry_date` |
+| **inventory_lots** | Named lot groups | `id`, `tenant_id`, `item_id`, `lot_code`, `attributes` (JSONB — expiry, supplier batch, etc.) |
 | **inventory_serial_instances** | Individual serial-tracked units | `id`, `tenant_id`, `item_id`, `serial_code`, `status` (on_hand\|issued), `ledger_entry_id`, `layer_id` |
 | **locations** | Warehouse sub-locations (bins/shelves) | `id`, `tenant_id`, `warehouse_id`, `code`, `name`, `description`, `is_active` |
 | **inv_status_transfers** | Status bucket transfer log | `id`, `tenant_id`, `item_id`, `warehouse_id`, `from_status`, `to_status`, `quantity`, `event_id`, `transferred_at` |
 | **inv_transfers** | Inter-warehouse transfer records | `id`, `tenant_id`, `item_id`, `from_warehouse_id`, `to_warehouse_id`, `quantity`, `event_id`, `issue_ledger_id`, `receipt_ledger_id`, `transferred_at` |
 | **inv_adjustments** | Stock adjustment records | `id`, `tenant_id`, `item_id`, `warehouse_id`, `location_id`, `quantity_delta`, `reason`, `event_id`, `ledger_entry_id`, `adjusted_at` |
 | **cycle_count_tasks** | Cycle count task headers | `id`, `tenant_id`, `warehouse_id`, `location_id`, `status` (open\|submitted\|approved), timestamps |
-| **cycle_count_lines** | Per-item count lines within a task | `id`, `task_id`, `item_id`, `expected_qty`, `counted_qty`, `variance_qty`, `adjustment_id` |
-| **reorder_policies** | Reorder point thresholds | `id`, `tenant_id`, `item_id`, `warehouse_id`, `location_id`, `reorder_point` |
-| **low_stock_state** | Dedup state for low-stock signals | `tenant_id`, `item_id`, `warehouse_id`, `location_id`, `last_triggered_at`, `armed` |
-| **valuation_snapshots** | Point-in-time valuation headers | `id`, `tenant_id`, `warehouse_id`, `location_id`, `as_of`, `total_value_minor`, `currency` |
-| **valuation_snapshot_lines** | Per-item valuation detail | `snapshot_id`, `item_id`, `quantity_on_hand`, `unit_cost_minor`, `total_value_minor` |
+| **cycle_count_lines** | Per-item count lines within a task | `id`, `task_id`, `tenant_id`, `item_id`, `expected_qty`, `counted_qty` (NULL until submitted). Variance and adjustment_id are computed at approve time, not stored. |
+| **reorder_policies** | Reorder point thresholds | `id`, `tenant_id`, `item_id`, `location_id` (nullable — NULL = global), `reorder_point`, `safety_stock`, `max_qty` (nullable), `notes`, `created_by`, `updated_by` |
+| **inv_low_stock_state** | Dedup state for low-stock signals | `id`, `tenant_id`, `item_id`, `location_id` (nullable — matches reorder_policies), `below_threshold` (bool), `updated_at` |
+| **inventory_valuation_snapshots** | Point-in-time valuation headers | `id`, `tenant_id`, `warehouse_id`, `location_id` (nullable), `as_of`, `total_value_minor`, `currency` |
+| **inventory_valuation_lines** | Per-item valuation detail | `id`, `snapshot_id`, `item_id`, `warehouse_id`, `location_id` (nullable), `quantity_on_hand`, `unit_cost_minor`, `total_value_minor`, `currency` |
 | **inv_outbox** | Event outbox | Standard outbox schema |
+| **inv_processed_events** | Event consumer deduplication | `id`, `event_id`, `event_type`, `processor`, `processed_at` |
 | **inv_idempotency_keys** | Request deduplication | `tenant_id`, `idempotency_key`, `request_hash`, `response_body`, `status_code`, `expires_at` |
 
 **Monetary Precision:** All monetary amounts use **integer minor units** (e.g., `unit_cost_minor` in cents). Currency stored as 3-letter ISO 4217 code.
@@ -273,6 +275,7 @@ All events use the platform `EventEnvelope` and are written to the module outbox
 Internal events (not in canonical contract, used for outbox tracking):
 - `inventory.item_reserved` — stock reservation created
 - `inventory.reservation_released` — reservation compensating entry posted
+- `inventory.reservation_fulfilled` — reservation fulfilled (stock physically deducted)
 
 ---
 
