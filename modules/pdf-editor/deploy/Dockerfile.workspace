@@ -39,8 +39,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install PDFium shared library (required by pdfium-render)
-RUN curl -fsSL https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7699/pdfium-linux-x64.tgz \
-    | tar -xzf - -C /usr/local/lib --strip-components=1 lib/libpdfium.so \
+# Detect host architecture and download the matching binary.
+RUN set -e; \
+    ARCH=$(uname -m); \
+    if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then \
+        PDFIUM_PKG="pdfium-linux-arm64"; \
+    else \
+        PDFIUM_PKG="pdfium-linux-x64"; \
+    fi; \
+    curl -fsSL "https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7699/${PDFIUM_PKG}.tgz" \
+        | tar -xzf - -C /usr/local/lib --strip-components=1 lib/libpdfium.so \
     && ldconfig
 
 COPY --from=builder /app/target/release/pdf-editor-rs /usr/local/bin/pdf-editor-rs
