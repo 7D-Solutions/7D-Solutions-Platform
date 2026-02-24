@@ -11,6 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | CopperRiver | Initial vision doc — documented from source code, migrations, tests, OpenAPI contract, and REVISIONS.md. Business problem, domain authority, data ownership, events, integration points, invariants, API surface, structural decisions, decision log. |
+| 1.1 | 2026-02-24 | SageDesert | Fresh-eyes review: fixed 4 inaccuracies against source code. (1) Removed invented "Docker production image" from MVP scope — no Dockerfile exists. (2) Fixed aggregation ordering claim from "dimension name, then event_id" to actual GROUP BY/ORDER BY dimension. (3) Corrected "4 domain events emitted" to "2 emitted, 2 defined but not emitted" — BillingRunCreated and PartyInvoiced have types/constants but no envelope creation code. (4) Added Status column to Events Produced table distinguishing emitted vs defined-only events. |
 
 ---
 
@@ -67,7 +68,7 @@ TTP is an internal platform service. It has no frontend of its own — it expose
 ## Design Principles
 
 ### Deterministic Billing — Same Inputs, Same Output, Always
-The price trace computation is fully deterministic. Events are aggregated by dimension with stable ordering (dimension name, then event_id). Pricing rules are resolved by effective date with latest-wins semantics. Line totals use integer multiplication (`quantity * unit_price_minor`) — no floating-point arithmetic, no rounding. Running the same trace twice produces byte-identical output, and the SHA-256 hash of the serialized trace is stored on the billing run item for audit linkage.
+The price trace computation is fully deterministic. Events are aggregated by dimension with stable ordering (GROUP BY dimension, ORDER BY dimension). Pricing rules are resolved by effective date with latest-wins semantics. Line totals use integer multiplication (`quantity * unit_price_minor`) — no floating-point arithmetic, no rounding. Running the same trace twice produces byte-identical output, and the SHA-256 hash of the serialized trace is stored on the billing run item for audit linkage.
 
 ### Idempotent at Every Layer
 - **Metering ingestion:** `ON CONFLICT (tenant_id, idempotency_key) DO NOTHING` — duplicate events are silently absorbed.
@@ -97,11 +98,10 @@ One-time charges transition from `pending` → `billed` only after the AR invoic
 - Trace-to-invoice linkage via SHA-256 trace_hash on billing run items
 - Tenant-registry integration (resolve tenant_id → app_id, fail-closed)
 - AR integration (find-or-create customer, create draft invoice, finalize invoice)
-- 4 domain events emitted via EventEnvelope (see Events Produced)
+- 4 domain event types defined; 2 envelopes currently emitted (BillingRunCompleted, BillingRunFailed); 2 defined but not yet emitted (BillingRunCreated, PartyInvoiced)
 - OpenAPI contract: `contracts/ttp/ttp-v1.0.0.yaml`
 - Health (`/healthz`, `/api/health`), readiness (`/api/ready`), version (`/api/version`), metrics (`/metrics`)
 - Prometheus SLO metrics (request latency histogram, request counter, event consumer lag)
-- Docker production image (multi-stage, cargo-chef cached)
 
 ### Explicitly Out of Scope for v1
 - Proration (mid-cycle plan changes)
@@ -222,16 +222,16 @@ TTP **MUST NOT** store:
 
 ## Events Produced
 
-All events use the platform `EventEnvelope` with `merchant_context = TENANT(tenant_id)` to enforce money-mixing prevention. Events are created via the `create_ttp_envelope` helper.
+All events use the platform `EventEnvelope` with `merchant_context = TENANT(tenant_id)` to enforce money-mixing prevention. Emitted events are created via the `create_ttp_envelope` helper.
 
-| Event | NATS Subject | Trigger | Key Payload Fields |
-|-------|-------------|---------|-------------------|
-| Billing Run Created | `ttp.billing_run.created` | Billing run record inserted | `run_id`, `tenant_id`, `billing_period`, `idempotency_key` |
-| Billing Run Completed | `ttp.billing_run.completed` | Billing run finishes successfully | `run_id`, `tenant_id`, `billing_period`, `parties_billed`, `total_amount_minor`, `currency` |
-| Billing Run Failed | `ttp.billing_run.failed` | Billing run encounters an error | `run_id`, `tenant_id`, `billing_period`, `reason` |
-| Party Invoiced | `ttp.party.invoiced` | Individual party billed within a run | `run_id`, `tenant_id`, `party_id`, `ar_invoice_id`, `amount_minor`, `currency` |
+| Event | NATS Subject | Status | Trigger | Key Payload Fields |
+|-------|-------------|--------|---------|-------------------|
+| Billing Run Completed | `ttp.billing_run.completed` | Envelope created | Billing run finishes successfully | `run_id`, `tenant_id`, `billing_period`, `parties_billed`, `total_amount_minor`, `currency` |
+| Billing Run Failed | `ttp.billing_run.failed` | Envelope created | Billing run encounters an error | `run_id`, `tenant_id`, `billing_period`, `reason` |
+| Billing Run Created | `ttp.billing_run.created` | Type defined, not emitted | Billing run record inserted | `run_id`, `tenant_id`, `billing_period`, `idempotency_key` |
+| Party Invoiced | `ttp.party.invoiced` | Type defined, not emitted | Individual party billed within a run | `run_id`, `tenant_id`, `party_id`, `ar_invoice_id`, `amount_minor`, `currency` |
 
-**Note:** In v1.0.0, event envelopes are created and merchant_context is validated, but NATS bus publishing is not yet wired. A future bead will complete end-to-end event delivery.
+**Note:** In v1.0.0, event envelopes for BillingRunCompleted and BillingRunFailed are created and merchant_context is validated, but NATS bus publishing is not yet wired. BillingRunCreated and PartyInvoiced have payload types and subject constants defined but no envelope creation code exists yet. A future bead will complete end-to-end event delivery for all four events.
 
 ---
 
