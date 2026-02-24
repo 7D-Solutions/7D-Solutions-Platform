@@ -78,19 +78,71 @@ All data-bearing endpoints require `tenant_id` — either in the request body (c
 
 Events use the platform EventEnvelope pattern via the events_outbox table.
 
-## Running
+## Running the Backend
 
 ```bash
 # Required env vars
 DATABASE_URL=postgres://...
 BUS_TYPE=nats          # or "in_memory"
 NATS_URL=nats://...    # required when BUS_TYPE=nats
-CORS_ORIGINS=*         # or comma-separated origins
+CORS_ORIGINS=http://localhost:5173   # match the frontend dev server origin
 HOST=0.0.0.0
 PORT=8092
 
 cargo run -p pdf-editor-rs
 ```
+
+## Standalone Frontend
+
+The frontend is a React + Vite + TypeScript + Zustand app in `frontend/`. It connects to the Rust backend for PDF processing and form CRUD. Annotations live in the browser (Zustand stores with localStorage persistence).
+
+### Setup
+
+```bash
+cd modules/pdf-editor/frontend
+npm install
+```
+
+### Environment
+
+Set `VITE_PDF_API_BASE_URL` to point at the running backend. Default: `http://localhost:3100`.
+
+Create `.env.local`:
+```
+VITE_PDF_API_BASE_URL=http://localhost:8092
+```
+
+The backend must have `CORS_ORIGINS` set to allow the frontend's origin (e.g. `http://localhost:5173` for the Vite dev server).
+
+### Stores
+
+| Store | Purpose |
+|-------|---------|
+| `annotationStore` | Annotation tool selection, drag/edit state, render-to-PDF action |
+| `formStore` | Template/field/submission CRUD via API client, local field data |
+| `uiStore` | PDF file state (browser-local), mode, processing status |
+| `pdfTabStore` | Multi-tab PDF management with per-tab annotations and undo/redo |
+| `toolbarStore` | Customizable toolbar buttons (persisted to localStorage) |
+| `sidebarStore` | Sidebar panel mode |
+| `viewportStore` | Zoom, rotation, text search |
+| `notificationStore` | Toast notifications and confirm dialogs |
+
+### Running Tests
+
+```bash
+npm test          # run once
+npm run test:watch  # watch mode
+```
+
+### Smoke Test Checklist (Manual, Against Running Backend)
+
+1. Open a PDF from the local computer (File picker)
+2. Add annotations (stamp, text, arrow, highlight) in the browser
+3. Call render-annotations: PDF bytes + annotations sent to backend, receive burned PDF
+4. Create a form template with fields
+5. Create a draft submission, autosave field data
+6. Submit the submission
+7. Generate a filled PDF from the submission
 
 ## Contract Tests
 
