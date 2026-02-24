@@ -10,6 +10,7 @@
 
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
+| 1.1 | 2026-02-24 | Platform Orchestrator | Review fixes: actor_id/actor_type not wired (always None), external ref CRUD not exposed via API, metrics not recorded via middleware, clarify read-only external refs |
 | 1.0 | 2026-02-24 | Platform Orchestrator | Initial vision doc — full module audit of source, schema, events, API, invariants, integration points, decision log |
 
 ---
@@ -28,7 +29,7 @@ The Party module is the **authoritative registry of all legal and natural person
 
 It answers four questions:
 1. **Who is this?** — A unified party record with display name, contact info, and type-specific extensions (company details or individual details).
-2. **How do they map to external systems?** — External references link a party to identifiers in Stripe, QuickBooks, Salesforce, or any other system, with uniqueness enforced per app+system.
+2. **How do they map to external systems?** — External references link a party to identifiers in Stripe, QuickBooks, Salesforce, or any other system, with uniqueness enforced per app+system. In v0.1.0, external refs are read-only (returned in GET party) — there are no CRUD endpoints for managing them. They are populated by direct SQL or event consumers.
 3. **Who are the people at this organization?** — Contacts represent named persons linked to a party (billing contact, technical contact, primary contact), each with role, email, phone, and primary flag.
 4. **Where are they?** — Typed, multi-address support (billing, shipping, registered, mailing) with primary flag management per party.
 
@@ -91,7 +92,7 @@ Party does not call any other module at runtime. It is consumed by other modules
 - Base party register (company and individual types) with CRUD
 - Company extension: legal name, trade name, registration number, tax ID, country of incorporation, industry code, founded date, employee count, annual revenue, currency
 - Individual extension: first name, last name, middle name, date of birth, tax ID, nationality, job title, department
-- External references: map parties to identifiers in external systems (Stripe, QuickBooks, etc.)
+- External references: schema and data model for mapping parties to external system identifiers (Stripe, QuickBooks, etc.) — read-only via GET party; CRUD endpoints deferred
 - Contacts: named persons linked to a party with role, email, phone, primary flag
 - Addresses: typed addresses (billing, shipping, registered, mailing, other) per party with primary flag
 - Search: by name (ILIKE), party type, status, external system/ID, with pagination
@@ -99,7 +100,7 @@ Party does not call any other module at runtime. It is consumed by other modules
 - 3 domain events via transactional outbox: `party.created`, `party.updated`, `party.deactivated`
 - HTTP idempotency key infrastructure (table exists, not yet wired to handlers)
 - Event consumer deduplication infrastructure (`party_processed_events` table)
-- Prometheus metrics (request latency histogram, request counter, consumer lag gauge)
+- Prometheus metrics infrastructure (request latency histogram, request counter, consumer lag gauge registered and exported via `/metrics`; `record_http_request` not yet wired to middleware — counters always zero until middleware integration)
 - Readiness probe with DB connectivity check
 - OpenAPI contract
 - Docker image (multi-stage build with cargo-chef)
@@ -109,7 +110,9 @@ Party does not call any other module at runtime. It is consumed by other modules
 - Relationship graph (party-to-party relationships: parent company, subsidiary, partner)
 - Party history / audit log (versioned change tracking beyond events)
 - Active external ref synchronization (push/pull to external systems)
+- External ref CRUD API (table and model exist; no create/update/delete endpoints)
 - HTTP-level idempotency enforcement (infrastructure exists but not wired)
+- Metrics middleware integration (metric types registered but `record_http_request` not called from middleware)
 - Bulk import/export
 - Party verification / KYC integration
 - Frontend UI (consumed via API by vertical apps or TCP)
@@ -230,7 +233,7 @@ All events use the platform `EventEnvelope` and are written to `party_outbox` at
 - `schema_version`: `"1.0.0"`
 - `replay_safe`: `true`
 - `correlation_id`: Propagated from `X-Correlation-Id` header
-- `actor_id` / `actor_type`: Optional, propagated from VerifiedClaims on HTTP mutations
+- `actor_id` / `actor_type`: Always `None` in v0.1.0. The `create_party_envelope_with_actor` plumbing exists in `events/envelope.rs` but the builder functions (`build_party_created_envelope`, etc.) pass `None, None`. Wiring actor propagation from VerifiedClaims is deferred
 
 **Note:** Contact and address CRUD operations do not currently emit events. If downstream consumers need to react to contact/address changes, this would be a future enhancement.
 
@@ -317,7 +320,10 @@ Full OpenAPI contract: `contracts/party/party-v0.1.0.yaml`
 | **Relationship Graph** | Party-to-party relationships (parent company, subsidiary, partner, employee-of). Requires recursive graph queries and a relationship type taxonomy. |
 | **Audit Log / History** | Versioned change tracking beyond event emission. Would require a separate history table or event sourcing approach. |
 | **Active External Ref Sync** | Push/pull synchronization with Stripe, QuickBooks, etc. Requires webhook handling, conflict resolution, and per-system adapters. |
+| **External Ref CRUD API** | Table, model, and uniqueness constraint exist. GET party includes external refs in the composite response. Missing: POST/PUT/DELETE endpoints for managing external ref mappings. |
 | **HTTP Idempotency Enforcement** | Infrastructure exists (`party_idempotency_keys` table) but is not yet wired to HTTP handlers. Straightforward to add. |
+| **Metrics Middleware Wiring** | `PartyMetrics` struct registers request latency, request count, and consumer lag metrics. `/metrics` endpoint exports them. Missing: middleware that calls `record_http_request()` on each request. |
+| **Actor Propagation to Event Envelopes** | `create_party_envelope_with_actor` exists but builder functions pass `None, None`. Wiring VerifiedClaims actor_id/actor_type into event envelopes is straightforward. |
 | **Bulk Import / Export** | CSV/JSON import of party records for migration from legacy systems. Needs validation, dedup, and error reporting. |
 | **KYC / Verification** | Identity verification integration for compliance. Varies by jurisdiction and industry. |
 | **Party Events for Contacts/Addresses** | Contact and address changes could emit events for downstream CRM sync. Not needed until a consumer requires it. |

@@ -11,6 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | Platform Orchestrator | Initial vision doc — business problem, design principles, domain authority, data ownership, state machine, events, integration points, invariants, API surface, decision log. Documented from built source code, migrations, and contracts. |
+| 1.1 | 2026-02-24 | Platform Orchestrator | Fresh-eyes review: fixed 10 inaccuracies. Marked 9 API routes as contract-only (not implemented). Removed 3 events that don't exist in code. Clarified paused/cancelled not in lifecycle guards. Noted cycle gating not wired into bill run. Fixed tenant isolation claim (bill_runs has no tenant_id). Noted DLQ table missing migration. Fixed event naming. |
 
 ---
 
@@ -55,14 +56,16 @@ The module is a platform service consumed by any vertical application that manag
 
 ### System (Bill Run Scheduler)
 - Finds subscriptions with `next_bill_date <= today` and `status = active`
-- Creates invoices via AR API with cycle gating for exactly-once semantics
+- Creates invoices via AR API (direct HTTP calls — cycle gating module exists but is **not yet wired** into the bill run endpoint)
 - Advances `next_bill_date` after successful invoice creation
 - Records bill run outcomes for audit and idempotency
+- **Note:** Current implementation queries all tenants — no `tenant_id` filter on the due subscriptions query
 
 ### System (Event Consumer)
-- Consumes `ar.invoice_suspended` events from AR dunning flow
+- Consumer handler exists (`consumer.rs`) for `ar.invoice_suspended` events from AR dunning flow
 - Applies suspension to matching subscriptions for that customer/tenant
 - Uses `processed_events` table for idempotent event consumption
+- **Note:** The consumer handler function exists but no NATS subscription loop is wired in `main.rs` — the handler must be invoked externally or the subscription loop is not yet implemented
 
 ---
 
@@ -71,8 +74,8 @@ The module is a platform service consumed by any vertical application that manag
 ### Invoice Delegation, Not Ownership
 Subscriptions never stores invoice data. When a bill run executes, it calls AR's API to create and finalize invoices. The response is used only to confirm success — no invoice fields are persisted in the Subscriptions database. This prevents data divergence between what Subscriptions thinks was billed and what AR actually recorded.
 
-### Exactly-Once Invoice Per Cycle
-The cycle gating system (advisory locks + UNIQUE constraint on `(tenant_id, subscription_id, cycle_key)`) ensures that no subscription cycle ever generates more than one invoice, even under concurrent bill run triggers, event replays, or crash-restart scenarios. The pattern is: Gate → Lock → Check → Execute → Record.
+### Exactly-Once Invoice Per Cycle (Module Built, Not Yet Wired)
+The cycle gating module (`cycle_gating.rs`, `gated_invoice_creation.rs`) implements advisory locks + UNIQUE constraint on `(tenant_id, subscription_id, cycle_key)` to prevent duplicate invoices. The pattern is: Gate → Lock → Check → Execute → Record. **However, the `execute_bill_run` endpoint currently calls AR directly without using the gating module.** Wiring the gating into the bill run is a remaining integration step.
 
 ### Guard → Mutation → Side Effect
 All lifecycle transitions follow the same pattern: a pure guard function validates the transition (zero side effects), the database mutation occurs within a transaction, and the outbox event is written atomically in the same transaction. No orphaned state changes without corresponding events.
@@ -87,23 +90,24 @@ The module boots and runs without AR, Payments, GL, or Notifications. Bill runs 
 
 ## MVP Scope (v0.1.0)
 
-### In Scope
-- Subscription plans (CRUD with schedule, price, currency, proration flag)
-- Subscriptions (create, list, get, pause, resume, cancel)
-- Bill run execution: find due subscriptions, call AR API, advance next bill date
+### Implemented
+- Subscription plans — database table and model exist; **no HTTP routes** (contract-only in OpenAPI)
+- Subscriptions — database table and model exist; **no HTTP routes** for create/list/get/pause/resume/cancel (contract-only in OpenAPI)
+- Bill run execution: find due subscriptions, call AR API directly, advance next bill date (`POST /api/bill-runs/execute`)
 - Bill run idempotency via `bill_run_id` UNIQUE constraint
-- Cycle gating: exactly-once invoice per subscription cycle (advisory locks + UNIQUE constraint)
-- Subscription lifecycle state machine: active, past_due, suspended (+ paused, cancelled)
-- Guard → Mutation → Outbox atomicity for lifecycle transitions
-- Event consumption: `ar.invoice_suspended` → subscription suspension
-- Dead letter queue for failed event processing
+- Cycle gating module: advisory locks + UNIQUE constraint + attempt ledger (`cycle_gating.rs`, `gated_invoice_creation.rs`) — **exists as library code but NOT wired into the bill run endpoint**
+- Subscription lifecycle state machine: active, past_due, suspended — guard-protected transitions with Guard → Mutation → Outbox atomicity
+- Lifecycle guards for paused/cancelled — **NOT implemented** (DB CHECK constraint allows these statuses but `SubscriptionStatus` enum and `transition_guard()` only cover active/past_due/suspended)
+- Event consumption handler: `ar.invoice_suspended` → subscription suspension (`consumer.rs`) — handler exists but no NATS subscription loop in `main.rs`
+- Dead letter queue: `dlq.rs` module exists but **`failed_events` table has no migration** — function cannot execute
 - Outbox publisher with infinite retry for at-least-once event delivery
 - Prometheus metrics (cycles attempted/completed, churn, HTTP latency, consumer lag)
-- Admin endpoints for projection status and consistency checks
-- OpenAPI contract (`contracts/subscriptions/subscriptions-v1.yaml`)
-- Event schemas (4 events: created, paused, resumed, billrun.executed)
+- Admin endpoints for projection status and consistency checks (3 endpoints, wired)
+- OpenAPI contract (`contracts/subscriptions/subscriptions-v1.yaml`) — defines full API surface including unimplemented routes
+- Events emitted: 2 events — `subscriptions.status.changed` (past_due/suspended transitions only), `billrun.completed`
 - Envelope validation (event_id, occurred_at, tenant_id, source_module, source_version, payload)
-- JWT-based auth with permission layer (`SUBSCRIPTIONS_MUTATE`)
+- JWT-based auth with permission layer (`SUBSCRIPTIONS_MUTATE`) — wired in `main.rs`
+- Invariant assertion functions for cycle gating integrity (`invariants.rs`)
 
 ### Explicitly Out of Scope for v1
 - Usage-based billing (metered subscriptions)
@@ -141,8 +145,8 @@ These are decisions that are cheap to make correctly now and very expensive to r
 ### 1. Never store invoice data — delegate to AR
 Subscriptions calls AR's API to create invoices and reads the response to confirm success. It never stores invoice IDs, amounts, or statuses in its own database (except temporarily in the `subscription_invoice_attempts` ledger for cycle gating). AR is the single source of truth for all invoice data. This eliminates an entire class of data consistency problems.
 
-### 2. Cycle gating uses advisory locks + UNIQUE constraint
-Two layers of protection: `pg_advisory_xact_lock` prevents concurrent bill runs from processing the same subscription cycle simultaneously, and the UNIQUE constraint on `(tenant_id, subscription_id, cycle_key)` provides a database-level guarantee that no duplicate attempt record exists. The advisory lock is released before the expensive AR API calls to minimize contention.
+### 2. Cycle gating uses advisory locks + UNIQUE constraint (built, not wired)
+Two layers of protection: `pg_advisory_xact_lock` prevents concurrent bill runs from processing the same subscription cycle simultaneously, and the UNIQUE constraint on `(tenant_id, subscription_id, cycle_key)` provides a database-level guarantee that no duplicate attempt record exists. The advisory lock is released before the expensive AR API calls to minimize contention. **Status:** The `cycle_gating.rs` and `gated_invoice_creation.rs` modules implement this pattern fully, but `execute_bill_run` in `routes.rs` calls AR directly without using the gating module.
 
 ### 3. Lifecycle transitions are guard-protected
 All status changes go through `transition_guard()` — a pure function that validates the from→to pair and returns `Ok(())` or an error. The guard has zero side effects. Database mutations and event emissions happen only after the guard approves. This makes the state machine testable without a database.
@@ -153,11 +157,11 @@ The `processed_events` table tracks which event IDs have already been handled. T
 ### 5. Outbox events carry full envelope metadata
 Every outbox record includes envelope metadata (event_id, tenant_id, source_module, source_version, trace_id, correlation_id, causation_id, mutation_class). This makes events self-describing and supports distributed tracing, replay analysis, and operational queries without needing to deserialize the payload.
 
-### 6. AR API calls happen outside the gating transaction
-The gating transaction (acquire lock → check attempt → record attempt) commits before calling AR. This keeps the advisory lock duration under 50ms. If the AR call fails, the attempt is marked as failed in a separate transaction. This design trades "attempt recorded but AR not called" (recoverable) for "long lock hold blocking other subscriptions" (unrecoverable contention).
+### 6. AR API calls happen outside the gating transaction (in gating module)
+In the `gated_invoice_creation.rs` module, the gating transaction (acquire lock → check attempt → record attempt) commits before calling AR. This keeps the advisory lock duration under 50ms. If the AR call fails, the attempt is marked as failed in a separate transaction. This design trades "attempt recorded but AR not called" (recoverable) for "long lock hold blocking other subscriptions" (unrecoverable contention). **Note:** The `execute_bill_run` endpoint does not use this module — it calls AR directly within a simple loop.
 
-### 7. Tenant isolation via tenant_id on every table
-Standard platform multi-tenant pattern. Every table has `tenant_id` as a non-nullable field. Indexes include `tenant_id` for efficient filtering. Every query filters by `tenant_id`.
+### 7. Tenant isolation via tenant_id (partial)
+Standard platform multi-tenant pattern. Domain tables (`subscription_plans`, `subscriptions`, `subscription_invoice_attempts`) have `tenant_id` as a non-nullable field with indexes. **Exception:** `bill_runs` has no `tenant_id` column — bill runs operate across all tenants. The `execute_bill_run` query for due subscriptions does not filter by `tenant_id`.
 
 ---
 
@@ -186,13 +190,13 @@ Subscriptions is **NOT** authoritative for:
 
 ### Tables Owned by Subscriptions
 
-All tables use `tenant_id` for multi-tenant isolation. Every query **MUST** filter by `tenant_id`.
+Domain tables use `tenant_id` for multi-tenant isolation. Every query **MUST** filter by `tenant_id` (exception: `bill_runs` — see note below).
 
 | Table | Purpose | Key Fields |
 |-------|---------|------------|
 | **subscription_plans** | Plan templates | `id`, `tenant_id`, `name`, `description`, `schedule` (weekly\|monthly\|custom), `price_minor`, `currency`, `proration_enabled` |
 | **subscriptions** | Active service agreements | `id`, `tenant_id`, `ar_customer_id`, `plan_id` (FK→subscription_plans), `status` (active\|past_due\|suspended\|paused\|cancelled), `schedule`, `price_minor`, `currency`, `start_date`, `next_bill_date`, `paused_at`, `cancelled_at` |
-| **bill_runs** | Billing cycle execution records | `id`, `bill_run_id` (UNIQUE), `execution_date`, `subscriptions_processed`, `invoices_created`, `failures`, `status` (running\|completed\|failed) |
+| **bill_runs** | Billing cycle execution records | `id`, `bill_run_id` (UNIQUE), `execution_date`, `subscriptions_processed`, `invoices_created`, `failures`, `status` (running\|completed\|failed) — **NOTE: no `tenant_id` column** |
 | **subscription_invoice_attempts** | Cycle gating ledger | `id`, `tenant_id`, `subscription_id` (FK→subscriptions), `cycle_key` (YYYY-MM), `cycle_start`, `cycle_end`, `status` (attempting\|succeeded\|failed_retry\|failed_final), `ar_invoice_id`, `idempotency_key`, UNIQUE(tenant_id, subscription_id, cycle_key) |
 | **events_outbox** | Standard platform outbox | Module-owned, same schema as other modules with envelope metadata columns |
 | **processed_events** | Event deduplication | `event_id` (PK), `subject`, `processed_at` |
@@ -212,48 +216,55 @@ Subscriptions **MUST NOT** store:
 
 ## Subscription State Machine
 
+### Guard-Protected Transitions (lifecycle module)
+
+The `SubscriptionStatus` enum and `transition_guard()` function cover three statuses:
+
 ```
 ACTIVE ──→ PAST_DUE ──→ SUSPENDED
   ↑    └───────────────────┘  │
   └───────────────────────────┘
-
-Additionally: ACTIVE → PAUSED → (resume) → ACTIVE
-              Any → CANCELLED (terminal)
 ```
-
-### Transition Rules (Lifecycle Module)
 
 | From | Allowed To | Guard | Trigger |
 |------|-----------|-------|---------|
-| active | past_due | — | Payment failure (dunning event) |
-| active | suspended | — | Terminal dunning escalation |
-| active | paused | — | Customer/admin request |
-| active | cancelled | — | Customer/admin request |
-| past_due | active | — | Payment recovered |
-| past_due | suspended | — | Grace period expired |
-| suspended | active | — | Reactivation (payment recovered) |
-| paused | active | — | Resume request |
-| cancelled | *(terminal)* | No further transitions | — |
+| active | past_due | `transition_guard()` | Payment failure (dunning event) |
+| active | suspended | `transition_guard()` | Terminal dunning escalation |
+| past_due | active | `transition_guard()` | Payment recovered |
+| past_due | suspended | `transition_guard()` | Grace period expired |
+| suspended | active | `transition_guard()` | Reactivation (payment recovered) |
 
-### Idempotent Transitions
-Same-state transitions (active→active, past_due→past_due, suspended→suspended) are explicitly allowed for idempotency — processing the same event twice produces the same result without error.
+**Idempotent transitions:** Same-state transitions (active→active, past_due→past_due, suspended→suspended) are explicitly allowed — processing the same event twice produces the same result without error.
 
-### Illegal Transitions
-- `suspended → past_due` (cannot go backwards in escalation)
+**Illegal transitions:** `suspended → past_due` (cannot go backwards in escalation).
+
+**Event emission asymmetry:** `transition_to_past_due` and `transition_to_suspended` write `subscriptions.status.changed` events to the outbox atomically within the same transaction. `transition_to_active` does **NOT** emit events (comment in code: "Future").
+
+### Database-Level States (not guard-protected)
+
+The DB CHECK constraint allows two additional statuses: `paused` and `cancelled`. These exist in the database schema and the `Subscription` model struct but are **NOT** represented in the `SubscriptionStatus` enum and have **no guard functions or transition logic**. No HTTP routes exist for pause/resume/cancel operations.
+
+```
+paused    — DB state only, no lifecycle guard
+cancelled — DB state only, no lifecycle guard (intended terminal)
+```
 
 ---
 
 ## Events Produced
 
-All events use the platform `EventEnvelope` and are written to the module outbox atomically with the triggering mutation.
+All events use the platform `EventEnvelope` and are written to the module outbox atomically with the triggering mutation. The outbox publisher (`publisher.rs`) publishes to NATS with subject `subscriptions.events.<outbox_subject>`.
 
-| Event | Trigger | Key Payload Fields |
-|-------|---------|-------------------|
-| `subscriptions.created` | Subscription created | `subscription_id`, `ar_customer_id`, `plan_id`, `schedule`, `price_minor`, `currency`, `start_date`, `next_bill_date`, `status` |
-| `subscriptions.paused` | Subscription paused | `subscription_id`, `tenant_id` |
-| `subscriptions.resumed` | Subscription resumed | `subscription_id`, `tenant_id` |
-| `subscriptions.status.changed` | Lifecycle transition (past_due, suspended, active) | `subscription_id`, `tenant_id`, `from_status`, `to_status`, `reason` |
-| `subscriptions.billrun.completed` | Bill run finished | `bill_run_id`, `subscriptions_processed`, `invoices_created`, `failures`, `execution_time` |
+| Event (outbox subject) | NATS Subject | Trigger | Key Payload Fields |
+|-------|---------|---------|-------------------|
+| `subscriptions.status.changed` | `subscriptions.events.subscriptions.status.changed` | Lifecycle transition to past_due or suspended | `subscription_id`, `tenant_id`, `from_status`, `to_status`, `reason` |
+| `billrun.completed` | `subscriptions.events.billrun.completed` | Bill run finished | `bill_run_id`, `subscriptions_processed`, `invoices_created`, `failures`, `execution_time` |
+
+**Events NOT yet emitted (models exist but no emission code):**
+- `subscriptions.created` — no subscription creation route exists
+- `subscriptions.paused` — no pause route exists
+- `subscriptions.resumed` — no resume route exists
+- `subscriptions.status.changed` for reactivation (active) — `transition_to_active` does not write to outbox
 
 ---
 
@@ -273,13 +284,13 @@ Bill runs call AR's API to create and finalize invoices:
 - `POST /api/ar/invoices` — Create invoice for a subscription cycle
 - `POST /api/ar/invoices/{id}/finalize` — Finalize the created invoice
 
-**Failure mode:** If AR is unavailable, the bill run records a failure for that subscription and continues processing others. The cycle gating attempt is marked as failed. The subscription's `next_bill_date` is NOT advanced (it will be retried on the next bill run).
+**Failure mode:** If AR is unavailable, the bill run increments its failure counter for that subscription and continues processing others. The subscription's `next_bill_date` is NOT advanced (it will be retried on the next bill run). If cycle gating were wired in, the attempt record would be marked as failed.
 
 **Environment:** `AR_BASE_URL` (default: `http://localhost:8086`)
 
-### AR (Event Consumer)
+### AR (Event Consumer — handler exists, NATS loop not wired)
 
-Subscriptions subscribes to `ar.invoice_suspended` via NATS. When AR's dunning flow reaches terminal escalation for an invoice, Subscriptions suspends the corresponding subscription(s). This is a one-way consumption — Subscriptions never calls AR to query dunning status.
+The `consumer.rs` module has a handler for `ar.invoice_suspended` events. When AR's dunning flow reaches terminal escalation for an invoice, the handler suspends the corresponding subscription(s). This is a one-way consumption — Subscriptions never calls AR to query dunning status. **Note:** The handler function exists but `main.rs` does not spawn a NATS subscription loop to invoke it — the NATS consumer wiring is not yet implemented.
 
 ### Payments (None — Explicit Boundary)
 
@@ -303,13 +314,13 @@ Not implemented in v1.
 
 1. **No invoice data stored.** Subscriptions never persists invoice IDs, amounts, or statuses in its domain tables. The `subscription_invoice_attempts` ledger records only the attempt status and AR invoice ID reference for cycle gating.
 2. **No payment references stored.** Payment methods, transaction IDs, and payment statuses are never stored.
-3. **Exactly-once invoice per cycle.** The UNIQUE constraint on `(tenant_id, subscription_id, cycle_key)` prevents duplicate invoice attempts at the database level. Advisory locks prevent concurrent races.
-4. **Lifecycle transitions are guard-protected.** No direct SQL updates to `subscriptions.status` — all changes go through `transition_guard()` which validates the from→to pair.
-5. **Outbox atomicity.** Lifecycle transitions write their events to the outbox in the same database transaction as the status update. No orphaned state changes.
+3. **Exactly-once invoice per cycle (module built, not wired).** The UNIQUE constraint on `(tenant_id, subscription_id, cycle_key)` in `subscription_invoice_attempts` prevents duplicate invoice attempts at the database level. Advisory locks prevent concurrent races. **However, the `execute_bill_run` endpoint does not yet use the gating module — it calls AR directly.**
+4. **Lifecycle transitions are guard-protected (for active/past_due/suspended only).** Changes through `transition_guard()` validate the from→to pair. **Note:** `paused` and `cancelled` statuses exist in the DB CHECK constraint but are NOT covered by the guard — they have no transition functions.
+5. **Outbox atomicity (partial).** `transition_to_past_due` and `transition_to_suspended` write events to the outbox in the same transaction as the status update. `transition_to_active` does **NOT** write to the outbox (no event emitted on reactivation). The `execute_bill_run` endpoint writes the `billrun.completed` event outside the bill run record update transaction.
 6. **Event consumption is idempotent.** The `processed_events` table deduplicates incoming events. Processing the same event twice produces the same result.
 7. **Bill run idempotency.** The `bill_run_id` UNIQUE constraint on `bill_runs` prevents the same bill run from executing twice.
 8. **Subscriptions never calls Payments.** This boundary is enforced by design — no Payments client, no Payments URL configuration, no Payments-related code.
-9. **Tenant isolation.** Every table has `tenant_id`. Every query filters by `tenant_id`.
+9. **Tenant isolation (partial).** `subscription_plans`, `subscriptions`, `subscription_invoice_attempts`, `events_outbox`, and `processed_events` have `tenant_id`. **`bill_runs` does NOT have a `tenant_id` column.** The `execute_bill_run` query for due subscriptions does NOT filter by `tenant_id` — it finds all active subscriptions across all tenants.
 
 ---
 
@@ -317,12 +328,14 @@ Not implemented in v1.
 
 Full OpenAPI contract: `contracts/subscriptions/subscriptions-v1.yaml`
 
-### Subscription Plans
+**Note:** The OpenAPI contract defines the full planned API. Only routes marked with checkmarks below have implemented handlers.
+
+### Subscription Plans (contract-only — no route handlers)
 - `POST /api/subscription-plans` — Create subscription plan
 - `GET /api/subscription-plans` — List subscription plans
 - `GET /api/subscription-plans/{id}` — Get subscription plan
 
-### Subscriptions
+### Subscriptions (contract-only — no route handlers)
 - `POST /api/subscriptions` — Create subscription
 - `GET /api/subscriptions` — List subscriptions (filterable by customer_id, status)
 - `GET /api/subscriptions/{id}` — Get subscription detail
@@ -330,20 +343,23 @@ Full OpenAPI contract: `contracts/subscriptions/subscriptions-v1.yaml`
 - `POST /api/subscriptions/{id}/resume` — Resume subscription
 - `POST /api/subscriptions/{id}/cancel` — Cancel subscription
 
-### Bill Runs
-- `POST /api/bill-runs/execute` — Execute billing cycle (idempotent via bill_run_id)
+### Bill Runs (implemented)
+- `POST /api/bill-runs/execute` — Execute billing cycle (idempotent via bill_run_id) ✅
 
-### Admin
-- `POST /api/subscriptions/admin/projection-status` — Query projection status
-- `POST /api/subscriptions/admin/consistency-check` — Run consistency check
-- `GET /api/subscriptions/admin/projections` — List projections
+### Admin (implemented)
+- `POST /api/subscriptions/admin/projection-status` — Query projection status ✅
+- `POST /api/subscriptions/admin/consistency-check` — Run consistency check ✅
+- `GET /api/subscriptions/admin/projections` — List projections ✅
 
-### Operational
-- `GET /api/health` — Liveness check
-- `GET /api/ready` — Readiness probe (verifies DB connectivity)
-- `GET /api/version` — Module identity and schema version
-- `GET /metrics` — Prometheus metrics
-- `GET /healthz` — Kubernetes liveness
+### Operational (implemented)
+- `GET /api/health` — Liveness check ✅
+- `GET /api/ready` — Readiness probe (verifies DB connectivity) ✅
+- `GET /api/version` — Module identity and schema version ✅
+- `GET /metrics` — Prometheus metrics ✅
+- `GET /healthz` — Kubernetes liveness ✅
+
+### OpenAPI Contract Gaps
+The contract's `Subscription.status` enum lists `[active, paused, cancelled]` but the database also supports `past_due` and `suspended`. The contract should be updated to include all 5 statuses.
 
 ---
 
