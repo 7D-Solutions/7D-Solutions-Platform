@@ -2832,6 +2832,36 @@ dependencies = [
 ]
 
 [[package]]
+name = "pdf-editor-rs"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-nats 0.33.0",
+ "async-trait",
+ "axum 0.8.8",
+ "chrono",
+ "dotenvy",
+ "event-bus",
+ "futures",
+ "health",
+ "http 1.4.0",
+ "lazy_static",
+ "prometheus",
+ "security",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower 0.5.3",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
+]
+
+[[package]]
 name = "pem"
 version = "3.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"

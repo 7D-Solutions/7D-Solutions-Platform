@@ -25,6 +25,7 @@ members = [
   "modules/ttp",
   "modules/maintenance",
   "modules/reporting",
+  "modules/pdf-editor",
   "tools/contract-tests",
   "tools/simulation",
   "tools/tenantctl",
