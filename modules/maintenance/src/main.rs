@@ -111,6 +111,24 @@ async fn main() {
             "/api/maintenance/assets/{asset_id}/readings",
             post(routes::meters::record_reading).get(routes::meters::list_readings),
         )
+        // Plan endpoints
+        .route(
+            "/api/maintenance/plans",
+            post(routes::plans::create_plan).get(routes::plans::list_plans),
+        )
+        .route(
+            "/api/maintenance/plans/{plan_id}",
+            get(routes::plans::get_plan).patch(routes::plans::update_plan),
+        )
+        .route(
+            "/api/maintenance/plans/{plan_id}/assign",
+            post(routes::plans::assign_plan),
+        )
+        // Assignment endpoints
+        .route(
+            "/api/maintenance/assignments",
+            get(routes::plans::list_assignments),
+        )
         .with_state(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(
