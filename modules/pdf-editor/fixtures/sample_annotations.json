@@ -1,0 +1,12 @@
+[
+  {
+    "id": "smoke-anno-001",
+    "x": 100.0,
+    "y": 700.0,
+    "pageNumber": 1,
+    "type": "TEXT",
+    "text": "Smoke Test Annotation",
+    "fontSize": 14.0,
+    "color": "#222222"
+  }
+]

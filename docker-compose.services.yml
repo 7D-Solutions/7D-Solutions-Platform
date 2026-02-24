@@ -617,11 +617,6 @@ services:
       - "8102:8102"
     networks:
       - 7d-platform
-    depends_on:
-      pdf-editor-postgres:
-        condition: service_healthy
-      nats:
-        condition: service_started
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8102/api/health || exit 1"]
       interval: 10s

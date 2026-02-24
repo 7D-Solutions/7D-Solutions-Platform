@@ -30,7 +30,7 @@ services:
       - ./infra/monitoring/alerts:/etc/prometheus/alerts:ro
       - prometheus_data:/prometheus
     ports:
-      - "127.0.0.1:9090:9090"
+      - "127.0.0.1:9091:9090"
     networks:
       - 7d-platform
     labels:
