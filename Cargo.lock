@@ -3521,6 +3521,7 @@ dependencies = [
  "event-bus",
  "futures",
  "health",
+ "http-body-util",
  "projections",
  "prometheus",
  "security",
