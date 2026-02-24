@@ -11,6 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | Platform Orchestrator | Initial vision doc — documented from source: external refs, webhooks, connectors, schema, events, API surface |
+| 1.1 | 2026-02-24 | PurpleCliff | Fresh-eyes review: fixed event count (5→6), noted connector.registered bypasses EventEnvelope, corrected internal webhook idempotency key source |
 
 ---
 
@@ -92,7 +93,7 @@ All tables use `app_id` (the tenant/application identifier) as the leading scope
 - Idempotency enforcement via `(app_id, system, idempotency_key)` unique constraint
 - Event routing: map source system events to platform domain events
 - Transactional outbox for all mutations (Guard-Mutation-Outbox pattern)
-- 5 domain events emitted via outbox (see Events Produced)
+- 6 domain events emitted via outbox (see Events Produced)
 - Connector framework with trait-based dispatch
 - Echo connector (built-in test connector, no external dependencies)
 - Connector config registration with per-connector schema validation
@@ -213,7 +214,7 @@ Integrations **MUST NOT** store:
 
 ## Events Produced
 
-All events use the platform `EventEnvelope` and are written to the module outbox atomically with the triggering mutation.
+All events are written to the module outbox atomically with the triggering mutation. The 5 external-ref and webhook events use the platform `EventEnvelope`; `connector.registered` writes raw JSON directly via `enqueue_event_tx` (no envelope wrapper).
 
 | Event | Trigger | Mutation Class | Key Payload Fields |
 |-------|---------|---------------|-------------------|
@@ -316,7 +317,7 @@ The routing map in `domain/webhooks/routing.rs` translates source system events 
 |--------|----------|-----------------|----------------------|
 | `stripe` | `StripeVerifier` (HMAC-SHA256) | `STRIPE_WEBHOOK_SECRET` | Payload `id` field (Stripe event ID) |
 | `github` | `GenericHmacVerifier` (SHA-256, `x-hub-signature-256` header) | `GITHUB_WEBHOOK_SECRET` | `X-Webhook-Id` header |
-| `internal` | `NoopVerifier` (no verification) | — | `X-Webhook-Id` header or payload `event_type` |
+| `internal` | `NoopVerifier` (no verification) | — | `X-Webhook-Id` header (no fallback) |
 
 Unknown systems are rejected with `404 Not Found` before any database writes.
 
