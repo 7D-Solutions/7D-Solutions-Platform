@@ -151,6 +151,7 @@ impl DepreciationService {
         .await?;
 
         // Post all unposted periods up to as_of_date in one UPDATE.
+        // Guard: skip schedules for disposed or impaired assets — depreciation stops at disposal.
         let posted: Vec<DepreciationSchedule> = sqlx::query_as(
             r#"
             UPDATE fa_depreciation_schedules
@@ -162,6 +163,11 @@ impl DepreciationService {
             WHERE tenant_id  = $2
               AND period_end <= $3
               AND is_posted   = FALSE
+              AND asset_id IN (
+                  SELECT id FROM fa_assets
+                  WHERE tenant_id = $2
+                    AND status NOT IN ('disposed', 'impaired')
+              )
             RETURNING *
             "#,
         )
