@@ -11,7 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | SageDesert | Initial vision doc — extracted from source code, migrations, consumers, services, and existing phase docs. Covers full GL surface: journal posting, balance engine, financial statements, period close, FX, accruals, revenue recognition, DLQ, and all NATS consumers. |
-| 2.0 | 2026-02-24 | SageDesert | Review pass: fixed consumer count (9→11), added missing credit note consumer to In Scope list, corrected admin routes description (was "DLQ management", actually projection management), noted 4 consumers implemented but not wired in main.rs. |
+| 2.0 | 2026-02-24 | SageDesert | Review pass: fixed consumer count (9→11), added missing credit note consumer to In Scope list, corrected admin routes description (was "DLQ management", actually projection management), wired 4 missing consumers in main.rs (bd-2zmu.1). |
 
 ---
 
@@ -105,7 +105,7 @@ Integration tests hit real Postgres and real NATS. Platform-wide standard.
 ### In Scope
 - Double-entry journal posting from NATS events with full validation
 - Chart of Accounts: flat account structure with type (asset/liability/equity/revenue/expense), normal balance direction, active/inactive state
-- 11 NATS event consumers: GL posting, reversal, credit note, write-off, inventory COGS, AR tax committed, AR tax voided, fixed assets depreciation, AP vendor bill approved, timekeeping labor cost, realized FX gain/loss (note: 4 consumers — credit note, realized FX, AP vendor bill, timekeeping labor cost — are implemented but not yet wired in main.rs)
+- 11 NATS event consumers: GL posting, reversal, credit note, write-off, inventory COGS, AR tax committed, AR tax voided, fixed assets depreciation, AP vendor bill approved, timekeeping labor cost, realized FX gain/loss
 - Balance engine: materialized rollups per (tenant, period, account, currency)
 - Financial statements: trial balance, income statement, balance sheet, cash flow statement
 - Reporting-currency statements: trial balance, income statement, balance sheet translated to tenant reporting currency
