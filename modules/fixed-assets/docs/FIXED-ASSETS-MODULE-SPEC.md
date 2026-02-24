@@ -11,6 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | Platform Orchestrator | Initial technical spec — schema, depreciation engine, disposal lifecycle, AP capitalization, events, API, invariants, integration points. Documented from source code. |
+| 1.1 | 2026-02-24 | DarkOwl (review) | Fix 4 inaccuracies: event count 5→6, status lifecycle diagram (disposed→impaired was wrong, impairment paths from draft/fully_depreciated were missing), status transitions table (added draft→impaired, fully_depreciated→impaired), added missing `currency` field to depreciation and disposal event payload descriptions. |
 
 ---
 
@@ -102,7 +103,7 @@ Every state-changing mutation writes its event to the outbox in the same databas
 - Asset disposals: sale, scrap, impairment, write-off, transfer — with gain/loss computation
 - AP capitalization: event consumer creates assets from approved vendor bill lines
 - Capitalization linkage table for audit trail (bill_id + line_id → asset_id)
-- 5 domain events emitted via outbox (see Events Produced)
+- 6 domain events emitted via outbox (see Events Produced)
 - GL-ready payloads in depreciation and disposal events (account refs + amounts)
 - Admin endpoints for projection status and consistency checks
 - Prometheus metrics (assets created, depreciation runs, disposals, SLO histograms)
@@ -229,15 +230,16 @@ Fixed-Assets **MUST NOT** store:
 
 ```
 draft ──→ active ──→ fully_depreciated
-  |          |              |
-  |          v              v
-  |       disposed      disposed
-  |          |              |
-  v          v              v
-disposed  (terminal)    (terminal)
-  |
-  v
-impaired (impairment only)
+  │          │              │
+  │          ├──→ disposed  ├──→ disposed
+  │          │   (terminal) │   (terminal)
+  │          │              │
+  │          └──→ impaired  └──→ impaired
+  │              (terminal)     (terminal)
+  │
+  ├──→ disposed (terminal)
+  │
+  └──→ impaired (terminal)
 ```
 
 ### Status Transitions
@@ -245,11 +247,13 @@ impaired (impairment only)
 | From | Allowed To | Trigger |
 |------|-----------|---------|
 | draft | active | Asset put in service (in_service_date set) |
-| draft | disposed | Direct disposal before service |
+| draft | disposed | Sale, scrap, write-off, or transfer before service |
+| draft | impaired | Impairment write-down before service |
 | active | fully_depreciated | All depreciation periods posted |
 | active | disposed | Sale, scrap, write-off, or transfer |
 | active | impaired | Impairment write-down |
 | fully_depreciated | disposed | Disposal after full depreciation |
+| fully_depreciated | impaired | Impairment after full depreciation |
 
 **Terminal states:** `disposed` and `impaired` — no further transitions.
 
@@ -299,8 +303,8 @@ All events are written to `fa_events_outbox` atomically with the triggering muta
 | `asset_created` | `fa_asset.asset_created` | Asset created (manual or from AP capitalization) | `asset_id`, `tenant_id`, `asset_tag`, `category_id`, `acquisition_cost_minor`, `currency` |
 | `asset_updated` | `fa_asset.asset_updated` | Asset descriptive fields updated | `asset_id`, `tenant_id` |
 | `asset_deactivated` | `fa_asset.asset_deactivated` | Asset deactivated (disposed via API) | `asset_id`, `tenant_id`, `previous_status` |
-| `depreciation_run_completed` | `fa_depreciation_run.depreciation_run_completed` | Depreciation run completed | `run_id`, `tenant_id`, `as_of_date`, `periods_posted`, `total_depreciation_minor`, `gl_entries[]` (per-entry: `entry_id`, `asset_id`, `period_end`, `depreciation_amount_minor`, `expense_account_ref`, `accum_depreciation_ref`) |
-| `asset_disposed` | `fa_disposal.asset_disposed` | Asset disposed or impaired | `disposal_id`, `asset_id`, `tenant_id`, `disposal_type`, `disposal_date`, `gl_data` (acquisition cost, accum depreciation, NBV, proceeds, gain/loss, account refs) |
+| `depreciation_run_completed` | `fa_depreciation_run.depreciation_run_completed` | Depreciation run completed | `run_id`, `tenant_id`, `as_of_date`, `periods_posted`, `total_depreciation_minor`, `gl_entries[]` (per-entry: `entry_id`, `asset_id`, `period_end`, `depreciation_amount_minor`, `currency`, `expense_account_ref`, `accum_depreciation_ref`) |
+| `asset_disposed` | `fa_disposal.asset_disposed` | Asset disposed or impaired | `disposal_id`, `asset_id`, `tenant_id`, `disposal_type`, `disposal_date`, `gl_data` (acquisition cost, accum depreciation, NBV, proceeds, gain/loss, currency, account refs) |
 | `category_created` | `fa_category.category_created` | Asset category created | `category_id`, `tenant_id`, `code` |
 
 ---
