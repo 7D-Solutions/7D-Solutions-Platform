@@ -28,3 +28,4 @@ platform/identity-auth/src/clients/tenant_registry.rs  # 659 LOC — entitlement
 platform/identity-auth/src/auth/handlers.rs            # 535 LOC — login/register handlers (split in future bead)
 apps/tenant-control-plane-ui/lib/api/types.ts          # 572 LOC — shared Zod schemas grow with each tab
 modules/payments/src/routes/checkout_sessions.rs       # 549 LOC — checkout session state machine + 5 handlers
+modules/maintenance/src/domain/work_orders/service.rs  # 532 LOC — WO service + GL cost payload (split in future bead)
