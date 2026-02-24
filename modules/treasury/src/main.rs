@@ -145,7 +145,6 @@ async fn main() {
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
         .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
-        .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
 

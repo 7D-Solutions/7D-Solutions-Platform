@@ -25,7 +25,7 @@ use security::{
 
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 /// Application state shared across HTTP handlers
@@ -127,13 +127,7 @@ async fn main() {
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
         .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
-        .layer(security::AuthzLayer::from_env())
-        .layer(
-            CorsLayer::new()
-                .allow_origin(tower_http::cors::Any)
-                .allow_methods(tower_http::cors::Any)
-                .allow_headers(tower_http::cors::Any),
-        )
+        .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
@@ -146,4 +140,53 @@ async fn main() {
     axum::serve(listener, app)
         .await
         .expect("Server failed to start");
+}
+
+fn build_cors_layer(config: &Config) -> CorsLayer {
+    let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
+
+    let layer = if is_wildcard {
+        CorsLayer::new().allow_origin(AllowOrigin::any())
+    } else {
+        let origins: Vec<_> = config
+            .cors_origins
+            .iter()
+            .filter_map(|o| o.parse().ok())
+            .collect();
+        CorsLayer::new().allow_origin(origins)
+    };
+
+    layer
+        .allow_methods(tower_http::cors::Any)
+        .allow_headers(tower_http::cors::Any)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cors_wildcard_parses() {
+        let config = Config {
+            bus_type: config::BusType::InMemory,
+            database_url: "postgresql://localhost/test".to_string(),
+            nats_url: None,
+            cors_origins: vec!["*".to_string()],
+        };
+        let _layer = build_cors_layer(&config);
+    }
+
+    #[test]
+    fn cors_specific_origins_parse() {
+        let config = Config {
+            bus_type: config::BusType::InMemory,
+            database_url: "postgresql://localhost/test".to_string(),
+            nats_url: None,
+            cors_origins: vec![
+                "http://localhost:3000".to_string(),
+                "https://app.example.com".to_string(),
+            ],
+        };
+        let _layer = build_cors_layer(&config);
+    }
 }

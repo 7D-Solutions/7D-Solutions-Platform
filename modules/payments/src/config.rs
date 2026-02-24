@@ -53,6 +53,8 @@ pub struct Config {
     pub nats_url: Option<String>,
     pub host: String,
     pub port: u16,
+    /// Comma-separated list of allowed CORS origins. "*" means allow any.
+    pub cors_origins: Vec<String>,
     /// Payment provider: 'mock' or 'tilled' (default: mock)
     pub payments_provider: PaymentsProvider,
     /// Tilled API key (required when PAYMENTS_PROVIDER=tilled)
@@ -144,12 +146,20 @@ impl Config {
         let tilled_webhook_secret = env::var("TILLED_WEBHOOK_SECRET").ok();
         let tilled_webhook_secret_prev = env::var("TILLED_WEBHOOK_SECRET_PREV").ok();
 
+        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
+            .unwrap_or_else(|_| "*".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
         let config = Config {
             database_url,
             bus_type,
             nats_url,
             host,
             port,
+            cors_origins,
             payments_provider,
             tilled_api_key,
             tilled_account_id,
@@ -225,6 +235,7 @@ mod tests {
             nats_url: None,
             host: "0.0.0.0".to_string(),
             port: 8088,
+            cors_origins: vec!["*".to_string()],
             payments_provider: PaymentsProvider::Mock,
             tilled_api_key: None,
             tilled_account_id: None,

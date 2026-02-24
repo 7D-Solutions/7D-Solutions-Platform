@@ -13,7 +13,6 @@
 //! println!("user={} tenant={}", claims.user_id, claims.tenant_id);
 //! ```
 
-pub mod authz;
 pub mod authz_middleware;
 pub mod claims;
 pub mod middleware;
@@ -39,9 +38,6 @@ pub use service_auth::{
 
 // Re-export RBAC types
 pub use rbac::{Operation, RbacError, RbacPolicy, Role};
-
-// Re-export authz middleware types (legacy placeholder)
-pub use authz::{AuthzConfig, AuthzLayer, AuthzMiddleware, AuthzStatus};
 
 // Re-export JWT-backed authz middleware types
 pub use authz_middleware::{

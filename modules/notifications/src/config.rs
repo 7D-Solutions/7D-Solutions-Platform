@@ -33,6 +33,8 @@ pub struct Config {
     pub nats_url: Option<String>,
     pub host: String,
     pub port: u16,
+    /// Comma-separated list of allowed CORS origins. "*" means allow any.
+    pub cors_origins: Vec<String>,
 }
 
 impl Config {
@@ -97,12 +99,20 @@ impl Config {
                 )
             })?;
 
+        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
+            .unwrap_or_else(|_| "*".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
         Ok(Config {
             database_url,
             bus_type,
             nats_url,
             host,
             port,
+            cors_origins,
         })
     }
 
@@ -153,6 +163,7 @@ mod tests {
             nats_url: None,
             host: "0.0.0.0".to_string(),
             port: 8089,
+            cors_origins: vec!["*".to_string()],
         };
 
         let err = config.validate().unwrap_err();
@@ -167,6 +178,7 @@ mod tests {
             nats_url: None,
             host: "0.0.0.0".to_string(),
             port: 8089,
+            cors_origins: vec!["*".to_string()],
         };
 
         let err = config.validate().unwrap_err();
@@ -181,6 +193,7 @@ mod tests {
             nats_url: None,
             host: "0.0.0.0".to_string(),
             port: 8089,
+            cors_origins: vec!["*".to_string()],
         };
 
         assert!(config.validate().is_ok());
@@ -191,6 +204,7 @@ mod tests {
             nats_url: Some("nats://localhost:4222".to_string()),
             host: "0.0.0.0".to_string(),
             port: 8089,
+            cors_origins: vec!["*".to_string()],
         };
 
         assert!(config_nats.validate().is_ok());

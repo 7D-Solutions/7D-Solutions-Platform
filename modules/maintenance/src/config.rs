@@ -33,6 +33,8 @@ pub struct Config {
     pub nats_url: Option<String>,
     pub host: String,
     pub port: u16,
+    /// Comma-separated list of allowed CORS origins. "*" means allow any.
+    pub cors_origins: Vec<String>,
     /// Scheduler poll interval in seconds (default: 60)
     pub scheduler_interval_secs: u64,
 }
@@ -87,12 +89,20 @@ impl Config {
             .parse()
             .map_err(|_| "MAINTENANCE_SCHED_INTERVAL_SECS must be a valid u64".to_string())?;
 
+        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
+            .unwrap_or_else(|_| "*".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
         Ok(Config {
             database_url,
             bus_type,
             nats_url,
             host,
             port,
+            cors_origins,
             scheduler_interval_secs,
         })
     }

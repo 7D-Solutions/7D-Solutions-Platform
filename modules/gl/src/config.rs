@@ -117,6 +117,8 @@ pub struct Config {
     pub nats_url: String,
     pub host: String,
     pub port: u16,
+    /// Comma-separated list of allowed CORS origins. "*" means allow any.
+    pub cors_origins: Vec<String>,
     /// Enable DLQ validation during period close (default: false)
     /// When enabled, period close will fail if tenant has pending DLQ entries
     /// for posting-related subjects
@@ -193,12 +195,20 @@ impl Config {
             .parse()
             .unwrap_or(false);
 
+        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
+            .unwrap_or_else(|_| "*".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
         Ok(Config {
             database_url,
             bus_type,
             nats_url,
             host,
             port,
+            cors_origins,
             dlq_validation_enabled,
         })
     }
@@ -242,6 +252,7 @@ mod tests {
             nats_url: "nats://localhost:4222".to_string(),
             host: "0.0.0.0".to_string(),
             port: 8090,
+            cors_origins: vec!["*".to_string()],
             dlq_validation_enabled: false,
         };
 
@@ -257,6 +268,7 @@ mod tests {
             nats_url: "nats://localhost:4222".to_string(),
             host: "0.0.0.0".to_string(),
             port: 8090,
+            cors_origins: vec!["*".to_string()],
             dlq_validation_enabled: false,
         };
 
@@ -273,6 +285,7 @@ mod tests {
             nats_url: "".to_string(),
             host: "0.0.0.0".to_string(),
             port: 8090,
+            cors_origins: vec!["*".to_string()],
             dlq_validation_enabled: false,
         };
 
@@ -288,6 +301,7 @@ mod tests {
             nats_url: "nats://localhost:4222".to_string(),
             host: "0.0.0.0".to_string(),
             port: 8090,
+            cors_origins: vec!["*".to_string()],
             dlq_validation_enabled: false,
         };
 
@@ -299,6 +313,7 @@ mod tests {
             nats_url: "nats://localhost:4222".to_string(),
             host: "0.0.0.0".to_string(),
             port: 8090,
+            cors_origins: vec!["*".to_string()],
             dlq_validation_enabled: true,
         };
 
