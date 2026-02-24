@@ -10,6 +10,7 @@
 | Rev | Date | Author | Summary |
 |-----|------|--------|---------|
 | 1.0 | 2026-02-24 | SageDesert (agent) | Initial vision doc from source audit |
+| 1.1 | 2026-02-24 | CopperRiver (agent) | Fresh-eyes review: fix 18 inaccuracies against source code |
 
 ---
 
@@ -74,7 +75,7 @@ reality* (bank statements).
    heuristics without forking the engine.
 4. **Append-only reconciliation** — Matches are never deleted. Re-matching
    supersedes old matches via a `superseded_by` pointer.
-5. **Soft references for GL** — Treasury stores GL entry IDs as opaque UUIDs.
+5. **Soft references for GL** — Treasury stores GL entry IDs as opaque BIGINTs.
    It never queries the GL database, preserving module boundaries.
 6. **Multi-tenant isolation** — Every table row carries `app_id`. Database
    naming convention: `treasury_{app_id}_db`.
@@ -95,7 +96,7 @@ reality* (bank statements).
 - GL soft-reference linkage
 - Cash position (bank cash + CC liability buckets)
 - Cash forecast from AR/AP aging with configurable assumptions
-- NATS event consumers for payment succeeded and AP payment executed
+- NATS event consumers for payment succeeded and AP payment executed (handlers implemented; not yet wired into main.rs startup)
 - Transactional outbox with 1-second publisher loop
 - Prometheus metrics (import, recon, SLO, latency)
 - JWT authentication with `TREASURY_MUTATE` permission for writes
@@ -145,7 +146,7 @@ strategy by account type, so no polymorphism leaks into storage.
 
 ### 7.2 Pluggable Match Strategies via Trait
 
-**Decision:** `MatchStrategy` trait with `score(line, txn) -> Option<f64>`.
+**Decision:** `MatchStrategy` trait with `score(statement_line, transaction) -> Option<Decimal>`.
 Two implementations: `BankStrategy` (amount + date proximity + reference
 similarity) and `CreditCardStrategy` (amount + auth/settle date window +
 merchant name matching).
@@ -179,7 +180,7 @@ timestamp. UUID v5 is deterministic and collision-resistant for this purpose.
 
 **Decision:** `CsvFormat` enum (Generic, ChaseCredit, AmexCredit) with
 `detect_format()` that inspects CSV headers. Each adapter normalises to a
-common `StatementLine` model.
+common `ParsedLine` model.
 
 **Rationale:** Every bank/issuer uses a different CSV layout. Chase includes
 Post Date + Category + Type columns; Amex flips the sign convention (positive =
@@ -199,7 +200,7 @@ write side effects, and the data is point-in-time anyway.
 
 ### 7.7 Soft GL References
 
-**Decision:** `treasury_recon_matches.gl_entry_id` is a nullable UUID column
+**Decision:** `treasury_recon_matches.gl_entry_id` is a nullable BIGINT column
 with no foreign key. Treasury stores the ID but never joins to or queries the GL
 database.
 
@@ -248,12 +249,12 @@ Treasury does **not** own:
 | Table | Purpose | Key Columns |
 |-------|---------|-------------|
 | `treasury_bank_accounts` | Bank and CC account registry | `id`, `app_id`, `account_name`, `account_type`, `institution`, `account_number_last4`, `currency`, `current_balance_minor`, `status`, `credit_limit_minor`, `statement_closing_day`, `cc_network` |
-| `treasury_bank_statements` | Imported statement metadata | `id`, `app_id`, `account_id`, `statement_date`, `file_name`, `status`, `statement_hash` |
+| `treasury_bank_statements` | Imported statement metadata | `id`, `app_id`, `account_id`, `period_start`, `period_end`, `source_filename`, `opening_balance_minor`, `closing_balance_minor`, `currency`, `status`, `statement_hash`, `imported_at` |
 | `treasury_bank_transactions` | Parsed transaction lines | `id`, `app_id`, `account_id`, `statement_id`, `amount_minor`, `currency`, `transaction_date`, `description`, `reference`, `external_id`, `status`, `auth_date`, `settle_date`, `merchant_name`, `merchant_category_code` |
-| `treasury_recon_matches` | Reconciliation decisions | `id`, `app_id`, `statement_line_id`, `bank_transaction_id`, `match_type` (auto/manual/gl), `match_status` (matched/unmatched/superseded), `confidence`, `gl_entry_id`, `superseded_by`, `matched_by` |
-| `events_outbox` | Transactional outbox for domain events | `id`, `event_type`, `payload`, `published`, `created_at` |
-| `processed_events` | Idempotent event consumption tracking | `event_id` (PK) |
-| `treasury_idempotency_keys` | API-level idempotency | `idempotency_key` (PK), `response_status`, `response_body` |
+| `treasury_recon_matches` | Reconciliation decisions | `id`, `app_id`, `statement_line_id`, `bank_transaction_id`, `match_type` (auto/manual/suggested), `status` (pending/confirmed/rejected), `confidence_score`, `gl_entry_id` (BIGINT), `superseded_by`, `matched_by` |
+| `events_outbox` | Transactional outbox for domain events | `id` (BIGSERIAL), `event_id` (UUID), `event_type`, `aggregate_type`, `aggregate_id`, `payload`, `created_at`, `published_at` |
+| `processed_events` | Idempotent event consumption tracking | `id` (BIGSERIAL PK), `event_id` (UUID UNIQUE), `event_type`, `processed_at`, `processor` |
+| `treasury_idempotency_keys` | API-level idempotency | `id` (BIGSERIAL PK), `app_id`, `idempotency_key` (unique with app_id), `request_hash`, `status_code`, `response_body`, `expires_at` |
 
 ### Enums (SQL)
 
@@ -261,10 +262,10 @@ Treasury does **not** own:
 |------|--------|
 | `treasury_account_status` | `active`, `inactive`, `closed` |
 | `treasury_account_type` | `bank`, `credit_card` |
-| `treasury_statement_status` | `pending`, `processed`, `failed` |
-| `treasury_txn_status` | `pending`, `cleared`, `reconciled` |
-| `treasury_match_status` | `matched`, `unmatched`, `superseded` |
-| `treasury_match_type` | `auto`, `manual`, `gl` |
+| `treasury_statement_status` | `pending`, `imported`, `reconciled` |
+| `treasury_txn_status` | `unmatched`, `matched`, `excluded` |
+| `treasury_recon_match_status` | `pending`, `confirmed`, `rejected` |
+| `treasury_recon_match_type` | `auto`, `manual`, `suggested` |
 
 ---
 
@@ -280,11 +281,17 @@ Treasury does **not** own:
                                 ▼
                            ┌──────────┐
                            │ Inactive │
-                           └──────────┘
+                           └────┬─────┘
+                                │ close
+                                ▼
+                           ┌────────┐
+                           │ Closed │
+                           └────────┘
 ```
 
-Deactivation is a one-way operation. Inactive accounts cannot receive new
-transactions or statement imports.
+Deactivation and closure are one-way operations. The `treasury_account_status`
+enum defines three states: `active`, `inactive`, `closed`. Inactive and closed
+accounts cannot receive new transactions or statement imports.
 
 ### Statement Import
 
@@ -295,24 +302,28 @@ transactions or statement imports.
               Partial result with error list
 ```
 
-Import is all-or-nothing per statement. If the content hash already exists, the
-import returns the previous result (idempotent replay).
+Import supports partial success — the result includes `lines_imported`,
+`lines_skipped`, and an `errors` list for lines that could not be parsed. If the
+content hash already exists, the import returns the previous result (idempotent
+replay).
 
 ### Reconciliation Match
 
 ```
-  ┌───────────┐  auto/manual   ┌─────────┐
-  │ Unmatched │ ─────────────▶ │ Matched │
-  └───────────┘                └────┬────┘
-                                    │ rematch (supersede)
-                                    ▼
-                              ┌────────────┐     new match    ┌─────────┐
-                              │ Superseded │                  │ Matched │
-                              └────────────┘ ◀── (old row)    └─────────┘
+  ┌─────────┐  auto/manual   ┌───────────┐
+  │ Pending │ ──────────────▶ │ Confirmed │
+  └─────────┘                └─────┬─────┘
+       │                           │ rematch (supersede)
+       │ reject                    ▼
+       ▼                     old row gets `superseded_by` set
+  ┌──────────┐               new row inserted as `confirmed`
+  │ Rejected │
+  └──────────┘
 ```
 
-Matches are never deleted. Rematch creates a new `matched` row and marks the
-old one `superseded` with `superseded_by` pointer.
+Matches are never deleted. Rematch creates a new `confirmed` row and sets
+`superseded_by` on the old one. The `treasury_recon_match_status` enum defines
+three states: `pending`, `confirmed`, `rejected`.
 
 ---
 
@@ -326,11 +337,14 @@ old one `superseded` with `superseded_by` pointer.
 | `bank_account.updated` | `treasury.events.bank_account.updated` | Account update | Account ID, changed fields |
 | `bank_account.deactivated` | `treasury.events.bank_account.deactivated` | Account deactivation | Account ID, app_id |
 | `bank_statement.imported` | `treasury.events.bank_statement.imported` | Statement import | Statement ID, account_id, line count, total amount |
-| `recon.auto_matched` | `treasury.events.recon.auto_matched` | Auto-match run | Match count, account_id, match IDs |
+| `recon.auto_matched` | `treasury.events.recon.auto_matched` | Auto-match run | `matches_created` count, account_id |
 | `recon.manual_matched` | `treasury.events.recon.manual_matched` | Manual match creation | Match ID, line ID, txn ID |
 | `recon.gl_linked` | `treasury.events.recon.gl_linked` | GL entry linked | Match ID, bank_txn_id, gl_entry_id |
 
 ### Consumed (via NATS subscribers)
+
+> **Note:** Consumer handler code exists in `consumers/payments.rs` but the
+> subscriber tasks are not yet spawned in `main.rs`. Wiring is a pending task.
 
 | Source Subject | Handler | Effect |
 |----------------|---------|--------|
@@ -348,7 +362,7 @@ Both consumers use two-layer idempotency: `processed_events` table guard +
 |--------|-----------|-----------|--------|
 | **AR** | AR → Treasury | NATS event `payment.succeeded` | Treasury records credit txn |
 | **AP** | AP → Treasury | NATS event `ap.payment_executed` | Treasury records debit txn |
-| **GL** | Treasury → GL | Soft reference (UUID) | `gl_entry_id` on recon matches; no FK, no query |
+| **GL** | Treasury → GL | Soft reference (BIGINT) | `gl_entry_id` on recon matches; no FK, no query |
 | **AR** (forecast) | Treasury reads AR | Cross-database SQL | `ar_aging_buckets` table for forecast inputs |
 | **AP** (forecast) | Treasury reads AP | Cross-database SQL | `vendor_bills`, `ap_allocations`, `payment_runs` tables |
 | **Security** | Platform → Treasury | Middleware | JWT verification, `TREASURY_MUTATE` permission, rate limiting |
@@ -436,9 +450,9 @@ Both consumers use two-layer idempotency: `processed_events` table guard +
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| GET | `/api/admin/projections` | X-Admin-Token | List projection status |
-| GET | `/api/admin/projections/:name/status` | X-Admin-Token | Single projection status |
-| POST | `/api/admin/projections/:name/consistency-check` | X-Admin-Token | Run consistency check |
+| GET | `/api/treasury/admin/projections` | X-Admin-Token | List projection status |
+| POST | `/api/treasury/admin/projection-status` | X-Admin-Token | Query projection status by name |
+| POST | `/api/treasury/admin/consistency-check` | X-Admin-Token | Run consistency check |
 
 ---
 
@@ -463,14 +477,14 @@ Both consumers use two-layer idempotency: `processed_events` table guard +
 | `treasury_open_transactions_count` | Gauge | Unreconciled transactions |
 | `treasury_accounts_count` | Gauge | Total active accounts |
 | `treasury_import_success_total` | Counter | Successful imports |
-| `treasury_import_failure_total` | Counter | Failed imports |
+| `treasury_import_fail_total` | Counter | Failed imports |
 | `treasury_recon_matched_total` | Gauge | Matched recon pairs (refreshed on scrape) |
 | `treasury_recon_unmatched_lines` | Gauge | Unmatched statement lines |
 | `treasury_recon_unmatched_txns` | Gauge | Unmatched transactions |
 | `treasury_recon_match_rate` | Gauge | Match rate percentage |
-| `treasury_endpoint_latency_seconds` | Histogram | Per-endpoint latency |
+| `treasury_http_request_duration_seconds` | Histogram | Per-endpoint latency |
 | `treasury_http_requests_total` | Counter | Total HTTP requests (SLO) |
-| `treasury_event_consumer_lag` | Gauge | Event consumer lag |
+| `treasury_event_consumer_lag_messages` | Gauge | Event consumer lag |
 
 ---
 
