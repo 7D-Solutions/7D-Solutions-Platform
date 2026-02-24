@@ -11,6 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | SageDesert | Initial vision doc — extracted from source code, migrations, consumers, services, and existing phase docs. Covers full GL surface: journal posting, balance engine, financial statements, period close, FX, accruals, revenue recognition, DLQ, and all NATS consumers. |
+| 2.0 | 2026-02-24 | SageDesert | Review pass: fixed consumer count (9→11), added missing credit note consumer to In Scope list, corrected admin routes description (was "DLQ management", actually projection management), noted 4 consumers implemented but not wired in main.rs. |
 
 ---
 
@@ -104,7 +105,7 @@ Integration tests hit real Postgres and real NATS. Platform-wide standard.
 ### In Scope
 - Double-entry journal posting from NATS events with full validation
 - Chart of Accounts: flat account structure with type (asset/liability/equity/revenue/expense), normal balance direction, active/inactive state
-- 9 NATS event consumers: GL posting, reversal, write-off, inventory COGS, AR tax committed/voided, fixed assets depreciation, AP vendor bill approved, timekeeping labor cost, realized FX gain/loss
+- 11 NATS event consumers: GL posting, reversal, credit note, write-off, inventory COGS, AR tax committed, AR tax voided, fixed assets depreciation, AP vendor bill approved, timekeeping labor cost, realized FX gain/loss (note: 4 consumers — credit note, realized FX, AP vendor bill, timekeeping labor cost — are implemented but not yet wired in main.rs)
 - Balance engine: materialized rollups per (tenant, period, account, currency)
 - Financial statements: trial balance, income statement, balance sheet, cash flow statement
 - Reporting-currency statements: trial balance, income statement, balance sheet translated to tenant reporting currency
@@ -401,7 +402,7 @@ GL emits events that Notifications can subscribe to for close reminders, overdue
 - `POST /api/gl/revrec/amendments` — Amend a contract (requires gl.post)
 
 ### Admin
-- Admin routes for DLQ management and operational tools (via `admin_router`)
+- Admin routes for projection management and consistency checks (via `admin_router`): `POST /api/gl/admin/projection-status`, `POST /api/gl/admin/consistency-check`, `GET /api/gl/admin/projections` — all require `X-Admin-Token` header
 - `rebuild_balances` CLI tool for balance recomputation
 
 ---
