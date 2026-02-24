@@ -57,6 +57,7 @@ pub struct PlanAssignment {
     pub next_due_date: Option<NaiveDate>,
     pub next_due_meter: Option<i64>,
     pub state: String,
+    pub due_notified_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
