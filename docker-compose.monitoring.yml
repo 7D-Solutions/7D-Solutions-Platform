@@ -55,7 +55,7 @@ services:
       - ./infra/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - ./infra/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
     ports:
-      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:3002:3000"
     networks:
       - 7d-platform
     depends_on:

@@ -108,12 +108,10 @@ async fn main() {
     let fa_mutations = Router::new()
         // Category CRUD — write
         .route("/api/fixed-assets/categories", post(http::assets::create_category))
-        .route("/api/fixed-assets/categories/:id", put(http::assets::update_category))
-        .route("/api/fixed-assets/categories/:tenant_id/:id", delete(http::assets::deactivate_category))
+        .route("/api/fixed-assets/categories/{tenant_id}/{id}", put(http::assets::update_category).delete(http::assets::deactivate_category))
         // Asset CRUD — write
         .route("/api/fixed-assets/assets", post(http::assets::create_asset))
-        .route("/api/fixed-assets/assets/:id", put(http::assets::update_asset))
-        .route("/api/fixed-assets/assets/:tenant_id/:id", delete(http::assets::deactivate_asset))
+        .route("/api/fixed-assets/assets/{tenant_id}/{id}", put(http::assets::update_asset).delete(http::assets::deactivate_asset))
         // Depreciation — write
         .route("/api/fixed-assets/depreciation/schedule", post(http::depreciation::generate_schedule))
         .route("/api/fixed-assets/depreciation/runs", post(http::depreciation::create_run))
@@ -129,17 +127,17 @@ async fn main() {
         .route("/api/version", get(http::version))
         .route("/metrics", get(metrics::metrics_handler))
         // Category CRUD — read
-        .route("/api/fixed-assets/categories/:tenant_id/:id", get(http::assets::get_category))
-        .route("/api/fixed-assets/categories/:tenant_id", get(http::assets::list_categories))
+        .route("/api/fixed-assets/categories/{tenant_id}/{id}", get(http::assets::get_category))
+        .route("/api/fixed-assets/categories/{tenant_id}", get(http::assets::list_categories))
         // Asset CRUD — read
-        .route("/api/fixed-assets/assets/:tenant_id/:id", get(http::assets::get_asset))
-        .route("/api/fixed-assets/assets/:tenant_id", get(http::assets::list_assets))
+        .route("/api/fixed-assets/assets/{tenant_id}/{id}", get(http::assets::get_asset))
+        .route("/api/fixed-assets/assets/{tenant_id}", get(http::assets::list_assets))
         // Depreciation — read
-        .route("/api/fixed-assets/depreciation/runs/:tenant_id", get(http::depreciation::list_runs))
-        .route("/api/fixed-assets/depreciation/runs/:tenant_id/:id", get(http::depreciation::get_run))
+        .route("/api/fixed-assets/depreciation/runs/{tenant_id}", get(http::depreciation::list_runs))
+        .route("/api/fixed-assets/depreciation/runs/{tenant_id}/{id}", get(http::depreciation::get_run))
         // Disposals — read
-        .route("/api/fixed-assets/disposals/:tenant_id", get(http::disposals::list_disposals))
-        .route("/api/fixed-assets/disposals/:tenant_id/:id", get(http::disposals::get_disposal))
+        .route("/api/fixed-assets/disposals/{tenant_id}", get(http::disposals::list_disposals))
+        .route("/api/fixed-assets/disposals/{tenant_id}/{id}", get(http::disposals::get_disposal))
         .with_state(app_state)
         .merge(fa_mutations)
         .merge(http::admin::admin_router(pool.clone()))

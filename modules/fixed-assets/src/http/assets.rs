@@ -49,7 +49,7 @@ pub async fn create_category(
 
 pub async fn update_category(
     State(state): State<Arc<AppState>>,
-    Path(id): Path<Uuid>,
+    Path((_tenant_id, id)): Path<(String, Uuid)>,
     Json(req): Json<UpdateCategoryRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let cat = CategoryRepo::update(&state.pool, id, &req)
@@ -108,7 +108,7 @@ pub async fn create_asset(
 
 pub async fn update_asset(
     State(state): State<Arc<AppState>>,
-    Path(id): Path<Uuid>,
+    Path((_tenant_id, id)): Path<(String, Uuid)>,
     Json(req): Json<UpdateAssetRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     let asset = AssetRepo::update(&state.pool, id, &req)

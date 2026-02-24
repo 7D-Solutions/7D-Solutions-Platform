@@ -104,8 +104,8 @@ async fn main() {
             "/api/treasury/accounts/credit-card",
             post(http::accounts::create_credit_card_account),
         )
-        .route("/api/treasury/accounts/:id", put(http::accounts::update_account))
-        .route("/api/treasury/accounts/:id/deactivate", post(http::accounts::deactivate_account))
+        .route("/api/treasury/accounts/{id}", put(http::accounts::update_account))
+        .route("/api/treasury/accounts/{id}/deactivate", post(http::accounts::deactivate_account))
         // Reconciliation — write
         .route("/api/treasury/recon/auto-match", post(http::recon::auto_match))
         .route("/api/treasury/recon/manual-match", post(http::recon::manual_match))
@@ -124,7 +124,7 @@ async fn main() {
         .route("/metrics", get(metrics::metrics_handler))
         // Accounts — read
         .route("/api/treasury/accounts", get(http::accounts::list_accounts))
-        .route("/api/treasury/accounts/:id", get(http::accounts::get_account))
+        .route("/api/treasury/accounts/{id}", get(http::accounts::get_account))
         // Reports — read
         .route("/api/treasury/cash-position", get(http::reports::cash_position))
         .route("/api/treasury/forecast", get(http::reports::forecast))
