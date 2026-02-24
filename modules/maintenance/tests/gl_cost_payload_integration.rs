@@ -107,8 +107,11 @@ async fn create_in_progress_wo(pool: &sqlx::PgPool, tid: &str, asset_id: Uuid) -
     wo.id
 }
 
-/// Fetch the completed event payload from the outbox for a given WO.
-async fn fetch_completed_event_payload(
+/// Fetch the completed event envelope from the outbox for a given WO.
+///
+/// Returns the full EventEnvelope JSON stored in the outbox. The domain
+/// payload lives under the "payload" key of the envelope.
+async fn fetch_completed_event_envelope(
     pool: &sqlx::PgPool,
     wo_id: Uuid,
 ) -> serde_json::Value {
@@ -206,14 +209,17 @@ async fn test_completed_event_has_cost_totals() {
     .await
     .unwrap();
 
-    // Assert event payload
-    let payload = fetch_completed_event_payload(&pool, wo_id).await;
+    // Assert event payload (domain data nested in envelope's "payload" field)
+    let envelope = fetch_completed_event_envelope(&pool, wo_id).await;
+    let inner = &envelope["payload"];
 
-    assert_eq!(payload["total_parts_minor"], 3500);
-    assert_eq!(payload["total_labor_minor"], 20000);
-    assert_eq!(payload["currency"], "USD");
-    assert_eq!(payload["fixed_asset_ref"], fa_ref.to_string());
-    assert_eq!(payload["to_status"], "completed");
+    assert_eq!(inner["total_parts_minor"], 3500);
+    assert_eq!(inner["total_labor_minor"], 20000);
+    assert_eq!(inner["currency"], "USD");
+    assert_eq!(inner["fixed_asset_ref"], fa_ref.to_string());
+    assert_eq!(inner["to_status"], "completed");
+    assert_eq!(envelope["source_module"], "maintenance");
+    assert_eq!(envelope["event_type"], "maintenance.work_order.completed");
 }
 
 // ============================================================================
@@ -244,12 +250,13 @@ async fn test_completed_event_zero_cost_when_no_parts_labor() {
     .await
     .unwrap();
 
-    let payload = fetch_completed_event_payload(&pool, wo_id).await;
+    let envelope = fetch_completed_event_envelope(&pool, wo_id).await;
+    let inner = &envelope["payload"];
 
-    assert_eq!(payload["total_parts_minor"], 0);
-    assert_eq!(payload["total_labor_minor"], 0);
-    assert_eq!(payload["currency"], "USD");
-    assert!(payload["fixed_asset_ref"].is_null());
+    assert_eq!(inner["total_parts_minor"], 0);
+    assert_eq!(inner["total_labor_minor"], 0);
+    assert_eq!(inner["currency"], "USD");
+    assert!(inner["fixed_asset_ref"].is_null());
 }
 
 // ============================================================================
@@ -311,9 +318,10 @@ async fn test_non_completed_transition_has_no_cost_fields() {
     .await
     .unwrap();
 
-    let payload = row.0;
-    assert!(payload.get("total_parts_minor").is_none());
-    assert!(payload.get("total_labor_minor").is_none());
-    assert!(payload.get("currency").is_none());
-    assert!(payload.get("fixed_asset_ref").is_none());
+    let envelope = row.0;
+    let inner = &envelope["payload"];
+    assert!(inner.get("total_parts_minor").is_none());
+    assert!(inner.get("total_labor_minor").is_none());
+    assert!(inner.get("currency").is_none());
+    assert!(inner.get("fixed_asset_ref").is_none());
 }
