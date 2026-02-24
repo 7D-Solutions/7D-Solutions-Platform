@@ -11,6 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | MaroonHarbor (implementation agent) | Initial vision doc — reverse-engineered from source, migrations, tests, and OpenAPI contract |
+| 1.1 | 2026-02-24 | DarkOwl (implementation agent) | Fresh-eyes review: fixed close-calendar idempotency key (added tenant_id), corrected cross-DB access from "read-only" to read+write, flagged inventory consumer and close-calendar evaluator as implemented but not wired in main.rs |
 
 ---
 
@@ -44,8 +45,8 @@ The module is a platform service. It has no user-facing frontend — it consumes
 - AR emits `ar.events.invoice.issued` — Notifications schedules a "due soon" reminder 3 days before the due date.
 - Payments emits `payments.events.payment.succeeded` — Notifications sends an immediate payment confirmation.
 - Payments emits `payments.events.payment.failed` — Notifications schedules a retry reminder 24 hours later.
-- Inventory emits `inventory.low_stock_triggered` — Notifications creates a low-stock alert.
-- GL provides `close_calendar` + `accounting_periods` tables — Notifications evaluates upcoming/overdue close deadlines and emits close-calendar reminders.
+- Inventory emits `inventory.low_stock_triggered` — Handler implemented (`handle_low_stock_triggered`) but consumer subscription not yet wired in `main.rs`.
+- GL provides `close_calendar` + `accounting_periods` tables — Evaluator implemented (`consumer::close_calendar::tick`) but not yet scheduled in `main.rs`.
 
 ### Operations / Platform Admins
 - Monitor notification health via `/metrics` (Prometheus) and admin endpoints.
@@ -70,7 +71,7 @@ Modules never call Notifications directly. They emit domain events; Notification
 - **Event consumption:** The `processed_events` table gates every incoming event by `event_id`. Replayed events are silently skipped.
 - **Outbox publishing:** Events are written to `events_outbox` atomically with the triggering mutation. The outbox publisher retries publishing without re-emitting.
 - **Scheduled dispatch:** `FOR UPDATE SKIP LOCKED` prevents double-claiming. Orphaned claims are reset after 5 minutes.
-- **Close calendar reminders:** Keyed by `(calendar_entry_id, reminder_key)` to prevent duplicate reminder emissions.
+- **Close calendar reminders:** Keyed by `(tenant_id, calendar_entry_id, reminder_key)` to prevent duplicate reminder emissions.
 
 ### Sender Abstraction — Channel-Agnostic
 The `NotificationSender` trait decouples dispatch logic from delivery implementation. The current production implementation (`LoggingSender`) logs and succeeds. Replacing it with an email provider, SMS gateway, or webhook client requires implementing one method. Tests use `FailingSender` to exercise retry/backoff paths against real Postgres.
@@ -79,14 +80,14 @@ The `NotificationSender` trait decouples dispatch logic from delivery implementa
 Events that fail processing after retry are written to the `failed_events` dead-letter queue with the full original envelope, error message, and retry count. The DLQ write itself is logged as an error if it fails, ensuring no silent event loss.
 
 ### Standalone Operation
-Notifications boots and runs with only Postgres and NATS (or InMemory bus for development). It does not require any other module to be running. Close-calendar evaluation requires access to GL's database tables, but this is a read-only cross-DB query that degrades gracefully if GL is unavailable.
+Notifications boots and runs with only Postgres and NATS (or InMemory bus for development). It does not require any other module to be running. Close-calendar evaluation requires access to GL's database tables (reads `close_calendar` and `accounting_periods`, writes to `close_calendar_reminders_sent` for idempotency). This cross-DB access degrades gracefully if GL is unavailable.
 
 ---
 
 ## MVP Scope (v0.1.0)
 
 ### In Scope (Built)
-- Event consumption from AR (`ar.events.invoice.issued`), Payments (`payments.events.payment.succeeded`, `payments.events.payment.failed`), and Inventory (`inventory.low_stock_triggered`)
+- Event consumption from AR (`ar.events.invoice.issued`), Payments (`payments.events.payment.succeeded`, `payments.events.payment.failed`). Inventory handler (`inventory.low_stock_triggered`) implemented but consumer not yet wired in `main.rs`.
 - Idempotent event processing via `processed_events` table
 - Scheduled notifications with `scheduled_notifications` table (pending, claimed, sent, failed states)
 - Background dispatcher: 60-second poll, `FOR UPDATE SKIP LOCKED`, orphan reset, linear back-off retry (5 attempts)
@@ -94,7 +95,7 @@ Notifications boots and runs with only Postgres and NATS (or InMemory bus for de
 - Outbox pattern for all outgoing events (`events_outbox` with full envelope metadata)
 - Dead-letter queue (`failed_events`) for exhausted retries
 - Envelope validation at consumption boundary (event_id, occurred_at, tenant_id, source_module, payload)
-- Close-calendar reminder evaluation: upcoming + overdue reminders with idempotency tracking
+- Close-calendar reminder evaluation: upcoming + overdue reminders with idempotency tracking (evaluator code implemented, not yet scheduled in `main.rs`)
 - Prometheus metrics: request latency, request count, consumer lag
 - Admin endpoints: projection status, consistency check, projection list
 - Health, readiness, and version endpoints
@@ -194,13 +195,13 @@ All tables live in the Notifications database (`notifications_db`).
 | **failed_events** | Dead-letter queue for events that failed all retries | `id` (BIGSERIAL), `event_id` (UUID, unique), `subject`, `tenant_id`, `envelope_json` (JSONB), `error`, `retry_count`, `failed_at` |
 | **scheduled_notifications** | Time-delayed notification queue | `id` (UUID, PK), `recipient_ref`, `channel`, `template_key`, `payload_json` (JSONB), `deliver_at`, `status` (pending/claimed/sent/failed), `retry_count`, `last_attempt_at`, `created_at` |
 
-### Tables Read by Notifications (Cross-DB, Read-Only)
+### Tables Accessed by Notifications (Cross-DB, GL Database)
 
-| Table | Owner Module | Purpose in Notifications |
-|-------|-------------|--------------------------|
-| **close_calendar** | GL | Calendar entries with expected close dates, reminder offsets, overdue intervals |
-| **accounting_periods** | GL | Period close status — Notifications skips already-closed periods |
-| **close_calendar_reminders_sent** | GL | Idempotency tracking for close-calendar reminders (Notifications writes here) |
+| Table | Access | Purpose in Notifications |
+|-------|--------|--------------------------|
+| **close_calendar** | Read | Calendar entries with expected close dates, reminder offsets, overdue intervals |
+| **accounting_periods** | Read | Period close status — Notifications skips already-closed periods |
+| **close_calendar_reminders_sent** | Read + Write | Idempotency tracking for close-calendar reminders — Notifications inserts rows here to prevent duplicate emissions |
 
 ### Data NOT Owned by Notifications
 
@@ -252,7 +253,7 @@ All events use the platform `EventEnvelope` and are written to the module outbox
 | `ar.events.invoice.issued` | AR | Schedules `invoice_due_soon` reminder 3 days before due date. Skipped if no `due_date` in payload. |
 | `payments.events.payment.succeeded` | Payments | Simulates immediate delivery, emits `notifications.delivery.succeeded` to outbox. |
 | `payments.events.payment.failed` | Payments | Schedules `payment_retry` reminder 24 hours from now. |
-| `inventory.low_stock_triggered` | Inventory | Enqueues `notifications.low_stock.alert.created` to outbox. |
+| `inventory.low_stock_triggered` | Inventory | Handler enqueues `notifications.low_stock.alert.created` to outbox. **Note:** Consumer subscription not yet wired in `main.rs`. |
 
 ---
 
@@ -264,11 +265,11 @@ Notifications subscribes to `ar.events.invoice.issued`. When an invoice is issue
 ### Payments (Event Consumer)
 Notifications subscribes to `payments.events.payment.succeeded` and `payments.events.payment.failed`. Successful payments trigger an immediate delivery confirmation event. Failed payments schedule a retry reminder in 24 hours. **Payments never calls Notifications.**
 
-### Inventory (Event Consumer)
-Notifications subscribes to `inventory.low_stock_triggered`. When stock drops below the reorder point, Notifications enqueues a low-stock alert event. **Inventory never calls Notifications.**
+### Inventory (Event Consumer — Not Yet Wired)
+Handler `handle_low_stock_triggered` exists and enqueues a low-stock alert event to the outbox. However, no consumer subscription for `inventory.low_stock_triggered` is started in `main.rs`. The handler needs to be wired via a consumer task to become operational. **Inventory never calls Notifications.**
 
-### GL (Read-Only Cross-DB)
-The close-calendar evaluator reads `close_calendar`, `accounting_periods`, and writes to `close_calendar_reminders_sent` in the GL database. This is the only cross-DB access in the module. **GL never calls Notifications; Notifications reads GL state on a schedule.**
+### GL (Cross-DB — Evaluator Not Yet Scheduled)
+The close-calendar evaluator reads `close_calendar` and `accounting_periods`, and writes to `close_calendar_reminders_sent` for idempotency, all in the GL database. This is the only cross-DB access in the module. The evaluator code (`consumer::close_calendar::tick`) is implemented but not yet scheduled in `main.rs`. **GL never calls Notifications.**
 
 ### Platform Event Bus (NATS)
 All event consumption and publishing goes through the platform `event-bus` crate. NATS is the production transport; `InMemoryBus` is available for local development. The outbox publisher polls at 100ms intervals and publishes pending events in batches of 100.
@@ -287,7 +288,7 @@ JWT verification via the `security` crate with optional claims middleware. Rate 
 5. **Retry limit enforced.** After 5 failed delivery attempts, a notification is permanently marked `failed`. No infinite retry loops.
 6. **DLQ write-through.** Events that fail all consumer retries are written to `failed_events` with the complete original envelope. If the DLQ write itself fails, an error-level log is emitted.
 7. **Envelope validation at boundary.** Incoming events with missing or invalid envelope fields are rejected before processing. No corrupt data enters the pipeline.
-8. **Close-calendar reminder idempotency.** Each reminder is keyed by `(calendar_entry_id, reminder_key)`. The same reminder cannot be emitted twice.
+8. **Close-calendar reminder idempotency.** Each reminder is keyed by `(tenant_id, calendar_entry_id, reminder_key)`. The same reminder cannot be emitted twice.
 
 ---
 
