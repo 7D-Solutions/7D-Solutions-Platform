@@ -81,3 +81,23 @@ active → paused → resumed → cancelled
 ```
 
 Note: Cancelled subscriptions cannot be resumed.
+
+### Maintenance Events
+
+- **maintenance-work-order-created.v1.json** - Work order created
+- **maintenance-work-order-status-changed.v1.json** - Work order status transitioned
+- **maintenance-work-order-completed.v1.json** - Work order completed (carries cost data for GL)
+- **maintenance-work-order-closed.v1.json** - Work order closed (cost locked)
+- **maintenance-work-order-overdue.v1.json** - Work order past scheduled date
+- **maintenance-meter-reading-recorded.v1.json** - New meter reading recorded
+- **maintenance-plan-due.v1.json** - Maintenance plan assignment became due
+
+**Work Order State Machine:**
+```
+draft → awaiting_approval → scheduled → in_progress → completed → closed
+                                              ↕
+                                           on_hold
+Any non-terminal state → cancelled
+```
+
+Note: `closed` and `cancelled` are terminal states.

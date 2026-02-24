@@ -1,0 +1,1466 @@
+openapi: 3.0.3
+info:
+  title: Maintenance API
+  version: 0.1.0
+  description: |
+    Maintenance module — preventive, corrective, and inspection maintenance
+    for any type of maintainable asset. Asset-type agnostic.
+
+    **Ownership Boundaries:**
+    - Owns: maintainable_assets, meter_types, meter_readings, maintenance_plans,
+      plan_assignments, work_orders, work_order_parts, work_order_labor
+    - Does NOT own: fixed asset financials, inventory stock, GL entries, customer billing
+
+    **Key Principles:**
+    - Asset-type agnostic (vehicle, machinery, equipment, facility, other)
+    - Standalone first — all integrations optional
+    - Cost visibility without GL coupling
+    - No silent failures — every mutation writes an outbox event atomically
+
+servers:
+  - url: http://localhost:8091
+    description: Local development
+  - url: https://maintenance.7dsolutions.io
+    description: Production
+
+paths:
+  # ── Operational ────────────────────────────────────────────────────────
+  /api/ready:
+    get:
+      summary: Readiness probe
+      operationId: ready
+      tags: [ops]
+      responses:
+        '200':
+          description: Service ready
+        '503':
+          description: Service not ready
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      operationId: metrics
+      tags: [ops]
+      responses:
+        '200':
+          description: Prometheus text format metrics
+
+  # ── Assets ─────────────────────────────────────────────────────────────
+  /api/maintenance/assets:
+    post:
+      summary: Create maintainable asset
+      operationId: createAsset
+      tags: [assets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssetRequest'
+      responses:
+        '201':
+          description: Asset created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List assets
+      operationId: listAssets
+      tags: [assets]
+      description: List maintainable assets, filterable by type and status.
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: asset_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/AssetType'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/AssetStatus'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: List of assets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetList'
+
+  /api/maintenance/assets/{asset_id}:
+    parameters:
+      - $ref: '#/components/parameters/AssetId'
+    get:
+      summary: Get asset detail
+      operationId: getAsset
+      tags: [assets]
+      responses:
+        '200':
+          description: Asset details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '404':
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Update asset
+      operationId: updateAsset
+      tags: [assets]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssetRequest'
+      responses:
+        '200':
+          description: Asset updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Meter Types ────────────────────────────────────────────────────────
+  /api/maintenance/meter-types:
+    post:
+      summary: Define a meter type
+      operationId: createMeterType
+      tags: [meters]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMeterTypeRequest'
+      responses:
+        '201':
+          description: Meter type created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterType'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List meter types
+      operationId: listMeterTypes
+      tags: [meters]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: List of meter types
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeterType'
+
+  # ── Meter Readings ─────────────────────────────────────────────────────
+  /api/maintenance/assets/{asset_id}/readings:
+    parameters:
+      - $ref: '#/components/parameters/AssetId'
+    post:
+      summary: Record a meter reading
+      operationId: recordReading
+      tags: [meters]
+      description: |
+        Record a new meter reading. Enforces monotonicity — new reading must
+        be >= previous max, unless rollover is detected (previous reading
+        within 10% of rollover_value and new reading within 10% of zero).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordReadingRequest'
+      responses:
+        '201':
+          description: Reading recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeterReading'
+        '400':
+          description: Invalid request (e.g., monotonicity violation)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Asset or meter type not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List readings for asset
+      operationId: listReadings
+      tags: [meters]
+      parameters:
+        - name: meter_type_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by meter type
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: List of meter readings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeterReading'
+
+  # ── Maintenance Plans ──────────────────────────────────────────────────
+  /api/maintenance/plans:
+    post:
+      summary: Create maintenance plan
+      operationId: createPlan
+      tags: [plans]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlanRequest'
+      responses:
+        '201':
+          description: Plan created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenancePlan'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List maintenance plans
+      operationId: listPlans
+      tags: [plans]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: List of plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MaintenancePlan'
+
+  /api/maintenance/plans/{plan_id}:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    patch:
+      summary: Update maintenance plan
+      operationId: updatePlan
+      tags: [plans]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePlanRequest'
+      responses:
+        '200':
+          description: Plan updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenancePlan'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Plan Assignments ───────────────────────────────────────────────────
+  /api/maintenance/plans/{plan_id}/assign:
+    parameters:
+      - $ref: '#/components/parameters/PlanId'
+    post:
+      summary: Assign plan to asset
+      operationId: assignPlan
+      tags: [plans]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignPlanRequest'
+      responses:
+        '201':
+          description: Plan assigned to asset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanAssignment'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Plan or asset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/maintenance/assets/{asset_id}/assignments:
+    parameters:
+      - $ref: '#/components/parameters/AssetId'
+    get:
+      summary: List plan assignments for asset
+      operationId: listAssignments
+      tags: [plans]
+      responses:
+        '200':
+          description: List of plan assignments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PlanAssignment'
+
+  # ── Work Orders ────────────────────────────────────────────────────────
+  /api/maintenance/work-orders:
+    post:
+      summary: Create work order
+      operationId: createWorkOrder
+      tags: [work-orders]
+      description: |
+        Create a new work order, either ad-hoc or linked to a plan assignment.
+        Initial status is `draft` (or `awaiting_approval` if tenant requires approvals).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkOrderRequest'
+      responses:
+        '201':
+          description: Work order created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List work orders
+      operationId: listWorkOrders
+      tags: [work-orders]
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/WorkOrderStatus'
+        - name: priority
+          in: query
+          schema:
+            $ref: '#/components/schemas/Priority'
+        - name: asset_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: wo_type
+          in: query
+          schema:
+            $ref: '#/components/schemas/WorkOrderType'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: List of work orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrderList'
+
+  /api/maintenance/work-orders/{wo_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkOrderId'
+    get:
+      summary: Get work order detail
+      operationId: getWorkOrder
+      tags: [work-orders]
+      responses:
+        '200':
+          description: Work order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+        '404':
+          description: Work order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/maintenance/work-orders/{wo_id}/transition:
+    parameters:
+      - $ref: '#/components/parameters/WorkOrderId'
+    post:
+      summary: Transition work order status
+      operationId: transitionWorkOrder
+      tags: [work-orders]
+      description: |
+        Transition a work order to a new status. The state machine enforces
+        valid transitions. Use dedicated endpoints for complete, close, and cancel.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TransitionRequest'
+      responses:
+        '200':
+          description: Status transitioned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+        '400':
+          description: Invalid transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Work order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/maintenance/work-orders/{wo_id}/complete:
+    parameters:
+      - $ref: '#/components/parameters/WorkOrderId'
+    post:
+      summary: Complete work order
+      operationId: completeWorkOrder
+      tags: [work-orders]
+      description: |
+        Mark a work order as completed. Requires completed_at and downtime_minutes.
+        Work order must be in `in_progress` status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteRequest'
+      responses:
+        '200':
+          description: Work order completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+        '400':
+          description: Invalid request or state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Work order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/maintenance/work-orders/{wo_id}/close:
+    parameters:
+      - $ref: '#/components/parameters/WorkOrderId'
+    post:
+      summary: Close work order (lock cost)
+      operationId: closeWorkOrder
+      tags: [work-orders]
+      description: |
+        Close a completed work order. Locks all cost data (parts, labor, downtime).
+        No further edits allowed after close.
+      responses:
+        '200':
+          description: Work order closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+        '400':
+          description: Work order not in completed status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Work order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/maintenance/work-orders/{wo_id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/WorkOrderId'
+    post:
+      summary: Cancel work order
+      operationId: cancelWorkOrder
+      tags: [work-orders]
+      description: Cancel a work order. Allowed from any non-terminal status.
+      responses:
+        '200':
+          description: Work order cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrder'
+        '400':
+          description: Work order already closed or cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Work order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Parts ──────────────────────────────────────────────────────────────
+  /api/maintenance/work-orders/{wo_id}/parts:
+    parameters:
+      - $ref: '#/components/parameters/WorkOrderId'
+    post:
+      summary: Add part to work order
+      operationId: addPart
+      tags: [parts-labor]
+      description: |
+        Add a part consumed on a work order. Standalone mode uses description
+        and cost. Optional part_ref links to Inventory SKU.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddPartRequest'
+      responses:
+        '201':
+          description: Part added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrderPart'
+        '400':
+          description: Invalid request or work order is closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Work order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List parts on work order
+      operationId: listParts
+      tags: [parts-labor]
+      responses:
+        '200':
+          description: List of parts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkOrderPart'
+
+  /api/maintenance/work-orders/{wo_id}/parts/{part_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkOrderId'
+      - $ref: '#/components/parameters/PartId'
+    delete:
+      summary: Remove part from work order
+      operationId: removePart
+      tags: [parts-labor]
+      description: Remove a part entry. Not allowed if work order is closed.
+      responses:
+        '204':
+          description: Part removed
+        '400':
+          description: Work order is closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Part or work order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Labor ──────────────────────────────────────────────────────────────
+  /api/maintenance/work-orders/{wo_id}/labor:
+    parameters:
+      - $ref: '#/components/parameters/WorkOrderId'
+    post:
+      summary: Add labor entry to work order
+      operationId: addLabor
+      tags: [parts-labor]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddLaborRequest'
+      responses:
+        '201':
+          description: Labor entry added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkOrderLabor'
+        '400':
+          description: Invalid request or work order is closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Work order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List labor entries on work order
+      operationId: listLabor
+      tags: [parts-labor]
+      responses:
+        '200':
+          description: List of labor entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkOrderLabor'
+
+  /api/maintenance/work-orders/{wo_id}/labor/{labor_id}:
+    parameters:
+      - $ref: '#/components/parameters/WorkOrderId'
+      - $ref: '#/components/parameters/LaborId'
+    delete:
+      summary: Remove labor entry from work order
+      operationId: removeLabor
+      tags: [parts-labor]
+      description: Remove a labor entry. Not allowed if work order is closed.
+      responses:
+        '204':
+          description: Labor entry removed
+        '400':
+          description: Work order is closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Labor entry or work order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: query
+      required: true
+      schema:
+        type: string
+      description: Tenant identifier for multi-tenant isolation
+
+    AssetId:
+      name: asset_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Maintainable asset identifier
+
+    PlanId:
+      name: plan_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Maintenance plan identifier
+
+    WorkOrderId:
+      name: wo_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Work order identifier
+
+    PartId:
+      name: part_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Work order part identifier
+
+    LaborId:
+      name: labor_id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Work order labor entry identifier
+
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+      description: Maximum number of items to return
+
+    Offset:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+      description: Number of items to skip
+
+  schemas:
+    # ── Enums ──────────────────────────────────────────────────────────
+    AssetType:
+      type: string
+      enum: [vehicle, machinery, equipment, facility, other]
+
+    AssetStatus:
+      type: string
+      enum: [active, inactive, retired]
+
+    ScheduleType:
+      type: string
+      enum: [calendar, meter, both]
+
+    Priority:
+      type: string
+      enum: [low, medium, high, critical]
+
+    WorkOrderType:
+      type: string
+      enum: [preventive, corrective, inspection]
+
+    WorkOrderStatus:
+      type: string
+      enum:
+        - draft
+        - awaiting_approval
+        - scheduled
+        - in_progress
+        - on_hold
+        - completed
+        - closed
+        - cancelled
+
+    AssignmentState:
+      type: string
+      enum: [active, paused, completed]
+
+    # ── Assets ─────────────────────────────────────────────────────────
+    CreateAssetRequest:
+      type: object
+      required: [tenant_id, asset_tag, name, asset_type]
+      properties:
+        tenant_id:
+          type: string
+        asset_tag:
+          type: string
+          description: Unique tag within tenant (e.g., "VEH-001")
+        name:
+          type: string
+        description:
+          type: string
+        asset_type:
+          $ref: '#/components/schemas/AssetType'
+        location:
+          type: string
+        department:
+          type: string
+        responsible_person:
+          type: string
+        serial_number:
+          type: string
+        fixed_asset_ref:
+          type: string
+          format: uuid
+          description: Optional link to Fixed-Assets module
+        metadata:
+          type: object
+          description: Arbitrary key-value data (JSONB)
+          additionalProperties: true
+
+    UpdateAssetRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        asset_type:
+          $ref: '#/components/schemas/AssetType'
+        location:
+          type: string
+        department:
+          type: string
+        responsible_person:
+          type: string
+        serial_number:
+          type: string
+        fixed_asset_ref:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/AssetStatus'
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Asset:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        asset_tag:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        asset_type:
+          $ref: '#/components/schemas/AssetType'
+        location:
+          type: string
+        department:
+          type: string
+        responsible_person:
+          type: string
+        serial_number:
+          type: string
+        fixed_asset_ref:
+          type: string
+          format: uuid
+        status:
+          $ref: '#/components/schemas/AssetStatus'
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AssetList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Asset'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    # ── Meter Types ────────────────────────────────────────────────────
+    CreateMeterTypeRequest:
+      type: object
+      required: [tenant_id, name, unit_label]
+      properties:
+        tenant_id:
+          type: string
+        name:
+          type: string
+          description: e.g., "Odometer", "Engine Hours"
+        unit_label:
+          type: string
+          description: e.g., "miles", "hours", "cycles"
+        rollover_value:
+          type: integer
+          format: int64
+          description: Value at which the meter wraps to zero (nullable)
+
+    MeterType:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        name:
+          type: string
+        unit_label:
+          type: string
+        rollover_value:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Meter Readings ─────────────────────────────────────────────────
+    RecordReadingRequest:
+      type: object
+      required: [tenant_id, meter_type_id, reading_value]
+      properties:
+        tenant_id:
+          type: string
+        meter_type_id:
+          type: string
+          format: uuid
+        reading_value:
+          type: integer
+          format: int64
+          description: Current meter value (BIGINT)
+        recorded_at:
+          type: string
+          format: date-time
+          description: When the reading was taken (defaults to now)
+        recorded_by:
+          type: string
+          description: User or technician who recorded the reading
+
+    MeterReading:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        asset_id:
+          type: string
+          format: uuid
+        meter_type_id:
+          type: string
+          format: uuid
+        reading_value:
+          type: integer
+          format: int64
+        recorded_at:
+          type: string
+          format: date-time
+        recorded_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Maintenance Plans ──────────────────────────────────────────────
+    CreatePlanRequest:
+      type: object
+      required: [tenant_id, name, schedule_type, priority]
+      properties:
+        tenant_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        asset_type_filter:
+          $ref: '#/components/schemas/AssetType'
+        schedule_type:
+          $ref: '#/components/schemas/ScheduleType'
+        calendar_interval_days:
+          type: integer
+          minimum: 1
+          description: Days between services (required if calendar or both)
+        meter_type_id:
+          type: string
+          format: uuid
+          description: Meter type for meter-based scheduling
+        meter_interval:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Meter units between services (required if meter or both)
+        priority:
+          $ref: '#/components/schemas/Priority'
+        estimated_duration_minutes:
+          type: integer
+          minimum: 0
+        estimated_cost_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Estimated cost in minor currency units
+        task_checklist:
+          type: array
+          items:
+            type: string
+          description: Checklist of tasks to perform
+        is_active:
+          type: boolean
+          default: true
+
+    UpdatePlanRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        asset_type_filter:
+          $ref: '#/components/schemas/AssetType'
+        calendar_interval_days:
+          type: integer
+          minimum: 1
+        meter_interval:
+          type: integer
+          format: int64
+          minimum: 1
+        priority:
+          $ref: '#/components/schemas/Priority'
+        estimated_duration_minutes:
+          type: integer
+          minimum: 0
+        estimated_cost_minor:
+          type: integer
+          format: int64
+          minimum: 0
+        task_checklist:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+
+    MaintenancePlan:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        asset_type_filter:
+          $ref: '#/components/schemas/AssetType'
+        schedule_type:
+          $ref: '#/components/schemas/ScheduleType'
+        calendar_interval_days:
+          type: integer
+        meter_type_id:
+          type: string
+          format: uuid
+        meter_interval:
+          type: integer
+          format: int64
+        priority:
+          $ref: '#/components/schemas/Priority'
+        estimated_duration_minutes:
+          type: integer
+        estimated_cost_minor:
+          type: integer
+          format: int64
+        task_checklist:
+          type: array
+          items:
+            type: string
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # ── Plan Assignments ───────────────────────────────────────────────
+    AssignPlanRequest:
+      type: object
+      required: [asset_id]
+      properties:
+        asset_id:
+          type: string
+          format: uuid
+        next_due_date:
+          type: string
+          format: date
+          description: Initial next due date (defaults to now + interval)
+        next_due_meter:
+          type: integer
+          format: int64
+          description: Initial next due meter value
+
+    PlanAssignment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        plan_id:
+          type: string
+          format: uuid
+        asset_id:
+          type: string
+          format: uuid
+        last_completed_at:
+          type: string
+          format: date-time
+        last_meter_reading:
+          type: integer
+          format: int64
+        next_due_date:
+          type: string
+          format: date
+        next_due_meter:
+          type: integer
+          format: int64
+        state:
+          $ref: '#/components/schemas/AssignmentState'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # ── Work Orders ────────────────────────────────────────────────────
+    CreateWorkOrderRequest:
+      type: object
+      required: [tenant_id, asset_id, title, wo_type, priority]
+      properties:
+        tenant_id:
+          type: string
+        asset_id:
+          type: string
+          format: uuid
+        plan_assignment_id:
+          type: string
+          format: uuid
+          description: Link to plan assignment (if created from plan)
+        title:
+          type: string
+        description:
+          type: string
+        wo_type:
+          $ref: '#/components/schemas/WorkOrderType'
+        priority:
+          $ref: '#/components/schemas/Priority'
+        assigned_to:
+          type: string
+          description: Technician or team reference
+        scheduled_date:
+          type: string
+          format: date
+        checklist:
+          type: array
+          items:
+            type: string
+          description: Task checklist (may be copied from plan)
+        notes:
+          type: string
+
+    TransitionRequest:
+      type: object
+      required: [to_status]
+      properties:
+        to_status:
+          $ref: '#/components/schemas/WorkOrderStatus'
+
+    CompleteRequest:
+      type: object
+      required: [completed_at, downtime_minutes]
+      properties:
+        completed_at:
+          type: string
+          format: date-time
+        downtime_minutes:
+          type: integer
+          minimum: 0
+        notes:
+          type: string
+
+    WorkOrder:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        asset_id:
+          type: string
+          format: uuid
+        plan_assignment_id:
+          type: string
+          format: uuid
+        wo_number:
+          type: string
+          description: Tenant-scoped sequential number
+        title:
+          type: string
+        description:
+          type: string
+        wo_type:
+          $ref: '#/components/schemas/WorkOrderType'
+        priority:
+          $ref: '#/components/schemas/Priority'
+        status:
+          $ref: '#/components/schemas/WorkOrderStatus'
+        assigned_to:
+          type: string
+        scheduled_date:
+          type: string
+          format: date
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        closed_at:
+          type: string
+          format: date-time
+        checklist:
+          type: array
+          items:
+            type: string
+        downtime_minutes:
+          type: integer
+        notes:
+          type: string
+        total_parts_minor:
+          type: integer
+          format: int64
+          description: Sum of parts cost in minor units
+        total_labor_minor:
+          type: integer
+          format: int64
+          description: Sum of labor cost in minor units
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    WorkOrderList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkOrder'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    # ── Parts & Labor ──────────────────────────────────────────────────
+    AddPartRequest:
+      type: object
+      required: [part_description, quantity, unit_cost_minor, currency]
+      properties:
+        part_description:
+          type: string
+        part_ref:
+          type: string
+          description: Optional Inventory SKU reference
+        quantity:
+          type: integer
+          minimum: 1
+        unit_cost_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Cost per unit in minor currency units
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        inventory_issue_ref:
+          type: string
+          description: Optional Inventory issue transaction reference
+
+    WorkOrderPart:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        work_order_id:
+          type: string
+          format: uuid
+        part_description:
+          type: string
+        part_ref:
+          type: string
+        quantity:
+          type: integer
+        unit_cost_minor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        inventory_issue_ref:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    AddLaborRequest:
+      type: object
+      required: [technician_ref, hours_decimal, rate_minor, currency]
+      properties:
+        technician_ref:
+          type: string
+          description: Opaque technician identifier
+        hours_decimal:
+          type: number
+          format: double
+          minimum: 0
+          description: Hours worked (decimal, e.g., 2.5)
+        rate_minor:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Hourly rate in minor currency units
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+        description:
+          type: string
+
+    WorkOrderLabor:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        work_order_id:
+          type: string
+          format: uuid
+        technician_ref:
+          type: string
+        hours_decimal:
+          type: number
+          format: double
+        rate_minor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Common ─────────────────────────────────────────────────────────
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Error code
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error context

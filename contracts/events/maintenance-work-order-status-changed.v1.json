@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/maintenance-work-order-status-changed.v1.json",
+  "title": "maintenance.work_order.status_changed",
+  "description": "Event emitted when a work order transitions between statuses",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "maintenance",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "wo_id",
+        "old_status",
+        "new_status"
+      ],
+      "properties": {
+        "wo_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Work order identifier"
+        },
+        "old_status": {
+          "type": "string",
+          "enum": ["draft", "awaiting_approval", "scheduled", "in_progress", "on_hold", "completed", "closed", "cancelled"],
+          "description": "Previous work order status"
+        },
+        "new_status": {
+          "type": "string",
+          "enum": ["draft", "awaiting_approval", "scheduled", "in_progress", "on_hold", "completed", "closed", "cancelled"],
+          "description": "New work order status"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

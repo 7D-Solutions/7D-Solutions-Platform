@@ -1,0 +1,17 @@
+{
+  "event_id": "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f",
+  "occurred_at": "2026-02-24T17:45:00.000Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "maintenance",
+  "source_version": "0.1.0",
+  "correlation_id": "cor_01HPQZ7M2P9KY3W6V5R8XJ4N2T",
+  "payload": {
+    "wo_id": "d1e2f3a4-b5c6-4d7e-8f9a-0b1c2d3e4f5a",
+    "asset_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "total_parts_minor": 4500,
+    "total_labor_minor": 12000,
+    "currency": "USD",
+    "downtime_minutes": 120,
+    "fixed_asset_ref": "fa1b2c3d-e4f5-4a6b-7c8d-9e0f1a2b3c4d"
+  }
+}

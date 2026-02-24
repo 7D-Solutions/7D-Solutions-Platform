@@ -1,0 +1,13 @@
+{
+  "event_id": "e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b",
+  "occurred_at": "2026-02-25T06:00:00.000Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "maintenance",
+  "source_version": "0.1.0",
+  "payload": {
+    "wo_id": "d1e2f3a4-b5c6-4d7e-8f9a-0b1c2d3e4f5a",
+    "asset_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "days_overdue": 3,
+    "priority": "high"
+  }
+}

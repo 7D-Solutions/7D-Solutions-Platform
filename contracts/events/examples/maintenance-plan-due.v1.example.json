@@ -1,0 +1,14 @@
+{
+  "event_id": "a7b8c9d0-e1f2-4a3b-4c5d-6e7f8a9b0c1d",
+  "occurred_at": "2026-02-24T06:01:00.000Z",
+  "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
+  "source_module": "maintenance",
+  "source_version": "0.1.0",
+  "payload": {
+    "assignment_id": "f1a2b3c4-d5e6-4f7a-8b9c-0d1e2f3a4b5c",
+    "plan_id": "p1l2a3n4-i5d6-4a7b-8c9d-0e1f2a3b4c5d",
+    "asset_id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+    "due_kind": "meter",
+    "due_value": "50000"
+  }
+}
