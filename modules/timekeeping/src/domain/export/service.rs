@@ -193,7 +193,7 @@ async fn fetch_approved_entries(
         SELECT
             e.entry_id,
             e.employee_id,
-            COALESCE(emp.name, 'Unknown') AS employee_name,
+            COALESCE(emp.first_name || ' ' || emp.last_name, 'Unknown') AS employee_name,
             e.project_id,
             p.name AS project_name,
             e.task_id,
