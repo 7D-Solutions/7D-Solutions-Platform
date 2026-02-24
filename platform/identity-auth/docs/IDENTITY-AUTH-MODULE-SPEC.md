@@ -11,6 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | PurpleCliff (bd-15s1) | Initial vision doc — based on shipped v1.3.1 source, migrations, REVISIONS.md, and all handlers |
+| 1.1 | 2026-02-24 | PurpleCliff (bd-1twb) | Review fixes: HMAC-SHA256→SHA-256 for refresh tokens (4 locations — code uses plain sha2::Sha256, no hmac crate), added `granted_at` to role_permissions key fields, corrected `pg_try_advisory_xact_lock`→`pg_advisory_xact_lock` (code uses blocking variant) |
 
 ---
 
@@ -78,7 +79,7 @@ Identity-auth calls the tenant-registry at login time (and optionally at refresh
 When identity-auth cannot determine a security policy decision — entitlement unavailable, tenant status unknown — it denies the operation. There is no fallback to "probably allow." The only exception is the stale-cache grace period (5 minutes) during a tenant-registry outage, to prevent cascading failures from locking out healthy tenants.
 
 ### Credential Hashes Only, Never Plaintext
-Passwords are stored as argon2id hashes. Refresh tokens are stored as HMAC-SHA256 hashes. Reset tokens are stored as SHA-256 hashes. Raw values are never written to the database or emitted in logs.
+Passwords are stored as argon2id hashes. Refresh tokens are stored as SHA-256 hashes. Reset tokens are stored as SHA-256 hashes. Raw values are never written to the database or emitted in logs.
 
 ### DB-Backed Session Leases for Horizontal Scaling
 Session seat limits are enforced via `session_leases` in PostgreSQL with an advisory transaction lock, not in-memory counters. This means enforcement is correct across multiple running instances of identity-auth. An in-memory semaphore would be incorrect under horizontal scaling.
@@ -159,10 +160,10 @@ Argon2id is CPU-intensive by design. Without concurrency control, a burst of log
 No other module stores passwords or issues JWTs. Identity-auth is the single authentication authority. Cross-service token verification uses the JWKS public key — no module calls identity-auth's API at runtime to validate tokens.
 
 ### 2. Refresh tokens are hashed in the DB; the raw token is never stored
-`refresh_tokens.token_hash` stores HMAC-SHA256 of the raw bearer token. The raw token is returned to the client on login/refresh but never persisted. This means a database compromise does not yield usable refresh tokens.
+`refresh_tokens.token_hash` stores SHA-256 of the raw bearer token. The raw token is returned to the client on login/refresh but never persisted. This means a database compromise does not yield usable refresh tokens.
 
 ### 3. Session leases are the source of truth for concurrent seat counting
-The `session_leases` table (one row per active refresh token) is the authoritative count of active sessions per tenant. The count is taken inside a PostgreSQL advisory transaction lock (`pg_try_advisory_xact_lock`) to prevent race conditions under concurrent logins. An in-memory counter would be wrong under horizontal scaling.
+The `session_leases` table (one row per active refresh token) is the authoritative count of active sessions per tenant. The count is taken inside a PostgreSQL advisory transaction lock (`pg_advisory_xact_lock`) to prevent race conditions under concurrent logins. An in-memory counter would be wrong under horizontal scaling.
 
 ### 4. RBAC is embedded in tokens, not checked per-request
 Roles and effective permissions are resolved from the DB at login and token refresh, then embedded as `roles`/`perms` claims in the signed JWT. Downstream services validate the JWT and read claims directly. The trade-off: permissions changes don't take effect until the next token refresh (configurable TTL). The benefit: zero runtime latency for authorization decisions in every other module.
@@ -216,11 +217,11 @@ All tables with `tenant_id` use it for multi-tenant isolation. Every query **MUS
 | Table | Purpose | Key Fields |
 |-------|---------|------------|
 | **credentials** | Email/password storage with lockout state | `id`, `tenant_id`, `user_id`, `email`, `password_hash`, `is_active`, `failed_login_count`, `last_failed_login_at`, `lock_until` |
-| **refresh_tokens** | Hashed refresh tokens with revocation | `id`, `tenant_id`, `user_id`, `token_hash` (HMAC-SHA256, UNIQUE), `expires_at`, `revoked_at`, `last_used_at` |
+| **refresh_tokens** | Hashed refresh tokens with revocation | `id`, `tenant_id`, `user_id`, `token_hash` (SHA-256, UNIQUE), `expires_at`, `revoked_at`, `last_used_at` |
 | **session_leases** | DB-backed concurrent seat tracking | `lease_id`, `tenant_id`, `user_id`, `session_id` (FK → refresh_tokens), `issued_at`, `last_seen_at`, `revoked_at` |
 | **permissions** | Global permission string definitions | `id`, `key` (UNIQUE, e.g. `gl.journal.create`), `description` |
 | **roles** | Tenant-scoped role definitions | `id`, `tenant_id`, `name`, `description`, `is_system` |
-| **role_permissions** | Junction: which permissions a role grants | `role_id`, `permission_id` (composite PK) |
+| **role_permissions** | Junction: which permissions a role grants | `role_id`, `permission_id` (composite PK), `granted_at` |
 | **user_role_bindings** | User-to-role bindings with soft revocation | `id`, `tenant_id`, `user_id`, `role_id`, `granted_by`, `granted_at`, `revoked_at` |
 | **password_reset_tokens** | Single-use reset token hashes | `id`, `user_id`, `token_hash` (SHA-256 hex, indexed), `expires_at`, `used_at` |
 
@@ -404,7 +405,7 @@ Every significant product, architecture, or standards decision is recorded here.
 |------|----------|-----------|-----------|
 | 2026-02-14 | Single crate (`auth-rs`) owns all credential, token, and RBAC data | Prevents credential sprawl across modules; single audit surface for security changes | Platform Orchestrator |
 | 2026-02-14 | RS256 JWT with JWKS endpoint for public key distribution | RS256 allows asymmetric verification — modules need only the public key, not the private key; JWKS enables zero-coordination key rotation | Platform Orchestrator |
-| 2026-02-14 | Refresh tokens hashed (HMAC-SHA256), never stored plaintext | DB compromise must not yield usable bearer tokens | Platform Orchestrator |
+| 2026-02-14 | Refresh tokens hashed (SHA-256), never stored plaintext | DB compromise must not yield usable bearer tokens | Platform Orchestrator |
 | 2026-02-14 | Argon2id for password hashing (not bcrypt or scrypt) | Argon2id is the Password Hashing Competition winner; configurable memory/time/parallelism; OWASP recommended | Platform Orchestrator |
 | 2026-02-19 | RBAC claims embedded in JWT at issuance, not checked per-request | Zero runtime overhead at module boundaries; trade-off is a TTL-length lag on permission changes (acceptable for platform use cases) | Platform Orchestrator |
 | 2026-02-19 | DB-backed session leases replace in-memory semaphore | In-memory counters are wrong under horizontal scaling; PostgreSQL advisory locks provide correct mutual exclusion across processes | Platform Orchestrator |
