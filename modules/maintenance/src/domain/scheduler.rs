@@ -268,6 +268,26 @@ pub async fn run_scheduler_task(pool: PgPool, interval_secs: u64) {
                 );
             }
         }
+
+        // Overdue detection: emit events for WOs past their scheduled date.
+        match super::overdue::evaluate_overdue(&pool).await {
+            Ok(r) if r.events_emitted > 0 => {
+                tracing::info!(
+                    tick = tick_count,
+                    evaluated = r.evaluated,
+                    emitted = r.events_emitted,
+                    "Maintenance scheduler: overdue events emitted"
+                );
+            }
+            Ok(_) => {}
+            Err(e) => {
+                tracing::error!(
+                    tick = tick_count,
+                    error = %e,
+                    "Maintenance scheduler: overdue detection failed"
+                );
+            }
+        }
     }
 }
 
