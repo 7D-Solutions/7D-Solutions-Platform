@@ -11,6 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | Platform Orchestrator | Initial vision doc — full module analysis from source, schema, integrations, tests, and API surface |
+| 1.1 | 2026-02-24 | Platform Orchestrator | Review fix: 4 inaccuracies — input_hash description, unused csl_statement_cache, phantom consumer lag metric, X-App-Id vs body tenant_id |
 
 ---
 
@@ -69,7 +70,7 @@ The module is a platform service consumed by any vertical application that manag
 The consolidation module never stores raw entity-level trial balances. It fetches them from GL at consolidation time via HTTP. This means GL remains the single source of truth for entity financials. Consolidation only stores derived, consolidated data in its own cache tables.
 
 ### Deterministic and Verifiable
-Every consolidation run records entity close hashes and computes a deterministic `input_hash` from them (SHA-256 of sorted entity hashes). Running the same consolidation with the same closed periods produces identical results. The cache stores the `input_hash` so consumers can verify that cached data matches expected inputs.
+Every consolidation run records entity close hashes and computes a deterministic `input_hash` from them — SHA-256 of `group_id | as_of | sorted(entity_tenant_id:close_hash, …)`. Running the same consolidation with the same closed periods produces identical results. The cache stores the `input_hash` so consumers can verify that cached data matches expected inputs.
 
 ### COA Mapping with Pass-Through
 Entity account codes are mapped to group-level codes via explicit COA mappings. If no mapping exists for an account, it passes through unchanged — this avoids hard failures when entities add new accounts before the mapping is updated.
@@ -103,7 +104,7 @@ FX translation is policy-aware — each entity has a policy defining which rate 
 - Consolidated balance sheet generation from cached TB
 - Consolidated P&L generation from cached TB
 - Integration clients for GL, AR, and AP
-- Prometheus metrics (consolidation run counter, HTTP latency, consumer lag)
+- Prometheus metrics (consolidation run counter, HTTP latency)
 - Admin endpoints (projection status, consistency check)
 - Docker deployment with health checks
 
@@ -161,8 +162,8 @@ The FX policy table records which rate type each entity needs per financial stat
 ### 7. Consolidated TB cache uses DELETE + INSERT, not upsert
 Each consolidation run deletes the previous cache for the group+as_of and inserts fresh rows. This guarantees that stale rows from removed accounts don't persist. The trade-off is a brief window where the cache is empty during a rerun, but consolidation is a batch process, not a real-time query.
 
-### 8. Tenant identity via X-App-Id header
-The consolidation module extracts `tenant_id` from the `X-App-Id` header, consistent with other platform services. The group table has `tenant_id` scoping, and every query filters by it. Entity member tenant IDs (`entity_tenant_id`) are separate — they identify which tenants' GL data to fetch for consolidation.
+### 8. Tenant identity: X-App-Id header for config, request body for engine
+Configuration CRUD endpoints (groups, entities, COA mappings, rules, FX policies) extract `tenant_id` from the `X-App-Id` header, consistent with other platform services. Engine endpoints (consolidate, intercompany-match, eliminations) take `tenant_id` from the JSON request body. The group table has `tenant_id` scoping, and every config query filters by it. Entity member tenant IDs (`entity_tenant_id`) are separate — they identify which tenants' GL data to fetch for consolidation.
 
 ---
 
@@ -178,7 +179,7 @@ Consolidation is the **source of truth** for:
 | **Elimination Rules** | Intercompany elimination configuration: rule type, debit/credit account pairs for elimination journals. |
 | **FX Translation Policies** | Per-entity policy: which rate type (closing/average/historical) to use for BS, P&L, and equity translation. |
 | **Consolidated Trial Balance** | Cached post-mapping, post-FX, post-elimination balances per group per as_of date. |
-| **Consolidated Financial Statements** | Derived balance sheet and P&L from the consolidated TB cache. |
+| **Consolidated Financial Statements** | Derived balance sheet and P&L computed on demand from `csl_trial_balance_cache` (not cached in `csl_statement_cache` yet). |
 | **Intercompany Match Results** | Computed matches between entity pairs per elimination rule (in-memory, not persisted). |
 | **Elimination Posting Log** | Exactly-once record of which elimination journals were posted to GL per group+period. |
 
@@ -204,7 +205,7 @@ All tables are prefixed `csl_` to avoid clashes with source-module schemas. Scop
 | **csl_elimination_rules** | Elimination journal configuration | `id`, `group_id` (FK), `rule_name`, `rule_type` (intercompany_revenue_cost\|intercompany_receivable_payable\|intercompany_investment_equity\|custom), `debit_account_code`, `credit_account_code`, `description`, `is_active` |
 | **csl_fx_policies** | FX translation rate-type policies | `id`, `group_id` (FK), `entity_tenant_id`, `bs_rate_type` (closing\|average\|historical), `pl_rate_type`, `equity_rate_type`, `fx_rate_source` |
 | **csl_trial_balance_cache** | Consolidated TB results | `id`, `group_id` (FK), `as_of` (DATE), `account_code`, `account_name`, `currency`, `debit_minor` (BIGINT), `credit_minor` (BIGINT), `net_minor` (BIGINT), `input_hash`, `computed_at` |
-| **csl_statement_cache** | Consolidated financial statement lines | `id`, `group_id` (FK), `statement_type` (income_statement\|balance_sheet), `as_of`, `line_code`, `line_label`, `currency`, `amount_minor` (BIGINT), `input_hash`, `computed_at` |
+| **csl_statement_cache** | Consolidated financial statement lines (**schema exists but not yet wired** — P&L and BS are computed on-the-fly from `csl_trial_balance_cache`) | `id`, `group_id` (FK), `statement_type` (income_statement\|balance_sheet), `as_of`, `line_code`, `line_label`, `currency`, `amount_minor` (BIGINT), `input_hash`, `computed_at` |
 | **csl_elimination_postings** | Exactly-once elimination posting log | `id`, `group_id` (FK), `period_id`, `idempotency_key` (SHA-256), `journal_entry_ids` (JSONB), `suggestion_count`, `total_amount_minor`, `posted_at` |
 
 **Monetary Precision:** All monetary amounts use **integer minor units** (e.g., `debit_minor` in cents). Currency stored as 3-letter ISO 4217 code.
@@ -241,7 +242,7 @@ For each entity in group:
 
 After all entities:
   6. Apply elimination rules (min of debit/credit balances)
-  7. Compute deterministic input_hash from sorted entity close hashes
+  7. Compute deterministic input_hash: SHA-256(group_id | as_of | sorted entity close hashes)
   8. Cache result (DELETE + INSERT into csl_trial_balance_cache)
 ```
 
@@ -250,7 +251,7 @@ After all entities:
 - COA mapping is optional per account — unmapped accounts pass through
 - FX translation uses 1:1 identity until FX rates service is wired
 - Elimination applies in-place on the consolidated ledger using `min(debit_balance, credit_balance)`
-- The pipeline is deterministic: same closed periods → same output → same input_hash
+- The pipeline is deterministic: same group + as_of + closed periods → same output → same input_hash
 
 ---
 
@@ -293,7 +294,7 @@ An AP client exists (`integrations::ap::client::ApClient`) that can fetch payabl
 
 1. **Group-level tenant isolation.** Groups are scoped by `tenant_id`. One tenant cannot see or modify another tenant's consolidation groups.
 2. **Close hash verification.** Every consolidation run verifies each entity's period is closed before processing. No consolidation against open periods.
-3. **Deterministic reruns.** Same closed periods with same close hashes produce identical consolidated output and identical `input_hash`.
+3. **Deterministic reruns.** Same group, as_of, and closed periods with same close hashes produce identical consolidated output and identical `input_hash`.
 4. **Exactly-once elimination posting.** Elimination journals use SHA-256 idempotency keys (group + period + suggestion fingerprints). Reposting returns the existing result without creating duplicate journals.
 5. **Monetary precision via integer minor units.** All amounts stored as BIGINT minor units. No floating-point arithmetic on monetary values except FX translation (where rounding is explicit).
 6. **No silent failures on entity verification.** If a period is not closed, consolidation fails explicitly — no partial consolidation with missing entities.
