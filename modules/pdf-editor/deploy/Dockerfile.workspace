@@ -42,9 +42,9 @@ COPY --from=builder /app/target/release/pdf-editor-rs /usr/local/bin/pdf-editor-
 COPY --from=builder /app/modules/pdf-editor/db/migrations /app/db/migrations
 
 ENV HOST=0.0.0.0
-ENV PORT=8101
+ENV PORT=8102
 
-EXPOSE 8101
+EXPOSE 8102
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
     CMD curl -f http://localhost:${PORT}/api/health || exit 1

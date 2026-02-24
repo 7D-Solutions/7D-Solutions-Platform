@@ -484,15 +484,15 @@ services:
       NATS_URL: nats://7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
-      PORT: 8101
+      PORT: 8102
       CORS_ORIGINS: ${PDF_EDITOR_CORS_ORIGINS:-*}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8101:8101"
+      - "8102:8102"
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8101/api/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8102/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
