@@ -73,6 +73,21 @@ async fn main() {
     });
     tracing::info!("Maintenance: outbox publisher task started");
 
+    // Spawn scheduler tick loop
+    let scheduler_pool = pool.clone();
+    let scheduler_interval = config.scheduler_interval_secs;
+    tokio::spawn(async move {
+        maintenance_rs::domain::scheduler::run_scheduler_task(
+            scheduler_pool,
+            scheduler_interval,
+        )
+        .await;
+    });
+    tracing::info!(
+        interval_secs = config.scheduler_interval_secs,
+        "Maintenance: scheduler task started"
+    );
+
     // Initialize metrics
     let app_metrics = Arc::new(
         metrics::MaintenanceMetrics::new().expect("Maintenance: failed to create metrics"),
@@ -128,6 +143,20 @@ async fn main() {
         .route(
             "/api/maintenance/assignments",
             get(routes::plans::list_assignments),
+        )
+        // Work order endpoints
+        .route(
+            "/api/maintenance/work-orders",
+            post(routes::work_orders::create_work_order)
+                .get(routes::work_orders::list_work_orders),
+        )
+        .route(
+            "/api/maintenance/work-orders/{wo_id}",
+            get(routes::work_orders::get_work_order),
+        )
+        .route(
+            "/api/maintenance/work-orders/{wo_id}/transition",
+            axum::routing::patch(routes::work_orders::transition_work_order),
         )
         .with_state(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))

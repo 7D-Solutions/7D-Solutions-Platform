@@ -286,3 +286,17 @@ impl fmt::Display for ParseEnumError {
 }
 
 impl std::error::Error for ParseEnumError {}
+
+impl TryFrom<String> for WoStatus {
+    type Error = String;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::from_str_value(&s).map_err(|e| e.to_string())
+    }
+}
+
+impl TryFrom<String> for WoType {
+    type Error = String;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::from_str_value(&s).map_err(|e| e.to_string())
+    }
+}
