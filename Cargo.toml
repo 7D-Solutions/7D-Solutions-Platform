@@ -23,6 +23,7 @@ members = [
   "modules/party",
   "modules/integrations",
   "modules/ttp",
+  "modules/maintenance",
   "modules/reporting",
   "tools/contract-tests",
   "tools/simulation",
