@@ -86,6 +86,10 @@ async fn main() {
         .route("/api/pdf/forms/templates/{id}/fields", post(routes::fields::create_field).get(routes::fields::list_fields))
         .route("/api/pdf/forms/templates/{tid}/fields/{fid}", put(routes::fields::update_field))
         .route("/api/pdf/forms/templates/{id}/fields/reorder", post(routes::fields::reorder_fields))
+        // Form submissions
+        .route("/api/pdf/forms/submissions", post(routes::submissions::create_submission).get(routes::submissions::list_submissions))
+        .route("/api/pdf/forms/submissions/{id}", get(routes::submissions::get_submission).put(routes::submissions::autosave_submission))
+        .route("/api/pdf/forms/submissions/{id}/submit", post(routes::submissions::submit_submission))
         .with_state(db.clone())
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))

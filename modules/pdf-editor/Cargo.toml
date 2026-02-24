@@ -8,7 +8,7 @@ name = "pdf-editor-rs"
 path = "src/main.rs"
 
 [dependencies]
-axum = "0.8"
+axum = { version = "0.8", features = ["multipart"] }
 security = { path = "../../platform/security" }
 health = { path = "../../platform/health" }
 tokio = { version = "1", features = ["full"] }
@@ -31,6 +31,10 @@ futures = "0.3"
 prometheus = "0.13"
 lazy_static = "1.4"
 http = "1"
+pdfium-render = { version = "0.8", features = ["thread_safe"] }
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+regex = "1"
 
 [dev-dependencies]
 serial_test = "3.3.1"

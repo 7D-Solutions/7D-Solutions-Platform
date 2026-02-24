@@ -213,6 +213,23 @@ impl FieldRepo {
         .map_err(FormError::Database)
     }
 
+    /// List fields for a template (no tenant check — caller must verify ownership).
+    pub async fn list_by_template(
+        pool: &PgPool,
+        template_id: Uuid,
+    ) -> Result<Vec<FormField>, sqlx::Error> {
+        sqlx::query_as::<_, FormField>(
+            r#"
+            SELECT * FROM form_fields
+            WHERE template_id = $1
+            ORDER BY display_order ASC
+            "#,
+        )
+        .bind(template_id)
+        .fetch_all(pool)
+        .await
+    }
+
     /// Update a field. Does not change display_order (use reorder for that).
     pub async fn update(
         pool: &PgPool,
