@@ -10,7 +10,8 @@
 
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
-| 1.0 | 2026-02-24 | PurpleCliff | Initial vision doc — business problem, domain model, schema, events, API, invariants, integration points, decision log. Documented from source code at v0.1.0. |
+| 1.0 | 2026-02-24 | Platform Orchestrator | Initial vision doc — business problem, domain model, schema, events, API, invariants, integration points, decision log. Documented from source code at v0.1.0. |
+| 1.1 | 2026-02-24 | Platform Orchestrator | Review: fix 3 inaccuracies — invariant #2 overstated no-UPDATE rule, structural decision #4 overclaimed app_id on every table/index, Changed By used agent name. |
 
 ---
 
@@ -160,8 +161,8 @@ Rather than a separate lock table, the approval workflow's `status = 'approved'`
 ### 3. Duration stored as integer minutes
 No floating-point anywhere in the storage layer. `minutes` is `INT` with `CHECK (minutes >= 0)`. Hours are computed only for display and export (`minutes / 60.0`). This prevents the classic 0.1 + 0.2 != 0.3 rounding error that plagues spreadsheet-based timekeeping.
 
-### 4. Tenant isolation via app_id on every table
-Standard platform multi-tenant pattern. Every table has `app_id` as a non-nullable field. Every index has `app_id` as the leading column. Every query filters by `app_id`. The column is named `app_id` (not `tenant_id`) following the module's convention.
+### 4. Tenant isolation via app_id on domain tables
+Standard platform multi-tenant pattern. All domain tables (`tk_employees`, `tk_projects`, `tk_tasks`, `tk_timesheet_entries`, `tk_approval_requests`, `tk_allocations`, `tk_export_runs`, `tk_billing_rates`, `tk_billing_runs`, `tk_idempotency_keys`) have `app_id` as a non-nullable field. Child/junction tables (`tk_approval_actions`, `tk_billing_run_entries`) inherit tenant scope through their FK to a parent domain table. Infrastructure tables (`events_outbox`, `processed_events`) follow the platform outbox schema and do not carry `app_id`. Every query on domain tables filters by `app_id`.
 
 ### 5. Billing runs enforce no-double-billing
 Each billing run links to entries via `tk_billing_run_entries`. The billable entry query explicitly excludes entries that already appear in any billing run (`NOT EXISTS (SELECT 1 FROM tk_billing_run_entries ...)`). This is the architectural guarantee against invoicing the same hours twice.
@@ -206,7 +207,7 @@ Timekeeping is **NOT** authoritative for:
 
 ### Tables Owned by Timekeeping
 
-All tables use `app_id` for multi-tenant isolation. Every query **MUST** filter by `app_id`.
+All domain tables use `app_id` for multi-tenant isolation. Every query on domain tables **MUST** filter by `app_id`. Child tables (`tk_approval_actions`, `tk_billing_run_entries`) inherit scope via FK. Infrastructure tables (`events_outbox`, `processed_events`) follow the platform outbox schema.
 
 | Table | Purpose | Key Fields |
 |-------|---------|------------|
@@ -227,7 +228,7 @@ All tables use `app_id` for multi-tenant isolation. Every query **MUST** filter 
 
 **Monetary Precision:** All monetary amounts use **integer minor units** (e.g., `hourly_rate_minor` in cents, `amount_cents` in cents). Currency stored as 3-letter ISO 4217 code.
 
-**Tenant Isolation:** Every table includes `app_id` as a non-nullable field. All indexes include `app_id` as the leading column.
+**Tenant Isolation:** All domain tables include `app_id` as a non-nullable field. Child/junction tables inherit tenant scope via FK. Infrastructure tables follow the platform outbox schema.
 
 ### Data NOT Owned by Timekeeping
 
@@ -337,7 +338,7 @@ The `external_payroll_id` field on `tk_employees` maps timekeeping employees to 
 ## Invariants
 
 1. **Tenant isolation is unbreakable.** Every query filters by `app_id`. No cross-tenant data leakage.
-2. **Entries are append-only.** No UPDATE or DELETE on `tk_timesheet_entries`. All changes are new rows with incremented versions.
+2. **Entries are append-only (data).** Entry data (minutes, description, type) is never modified. Corrections and voids insert new rows with incremented versions. The only UPDATE is flipping `is_current = FALSE` on superseded versions within the same transaction.
 3. **Only one current version per entry.** `is_current = TRUE` is set only on the latest version. Previous versions are flipped to `FALSE` atomically within the same transaction.
 4. **Approved periods are locked.** Entry guards reject create, correct, and void operations for work_dates within an approved period.
 5. **Outbox atomicity.** Every state-changing mutation writes its event to the outbox in the same database transaction.
