@@ -297,13 +297,22 @@ impl AssignmentRepo {
             "next_due_date": next_due_date,
             "next_due_meter": next_due_meter,
         });
+        let assign_event_id = Uuid::new_v4();
+        let env = crate::events::envelope::create_envelope(
+            assign_event_id,
+            req.tenant_id.clone(),
+            crate::events::subjects::PLAN_ASSIGNED.to_string(),
+            event_payload,
+        );
+        let env_json = crate::events::envelope::validate_envelope(&env)
+            .map_err(|e| PlanError::Validation(format!("envelope: {}", e)))?;
         crate::outbox::enqueue_event_tx(
             &mut tx,
-            Uuid::new_v4(),
-            "maintenance.plan.assigned",
+            assign_event_id,
+            crate::events::subjects::PLAN_ASSIGNED,
             "plan_assignment",
             &assignment.id.to_string(),
-            &event_payload,
+            &env_json,
         )
         .await?;
 

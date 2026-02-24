@@ -4,6 +4,7 @@
 
 pub mod config;
 pub mod domain;
+pub mod events;
 pub mod metrics;
 pub mod outbox;
 pub mod routes;

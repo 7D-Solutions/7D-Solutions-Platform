@@ -98,12 +98,17 @@ pub async fn evaluate_overdue(pool: &PgPool) -> Result<OverdueResult, sqlx::Erro
             days_overdue,
         };
 
-        let payload = serde_json::to_value(&event).map_err(|e| {
-            sqlx::Error::Encode(Box::new(std::io::Error::new(
+        let env = crate::events::envelope::create_envelope(
+            event_id,
+            wo.tenant_id.clone(),
+            crate::events::subjects::WO_OVERDUE.to_string(),
+            event,
+        );
+        let env_json = crate::events::envelope::validate_envelope(&env)
+            .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("Failed to serialize overdue event: {}", e),
-            )))
-        })?;
+                format!("Envelope validation: {}", e),
+            ))))?;
 
         // INSERT with ON CONFLICT DO NOTHING — idempotent dedup per (wo, day).
         let res = sqlx::query(
@@ -115,10 +120,10 @@ pub async fn evaluate_overdue(pool: &PgPool) -> Result<OverdueResult, sqlx::Erro
             "#,
         )
         .bind(event_id)
-        .bind("maintenance.work_order.overdue")
+        .bind(crate::events::subjects::WO_OVERDUE)
         .bind("work_order")
         .bind(&wo.id.to_string())
-        .bind(payload)
+        .bind(env_json)
         .execute(pool)
         .await?;
 

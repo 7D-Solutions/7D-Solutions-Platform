@@ -15,6 +15,7 @@ use uuid::Uuid;
 use super::guards::{run_guards, GuardError, TransitionContext};
 use super::state_machine::{validate_transition, TransitionError};
 use super::types::{Priority, WoStatus, WoType};
+use crate::events::{envelope, subjects};
 use crate::outbox;
 
 // ── Domain model ──────────────────────────────────────────────
@@ -298,13 +299,22 @@ impl WorkOrderRepo {
             "priority": priority_str,
             "plan_assignment_id": req.plan_assignment_id,
         });
+        let event_id = Uuid::new_v4();
+        let env = envelope::create_envelope(
+            event_id,
+            req.tenant_id.clone(),
+            subjects::WO_CREATED.to_string(),
+            event_payload,
+        );
+        let env_json = envelope::validate_envelope(&env)
+            .map_err(|e| WoError::Validation(format!("envelope: {}", e)))?;
         outbox::enqueue_event_tx(
             &mut tx,
-            Uuid::new_v4(),
-            "maintenance.work_order.created",
+            event_id,
+            subjects::WO_CREATED,
             "work_order",
             &id.to_string(),
-            &event_payload,
+            &env_json,
         )
         .await?;
 
@@ -363,13 +373,22 @@ impl WorkOrderRepo {
             "auto_created": true,
             "initial_status": initial_status,
         });
+        let event_id = Uuid::new_v4();
+        let env = envelope::create_envelope(
+            event_id,
+            tenant_id.to_string(),
+            subjects::WO_CREATED.to_string(),
+            event_payload,
+        );
+        let env_json = envelope::validate_envelope(&env)
+            .map_err(|e| WoError::Validation(format!("envelope: {}", e)))?;
         outbox::enqueue_event_tx(
             tx,
-            Uuid::new_v4(),
-            "maintenance.work_order.created",
+            event_id,
+            subjects::WO_CREATED,
             "work_order",
             &id.to_string(),
-            &event_payload,
+            &env_json,
         )
         .await?;
 
@@ -439,10 +458,10 @@ impl WorkOrderRepo {
 
         // ── Outbox: pick event type based on target status ──
         let event_type = match target {
-            WoStatus::Completed => "maintenance.work_order.completed",
-            WoStatus::Closed => "maintenance.work_order.closed",
-            WoStatus::Cancelled => "maintenance.work_order.cancelled",
-            _ => "maintenance.work_order.status_changed",
+            WoStatus::Completed => subjects::WO_COMPLETED,
+            WoStatus::Closed => subjects::WO_CLOSED,
+            WoStatus::Cancelled => subjects::WO_CANCELLED,
+            _ => subjects::WO_STATUS_CHANGED,
         };
 
         // ── Cost payload for completed events (GL integration seam) ──
@@ -469,13 +488,22 @@ impl WorkOrderRepo {
                 "to_status": target.as_str(),
             })
         };
+        let event_id = Uuid::new_v4();
+        let env = envelope::create_envelope(
+            event_id,
+            req.tenant_id.clone(),
+            event_type.to_string(),
+            event_payload,
+        );
+        let env_json = envelope::validate_envelope(&env)
+            .map_err(|e| WoError::Validation(format!("envelope: {}", e)))?;
         outbox::enqueue_event_tx(
             &mut tx,
-            Uuid::new_v4(),
+            event_id,
             event_type,
             "work_order",
             &wo_id.to_string(),
-            &event_payload,
+            &env_json,
         )
         .await?;
 

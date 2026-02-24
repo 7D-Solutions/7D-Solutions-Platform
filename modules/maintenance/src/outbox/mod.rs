@@ -153,7 +153,8 @@ async fn publish_batch(
     let count = events.len();
 
     for event in events {
-        let subject = format!("maintenance.events.{}", event.event_type);
+        // event_type IS the stable NATS subject (e.g. "maintenance.work_order.created")
+        let subject = event.event_type.clone();
         let payload = serde_json::to_vec(&event.payload)?;
 
         event_bus.publish(&subject, payload).await.map_err(|e| {

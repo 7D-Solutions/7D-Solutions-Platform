@@ -194,13 +194,25 @@ pub async fn evaluate_due(pool: &PgPool) -> Result<TickResult, sqlx::Error> {
             continue;
         }
 
+        let sched_event_id = Uuid::new_v4();
+        let env = crate::events::envelope::create_envelope(
+            sched_event_id,
+            assignment.tenant_id.clone(),
+            crate::events::subjects::PLAN_DUE.to_string(),
+            &event,
+        );
+        let env_json = crate::events::envelope::validate_envelope(&env)
+            .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Envelope validation: {}", e),
+            ))))?;
         crate::outbox::enqueue_event_tx(
             &mut tx,
-            Uuid::new_v4(),
-            "maintenance.plan.due",
+            sched_event_id,
+            crate::events::subjects::PLAN_DUE,
             "plan_assignment",
             &assignment.id.to_string(),
-            &event,
+            &env_json,
         )
         .await?;
 

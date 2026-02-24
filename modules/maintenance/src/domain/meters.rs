@@ -307,13 +307,22 @@ impl MeterReadingRepo {
             "reading_value": req.reading_value,
             "recorded_at": recorded_at,
         });
+        let event_id = Uuid::new_v4();
+        let env = crate::events::envelope::create_envelope(
+            event_id,
+            req.tenant_id.clone(),
+            crate::events::subjects::METER_READING_RECORDED.to_string(),
+            event_payload,
+        );
+        let env_json = crate::events::envelope::validate_envelope(&env)
+            .map_err(|e| MeterError::Validation(format!("envelope: {}", e)))?;
         crate::outbox::enqueue_event_tx(
             &mut tx,
-            Uuid::new_v4(),
-            "maintenance.meter_reading.recorded",
+            event_id,
+            crate::events::subjects::METER_READING_RECORDED,
             "meter_reading",
             &reading_id.to_string(),
-            &event_payload,
+            &env_json,
         )
         .await?;
 
