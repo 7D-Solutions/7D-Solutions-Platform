@@ -1,6 +1,8 @@
 pub mod types;
 pub mod state_machine;
 pub mod guards;
+pub mod labor;
+pub mod parts;
 pub mod service;
 
 pub use types::*;
@@ -11,3 +13,5 @@ pub use service::{
     CreateWorkOrderRequest, ListWorkOrdersQuery, TransitionRequest, WoError, WorkOrder,
     WorkOrderRepo,
 };
+pub use parts::{AddPartRequest, WoPart, WoPartError, WoPartsRepo};
+pub use labor::{AddLaborRequest, WoLabor, WoLaborError, WoLaborRepo};

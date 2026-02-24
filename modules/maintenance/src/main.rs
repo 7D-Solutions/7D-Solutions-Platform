@@ -158,6 +158,26 @@ async fn main() {
             "/api/maintenance/work-orders/{wo_id}/transition",
             axum::routing::patch(routes::work_orders::transition_work_order),
         )
+        // Work order parts subresource
+        .route(
+            "/api/maintenance/work-orders/{wo_id}/parts",
+            post(routes::work_order_parts::add_part)
+                .get(routes::work_order_parts::list_parts),
+        )
+        .route(
+            "/api/maintenance/work-orders/{wo_id}/parts/{part_id}",
+            axum::routing::delete(routes::work_order_parts::remove_part),
+        )
+        // Work order labor subresource
+        .route(
+            "/api/maintenance/work-orders/{wo_id}/labor",
+            post(routes::work_order_labor::add_labor)
+                .get(routes::work_order_labor::list_labor),
+        )
+        .route(
+            "/api/maintenance/work-orders/{wo_id}/labor/{labor_id}",
+            axum::routing::delete(routes::work_order_labor::remove_labor),
+        )
         .with_state(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(
