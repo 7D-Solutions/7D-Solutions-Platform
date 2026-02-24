@@ -538,6 +538,32 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  pdf-editor-postgres:
+    container_name: 7d-pdf-editor-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5453:5432"
+    environment:
+      POSTGRES_DB: ${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}
+      POSTGRES_USER: ${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}
+      POSTGRES_PASSWORD: ${PDF_EDITOR_POSTGRES_PASSWORD:-pdf_editor_pass}
+    volumes:
+      - pdf_editor_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user} -d ${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "pdf-editor-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
@@ -603,4 +629,7 @@ volumes:
     external: true
   maintenance_pgdata:
     name: 7d-maintenance-pgdata
+    external: true
+  pdf_editor_pgdata:
+    name: 7d-pdf-editor-pgdata
     external: true

@@ -28,6 +28,14 @@ pub struct TenantQuery {
     pub tenant_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct ListReadingsParams {
+    pub tenant_id: String,
+    pub meter_type_id: Option<Uuid>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
 fn meter_error_response(err: MeterError) -> impl IntoResponse {
     match err {
         MeterError::DuplicateName(name, tenant) => (
@@ -117,10 +125,9 @@ pub async fn record_reading(
 pub async fn list_readings(
     State(state): State<Arc<AppState>>,
     Path(asset_id): Path<Uuid>,
-    Query(tenant_q): Query<TenantQuery>,
-    Query(q): Query<ListReadingsQuery>,
+    Query(params): Query<ListReadingsParams>,
 ) -> impl IntoResponse {
-    if tenant_q.tenant_id.trim().is_empty() {
+    if params.tenant_id.trim().is_empty() {
         return (
             StatusCode::BAD_REQUEST,
             Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
@@ -128,7 +135,13 @@ pub async fn list_readings(
             .into_response();
     }
 
-    match MeterReadingRepo::list(&state.pool, &tenant_q.tenant_id, asset_id, &q).await {
+    let q = ListReadingsQuery {
+        meter_type_id: params.meter_type_id,
+        limit: params.limit,
+        offset: params.offset,
+    };
+
+    match MeterReadingRepo::list(&state.pool, &params.tenant_id, asset_id, &q).await {
         Ok(readings) => (StatusCode::OK, Json(json!(readings))).into_response(),
         Err(e) => meter_error_response(e).into_response(),
     }

@@ -512,6 +512,32 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  maintenance-postgres:
+    container_name: 7d-maintenance-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5452:5432"
+    environment:
+      POSTGRES_DB: ${MAINTENANCE_POSTGRES_DB:-maintenance_db}
+      POSTGRES_USER: ${MAINTENANCE_POSTGRES_USER:-maintenance_user}
+      POSTGRES_PASSWORD: ${MAINTENANCE_POSTGRES_PASSWORD:-maintenance_pass}
+    volumes:
+      - maintenance_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MAINTENANCE_POSTGRES_USER:-maintenance_user} -d ${MAINTENANCE_POSTGRES_DB:-maintenance_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "maintenance-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
   pdf-editor-postgres:
     container_name: 7d-pdf-editor-postgres
     image: postgres:16-alpine
@@ -600,6 +626,9 @@ volumes:
     external: true
   ttp_pgdata:
     name: 7d-ttp-pgdata
+    external: true
+  maintenance_pgdata:
+    name: 7d-maintenance-pgdata
     external: true
   pdf_editor_pgdata:
     name: 7d-pdf-editor-pgdata
