@@ -334,3 +334,42 @@ fn test_integrations_hub_openapi_spec_valid() {
 
     println!("✓ Integrations-hub spec contains all required paths");
 }
+
+#[test]
+fn test_pdf_editor_openapi_spec_valid() {
+    let spec_path = contracts_dir().join("pdf-editor/pdf-editor-v0.1.0.yaml");
+
+    let spec = validate_openapi_spec(&spec_path)
+        .expect("Failed to parse pdf-editor OpenAPI spec");
+
+    println!("✓ PDF Editor OpenAPI spec is valid YAML");
+
+    // All implemented pdf-editor endpoints
+    let required_paths = vec![
+        // Ops
+        "/healthz",
+        "/api/health",
+        "/api/ready",
+        "/api/version",
+        "/metrics",
+        // PDF processing (stateless)
+        "/api/pdf/render-annotations",
+        "/api/pdf/forms/submissions/{id}/generate",
+        // Form templates
+        "/api/pdf/forms/templates",
+        "/api/pdf/forms/templates/{id}",
+        // Form fields
+        "/api/pdf/forms/templates/{id}/fields",
+        "/api/pdf/forms/templates/{tid}/fields/{fid}",
+        "/api/pdf/forms/templates/{id}/fields/reorder",
+        // Form submissions
+        "/api/pdf/forms/submissions",
+        "/api/pdf/forms/submissions/{id}",
+        "/api/pdf/forms/submissions/{id}/submit",
+    ];
+
+    check_required_paths(&spec, &required_paths, "pdf-editor-v0.1.0.yaml")
+        .expect("PDF Editor spec missing required paths");
+
+    println!("✓ PDF Editor spec contains all required paths");
+}
