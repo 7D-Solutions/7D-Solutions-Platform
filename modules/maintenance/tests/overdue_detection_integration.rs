@@ -289,12 +289,18 @@ async fn test_overdue_event_payload() {
     .await
     .unwrap();
 
-    assert_eq!(payload["work_order_id"], wo_id.to_string());
-    assert_eq!(payload["tenant_id"], t);
-    assert_eq!(payload["asset_id"], asset.to_string());
-    assert_eq!(payload["priority"], "high");
-    assert_eq!(payload["status"], "scheduled");
+    // Domain data is nested inside envelope's "payload" field
+    let inner = &payload["payload"];
+    assert_eq!(inner["work_order_id"], wo_id.to_string());
+    assert_eq!(inner["tenant_id"], t);
+    assert_eq!(inner["asset_id"], asset.to_string());
+    assert_eq!(inner["priority"], "high");
+    assert_eq!(inner["status"], "scheduled");
 
-    let days = payload["days_overdue"].as_i64().unwrap();
+    let days = inner["days_overdue"].as_i64().unwrap();
     assert!(days >= 7, "days_overdue should be at least 7, got {}", days);
+
+    // Verify envelope metadata
+    assert_eq!(payload["source_module"], "maintenance");
+    assert_eq!(payload["event_type"], "maintenance.work_order.overdue");
 }

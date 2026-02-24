@@ -192,10 +192,16 @@ async fn test_both_schedule_calendar_trigger() {
         "SELECT payload FROM events_outbox WHERE event_type = 'maintenance.plan.due' AND aggregate_id = $1 ORDER BY created_at DESC LIMIT 1",
     ).bind(asn.to_string()).fetch_one(&pool).await.unwrap();
 
-    assert_eq!(payload["plan_priority"], "critical");
-    assert_eq!(payload["assignment_id"], asn.to_string());
-    assert_eq!(payload["plan_id"], plan.id.to_string());
-    assert_eq!(payload["asset_id"], asset.to_string());
+    // Domain data is nested inside envelope's "payload" field
+    let inner = &payload["payload"];
+    assert_eq!(inner["plan_priority"], "critical");
+    assert_eq!(inner["assignment_id"], asn.to_string());
+    assert_eq!(inner["plan_id"], plan.id.to_string());
+    assert_eq!(inner["asset_id"], asset.to_string());
+
+    // Verify envelope metadata
+    assert_eq!(payload["source_module"], "maintenance");
+    assert_eq!(payload["event_type"], "maintenance.plan.due");
 }
 
 // ============================================================================
