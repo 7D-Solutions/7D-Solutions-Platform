@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.0.1 | 2026-02-24 | bd-217r | Wired `optional_claims_mw` JWT verification middleware into TTP router chain. Middleware extracts verified claims from Authorization header and makes them available to route handlers via request extensions. Layer placed after rate_limit_middleware, before AuthzLayer — matching GL's proven pattern. | Security audit finding C1: TTP had no JWT verification middleware, meaning all requests bypassed token validation. | No |
 | 1.0.0 | 2026-02-22 | bd-2dq8 | Initial proof. Metering ingestion (idempotent, keyed by `idempotency_key`), price trace computation (deterministic, tenant-scoped), billing run execution (one run per tenant+period, one-time charges marked post-invoice, trace_hash linkage from metering to AR invoice line items). Health (`/healthz`) and readiness (`/api/ready`) endpoints. All E2E tests passing (metering_integration + billing_metering_integration). Proof command: `./scripts/proof_ttp.sh`. | TTP module build complete. Billing idempotency proven: billing runs are replay-safe with `was_noop:true` on re-invocation, and metering events deduplicate via `idempotency_key`. | — |
 
 ## How to read this table

@@ -3,6 +3,7 @@ use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::middleware::{
     default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
 };
+use security::{optional_claims_mw, JwtVerifier};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
@@ -104,6 +105,9 @@ async fn main() {
 
     let rate_limiter = default_rate_limiter();
 
+    // Optional JWT verifier for claims extraction (requires JWT_PUBLIC_KEY env var).
+    let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
+
     let app = Router::new()
         .route("/healthz", get(health::healthz))
         .route("/api/health", get(routes::health::health))
@@ -119,6 +123,7 @@ async fn main() {
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(rate_limiter))
+        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
         .layer(security::AuthzLayer::from_env())
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
