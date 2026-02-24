@@ -11,6 +11,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-24 | CopperRiver | Initial vision doc — documented from existing source code, migrations, events, and tests. Covers full procure-to-pay lifecycle, 3-way match engine, payment runs, tax integration, and aging reports. |
+| 1.1 | 2026-02-24 | PurpleCliff | Fresh-eyes review: fixed tenant_id claims (child tables inherit via FK, not direct column), added missing columns to table descriptions (entered_at, matched_by/matched_at, tax lifecycle timestamps, executed_at, quantity_received type), added Admin routes to API Surface. |
 
 ---
 
@@ -174,8 +175,8 @@ Voiding a bill emits a REVERSAL-class event with `reverses_event_id` pointing to
 ### 7. All events are replay-safe and self-contained
 Every AP event payload contains all data needed for downstream consumers to process it without querying the AP database. The `ap.vendor_bill_approved` event carries per-line GL account codes and amounts, FX rate references, and vendor details. This is the platform EventEnvelope standard.
 
-### 8. Tenant isolation via tenant_id on every table
-Standard platform multi-tenant pattern. Every table has `tenant_id` as a non-nullable field. Every query filters by `tenant_id`. Unique constraints include `tenant_id` in the key. No exceptions.
+### 8. Tenant isolation via tenant_id on primary tables
+Standard platform multi-tenant pattern. Primary tables have `tenant_id` as a non-nullable field. Child tables (`po_lines`, `po_status`, `bill_lines`, `three_way_match`, `po_receipt_links`, `payment_run_items`, `payment_run_executions`) inherit tenant scope through FK relationships. Every query filters by `tenant_id`. Unique constraints include `tenant_id` where relevant.
 
 ### 9. No mocking in tests
 Integration tests hit real Postgres. Tests that mock the database test nothing useful. This is a platform-wide standard.
@@ -217,7 +218,7 @@ AP is **NOT** authoritative for:
 
 ### Tables Owned by AP
 
-All tables use `tenant_id` for multi-tenant isolation. Every query **MUST** filter by `tenant_id`.
+Primary tables use `tenant_id` for multi-tenant isolation. Every query **MUST** filter by `tenant_id`. Child tables (`po_lines`, `po_status`, `bill_lines`, `three_way_match`, `po_receipt_links`, `payment_run_items`, `payment_run_executions`) inherit tenant scope through FK relationships to their parent tables.
 
 | Table | Purpose | Key Fields |
 |-------|---------|------------|
@@ -225,22 +226,22 @@ All tables use `tenant_id` for multi-tenant isolation. Every query **MUST** filt
 | **purchase_orders** | PO headers | `po_id`, `tenant_id`, `vendor_id` (FK), `po_number` (unique per tenant), `currency`, `total_minor` (BIGINT), `status` (draft\|approved\|closed\|cancelled), `created_by`, `expected_delivery_date` |
 | **po_lines** | PO line items | `line_id`, `po_id` (FK), `description`, `quantity` (NUMERIC 18,6), `unit_of_measure`, `unit_price_minor` (BIGINT), `line_total_minor`, `gl_account_code` |
 | **po_status** | Append-only PO status audit log | `id` (BIGSERIAL), `po_id` (FK), `status`, `changed_by`, `changed_at`, `reason` |
-| **po_receipt_links** | PO line to receipt/GRN linkage | `id` (BIGSERIAL), `po_id` (FK), `po_line_id` (FK), `vendor_id` (FK), `receipt_id`, `quantity_received`, `unit_of_measure`, `unit_price_minor`, `currency`, `gl_account_code`, `received_at`, `received_by`; UNIQUE (`po_line_id`, `receipt_id`) |
-| **vendor_bills** | AP liability records | `bill_id`, `tenant_id`, `vendor_id` (FK), `vendor_invoice_ref`, `currency`, `total_minor` (BIGINT), `tax_minor` (BIGINT, nullable), `invoice_date`, `due_date`, `status` (open\|matched\|approved\|partially_paid\|paid\|voided), `fx_rate_id` (nullable UUID), `entered_by` |
+| **po_receipt_links** | PO line to receipt/GRN linkage | `id` (BIGSERIAL), `po_id` (FK), `po_line_id` (FK), `vendor_id` (FK), `receipt_id`, `quantity_received` (NUMERIC 18,6), `unit_of_measure`, `unit_price_minor`, `currency`, `gl_account_code`, `received_at`, `received_by`; UNIQUE (`po_line_id`, `receipt_id`) |
+| **vendor_bills** | AP liability records | `bill_id`, `tenant_id`, `vendor_id` (FK), `vendor_invoice_ref`, `currency`, `total_minor` (BIGINT), `tax_minor` (BIGINT, nullable), `invoice_date`, `due_date`, `status` (open\|matched\|approved\|partially_paid\|paid\|voided), `fx_rate_id` (nullable UUID), `entered_by`, `entered_at` |
 | **bill_lines** | Bill line items | `line_id`, `bill_id` (FK), `description`, `quantity` (DOUBLE PRECISION), `unit_price_minor` (BIGINT), `line_total_minor`, `gl_account_code`, `po_line_id` (FK, nullable) |
-| **three_way_match** | Match engine results | `id` (BIGSERIAL), `bill_id` (FK), `bill_line_id` (FK, UNIQUE), `po_id` (FK, nullable), `po_line_id` (FK, nullable), `receipt_id` (nullable), `match_type` (two_way\|three_way\|non_po), `matched_quantity`, `matched_amount_minor`, `within_tolerance`, `price_variance_minor`, `qty_variance`, `match_status` (matched\|price_variance\|qty_variance\|price_and_qty_variance) |
+| **three_way_match** | Match engine results | `id` (BIGSERIAL), `bill_id` (FK), `bill_line_id` (FK, UNIQUE), `po_id` (FK, nullable), `po_line_id` (FK, nullable), `receipt_id` (nullable), `match_type` (two_way\|three_way\|non_po), `matched_quantity`, `matched_amount_minor`, `within_tolerance`, `price_variance_minor`, `qty_variance`, `match_status` (matched\|price_variance\|qty_variance\|price_and_qty_variance), `matched_by`, `matched_at` |
 | **ap_allocations** | Append-only payment application | `id` (BIGSERIAL), `allocation_id` (UUID, UNIQUE), `bill_id` (FK), `payment_run_id` (FK, nullable), `tenant_id`, `amount_minor` (BIGINT, > 0), `currency`, `allocation_type` (partial\|full) |
 | **payment_runs** | Batch payment headers | `run_id`, `tenant_id`, `total_minor`, `currency`, `scheduled_date`, `payment_method`, `status` (pending\|executing\|completed\|failed), `created_by`, `executed_at` |
 | **payment_run_items** | Per-vendor payment items | `id` (BIGSERIAL), `run_id` (FK), `vendor_id`, `bill_ids` (UUID[]), `amount_minor` (BIGINT), `currency` |
-| **payment_run_executions** | Per-item execution outcomes | `id` (BIGSERIAL), `run_id` (FK), `item_id` (FK), `payment_id`, `vendor_id`, `amount_minor`, `currency`, `status` (success\|failed), `failure_reason`; UNIQUE (`run_id`, `item_id`) |
-| **ap_tax_snapshots** | Tax lifecycle per bill | `id` (UUID), `bill_id` (FK), `tenant_id`, `provider`, `provider_quote_ref`, `provider_commit_ref`, `quote_hash`, `total_tax_minor`, `tax_by_line` (JSONB), `status` (quoted\|committed\|voided); UNIQUE active per bill |
+| **payment_run_executions** | Per-item execution outcomes | `id` (BIGSERIAL), `run_id` (FK), `item_id` (FK), `payment_id`, `vendor_id`, `amount_minor`, `currency`, `status` (success\|failed), `failure_reason`, `executed_at`; UNIQUE (`run_id`, `item_id`) |
+| **ap_tax_snapshots** | Tax lifecycle per bill | `id` (UUID), `bill_id` (FK), `tenant_id`, `provider`, `provider_quote_ref`, `provider_commit_ref`, `quote_hash`, `total_tax_minor`, `tax_by_line` (JSONB), `status` (quoted\|committed\|voided), `quoted_at`, `committed_at` (nullable), `voided_at` (nullable), `void_reason` (nullable), `created_at`, `updated_at`; UNIQUE active per bill |
 | **idempotency_keys** | HTTP request idempotency | `id` (BIGSERIAL), `tenant_id`, `idempotency_key`, `request_hash`, `response_body` (JSONB), `status_code`, `expires_at`; UNIQUE (`tenant_id`, `idempotency_key`) |
 | **events_outbox** | Standard platform outbox | Module-owned, same schema as other modules |
 | **processed_events** | Event deduplication | Module-owned, same schema as other modules |
 
 **Monetary Precision:** All monetary amounts use **integer minor units** (e.g., `total_minor` in cents). Currency stored as 3-letter ISO 4217 code (CHAR 3).
 
-**Tenant Isolation:** Every table includes `tenant_id` as a non-nullable field. Unique constraints include `tenant_id` where relevant.
+**Tenant Isolation:** Primary tables include `tenant_id` as a non-nullable field. Child tables inherit tenant scope via FKs. Unique constraints include `tenant_id` where relevant.
 
 ### Data NOT Owned by AP
 
@@ -368,7 +369,7 @@ JWT verification via the platform `security` crate. Write operations require `AP
 
 ## Invariants
 
-1. **Tenant isolation is unbreakable.** Every query filters by `tenant_id`. Unique constraints include `tenant_id`. No cross-tenant data leakage.
+1. **Tenant isolation is unbreakable.** Primary tables carry `tenant_id`; child tables inherit scope via FKs. Every query filters by `tenant_id`. Unique constraints include `tenant_id` where relevant. No cross-tenant data leakage.
 2. **Allocations are append-only.** No UPDATE or DELETE on `ap_allocations`. Financial history is immutable.
 3. **Outbox atomicity.** Every state-changing mutation writes its event to the outbox in the same database transaction. No silent event loss.
 4. **Bill status derives from allocations.** `partially_paid` vs `paid` is computed deterministically from `SUM(allocations) vs total_minor`. No manual status override for payment state.
@@ -432,6 +433,11 @@ JWT verification via the platform `security` crate. Write operations require `AP
 - `GET /api/ap/tax/reports/summary` — Tax summary report
 - `GET /api/ap/tax/reports/export` — Tax report export
 
+### Admin (requires `X-Admin-Token` header)
+- `POST /api/ap/admin/projection-status` — Query projection processing status
+- `POST /api/ap/admin/consistency-check` — Run projection consistency check
+- `GET /api/ap/admin/projections` — List all projections
+
 ---
 
 ## Document Standards Reference
@@ -461,5 +467,5 @@ Every significant product, architecture, or standards decision is recorded here.
 | 2026-02-18 | FX rate reference stored as UUID pointer to GL fx_rates, not as a raw rate | Reuses existing GL FX infrastructure; prevents rate duplication and ensures single source of truth for conversion | Platform Orchestrator |
 | 2026-02-18 | ap.vendor_bill_approved carries gl_lines[] for replay-safe GL posting | GL consumer has all per-line expense account routing without re-reading AP database; po_line_id presence determines clearing vs expense posting | Platform Orchestrator |
 | 2026-02-19 | party_id added to vendors as nullable column with no FK constraint | Party-master lives in a separate service; loose coupling via UUID reference enables cross-module identity without runtime dependency | Platform Orchestrator |
-| 2026-02-18 | Tenant isolation via tenant_id on every table with partial unique indexes | Standard platform multi-tenant pattern; unique constraints include tenant_id where business uniqueness is per-tenant | Platform Orchestrator |
+| 2026-02-18 | Tenant isolation via tenant_id on primary tables with partial unique indexes | Standard platform multi-tenant pattern; child tables inherit tenant scope via FKs; unique constraints include tenant_id where business uniqueness is per-tenant | Platform Orchestrator |
 | 2026-02-18 | No mocking in tests — integrated tests against real Postgres | Platform-wide standard; mocked tests provide false confidence; all verification hits real database | Platform Orchestrator |
