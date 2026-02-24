@@ -463,3 +463,6 @@ jsonwebtoken = "9"
 
 [dev-dependencies]
 serial_test = "3.0"
+
+[lints]
+workspace = true

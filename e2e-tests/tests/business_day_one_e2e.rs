@@ -161,7 +161,8 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
 
     tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
 
-    #[allow(unused_unsafe)]
+    // Safety: serial lock prevents concurrent env var mutation; env::set_var is unsafe since Rust 1.83
+    #[allow(unsafe_code)]
     unsafe {
         std::env::set_var(
             "PARTY_MASTER_URL",

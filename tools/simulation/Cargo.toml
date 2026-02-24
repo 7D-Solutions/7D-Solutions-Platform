@@ -42,3 +42,6 @@ ar-rs = { path = "../../modules/ar" }
 payments-rs = { path = "../../modules/payments" }
 subscriptions-rs = { path = "../../modules/subscriptions" }
 gl-rs = { path = "../../modules/gl" }
+
+[lints]
+workspace = true

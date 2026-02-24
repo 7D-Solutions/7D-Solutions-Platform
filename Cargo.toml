@@ -41,6 +41,10 @@ members = [
 # Workspace-level settings
 resolver = "2"
 
+# Workspace-wide lints — all members inherit via [lints] workspace = true
+[workspace.lints.rust]
+unsafe_code = "deny"
+
 # Future: shared dependencies can be defined here
 # [workspace.dependencies]
 

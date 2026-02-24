@@ -23,3 +23,6 @@ thiserror = "1.0"
 
 [dev-dependencies]
 glob = "0.3"
+
+[lints]
+workspace = true

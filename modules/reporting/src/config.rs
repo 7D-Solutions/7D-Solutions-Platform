@@ -37,6 +37,7 @@ impl Config {
 }
 
 #[cfg(test)]
+#[allow(unsafe_code)] // env var mutation in tests requires unsafe (Rust 1.83+)
 mod tests {
     use super::*;
     use serial_test::serial;
@@ -45,11 +46,11 @@ mod tests {
     #[serial]
     fn test_config_requires_database_url() {
         // Remove DATABASE_URL to confirm error
-        unsafe { std::env::remove_var("DATABASE_URL"); }
+        unsafe { std::env::remove_var("DATABASE_URL") };
         let result = Config::from_env();
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("DATABASE_URL is required"));
-        unsafe { std::env::remove_var("DATABASE_URL"); }
+        unsafe { std::env::remove_var("DATABASE_URL") };
     }
 
     #[test]
@@ -61,6 +62,6 @@ mod tests {
         }
         let config = Config::from_env().unwrap();
         assert_eq!(config.port, 8096);
-        unsafe { std::env::remove_var("DATABASE_URL"); }
+        unsafe { std::env::remove_var("DATABASE_URL") };
     }
 }

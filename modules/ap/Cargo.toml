@@ -32,3 +32,6 @@ prometheus = "0.13"
 serial_test = "3.3.1"
 uuid = { version = "1", features = ["v4"] }
 tax-core = { path = "../../platform/tax-core" }
+
+[lints]
+workspace = true

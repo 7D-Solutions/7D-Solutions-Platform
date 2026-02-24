@@ -33,3 +33,6 @@ health = { path = "../health" }
 
 [dev-dependencies]
 axum-test = "16"
+
+[lints]
+workspace = true
