@@ -631,6 +631,39 @@ services:
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
 
+  # =========================
+  # MAINTENANCE MODULE
+  # =========================
+  maintenance:
+    container_name: 7d-maintenance
+    build:
+      context: .
+      dockerfile: modules/maintenance/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${MAINTENANCE_POSTGRES_USER:-maintenance_user}:${MAINTENANCE_POSTGRES_PASSWORD:-maintenance_pass}@7d-maintenance-postgres:5432/${MAINTENANCE_POSTGRES_DB:-maintenance_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8101
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8101:8101"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8101/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "maintenance"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
