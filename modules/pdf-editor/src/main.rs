@@ -90,7 +90,15 @@ async fn main() {
         .route("/api/pdf/forms/submissions", post(routes::submissions::create_submission).get(routes::submissions::list_submissions))
         .route("/api/pdf/forms/submissions/{id}", get(routes::submissions::get_submission).put(routes::submissions::autosave_submission))
         .route("/api/pdf/forms/submissions/{id}/submit", post(routes::submissions::submit_submission))
+        .route("/api/pdf/forms/submissions/{id}/generate", post(routes::generate::generate_pdf))
         .with_state(db.clone())
+        // PDF processing — stateless, no DB state needed.
+        // Nested router with its own 50 MB body limit for PDF uploads.
+        .merge(
+            Router::new()
+                .route("/api/pdf/render-annotations", post(routes::annotations::render_annotations))
+                .layer(DefaultBodyLimit::max(52_428_800))
+        )
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
