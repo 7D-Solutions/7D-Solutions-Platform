@@ -6,7 +6,31 @@
 
 ---
 
-## REQUIRED: Search Before You Grep\n\n**Do NOT use `grep -r`, `rg`, `Glob`, or `read_file` for codebase exploration without trying this loop first:**\n\n1. `cass search "query"` — search prior agent sessions for prior solutions (fastest)\n2. `fsfs search "query" --format json --limit 6` — hybrid semantic + keyword search over the codebase\n3. `grep` / `read_file` — only if steps 1 and 2 return nothing useful\n\n```bash\n# Preferred pattern\ncass search "how retry logic is implemented" --limit 5\nfsfs search "retry logic" --format json --limit 6\n\n# Semantic-only (for conceptual queries)\nfsfs search "how dependency injection is wired" --semantic --format json\n\n# NOT preferred for codebase questions\ngrep -r "retry" .        # ← a hook will warn you if you do this first\n```\n\nA live hook fires whenever you run `grep -r` or `rg` without trying `fsfs` first. It is advisory — it won't block you — but it means you skipped a step.\n\n---\n\n## Prerequisites Check
+## REQUIRED: Search Before You Grep
+
+**Do NOT use `grep -r`, `rg`, `Glob`, or `read_file` for codebase exploration without trying this loop first:**
+
+1. `cass search "query"` — search prior agent sessions for prior solutions (fastest)
+2. `fsfs search "query" --format json --limit 6` — hybrid semantic + keyword search over the codebase
+3. `grep` / `read_file` — only if steps 1 and 2 return nothing useful
+
+```bash
+# Preferred pattern
+cass search "how retry logic is implemented" --limit 5
+fsfs search "retry logic" --format json --limit 6
+
+# Semantic-only (for conceptual queries)
+fsfs search "how dependency injection is wired" --semantic --format json
+
+# NOT preferred for codebase questions
+grep -r "retry" .        # ← a hook will warn you if you do this first
+```
+
+A live hook fires whenever you run `grep -r` or `rg` without trying `fsfs` first. It is advisory — it won't block you — but it means you skipped a step.
+
+---
+
+## Prerequisites Check
 
 Before starting installation, verify these are installed:
 
@@ -165,7 +189,44 @@ deactivate
 
 ---
 
-### 6. UBS (Ultimate Bug Scanner)
+### 6. fsfs (FrankenSearch — Codebase Semantic Search)
+
+**Purpose**: Fast semantic and keyword search over the local codebase
+**GitHub**: https://github.com/Dicklesworthstone/frankensearch
+**Models**: Bundled (CPU-only, no API key required)
+**Install time**: ~2 minutes
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Dicklesworthstone/frankensearch/main/install.sh | bash -s -- --easy-mode
+```
+
+**Verify**:
+```bash
+fsfs --version
+fsfs doctor        # Health check — confirms models cached
+```
+
+**Indexing**:
+```bash
+fsfs index ./path           # Index a directory (one-time, updates automatically)
+fsfs index . --watch        # Watch mode — re-indexes on file changes
+```
+
+**Searching**:
+```bash
+fsfs search "query" --format json --limit 6          # Keyword search (always use --format json)
+fsfs search "query" --semantic --format json          # Semantic / embedding search
+```
+
+**Reasoning Loop — use in this order**:
+
+1. `cass search "query"` — prior session solutions (fastest, most targeted)
+2. `fsfs search "query" --format json --limit 6` — codebase context (current files)
+3. `grep` / `read_file` — only as last resort when fsfs results are insufficient
+
+---
+
+### 7. UBS (Ultimate Bug Scanner)
 
 **Purpose**: Multi-language static analysis for automated bug detection
 **Language**: Python
