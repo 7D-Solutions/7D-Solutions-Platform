@@ -1,4 +1,4 @@
-use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
+use axum::{extract::DefaultBodyLimit, routing::{get, post, put}, Extension, Router};
 use ::event_bus::{EventBus, InMemoryBus, NatsBus};
 use http::HeaderName;
 use pdf_editor_rs::{config, config::Config, db, event_bus, metrics, routes};
@@ -79,6 +79,13 @@ async fn main() {
         .route("/api/ready", get(routes::health::ready))
         .route("/api/version", get(routes::health::version))
         .route("/metrics", get(metrics::metrics_handler))
+        // Form templates
+        .route("/api/pdf/forms/templates", post(routes::templates::create_template).get(routes::templates::list_templates))
+        .route("/api/pdf/forms/templates/{id}", get(routes::templates::get_template).put(routes::templates::update_template))
+        // Form fields
+        .route("/api/pdf/forms/templates/{id}/fields", post(routes::fields::create_field).get(routes::fields::list_fields))
+        .route("/api/pdf/forms/templates/{tid}/fields/{fid}", put(routes::fields::update_field))
+        .route("/api/pdf/forms/templates/{id}/fields/reorder", post(routes::fields::reorder_fields))
         .with_state(db.clone())
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))

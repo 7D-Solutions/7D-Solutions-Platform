@@ -516,7 +516,7 @@ services:
     container_name: 7d-pdf-editor-postgres
     image: postgres:16-alpine
     ports:
-      - "5452:5432"
+      - "5453:5432"
     environment:
       POSTGRES_DB: ${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}
       POSTGRES_USER: ${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}
