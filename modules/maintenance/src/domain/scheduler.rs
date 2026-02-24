@@ -7,6 +7,8 @@
 //!   - next_due_meter <= max reading for that asset+meter_type (meter trigger)
 //! - For each due assignment, atomically: enqueue `maintenance.plan.due` event
 //!   + set due_notified_at = NOW().
+//! - If tenant has auto_create_on_due=true, a work order is created in the same tx.
+//!   - approvals_required=true → WO starts as awaiting_approval; else scheduled.
 //! - Idempotency: due_notified_at prevents re-emission until reset (after WO completion).
 //! - FOR UPDATE SKIP LOCKED prevents concurrent scheduler instances from double-processing.
 
@@ -20,6 +22,7 @@ use uuid::Uuid;
 pub struct TickResult {
     pub evaluated: usize,
     pub events_emitted: usize,
+    pub work_orders_created: usize,
 }
 
 /// A due assignment row returned by the finder query.
@@ -36,6 +39,7 @@ struct DueAssignment {
     plan_priority: String,
     schedule_type: String,
     meter_type_id: Option<Uuid>,
+    task_checklist: Option<serde_json::Value>,
 }
 
 /// Event payload for `maintenance.plan.due`.
@@ -91,7 +95,8 @@ pub async fn evaluate_due(pool: &PgPool) -> Result<TickResult, sqlx::Error> {
             p.name AS plan_name,
             p.priority AS plan_priority,
             p.schedule_type,
-            p.meter_type_id
+            p.meter_type_id,
+            p.task_checklist
         FROM maintenance_plan_assignments a
         JOIN maintenance_plans p ON a.plan_id = p.id AND p.tenant_id = a.tenant_id
         WHERE a.state = 'active'
@@ -211,6 +216,46 @@ pub async fn evaluate_due(pool: &PgPool) -> Result<TickResult, sqlx::Error> {
         .execute(&mut *tx)
         .await?;
 
+        // Auto-create work order if tenant config enables it
+        let config = super::tenant_config::TenantConfigRepo::get_or_default_tx(
+            &mut tx,
+            &assignment.tenant_id,
+        )
+        .await?;
+
+        if config.auto_create_on_due {
+            let initial_status = if config.approvals_required {
+                "awaiting_approval"
+            } else {
+                "scheduled"
+            };
+
+            let title = format!("[Auto] {}", assignment.plan_name);
+            super::work_orders::WorkOrderRepo::create_from_due_tx(
+                &mut tx,
+                &assignment.tenant_id,
+                assignment.asset_id,
+                assignment.id,
+                &title,
+                &assignment.plan_priority,
+                initial_status,
+                assignment.task_checklist.as_ref(),
+            )
+            .await
+            .map_err(|e| match e {
+                super::work_orders::WoError::Database(db_err) => db_err,
+                other => sqlx::Error::Protocol(other.to_string()),
+            })?;
+
+            result.work_orders_created += 1;
+
+            tracing::info!(
+                assignment_id = %assignment.id,
+                initial_status = initial_status,
+                "auto-created work order from due plan"
+            );
+        }
+
         tx.commit().await?;
         result.events_emitted += 1;
 
@@ -248,6 +293,7 @@ pub async fn run_scheduler_task(pool: PgPool, interval_secs: u64) {
                     tick = tick_count,
                     evaluated = result.evaluated,
                     emitted = result.events_emitted,
+                    wos_created = result.work_orders_created,
                     "Maintenance scheduler: due events emitted"
                 );
             }

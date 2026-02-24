@@ -108,6 +108,17 @@ pub enum WoError {
     Database(#[from] sqlx::Error),
 }
 
+// ── Cost payload for GL integration ───────────────────────────
+
+/// Cost totals computed at WO completion, embedded in the completed event.
+/// Downstream GL can post journal entries deterministically from this alone.
+struct CostPayload {
+    total_parts_minor: i64,
+    total_labor_minor: i64,
+    currency: String,
+    fixed_asset_ref: Option<Uuid>,
+}
+
 // ── Repository ────────────────────────────────────────────────
 
 pub struct WorkOrderRepo;
@@ -134,6 +145,71 @@ impl WorkOrderRepo {
         .await?;
 
         Ok(format!("WO-{:06}", row.0))
+    }
+
+    /// Compute cost totals for a completed work order within the same tx.
+    ///
+    /// Parts total: SUM(quantity * unit_cost_minor)
+    /// Labor total: SUM(ROUND(hours_decimal * rate_minor))
+    /// Currency: taken from first cost entry, or "USD" if no entries.
+    /// fixed_asset_ref: from the linked maintainable_asset.
+    async fn compute_cost_payload(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        wo_id: Uuid,
+        tenant_id: &str,
+        asset_id: Uuid,
+    ) -> Result<CostPayload, sqlx::Error> {
+        // Parts total + currency
+        // SUM of BIGINT returns NUMERIC; cast to BIGINT for Rust i64.
+        let parts_row: (i64, Option<String>) = sqlx::query_as(
+            r#"
+            SELECT COALESCE(SUM(quantity::bigint * unit_cost_minor), 0)::bigint,
+                   MIN(currency)
+            FROM work_order_parts
+            WHERE work_order_id = $1 AND tenant_id = $2
+            "#,
+        )
+        .bind(wo_id)
+        .bind(tenant_id)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        // Labor total + currency
+        // hours_decimal is NUMERIC(8,2), rate_minor is BIGINT.
+        // ROUND produces NUMERIC; cast final SUM to BIGINT for Rust i64.
+        let labor_row: (i64, Option<String>) = sqlx::query_as(
+            r#"
+            SELECT COALESCE(SUM(ROUND(hours_decimal * rate_minor))::bigint, 0),
+                   MIN(currency)
+            FROM work_order_labor
+            WHERE work_order_id = $1 AND tenant_id = $2
+            "#,
+        )
+        .bind(wo_id)
+        .bind(tenant_id)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        // Pick currency from first available cost entry, default to "USD"
+        let currency = parts_row.1.or(labor_row.1).unwrap_or_else(|| "USD".into());
+
+        // Fetch fixed_asset_ref from the linked asset
+        let asset_row: Option<(Option<Uuid>,)> = sqlx::query_as(
+            "SELECT fixed_asset_ref FROM maintainable_assets WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(asset_id)
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?;
+
+        let fixed_asset_ref = asset_row.and_then(|r| r.0);
+
+        Ok(CostPayload {
+            total_parts_minor: parts_row.0,
+            total_labor_minor: labor_row.0,
+            currency,
+            fixed_asset_ref,
+        })
     }
 
     /// Create a work order (ad-hoc or from plan assignment).
@@ -236,6 +312,70 @@ impl WorkOrderRepo {
         Ok(wo)
     }
 
+    /// Create a work order from a due plan assignment within a caller-owned transaction.
+    ///
+    /// Used by the scheduler for auto-creation. The caller manages the transaction
+    /// so this can be atomic with the plan.due event + due_notified_at update.
+    ///
+    /// `initial_status` must be either "awaiting_approval" or "scheduled".
+    pub async fn create_from_due_tx(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        tenant_id: &str,
+        asset_id: Uuid,
+        assignment_id: Uuid,
+        title: &str,
+        priority: &str,
+        initial_status: &str,
+        checklist: Option<&serde_json::Value>,
+    ) -> Result<WorkOrder, WoError> {
+        let wo_number = Self::next_wo_number(tx, tenant_id).await?;
+        let id = Uuid::new_v4();
+
+        let wo = sqlx::query_as::<_, WorkOrder>(
+            r#"
+            INSERT INTO work_orders
+                (id, tenant_id, asset_id, plan_assignment_id, wo_number,
+                 title, wo_type, priority, status, checklist)
+            VALUES ($1, $2, $3, $4, $5, $6, 'preventive', $7, $8, $9)
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .bind(asset_id)
+        .bind(assignment_id)
+        .bind(&wo_number)
+        .bind(title)
+        .bind(priority)
+        .bind(initial_status)
+        .bind(checklist)
+        .fetch_one(&mut **tx)
+        .await?;
+
+        let event_payload = serde_json::json!({
+            "work_order_id": id,
+            "tenant_id": tenant_id,
+            "asset_id": asset_id,
+            "wo_number": &wo_number,
+            "wo_type": "preventive",
+            "priority": priority,
+            "plan_assignment_id": assignment_id,
+            "auto_created": true,
+            "initial_status": initial_status,
+        });
+        outbox::enqueue_event_tx(
+            tx,
+            Uuid::new_v4(),
+            "maintenance.work_order.created",
+            "work_order",
+            &id.to_string(),
+            &event_payload,
+        )
+        .await?;
+
+        Ok(wo)
+    }
+
     /// Transition a work order's status with guard enforcement.
     pub async fn transition(
         pool: &PgPool,
@@ -305,13 +445,30 @@ impl WorkOrderRepo {
             _ => "maintenance.work_order.status_changed",
         };
 
-        let event_payload = serde_json::json!({
-            "work_order_id": wo_id,
-            "tenant_id": &req.tenant_id,
-            "wo_number": &wo.wo_number,
-            "from_status": current.status.as_str(),
-            "to_status": target.as_str(),
-        });
+        // ── Cost payload for completed events (GL integration seam) ──
+        let event_payload = if target == WoStatus::Completed {
+            let cost = Self::compute_cost_payload(&mut tx, wo_id, &req.tenant_id, wo.asset_id)
+                .await?;
+            serde_json::json!({
+                "work_order_id": wo_id,
+                "tenant_id": &req.tenant_id,
+                "wo_number": &wo.wo_number,
+                "from_status": current.status.as_str(),
+                "to_status": target.as_str(),
+                "total_parts_minor": cost.total_parts_minor,
+                "total_labor_minor": cost.total_labor_minor,
+                "currency": cost.currency,
+                "fixed_asset_ref": cost.fixed_asset_ref,
+            })
+        } else {
+            serde_json::json!({
+                "work_order_id": wo_id,
+                "tenant_id": &req.tenant_id,
+                "wo_number": &wo.wo_number,
+                "from_status": current.status.as_str(),
+                "to_status": target.as_str(),
+            })
+        };
         outbox::enqueue_event_tx(
             &mut tx,
             Uuid::new_v4(),
@@ -375,4 +532,5 @@ impl WorkOrderRepo {
         .await
         .map_err(WoError::Database)
     }
+
 }
