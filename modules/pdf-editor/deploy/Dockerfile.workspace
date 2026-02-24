@@ -38,11 +38,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libssl3 curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install PDFium shared library (required by pdfium-render)
+RUN curl -fsSL https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F7699/pdfium-linux-x64.tgz \
+    | tar -xzf - -C /usr/local/lib --strip-components=1 lib/libpdfium.so \
+    && ldconfig
+
 COPY --from=builder /app/target/release/pdf-editor-rs /usr/local/bin/pdf-editor-rs
 COPY --from=builder /app/modules/pdf-editor/db/migrations /app/db/migrations
 
 ENV HOST=0.0.0.0
 ENV PORT=8102
+ENV PDFIUM_LIB_PATH=/usr/local/lib/libpdfium.so
 
 EXPOSE 8102
 
