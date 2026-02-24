@@ -1,0 +1,1095 @@
+openapi: 3.0.3
+info:
+  title: PDF Editor API
+  version: 0.1.0
+  description: |
+    Stateless PDF processing engine for annotation rendering, form templating,
+    form filling, and PDF generation.
+
+    **Design:** The editor never stores PDF files. The caller provides PDF bytes,
+    the editor processes them (burn annotations, fill form data), and returns
+    the result. The caller manages file storage.
+
+    **Ownership Boundaries:**
+    - Owns: form_templates, form_fields, form_submissions, events_outbox
+    - Does NOT own: PDF file storage, annotation persistence (browser-only)
+
+    **Key Principles:**
+    - Stateless PDF processing — receive bytes, process, return bytes
+    - Multi-tenant via tenant_id query parameter
+    - Guard -> Mutation -> Outbox atomicity pattern
+    - EventEnvelope on NATS for pdf.form.submitted, pdf.form.generated
+
+servers:
+  - url: https://pdf-editor.7dsolutions.io
+    description: Production
+  - url: http://localhost:8092
+    description: Local development
+
+paths:
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: healthz
+      tags: [ops]
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /api/health:
+    get:
+      summary: Health check
+      operationId: getHealth
+      tags: [ops]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  service:
+                    type: string
+                    example: pdf-editor-rs
+                  version:
+                    type: string
+                    example: 0.1.0
+
+  /api/ready:
+    get:
+      summary: Readiness probe (verifies DB connectivity)
+      operationId: getReady
+      tags: [ops]
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+        '503':
+          description: Service not ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReadyResponse'
+
+  /api/version:
+    get:
+      summary: Module version
+      operationId: getVersion
+      tags: [ops]
+      responses:
+        '200':
+          description: Module version info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  module_name:
+                    type: string
+                    example: pdf-editor-rs
+                  module_version:
+                    type: string
+                    example: 0.1.0
+
+  /metrics:
+    get:
+      summary: Prometheus metrics
+      operationId: getMetrics
+      tags: [ops]
+      responses:
+        '200':
+          description: Prometheus-format metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  # ---------------------------------------------------------------------------
+  # PDF Processing (Stateless)
+  # ---------------------------------------------------------------------------
+
+  /api/pdf/render-annotations:
+    post:
+      summary: Render annotations onto a PDF
+      operationId: renderAnnotations
+      tags: [pdf-processing]
+      description: |
+        Accepts multipart form data with PDF bytes and annotation JSON.
+        Burns annotations into the PDF and returns the processed PDF bytes.
+        Body limit: 50 MB.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, annotations]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PDF file bytes
+                annotations:
+                  type: string
+                  description: JSON array of Annotation objects
+      responses:
+        '200':
+          description: Annotated PDF bytes
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="annotated.pdf"'
+        '400':
+          description: Invalid request (missing fields, bad JSON, invalid PDF)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: PDF too large (exceeds 50 MB limit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal render error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/pdf/forms/submissions/{id}/generate:
+    post:
+      summary: Generate filled PDF from a submission
+      operationId: generatePdf
+      tags: [pdf-processing]
+      description: |
+        Accepts multipart form data with PDF template bytes and a submission ID.
+        Looks up the submission's field data and template field positions,
+        overlays the values onto the PDF, and returns the filled PDF bytes.
+        Emits pdf.form.generated event.
+        Submission must be in 'submitted' status.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Submission ID
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Tenant identifier for multi-tenant isolation
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: PDF template file bytes
+      responses:
+        '200':
+          description: Filled PDF bytes
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+                example: 'attachment; filename="generated.pdf"'
+        '400':
+          description: Invalid request or submission not in 'submitted' status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Submission not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: PDF too large
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal generation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ---------------------------------------------------------------------------
+  # Form Templates
+  # ---------------------------------------------------------------------------
+
+  /api/pdf/forms/templates:
+    post:
+      summary: Create form template
+      operationId: createTemplate
+      tags: [templates]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTemplateRequest'
+      responses:
+        '201':
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormTemplate'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      summary: List form templates
+      operationId: listTemplates
+      tags: [templates]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FormTemplate'
+
+  /api/pdf/forms/templates/{id}:
+    get:
+      summary: Get form template by ID
+      operationId: getTemplate
+      tags: [templates]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Template details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormTemplate'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Update form template
+      operationId: updateTemplate
+      tags: [templates]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTemplateRequest'
+      responses:
+        '200':
+          description: Template updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormTemplate'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ---------------------------------------------------------------------------
+  # Form Fields
+  # ---------------------------------------------------------------------------
+
+  /api/pdf/forms/templates/{id}/fields:
+    post:
+      summary: Create field on template
+      operationId: createField
+      tags: [fields]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Template ID
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFieldRequest'
+      responses:
+        '201':
+          description: Field created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormField'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Duplicate field key on this template
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      summary: List fields on template
+      operationId: listFields
+      tags: [fields]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Template ID
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of fields ordered by display_order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FormField'
+
+  /api/pdf/forms/templates/{tid}/fields/{fid}:
+    put:
+      summary: Update field
+      operationId: updateField
+      tags: [fields]
+      parameters:
+        - name: tid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Template ID
+        - name: fid
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Field ID
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFieldRequest'
+      responses:
+        '200':
+          description: Field updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormField'
+        '404':
+          description: Field or template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/pdf/forms/templates/{id}/fields/reorder:
+    post:
+      summary: Reorder fields on template
+      operationId: reorderFields
+      tags: [fields]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Template ID
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReorderFieldsRequest'
+      responses:
+        '200':
+          description: Fields reordered — returns updated list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FormField'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ---------------------------------------------------------------------------
+  # Form Submissions
+  # ---------------------------------------------------------------------------
+
+  /api/pdf/forms/submissions:
+    post:
+      summary: Create submission (draft)
+      operationId: createSubmission
+      tags: [submissions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubmissionRequest'
+      responses:
+        '201':
+          description: Draft submission created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormSubmission'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    get:
+      summary: List submissions
+      operationId: listSubmissions
+      tags: [submissions]
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: template_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: Filter by template
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, submitted]
+          description: Filter by status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of submissions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FormSubmission'
+
+  /api/pdf/forms/submissions/{id}:
+    get:
+      summary: Get submission by ID
+      operationId: getSubmission
+      tags: [submissions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Submission details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormSubmission'
+        '404':
+          description: Submission not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      summary: Autosave field data (draft only)
+      operationId: autosaveSubmission
+      tags: [submissions]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutosaveRequest'
+      responses:
+        '200':
+          description: Submission updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormSubmission'
+        '404':
+          description: Submission not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Submission already submitted (cannot autosave)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/pdf/forms/submissions/{id}/submit:
+    post:
+      summary: Validate and submit
+      operationId: submitSubmission
+      tags: [submissions]
+      description: |
+        Validates field_data against template field definitions and transitions
+        submission from draft to submitted. Emits pdf.form.submitted event.
+        Cannot be undone — submitted submissions are immutable.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Submission validated and submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FormSubmission'
+        '400':
+          description: Validation errors in field_data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Submission not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Already submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    # -------------------------------------------------------------------------
+    # Form Template
+    # -------------------------------------------------------------------------
+
+    FormTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        created_by:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateTemplateRequest:
+      type: object
+      required: [tenant_id, name, created_by]
+      properties:
+        tenant_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        created_by:
+          type: string
+
+    UpdateTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+
+    # -------------------------------------------------------------------------
+    # Form Field
+    # -------------------------------------------------------------------------
+
+    FormField:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        template_id:
+          type: string
+          format: uuid
+        field_key:
+          type: string
+        field_label:
+          type: string
+        field_type:
+          type: string
+          enum: [text, number, date, dropdown, checkbox]
+        validation_rules:
+          type: object
+          description: |
+            Validation rules vary by field_type:
+            - text: { required: bool, pattern: string }
+            - number: { required: bool, min: number, max: number }
+            - date: { required: bool }
+            - dropdown: { required: bool, options: string[] }
+            - checkbox: { required: bool }
+        pdf_position:
+          type: object
+          description: Position on the PDF page
+          properties:
+            x:
+              type: number
+            y:
+              type: number
+            width:
+              type: number
+            height:
+              type: number
+            page:
+              type: integer
+        display_order:
+          type: integer
+
+    CreateFieldRequest:
+      type: object
+      required: [field_key, field_label, field_type]
+      properties:
+        field_key:
+          type: string
+        field_label:
+          type: string
+        field_type:
+          type: string
+          enum: [text, number, date, dropdown, checkbox]
+        validation_rules:
+          type: object
+        pdf_position:
+          type: object
+
+    UpdateFieldRequest:
+      type: object
+      properties:
+        field_label:
+          type: string
+        field_type:
+          type: string
+          enum: [text, number, date, dropdown, checkbox]
+        validation_rules:
+          type: object
+        pdf_position:
+          type: object
+
+    ReorderFieldsRequest:
+      type: object
+      required: [field_ids]
+      properties:
+        field_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+          description: Ordered list of field IDs — position in array determines display_order
+
+    # -------------------------------------------------------------------------
+    # Form Submission
+    # -------------------------------------------------------------------------
+
+    FormSubmission:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        template_id:
+          type: string
+          format: uuid
+        submitted_by:
+          type: string
+        status:
+          type: string
+          enum: [draft, submitted]
+        field_data:
+          type: object
+          description: Key-value map of field_key to field value
+        created_at:
+          type: string
+          format: date-time
+        submitted_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    CreateSubmissionRequest:
+      type: object
+      required: [tenant_id, template_id, submitted_by]
+      properties:
+        tenant_id:
+          type: string
+        template_id:
+          type: string
+          format: uuid
+        submitted_by:
+          type: string
+        field_data:
+          type: object
+          description: Initial field data (optional)
+
+    AutosaveRequest:
+      type: object
+      required: [field_data]
+      properties:
+        field_data:
+          type: object
+          description: Updated field data
+
+    # -------------------------------------------------------------------------
+    # Annotation (input schema for render-annotations)
+    # -------------------------------------------------------------------------
+
+    Annotation:
+      type: object
+      required: [id, x, y, pageNumber, type]
+      description: |
+        Annotation from the frontend. All coordinates are in PDF user-space
+        units (points) relative to the page. pageNumber is 1-based.
+        Additional properties depend on the annotation type.
+      properties:
+        id:
+          type: string
+        x:
+          type: number
+        y:
+          type: number
+        pageNumber:
+          type: integer
+          minimum: 1
+        type:
+          type: string
+          enum: [CALLOUT, ARROW, HIGHLIGHT, STAMP, SHAPE, FREEHAND, TEXT, BUBBLE, SIGNATURE]
+        text:
+          type: string
+        fontSize:
+          type: number
+        fontFamily:
+          type: string
+        fontWeight:
+          type: string
+        fontStyle:
+          type: string
+        color:
+          type: string
+        bgColor:
+          type: string
+        borderColor:
+          type: string
+        x2:
+          type: number
+          description: Arrow end X
+        y2:
+          type: number
+          description: Arrow end Y
+        arrowheadSize:
+          type: number
+        strokeWidth:
+          type: number
+        shapeType:
+          type: string
+          enum: [RECTANGLE, CIRCLE, LINE, POLYGON, REVISION_CLOUD]
+        width:
+          type: number
+        height:
+          type: number
+        opacity:
+          type: number
+        stampType:
+          type: string
+          enum: [APPROVED, REJECTED, FAI_REQUIRED, HOLD, REVIEWED, VERIFIED, CUSTOM]
+        stampUsername:
+          type: string
+        stampDate:
+          type: string
+        stampTime:
+          type: string
+        path:
+          type: array
+          items:
+            $ref: '#/components/schemas/Point'
+          description: Freehand drawing points
+        bubbleNumber:
+          type: integer
+        bubbleSize:
+          type: number
+        signatureMethod:
+          type: string
+        signaturePath:
+          type: array
+          items:
+            $ref: '#/components/schemas/SignaturePoint'
+        signatureImage:
+          type: string
+          description: Base64-encoded PNG
+        signatureText:
+          type: string
+
+    Point:
+      type: object
+      required: [x, y]
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+
+    SignaturePoint:
+      type: object
+      required: [x, y]
+      properties:
+        x:
+          type: number
+        y:
+          type: number
+        newStroke:
+          type: boolean
+
+    # -------------------------------------------------------------------------
+    # Ops
+    # -------------------------------------------------------------------------
+
+    ReadyResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ready, degraded]
+        service:
+          type: string
+        version:
+          type: string
+        checks:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              status:
+                type: string
+              latency_ms:
+                type: integer
+
+    # -------------------------------------------------------------------------
+    # Error
+    # -------------------------------------------------------------------------
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Error code or message
+        message:
+          type: string
+          description: Human-readable error message
