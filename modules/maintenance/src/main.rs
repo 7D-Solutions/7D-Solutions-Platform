@@ -1,4 +1,4 @@
-use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
+use axum::{extract::DefaultBodyLimit, routing::{get, post}, Extension, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use maintenance_rs::{config::Config, metrics, outbox, routes, AppState};
 use security::{
@@ -92,6 +92,25 @@ async fn main() {
         .route("/api/ready", get(routes::health::ready))
         .route("/api/version", get(routes::health::version))
         .route("/metrics", get(metrics::metrics_handler))
+        // Asset endpoints
+        .route(
+            "/api/maintenance/assets",
+            post(routes::assets::create_asset).get(routes::assets::list_assets),
+        )
+        .route(
+            "/api/maintenance/assets/{asset_id}",
+            get(routes::assets::get_asset).patch(routes::assets::update_asset),
+        )
+        // Meter type endpoints
+        .route(
+            "/api/maintenance/meter-types",
+            post(routes::meters::create_meter_type).get(routes::meters::list_meter_types),
+        )
+        // Meter reading endpoints
+        .route(
+            "/api/maintenance/assets/{asset_id}/readings",
+            post(routes::meters::record_reading).get(routes::meters::list_readings),
+        )
         .with_state(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(

@@ -178,6 +178,14 @@ impl fmt::Display for AssetType {
     }
 }
 
+impl TryFrom<String> for AssetType {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::from_str_value(&s).map_err(|e| e.to_string())
+    }
+}
+
 /// Asset operational status.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -212,6 +220,14 @@ impl AssetStatus {
 impl fmt::Display for AssetStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())
+    }
+}
+
+impl TryFrom<String> for AssetStatus {
+    type Error = String;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Self::from_str_value(&s).map_err(|e| e.to_string())
     }
 }
 
