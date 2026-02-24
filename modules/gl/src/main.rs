@@ -35,10 +35,14 @@ use gl_rs::{
         get_reporting_income_statement,
         get_reporting_balance_sheet,
     },
+    consumer::ap_vendor_bill_approved_consumer::start_ap_vendor_bill_approved_consumer,
     consumer::ar_tax_liability::{start_ar_tax_committed_consumer, start_ar_tax_voided_consumer},
     consumer::fixed_assets_depreciation::start_fixed_assets_depreciation_consumer,
+    consumer::gl_credit_note_consumer::start_gl_credit_note_consumer,
+    consumer::gl_fx_realized_consumer::start_gl_fx_realized_consumer,
     consumer::gl_inventory_consumer::start_gl_inventory_consumer,
     consumer::gl_writeoff_consumer::start_gl_writeoff_consumer,
+    consumer::timekeeping_labor_cost::start_gl_labor_cost_consumer,
     start_gl_posting_consumer,
     start_gl_reversal_consumer,
     AppState,
@@ -132,6 +136,26 @@ async fn main() {
     let fa_depr_pool = pool.clone();
     let fa_depr_bus = bus.clone();
     start_fixed_assets_depreciation_consumer(fa_depr_bus, fa_depr_pool).await;
+
+    // Start GL credit note consumer
+    let credit_note_pool = pool.clone();
+    let credit_note_bus = bus.clone();
+    start_gl_credit_note_consumer(credit_note_bus, credit_note_pool).await;
+
+    // Start AP vendor bill approved consumer
+    let ap_bill_pool = pool.clone();
+    let ap_bill_bus = bus.clone();
+    start_ap_vendor_bill_approved_consumer(ap_bill_bus, ap_bill_pool).await;
+
+    // Start GL realized FX gain/loss consumer
+    let fx_realized_pool = pool.clone();
+    let fx_realized_bus = bus.clone();
+    start_gl_fx_realized_consumer(fx_realized_bus, fx_realized_pool).await;
+
+    // Start timekeeping labor cost consumer
+    let labor_pool = pool.clone();
+    let labor_bus = bus.clone();
+    start_gl_labor_cost_consumer(labor_bus, labor_pool).await;
 
     // Create metrics registry
     let metrics = Arc::new(
