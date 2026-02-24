@@ -8,7 +8,7 @@ pub async fn ensure_streams(nats: Client) -> Result<(), Box<dyn std::error::Erro
     // AUTH_EVENTS stream
     let events_cfg = Config {
         name: "AUTH_EVENTS".to_string(),
-        subjects: vec!["auth.events.*".to_string()],
+        subjects: vec!["auth.events.>".to_string()],
         max_age: Duration::from_secs(60 * 60 * 24 * 14), // 14 days (reasonable default)
         ..Default::default()
     };
