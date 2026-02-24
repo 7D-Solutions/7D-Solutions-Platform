@@ -1,1 +1,0 @@
-../../modules/maintenance/docs/MAINTENANCE-MODULE-SPEC.md
