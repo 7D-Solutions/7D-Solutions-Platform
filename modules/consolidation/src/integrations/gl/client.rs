@@ -160,6 +160,43 @@ impl GlClient {
         }
     }
 
+    /// Fetch the latest FX rate for a currency pair as-of a given date.
+    ///
+    /// Calls GL's GET /api/gl/fx-rates/latest with base/quote currencies
+    /// and an as_of timestamp. Returns None if no rate is found (404).
+    pub async fn get_fx_rate(
+        &self,
+        tenant_id: &str,
+        base_currency: &str,
+        quote_currency: &str,
+        as_of: &str,
+    ) -> Result<Option<GlFxRateResponse>, GlClientError> {
+        let url = format!("{}/api/gl/fx-rates/latest", self.base_url);
+        let resp = self
+            .client
+            .get(&url)
+            .query(&[
+                ("tenant_id", tenant_id),
+                ("base_currency", base_currency),
+                ("quote_currency", quote_currency),
+                ("as_of", as_of),
+            ])
+            .send()
+            .await?;
+
+        if resp.status().as_u16() == 404 {
+            return Ok(None);
+        }
+
+        if !resp.status().is_success() {
+            let status = resp.status().as_u16();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(GlClientError::Api { status, body });
+        }
+
+        Ok(Some(resp.json().await?))
+    }
+
     /// Post an elimination journal entry to GL.
     ///
     /// Uses source_module = "consolidation-elimination" for audit trail.
@@ -222,6 +259,14 @@ impl GlClient {
         let result: PostJournalResponse = resp.json().await?;
         Ok(result.journal_entry_id)
     }
+}
+
+/// FX rate response from GL's GET /api/gl/fx-rates/latest
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlFxRateResponse {
+    pub rate: f64,
+    pub base_currency: String,
+    pub quote_currency: String,
 }
 
 /// Response from GL journal entry creation endpoint.

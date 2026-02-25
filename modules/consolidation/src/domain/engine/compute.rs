@@ -13,7 +13,7 @@ use super::{
     compute_input_hash, ConsolidatedTbRow, ConsolidationResult, EngineError, EntityHashEntry,
 };
 use crate::domain::config::{self, CoaMapping, EliminationRule, FxPolicy, GroupEntity};
-use crate::integrations::gl::client::GlClient;
+use crate::integrations::gl::client::{GlClient, GlFxRateResponse};
 
 /// Run the full consolidation pipeline for a group + as_of date.
 ///
@@ -63,7 +63,15 @@ pub async fn consolidate(
             .filter(|m| m.entity_tenant_id == entity.entity_tenant_id)
             .collect();
 
-        let fx_rate = resolve_fx_rate(entity, &group.reporting_currency, &fx_policies);
+        let fx_rate = resolve_fx_rate(
+            gl_client,
+            tenant_id,
+            entity,
+            &group.reporting_currency,
+            as_of,
+            &fx_policies,
+        )
+        .await?;
 
         for row in &tb.rows {
             let (target_code, target_name) =
@@ -145,25 +153,51 @@ fn map_account(
     }
 }
 
-/// Resolve FX rate for an entity.
+/// Resolve FX rate for an entity via GL's FX rates service.
 ///
 /// If entity currency == reporting currency, rate is 1.0 (no conversion).
-/// Otherwise, we use a rate of 1.0 as a placeholder — real FX rates would
-/// come from a rates service keyed by (from, to, as_of, rate_type).
-/// The FX policy tells us *which* rate type to use per account category,
-/// but the actual rate lookup is deferred to a future FX rates integration.
-fn resolve_fx_rate(
+/// Otherwise, fetches the latest rate from GL for (functional_currency → reporting_currency)
+/// as of the consolidation date. Returns an error if no rate is found.
+async fn resolve_fx_rate(
+    gl_client: &GlClient,
+    tenant_id: &str,
     entity: &GroupEntity,
     reporting_currency: &str,
+    as_of: NaiveDate,
     _fx_policies: &[FxPolicy],
-) -> f64 {
+) -> Result<f64, EngineError> {
     if entity.functional_currency == reporting_currency {
-        1.0
-    } else {
-        // TODO(Phase 32+): Integrate with FX rates service.
-        // For now, same-currency entities get 1:1; cross-currency entities
-        // also get 1:1 (identity) as a safe default until FX rates are wired.
-        1.0
+        return Ok(1.0);
+    }
+
+    // Convert as_of date to RFC 3339 timestamp (end-of-day UTC) for the GL API
+    let as_of_str = format!("{}T23:59:59Z", as_of);
+
+    let rate_resp = gl_client
+        .get_fx_rate(
+            tenant_id,
+            &entity.functional_currency,
+            reporting_currency,
+            &as_of_str,
+        )
+        .await?;
+
+    match rate_resp {
+        Some(GlFxRateResponse { rate, .. }) => {
+            tracing::info!(
+                entity = %entity.entity_tenant_id,
+                from = %entity.functional_currency,
+                to = %reporting_currency,
+                rate = %rate,
+                "Resolved FX rate from GL"
+            );
+            Ok(rate)
+        }
+        None => Err(EngineError::FxRateNotFound {
+            entity: entity.entity_tenant_id.clone(),
+            from_currency: entity.functional_currency.clone(),
+            to_currency: reporting_currency.to_string(),
+        }),
     }
 }
 

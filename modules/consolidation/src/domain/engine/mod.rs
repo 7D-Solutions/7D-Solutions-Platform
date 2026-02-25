@@ -31,6 +31,13 @@ pub enum EngineError {
     #[error("Missing FX policy for entity {0}")]
     MissingFxPolicy(String),
 
+    #[error("FX rate not found: {from_currency}/{to_currency} for entity {entity}")]
+    FxRateNotFound {
+        entity: String,
+        from_currency: String,
+        to_currency: String,
+    },
+
     #[error("Config error: {0}")]
     Config(#[from] super::config::ConfigError),
 
