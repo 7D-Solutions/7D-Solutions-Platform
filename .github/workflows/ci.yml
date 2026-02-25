@@ -427,21 +427,7 @@ jobs:
           key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Run cargo clippy
-        run: |
-          cargo clippy --workspace -- -D warnings \
-            -A dead-code \
-            -A unused-imports \
-            -A clippy::empty_line_after_doc_comments \
-            -A clippy::type_complexity \
-            -A clippy::too_many_arguments \
-            -A clippy::should_implement_trait \
-            -A clippy::unnecessary_map_or \
-            -A clippy::needless_borrows_for_generic_args \
-            -A clippy::redundant_closure \
-            -A clippy::doc_lazy_continuation \
-            -A clippy::doc_overindented_list_items \
-            -A clippy::manual_clamp \
-            -A clippy::unnecessary_unwrap
+        run: cargo clippy --workspace -- -D warnings
 
   lint-no-panic:
     name: Lint - No Unwrap/Expect in Critical Paths
