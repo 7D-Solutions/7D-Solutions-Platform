@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 2.1.4 | 2026-02-25 | bd-2ivp | Added connection pool metrics (size, idle, active) to `/api/ready` response via `db_check_with_pool`. | Ops needs pool saturation visibility to detect connection exhaustion before it causes request timeouts. | No |
 | 2.1.3 | 2026-02-25 | bd-289r | Fixed clippy warnings: removed empty lines after doc comments, simplified borrowed expressions, removed redundant closures. | Enable cargo clippy -D warnings in CI. | No |
 | 2.1.2 | 2026-02-25 | bd-1uce | Added graceful shutdown with SIGTERM/SIGINT signal handling. Server now drains in-flight requests before closing DB pool on shutdown. | Zero-downtime deploys require graceful shutdown to avoid dropping in-flight requests. | No |
 | 2.1.1 | 2026-02-25 | bd-3m10 | Added integration tests: `billing_run_integration.rs` (9 tests for `collect_parties_to_bill` and `fetch_run_summary` — agreements, one-time charges, suspended exclusion, already-invoiced skip, multi-agreement sum, empty run) and `service_agreement_integration.rs` (7 tests for service agreements HTTP endpoint — status filters, sort order, 400/401 error cases). Made `billing_db` module `pub` for integration test access. | TTP is the billing backbone — untested billing and service-agreement logic is a revenue risk. These tests cover the DB query helpers and HTTP endpoint paths that were previously untested. | No |

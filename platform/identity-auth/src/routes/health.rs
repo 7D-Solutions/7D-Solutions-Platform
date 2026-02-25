@@ -85,11 +85,17 @@ pub async fn ready(
         .with_label_values(&["nats"])
         .set(if nats_ok { 1 } else { 0 });
 
+    let pool_metrics = health::PoolMetrics {
+        size: state.db.size(),
+        idle: state.db.num_idle() as u32,
+        active: state.db.size().saturating_sub(state.db.num_idle() as u32),
+    };
+
     let resp = health::build_ready_response(
         "identity-auth",
         env!("CARGO_PKG_VERSION"),
         vec![
-            health::db_check(db_latency, db_err),
+            health::db_check_with_pool(db_latency, db_err, pool_metrics),
             health::nats_check(nats_ok, 0),
         ],
     );

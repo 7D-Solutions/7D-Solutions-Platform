@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.1.11 | 2026-02-25 | bd-2ivp | Added connection pool metrics (size, idle, active) to `/api/ready` response via `db_check_with_pool`. | Ops needs pool saturation visibility to detect connection exhaustion before it causes request timeouts. | No |
 | 1.1.10 | 2026-02-25 | bd-289r | Fixed clippy warnings: removed unused imports, simplified borrowed expressions, removed redundant closures. | Enable cargo clippy -D warnings in CI. | No |
 | 1.1.8 | 2026-02-25 | bd-1uce | Added graceful shutdown with SIGTERM/SIGINT signal handling. Server now drains in-flight requests before closing DB pool on shutdown. | Zero-downtime deploys require graceful shutdown to avoid dropping in-flight requests. | No |
 | 1.1.7 | 2026-02-25 | bd-3fvu | Added 16 new edge-case integration tests for webhook signature verification in `tests/webhook_signature_edge_tests.rs`. Covers: HMAC correctness (case-insensitive header, empty body, secret rotation old/new/unknown), replay attack prevention (boundary 299s/301s, future timestamp, non-numeric timestamp), malformed payload handling (missing t=, missing v1=, empty header, empty v1, extra components), and webhook source dispatch (Internal always-pass, Stripe unsupported). | Test coverage for financial webhook signature verification — failed verification = missed payments or accepted fraudulent callbacks. | No |

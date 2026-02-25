@@ -32,10 +32,16 @@ async fn ready(
         .map(|e| e.to_string());
     let latency = start.elapsed().as_millis() as u64;
 
+    let pool_metrics = health::PoolMetrics {
+        size: state.pool.size(),
+        idle: state.pool.num_idle() as u32,
+        active: state.pool.size().saturating_sub(state.pool.num_idle() as u32),
+    };
+
     let resp = health::build_ready_response(
         "control-plane",
         env!("CARGO_PKG_VERSION"),
-        vec![health::db_check(latency, db_err)],
+        vec![health::db_check_with_pool(latency, db_err, pool_metrics)],
     );
     health::ready_response_to_axum(resp)
 }
