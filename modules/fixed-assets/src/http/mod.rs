@@ -2,6 +2,7 @@ pub mod admin;
 pub mod assets;
 pub mod depreciation;
 pub mod disposals;
+pub mod helpers;
 
 use axum::{extract::State, http::StatusCode, Json};
 use health::{build_ready_response, db_check, ready_response_to_axum, ReadyResponse};
