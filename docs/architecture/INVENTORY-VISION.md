@@ -62,7 +62,7 @@ Inventory does **NOT**:
 | `reorder_policies` | Min/max reorder rules per item/location |
 | `valuation_snapshots` | Point-in-time valuation captures |
 | `low_stock_state` | Low stock detection state per item |
-| `events_outbox` | Module outbox for NATS |
+| `inv_outbox` | Module outbox for NATS |
 
 ---
 

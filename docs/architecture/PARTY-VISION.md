@@ -39,8 +39,8 @@ Party does **NOT**:
 | `party_external_refs` | External system cross-references |
 | `contacts` | Contact persons per party |
 | `addresses` | Addresses per party |
-| `events_outbox` | Module outbox for NATS |
-| `processed_events` | Consumer idempotency |
+| `party_outbox` | Module outbox for NATS |
+| `party_processed_events` | Consumer idempotency |
 
 ---
 

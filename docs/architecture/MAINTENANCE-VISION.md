@@ -36,10 +36,15 @@ Maintenance does **NOT**:
 
 | Table | Purpose |
 |---|---|
-| `work_orders` | Work order headers with status and assignment |
-| `wo_lines` / parts_and_labor | Cost line items per work order |
-| `pm_plans` | Preventive maintenance plan definitions |
+| `maintainable_assets` | Lightweight asset register |
+| `meter_types` | Per-tenant meter definitions |
 | `meter_readings` | Equipment meter values with timestamps |
+| `maintenance_plans` | Preventive maintenance plan definitions |
+| `maintenance_plan_assignments` | Plan-to-asset links with due tracking |
+| `work_orders` | Work order headers with status and assignment |
+| `wo_counters` | Tenant-scoped WO number sequence |
+| `work_order_parts` | Parts consumed on a work order |
+| `work_order_labor` | Labor entries per work order |
 | `maintenance_tenant_config` | Per-tenant maintenance configuration |
 | `events_outbox` | Module outbox for NATS |
 | `processed_events` | Consumer idempotency |

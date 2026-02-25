@@ -38,13 +38,18 @@ Timekeeping does **NOT**:
 
 | Table | Purpose |
 |---|---|
-| `employees` | Employee records for time tracking |
-| `projects` | Project/job definitions |
-| `timesheet_entries` | Time records with hours, date, project, rates |
-| `approvals` | Approval status per entry or batch |
-| `allocations` | Cost allocation records |
-| `exports` | Export batch records with content hash |
-| `billing_rates` | Rate definitions per employee/project |
+| `tk_employees` | Employee records for time tracking |
+| `tk_projects` | Project/job definitions |
+| `tk_tasks` | Task breakdown within projects |
+| `tk_timesheet_entries` | Time records with hours, date, project, rates |
+| `tk_approval_requests` | Approval status per employee per period |
+| `tk_approval_actions` | Audit trail for approval transitions |
+| `tk_allocations` | Cost allocation records |
+| `tk_export_runs` | Export batch records with content hash |
+| `tk_billing_rates` | Named hourly billing rates per tenant |
+| `tk_billing_runs` | Aggregated billing records |
+| `tk_billing_run_entries` | Links billing runs to entries |
+| `tk_idempotency_keys` | HTTP-level API idempotency |
 | `events_outbox` | Module outbox for NATS |
 | `processed_events` | Consumer idempotency |
 

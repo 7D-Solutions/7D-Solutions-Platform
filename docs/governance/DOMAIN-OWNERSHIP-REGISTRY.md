@@ -403,7 +403,7 @@ This registry declares the single source of truth for each domain concept in the
 - External ref lifecycle (create, update, delete)
 
 **External Dependencies**:
-- Produces: `external_ref.created`, `external_ref.updated`, `external_ref.deleted`, `webhook.received`, `webhook.routed`
+- Produces: `connector.registered`, `external_ref.created`, `external_ref.updated`, `external_ref.deleted`, `webhook.received`, `webhook.routed`
 - Consumes: various (routes inbound webhooks to target modules)
 
 ---
