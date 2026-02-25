@@ -128,10 +128,11 @@ async fn execute_bill_run(
         price_minor: i64,
         currency: String,
         next_bill_date: NaiveDate,
+        schedule: String,
     }
 
     let subscriptions = sqlx::query_as::<_, SubscriptionDue>(
-        "SELECT id, tenant_id, ar_customer_id, price_minor, currency, next_bill_date
+        "SELECT id, tenant_id, ar_customer_id, price_minor, currency, next_bill_date, schedule
          FROM subscriptions
          WHERE status = 'active'
            AND tenant_id = $1
@@ -242,7 +243,7 @@ async fn execute_bill_run(
                     // Update subscription next_bill_date
                     let new_next_bill_date = calculate_next_bill_date(
                         &subscription.next_bill_date,
-                        &"monthly".to_string(), // TODO: get from subscription.schedule
+                        &subscription.schedule,
                     );
 
                     let update_result = sqlx::query(
@@ -358,8 +359,8 @@ async fn execute_bill_run(
 }
 
 /// Calculate next bill date based on schedule
-fn calculate_next_bill_date(current_date: &NaiveDate, schedule: &String) -> NaiveDate {
-    match schedule.as_str() {
+fn calculate_next_bill_date(current_date: &NaiveDate, schedule: &str) -> NaiveDate {
+    match schedule {
         "weekly" => *current_date + chrono::Duration::weeks(1),
         "monthly" => {
             // Add one month
