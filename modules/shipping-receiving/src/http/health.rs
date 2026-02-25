@@ -1,9 +1,17 @@
 use axum::{extract::State, http::StatusCode, Json};
-use health::{build_ready_response, db_check, ready_response_to_axum, ReadyResponse};
+use health::{
+    build_ready_response, db_check, healthz as healthz_helper, ready_response_to_axum,
+    HealthzResponse, ReadyResponse,
+};
 use std::sync::Arc;
 use std::time::Instant;
 
-/// GET /api/health — liveness probe
+/// GET /healthz — standardized liveness probe
+pub async fn healthz() -> Json<HealthzResponse> {
+    healthz_helper().await
+}
+
+/// GET /api/health — legacy liveness probe
 pub async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({
         "status": "healthy",
