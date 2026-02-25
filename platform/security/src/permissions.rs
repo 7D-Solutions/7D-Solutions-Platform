@@ -66,6 +66,26 @@ pub const TIMEKEEPING_READ: &str = "timekeeping.read";
 pub const FIXED_ASSETS_MUTATE: &str = "fixed_assets.mutate";
 pub const FIXED_ASSETS_READ: &str = "fixed_assets.read";
 
+// ── Party ────────────────────────────────────────────────────────────────────
+
+pub const PARTY_MUTATE: &str = "party.mutate";
+pub const PARTY_READ: &str = "party.read";
+
+// ── Integrations ─────────────────────────────────────────────────────────────
+
+pub const INTEGRATIONS_MUTATE: &str = "integrations.mutate";
+pub const INTEGRATIONS_READ: &str = "integrations.read";
+
+// ── TTP (Third-Party Processing) ─────────────────────────────────────────────
+
+pub const TTP_MUTATE: &str = "ttp.mutate";
+pub const TTP_READ: &str = "ttp.read";
+
+// ── PDF Editor ───────────────────────────────────────────────────────────────
+
+pub const PDF_EDITOR_MUTATE: &str = "pdf_editor.mutate";
+pub const PDF_EDITOR_READ: &str = "pdf_editor.read";
+
 // ── TrashTech Pro (vertical product) ─────────────────────────────────────────
 
 pub const TRASHTECH_MUTATE: &str = "trashtech.mutate";
@@ -130,6 +150,30 @@ mod tests {
     }
 
     #[test]
+    fn test_permissions_party_constants_are_non_empty() {
+        assert!(!PARTY_MUTATE.is_empty());
+        assert!(!PARTY_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_integrations_constants_are_non_empty() {
+        assert!(!INTEGRATIONS_MUTATE.is_empty());
+        assert!(!INTEGRATIONS_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_ttp_constants_are_non_empty() {
+        assert!(!TTP_MUTATE.is_empty());
+        assert!(!TTP_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_pdf_editor_constants_are_non_empty() {
+        assert!(!PDF_EDITOR_MUTATE.is_empty());
+        assert!(!PDF_EDITOR_READ.is_empty());
+    }
+
+    #[test]
     fn test_permissions_follow_dot_convention() {
         // Every mutate permission must follow "module.mutate" or "module.post" pattern
         let mutate_perms = [
@@ -145,6 +189,10 @@ mod tests {
             CONSOLIDATION_MUTATE,
             TIMEKEEPING_MUTATE,
             FIXED_ASSETS_MUTATE,
+            PARTY_MUTATE,
+            INTEGRATIONS_MUTATE,
+            TTP_MUTATE,
+            PDF_EDITOR_MUTATE,
         ];
         for perm in &mutate_perms {
             assert!(perm.contains('.'), "Permission '{}' must contain a dot", perm);
@@ -166,5 +214,9 @@ mod tests {
         assert_ne!(CONSOLIDATION_MUTATE, CONSOLIDATION_READ);
         assert_ne!(TIMEKEEPING_MUTATE, TIMEKEEPING_READ);
         assert_ne!(FIXED_ASSETS_MUTATE, FIXED_ASSETS_READ);
+        assert_ne!(PARTY_MUTATE, PARTY_READ);
+        assert_ne!(INTEGRATIONS_MUTATE, INTEGRATIONS_READ);
+        assert_ne!(TTP_MUTATE, TTP_READ);
+        assert_ne!(PDF_EDITOR_MUTATE, PDF_EDITOR_READ);
     }
 }
