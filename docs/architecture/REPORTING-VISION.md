@@ -50,7 +50,7 @@ Reporting does **NOT**:
 - `ap.vendor_bill_created` — AP data for payables dashboards
 - `ap.vendor_bill_voided` — AP void corrections
 - `ap.payment_executed` — AP payment data
-- `inventory.valuation_snapshot` — inventory valuation for asset reports
+- `inventory.valuation_snapshot_created` — inventory valuation for asset reports
 - `ar.invoice_opened` — AR data for receivables dashboards
 - `ar.invoice_paid` — AR payment tracking
 - `ar.ar_aging_updated` — AR aging for collections dashboards

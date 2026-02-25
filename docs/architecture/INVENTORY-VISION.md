@@ -77,7 +77,7 @@ Inventory does **NOT**:
 - `inventory.cycle_count_submitted` — physical count submitted for approval
 - `inventory.cycle_count_approved` — count approved, adjustments posted
 - `inventory.status_changed` — quality status transition recorded
-- `inventory.valuation_snapshot` — valuation snapshot generated
+- `inventory.valuation_snapshot_created` — valuation snapshot generated
 
 **Consumes:**
 - None (Inventory is a source system — other modules call its HTTP API)
@@ -100,7 +100,7 @@ Inventory does **NOT**:
 
 - **AP** → consumes `inventory.item_received` to link receipts to PO lines
 - **Shipping-Receiving** → calls Inventory HTTP API to create receipts (inbound close) and issues (outbound ship)
-- **Reporting** → consumes `inventory.valuation_snapshot` for dashboard caching
+- **Reporting** → consumes `inventory.valuation_snapshot_created` for dashboard caching
 - **GL** → valuation changes flow through Reporting; future direct GL posting for cost-of-goods
 
 ---

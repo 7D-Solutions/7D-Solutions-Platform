@@ -18,7 +18,7 @@ Shipping-Receiving is a unified logistics module that tracks and executes physic
 
 | Module | Owns | May mutate | Produces | Consumes |
 |---|---|---|---|---|
-| `shipping-receiving-rs` | shipments, shipment_lines, shipment_status_history, shipping-receiving outbox & idempotency keys | inventory stock ledger via Inventory API (receipts/issues) for shipment lifecycle actions; shipment refs on itself only | `shipping-receiving.shipment.created`, `shipping-receiving.shipment.status_changed`, `shipping-receiving.shipment.closed`, `shipping-receiving.shipment.shipped`, `shipping-receiving.shipment.delivered` | `ap.purchase_order.approved` (for inbound expected), `ar.sales_order.released` (for outbound created), `inventory.receipt.confirmed` (to update inbound linkage), `inventory.issue.confirmed` (optional) |
+| `shipping-receiving-rs` | shipments, shipment_lines, shipment_status_history, shipping-receiving outbox & idempotency keys | inventory stock ledger via Inventory API (receipts/issues) for shipment lifecycle actions; shipment refs on itself only | `shipping_receiving.shipment_created`, `shipping_receiving.shipment_status_changed`, `shipping_receiving.inbound_closed`, `shipping_receiving.outbound_shipped`, `shipping_receiving.outbound_delivered` | `ap.po.approved` (for inbound expected), `sales.so.released` (for outbound created), `inventory.receipt.confirmed` (to update inbound linkage), `inventory.issue.confirmed` (optional) |
 
 **Clarification**: The module does not own carriers; carrier identity is referenced via `party_id` from Party Master. It may read external refs (PO IDs, sales order IDs) but does not mutate those modules' databases.
 
@@ -82,23 +82,26 @@ Shipping-Receiving is a unified logistics module that tracks and executes physic
 
 ## 4. Event Taxonomy
 
-All events use the platform taxonomy format: `{domain}.{entity}.{action}`
-Domain name: `shipping-receiving`. Entity names are singular. Actions are past tense for facts.
+Domain name in events: `shipping_receiving` (underscore, matching Rust module naming).
+
+> **Note:** The event domain prefix uses underscores (`shipping_receiving`) rather than hyphens, aligning with the Rust crate name convention. The NATS subject routing uses the same prefix.
 
 ### Emitted Events (v0.1.0)
 
 **Shipment lifecycle:**
-- `shipping-receiving.shipment.created`
-- `shipping-receiving.shipment.status_changed`
-- `shipping-receiving.shipment.cancelled`
+- `shipping_receiving.shipment_created` — new inbound or outbound shipment
+- `shipping_receiving.shipment_status_changed` — any status transition
 
 **Inbound-specific facts:**
-- `shipping-receiving.shipment.arrived`
-- `shipping-receiving.shipment.closed` (includes inbound receipt linkage per line)
+- `shipping_receiving.inbound_closed` (includes receipt linkage per line)
 
 **Outbound-specific facts:**
-- `shipping-receiving.shipment.shipped` (includes outbound issue linkage per line)
-- `shipping-receiving.shipment.delivered`
+- `shipping_receiving.outbound_shipped` (includes issue linkage per line)
+- `shipping_receiving.outbound_delivered`
+
+**Planned (not yet implemented):**
+- `shipping_receiving.shipment_cancelled`
+- `shipping_receiving.shipment_arrived`
 
 ### Payload Expectations
 

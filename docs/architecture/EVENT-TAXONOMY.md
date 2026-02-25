@@ -83,7 +83,7 @@ An event's domain prefix indicates the owning module:
 - `subscriptions.*`: owned by Subscriptions
 - `notifications.*`: owned by Notifications
 - `inventory.*`: owned by Inventory
-- `shipping-receiving.*`: owned by Shipping-Receiving
+- `shipping_receiving.*`: owned by Shipping-Receiving
 - `party.*`: owned by Party Master
 - `maintenance.*`: owned by Maintenance
 - `timekeeping.*`: owned by Timekeeping

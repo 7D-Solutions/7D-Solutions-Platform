@@ -50,8 +50,8 @@ This registry declares the single source of truth for each domain concept in the
 ### GL (General Ledger)
 
 **Module Path**: `modules/gl/`
-**Database**: `postgres://localhost:5432/gl_db`
-**Port**: `8087`
+**Database**: `gl_db`
+**Port**: `8090`
 
 **Domain Ownership**:
 - **Chart of Accounts** (`accounts`) - Account structure, types, classifications
@@ -59,18 +59,25 @@ This registry declares the single source of truth for each domain concept in the
 - **Journal Entry Lines** (`journal_entry_lines`) - Debit/credit line items
 - **Account Balances** (`account_balances`) - Period-based balance snapshots
 - **Periods** (`periods`) - Accounting period definitions and close status
+- **Accruals** (`accruals`) - Accrual entries with auto-reversal scheduling
+- **FX Rates** (`fx_rates`) - Exchange rate pairs with effective dates
+- **RevRec Contracts** (`revrec_contracts`) - Revenue recognition contracts
+- **RevRec Schedules** (`revrec_schedules`) - Recognition schedule per contract
 
 **Domain Responsibilities**:
 - Maintain chart of accounts structure
 - Record journal entries from posting requests
 - Calculate and store account balances
 - Period close/open management
-- Financial statement generation (trial balance, P&L, balance sheet)
+- Financial statement generation (trial balance, P&L, balance sheet, cash flow)
+- Accrual creation and auto-reversal
+- FX rate management and revaluation
+- Revenue recognition (contracts, schedules, posting)
 
 **External Dependencies**:
-- Consumes: `gl.posting.requested` (from AR, Payments, or other modules)
+- Consumes: `gl.posting.requested` (from AR, AP, Fixed Assets, Maintenance)
 - Consumes: `gl.reversal.requested` (from AR or other modules)
-- Produces: None (terminal node in financial flow)
+- Produces: `gl.posting.accepted`, `gl.posting.rejected`, `gl.accrual_created`, `gl.accrual_reversed`, `gl.fx_revaluation_posted`, `gl.fx_realized_posted`, `fx.rate_updated`, `revrec.*`
 
 ---
 
@@ -163,10 +170,9 @@ This registry declares the single source of truth for each domain concept in the
 - Operational dashboards (open-by-status, overdue, by carrier, by direction)
 
 **External Dependencies**:
-- Consumes: `ap.purchase_order.approved` (auto-create inbound shipment)
-- Consumes: `ar.sales_order.released` (auto-create outbound shipment)
-- Consumes: `inventory.receipt.confirmed`, `inventory.issue.confirmed` (reconciliation)
-- Produces: `shipping-receiving.shipment.*` lifecycle events
+- Consumes: `ap.po.approved` (auto-create inbound shipment)
+- Consumes: `sales.so.released` (auto-create outbound shipment)
+- Produces: `shipping_receiving.shipment_created`, `shipping_receiving.shipment_status_changed`, `shipping_receiving.inbound_closed`, `shipping_receiving.outbound_shipped`, `shipping_receiving.outbound_delivered`
 - Calls: Inventory HTTP API (create receipt / create issue, idempotent)
 - References: Party (`carrier_party_id`), AP (`po_id`, `po_line_id`), AR (`source_ref_id`)
 
@@ -239,7 +245,7 @@ This registry declares the single source of truth for each domain concept in the
 - Valuation snapshot generation
 
 **External Dependencies**:
-- Produces: `inventory.item_received`, `inventory.item_issued`, `inventory.adjusted`, `inventory.transfer_completed`, `inventory.low_stock_triggered`, `inventory.cycle_count_submitted`, `inventory.cycle_count_approved`, `inventory.status_changed`, `inventory.valuation_snapshot`
+- Produces: `inventory.item_received`, `inventory.item_issued`, `inventory.adjusted`, `inventory.transfer_completed`, `inventory.low_stock_triggered`, `inventory.cycle_count_submitted`, `inventory.cycle_count_approved`, `inventory.status_changed`, `inventory.valuation_snapshot_created`
 - Consumes: none
 
 ---
@@ -438,7 +444,7 @@ This registry declares the single source of truth for each domain concept in the
 - Dashboard data serving
 
 **External Dependencies**:
-- Consumes: `gl.posting.requested`, `payments.payment.succeeded`, `ap.vendor_bill_created`, `ap.vendor_bill_voided`, `ap.payment_executed`, `inventory.valuation_snapshot`, `ar.invoice_opened`, `ar.invoice_paid`, `ar.ar_aging_updated`
+- Consumes: `gl.posting.requested`, `payments.payment.succeeded`, `ap.vendor_bill_created`, `ap.vendor_bill_voided`, `ap.payment_executed`, `inventory.valuation_snapshot_created`, `ar.invoice_opened`, `ar.invoice_paid`, `ar.ar_aging_updated`
 - Produces: none (read-only module)
 
 ---
