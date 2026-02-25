@@ -22,6 +22,7 @@ pub async fn enqueue_event_tx<T: Serialize>(
     event_type: &str,
     aggregate_type: &str,
     aggregate_id: &str,
+    tenant_id: &str,
     payload: &T,
 ) -> Result<(), sqlx::Error> {
     let payload_json = serde_json::to_value(payload).map_err(|e| {
@@ -33,14 +34,15 @@ pub async fn enqueue_event_tx<T: Serialize>(
 
     sqlx::query(
         r#"
-        INSERT INTO events_outbox (event_id, event_type, aggregate_type, aggregate_id, payload)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO sr_events_outbox (event_id, event_type, aggregate_type, aggregate_id, tenant_id, payload)
+        VALUES ($1, $2, $3, $4, $5, $6)
         "#,
     )
     .bind(event_id)
     .bind(event_type)
     .bind(aggregate_type)
     .bind(aggregate_id)
+    .bind(tenant_id)
     .bind(payload_json)
     .execute(&mut **tx)
     .await?;
@@ -55,7 +57,7 @@ pub async fn fetch_unpublished(
     sqlx::query_as::<_, OutboxEvent>(
         r#"
         SELECT event_id, event_type, aggregate_type, aggregate_id, payload
-        FROM events_outbox
+        FROM sr_events_outbox
         WHERE published_at IS NULL
         ORDER BY created_at ASC
         LIMIT $1
@@ -67,7 +69,7 @@ pub async fn fetch_unpublished(
 }
 
 pub async fn mark_published(db: &sqlx::PgPool, event_id: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query("UPDATE events_outbox SET published_at = NOW() WHERE event_id = $1")
+    sqlx::query("UPDATE sr_events_outbox SET published_at = NOW() WHERE event_id = $1")
         .bind(event_id)
         .execute(db)
         .await?;
