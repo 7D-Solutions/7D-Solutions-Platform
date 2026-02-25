@@ -484,6 +484,17 @@ jobs:
       - name: Check for unapproved ignored E2E tests
         run: bash tools/ci/lint-no-ignored-tests.sh
 
+  check-migration-versioning:
+    name: Check Migration Versioning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify migration filenames are sequential and valid
+        run: |
+          chmod +x scripts/ci/check-migration-versioning.sh
+          scripts/ci/check-migration-versioning.sh
+
   check-dlq-migrations:
     name: Check DLQ Migrations Exist
     runs-on: ubuntu-latest
