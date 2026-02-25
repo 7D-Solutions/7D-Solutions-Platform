@@ -142,6 +142,36 @@ This registry declares the single source of truth for each domain concept in the
 
 ---
 
+### Shipping-Receiving
+
+**Module Path**: `modules/shipping-receiving/`
+**Database**: `shipping_receiving_db`
+**Port**: `8103`
+
+**Domain Ownership**:
+- **Shipments** (`shipments`) - Inbound/outbound shipment headers with direction, carrier, tracking, status
+- **Shipment Lines** (`shipment_lines`) - Per-SKU line items with quantities (expected, received, accepted, rejected, shipped)
+- **Shipment Status History** (`shipment_status_history`) - Append-only audit trail of status transitions
+- **Events Outbox** (`events_outbox`) - Module outbox for NATS event publishing
+- **Processed Events** (`processed_events`) - Consumer idempotency and replay safety
+
+**Domain Responsibilities**:
+- Shipment lifecycle management (inbound: expected → closed; outbound: created → delivered)
+- State machine guard enforcement (quantity invariants, transition validity)
+- Inventory movement triggering (receipts on inbound close, issues on outbound ship)
+- Traceability linkage (PO refs for inbound, sales order refs for outbound)
+- Operational dashboards (open-by-status, overdue, by carrier, by direction)
+
+**External Dependencies**:
+- Consumes: `ap.purchase_order.approved` (auto-create inbound shipment)
+- Consumes: `ar.sales_order.released` (auto-create outbound shipment)
+- Consumes: `inventory.receipt.confirmed`, `inventory.issue.confirmed` (reconciliation)
+- Produces: `shipping-receiving.shipment.*` lifecycle events
+- Calls: Inventory HTTP API (create receipt / create issue, idempotent)
+- References: Party (`carrier_party_id`), AP (`po_id`, `po_line_id`), AR (`source_ref_id`)
+
+---
+
 ## Inter-Module Command Registry
 
 This section declares all cross-module commands (events) and their write degradation characteristics.

@@ -82,6 +82,8 @@ An event's domain prefix indicates the owning module:
 - `notifications.*`: owned by Notifications
 - `gl.*`: owned by GL
 
+- `shipping-receiving.*`: owned by Shipping-Receiving
+
 No other module may emit events under another module's domain prefix.
 
 ---

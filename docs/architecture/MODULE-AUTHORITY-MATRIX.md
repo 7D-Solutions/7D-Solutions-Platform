@@ -39,6 +39,12 @@ It is the single source of truth for: "Who owns what?" and "Who is allowed to ch
 | `modules/payments` (planned) | processor integrations, payment intents, payment captures, refunds execution state, webhook ingestion + verification, customer/payment method references (no secrets) | yes | `payments.payment.succeeded|failed`, `payments.refund.succeeded|failed`, `payments.dispute.*` | `ar.payment.collection.requested` (command) |
 | `modules/notifications` (planned) | notification preferences, templates, outbox, delivery attempts, provider routing | yes | `notifications.delivery.succeeded|failed` (optional) | `ar.invoice.*`, `ar.payment.*`, `payments.payment.*`, `payments.dispute.*` |
 
+### Operations (Tier 2)
+
+| Module | Owns | May mutate | Produces | Consumes |
+|---|---|---|---|---|
+| `modules/shipping-receiving` | shipments, shipment_lines, shipment_status_history, outbox & idempotency keys | inventory stock ledger via Inventory API (receipts/issues) at lifecycle boundaries | `shipping-receiving.shipment.created`, `shipping-receiving.shipment.status_changed`, `shipping-receiving.shipment.cancelled`, `shipping-receiving.shipment.arrived`, `shipping-receiving.shipment.closed`, `shipping-receiving.shipment.shipped`, `shipping-receiving.shipment.delivered` | `ap.purchase_order.approved`, `ar.sales_order.released`, `inventory.receipt.confirmed`, `inventory.issue.confirmed` |
+
 ### External / Future
 
 | Module | Owns | May mutate | Produces | Consumes |
