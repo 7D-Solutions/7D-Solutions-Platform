@@ -4,6 +4,8 @@
 //!   POST /api/inventory/issues — atomic issue: ledger row + FIFO layer consumptions
 //!                                + on-hand projection + outbox event (inventory.item_issued)
 //!
+//! Tenant identity derived from JWT `VerifiedClaims`.
+//!
 //! Idempotency:
 //!   Callers MUST supply `idempotency_key` in the request body.
 //!   Duplicate keys with the same body return 200 OK with the stored result.
@@ -13,8 +15,9 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -158,8 +161,20 @@ fn issue_error_response(err: IssueError) -> impl IntoResponse {
 ///   500 Internal Server Error — unexpected error
 pub async fn post_issue(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<IssueRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<IssueRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match process_issue(&state.pool, &req).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {

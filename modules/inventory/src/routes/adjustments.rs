@@ -3,6 +3,8 @@
 //! Endpoint:
 //!   POST /api/inventory/adjustments — create a compensating ledger entry
 //!
+//! Tenant identity derived from JWT `VerifiedClaims`.
+//!
 //! Idempotency:
 //!   Callers MUST supply `idempotency_key` in the request body.
 //!   Duplicate keys with the same body return 200 OK with the stored result.
@@ -12,8 +14,9 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -113,8 +116,20 @@ fn adjust_error_response(err: AdjustError) -> impl IntoResponse {
 /// Returns 201 Created on new adjustment; 200 OK on idempotency replay.
 pub async fn post_adjustment(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<AdjustRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<AdjustRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match process_adjustment(&state.pool, &req).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {

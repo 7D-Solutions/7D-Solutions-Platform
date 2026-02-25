@@ -3,6 +3,8 @@
 //! Endpoint:
 //!   POST /api/inventory/receipts — atomic receipt: ledger row + FIFO layer + outbox event
 //!
+//! Tenant identity derived from JWT `VerifiedClaims`.
+//!
 //! Idempotency:
 //!   Callers MUST supply `idempotency_key` in the request body.
 //!   Duplicate keys with the same body return 200 OK with the stored result.
@@ -12,8 +14,9 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -137,8 +140,20 @@ fn receipt_error_response(err: ReceiptError) -> impl IntoResponse {
 ///   500 Internal Server Error — unexpected error
 pub async fn post_receipt(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<ReceiptRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<ReceiptRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match process_receipt(&state.pool, &req).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {

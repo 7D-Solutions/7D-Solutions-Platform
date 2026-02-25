@@ -3,12 +3,15 @@
 //! Endpoint:
 //!   POST /api/inventory/transfers — move stock between warehouses (paired ledger entries)
 //!
+//! Tenant identity derived from JWT `VerifiedClaims`.
+//!
 //! Idempotency:
 //!   Callers MUST supply `idempotency_key` in the request body.
 //!   Duplicate keys with the same body return 200 OK with the stored result.
 //!   Duplicate keys with a different body return 409 Conflict.
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -124,8 +127,20 @@ fn transfer_error_response(err: TransferError) -> impl IntoResponse {
 /// Returns 201 Created on new transfer; 200 OK on idempotency replay.
 pub async fn post_transfer(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<TransferRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<TransferRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match process_transfer(&state.pool, &req).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {

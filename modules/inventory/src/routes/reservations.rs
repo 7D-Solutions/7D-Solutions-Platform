@@ -5,12 +5,15 @@
 //!   POST /api/inventory/reservations/release          — compensating release referencing a reserve
 //!   POST /api/inventory/reservations/{id}/fulfill     — fulfill reservation (physical stock deduction)
 //!
+//! Tenant identity derived from JWT `VerifiedClaims`.
+//!
 //! Idempotency:
 //!   Callers MUST supply `idempotency_key` in the request body.
 //!   Duplicate keys with the same body return 200 OK with the stored result.
 //!   Duplicate keys with a different body return 409 Conflict.
 
-use axum::{extract::{Path, State}, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::{Path, State}, http::StatusCode, response::IntoResponse, Extension, Json};
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -123,8 +126,20 @@ fn reservation_error_response(err: ReservationError) -> impl IntoResponse {
 ///   500           — internal error
 pub async fn post_reserve(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<ReserveRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<ReserveRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match process_reserve(&state.pool, &req).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {
@@ -151,8 +166,20 @@ pub async fn post_reserve(
 ///   500           — internal error
 pub async fn post_release(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<ReleaseRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<ReleaseRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match process_release(&state.pool, &req).await {
         Ok((result, _is_replay)) => (StatusCode::OK, Json(json!(result))).into_response(),
         Err(e) => reservation_error_response(e).into_response(),
@@ -235,9 +262,21 @@ fn fulfill_error_response(err: FulfillError) -> impl IntoResponse {
 ///   500           — internal error
 pub async fn post_fulfill(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(reservation_id): Path<Uuid>,
     Json(mut req): Json<FulfillRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     // Inject path param into request body for consistency.
     req.reservation_id = reservation_id;
     match process_fulfill(&state.pool, &req).await {
