@@ -119,7 +119,7 @@ async fn setup_task_with_stock(
         .await
         .expect("create location");
 
-    process_receipt(pool, &receipt_req(tenant, item.id, warehouse_id, loc.id, on_hand_qty, &format!("cs-rcpt-{}", sku_suffix)))
+    process_receipt(pool, &receipt_req(tenant, item.id, warehouse_id, loc.id, on_hand_qty, &format!("cs-rcpt-{}", sku_suffix)), None)
         .await
         .expect("receipt");
 

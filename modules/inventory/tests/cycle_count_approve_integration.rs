@@ -123,6 +123,7 @@ async fn setup_submitted_task(
     process_receipt(
         pool,
         &receipt_req(tenant, item.id, warehouse_id, loc.id, on_hand_qty, &format!("ca-rcpt-{}", sku_suffix)),
+        None,
     )
     .await
     .expect("receipt");
@@ -308,6 +309,7 @@ async fn test_approve_non_submitted_task_errors() {
     process_receipt(
         &pool,
         &receipt_req(&tenant, item.id, wh, loc.id, 5, "ca-rcpt-apr05"),
+        None,
     )
     .await
     .expect("receipt");

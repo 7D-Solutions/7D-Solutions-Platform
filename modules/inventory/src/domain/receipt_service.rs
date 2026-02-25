@@ -8,6 +8,7 @@
 //! Pattern: Guard → Mutation → Outbox (all in one transaction)
 
 use chrono::{Duration, Utc};
+use event_bus::TracingContext;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
@@ -149,6 +150,7 @@ struct IdempotencyRecord {
 pub async fn process_receipt(
     pool: &PgPool,
     req: &ReceiptRequest,
+    tracing_ctx: Option<&TracingContext>,
 ) -> Result<(ReceiptResult, bool), ReceiptError> {
     // --- Stateless input validation ---
     validate_request(req)?;
@@ -319,13 +321,16 @@ pub async fn process_receipt(
         received_at,
     };
 
+    let default_ctx = TracingContext::default();
+    let ctx = tracing_ctx.unwrap_or(&default_ctx);
     let envelope = build_item_received_envelope(
         event_id,
         req.tenant_id.clone(),
         correlation_id.clone(),
         req.causation_id.clone(),
         payload,
-    );
+    )
+    .with_tracing_context(ctx);
     let envelope_json = serde_json::to_string(&envelope)?;
 
     sqlx::query(

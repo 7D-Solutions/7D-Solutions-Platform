@@ -154,6 +154,7 @@ async fn test_snapshot_creates_header_and_lines() {
             location_id: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt");
@@ -205,6 +206,7 @@ async fn test_idempotency_replay_returns_stored_result() {
             location_id: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt");
@@ -283,6 +285,7 @@ async fn test_outbox_contains_snapshot_event() {
             location_id: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt");

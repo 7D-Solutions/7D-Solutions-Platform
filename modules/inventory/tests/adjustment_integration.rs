@@ -138,7 +138,7 @@ async fn test_positive_adjustment_increases_on_hand() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 50, "r-adj-1"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 50, "r-adj-1"), None)
         .await
         .expect("receipt");
 
@@ -146,7 +146,7 @@ async fn test_positive_adjustment_increases_on_hand() {
     assert_eq!(before, 50);
 
     let (result, is_replay) =
-        process_adjustment(&pool, &adjust_req(&tenant, item.id, wh, 15, "cycle_count_correction", "adj-1"))
+        process_adjustment(&pool, &adjust_req(&tenant, item.id, wh, 15, "cycle_count_correction", "adj-1"), None)
             .await
             .expect("adjustment");
 
@@ -175,12 +175,12 @@ async fn test_negative_adjustment_decreases_on_hand() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-adj-2"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-adj-2"), None)
         .await
         .expect("receipt");
 
     let (result, _) =
-        process_adjustment(&pool, &adjust_req(&tenant, item.id, wh, -20, "shrinkage", "adj-2"))
+        process_adjustment(&pool, &adjust_req(&tenant, item.id, wh, -20, "shrinkage", "adj-2"), None)
             .await
             .expect("negative adjustment");
 
@@ -207,13 +207,14 @@ async fn test_no_negative_guard_blocks_excess_negative() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 30, "r-adj-3"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 30, "r-adj-3"), None)
         .await
         .expect("receipt");
 
     let err = process_adjustment(
         &pool,
         &adjust_req(&tenant, item.id, wh, -50, "shrinkage", "adj-3"),
+        None,
     )
     .await
     .expect_err("should be blocked by no-negative guard");
@@ -242,14 +243,14 @@ async fn test_allow_negative_bypasses_guard() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 10, "r-adj-4"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 10, "r-adj-4"), None)
         .await
         .expect("receipt");
 
     let mut req = adjust_req(&tenant, item.id, wh, -50, "write_off", "adj-4");
     req.allow_negative = true;
 
-    let (result, _) = process_adjustment(&pool, &req)
+    let (result, _) = process_adjustment(&pool, &req, None)
         .await
         .expect("adjustment with allow_negative should succeed");
 
@@ -276,6 +277,7 @@ async fn test_zero_delta_rejected() {
     let err = process_adjustment(
         &pool,
         &adjust_req(&tenant, item.id, wh, 0, "shrinkage", "adj-5"),
+        None,
     )
     .await
     .expect_err("zero delta should be rejected");
@@ -303,6 +305,7 @@ async fn test_empty_reason_rejected() {
     let err = process_adjustment(
         &pool,
         &adjust_req(&tenant, item.id, wh, 10, "  ", "adj-6"),
+        None,
     )
     .await
     .expect_err("empty reason should be rejected");
@@ -336,6 +339,7 @@ async fn test_inactive_item_rejected() {
     let err = process_adjustment(
         &pool,
         &adjust_req(&tenant, item.id, wh, 10, "shrinkage", "adj-7"),
+        None,
     )
     .await
     .expect_err("inactive item should be rejected");
@@ -360,16 +364,16 @@ async fn test_idempotency_replay() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-adj-8"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-adj-8"), None)
         .await
         .expect("receipt");
 
     let req = adjust_req(&tenant, item.id, wh, 25, "cycle_count", "adj-8-idem");
 
-    let (first, is_replay_1) = process_adjustment(&pool, &req).await.expect("first call");
+    let (first, is_replay_1) = process_adjustment(&pool, &req, None).await.expect("first call");
     assert!(!is_replay_1);
 
-    let (second, is_replay_2) = process_adjustment(&pool, &req).await.expect("replay");
+    let (second, is_replay_2) = process_adjustment(&pool, &req, None).await.expect("replay");
     assert!(is_replay_2, "second call with same key+body should be a replay");
     assert_eq!(first.adjustment_id, second.adjustment_id);
 
@@ -392,18 +396,18 @@ async fn test_idempotency_conflict() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-adj-9"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-adj-9"), None)
         .await
         .expect("receipt");
 
     let key = "conflict-key-adj";
     let req1 = adjust_req(&tenant, item.id, wh, 10, "shrinkage", key);
-    process_adjustment(&pool, &req1).await.expect("first call");
+    process_adjustment(&pool, &req1, None).await.expect("first call");
 
     let mut req2 = adjust_req(&tenant, item.id, wh, 99, "different_reason", key);
     req2.idempotency_key = key.to_string();
 
-    let err = process_adjustment(&pool, &req2)
+    let err = process_adjustment(&pool, &req2, None)
         .await
         .expect_err("conflicting idempotency key should error");
 

@@ -123,6 +123,7 @@ async fn test_full_scope_populates_lines_from_on_hand() {
     process_receipt(
         &pool,
         &receipt_req_at(&tenant, item.id, warehouse_id, loc.id, 50, "cc-rcpt-1"),
+        None,
     )
     .await
     .expect("receipt");
@@ -169,12 +170,14 @@ async fn test_partial_scope_uses_caller_item_list() {
     process_receipt(
         &pool,
         &receipt_req_at(&tenant, item_a.id, warehouse_id, loc.id, 30, "cc-p-rcpt-a"),
+        None,
     )
     .await
     .expect("receipt A");
     process_receipt(
         &pool,
         &receipt_req_at(&tenant, item_b.id, warehouse_id, loc.id, 20, "cc-p-rcpt-b"),
+        None,
     )
     .await
     .expect("receipt B");
@@ -221,6 +224,7 @@ async fn test_partial_unknown_item_gets_zero_expected() {
     process_receipt(
         &pool,
         &receipt_req_at(&tenant, known_item.id, warehouse_id, loc.id, 10, "cc-unk-rcpt"),
+        None,
     )
     .await
     .expect("receipt");

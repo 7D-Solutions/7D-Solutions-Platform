@@ -16,6 +16,7 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
 use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
@@ -117,8 +118,10 @@ fn adjust_error_response(err: AdjustError) -> impl IntoResponse {
 pub async fn post_adjustment(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<AdjustRequest>,
 ) -> impl IntoResponse {
+    let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
     let tenant_id = match &claims {
         Some(Extension(c)) => c.tenant_id.to_string(),
         None => {
@@ -130,7 +133,7 @@ pub async fn post_adjustment(
         }
     };
     req.tenant_id = tenant_id;
-    match process_adjustment(&state.pool, &req).await {
+    match process_adjustment(&state.pool, &req, Some(&tracing_ctx)).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {
                 StatusCode::OK

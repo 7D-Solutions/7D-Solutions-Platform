@@ -142,13 +142,14 @@ async fn issue_creates_ledger_consumptions_onhand_outbox_atomically() {
     process_receipt(
         &pool,
         &make_receipt_req(&tenant_id, item.id, warehouse_id, 50, 1000, &format!("rcv-{}", Uuid::new_v4())),
+        None,
     )
     .await
     .expect("receipt");
 
     // Issue 10 units.
     let issue_req = make_issue_req(&tenant_id, item.id, warehouse_id, 10, &format!("iss-{}", Uuid::new_v4()));
-    let (result, is_replay) = process_issue(&pool, &issue_req).await.expect("issue");
+    let (result, is_replay) = process_issue(&pool, &issue_req, None).await.expect("issue");
 
     assert!(!is_replay, "first call must not be replay");
     assert_eq!(result.quantity, 10);
@@ -237,6 +238,7 @@ async fn issue_consumes_fifo_layers_oldest_first() {
     process_receipt(
         &pool,
         &make_receipt_req(&tenant_id, item.id, warehouse_id, 5, 1000, &format!("rcv1-{}", Uuid::new_v4())),
+        None,
     )
     .await
     .expect("receipt layer 1");
@@ -245,13 +247,14 @@ async fn issue_consumes_fifo_layers_oldest_first() {
     process_receipt(
         &pool,
         &make_receipt_req(&tenant_id, item.id, warehouse_id, 10, 2000, &format!("rcv2-{}", Uuid::new_v4())),
+        None,
     )
     .await
     .expect("receipt layer 2");
 
     // Issue 8 units: should consume all 5 from layer 1, then 3 from layer 2.
     let issue_req = make_issue_req(&tenant_id, item.id, warehouse_id, 8, &format!("iss-{}", Uuid::new_v4()));
-    let (result, _) = process_issue(&pool, &issue_req).await.expect("issue 8 units");
+    let (result, _) = process_issue(&pool, &issue_req, None).await.expect("issue 8 units");
 
     assert_eq!(result.quantity, 8);
     assert_eq!(result.consumed_layers.len(), 2, "two layers consumed");
@@ -305,6 +308,7 @@ async fn issue_idempotency_replay_returns_stored_result() {
     process_receipt(
         &pool,
         &make_receipt_req(&tenant_id, item.id, warehouse_id, 100, 500, &format!("rcv-{}", Uuid::new_v4())),
+        None,
     )
     .await
     .expect("receipt");
@@ -313,11 +317,11 @@ async fn issue_idempotency_replay_returns_stored_result() {
     let req = make_issue_req(&tenant_id, item.id, warehouse_id, 10, &idem_key);
 
     // First call.
-    let (r1, is_replay1) = process_issue(&pool, &req).await.expect("first issue");
+    let (r1, is_replay1) = process_issue(&pool, &req, None).await.expect("first issue");
     assert!(!is_replay1);
 
     // Second call — same key, same body.
-    let (r2, is_replay2) = process_issue(&pool, &req).await.expect("second issue");
+    let (r2, is_replay2) = process_issue(&pool, &req, None).await.expect("second issue");
     assert!(is_replay2, "second call must be a replay");
 
     assert_eq!(r1.issue_line_id, r2.issue_line_id);
@@ -367,13 +371,14 @@ async fn issue_guard_rejects_insufficient_quantity() {
     process_receipt(
         &pool,
         &make_receipt_req(&tenant_id, item.id, warehouse_id, 5, 1000, &format!("rcv-{}", Uuid::new_v4())),
+        None,
     )
     .await
     .expect("receipt");
 
     // Attempt to issue 10 — exceeds available.
     let req = make_issue_req(&tenant_id, item.id, warehouse_id, 10, &format!("iss-{}", Uuid::new_v4()));
-    let err = process_issue(&pool, &req).await.expect_err("must fail: insufficient stock");
+    let err = process_issue(&pool, &req, None).await.expect_err("must fail: insufficient stock");
 
     assert!(
         matches!(err, IssueError::InsufficientQuantity { requested: 10, available: 5 }),
@@ -403,7 +408,7 @@ async fn issue_guard_rejects_inactive_item() {
         .expect("deactivate");
 
     let req = make_issue_req(&tenant_id, item.id, warehouse_id, 1, &format!("iss-{}", Uuid::new_v4()));
-    let err = process_issue(&pool, &req).await.expect_err("inactive item must be rejected");
+    let err = process_issue(&pool, &req, None).await.expect_err("inactive item must be rejected");
 
     assert!(
         matches!(err, IssueError::Guard(_)),
@@ -427,7 +432,7 @@ async fn issue_guard_rejects_zero_quantity() {
         ..make_issue_req(&tenant_id, Uuid::new_v4(), Uuid::new_v4(), 1, &format!("iss-{}", Uuid::new_v4()))
     };
 
-    let err = process_issue(&pool, &req).await.expect_err("zero qty must fail");
+    let err = process_issue(&pool, &req, None).await.expect_err("zero qty must fail");
     assert!(matches!(err, IssueError::Guard(_)), "{:?}", err);
 }
 
@@ -449,6 +454,7 @@ async fn issue_outbox_event_contains_consumed_layers_and_source_ref() {
     process_receipt(
         &pool,
         &make_receipt_req(&tenant_id, item.id, warehouse_id, 20, 1500, &format!("rcv-{}", Uuid::new_v4())),
+        None,
     )
     .await
     .expect("receipt");
@@ -461,7 +467,7 @@ async fn issue_outbox_event_contains_consumed_layers_and_source_ref() {
         ..make_issue_req(&tenant_id, item.id, warehouse_id, 5, &format!("iss-{}", Uuid::new_v4()))
     };
 
-    let (result, _) = process_issue(&pool, &req).await.expect("issue");
+    let (result, _) = process_issue(&pool, &req, None).await.expect("issue");
 
     // Read outbox payload and verify structure.
     let payload_json: serde_json::Value = sqlx::query_scalar(

@@ -157,6 +157,7 @@ async fn test_list_lots_returns_lots_for_item() {
             location_id: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt lot A");
@@ -180,6 +181,7 @@ async fn test_list_lots_returns_lots_for_item() {
             location_id: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt lot B");
@@ -224,6 +226,7 @@ async fn test_list_serials_returns_instances_for_item() {
             location_id: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt serials");
@@ -268,6 +271,7 @@ async fn test_trace_lot_returns_receipt_and_issue_movements() {
             location_id: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt");
@@ -292,6 +296,7 @@ async fn test_trace_lot_returns_receipt_and_issue_movements() {
             lot_code: Some("TRACE-LOT".to_string()),
             serial_codes: None,
         },
+        None,
     )
     .await
     .expect("issue");
@@ -337,6 +342,7 @@ async fn test_trace_serial_returns_receipt_and_issue_movements() {
             location_id: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt");
@@ -361,6 +367,7 @@ async fn test_trace_serial_returns_receipt_and_issue_movements() {
             lot_code: None,
             serial_codes: Some(vec!["SN-TRACE".to_string()]),
         },
+        None,
     )
     .await
     .expect("issue");
@@ -431,6 +438,7 @@ async fn test_tenant_isolation_lots() {
             location_id: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt tenant A");
@@ -453,6 +461,7 @@ async fn test_tenant_isolation_lots() {
             location_id: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt tenant B");

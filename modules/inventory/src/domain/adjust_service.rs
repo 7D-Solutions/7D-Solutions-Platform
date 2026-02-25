@@ -18,6 +18,7 @@
 //! Pattern: Guard → Mutation → Outbox (all in one transaction)
 
 use chrono::{Duration, Utc};
+use event_bus::TracingContext;
 use serde::{Deserialize, Serialize};
 use sqlx::{PgPool, Postgres, Transaction};
 use thiserror::Error;
@@ -134,6 +135,7 @@ struct OnHandRow {
 pub async fn process_adjustment(
     pool: &PgPool,
     req: &AdjustRequest,
+    tracing_ctx: Option<&TracingContext>,
 ) -> Result<(AdjustResult, bool), AdjustError> {
     // --- Stateless input validation ---
     validate_request(req)?;
@@ -249,13 +251,16 @@ pub async fn process_adjustment(
         reason: req.reason.clone(),
         adjusted_at,
     };
+    let default_ctx = TracingContext::default();
+    let ctx = tracing_ctx.unwrap_or(&default_ctx);
     let envelope = build_adjusted_envelope(
         event_id,
         req.tenant_id.clone(),
         correlation_id.clone(),
         req.causation_id.clone(),
         payload,
-    );
+    )
+    .with_tracing_context(ctx);
     let envelope_json = serde_json::to_string(&envelope)?;
 
     sqlx::query(

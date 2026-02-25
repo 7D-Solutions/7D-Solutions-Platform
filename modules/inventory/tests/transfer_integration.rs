@@ -136,12 +136,12 @@ async fn transfer_happy_path_paired_ledger_fifo_layer_outbox() {
     let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-001")).await.unwrap();
 
     // Receive 50 units at $10 in source warehouse
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 50, 1000, &format!("rcv-{}", Uuid::new_v4())))
+    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 50, 1000, &format!("rcv-{}", Uuid::new_v4())), None)
         .await.unwrap();
 
     // Transfer 20 units to destination
     let req = transfer(&tid, item.id, wh_src, wh_dst, 20, &format!("xfr-{}", Uuid::new_v4()));
-    let (result, is_replay) = process_transfer(&pool, &req).await.expect("transfer should succeed");
+    let (result, is_replay) = process_transfer(&pool, &req, None).await.expect("transfer should succeed");
 
     assert!(!is_replay);
     assert_eq!(result.quantity, 20);
@@ -214,13 +214,13 @@ async fn transfer_idempotency_replay_returns_same_result() {
     cleanup(&pool, &tid).await;
 
     let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-IDEM")).await.unwrap();
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 30, 500, &format!("rcv-{}", Uuid::new_v4())))
+    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 30, 500, &format!("rcv-{}", Uuid::new_v4())), None)
         .await.unwrap();
 
     let key = format!("xfr-idem-{}", Uuid::new_v4());
     let req = transfer(&tid, item.id, wh_src, wh_dst, 10, &key);
-    let (r1, replay1) = process_transfer(&pool, &req).await.unwrap();
-    let (r2, replay2) = process_transfer(&pool, &req).await.unwrap();
+    let (r1, replay1) = process_transfer(&pool, &req, None).await.unwrap();
+    let (r2, replay2) = process_transfer(&pool, &req, None).await.unwrap();
 
     assert!(!replay1);
     assert!(replay2);
@@ -251,11 +251,11 @@ async fn transfer_insufficient_quantity_rejected() {
     cleanup(&pool, &tid).await;
 
     let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-INS")).await.unwrap();
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 5, 1000, &format!("rcv-{}", Uuid::new_v4())))
+    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 5, 1000, &format!("rcv-{}", Uuid::new_v4())), None)
         .await.unwrap();
 
     let req = transfer(&tid, item.id, wh_src, wh_dst, 10, &format!("xfr-{}", Uuid::new_v4()));
-    let err = process_transfer(&pool, &req).await.unwrap_err();
+    let err = process_transfer(&pool, &req, None).await.unwrap_err();
     assert!(matches!(err, TransferError::InsufficientQuantity { requested: 10, available: 5 }));
 
     cleanup(&pool, &tid).await;
@@ -275,12 +275,12 @@ async fn transfer_inactive_item_rejected() {
     cleanup(&pool, &tid).await;
 
     let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-INACT")).await.unwrap();
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 20, 500, &format!("rcv-{}", Uuid::new_v4())))
+    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 20, 500, &format!("rcv-{}", Uuid::new_v4())), None)
         .await.unwrap();
     ItemRepo::deactivate(&pool, item.id, &tid).await.unwrap();
 
     let req = transfer(&tid, item.id, wh_src, wh_dst, 5, &format!("xfr-{}", Uuid::new_v4()));
-    let err = process_transfer(&pool, &req).await.unwrap_err();
+    let err = process_transfer(&pool, &req, None).await.unwrap_err();
     assert!(matches!(err, TransferError::Guard(_)));
 
     cleanup(&pool, &tid).await;
@@ -301,7 +301,7 @@ async fn transfer_same_warehouse_rejected() {
     let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-SAME")).await.unwrap();
 
     let req = transfer(&tid, item.id, wh, wh, 5, &format!("xfr-{}", Uuid::new_v4()));
-    let err = process_transfer(&pool, &req).await.unwrap_err();
+    let err = process_transfer(&pool, &req, None).await.unwrap_err();
     assert!(matches!(err, TransferError::SameWarehouse));
 
     cleanup(&pool, &tid).await;
@@ -323,15 +323,15 @@ async fn transfer_fifo_multi_layer_oldest_first() {
     let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-FIFO")).await.unwrap();
 
     // Layer 1: 10 units @ $5 (older)
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 10, 500, &format!("rcv1-{}", Uuid::new_v4())))
+    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 10, 500, &format!("rcv1-{}", Uuid::new_v4())), None)
         .await.unwrap();
     // Layer 2: 15 units @ $8 (newer)
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 15, 800, &format!("rcv2-{}", Uuid::new_v4())))
+    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 15, 800, &format!("rcv2-{}", Uuid::new_v4())), None)
         .await.unwrap();
 
     // Transfer 12 units — should consume all of layer 1 (10) + 2 from layer 2
     let req = transfer(&tid, item.id, wh_src, wh_dst, 12, &format!("xfr-{}", Uuid::new_v4()));
-    let (result, _) = process_transfer(&pool, &req).await.unwrap();
+    let (result, _) = process_transfer(&pool, &req, None).await.unwrap();
 
     assert_eq!(result.consumed_layers.len(), 2);
     assert_eq!(result.consumed_layers[0].quantity, 10);
@@ -364,7 +364,7 @@ async fn transfer_reserved_qty_not_transferable() {
     cleanup(&pool, &tid).await;
 
     let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-RSV")).await.unwrap();
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 20, 1000, &format!("rcv-{}", Uuid::new_v4())))
+    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 20, 1000, &format!("rcv-{}", Uuid::new_v4())), None)
         .await.unwrap();
 
     // Reserve 15 units
@@ -383,12 +383,12 @@ async fn transfer_reserved_qty_not_transferable() {
 
     // Only 5 units available; trying to transfer 10 should fail
     let req = transfer(&tid, item.id, wh_src, wh_dst, 10, &format!("xfr-{}", Uuid::new_v4()));
-    let err = process_transfer(&pool, &req).await.unwrap_err();
+    let err = process_transfer(&pool, &req, None).await.unwrap_err();
     assert!(matches!(err, TransferError::InsufficientQuantity { requested: 10, available: 5 }));
 
     // Transferring exactly 5 (available) should succeed
     let req2 = transfer(&tid, item.id, wh_src, wh_dst, 5, &format!("xfr-{}", Uuid::new_v4()));
-    let (result, _) = process_transfer(&pool, &req2).await.expect("transfer of 5 available units should succeed");
+    let (result, _) = process_transfer(&pool, &req2, None).await.expect("transfer of 5 available units should succeed");
     assert_eq!(result.quantity, 5);
 
     cleanup(&pool, &tid).await;

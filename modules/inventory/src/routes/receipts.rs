@@ -16,6 +16,7 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use event_bus::TracingContext;
 use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
@@ -141,8 +142,10 @@ fn receipt_error_response(err: ReceiptError) -> impl IntoResponse {
 pub async fn post_receipt(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(mut req): Json<ReceiptRequest>,
 ) -> impl IntoResponse {
+    let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
     let tenant_id = match &claims {
         Some(Extension(c)) => c.tenant_id.to_string(),
         None => {
@@ -154,7 +157,7 @@ pub async fn post_receipt(
         }
     };
     req.tenant_id = tenant_id;
-    match process_receipt(&state.pool, &req).await {
+    match process_receipt(&state.pool, &req, Some(&tracing_ctx)).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {
                 StatusCode::OK

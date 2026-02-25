@@ -16,6 +16,7 @@
 //! Pattern: Guard → Lock → FIFO → Mutation → Outbox (all in one transaction).
 
 use chrono::{Duration, Utc};
+use event_bus::TracingContext;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
@@ -180,6 +181,7 @@ struct LayerRow {
 pub async fn process_issue(
     pool: &PgPool,
     req: &IssueRequest,
+    tracing_ctx: Option<&TracingContext>,
 ) -> Result<(IssueResult, bool), IssueError> {
     // --- Stateless input validation ---
     validate_request(req)?;
@@ -603,13 +605,16 @@ pub async fn process_issue(
         issued_at,
     };
 
+    let default_ctx = TracingContext::default();
+    let ctx = tracing_ctx.unwrap_or(&default_ctx);
     let envelope = build_item_issued_envelope(
         event_id,
         req.tenant_id.clone(),
         correlation_id.clone(),
         req.causation_id.clone(),
         payload,
-    );
+    )
+    .with_tracing_context(ctx);
     let envelope_json = serde_json::to_string(&envelope)?;
 
     sqlx::query(

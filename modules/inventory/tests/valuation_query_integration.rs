@@ -96,6 +96,7 @@ async fn do_receipt(
             serial_codes: None,
             uom_id: None,
         },
+        None,
     )
     .await
     .expect("receipt");

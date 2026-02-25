@@ -91,7 +91,7 @@ async fn receipt_creates_ledger_layer_outbox_atomically() {
     let idem_key = format!("idem-{}", Uuid::new_v4());
     let req = receipt_req(&tenant_id, item.id, &idem_key);
 
-    let (result, is_replay) = process_receipt(&pool, &req)
+    let (result, is_replay) = process_receipt(&pool, &req, None)
         .await
         .expect("receipt should succeed");
 
@@ -170,11 +170,11 @@ async fn receipt_idempotency_replay_returns_stored_result() {
     let req = receipt_req(&tenant_id, item.id, &idem_key);
 
     // First call
-    let (result1, is_replay1) = process_receipt(&pool, &req).await.expect("first call");
+    let (result1, is_replay1) = process_receipt(&pool, &req, None).await.expect("first call");
     assert!(!is_replay1);
 
     // Second call with same key and same body
-    let (result2, is_replay2) = process_receipt(&pool, &req).await.expect("second call");
+    let (result2, is_replay2) = process_receipt(&pool, &req, None).await.expect("second call");
     assert!(is_replay2, "second call must be a replay");
     assert_eq!(result1.receipt_line_id, result2.receipt_line_id);
     assert_eq!(result1.layer_id, result2.layer_id);
@@ -219,7 +219,7 @@ async fn receipt_guard_rejects_inactive_item() {
         .expect("deactivate item");
 
     let req = receipt_req(&tenant_id, item.id, &format!("idem-{}", Uuid::new_v4()));
-    let err = process_receipt(&pool, &req).await.expect_err("must fail for inactive item");
+    let err = process_receipt(&pool, &req, None).await.expect_err("must fail for inactive item");
 
     assert!(
         matches!(err, ReceiptError::Guard(_)),
@@ -245,7 +245,7 @@ async fn receipt_guard_rejects_zero_quantity() {
         ..receipt_req(&tenant_id, Uuid::new_v4(), "irrelevant")
     };
 
-    let err = process_receipt(&pool, &req).await.expect_err("zero qty must fail");
+    let err = process_receipt(&pool, &req, None).await.expect_err("zero qty must fail");
     assert!(matches!(err, ReceiptError::Guard(_)), "{:?}", err);
 }
 
@@ -264,7 +264,7 @@ async fn receipt_guard_rejects_zero_cost() {
         ..receipt_req(&tenant_id, Uuid::new_v4(), "irrelevant")
     };
 
-    let err = process_receipt(&pool, &req).await.expect_err("zero cost must fail");
+    let err = process_receipt(&pool, &req, None).await.expect_err("zero cost must fail");
     assert!(matches!(err, ReceiptError::Guard(_)), "{:?}", err);
 }
 
@@ -299,7 +299,7 @@ async fn receipt_lot_tracked_creates_lot_and_associates_layer() {
         ..receipt_req(&tenant_id, item.id, &idem_key)
     };
 
-    let (result, is_replay) = process_receipt(&pool, &req).await.expect("lot receipt must succeed");
+    let (result, is_replay) = process_receipt(&pool, &req, None).await.expect("lot receipt must succeed");
     assert!(!is_replay);
 
     // lot_id must be set on the result
@@ -362,7 +362,7 @@ async fn receipt_lot_tracked_rejects_missing_lot_code() {
 
     // No lot_code provided
     let req = receipt_req(&tenant_id, item.id, &format!("idem-{}", Uuid::new_v4()));
-    let err = process_receipt(&pool, &req).await.expect_err("must fail without lot_code");
+    let err = process_receipt(&pool, &req, None).await.expect_err("must fail without lot_code");
 
     assert!(
         matches!(err, ReceiptError::LotCodeRequired),
@@ -409,7 +409,7 @@ async fn receipt_serial_tracked_creates_serial_instances() {
         ..receipt_req(&tenant_id, item.id, &idem_key)
     };
 
-    let (result, is_replay) = process_receipt(&pool, &req)
+    let (result, is_replay) = process_receipt(&pool, &req, None)
         .await
         .expect("serial receipt must succeed");
     assert!(!is_replay);
@@ -470,7 +470,7 @@ async fn receipt_serial_tracked_rejects_count_mismatch() {
         serial_codes: Some(vec!["SN-A".to_string(), "SN-B".to_string()]),
         ..receipt_req(&tenant_id, item.id, &format!("idem-{}", Uuid::new_v4()))
     };
-    let err = process_receipt(&pool, &req).await.expect_err("count mismatch must fail");
+    let err = process_receipt(&pool, &req, None).await.expect_err("count mismatch must fail");
 
     assert!(
         matches!(err, ReceiptError::SerialCountMismatch { expected: 50, got: 2 }),

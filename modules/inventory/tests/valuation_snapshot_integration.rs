@@ -172,7 +172,7 @@ async fn test_snapshot_single_item_correct_value() {
         .expect("create item");
 
     // Receive 20 units @ $10.00 each
-    process_receipt(&pool, &receipt_req(&tenant, item.id, warehouse_id, 20, 1000, "r1"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, warehouse_id, 20, 1000, "r1"), None)
         .await
         .expect("receipt");
 
@@ -207,12 +207,12 @@ async fn test_snapshot_multiple_items_totals() {
         .expect("create item b");
 
     // Item A: 10 units @ $5.00 = $50
-    process_receipt(&pool, &receipt_req(&tenant, item_a.id, warehouse_id, 10, 500, "r-ma1"))
+    process_receipt(&pool, &receipt_req(&tenant, item_a.id, warehouse_id, 10, 500, "r-ma1"), None)
         .await
         .expect("receipt a");
 
     // Item B: 4 units @ $25.00 = $100
-    process_receipt(&pool, &receipt_req(&tenant, item_b.id, warehouse_id, 4, 2500, "r-mb1"))
+    process_receipt(&pool, &receipt_req(&tenant, item_b.id, warehouse_id, 4, 2500, "r-mb1"), None)
         .await
         .expect("receipt b");
 
@@ -241,12 +241,12 @@ async fn test_snapshot_reflects_consumption() {
         .expect("create item");
 
     // Receive 50 units @ $2.00 = $100 total
-    process_receipt(&pool, &receipt_req(&tenant, item.id, warehouse_id, 50, 200, "r-c1"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, warehouse_id, 50, 200, "r-c1"), None)
         .await
         .expect("receipt");
 
     // Issue 30 units (consume 30 layers)
-    process_issue(&pool, &issue_req(&tenant, item.id, warehouse_id, 30, "i-c1"))
+    process_issue(&pool, &issue_req(&tenant, item.id, warehouse_id, 30, "i-c1"), None)
         .await
         .expect("issue");
 
@@ -379,6 +379,7 @@ async fn test_snapshot_tenant_isolation() {
     process_receipt(
         &pool,
         &receipt_req(&tenant_a, item_a.id, warehouse_id, 100, 500, "r-ta1"),
+        None,
     )
     .await
     .expect("receipt a");

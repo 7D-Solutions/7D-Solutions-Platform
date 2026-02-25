@@ -160,7 +160,7 @@ async fn test_transfer_available_to_quarantine() {
         .expect("create item");
 
     // Receipt 100 units → all go to 'available'
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-1"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-1"), None)
         .await
         .expect("receipt");
 
@@ -220,7 +220,7 @@ async fn test_transfer_idempotency() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-2"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-2"), None)
         .await
         .expect("receipt");
 
@@ -253,7 +253,7 @@ async fn test_transfer_insufficient_available() {
         .expect("create item");
 
     // Only 10 units in stock
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 10, "r-3"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 10, "r-3"), None)
         .await
         .expect("receipt");
 
@@ -370,7 +370,7 @@ async fn test_transfer_quarantine_to_damaged() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-7"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-7"), None)
         .await
         .expect("receipt");
 
@@ -415,7 +415,7 @@ async fn test_transfer_quarantine_back_to_available() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-8"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-8"), None)
         .await
         .expect("receipt");
 
@@ -457,7 +457,7 @@ async fn test_transfer_idempotency_conflict() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-9"))
+    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-9"), None)
         .await
         .expect("receipt");
 

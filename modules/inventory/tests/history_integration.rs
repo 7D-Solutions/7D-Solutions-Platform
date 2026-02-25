@@ -121,8 +121,8 @@ async fn history_ordered_after_receipts() {
     // Post two receipts; expect both in ledger-id order.
     let r1 = make_receipt(&tenant_id, item.id, warehouse_id, 100);
     let r2 = make_receipt(&tenant_id, item.id, warehouse_id, 50);
-    process_receipt(&pool, &r1).await.expect("receipt 1");
-    process_receipt(&pool, &r2).await.expect("receipt 2");
+    process_receipt(&pool, &r1, None).await.expect("receipt 1");
+    process_receipt(&pool, &r2, None).await.expect("receipt 2");
 
     let movements = query_movement_history(&pool, &tenant_id, item.id, None)
         .await
@@ -166,13 +166,13 @@ async fn history_location_filter() {
 
     // Receipt without location (NULL location_id).
     let r_no_loc = make_receipt(&tenant_id, item.id, warehouse_id, 200);
-    process_receipt(&pool, &r_no_loc).await.expect("receipt no-loc");
+    process_receipt(&pool, &r_no_loc, None).await.expect("receipt no-loc");
 
     // Receipt with location — patch the ledger row directly after insert (simulating
     // a location-aware receipt).  We call the receipt service then update location_id
     // since the integration-test ReceiptRequest doesn't carry location_id yet.
     let r_loc = make_receipt(&tenant_id, item.id, warehouse_id, 75);
-    process_receipt(&pool, &r_loc).await.expect("receipt with-loc");
+    process_receipt(&pool, &r_loc, None).await.expect("receipt with-loc");
 
     // Patch most recent ledger row for this tenant to have location_id.
     sqlx::query(
@@ -213,7 +213,7 @@ async fn history_location_none_all_movements() {
     // Three receipts
     for qty in [10, 20, 30] {
         let r = make_receipt(&tenant_id, item.id, warehouse_id, qty);
-        process_receipt(&pool, &r).await.expect("receipt");
+        process_receipt(&pool, &r, None).await.expect("receipt");
     }
 
     let all_movements = query_movement_history(&pool, &tenant_id, item.id, None)

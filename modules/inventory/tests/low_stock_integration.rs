@@ -200,10 +200,10 @@ async fn test_issue_crossing_below_emits_signal() {
     }).await.unwrap();
 
     // Receive 30 units — well above threshold
-    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 30, "r-ls01")).await.unwrap();
+    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 30, "r-ls01"), None).await.unwrap();
 
     // Issue 15 units: available = 15, below reorder_point 20 → signal expected
-    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 15, "i-ls01")).await.unwrap();
+    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 15, "i-ls01"), None).await.unwrap();
 
     let signals = count_low_stock_signals(&pool, &tenant, item.id).await;
     assert_eq!(signals, 1, "expected exactly 1 low-stock signal");
@@ -234,12 +234,12 @@ async fn test_second_issue_while_below_no_duplicate() {
         created_by: None,
     }).await.unwrap();
 
-    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 30, "r-ls02")).await.unwrap();
+    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 30, "r-ls02"), None).await.unwrap();
 
     // First issue — crosses below → signal 1
-    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 12, "i-ls02a")).await.unwrap();
+    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 12, "i-ls02a"), None).await.unwrap();
     // Second issue — still below → no new signal
-    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 5, "i-ls02b")).await.unwrap();
+    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 5, "i-ls02b"), None).await.unwrap();
 
     let signals = count_low_stock_signals(&pool, &tenant, item.id).await;
     assert_eq!(signals, 1, "should still be exactly 1 signal after second issue below threshold");
@@ -268,22 +268,22 @@ async fn test_recovery_and_rearm() {
         created_by: None,
     }).await.unwrap();
 
-    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 50, "r-ls03a")).await.unwrap();
+    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 50, "r-ls03a"), None).await.unwrap();
 
     // Drop below → signal 1 (50 - 35 = 15, below reorder_point 20)
-    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 35, "i-ls03a")).await.unwrap();
+    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 35, "i-ls03a"), None).await.unwrap();
     let signals_after_first = count_low_stock_signals(&pool, &tenant, item.id).await;
     assert_eq!(signals_after_first, 1);
 
     // Recover above with a receipt (+30 → available = 45).
     // Using receipt (not adjustment) so FIFO layers are replenished for the next issue.
-    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 30, "r-ls03b")).await.unwrap();
+    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 30, "r-ls03b"), None).await.unwrap();
 
     let state_after_recovery = get_below_threshold(&pool, &tenant, item.id, Some(loc.id)).await;
     assert_eq!(state_after_recovery, Some(false), "state should be re-armed after recovery");
 
     // Drop below again → signal 2 (45 - 30 = 15, below reorder_point 20)
-    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 30, "i-ls03b")).await.unwrap();
+    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 30, "i-ls03b"), None).await.unwrap();
     let signals_after_rearm = count_low_stock_signals(&pool, &tenant, item.id).await;
     assert_eq!(signals_after_rearm, 2, "should have 2 signals: initial + re-armed crossing");
 }
@@ -300,8 +300,8 @@ async fn test_no_policy_no_signal() {
     let loc = LocationRepo::create(&pool, &make_location(&tenant, wh, "L-04")).await.unwrap();
 
     // No reorder policy for this item
-    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 30, "r-ls04")).await.unwrap();
-    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 25, "i-ls04")).await.unwrap();
+    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 30, "r-ls04"), None).await.unwrap();
+    process_issue(&pool, &issue(&tenant, item.id, wh, loc.id, 25, "i-ls04"), None).await.unwrap();
 
     let signals = count_low_stock_signals(&pool, &tenant, item.id).await;
     assert_eq!(signals, 0, "no signal when no reorder policy exists");
@@ -329,10 +329,10 @@ async fn test_adjustment_crossing_below_emits_signal() {
         created_by: None,
     }).await.unwrap();
 
-    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 25, "r-ls05")).await.unwrap();
+    process_receipt(&pool, &receipt(&tenant, item.id, wh, loc.id, 25, "r-ls05"), None).await.unwrap();
 
     // Negative adjustment: −15 → available = 10, below reorder_point 15
-    process_adjustment(&pool, &adjustment(&tenant, item.id, wh, loc.id, -15, "a-ls05")).await.unwrap();
+    process_adjustment(&pool, &adjustment(&tenant, item.id, wh, loc.id, -15, "a-ls05"), None).await.unwrap();
 
     let signals = count_low_stock_signals(&pool, &tenant, item.id).await;
     assert_eq!(signals, 1, "adjustment crossing below should emit signal");

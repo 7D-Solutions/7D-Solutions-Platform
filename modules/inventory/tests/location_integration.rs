@@ -352,7 +352,7 @@ async fn test_receipt_with_location_creates_location_on_hand_row() {
 
     // Receipt into location
     let req = receipt_req(&tenant_id, item.id, warehouse_id, Some(loc.id), "idem-loc-rcpt-1");
-    let (result, is_replay) = process_receipt(&pool, &req).await.unwrap();
+    let (result, is_replay) = process_receipt(&pool, &req, None).await.unwrap();
     assert!(!is_replay);
     assert_eq!(result.location_id, Some(loc.id));
 
@@ -395,7 +395,7 @@ async fn test_receipt_without_location_creates_null_location_row() {
         .unwrap();
 
     let req = receipt_req(&tenant_id, item.id, warehouse_id, None, "idem-null-rcpt-1");
-    let (result, _) = process_receipt(&pool, &req).await.unwrap();
+    let (result, _) = process_receipt(&pool, &req, None).await.unwrap();
     assert_eq!(result.location_id, None);
 
     let on_hand = get_on_hand(&pool, &tenant_id, item.id, warehouse_id, None)
@@ -450,13 +450,14 @@ async fn test_receipts_into_different_locations_create_separate_on_hand_rows() {
     process_receipt(
         &pool,
         &receipt_req(&tenant_id, item.id, warehouse_id, Some(loc_a.id), "idem-a"),
+        None,
     )
     .await
     .unwrap();
 
     let mut req_b = receipt_req(&tenant_id, item.id, warehouse_id, Some(loc_b.id), "idem-b");
     req_b.quantity = 30;
-    process_receipt(&pool, &req_b).await.unwrap();
+    process_receipt(&pool, &req_b, None).await.unwrap();
 
     let on_hand_a = get_on_hand(&pool, &tenant_id, item.id, warehouse_id, Some(loc_a.id))
         .await
@@ -504,6 +505,7 @@ async fn test_issue_with_location_deducts_from_location_on_hand() {
     process_receipt(
         &pool,
         &receipt_req(&tenant_id, item.id, warehouse_id, Some(loc.id), "idem-issue-rcpt"),
+        None,
     )
     .await
     .unwrap();
@@ -517,7 +519,7 @@ async fn test_issue_with_location_deducts_from_location_on_hand() {
         15,
         "idem-issue-1",
     );
-    let (result, is_replay) = process_issue(&pool, &issue).await.unwrap();
+    let (result, is_replay) = process_issue(&pool, &issue, None).await.unwrap();
     assert!(!is_replay);
     assert_eq!(result.location_id, Some(loc.id));
     assert_eq!(result.quantity, 15);
@@ -560,7 +562,7 @@ async fn test_issue_from_location_rejects_insufficient_stock() {
     // Only 10 in location
     let mut rcpt = receipt_req(&tenant_id, item.id, warehouse_id, Some(loc.id), "idem-insuf-rcpt");
     rcpt.quantity = 10;
-    process_receipt(&pool, &rcpt).await.unwrap();
+    process_receipt(&pool, &rcpt, None).await.unwrap();
 
     // Try to issue 20 — should fail
     let issue = issue_req(
@@ -571,7 +573,7 @@ async fn test_issue_from_location_rejects_insufficient_stock() {
         20,
         "idem-insuf-issue",
     );
-    let err = process_issue(&pool, &issue).await.unwrap_err();
+    let err = process_issue(&pool, &issue, None).await.unwrap_err();
     assert!(
         matches!(
             err,
@@ -604,13 +606,14 @@ async fn test_null_location_issue_backward_compat() {
     process_receipt(
         &pool,
         &receipt_req(&tenant_id, item.id, warehouse_id, None, "idem-back-rcpt"),
+        None,
     )
     .await
     .unwrap();
 
     // Issue with no location
     let issue = issue_req(&tenant_id, item.id, warehouse_id, None, 20, "idem-back-issue");
-    let (result, _) = process_issue(&pool, &issue).await.unwrap();
+    let (result, _) = process_issue(&pool, &issue, None).await.unwrap();
     assert_eq!(result.location_id, None);
     assert_eq!(result.quantity, 20);
 
