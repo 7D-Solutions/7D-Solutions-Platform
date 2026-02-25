@@ -108,15 +108,15 @@ Most handlers use `VerifiedClaims`. One file remains:
 2. **Admin endpoints (OK):** All modules have `admin.rs` files using
    `X-Admin-Token` + `HeaderMap`. These are internal operations endpoints.
 
-3. **Missing tenant isolation (separate concern):** Inventory `routes/`
+3. **~~Missing tenant isolation~~ (RESOLVED):** Inventory `routes/`
    handlers for adjustments, issues, receipts, reservations, and transfers
-   reference no tenant_id at all — possible missing tenant isolation entirely.
+   now use `VerifiedClaims` for tenant isolation (bd-1u8k).
 
 ---
 
 ## Remediation Complete
 
-All 19 handler files across 5 modules have been fixed. Each now derives tenant exclusively from `VerifiedClaims`.
+All 24 handler files across 5 modules have been fixed. Each now derives tenant exclusively from `VerifiedClaims`. This includes the 5 inventory transaction routes (adjustments, issues, receipts, reservations, transfers) that were originally flagged as observation #3.
 
 | Module | Files Fixed | Bead | Status |
 |--------|------------|------|--------|
@@ -125,3 +125,4 @@ All 19 handler files across 5 modules have been fixed. Each now derives tenant e
 | Consolidation module | consolidate.rs, intercompany.rs | bd-ia5y.3 | RESOLVED |
 | Inventory routes | items.rs, locations.rs, uom.rs | bd-ia5y.4 | RESOLVED |
 | AR tax.rs | tax.rs | bd-ia5y.5 | RESOLVED |
+| Inventory transactions | adjustments.rs, issues.rs, receipts.rs, reservations.rs, transfers.rs | bd-1u8k | RESOLVED |

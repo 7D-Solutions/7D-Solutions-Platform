@@ -40,6 +40,7 @@ Multiple modules derived the tenant or application identity (`tenant_id` / `app_
 | Consolidation (sweep) | `tenant_id` in consolidate.rs, intercompany.rs | RESOLVED | bd-ia5y.3 |
 | Inventory routes (sweep) | `tenant_id` in items.rs, locations.rs, uom.rs | RESOLVED | bd-ia5y.4 |
 | AR tax (sweep) | `app_id` in tax.rs JSON body | RESOLVED | bd-ia5y.5 |
+| Inventory transactions (sweep) | Missing tenant isolation in adjustments, issues, receipts, reservations, transfers | RESOLVED | bd-1u8k |
 
 All resolved modules now derive identity exclusively from `VerifiedClaims` extracted from JWT claims.
 
@@ -119,12 +120,13 @@ The core identity service correctly implements RS256 signing, JWKS distribution,
 | 2026-02-25 | C1 fix: Consolidation (consolidate.rs, intercompany.rs) — VerifiedClaims | bd-ia5y.3 |
 | 2026-02-25 | C1 fix: Inventory routes (items, locations, uom) — VerifiedClaims | bd-ia5y.4 |
 | 2026-02-25 | C1 fix: AR tax.rs — VerifiedClaims | bd-ia5y.5 |
+| 2026-02-25 | C1 fix: Inventory transaction routes (adjustments, issues, receipts, reservations, transfers) — VerifiedClaims | bd-1u8k |
 
 ---
 
 ## Priority Action Items
 
-1. **[P0 — RESOLVED]** C1 tenant isolation: all 18 modules now derive tenant from VerifiedClaims. Fixed Assets (bd-24dc), GL (bd-ia5y.1), TTP (bd-ia5y.2), Consolidation (bd-ia5y.3), Inventory routes (bd-ia5y.4), AR tax (bd-ia5y.5).
+1. **[P0 — RESOLVED]** C1 tenant isolation: all 18 modules now derive tenant from VerifiedClaims. Fixed Assets (bd-24dc), GL (bd-ia5y.1), TTP (bd-ia5y.2), Consolidation (bd-ia5y.3), Inventory routes (bd-ia5y.4), AR tax (bd-ia5y.5), Inventory transactions (bd-1u8k).
 2. **[P1 — RESOLVED]** Verification sweep confirming all 18 modules derive tenant from VerifiedClaims (bd-ia5y). Sweep report: `docs/c1-verification-sweep-2026-02-25.md`.
 3. **[P1 — PENDING]** E2E test proving spoofed headers are ignored when JWT is present (bd-3mwl).
 4. **[P2 — RESOLVED]** Audit `platform/identity-auth` argon2 parameters against OWASP 2024 minimums (bd-1l2g).
