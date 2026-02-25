@@ -96,6 +96,11 @@ pub const PDF_EDITOR_READ: &str = "pdf_editor.read";
 pub const TRASHTECH_MUTATE: &str = "trashtech.mutate";
 pub const TRASHTECH_READ: &str = "trashtech.read";
 
+// ── Shipping / Receiving ────────────────────────────────────────────────
+
+pub const SHIPPING_RECEIVING_MUTATE: &str = "shipping_receiving.mutate";
+pub const SHIPPING_RECEIVING_READ: &str = "shipping_receiving.read";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,6 +204,7 @@ mod tests {
             INTEGRATIONS_MUTATE,
             TTP_MUTATE,
             PDF_EDITOR_MUTATE,
+            SHIPPING_RECEIVING_MUTATE,
         ];
         for perm in &mutate_perms {
             assert!(perm.contains('.'), "Permission '{}' must contain a dot", perm);
@@ -225,5 +231,12 @@ mod tests {
         assert_ne!(INTEGRATIONS_MUTATE, INTEGRATIONS_READ);
         assert_ne!(TTP_MUTATE, TTP_READ);
         assert_ne!(PDF_EDITOR_MUTATE, PDF_EDITOR_READ);
+        assert_ne!(SHIPPING_RECEIVING_MUTATE, SHIPPING_RECEIVING_READ);
+    }
+
+    #[test]
+    fn test_permissions_shipping_receiving_constants_are_non_empty() {
+        assert!(!SHIPPING_RECEIVING_MUTATE.is_empty());
+        assert!(!SHIPPING_RECEIVING_READ.is_empty());
     }
 }

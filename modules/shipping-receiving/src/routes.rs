@@ -4,10 +4,16 @@ use std::sync::Arc;
 use crate::http;
 use crate::AppState;
 
-pub fn build_router(state: Arc<AppState>) -> Router {
+/// Read routes — accessible with any valid JWT (no extra permissions).
+pub fn build_router() -> Router<Arc<AppState>> {
     Router::new()
         .route("/api/health", get(http::health::health))
         .route("/api/ready", get(http::health::ready))
         .route("/api/version", get(http::health::version))
-        .with_state(state)
+}
+
+/// Mutation routes — caller must apply RequirePermissionsLayer externally.
+/// Currently empty; future beads will add POST/PUT/PATCH/DELETE endpoints here.
+pub fn build_mutation_router() -> Router<Arc<AppState>> {
+    Router::new()
 }

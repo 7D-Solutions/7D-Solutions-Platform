@@ -2,9 +2,9 @@ use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::{
     middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
-    optional_claims_mw, JwtVerifier,
+    optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
-use shipping_receiving_rs::{config::Config, outbox, routes, AppState};
+use shipping_receiving_rs::{config::Config, metrics, outbox, routes, AppState};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -69,13 +69,25 @@ async fn main() {
     });
     tracing::info!("Shipping-Receiving: outbox publisher task started");
 
-    let app_state = Arc::new(AppState { pool });
+    let metrics = Arc::new(
+        metrics::ShippingReceivingMetrics::new().expect("Failed to create metrics registry"),
+    );
+
+    let app_state = Arc::new(AppState { pool, metrics });
 
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
     let app = Router::new()
         .route("/healthz", get(health::healthz))
-        .merge(routes::build_router(app_state))
+        .route("/metrics", get(metrics::metrics_handler))
+        .merge(routes::build_router())
+        .merge(
+            routes::build_mutation_router()
+                .route_layer(RequirePermissionsLayer::new(&[
+                    permissions::SHIPPING_RECEIVING_MUTATE,
+                ])),
+        )
+        .with_state(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(
             security::tracing::tracing_context_middleware,
