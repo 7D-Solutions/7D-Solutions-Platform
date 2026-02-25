@@ -21,7 +21,7 @@ use crate::domain::payment_runs::{
     CreatePaymentRunRequest, PaymentRunError,
 };
 use crate::http::tenant::extract_tenant;
-use crate::http::vendors::ErrorBody;
+use crate::http::admin_types::ErrorBody;
 use crate::AppState;
 
 // ============================================================================

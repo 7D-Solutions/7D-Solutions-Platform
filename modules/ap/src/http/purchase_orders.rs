@@ -21,7 +21,7 @@ use crate::domain::po::{
     PurchaseOrderWithLines, UpdatePoLinesRequest,
 };
 use crate::http::tenant::extract_tenant;
-use crate::http::vendors::ErrorBody;
+use crate::http::admin_types::ErrorBody;
 use crate::AppState;
 
 // ============================================================================

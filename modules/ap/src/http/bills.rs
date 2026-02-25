@@ -25,7 +25,7 @@ use crate::domain::bills::{
 use crate::domain::r#match::{engine, MatchError, MatchOutcome, RunMatchRequest};
 use crate::domain::tax::{self, ApTaxSnapshot, ZeroTaxProvider};
 use crate::http::tenant::extract_tenant;
-use crate::http::vendors::ErrorBody;
+use crate::http::admin_types::ErrorBody;
 use crate::AppState;
 
 // ============================================================================

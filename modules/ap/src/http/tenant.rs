@@ -4,7 +4,7 @@ use axum::http::StatusCode;
 use axum::{Extension, Json};
 use security::VerifiedClaims;
 
-use super::vendors::ErrorBody;
+use super::admin_types::ErrorBody;
 
 /// Extract the tenant ID string from verified JWT claims in request extensions.
 ///

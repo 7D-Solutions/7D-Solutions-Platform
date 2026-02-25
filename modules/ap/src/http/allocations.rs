@@ -16,7 +16,7 @@ use uuid::Uuid;
 
 use crate::domain::allocations::{service, AllocationError, CreateAllocationRequest};
 use crate::http::tenant::extract_tenant;
-use crate::http::vendors::ErrorBody;
+use crate::http::admin_types::ErrorBody;
 use crate::AppState;
 
 fn allocation_error_response(e: AllocationError) -> (StatusCode, Json<ErrorBody>) {
