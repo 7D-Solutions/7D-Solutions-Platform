@@ -12,11 +12,12 @@
 
 use axum::{
     body::Body,
-    extract::{Multipart, Path, Query, State},
+    extract::{Multipart, Path, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Serialize;
 use serde_json::json;
 use sqlx::PgPool;
@@ -27,7 +28,7 @@ use crate::domain::generate::generate_filled_pdf;
 use crate::domain::submissions::SubmissionRepo;
 use crate::event_bus::{create_pdf_editor_envelope, enqueue_event};
 
-use super::templates::TenantQuery;
+use super::templates::extract_tenant;
 
 /// Event payload for pdf.form.generated.
 #[derive(Debug, Clone, Serialize)]
@@ -41,20 +42,17 @@ struct FormGeneratedPayload {
 pub async fn generate_pdf(
     State(pool): State<PgPool>,
     Path(submission_id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
     multipart: Multipart,
 ) -> Result<Response, Response> {
-    if q.tenant_id.trim().is_empty() {
-        return Err(error_response(
-            StatusCode::BAD_REQUEST,
-            "tenant_id is required",
-        ));
-    }
+    let tenant_id = extract_tenant(&claims).map_err(|(status, body)| {
+        (status, body).into_response()
+    })?;
 
     let pdf_bytes = extract_pdf_bytes(multipart).await?;
 
     // Look up submission
-    let submission = SubmissionRepo::find_by_id(&pool, submission_id, &q.tenant_id)
+    let submission = SubmissionRepo::find_by_id(&pool, submission_id, &tenant_id)
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "DB error looking up submission");

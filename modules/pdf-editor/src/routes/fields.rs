@@ -7,11 +7,12 @@
 //!   POST /api/pdf/forms/templates/:id/fields/reorder   — reorder fields
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -20,7 +21,7 @@ use crate::domain::forms::{
     CreateFieldRequest, FieldRepo, FormError, ReorderFieldsRequest, UpdateFieldRequest,
 };
 
-use super::templates::TenantQuery;
+use super::templates::extract_tenant;
 
 fn form_error_response(err: FormError) -> impl IntoResponse {
     match err {
@@ -54,18 +55,15 @@ fn form_error_response(err: FormError) -> impl IntoResponse {
 pub async fn create_field(
     State(pool): State<PgPool>,
     Path(template_id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateFieldRequest>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
 
-    match FieldRepo::create(&pool, template_id, &q.tenant_id, &req).await {
+    match FieldRepo::create(&pool, template_id, &tenant_id, &req).await {
         Ok(field) => (StatusCode::CREATED, Json(json!(field))).into_response(),
         Err(e) => form_error_response(e).into_response(),
     }
@@ -75,17 +73,14 @@ pub async fn create_field(
 pub async fn list_fields(
     State(pool): State<PgPool>,
     Path(template_id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
 
-    match FieldRepo::list(&pool, template_id, &q.tenant_id).await {
+    match FieldRepo::list(&pool, template_id, &tenant_id).await {
         Ok(fields) => (StatusCode::OK, Json(json!(fields))).into_response(),
         Err(e) => form_error_response(e).into_response(),
     }
@@ -95,18 +90,15 @@ pub async fn list_fields(
 pub async fn update_field(
     State(pool): State<PgPool>,
     Path((template_id, field_id)): Path<(Uuid, Uuid)>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<UpdateFieldRequest>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
 
-    match FieldRepo::update(&pool, field_id, template_id, &q.tenant_id, &req).await {
+    match FieldRepo::update(&pool, field_id, template_id, &tenant_id, &req).await {
         Ok(field) => (StatusCode::OK, Json(json!(field))).into_response(),
         Err(e) => form_error_response(e).into_response(),
     }
@@ -116,18 +108,15 @@ pub async fn update_field(
 pub async fn reorder_fields(
     State(pool): State<PgPool>,
     Path(template_id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<ReorderFieldsRequest>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
 
-    match FieldRepo::reorder(&pool, template_id, &q.tenant_id, &req).await {
+    match FieldRepo::reorder(&pool, template_id, &tenant_id, &req).await {
         Ok(fields) => (StatusCode::OK, Json(json!(fields))).into_response(),
         Err(e) => form_error_response(e).into_response(),
     }
