@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.0.1 | 2026-02-25 | bd-1uce | Added graceful shutdown with SIGTERM/SIGINT signal handling. Server now drains in-flight requests before closing DB pool on shutdown. | Zero-downtime deploys require graceful shutdown to avoid dropping in-flight requests. | No |
 | 1.0.0 | 2026-02-21 | bd-qvbg | Initial proof. All 23 tests passing (unit + integration against real DB). Handles tenant create, platform billing run, retention policy, AR client, tenant-registry client. Proof command: `./scripts/proof_control_plane.sh` | Module build complete. Phase 44 Track B promotion. | — |
 
 ## How to read this table

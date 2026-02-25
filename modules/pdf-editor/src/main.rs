@@ -37,6 +37,8 @@ async fn main() {
         .await
         .expect("Failed to connect to Postgres");
 
+    let shutdown_pool = db.clone();
+
     // Run migrations
     sqlx::migrate!("./db/migrations")
         .run(&db)
@@ -137,8 +139,39 @@ async fn main() {
         .expect("Failed to bind");
 
     axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
         .await
         .expect("Server failed to start");
+
+    tracing::info!("Server stopped — closing resources");
+    shutdown_pool.close().await;
+    tracing::info!("Shutdown complete");
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+
+    tracing::info!("Shutdown signal received — draining in-flight requests");
 }
 
 /// Build CORS layer from configuration.
