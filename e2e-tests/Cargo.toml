@@ -420,6 +420,10 @@ name = "sr_inventory_gl_cross_module_e2e"
 path = "tests/sr_inventory_gl_cross_module_e2e.rs"
 
 [[test]]
+name = "sr_inventory_gl_tenant_isolation_e2e"
+path = "tests/sr_inventory_gl_tenant_isolation_e2e.rs"
+
+[[test]]
 name = "cross_module_ar_invoice_lifecycle_e2e"
 path = "tests/cross_module_ar_invoice_lifecycle_e2e.rs"
 
