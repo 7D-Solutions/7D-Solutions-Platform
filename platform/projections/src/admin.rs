@@ -239,8 +239,8 @@ pub async fn query_projection_list(pool: &PgPool) -> Result<ProjectionListRespon
     }
 
     let rows = sqlx::query_as::<_, (String, i64, i64, Option<DateTime<Utc>>)>(
-        "SELECT projection_name, COUNT(*) as tenant_count, \
-                COALESCE(SUM(events_processed), 0) as total_events, \
+        "SELECT projection_name, COUNT(*)::BIGINT as tenant_count, \
+                COALESCE(SUM(events_processed), 0)::BIGINT as total_events, \
                 MAX(updated_at) as last_updated \
          FROM projection_cursors \
          GROUP BY projection_name \
