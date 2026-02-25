@@ -100,7 +100,7 @@ Every state change writes an event to the outbox atomically. If the event didn't
 - Configurable approval gate (per tenant, defaults off)
 - Background scheduler: evaluate due plans, detect overdue work orders
 - Auto-create work orders from due plans (per tenant, defaults off)
-- 7 domain events emitted via outbox (see Events Produced)
+- 9 domain events emitted via outbox (see Events Produced)
 - Integration seams: Fixed-Assets ref, Inventory part_ref, GL cost payload, Notification subjects
 - OpenAPI contract
 
@@ -123,7 +123,7 @@ Every state change writes an event to the outbox atomically. If the event didn't
 | Layer | Technology | Notes |
 |-------|-----------|-------|
 | Language | Rust | Platform standard |
-| HTTP framework | Axum | Port TBD (assigned at integration time) |
+| HTTP framework | Axum | Port 8101 (default) |
 | Database | PostgreSQL | Dedicated database, SQLx for queries and migrations |
 | Event bus | NATS | Via platform `event-bus` crate |
 | Auth | JWT via platform `security` crate | Tenant-scoped, role-based |
@@ -304,9 +304,11 @@ All events use the platform `EventEnvelope` and are written to the module outbox
 | `maintenance.work_order.status_changed` | Any status transition | `wo_id`, `old_status`, `new_status` |
 | `maintenance.work_order.completed` | Work order completed | `wo_id`, `asset_id`, `total_parts_minor`, `total_labor_minor`, `currency`, `downtime_minutes`, `fixed_asset_ref` |
 | `maintenance.work_order.closed` | Work order closed (cost locked) | `wo_id`, `asset_id` |
+| `maintenance.work_order.cancelled` | Work order cancelled | `wo_id`, `asset_id` |
 | `maintenance.work_order.overdue` | Scheduled date passed | `wo_id`, `asset_id`, `days_overdue`, `priority` |
 | `maintenance.meter_reading.recorded` | New meter reading | `asset_id`, `meter_type_id`, `reading_value`, `recorded_at` |
 | `maintenance.plan.due` | Maintenance plan becomes due | `assignment_id`, `plan_id`, `asset_id`, `due_kind` (calendar\|meter), `due_value` |
+| `maintenance.plan.assigned` | PM plan auto-generated a work order | `assignment_id`, `plan_id`, `asset_id`, `wo_id` |
 
 ---
 

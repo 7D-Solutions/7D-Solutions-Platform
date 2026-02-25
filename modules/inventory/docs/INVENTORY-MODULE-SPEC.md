@@ -416,7 +416,7 @@ Full OpenAPI contract: `contracts/inventory/inventory-v0.1.0.yaml`
 | 2026-02-18 | Low-stock signal uses crossing detection with dedup state | Prevents alert spam; signal fires once per crossing, re-arms when stock rises above threshold | Platform Orchestrator |
 | 2026-02-18 | Cycle counts use snapshot/submit/approve lifecycle | Expected qty captured at creation (no drift during counting); approval is the boundary where variances become adjustments | Platform Orchestrator |
 | 2026-02-18 | Weighted-average unit cost for transfer destination layers | Source layers consumed via FIFO may have different costs; destination gets a single layer with blended cost | Platform Orchestrator |
-| 2026-02-18 | No mocking in tests — integrated tests against real Postgres | Platform-wide standard; mocked tests provide false confidence; 18 integration test files | Platform Orchestrator |
+| 2026-02-18 | No mocking in tests — integrated tests against real Postgres | Platform-wide standard; mocked tests provide false confidence; 17 integration test files | Platform Orchestrator |
 | 2026-02-18 | Tenant isolation via tenant_id on every table | Standard platform multi-tenant pattern; all indexes include tenant_id as leading column | Platform Orchestrator |
 
 ---

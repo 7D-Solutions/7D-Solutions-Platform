@@ -40,7 +40,7 @@ Maintenance does **NOT**:
 | `wo_lines` / parts_and_labor | Cost line items per work order |
 | `pm_plans` | Preventive maintenance plan definitions |
 | `meter_readings` | Equipment meter values with timestamps |
-| `tenant_config` | Per-tenant maintenance configuration |
+| `maintenance_tenant_config` | Per-tenant maintenance configuration |
 | `events_outbox` | Module outbox for NATS |
 | `processed_events` | Consumer idempotency |
 
@@ -58,7 +58,9 @@ Maintenance does **NOT**:
 - `maintenance.meter_reading.recorded` — new meter reading captured
 - `maintenance.plan.due` — PM plan triggered (time or meter threshold)
 - `maintenance.plan.assigned` — PM plan auto-generated a work order
-- `gl.posting.requested` — cost posting for completed work orders
+
+**Planned (not yet implemented):**
+- `gl.posting.requested` — cost posting for completed work orders (deferred to GL integration bead)
 
 **Consumes:**
 - None currently
@@ -77,7 +79,7 @@ Maintenance does **NOT**:
 
 ## 6. Integration Map
 
-- **GL** → Maintenance emits `gl.posting.requested` for work order costs
+- **GL** → `maintenance.work_order.completed` carries cost data; GL posting integration planned (not yet implemented)
 - **Inventory** → future: parts consumption from inventory stock
 - **Fixed Assets** → future: link work orders to fixed asset records
 - **Timekeeping** → future: labor hours from timesheet entries

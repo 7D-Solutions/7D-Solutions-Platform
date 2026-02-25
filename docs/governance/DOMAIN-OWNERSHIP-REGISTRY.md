@@ -135,16 +135,20 @@ This registry declares the single source of truth for each domain concept in the
 **Port**: `8089`
 
 **Domain Ownership**:
-- **Notification Logs** (`notification_logs`) - Delivery tracking, templates, recipient info
+- **Scheduled Notifications** (`scheduled_notifications`) - Notification scheduling and delivery tracking
+- **Dead-Letter Queue** (`dead_letter_queue`) - Failed delivery records for retry
+- **Event Processing State** (`processed_events`) - Consumer idempotency tracking
 
 **Domain Responsibilities**:
 - Email/SMS notification delivery
-- Notification template management
+- Notification scheduling and dead-letter management
 - Delivery status tracking
+- Low stock alert generation
+- Close calendar reminders
 
 **External Dependencies**:
-- Consumes: `invoice.issued`, `payment.succeeded`, `payment.failed` (from AR/Payments)
-- Produces: `notifications.delivery.succeeded`, `notifications.delivery.failed`
+- Consumes: `ar.events.invoice.issued`, `payments.events.payment.succeeded`, `payments.events.payment.failed` (from AR/Payments), `inventory.low_stock_triggered` (handler built, not yet wired)
+- Produces: `notifications.delivery.succeeded`, `notifications.low_stock.alert.created`, `notifications.close_calendar.reminder`
 - External: Email/SMS service providers
 
 ---
@@ -158,9 +162,9 @@ This registry declares the single source of truth for each domain concept in the
 **Domain Ownership**:
 - **Shipments** (`shipments`) - Inbound/outbound shipment headers with direction, carrier, tracking, status
 - **Shipment Lines** (`shipment_lines`) - Per-SKU line items with quantities (expected, received, accepted, rejected, shipped)
-- **Shipment Status History** (`shipment_status_history`) - Append-only audit trail of status transitions
-- **Events Outbox** (`events_outbox`) - Module outbox for NATS event publishing
-- **Processed Events** (`processed_events`) - Consumer idempotency and replay safety
+- **Shipment Status History** (`shipment_status_history`) - Append-only audit trail of status transitions (planned, not yet in schema)
+- **Events Outbox** (`sr_events_outbox`) - Module outbox for NATS event publishing
+- **Processed Events** (`sr_processed_events`) - Consumer idempotency and replay safety
 
 **Domain Responsibilities**:
 - Shipment lifecycle management (inbound: expected → closed; outbound: created → delivered)
@@ -333,22 +337,27 @@ This registry declares the single source of truth for each domain concept in the
 **Port**: `8097`
 
 **Domain Ownership**:
-- **Employees** (`employees`) - Employee master data for time tracking
-- **Projects** (`projects`) - Project/job definitions for time allocation
-- **Timesheet Entries** (`timesheet_entries`) - Individual time records with billing rates
-- **Approvals** (`approvals`) - Timesheet approval workflow state
-- **Allocations/Exports** (`allocations`, `exports`) - Cost allocation and payroll export batches
-- **Billing Rates** (`billing_rates`) - Per-employee or per-project billing rates
+- **Employees** (`tk_employees`) - Employee master data for time tracking
+- **Projects** (`tk_projects`) - Project/job definitions for time allocation
+- **Tasks** (`tk_tasks`) - Task breakdown within projects
+- **Timesheet Entries** (`tk_timesheet_entries`) - Append-only time records with billing rates
+- **Approvals** (`tk_approval_requests`, `tk_approval_actions`) - Timesheet approval workflow state and audit trail
+- **Allocations** (`tk_allocations`) - Resource allocation planning
+- **Exports** (`tk_export_runs`) - Payroll/billing export batches with content hashing
+- **Billing Rates** (`tk_billing_rates`) - Named hourly billing rates per tenant
+- **Billing Runs** (`tk_billing_runs`, `tk_billing_run_entries`) - Aggregated billing records
 
 **Domain Responsibilities**:
-- Timesheet entry and editing
-- Approval workflow (submit → approve → reject)
+- Timesheet entry and editing (append-only with version history)
+- Approval workflow (submit → approve → reject → recall)
 - Cost allocation to projects/jobs
 - Payroll/billing export generation
 - Billing rate management
+- GL labor cost accrual posting
+- AR billable time export
 
 **External Dependencies**:
-- Produces: timesheet lifecycle events (planned)
+- Produces: `timesheet_entry.created`, `timesheet_entry.corrected`, `timesheet_entry.voided`, `timesheet.submitted`, `timesheet.approved`, `timesheet.rejected`, `timesheet.recalled`, `export_run.completed`, `timekeeping.labor_cost`, `timekeeping.billable_time`
 - Consumes: none
 
 ---
@@ -409,8 +418,8 @@ This registry declares the single source of truth for each domain concept in the
 - **Work Orders** - Corrective and preventive maintenance tasks
 - **Preventive Maintenance Plans** - Scheduled/meter-based maintenance triggers
 - **Meter Readings** (`meter_readings`) - Equipment meter tracking
-- **Parts and Labor** (`parts_and_labor`) - Cost tracking per work order
-- **Tenant Config** (`tenant_config`) - Per-tenant maintenance settings
+- **Parts and Labor** (`work_order_parts`, `work_order_labor`) - Cost tracking per work order
+- **Tenant Config** (`maintenance_tenant_config`) - Per-tenant maintenance settings
 
 **Domain Responsibilities**:
 - Work order lifecycle (open → in_progress → completed → closed)
@@ -418,10 +427,10 @@ This registry declares the single source of truth for each domain concept in the
 - Meter reading recording and threshold detection
 - Parts/labor cost tracking per work order
 - Overdue detection and notification
-- GL cost posting for completed work orders
+- GL cost posting for completed work orders (planned, not yet implemented)
 
 **External Dependencies**:
-- Produces: `maintenance.work_order.*`, `maintenance.meter_reading.recorded`, `maintenance.plan.*`, `gl.posting.requested`
+- Produces: `maintenance.work_order.created`, `maintenance.work_order.status_changed`, `maintenance.work_order.completed`, `maintenance.work_order.closed`, `maintenance.work_order.cancelled`, `maintenance.work_order.overdue`, `maintenance.meter_reading.recorded`, `maintenance.plan.due`, `maintenance.plan.assigned`
 - Consumes: none
 
 ---
@@ -456,16 +465,18 @@ This registry declares the single source of truth for each domain concept in the
 **Port**: `8106`
 
 **Domain Ownership**:
-- **PDF Templates** - Document template definitions
-- **Generated Documents** - Rendered PDF outputs with metadata
+- **Form Templates** (`form_templates`) - Form template definitions with field layouts
+- **Form Fields** (`form_fields`) - Per-template field positions, types, validation rules
+- **Form Submissions** (`form_submissions`) - Filled form data submissions (draft/submitted)
 
 **Domain Responsibilities**:
-- PDF template management
-- Document generation from templates + data
-- Generated document storage and retrieval
+- Form template management (CRUD)
+- Form field annotation configuration
+- Document generation from template + data (stateless — PDFs are returned as response bytes, not stored)
+- Form submission processing and validation
 
 **External Dependencies**:
-- Produces: none
+- Produces: `pdf.form.submitted` (planned), `pdf.document.generated` (planned)
 - Consumes: none (called via HTTP API by other modules)
 
 ---

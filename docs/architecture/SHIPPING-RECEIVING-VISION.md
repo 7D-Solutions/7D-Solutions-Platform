@@ -18,7 +18,7 @@ Shipping-Receiving is a unified logistics module that tracks and executes physic
 
 | Module | Owns | May mutate | Produces | Consumes |
 |---|---|---|---|---|
-| `shipping-receiving-rs` | shipments, shipment_lines, shipment_status_history, shipping-receiving outbox & idempotency keys | inventory stock ledger via Inventory API (receipts/issues) for shipment lifecycle actions; shipment refs on itself only | `shipping_receiving.shipment_created`, `shipping_receiving.shipment_status_changed`, `shipping_receiving.inbound_closed`, `shipping_receiving.outbound_shipped`, `shipping_receiving.outbound_delivered` | `ap.po.approved` (for inbound expected), `sales.so.released` (for outbound created), `inventory.receipt.confirmed` (to update inbound linkage), `inventory.issue.confirmed` (optional) |
+| `shipping-receiving-rs` | shipments, shipment_lines, shipment_status_history (planned), sr_events_outbox & sr_processed_events | inventory stock ledger via Inventory API (receipts/issues) for shipment lifecycle actions; shipment refs on itself only | `shipping_receiving.shipment_created`, `shipping_receiving.shipment_status_changed`, `shipping_receiving.inbound_closed`, `shipping_receiving.outbound_shipped`, `shipping_receiving.outbound_delivered` | `ap.po.approved` (for inbound expected), `sales.so.released` (for outbound created) |
 
 **Clarification**: The module does not own carriers; carrier identity is referenced via `party_id` from Party Master. It may read external refs (PO IDs, sales order IDs) but does not mutate those modules' databases.
 
@@ -37,9 +37,9 @@ Shipping-Receiving is a unified logistics module that tracks and executes physic
 
 - `shipments`
 - `shipment_lines`
-- `shipment_status_history` (append-only)
-- `events_outbox` (module outbox for NATS)
-- `processed_events` / idempotency table (module idempotency + consumer replay safety)
+- `shipment_status_history` (append-only) — planned, not yet in schema
+- `sr_events_outbox` (module outbox for NATS)
+- `sr_processed_events` (module idempotency + consumer replay safety)
 
 ### Domain Responsibilities
 
@@ -62,8 +62,10 @@ Shipping-Receiving is a unified logistics module that tracks and executes physic
 ### External Dependencies
 
 **Consumes**:
-- `ap.purchase_order.approved` (auto-create inbound expected shipment)
-- `ar.sales_order.released` (auto-create outbound shipment)
+- `ap.po.approved` (auto-create inbound expected shipment)
+- `sales.so.released` (auto-create outbound shipment)
+
+**Planned consumers (not yet implemented):**
 - `inventory.receipt.confirmed` (attach receipt refs / reconcile inbound)
 - `inventory.issue.confirmed` (optional; attach issue refs / reconcile outbound)
 
@@ -188,7 +190,7 @@ Line-level linkage for inventory refs on closed/shipped events:
 
 **Purpose**: 3-way match traceability PO ↔ receipt ↔ bill.
 
-- Consumes `ap.purchase_order.approved` to auto-create inbound expected shipment (optional; can be tenant-configured)
+- Consumes `ap.po.approved` to auto-create inbound expected shipment (optional; can be tenant-configured)
 - Stores `po_id` / `po_line_id` on inbound lines
 - Exposes query endpoints for AP to locate receipts by PO line
 
@@ -196,7 +198,7 @@ Line-level linkage for inventory refs on closed/shipped events:
 
 **Purpose**: Fulfillment traceability and customer shipment status.
 
-- Consumes `ar.sales_order.released` (or equivalent) to auto-create outbound shipment
+- Consumes `sales.so.released` to auto-create outbound shipment
 - Stores `source_ref_type` / `source_ref_id` on outbound lines
 - Exposes query endpoint for upstream modules/UI: shipment lookup by sales order ref
 

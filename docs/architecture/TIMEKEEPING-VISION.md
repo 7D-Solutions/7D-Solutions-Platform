@@ -53,8 +53,16 @@ Timekeeping does **NOT**:
 ## 4. Events
 
 **Produces:**
-- `timekeeping.entry.*` (planned) — timesheet submission/approval events
-- `timekeeping.approval.*` (planned) — approval workflow events
+- `timesheet_entry.created` — new time entry created
+- `timesheet_entry.corrected` — existing entry corrected
+- `timesheet_entry.voided` — entry voided (cancelled)
+- `timesheet.submitted` — timesheet submitted for approval
+- `timesheet.approved` — timesheet approved by reviewer
+- `timesheet.rejected` — timesheet rejected by reviewer
+- `timesheet.recalled` — timesheet recalled by employee
+- `export_run.completed` — export run generated
+- `timekeeping.labor_cost` — GL labor cost accrual generated
+- `timekeeping.billable_time` — AR billable time exported
 
 **Consumes:**
 - None currently
