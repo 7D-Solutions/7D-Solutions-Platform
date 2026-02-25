@@ -46,7 +46,7 @@ async fn main() {
     let app_state = Arc::new(AppState {
         pool,
         metrics: consolidation_metrics,
-        gl_base_url: config.gl_base_url,
+        gl_base_url: config.gl_base_url.clone(),
     });
 
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
