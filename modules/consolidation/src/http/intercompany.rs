@@ -1,12 +1,15 @@
 //! HTTP handlers for intercompany matching and elimination posting.
+//!
+//! Tenant identity derived from JWT `VerifiedClaims`.
 
 use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
 use chrono::NaiveDate;
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -15,9 +18,20 @@ use crate::domain::eliminations::{self, service as elim_service};
 use crate::domain::intercompany::{self, service as ic_service};
 use crate::AppState;
 
+fn extract_tenant(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, IntercompanyError> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err(IntercompanyError {
+            status: StatusCode::UNAUTHORIZED,
+            message: "Missing or invalid authentication".to_string(),
+        }),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct IntercompanyMatchRequest {
-    pub tenant_id: String,
     pub period_id: Uuid,
     pub as_of: NaiveDate,
 }
@@ -35,7 +49,6 @@ pub struct IntercompanyMatchResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct PostEliminationsRequest {
-    pub tenant_id: String,
     pub period_id: Uuid,
     pub as_of: NaiveDate,
     pub reporting_currency: String,
@@ -76,15 +89,17 @@ fn map_error(e: crate::domain::engine::EngineError) -> IntercompanyError {
 /// Run intercompany matching and return suggestions.
 pub async fn run_intercompany_match(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
     Json(params): Json<IntercompanyMatchRequest>,
 ) -> Result<Json<IntercompanyMatchResponse>, IntercompanyError> {
+    let tenant_id = extract_tenant(&claims)?;
     let gl_client = app_state.gl_client();
 
     let match_result = ic_service::match_intercompany_for_group(
         &app_state.pool,
         &gl_client,
-        &params.tenant_id,
+        &tenant_id,
         group_id,
         params.period_id,
         params.as_of,
@@ -110,16 +125,18 @@ pub async fn run_intercompany_match(
 /// Post elimination journals to GL. Idempotent per group+period.
 pub async fn post_eliminations(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
     Json(params): Json<PostEliminationsRequest>,
 ) -> Result<Json<PostEliminationsResponse>, IntercompanyError> {
+    let tenant_id = extract_tenant(&claims)?;
     let gl_client = app_state.gl_client();
 
     // First, run matching to get current suggestions
     let match_result = ic_service::match_intercompany_for_group(
         &app_state.pool,
         &gl_client,
-        &params.tenant_id,
+        &tenant_id,
         group_id,
         params.period_id,
         params.as_of,
@@ -133,7 +150,7 @@ pub async fn post_eliminations(
     let post_result = elim_service::post_eliminations(
         &app_state.pool,
         &gl_client,
-        &params.tenant_id,
+        &tenant_id,
         group_id,
         params.period_id,
         params.as_of,

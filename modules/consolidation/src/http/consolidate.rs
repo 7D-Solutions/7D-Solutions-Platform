@@ -1,12 +1,15 @@
 //! HTTP handler for consolidated trial balance.
+//!
+//! Tenant identity derived from JWT `VerifiedClaims`.
 
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
 use chrono::NaiveDate;
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -14,9 +17,20 @@ use uuid::Uuid;
 use crate::domain::engine::{self, compute, EngineError};
 use crate::AppState;
 
+fn extract_tenant(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, ConsolidateError> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err(ConsolidateError {
+            status: StatusCode::UNAUTHORIZED,
+            message: "Missing or invalid authentication".to_string(),
+        }),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ConsolidateQuery {
-    pub tenant_id: String,
     pub period_id: Uuid,
     pub as_of: NaiveDate,
 }
@@ -86,15 +100,17 @@ fn map_engine_error(e: EngineError) -> ConsolidateError {
 /// Runs the full consolidation pipeline and caches the result.
 pub async fn run_consolidation(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
     Json(params): Json<ConsolidateQuery>,
 ) -> Result<Json<ConsolidateResponse>, ConsolidateError> {
+    let tenant_id = extract_tenant(&claims)?;
     let gl_client = app_state.gl_client();
 
     let result = compute::consolidate(
         &app_state.pool,
         &gl_client,
-        &params.tenant_id,
+        &tenant_id,
         group_id,
         params.period_id,
         params.as_of,
