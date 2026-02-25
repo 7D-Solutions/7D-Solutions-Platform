@@ -42,9 +42,9 @@ COPY --from=builder /app/target/release/consolidation /usr/local/bin/consolidati
 COPY --from=builder /app/modules/consolidation/db/migrations /app/migrations
 
 ENV HOST=0.0.0.0
-ENV PORT=8096
+ENV PORT=8105
 
-EXPOSE 8096
+EXPOSE 8105
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
     CMD curl -f http://localhost:${PORT}/api/health || exit 1

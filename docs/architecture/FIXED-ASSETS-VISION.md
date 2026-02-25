@@ -50,11 +50,12 @@ Fixed Assets does **NOT**:
 ## 4. Events
 
 **Produces:**
-- `fixed_assets.asset_created` — new asset registered
-- `fixed_assets.asset_updated` — asset record modified
-- `fixed_assets.asset_deactivated` — asset deactivated
-- `fixed_assets.depreciation_run_completed` — batch depreciation finished
-- `fixed_assets.asset_disposed` — asset retired with gain/loss
+- `fa_category.category_created` — new asset category defined
+- `fa_asset.asset_created` — new asset registered
+- `fa_asset.asset_updated` — asset record modified
+- `fa_asset.asset_deactivated` — asset deactivated
+- `fa_depreciation_run.depreciation_run_completed` — batch depreciation finished
+- `fa_disposal.asset_disposed` — asset retired with gain/loss
 - `gl.posting.requested` — depreciation and disposal GL entries
 
 **Consumes:**

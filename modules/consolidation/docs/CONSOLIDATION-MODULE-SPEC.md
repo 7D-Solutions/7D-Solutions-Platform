@@ -126,7 +126,7 @@ FX translation is policy-aware — each entity has a policy defining which rate 
 | Layer | Technology | Notes |
 |-------|-----------|-------|
 | Language | Rust | Platform standard |
-| HTTP framework | Axum | Port 8096 (default) |
+| HTTP framework | Axum | Port 8105 (default) |
 | Database | PostgreSQL | Dedicated database (`consolidation_{app_id}_db`), SQLx for queries and migrations |
 | Auth | JWT via platform `security` crate | Tenant-scoped, permission-gated mutations (`consolidation.mutate`) |
 | GL integration | HTTP client (`reqwest`) | Fetches trial balances and period close status from GL service |

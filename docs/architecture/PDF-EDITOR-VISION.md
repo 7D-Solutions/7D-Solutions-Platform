@@ -24,10 +24,11 @@ PDF Editor does **NOT**:
 
 | Domain Entity | PDF Editor Authority |
 |---|---|
-| **PDF Templates** | Template definitions with field layouts |
-| **Annotations** | Form field annotation configurations |
-| **Form Submissions** | Filled form data submissions |
-| **Generated Documents** | Rendered PDF output metadata |
+| **Form Templates** | Template definitions with field layouts |
+| **Form Fields** | Per-template field positions, types, and validation rules |
+| **Form Submissions** | Filled form data submissions (draft/submitted) |
+
+Note: The editor is a **stateless processing engine** — it does not store PDF files or annotation data. Annotations live in the browser; generated PDFs are returned as response bytes.
 
 ---
 
@@ -35,17 +36,18 @@ PDF Editor does **NOT**:
 
 | Table | Purpose |
 |---|---|
-| `templates` | PDF template definitions |
-| `annotations` | Form field annotations per template |
+| `form_templates` | Form template definitions |
+| `form_fields` | Per-template field positions, types, validation rules |
 | `form_submissions` | Submitted form data records |
-| `generated_documents` | Output document metadata |
 | `events_outbox` | Module outbox for NATS |
 
 ---
 
 ## 4. Events
 
-**Produces:** None currently
+**Produces (planned):**
+- `pdf.form.submitted` — form submission transitions to submitted
+- `pdf.document.generated` — processed PDF returned (from annotations or form fill)
 
 **Consumes:** None (called via HTTP API by other modules)
 
@@ -53,10 +55,10 @@ PDF Editor does **NOT**:
 
 ## 5. Key Invariants
 
-1. Templates are versioned — existing documents reference template version at generation time
-2. Generated documents are immutable after creation
-3. Form submissions are validated against template field definitions
-4. Tenant isolation on every table and query
+1. Form submissions use draft → submitted status machine (v1)
+2. Form submissions are validated against template field definitions
+3. Tenant isolation on every table and query
+4. PDF files are never stored — editor receives bytes, processes, returns result
 
 ---
 

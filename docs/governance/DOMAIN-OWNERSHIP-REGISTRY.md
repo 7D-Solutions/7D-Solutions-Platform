@@ -326,7 +326,7 @@ This registry declares the single source of truth for each domain concept in the
 
 **External Dependencies**:
 - Consumes: `ap.vendor_bill_approved` (auto-capitalize capex lines)
-- Produces: asset lifecycle events, `gl.posting.requested` (depreciation/disposal GL entries)
+- Produces: `fa_category.category_created`, `fa_asset.asset_created`, `fa_asset.asset_updated`, `fa_asset.asset_deactivated`, `fa_depreciation_run.depreciation_run_completed`, `fa_disposal.asset_disposed`, `gl.posting.requested` (depreciation/disposal GL entries)
 
 ---
 
@@ -422,7 +422,7 @@ This registry declares the single source of truth for each domain concept in the
 - **Tenant Config** (`maintenance_tenant_config`) - Per-tenant maintenance settings
 
 **Domain Responsibilities**:
-- Work order lifecycle (open → in_progress → completed → closed)
+- Work order lifecycle (draft → awaiting_approval → scheduled → in_progress → on_hold → completed → closed, cancelled from most states)
 - Preventive maintenance scheduling (time-based and meter-based)
 - Meter reading recording and threshold detection
 - Parts/labor cost tracking per work order
