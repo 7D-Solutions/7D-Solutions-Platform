@@ -7,13 +7,13 @@
 //!   GET  /api/inventory/items/:item_id/reorder-policies — list for item
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
-use serde::Deserialize;
 use serde_json::json;
+use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -82,46 +82,53 @@ fn policy_error_response(err: ReorderPolicyError) -> impl IntoResponse {
 }
 
 // ============================================================================
-// Query params
-// ============================================================================
-
-#[derive(Deserialize)]
-pub struct TenantQuery {
-    pub tenant_id: String,
-}
-
-// ============================================================================
 // Handlers
 // ============================================================================
 
 /// POST /api/inventory/reorder-policies
 ///
 /// Creates a reorder policy for an item (optionally location-scoped).
+/// Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
 /// Returns 201 Created with the new policy.
 pub async fn post_reorder_policy(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateReorderPolicyRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateReorderPolicyRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match ReorderPolicyRepo::create(&state.pool, &req).await {
         Ok(policy) => (StatusCode::CREATED, Json(json!(policy))).into_response(),
         Err(e) => policy_error_response(e).into_response(),
     }
 }
 
-/// GET /api/inventory/reorder-policies/:id?tenant_id=...
+/// GET /api/inventory/reorder-policies/:id
 pub async fn get_reorder_policy(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
-    match ReorderPolicyRepo::find_by_id(&state.pool, id, &q.tenant_id).await {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    match ReorderPolicyRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(policy)) => (StatusCode::OK, Json(json!(policy))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -146,22 +153,26 @@ pub async fn put_reorder_policy(
     }
 }
 
-/// GET /api/inventory/items/:item_id/reorder-policies?tenant_id=...
+/// GET /api/inventory/items/:item_id/reorder-policies
 ///
 /// Lists all reorder policies for an item across all locations.
+/// Tenant derived from JWT VerifiedClaims.
 pub async fn list_reorder_policies(
     State(state): State<Arc<AppState>>,
     Path(item_id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
-    match ReorderPolicyRepo::list_for_item(&state.pool, &q.tenant_id, item_id).await {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    match ReorderPolicyRepo::list_for_item(&state.pool, &tenant_id, item_id).await {
         Ok(policies) => (StatusCode::OK, Json(json!(policies))).into_response(),
         Err(e) => policy_error_response(e).into_response(),
     }

@@ -4,20 +4,23 @@
 //!   POST /api/inventory/valuation-snapshots
 //!     — build a point-in-time valuation snapshot from FIFO layers
 //!
-//!   GET /api/inventory/valuation-snapshots?tenant_id=...&warehouse_id=...
+//!   GET /api/inventory/valuation-snapshots?warehouse_id=...
 //!     — list snapshots (newest first), optionally filtered by warehouse
 //!
-//!   GET /api/inventory/valuation-snapshots/{id}?tenant_id=...
+//!   GET /api/inventory/valuation-snapshots/{id}
 //!     — snapshot header + per-item lines
+//!
+//! Tenant derived from JWT VerifiedClaims.
 
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 use serde::Deserialize;
 use serde_json::json;
+use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -85,7 +88,6 @@ fn snapshot_error_response(err: SnapshotError) -> impl IntoResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct ListSnapshotsQuery {
-    pub tenant_id: String,
     pub warehouse_id: Option<Uuid>,
     #[serde(default = "default_limit")]
     pub limit: i64,
@@ -97,11 +99,6 @@ fn default_limit() -> i64 {
     50
 }
 
-#[derive(Debug, Deserialize)]
-pub struct TenantQuery {
-    pub tenant_id: String,
-}
-
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -109,11 +106,24 @@ pub struct TenantQuery {
 /// POST /api/inventory/valuation-snapshots
 ///
 /// Creates a valuation snapshot from remaining FIFO layers as-of `req.as_of`.
+/// Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
 /// Returns 201 on creation; 200 on idempotent replay.
 pub async fn post_valuation_snapshot(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateSnapshotRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateSnapshotRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match create_valuation_snapshot(&state.pool, &req).await {
         Ok((result, false)) => (StatusCode::CREATED, Json(result)).into_response(),
         Ok((result, true)) => (StatusCode::OK, Json(result)).into_response(),
@@ -121,33 +131,37 @@ pub async fn post_valuation_snapshot(
     }
 }
 
-/// GET /api/inventory/valuation-snapshots?tenant_id=...&warehouse_id=...&limit=...&offset=...
+/// GET /api/inventory/valuation-snapshots?warehouse_id=...&limit=...&offset=...
 ///
-/// Lists snapshots for the tenant, newest first.  Optional `warehouse_id`
-/// narrows to one warehouse.  `limit` defaults to 50 (max 200); `offset`
-/// defaults to 0.
+/// Lists snapshots for the tenant (from JWT), newest first.  Optional
+/// `warehouse_id` narrows to one warehouse.  `limit` defaults to 50
+/// (max 200); `offset` defaults to 0.
 ///
 /// Returns `{ "tenant_id", "snapshots": [...] }`.
 pub async fn list_valuation_snapshots(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<ListSnapshotsQuery>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
 
     let limit = q.limit.clamp(1, 200);
     let offset = q.offset.max(0);
 
-    match list_snapshots(&state.pool, &q.tenant_id, q.warehouse_id, limit, offset).await {
+    match list_snapshots(&state.pool, &tenant_id, q.warehouse_id, limit, offset).await {
         Ok(snapshots) => (
             StatusCode::OK,
             Json(json!({
-                "tenant_id": q.tenant_id,
+                "tenant_id": tenant_id,
                 "warehouse_id": q.warehouse_id,
                 "limit": limit,
                 "offset": offset,
@@ -157,7 +171,7 @@ pub async fn list_valuation_snapshots(
         )
             .into_response(),
         Err(e) => {
-            tracing::error!(error = %e, tenant_id = %q.tenant_id, "database error listing valuation snapshots");
+            tracing::error!(error = %e, tenant_id = %tenant_id, "database error listing valuation snapshots");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": "internal_error", "message": "Database error" })),
@@ -167,26 +181,29 @@ pub async fn list_valuation_snapshots(
     }
 }
 
-/// GET /api/inventory/valuation-snapshots/{id}?tenant_id=...
+/// GET /api/inventory/valuation-snapshots/{id}
 ///
-/// Returns the snapshot header and all per-item lines, tenant-scoped.
+/// Returns the snapshot header and all per-item lines, tenant-scoped (from JWT).
 /// Returns 404 when the snapshot does not exist or belongs to another tenant.
 ///
 /// Response: `{ snapshot header fields..., "lines": [...] }`.
 pub async fn get_valuation_snapshot(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
 
-    let snapshot = match get_snapshot(&state.pool, &q.tenant_id, id).await {
+    let snapshot = match get_snapshot(&state.pool, &tenant_id, id).await {
         Ok(Some(s)) => s,
         Ok(None) => {
             return (

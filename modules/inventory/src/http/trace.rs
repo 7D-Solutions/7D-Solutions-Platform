@@ -1,20 +1,20 @@
 //! Lot and serial traceability HTTP handlers.
 //!
 //! Endpoints:
-//!   GET /api/inventory/items/{item_id}/lots/{lot_code}/trace?tenant_id=...
-//!   GET /api/inventory/items/{item_id}/serials/{serial_code}/trace?tenant_id=...
+//!   GET /api/inventory/items/{item_id}/lots/{lot_code}/trace
+//!   GET /api/inventory/items/{item_id}/serials/{serial_code}/trace
 //!
 //! Both return the ledger movement history for the given code, oldest-first.
-//! No UI assumptions — callers decide how to present or filter the data.
+//! Tenant derived from JWT VerifiedClaims.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
-use serde::Deserialize;
 use serde_json::json;
+use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -24,19 +24,10 @@ use crate::{
 };
 
 // ============================================================================
-// Query params
-// ============================================================================
-
-#[derive(Debug, Deserialize)]
-pub struct TenantQuery {
-    pub tenant_id: String,
-}
-
-// ============================================================================
 // Handlers
 // ============================================================================
 
-/// GET /api/inventory/items/{item_id}/lots/{lot_code}/trace?tenant_id=...
+/// GET /api/inventory/items/{item_id}/lots/{lot_code}/trace
 ///
 /// Returns all ledger movements associated with the given lot code for the item.
 /// Movements include the original receipt and any subsequent issues or transfers
@@ -47,9 +38,19 @@ pub struct TenantQuery {
 pub async fn trace_lot_handler(
     State(state): State<Arc<AppState>>,
     Path((item_id, lot_code)): Path<(Uuid, String)>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match trace_lot(&state.pool, &q.tenant_id, item_id, &lot_code).await {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    match trace_lot(&state.pool, &tenant_id, item_id, &lot_code).await {
         Ok(movements) => (
             StatusCode::OK,
             Json(json!({
@@ -75,7 +76,7 @@ pub async fn trace_lot_handler(
     }
 }
 
-/// GET /api/inventory/items/{item_id}/serials/{serial_code}/trace?tenant_id=...
+/// GET /api/inventory/items/{item_id}/serials/{serial_code}/trace
 ///
 /// Returns all ledger movements associated with the given serial code for the item.
 /// Movements include the original receipt and any subsequent issue entries for
@@ -86,9 +87,19 @@ pub async fn trace_lot_handler(
 pub async fn trace_serial_handler(
     State(state): State<Arc<AppState>>,
     Path((item_id, serial_code)): Path<(Uuid, String)>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match trace_serial(&state.pool, &q.tenant_id, item_id, &serial_code).await {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    match trace_serial(&state.pool, &tenant_id, item_id, &serial_code).await {
         Ok(movements) => (
             StatusCode::OK,
             Json(json!({

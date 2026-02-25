@@ -1,8 +1,9 @@
 //! Movement history HTTP handler.
 //!
-//! GET /api/inventory/items/{item_id}/history?tenant_id=...
-//! GET /api/inventory/items/{item_id}/history?tenant_id=...&location_id=<uuid>
+//! GET /api/inventory/items/{item_id}/history
+//! GET /api/inventory/items/{item_id}/history?location_id=<uuid>
 //!
+//! Tenant derived from JWT VerifiedClaims.
 //! Returns an ordered list of ledger movements for the item, tenant-scoped
 //! and optionally filtered to a specific location.  Ordering is deterministic:
 //! posted_at ASC, ledger id ASC.
@@ -13,10 +14,11 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 use serde::Deserialize;
 use serde_json::json;
+use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -28,7 +30,6 @@ use crate::{domain::history::query::query_movement_history, AppState};
 
 #[derive(Debug, Deserialize)]
 pub struct HistoryQuery {
-    pub tenant_id: String,
     pub location_id: Option<Uuid>,
 }
 
@@ -36,9 +37,9 @@ pub struct HistoryQuery {
 // Handler
 // ============================================================================
 
-/// GET /api/inventory/items/{item_id}/history?tenant_id=...&location_id=...
+/// GET /api/inventory/items/{item_id}/history?location_id=...
 ///
-/// Returns all ledger movements for the item scoped to the tenant.
+/// Returns all ledger movements for the item scoped to the tenant (from JWT).
 /// When `location_id` is supplied, only movements that touched that location
 /// are returned.  When omitted, all movements (across all locations) are
 /// returned in chronological order.
@@ -47,14 +48,25 @@ pub struct HistoryQuery {
 pub async fn get_movement_history(
     State(state): State<Arc<AppState>>,
     Path(item_id): Path<Uuid>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<HistoryQuery>,
 ) -> impl IntoResponse {
-    match query_movement_history(&state.pool, &q.tenant_id, item_id, q.location_id).await {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    match query_movement_history(&state.pool, &tenant_id, item_id, q.location_id).await {
         Ok(movements) => (
             StatusCode::OK,
             Json(json!({
                 "item_id": item_id,
-                "tenant_id": q.tenant_id,
+                "tenant_id": tenant_id,
                 "location_id": q.location_id,
                 "movements": movements
             })),

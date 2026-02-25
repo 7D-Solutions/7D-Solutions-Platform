@@ -14,10 +14,11 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 use serde::Deserialize;
 use serde_json::json;
+use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -81,11 +82,24 @@ fn task_error_response(err: TaskError) -> impl IntoResponse {
 /// POST /api/inventory/cycle-count-tasks
 ///
 /// Creates a cycle count task with snapshotted lines.
+/// Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
 /// Returns 201 Created with the full task including all lines.
 pub async fn post_cycle_count_task(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateTaskRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateTaskRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match create_cycle_count_task(&state.pool, &req).await {
         Ok(result) => (StatusCode::CREATED, Json(result)).into_response(),
         Err(err) => task_error_response(err).into_response(),
@@ -160,7 +174,6 @@ fn submit_error_response(err: SubmitError) -> impl IntoResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct SubmitBody {
-    pub tenant_id: String,
     pub idempotency_key: String,
     #[serde(default)]
     pub lines: Vec<SubmitLineInput>,
@@ -175,15 +188,27 @@ pub struct SubmitBody {
 /// POST /api/inventory/cycle-count-tasks/{task_id}/submit
 ///
 /// Submits counted quantities for an open cycle count task.
+/// Tenant derived from JWT VerifiedClaims.
 /// Returns 201 on first submit; 200 on idempotent replay.
 pub async fn post_cycle_count_submit(
     Path(task_id): Path<Uuid>,
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<SubmitBody>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
     let req = SubmitRequest {
         task_id,
-        tenant_id: body.tenant_id,
+        tenant_id,
         idempotency_key: body.idempotency_key,
         lines: body.lines,
         correlation_id: body.correlation_id,
@@ -252,7 +277,6 @@ fn approve_error_response(err: ApproveError) -> impl IntoResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct ApproveBody {
-    pub tenant_id: String,
     pub idempotency_key: String,
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
@@ -265,15 +289,27 @@ pub struct ApproveBody {
 /// POST /api/inventory/cycle-count-tasks/{task_id}/approve
 ///
 /// Approves a submitted cycle count task, creating adjustment ledger entries
-/// for all non-zero variances. Returns 201 on first approve; 200 on replay.
+/// for all non-zero variances. Tenant derived from JWT VerifiedClaims.
+/// Returns 201 on first approve; 200 on replay.
 pub async fn post_cycle_count_approve(
     Path(task_id): Path<Uuid>,
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<ApproveBody>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
     let req = ApproveRequest {
         task_id,
-        tenant_id: body.tenant_id,
+        tenant_id,
         idempotency_key: body.idempotency_key,
         correlation_id: body.correlation_id,
         causation_id: body.causation_id,
