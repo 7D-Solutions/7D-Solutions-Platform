@@ -423,6 +423,10 @@ path = "tests/sr_inventory_gl_cross_module_e2e.rs"
 name = "cross_module_ar_invoice_lifecycle_e2e"
 path = "tests/cross_module_ar_invoice_lifecycle_e2e.rs"
 
+[[test]]
+name = "subscription_ttp_ar_lifecycle_e2e"
+path = "tests/subscription_ttp_ar_lifecycle_e2e.rs"
+
 [dependencies]
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
