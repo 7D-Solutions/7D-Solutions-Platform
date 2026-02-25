@@ -18,6 +18,18 @@ pub fn build_router() -> Router<Arc<AppState>> {
             "/api/shipping-receiving/shipments/:id",
             get(http::shipments::get_shipment),
         )
+        .route(
+            "/api/shipping-receiving/po/:po_id/shipments",
+            get(http::refs::shipments_by_po),
+        )
+        .route(
+            "/api/shipping-receiving/po-lines/:po_line_id/lines",
+            get(http::refs::lines_by_po_line),
+        )
+        .route(
+            "/api/shipping-receiving/source/:ref_type/:ref_id/shipments",
+            get(http::refs::shipments_by_source_ref),
+        )
 }
 
 /// Mutation routes — caller must apply RequirePermissionsLayer externally.

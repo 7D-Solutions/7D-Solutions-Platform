@@ -4,7 +4,7 @@
 //! Write endpoints accept an optional Idempotency-Key header.
 
 mod handlers;
-mod types;
+pub(crate) mod types;
 
 pub use handlers::*;
 pub use types::ShipmentLineRow;

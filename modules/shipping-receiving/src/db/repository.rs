@@ -351,6 +351,48 @@ impl ShipmentRepository {
         Ok(())
     }
 
+    // ── Ref-linkage queries ────────────────────────────────────
+
+    /// Find shipments that have at least one line referencing the given PO.
+    pub async fn find_shipments_by_po(
+        pool: &PgPool,
+        tenant_id: Uuid,
+        po_id: Uuid,
+    ) -> Result<Vec<Shipment>, sqlx::Error> {
+        sqlx::query_as::<_, Shipment>(
+            r#"
+            SELECT DISTINCT s.* FROM shipments s
+            INNER JOIN shipment_lines sl ON s.id = sl.shipment_id AND sl.tenant_id = s.tenant_id
+            WHERE s.tenant_id = $1
+              AND sl.po_id = $2
+            ORDER BY s.created_at DESC
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(po_id)
+        .fetch_all(pool)
+        .await
+    }
+
+    /// Find shipment lines for a specific PO line.
+    pub async fn find_lines_by_po_line(
+        pool: &PgPool,
+        tenant_id: Uuid,
+        po_line_id: Uuid,
+    ) -> Result<Vec<ShipmentLineRow>, sqlx::Error> {
+        sqlx::query_as::<_, ShipmentLineRow>(
+            r#"
+            SELECT * FROM shipment_lines
+            WHERE tenant_id = $1 AND po_line_id = $2
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(tenant_id)
+        .bind(po_line_id)
+        .fetch_all(pool)
+        .await
+    }
+
     // ── Idempotency ──────────────────────────────────────────
 
     /// Check if an event has already been processed. Returns true if so.
