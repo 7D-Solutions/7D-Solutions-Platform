@@ -21,7 +21,9 @@ use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::Json,
+    Extension,
 };
+use security::VerifiedClaims;
 use serde_json::{json, Value};
 use std::sync::Arc;
 
@@ -32,15 +34,20 @@ use crate::AppState;
 pub async fn inbound_webhook(
     State(state): State<Arc<AppState>>,
     Path(system): Path<String>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    // ── Extract app_id from X-App-Id header (or fall back to "default") ───
-    let app_id = headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("default")
-        .to_string();
+    // ── Extract app_id from JWT VerifiedClaims ────────────────────────────
+    let app_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "Missing or invalid authentication" })),
+            ));
+        }
+    };
 
     // ── Convert headers to HashMap<String, String> (lowercase) ────────────
     let header_map: std::collections::HashMap<String, String> = headers

@@ -9,13 +9,14 @@
 //!   POST   /api/party/parties/:id/deactivate  — soft-delete
 //!   GET    /api/party/parties/search          — search by name/type/external_ref
 //!
-//! App identity carried in `X-App-Id` header (tenant/app scope).
+//! App identity derived from JWT `VerifiedClaims` (tenant/app scope).
 
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -30,18 +31,19 @@ use crate::AppState;
 // Shared helpers
 // ============================================================================
 
-fn app_id_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_app_id", "X-App-Id header is required")),
-            )
-        })
+pub fn extract_tenant(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, (StatusCode, Json<ErrorBody>)> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorBody::new(
+                "unauthorized",
+                "Missing or invalid authentication",
+            )),
+        )),
+    }
 }
 
 fn correlation_from_headers(headers: &HeaderMap) -> String {
@@ -116,10 +118,11 @@ pub struct ListPartiesQuery {
 /// POST /api/party/companies — create a company party
 pub async fn create_company(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<CreateCompanyRequest>,
 ) -> Result<(StatusCode, Json<PartyView>), (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let view = service::create_company(&state.pool, &app_id, &req, correlation_id)
@@ -132,10 +135,11 @@ pub async fn create_company(
 /// POST /api/party/individuals — create an individual party
 pub async fn create_individual(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<CreateIndividualRequest>,
 ) -> Result<(StatusCode, Json<PartyView>), (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let view = service::create_individual(&state.pool, &app_id, &req, correlation_id)
@@ -148,10 +152,10 @@ pub async fn create_individual(
 /// GET /api/party/parties — list parties (base records)
 pub async fn list_parties(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListPartiesQuery>,
 ) -> Result<Json<Vec<Party>>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let parties = service::list_parties(&state.pool, &app_id, query.include_inactive)
         .await
@@ -163,10 +167,10 @@ pub async fn list_parties(
 /// GET /api/party/parties/:id — get a single party with extension + refs
 pub async fn get_party(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(party_id): Path<Uuid>,
 ) -> Result<Json<PartyView>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let view = service::get_party(&state.pool, &app_id, party_id)
         .await
@@ -187,11 +191,12 @@ pub async fn get_party(
 /// PUT /api/party/parties/:id — update base party fields
 pub async fn update_party(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(party_id): Path<Uuid>,
     Json(req): Json<UpdatePartyRequest>,
 ) -> Result<Json<PartyView>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let view = service::update_party(&state.pool, &app_id, party_id, &req, correlation_id)
@@ -204,10 +209,11 @@ pub async fn update_party(
 /// POST /api/party/parties/:id/deactivate — soft-delete a party
 pub async fn deactivate_party(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(party_id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
     let actor = actor_from_headers(&headers);
 
@@ -221,10 +227,10 @@ pub async fn deactivate_party(
 /// GET /api/party/parties/search — search parties
 pub async fn search_parties(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<SearchQuery>,
 ) -> Result<Json<Vec<Party>>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let results = service::search_parties(&state.pool, &app_id, &query)
         .await

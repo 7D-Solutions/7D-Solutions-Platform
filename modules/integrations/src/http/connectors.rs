@@ -10,8 +10,9 @@
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -66,18 +67,19 @@ fn connector_error_response(e: ConnectorError) -> (StatusCode, Json<ErrorBody>) 
     }
 }
 
-fn app_id_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_app_id", "X-App-Id header is required")),
-            )
-        })
+fn extract_tenant(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, (StatusCode, Json<ErrorBody>)> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorBody::new(
+                "unauthorized",
+                "Missing or invalid authentication",
+            )),
+        )),
+    }
 }
 
 fn correlation_from_headers(headers: &HeaderMap) -> String {
@@ -110,10 +112,11 @@ pub async fn list_connector_types() -> Json<Vec<ConnectorCapabilities>> {
 /// POST /api/integrations/connectors — register a connector config for this tenant
 pub async fn register_connector(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<RegisterConnectorRequest>,
 ) -> Result<(StatusCode, Json<ConnectorConfig>), (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let created = service::register_connector(&state.pool, &app_id, &req, correlation_id)
@@ -126,10 +129,10 @@ pub async fn register_connector(
 /// GET /api/integrations/connectors — list this tenant's connector configs
 pub async fn list_connectors(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<ListQuery>,
 ) -> Result<Json<Vec<ConnectorConfig>>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let configs =
         service::list_connector_configs(&state.pool, &app_id, q.enabled_only)
@@ -142,10 +145,10 @@ pub async fn list_connectors(
 /// GET /api/integrations/connectors/:id — fetch a single connector config
 pub async fn get_connector(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<ConnectorConfig>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let config = service::get_connector_config(&state.pool, &app_id, id)
         .await
@@ -163,11 +166,11 @@ pub async fn get_connector(
 /// POST /api/integrations/connectors/:id/test — run the connector's test action
 pub async fn run_connector_test(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Json(req): Json<RunTestActionRequest>,
 ) -> Result<Json<TestActionResult>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let result = service::run_test_action(&state.pool, &app_id, id, &req)
         .await

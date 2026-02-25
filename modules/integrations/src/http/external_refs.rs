@@ -8,13 +8,14 @@
 //!   PUT    /api/integrations/external-refs/:id          — update label/metadata
 //!   DELETE /api/integrations/external-refs/:id          — delete
 //!
-//! App identity carried in `X-App-Id` header (tenant/app scope).
+//! App identity derived from JWT `VerifiedClaims` (tenant/app scope).
 
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -27,18 +28,19 @@ use crate::AppState;
 // Helpers
 // ============================================================================
 
-fn app_id_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_app_id", "X-App-Id header is required")),
-            )
-        })
+fn extract_tenant(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, (StatusCode, Json<ErrorBody>)> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorBody::new(
+                "unauthorized",
+                "Missing or invalid authentication",
+            )),
+        )),
+    }
 }
 
 fn correlation_from_headers(headers: &HeaderMap) -> String {
@@ -107,10 +109,11 @@ pub struct BySystemQuery {
 /// POST /api/integrations/external-refs — create or upsert an external ref
 pub async fn create_external_ref(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<CreateExternalRefRequest>,
 ) -> Result<(StatusCode, Json<ExternalRef>), (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let created = service::create_external_ref(&state.pool, &app_id, &req, correlation_id)
@@ -123,10 +126,10 @@ pub async fn create_external_ref(
 /// GET /api/integrations/external-refs/by-entity — list refs by internal entity
 pub async fn list_by_entity(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<ByEntityQuery>,
 ) -> Result<Json<Vec<ExternalRef>>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let refs = service::list_by_entity(&state.pool, &app_id, &q.entity_type, &q.entity_id)
         .await
@@ -138,10 +141,10 @@ pub async fn list_by_entity(
 /// GET /api/integrations/external-refs/by-system — lookup ref by external system + id
 pub async fn get_by_external(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<BySystemQuery>,
 ) -> Result<Json<ExternalRef>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let row = service::get_by_external(&state.pool, &app_id, &q.system, &q.external_id)
         .await
@@ -162,10 +165,10 @@ pub async fn get_by_external(
 /// GET /api/integrations/external-refs/:id — get a single ref by id
 pub async fn get_external_ref(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(ref_id): Path<i64>,
 ) -> Result<Json<ExternalRef>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let row = service::get_external_ref(&state.pool, &app_id, ref_id)
         .await
@@ -183,11 +186,12 @@ pub async fn get_external_ref(
 /// PUT /api/integrations/external-refs/:id — update label/metadata
 pub async fn update_external_ref(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(ref_id): Path<i64>,
     Json(req): Json<UpdateExternalRefRequest>,
 ) -> Result<Json<ExternalRef>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let updated =
@@ -201,10 +205,11 @@ pub async fn update_external_ref(
 /// DELETE /api/integrations/external-refs/:id — hard delete
 pub async fn delete_external_ref(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(ref_id): Path<i64>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     service::delete_external_ref(&state.pool, &app_id, ref_id, correlation_id)

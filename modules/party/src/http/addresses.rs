@@ -9,31 +9,18 @@
 
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
-    Json,
+    http::StatusCode,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use super::party::ErrorBody;
+use super::party::{extract_tenant, ErrorBody};
 use crate::domain::address::{CreateAddressRequest, UpdateAddressRequest};
 use crate::domain::address_service;
 use crate::domain::party::PartyError;
 use crate::AppState;
-
-fn app_id_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_app_id", "X-App-Id header is required")),
-            )
-        })
-}
 
 fn address_error_response(e: PartyError) -> (StatusCode, Json<ErrorBody>) {
     match e {
@@ -62,11 +49,11 @@ fn address_error_response(e: PartyError) -> (StatusCode, Json<ErrorBody>) {
 /// POST /api/party/parties/:party_id/addresses
 pub async fn create_address(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(party_id): Path<Uuid>,
     Json(req): Json<CreateAddressRequest>,
 ) -> Result<(StatusCode, Json<crate::domain::address::Address>), (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let address = address_service::create_address(&state.pool, &app_id, party_id, &req)
         .await
@@ -78,10 +65,10 @@ pub async fn create_address(
 /// GET /api/party/parties/:party_id/addresses
 pub async fn list_addresses(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(party_id): Path<Uuid>,
 ) -> Result<Json<Vec<crate::domain::address::Address>>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let addresses = address_service::list_addresses(&state.pool, &app_id, party_id)
         .await
@@ -93,10 +80,10 @@ pub async fn list_addresses(
 /// GET /api/party/addresses/:id
 pub async fn get_address(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(address_id): Path<Uuid>,
 ) -> Result<Json<crate::domain::address::Address>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let address = address_service::get_address(&state.pool, &app_id, address_id)
         .await
@@ -114,11 +101,11 @@ pub async fn get_address(
 /// PUT /api/party/addresses/:id
 pub async fn update_address(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(address_id): Path<Uuid>,
     Json(req): Json<UpdateAddressRequest>,
 ) -> Result<Json<crate::domain::address::Address>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let address = address_service::update_address(&state.pool, &app_id, address_id, &req)
         .await
@@ -130,10 +117,10 @@ pub async fn update_address(
 /// DELETE /api/party/addresses/:id
 pub async fn delete_address(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(address_id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     address_service::delete_address(&state.pool, &app_id, address_id)
         .await

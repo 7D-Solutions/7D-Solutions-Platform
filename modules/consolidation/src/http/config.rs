@@ -1,12 +1,13 @@
 //! HTTP handlers for consolidation config CRUD.
 //!
-//! Tenant identity carried in `X-App-Id` header (maps to tenant_id).
+//! Tenant identity derived from JWT `VerifiedClaims` (maps to tenant_id).
 
 use axum::{
     extract::{Path, Query, State},
-    http::{HeaderMap, StatusCode},
-    Json,
+    http::StatusCode,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Serialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -18,18 +19,19 @@ use crate::AppState;
 // Helpers
 // ============================================================================
 
-fn tenant_id(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_app_id", "X-App-Id header is required")),
-            )
-        })
+fn extract_tenant(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, (StatusCode, Json<ErrorBody>)> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorBody::new(
+                "unauthorized",
+                "Missing or invalid authentication",
+            )),
+        )),
+    }
 }
 
 fn config_error_response(e: ConfigError) -> (StatusCode, Json<ErrorBody>) {
@@ -90,10 +92,10 @@ impl ErrorBody {
 
 pub async fn create_group(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateGroupRequest>,
 ) -> Result<(StatusCode, Json<config::Group>), (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let group = service::create_group(&state.pool, &tid, &req)
         .await
         .map_err(config_error_response)?;
@@ -102,10 +104,10 @@ pub async fn create_group(
 
 pub async fn list_groups(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<ListGroupsQuery>,
 ) -> Result<Json<Vec<config::Group>>, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let rows = service::list_groups(&state.pool, &tid, q.include_inactive)
         .await
         .map_err(config_error_response)?;
@@ -114,10 +116,10 @@ pub async fn list_groups(
 
 pub async fn get_group(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<config::Group>, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let group = service::get_group(&state.pool, &tid, id)
         .await
         .map_err(config_error_response)?;
@@ -126,11 +128,11 @@ pub async fn get_group(
 
 pub async fn update_group(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateGroupRequest>,
 ) -> Result<Json<config::Group>, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let group = service::update_group(&state.pool, &tid, id, &req)
         .await
         .map_err(config_error_response)?;
@@ -139,10 +141,10 @@ pub async fn update_group(
 
 pub async fn delete_group(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     service::delete_group(&state.pool, &tid, id)
         .await
         .map_err(config_error_response)?;
@@ -155,11 +157,11 @@ pub async fn delete_group(
 
 pub async fn create_entity(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
     Json(req): Json<CreateEntityRequest>,
 ) -> Result<(StatusCode, Json<config::GroupEntity>), (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let entity = service::create_entity(&state.pool, &tid, group_id, &req)
         .await
         .map_err(config_error_response)?;
@@ -168,11 +170,11 @@ pub async fn create_entity(
 
 pub async fn list_entities(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
     Query(q): Query<ListEntitiesQuery>,
 ) -> Result<Json<Vec<config::GroupEntity>>, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let rows = service::list_entities(&state.pool, &tid, group_id, q.include_inactive)
         .await
         .map_err(config_error_response)?;
@@ -191,11 +193,11 @@ pub async fn get_entity(
 
 pub async fn update_entity(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateEntityRequest>,
 ) -> Result<Json<config::GroupEntity>, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let entity = service::update_entity(&state.pool, &tid, id, &req)
         .await
         .map_err(config_error_response)?;
@@ -204,10 +206,10 @@ pub async fn update_entity(
 
 pub async fn delete_entity(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     service::delete_entity(&state.pool, &tid, id)
         .await
         .map_err(config_error_response)?;
@@ -220,11 +222,11 @@ pub async fn delete_entity(
 
 pub async fn create_coa_mapping(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
     Json(req): Json<CreateCoaMappingRequest>,
 ) -> Result<(StatusCode, Json<config::CoaMapping>), (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let mapping = service::create_coa_mapping(&state.pool, &tid, group_id, &req)
         .await
         .map_err(config_error_response)?;
@@ -233,11 +235,11 @@ pub async fn create_coa_mapping(
 
 pub async fn list_coa_mappings(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
     Query(q): Query<ListCoaMappingsQuery>,
 ) -> Result<Json<Vec<config::CoaMapping>>, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let rows = service::list_coa_mappings(
         &state.pool,
         &tid,
@@ -251,10 +253,10 @@ pub async fn list_coa_mappings(
 
 pub async fn delete_coa_mapping(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     service::delete_coa_mapping(&state.pool, &tid, id)
         .await
         .map_err(config_error_response)?;
@@ -267,11 +269,11 @@ pub async fn delete_coa_mapping(
 
 pub async fn create_elimination_rule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
     Json(req): Json<CreateEliminationRuleRequest>,
 ) -> Result<(StatusCode, Json<config::EliminationRule>), (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let rule = service_rules::create_elimination_rule(&state.pool, &tid, group_id, &req)
         .await
         .map_err(config_error_response)?;
@@ -280,11 +282,11 @@ pub async fn create_elimination_rule(
 
 pub async fn list_elimination_rules(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
     Query(q): Query<ListEliminationRulesQuery>,
 ) -> Result<Json<Vec<config::EliminationRule>>, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let rows =
         service_rules::list_elimination_rules(&state.pool, &tid, group_id, q.include_inactive)
             .await
@@ -304,11 +306,11 @@ pub async fn get_elimination_rule(
 
 pub async fn update_elimination_rule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateEliminationRuleRequest>,
 ) -> Result<Json<config::EliminationRule>, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let rule = service_rules::update_elimination_rule(&state.pool, &tid, id, &req)
         .await
         .map_err(config_error_response)?;
@@ -317,10 +319,10 @@ pub async fn update_elimination_rule(
 
 pub async fn delete_elimination_rule(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     service_rules::delete_elimination_rule(&state.pool, &tid, id)
         .await
         .map_err(config_error_response)?;
@@ -333,11 +335,11 @@ pub async fn delete_elimination_rule(
 
 pub async fn upsert_fx_policy(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
     Json(req): Json<UpsertFxPolicyRequest>,
 ) -> Result<Json<config::FxPolicy>, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let policy = service_rules::upsert_fx_policy(&state.pool, &tid, group_id, &req)
         .await
         .map_err(config_error_response)?;
@@ -346,10 +348,10 @@ pub async fn upsert_fx_policy(
 
 pub async fn list_fx_policies(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
 ) -> Result<Json<Vec<config::FxPolicy>>, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let rows = service_rules::list_fx_policies(&state.pool, &tid, group_id)
         .await
         .map_err(config_error_response)?;
@@ -358,10 +360,10 @@ pub async fn list_fx_policies(
 
 pub async fn delete_fx_policy(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     service_rules::delete_fx_policy(&state.pool, &tid, id)
         .await
         .map_err(config_error_response)?;
@@ -374,10 +376,10 @@ pub async fn delete_fx_policy(
 
 pub async fn validate_group(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(group_id): Path<Uuid>,
 ) -> Result<Json<ValidationResult>, (StatusCode, Json<ErrorBody>)> {
-    let tid = tenant_id(&headers)?;
+    let tid = extract_tenant(&claims)?;
     let result = service::validate_group_completeness(&state.pool, &tid, group_id)
         .await
         .map_err(config_error_response)?;
