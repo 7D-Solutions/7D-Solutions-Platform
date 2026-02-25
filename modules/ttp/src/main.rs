@@ -7,7 +7,7 @@ use security::middleware::{
 use security::{optional_claims_mw, JwtVerifier};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 use ttp_rs::{config::Config, db, http, metrics, AppState};
@@ -64,7 +64,7 @@ async fn main() {
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
         .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
-        .layer(cors)
+        .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
     let addr: SocketAddr = format!("{}:{}", config.host, config.port)

@@ -6,7 +6,7 @@ use security::middleware::{
 use security::{optional_claims_mw, JwtVerifier};
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 use ar_rs::{config::Config, consumer_tasks, db, events::run_publisher_task, routes, AppState};
@@ -88,25 +88,10 @@ async fn main() {
         metrics: metrics.clone(),
     });
 
-    // CORS configuration
-    let cors = CorsLayer::new()
-        .allow_origin([
-            "http://localhost:5173".parse().unwrap(),
-            "http://localhost:3000".parse().unwrap(),
-            "http://localhost:3001".parse().unwrap(),
-        ])
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers([
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::AUTHORIZATION,
-            axum::http::HeaderName::from_static("idempotency-key"),
-        ])
-        .allow_credentials(true);
-
-    let rate_limiter = default_rate_limiter();
-
     // Optional JWT verifier for claims extraction (requires JWT_PUBLIC_KEY env var).
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
+
+    let rate_limiter = default_rate_limiter();
 
     let app = Router::new()
         .route("/healthz", get(health::healthz))
@@ -124,7 +109,7 @@ async fn main() {
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(rate_limiter))
         .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
-        .layer(cors)
+        .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
     let addr: SocketAddr = format!("{}:{}", config.host, config.port)
@@ -140,4 +125,28 @@ async fn main() {
     axum::serve(listener, app)
         .await
         .expect("Failed to start server");
+}
+
+fn build_cors_layer(config: &Config) -> CorsLayer {
+    let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
+
+    if is_wildcard && config.env != "development" {
+        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+    }
+
+    let layer = if is_wildcard {
+        CorsLayer::new().allow_origin(AllowOrigin::any())
+    } else {
+        let origins: Vec<_> = config
+            .cors_origins
+            .iter()
+            .filter_map(|o| o.parse().ok())
+            .collect();
+        CorsLayer::new().allow_origin(origins)
+    };
+
+    layer
+        .allow_methods(tower_http::cors::Any)
+        .allow_headers(tower_http::cors::Any)
+        .allow_credentials(false)
 }

@@ -26,6 +26,8 @@ pub struct Config {
     pub nats_url: Option<String>,
     pub host: String,
     pub port: u16,
+    pub env: String,
+    pub cors_origins: Vec<String>,
 }
 
 impl Config {
@@ -64,12 +66,23 @@ impl Config {
             .parse()
             .map_err(|_| "PORT must be a valid u16".to_string())?;
 
+        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+
+        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
+            .unwrap_or_else(|_| "*".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
         Ok(Config {
             database_url,
             bus_type,
             nats_url,
             host,
             port,
+            env,
+            cors_origins,
         })
     }
 }

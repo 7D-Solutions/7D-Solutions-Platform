@@ -35,6 +35,9 @@ pub struct Config {
     pub port: u16,
     pub party_master_url: String,
     pub webhook_secret: String,
+    pub env: String,
+    /// Comma-separated list of allowed CORS origins. "*" means allow any.
+    pub cors_origins: Vec<String>,
 }
 
 impl Config {
@@ -117,6 +120,15 @@ impl Config {
             return Err("TILLED_WEBHOOK_SECRET cannot be empty".to_string());
         }
 
+        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+
+        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
+            .unwrap_or_else(|_| "*".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
         Ok(Config {
             database_url,
             bus_type,
@@ -125,6 +137,8 @@ impl Config {
             port,
             party_master_url,
             webhook_secret,
+            env,
+            cors_origins,
         })
     }
 

@@ -5,6 +5,9 @@ pub struct Config {
     pub database_url: String,
     pub host: String,
     pub port: u16,
+    pub env: String,
+    /// Comma-separated list of allowed CORS origins. "*" means allow any.
+    pub cors_origins: Vec<String>,
 }
 
 impl Config {
@@ -28,10 +31,21 @@ impl Config {
             .parse()
             .map_err(|_| "PORT must be a valid u16".to_string())?;
 
+        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+
+        let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
+            .unwrap_or_else(|_| "*".to_string())
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
         Ok(Config {
             database_url,
             host,
             port,
+            env,
+            cors_origins,
         })
     }
 }
@@ -59,9 +73,15 @@ mod tests {
         unsafe {
             std::env::set_var("DATABASE_URL", "postgres://user:pass@localhost/reporting_test_db");
             std::env::remove_var("PORT");
+            std::env::set_var("ENV", "development");
+            std::env::set_var("CORS_ORIGINS", "*");
         }
         let config = Config::from_env().unwrap();
         assert_eq!(config.port, 8096);
-        unsafe { std::env::remove_var("DATABASE_URL") };
+        unsafe {
+            std::env::remove_var("DATABASE_URL");
+            std::env::remove_var("ENV");
+            std::env::remove_var("CORS_ORIGINS");
+        }
     }
 }

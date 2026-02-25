@@ -5,7 +5,7 @@ use security::{
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
 use consolidation::{config::Config, db, http, metrics, AppState};
@@ -49,18 +49,6 @@ async fn main() {
         gl_base_url: config.gl_base_url,
     });
 
-    let cors = CorsLayer::new()
-        .allow_origin([
-            "http://localhost:5173".parse().unwrap(),
-            "http://localhost:3000".parse().unwrap(),
-        ])
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers([
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::AUTHORIZATION,
-        ])
-        .allow_credentials(true);
-
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
     let app = http::router()
@@ -72,7 +60,7 @@ async fn main() {
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
         .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
-        .layer(cors)
+        .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
     let addr: SocketAddr = format!("{}:{}", config.host, config.port)
@@ -88,4 +76,28 @@ async fn main() {
     axum::serve(listener, app)
         .await
         .expect("Consolidation: failed to start server");
+}
+
+fn build_cors_layer(config: &Config) -> CorsLayer {
+    let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
+
+    if is_wildcard && config.env != "development" {
+        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+    }
+
+    let layer = if is_wildcard {
+        CorsLayer::new().allow_origin(AllowOrigin::any())
+    } else {
+        let origins: Vec<_> = config
+            .cors_origins
+            .iter()
+            .filter_map(|o| o.parse().ok())
+            .collect();
+        CorsLayer::new().allow_origin(origins)
+    };
+
+    layer
+        .allow_methods(tower_http::cors::Any)
+        .allow_headers(tower_http::cors::Any)
+        .allow_credentials(false)
 }
