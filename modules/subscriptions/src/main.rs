@@ -175,6 +175,7 @@ mod tests {
             bus_type: config::BusType::InMemory,
             database_url: "postgresql://localhost/test".to_string(),
             nats_url: None,
+            env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
         };
         let _layer = build_cors_layer(&config);
@@ -186,6 +187,7 @@ mod tests {
             bus_type: config::BusType::InMemory,
             database_url: "postgresql://localhost/test".to_string(),
             nats_url: None,
+            env: "development".to_string(),
             cors_origins: vec![
                 "http://localhost:3000".to_string(),
                 "https://app.example.com".to_string(),

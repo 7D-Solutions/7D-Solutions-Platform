@@ -165,6 +165,7 @@ mod tests {
             database_url: "postgresql://localhost/test".to_string(),
             bus_type: BusType::Nats,
             nats_url: None,
+            env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
         };
 
