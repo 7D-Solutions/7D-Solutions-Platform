@@ -6,7 +6,7 @@ use notifications_rs::{
 };
 use security::{
     middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
-    optional_claims_mw, JwtVerifier,
+    optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -116,7 +116,12 @@ async fn main() {
         .route("/api/version", get(routes::health::version))
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(db.clone())
-        .merge(routes::admin::admin_router(db))
+        .merge(
+            routes::admin::admin_router(db)
+                .route_layer(RequirePermissionsLayer::new(&[
+                    permissions::NOTIFICATIONS_MUTATE,
+                ])),
+        )
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
@@ -175,6 +180,7 @@ mod tests {
             nats_url: None,
             host: "0.0.0.0".to_string(),
             port: 8089,
+            env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
         };
         let _layer = build_cors_layer(&config);
@@ -188,6 +194,7 @@ mod tests {
             nats_url: None,
             host: "0.0.0.0".to_string(),
             port: 8089,
+            env: "development".to_string(),
             cors_origins: vec![
                 "http://localhost:3000".to_string(),
                 "https://app.example.com".to_string(),

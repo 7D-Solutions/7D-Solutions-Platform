@@ -2,7 +2,7 @@ use axum::{extract::DefaultBodyLimit, routing::{get, post}, Extension, Router};
 use event_bus::{EventBus, InMemoryBus};
 use security::{
     middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
-    optional_claims_mw, JwtVerifier,
+    optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -129,29 +129,33 @@ async fn main() {
         .route("/api/ready", get(payments_rs::routes::health::ready))
         .route("/api/version", get(payments_rs::routes::health::version))
         .route("/metrics", get(metrics_handler))
-        // Checkout session endpoints (bd-ddsm, bd-x0rt)
-        .route(
-            "/api/payments/checkout-sessions",
-            post(payments_rs::routes::checkout_sessions::create_checkout_session),
-        )
-        .route(
-            "/api/payments/checkout-sessions/{id}",
-            get(payments_rs::routes::checkout_sessions::get_checkout_session),
-        )
-        .route(
-            "/api/payments/checkout-sessions/{id}/present",
-            post(payments_rs::routes::checkout_sessions::present_checkout_session),
-        )
-        .route(
-            "/api/payments/checkout-sessions/{id}/status",
-            get(payments_rs::routes::checkout_sessions::poll_checkout_session_status),
-        )
         .route(
             "/api/payments/webhook/tilled",
             post(payments_rs::routes::checkout_sessions::tilled_webhook),
         )
+        .merge(
+            Router::new()
+                // Checkout session endpoints (bd-ddsm, bd-x0rt)
+                .route(
+                    "/api/payments/checkout-sessions",
+                    post(payments_rs::routes::checkout_sessions::create_checkout_session),
+                )
+                .route(
+                    "/api/payments/checkout-sessions/{id}",
+                    get(payments_rs::routes::checkout_sessions::get_checkout_session),
+                )
+                .route(
+                    "/api/payments/checkout-sessions/{id}/present",
+                    post(payments_rs::routes::checkout_sessions::present_checkout_session),
+                )
+                .route(
+                    "/api/payments/checkout-sessions/{id}/status",
+                    get(payments_rs::routes::checkout_sessions::poll_checkout_session_status),
+                )
+                .merge(payments_rs::routes::admin::admin_router(app_state.clone()))
+                .route_layer(RequirePermissionsLayer::new(&[permissions::PAYMENTS_MUTATE])),
+        )
         .with_state(app_state)
-        .merge(payments_rs::routes::admin::admin_router(pool))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
         .layer(axum::middleware::from_fn(timeout_middleware))
@@ -211,6 +215,7 @@ mod tests {
             nats_url: None,
             host: "0.0.0.0".to_string(),
             port: 8088,
+            env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
             payments_provider: PaymentsProvider::Mock,
             tilled_api_key: None,
@@ -229,6 +234,7 @@ mod tests {
             nats_url: None,
             host: "0.0.0.0".to_string(),
             port: 8088,
+            env: "development".to_string(),
             cors_origins: vec![
                 "http://localhost:3000".to_string(),
                 "https://app.example.com".to_string(),
