@@ -1,7 +1,9 @@
-use axum::{extract::State, http::StatusCode};
+use axum::{extract::State, http::StatusCode, Json};
 use prometheus::{Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge,
                  IntGaugeVec, Opts, Registry, TextEncoder};
 use std::sync::Arc;
+
+use crate::http::admin_types::ErrorBody;
 
 /// Fixed Assets Prometheus metrics
 pub struct FixedAssetsMetrics {
@@ -142,7 +144,7 @@ mod tests {
 /// Axum handler for GET /metrics
 pub async fn metrics_handler(
     State(app_state): State<Arc<crate::AppState>>,
-) -> Result<String, (StatusCode, String)> {
+) -> Result<String, (StatusCode, Json<ErrorBody>)> {
     let _ = &app_state.metrics;
 
     let encoder = TextEncoder::new();
@@ -151,13 +153,13 @@ pub async fn metrics_handler(
     encoder.encode(&metric_families, &mut buffer).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to encode metrics: {}", e),
+            Json(ErrorBody::new("internal_error", &format!("Failed to encode metrics: {}", e))),
         )
     })?;
     String::from_utf8(buffer).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to convert metrics to UTF-8: {}", e),
+            Json(ErrorBody::new("internal_error", &format!("Failed to convert metrics to UTF-8: {}", e))),
         )
     })
 }

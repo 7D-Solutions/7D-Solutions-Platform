@@ -9,19 +9,31 @@ use crate::domain::shipments::ShipmentError;
 use axum::http::HeaderMap;
 use axum::response::IntoResponse;
 
+#[derive(Debug, Serialize)]
+pub struct ErrorBody {
+    pub error: String,
+    pub message: String,
+}
+
+impl ErrorBody {
+    pub fn new(error: &str, message: &str) -> Self {
+        Self {
+            error: error.to_string(),
+            message: message.to_string(),
+        }
+    }
+}
+
 // ── Tenant extraction ────────────────────────────────────────
 
 pub fn extract_tenant(
     claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<Uuid, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Uuid, (StatusCode, Json<ErrorBody>)> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id),
         None => Err((
             StatusCode::UNAUTHORIZED,
-            Json(json!({
-                "error": "unauthorized",
-                "message": "Missing or invalid authentication"
-            })),
+            Json(ErrorBody::new("unauthorized", "Missing or invalid authentication")),
         )),
     }
 }
@@ -35,36 +47,36 @@ pub fn idempotency_key(headers: &HeaderMap) -> Option<String> {
 
 // ── Error mapping ────────────────────────────────────────────
 
-pub fn error_response(err: ShipmentError) -> impl IntoResponse {
+pub fn error_response(err: ShipmentError) -> (StatusCode, Json<ErrorBody>) {
     match err {
         ShipmentError::NotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Shipment not found" })),
+            Json(ErrorBody::new("not_found", "Shipment not found")),
         ),
         ShipmentError::Validation(msg) => (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": msg })),
+            Json(ErrorBody::new("validation_error", &msg)),
         ),
         ShipmentError::Transition(t) => (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "invalid_transition", "message": t.to_string() })),
+            Json(ErrorBody::new("invalid_transition", &t.to_string())),
         ),
         ShipmentError::Guard(g) => (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "guard_failed", "message": g.to_string() })),
+            Json(ErrorBody::new("guard_failed", &g.to_string())),
         ),
         ShipmentError::Database(e) => {
             tracing::error!("database error: {e}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Internal server error" })),
+                Json(ErrorBody::new("internal_error", "Internal server error")),
             )
         }
         ShipmentError::InventoryIntegration(msg) => {
             tracing::error!("inventory integration error: {msg}");
             (
                 StatusCode::BAD_GATEWAY,
-                Json(json!({ "error": "inventory_error", "message": "Inventory integration failed" })),
+                Json(ErrorBody::new("inventory_error", "Inventory integration failed")),
             )
         }
     }

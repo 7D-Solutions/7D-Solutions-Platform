@@ -23,6 +23,7 @@ use crate::domain::meters::{
     RecordReadingRequest,
 };
 use crate::AppState;
+use super::ErrorBody;
 
 #[derive(Debug, Deserialize)]
 pub struct ListReadingsParams {
@@ -31,44 +32,42 @@ pub struct ListReadingsParams {
     pub offset: Option<i64>,
 }
 
-fn meter_error_response(err: MeterError) -> impl IntoResponse {
+fn meter_error_response(err: MeterError) -> (StatusCode, Json<ErrorBody>) {
     match err {
         MeterError::DuplicateName(name, tenant) => (
             StatusCode::CONFLICT,
-            Json(json!({
-                "error": "duplicate_meter_type",
-                "message": format!("Meter type '{}' already exists for tenant '{}'", name, tenant)
-            })),
+            Json(ErrorBody::new(
+                "duplicate_meter_type",
+                &format!("Meter type '{}' already exists for tenant '{}'", name, tenant),
+            )),
         ),
         MeterError::MeterTypeNotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Meter type not found" })),
+            Json(ErrorBody::new("not_found", "Meter type not found")),
         ),
         MeterError::AssetNotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Asset not found" })),
+            Json(ErrorBody::new("not_found", "Asset not found")),
         ),
         MeterError::MonotonicityViolation { previous, attempted } => (
             StatusCode::BAD_REQUEST,
-            Json(json!({
-                "error": "monotonicity_violation",
-                "message": format!(
+            Json(ErrorBody::new(
+                "monotonicity_violation",
+                &format!(
                     "Reading {} violates monotonicity: previous max was {}",
                     attempted, previous
                 ),
-                "previous_max": previous,
-                "attempted": attempted,
-            })),
+            )),
         ),
         MeterError::Validation(msg) => (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": msg })),
+            Json(ErrorBody::new("validation_error", &msg)),
         ),
         MeterError::Database(e) => {
             tracing::error!(error = %e, "meter database error");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
+                Json(ErrorBody::new("internal_error", "Database error")),
             )
         }
     }

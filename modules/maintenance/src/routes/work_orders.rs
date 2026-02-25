@@ -22,6 +22,7 @@ use crate::domain::work_orders::{
     CreateWorkOrderRequest, ListWorkOrdersQuery, TransitionRequest, WoError, WorkOrderRepo,
 };
 use crate::AppState;
+use super::ErrorBody;
 
 #[derive(Debug, Deserialize)]
 pub struct ListWorkOrdersParams {
@@ -31,37 +32,37 @@ pub struct ListWorkOrdersParams {
     pub offset: Option<i64>,
 }
 
-fn wo_error_response(err: WoError) -> impl IntoResponse {
+fn wo_error_response(err: WoError) -> (StatusCode, Json<ErrorBody>) {
     match err {
         WoError::NotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Work order not found" })),
+            Json(ErrorBody::new("not_found", "Work order not found")),
         ),
         WoError::AssetNotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Asset not found" })),
+            Json(ErrorBody::new("not_found", "Asset not found")),
         ),
         WoError::AssignmentNotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Plan assignment not found" })),
+            Json(ErrorBody::new("not_found", "Plan assignment not found")),
         ),
         WoError::Validation(msg) => (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": msg })),
+            Json(ErrorBody::new("validation_error", &msg)),
         ),
         WoError::Transition(e) => (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "invalid_transition", "message": e.to_string() })),
+            Json(ErrorBody::new("invalid_transition", &e.to_string())),
         ),
         WoError::Guard(e) => (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "guard_failed", "message": e.to_string() })),
+            Json(ErrorBody::new("guard_failed", &e.to_string())),
         ),
         WoError::Database(e) => {
             tracing::error!(error = %e, "work order database error");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
+                Json(ErrorBody::new("internal_error", "Database error")),
             )
         }
     }
@@ -120,11 +121,7 @@ pub async fn get_work_order(
 
     match WorkOrderRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(wo)) => (StatusCode::OK, Json(json!(wo))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Work order not found" })),
-        )
-            .into_response(),
+        Ok(None) => wo_error_response(WoError::NotFound).into_response(),
         Err(e) => wo_error_response(e).into_response(),
     }
 }
@@ -143,12 +140,12 @@ pub async fn transition_work_order(
 
 pub fn extract_tenant(
     claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<String, (StatusCode, Json<ErrorBody>)> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
         None => Err((
             StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            Json(ErrorBody::new("unauthorized", "Missing or invalid authentication")),
         )),
     }
 }

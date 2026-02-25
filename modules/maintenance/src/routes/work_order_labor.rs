@@ -18,33 +18,34 @@ use uuid::Uuid;
 
 use crate::domain::work_orders::{AddLaborRequest, WoLaborError, WoLaborRepo};
 use crate::AppState;
+use super::ErrorBody;
 
-fn labor_error_response(err: WoLaborError) -> impl IntoResponse {
+fn labor_error_response(err: WoLaborError) -> (StatusCode, Json<ErrorBody>) {
     match err {
         WoLaborError::WoNotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Work order not found" })),
+            Json(ErrorBody::new("not_found", "Work order not found")),
         ),
         WoLaborError::LaborNotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Labor entry not found" })),
+            Json(ErrorBody::new("not_found", "Labor entry not found")),
         ),
         WoLaborError::WoImmutable(status) => (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "wo_immutable",
-                "message": format!("Cannot modify labor: work order status is {}", status)
-            })),
+            Json(ErrorBody::new(
+                "wo_immutable",
+                &format!("Cannot modify labor: work order status is {}", status),
+            )),
         ),
         WoLaborError::Validation(msg) => (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": msg })),
+            Json(ErrorBody::new("validation_error", &msg)),
         ),
         WoLaborError::Database(e) => {
             tracing::error!(error = %e, "work order labor database error");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
+                Json(ErrorBody::new("internal_error", "Database error")),
             )
         }
     }

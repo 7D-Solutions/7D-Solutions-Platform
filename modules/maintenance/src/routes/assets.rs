@@ -22,6 +22,7 @@ use crate::domain::assets::{
     AssetError, AssetRepo, CreateAssetRequest, ListAssetsQuery, UpdateAssetRequest,
 };
 use crate::AppState;
+use super::ErrorBody;
 
 #[derive(Debug, Deserialize)]
 pub struct ListAssetsParams {
@@ -31,28 +32,28 @@ pub struct ListAssetsParams {
     pub offset: Option<i64>,
 }
 
-fn asset_error_response(err: AssetError) -> impl IntoResponse {
+fn asset_error_response(err: AssetError) -> (StatusCode, Json<ErrorBody>) {
     match err {
         AssetError::DuplicateTag(tag, tenant) => (
             StatusCode::CONFLICT,
-            Json(json!({
-                "error": "duplicate_asset_tag",
-                "message": format!("Asset tag '{}' already exists for tenant '{}'", tag, tenant)
-            })),
+            Json(ErrorBody::new(
+                "duplicate_asset_tag",
+                &format!("Asset tag '{}' already exists for tenant '{}'", tag, tenant),
+            )),
         ),
         AssetError::NotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Asset not found" })),
+            Json(ErrorBody::new("not_found", "Asset not found")),
         ),
         AssetError::Validation(msg) => (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": msg })),
+            Json(ErrorBody::new("validation_error", &msg)),
         ),
         AssetError::Database(e) => {
             tracing::error!(error = %e, "asset database error");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
+                Json(ErrorBody::new("internal_error", "Database error")),
             )
         }
     }
@@ -111,11 +112,7 @@ pub async fn get_asset(
 
     match AssetRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(asset)) => (StatusCode::OK, Json(json!(asset))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Asset not found" })),
-        )
-            .into_response(),
+        Ok(None) => asset_error_response(AssetError::NotFound).into_response(),
         Err(e) => asset_error_response(e).into_response(),
     }
 }
@@ -140,12 +137,12 @@ pub async fn update_asset(
 
 fn extract_tenant(
     claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<String, (StatusCode, Json<ErrorBody>)> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
         None => Err((
             StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            Json(ErrorBody::new("unauthorized", "Missing or invalid authentication")),
         )),
     }
 }

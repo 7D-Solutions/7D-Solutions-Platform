@@ -25,6 +25,7 @@ use crate::domain::plans::{
     ListPlansQuery, PlanError, PlanRepo, UpdatePlanRequest,
 };
 use crate::AppState;
+use super::ErrorBody;
 
 #[derive(Debug, Deserialize)]
 pub struct ListPlansParams {
@@ -41,40 +42,40 @@ pub struct ListAssignmentsParams {
     pub offset: Option<i64>,
 }
 
-fn plan_error_response(err: PlanError) -> impl IntoResponse {
+fn plan_error_response(err: PlanError) -> (StatusCode, Json<ErrorBody>) {
     match err {
         PlanError::PlanNotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Plan not found" })),
+            Json(ErrorBody::new("not_found", "Plan not found")),
         ),
         PlanError::AssetNotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Asset not found" })),
+            Json(ErrorBody::new("not_found", "Asset not found")),
         ),
         PlanError::MeterTypeNotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Meter type not found" })),
+            Json(ErrorBody::new("not_found", "Meter type not found")),
         ),
         PlanError::DuplicateAssignment => (
             StatusCode::CONFLICT,
-            Json(json!({
-                "error": "duplicate_assignment",
-                "message": "This plan is already assigned to this asset"
-            })),
+            Json(ErrorBody::new(
+                "duplicate_assignment",
+                "This plan is already assigned to this asset",
+            )),
         ),
         PlanError::AssignmentNotFound => (
             StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Assignment not found" })),
+            Json(ErrorBody::new("not_found", "Assignment not found")),
         ),
         PlanError::Validation(msg) => (
             StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": msg })),
+            Json(ErrorBody::new("validation_error", &msg)),
         ),
         PlanError::Database(e) => {
             tracing::error!(error = %e, "plan database error");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
+                Json(ErrorBody::new("internal_error", "Database error")),
             )
         }
     }
@@ -132,11 +133,7 @@ pub async fn get_plan(
 
     match PlanRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(plan)) => (StatusCode::OK, Json(json!(plan))).into_response(),
-        Ok(None) => (
-            StatusCode::NOT_FOUND,
-            Json(json!({ "error": "not_found", "message": "Plan not found" })),
-        )
-            .into_response(),
+        Ok(None) => plan_error_response(PlanError::PlanNotFound).into_response(),
         Err(e) => plan_error_response(e).into_response(),
     }
 }
