@@ -145,7 +145,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "1.0.1"
+version = "1.0.8"
 dependencies = [
  "async-nats 0.33.0",
  "axum 0.8.8",
@@ -2926,7 +2926,7 @@ dependencies = [
 
 [[package]]
 name = "payments-rs"
-version = "1.1.0"
+version = "1.1.6"
 dependencies = [
  "anyhow",
  "async-nats 0.33.0",
@@ -3212,6 +3212,7 @@ dependencies = [
  "chrono",
  "futures",
  "prometheus",
+ "regex",
  "serde",
  "serde_json",
  "sha2",
@@ -4164,6 +4165,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f40ca3c46823713e0d4209592e8d6e826aa57e928f09752619fc696c499637f6"
 dependencies = [
  "lazy_static",
+]
+
+[[package]]
+name = "shipping-receiving-rs"
+version = "0.1.0"
+dependencies = [
+ "async-nats 0.33.0",
+ "axum 0.8.8",
+ "chrono",
+ "dotenvy",
+ "event-bus",
+ "futures",
+ "health",
+ "prometheus",
+ "reqwest 0.12.28",
+ "security",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "sqlx",
+ "thiserror 2.0.18",
+ "tokio",
+ "tower 0.5.3",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -5305,7 +5333,7 @@ dependencies = [
 
 [[package]]
 name = "ttp-rs"
-version = "1.0.0"
+version = "2.0.3"
 dependencies = [
  "async-nats 0.33.0",
  "axum 0.8.8",
