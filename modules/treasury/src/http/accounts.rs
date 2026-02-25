@@ -1,13 +1,15 @@
 //! HTTP handlers for bank account CRUD.
 //!
-//! App identity is carried in the `X-App-Id` header.
+//! Tenant identity is derived from JWT claims via [`VerifiedClaims`].
+//! All operations are tenant-scoped; cross-tenant access is impossible.
 //! Idempotent creates use the `X-Idempotency-Key` header.
 
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -16,25 +18,12 @@ use crate::domain::accounts::{
     service, AccountError, CreateBankAccountRequest, CreateCreditCardAccountRequest,
     TreasuryAccount, UpdateAccountRequest,
 };
+use crate::http::tenant::extract_tenant;
 use crate::AppState;
 
 // ============================================================================
 // Helpers
 // ============================================================================
-
-fn app_id_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_app_id", "X-App-Id header is required")),
-            )
-        })
-}
 
 fn correlation_from_headers(headers: &HeaderMap) -> String {
     headers
@@ -110,10 +99,11 @@ pub struct ListAccountsQuery {
 /// POST /api/treasury/accounts/bank — create a bank account
 pub async fn create_bank_account(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<CreateBankAccountRequest>,
 ) -> Result<(StatusCode, Json<TreasuryAccount>), (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
     let idempotency_key = idempotency_key_from_headers(&headers);
 
@@ -144,10 +134,11 @@ pub async fn create_bank_account(
 /// POST /api/treasury/accounts/credit-card — create a credit card account
 pub async fn create_credit_card_account(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<CreateCreditCardAccountRequest>,
 ) -> Result<(StatusCode, Json<TreasuryAccount>), (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
     let idempotency_key = idempotency_key_from_headers(&headers);
 
@@ -175,13 +166,13 @@ pub async fn create_credit_card_account(
     }
 }
 
-/// GET /api/treasury/accounts — list accounts for app
+/// GET /api/treasury/accounts — list accounts for tenant
 pub async fn list_accounts(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListAccountsQuery>,
 ) -> Result<Json<Vec<TreasuryAccount>>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let accounts = service::list_accounts(&state.pool, &app_id, query.include_inactive)
         .await
@@ -193,10 +184,10 @@ pub async fn list_accounts(
 /// GET /api/treasury/accounts/:id — get a single account
 pub async fn get_account(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TreasuryAccount>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let account = service::get_account(&state.pool, &app_id, id)
         .await
@@ -217,11 +208,12 @@ pub async fn get_account(
 /// PUT /api/treasury/accounts/:id — update account fields
 pub async fn update_account(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateAccountRequest>,
 ) -> Result<Json<TreasuryAccount>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let account = service::update_account(&state.pool, &app_id, id, &req, correlation_id)
@@ -234,16 +226,16 @@ pub async fn update_account(
 /// POST /api/treasury/accounts/:id/deactivate — soft-delete a bank account
 pub async fn deactivate_account(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
-    let actor = headers
-        .get("x-actor-id")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("system")
-        .to_string();
+    let actor = claims
+        .as_ref()
+        .map(|Extension(c)| c.user_id.to_string())
+        .unwrap_or_else(|| "system".to_string());
 
     service::deactivate_account(&state.pool, &app_id, id, &actor, correlation_id)
         .await

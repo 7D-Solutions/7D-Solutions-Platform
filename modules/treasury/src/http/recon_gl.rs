@@ -3,8 +3,9 @@
 use axum::{
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -13,6 +14,7 @@ use crate::domain::recon::{
     ReconError,
 };
 use crate::http::recon::ReconErrorBody;
+use crate::http::tenant::extract_tenant;
 use crate::AppState;
 
 fn recon_error_response(e: ReconError) -> (StatusCode, Json<ReconErrorBody>) {
@@ -45,18 +47,12 @@ fn recon_error_response(e: ReconError) -> (StatusCode, Json<ReconErrorBody>) {
     }
 }
 
-fn app_id(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ReconErrorBody>)> {
-    headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ReconErrorBody::new("missing_app_id", "X-App-Id header is required")),
-            )
-        })
+fn tenant_from_claims(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, (StatusCode, Json<ReconErrorBody>)> {
+    extract_tenant(claims).map_err(|(status, Json(e))| {
+        (status, Json(ReconErrorBody::new(&e.error, &e.message)))
+    })
 }
 
 fn correlation(headers: &HeaderMap) -> String {
@@ -67,14 +63,6 @@ fn correlation(headers: &HeaderMap) -> String {
         .to_string()
 }
 
-fn actor(headers: &HeaderMap) -> String {
-    headers
-        .get("x-actor-id")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("system")
-        .to_string()
-}
-
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -82,12 +70,16 @@ fn actor(headers: &HeaderMap) -> String {
 /// POST /api/treasury/recon/gl-link — link a bank transaction to a GL entry
 pub async fn link_to_gl(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<LinkToGlRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ReconErrorBody>)> {
-    let app_id = app_id(&headers)?;
+    let app_id = tenant_from_claims(&claims)?;
     let correlation_id = correlation(&headers);
-    let actor = actor(&headers);
+    let actor = claims
+        .as_ref()
+        .map(|Extension(c)| c.user_id.to_string())
+        .unwrap_or_else(|| "system".to_string());
 
     let m = gl_link::link_bank_txn_to_gl(&state.pool, &app_id, &req, &actor, &correlation_id)
         .await
@@ -111,10 +103,10 @@ pub struct UnmatchedBankTxnQuery {
 /// GET /api/treasury/recon/gl-unmatched-txns?account_id=... — bank txns not linked to GL
 pub async fn unmatched_bank_txns(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<UnmatchedBankTxnQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ReconErrorBody>)> {
-    let app_id = app_id(&headers)?;
+    let app_id = tenant_from_claims(&claims)?;
 
     let txns: Vec<UnmatchedBankTxnGl> =
         gl_link::unmatched_bank_txns_for_gl(&state.pool, &app_id, query.account_id)
@@ -130,10 +122,10 @@ pub async fn unmatched_bank_txns(
 /// POST /api/treasury/recon/gl-unmatched-entries — given GL entry IDs, return unlinked ones
 pub async fn unmatched_gl_entries(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<UnmatchedGlRequest>,
 ) -> Result<Json<UnmatchedGlResult>, (StatusCode, Json<ReconErrorBody>)> {
-    let app_id = app_id(&headers)?;
+    let app_id = tenant_from_claims(&claims)?;
 
     gl_link::unmatched_gl_entries(&state.pool, &app_id, &req.gl_entry_ids)
         .await

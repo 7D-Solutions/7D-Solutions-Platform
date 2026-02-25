@@ -4,6 +4,7 @@ pub mod import;
 pub mod recon;
 pub mod recon_gl;
 pub mod reports;
+pub mod tenant;
 
 use axum::{extract::State, http::StatusCode, Json};
 use health::{build_ready_response, db_check, ready_response_to_axum, ReadyResponse};

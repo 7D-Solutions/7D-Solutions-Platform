@@ -7,8 +7,9 @@
 use axum::{
     extract::{Multipart, State},
     http::{HeaderMap, StatusCode},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use chrono::NaiveDate;
 use serde::Serialize;
 use std::sync::Arc;
@@ -16,6 +17,7 @@ use uuid::Uuid;
 
 use crate::domain::import::adapters::CsvFormat;
 use crate::domain::import::{service, ImportError, ImportResult, LineError};
+use crate::http::tenant::extract_tenant;
 use crate::AppState;
 
 // ============================================================================
@@ -174,15 +176,13 @@ fn bad_request(msg: &str) -> (StatusCode, Json<ImportErrorBody>) {
 /// POST /api/treasury/statements/import
 pub async fn import_statement(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     multipart: Multipart,
 ) -> Result<(StatusCode, Json<ImportResult>), (StatusCode, Json<ImportErrorBody>)> {
-    let app_id = headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .ok_or_else(|| bad_request("X-App-Id header is required"))?
-        .to_string();
+    let app_id = extract_tenant(&claims).map_err(|(status, Json(e))| {
+        (status, Json(ImportErrorBody::new(&e.error, &e.message)))
+    })?;
 
     let correlation_id = headers
         .get("x-correlation-id")

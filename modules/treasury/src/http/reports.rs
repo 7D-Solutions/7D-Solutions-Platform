@@ -1,33 +1,23 @@
 //! HTTP handlers for treasury reports.
+//!
+//! Tenant identity is derived from JWT claims via [`VerifiedClaims`].
 
-use axum::{extract::State, http::HeaderMap, http::StatusCode, Json};
+use axum::{extract::State, http::StatusCode, Extension, Json};
+use security::VerifiedClaims;
 use std::sync::Arc;
 
 use super::accounts::ErrorBody;
 use crate::domain::reports::cash_position;
 use crate::domain::reports::{assumptions::ForecastAssumptions, forecast};
+use crate::http::tenant::extract_tenant;
 use crate::AppState;
-
-fn app_id_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_app_id", "X-App-Id header is required")),
-            )
-        })
-}
 
 /// GET /api/treasury/cash-position — real-time cash position by account and currency
 pub async fn cash_position(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> Result<Json<cash_position::CashPositionResponse>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
 
     let position = cash_position::get_cash_position(&state.pool, &app_id)
         .await
@@ -50,9 +40,9 @@ pub async fn cash_position(
 /// only includes the available data.
 pub async fn forecast(
     State(_state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> Result<Json<forecast::ForecastResponse>, (StatusCode, Json<ErrorBody>)> {
-    let app_id = app_id_from_headers(&headers)?;
+    let app_id = extract_tenant(&claims)?;
     let assumptions = ForecastAssumptions::default();
     let mut data_sources = Vec::new();
 

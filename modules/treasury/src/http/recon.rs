@@ -3,8 +3,9 @@
 use axum::{
     extract::{Query, State},
     http::{HeaderMap, StatusCode},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Serialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -13,6 +14,7 @@ use crate::domain::recon::{
     models::{AutoMatchRequest, AutoMatchResult, ListMatchesQuery, ManualMatchRequest, ReconMatch},
     service, ReconError,
 };
+use crate::http::tenant::extract_tenant;
 use crate::AppState;
 
 // ============================================================================
@@ -101,18 +103,12 @@ fn recon_error_response(e: ReconError) -> (StatusCode, Json<ReconErrorBody>) {
 // Helpers
 // ============================================================================
 
-fn app_id(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ReconErrorBody>)> {
-    headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ReconErrorBody::new("missing_app_id", "X-App-Id header is required")),
-            )
-        })
+fn tenant_from_claims(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, (StatusCode, Json<ReconErrorBody>)> {
+    extract_tenant(claims).map_err(|(status, Json(e))| {
+        (status, Json(ReconErrorBody::new(&e.error, &e.message)))
+    })
 }
 
 fn correlation(headers: &HeaderMap) -> String {
@@ -123,14 +119,6 @@ fn correlation(headers: &HeaderMap) -> String {
         .to_string()
 }
 
-fn actor(headers: &HeaderMap) -> String {
-    headers
-        .get("x-actor-id")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("system")
-        .to_string()
-}
-
 // ============================================================================
 // Handlers
 // ============================================================================
@@ -138,10 +126,11 @@ fn actor(headers: &HeaderMap) -> String {
 /// POST /api/treasury/recon/auto-match — run auto-match for an account
 pub async fn auto_match(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<AutoMatchRequest>,
 ) -> Result<Json<AutoMatchResult>, (StatusCode, Json<ReconErrorBody>)> {
-    let app_id = app_id(&headers)?;
+    let app_id = tenant_from_claims(&claims)?;
     let correlation_id = correlation(&headers);
 
     service::run_auto_match(&state.pool, &app_id, req.account_id, &correlation_id)
@@ -153,12 +142,16 @@ pub async fn auto_match(
 /// POST /api/treasury/recon/manual-match — create a manual match
 pub async fn manual_match(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<ManualMatchRequest>,
 ) -> Result<(StatusCode, Json<ReconMatch>), (StatusCode, Json<ReconErrorBody>)> {
-    let app_id = app_id(&headers)?;
+    let app_id = tenant_from_claims(&claims)?;
     let correlation_id = correlation(&headers);
-    let actor = actor(&headers);
+    let actor = claims
+        .as_ref()
+        .map(|Extension(c)| c.user_id.to_string())
+        .unwrap_or_else(|| "system".to_string());
 
     service::create_manual_match(&state.pool, &app_id, &req, &actor, &correlation_id)
         .await
@@ -169,10 +162,10 @@ pub async fn manual_match(
 /// GET /api/treasury/recon/matches?account_id=...&include_superseded=false
 pub async fn list_matches(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListMatchesQuery>,
 ) -> Result<Json<Vec<ReconMatch>>, (StatusCode, Json<ReconErrorBody>)> {
-    let app_id = app_id(&headers)?;
+    let app_id = tenant_from_claims(&claims)?;
 
     service::list_matches(&state.pool, &app_id, query.account_id, query.include_superseded)
         .await
@@ -189,10 +182,10 @@ pub struct UnmatchedQuery {
 /// GET /api/treasury/recon/unmatched?account_id=...
 pub async fn list_unmatched(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<UnmatchedQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ReconErrorBody>)> {
-    let app_id = app_id(&headers)?;
+    let app_id = tenant_from_claims(&claims)?;
 
     let txns = service::list_unmatched(&state.pool, &app_id, query.account_id)
         .await
