@@ -11,7 +11,6 @@
 //! amount matching ensures a refund line only matches a refund transaction.
 
 use rust_decimal::Decimal;
-use std::str::FromStr;
 
 use super::MatchStrategy;
 use crate::domain::recon::models::UnmatchedTxn;
@@ -29,7 +28,7 @@ impl MatchStrategy for CreditCardStrategy {
             return None;
         }
 
-        let mut confidence = Decimal::from_str("0.5000").unwrap();
+        let mut confidence = Decimal::new(5000, 4);
 
         // Date scoring using auth/settle window (up to +0.3)
         confidence += date_score(sl, pt);
@@ -69,11 +68,11 @@ fn date_score(sl: &UnmatchedTxn, pt: &UnmatchedTxn) -> Decimal {
         // Score based on proximity to settle date
         let days_from_settle = (stmt_date - settle).num_days().unsigned_abs();
         return match days_from_settle {
-            0 => Decimal::from_str("0.3000").unwrap(),
-            1 => Decimal::from_str("0.2500").unwrap(),
-            2 => Decimal::from_str("0.2000").unwrap(),
-            3 => Decimal::from_str("0.1500").unwrap(),
-            _ => Decimal::from_str("0.1000").unwrap(),
+            0 => Decimal::new(3000, 4),
+            1 => Decimal::new(2500, 4),
+            2 => Decimal::new(2000, 4),
+            3 => Decimal::new(1500, 4),
+            _ => Decimal::new(1000, 4),
         };
     }
 
@@ -82,11 +81,11 @@ fn date_score(sl: &UnmatchedTxn, pt: &UnmatchedTxn) -> Decimal {
         .num_days()
         .unsigned_abs();
     match day_diff {
-        0 => Decimal::from_str("0.3000").unwrap(),
-        1 => Decimal::from_str("0.2000").unwrap(),
-        2 => Decimal::from_str("0.1500").unwrap(),
-        3 => Decimal::from_str("0.1000").unwrap(),
-        4..=5 => Decimal::from_str("0.0500").unwrap(),
+        0 => Decimal::new(3000, 4),
+        1 => Decimal::new(2000, 4),
+        2 => Decimal::new(1500, 4),
+        3 => Decimal::new(1000, 4),
+        4..=5 => Decimal::new(500, 4),
         _ => Decimal::ZERO,
     }
 }
@@ -98,9 +97,9 @@ fn merchant_score(sl: &UnmatchedTxn, pt: &UnmatchedTxn) -> Decimal {
             let a = a.trim().to_lowercase();
             let b = b.trim().to_lowercase();
             if a == b && !a.is_empty() {
-                Decimal::from_str("0.2000").unwrap()
+                Decimal::new(2000, 4)
             } else if (!a.is_empty() && b.contains(&a)) || (!b.is_empty() && a.contains(&b)) {
-                Decimal::from_str("0.1000").unwrap()
+                Decimal::new(1000, 4)
             } else {
                 Decimal::ZERO
             }
@@ -116,9 +115,9 @@ fn reference_score(sl: &UnmatchedTxn, pt: &UnmatchedTxn) -> Decimal {
             let a = a.trim().to_lowercase();
             let b = b.trim().to_lowercase();
             if a == b && !a.is_empty() {
-                Decimal::from_str("0.1000").unwrap()
+                Decimal::new(1000, 4)
             } else if (!a.is_empty() && b.contains(&a)) || (!b.is_empty() && a.contains(&b)) {
-                Decimal::from_str("0.0500").unwrap()
+                Decimal::new(500, 4)
             } else {
                 Decimal::ZERO
             }
@@ -135,6 +134,7 @@ fn reference_score(sl: &UnmatchedTxn, pt: &UnmatchedTxn) -> Decimal {
 mod tests {
     use super::*;
     use chrono::NaiveDate;
+    use std::str::FromStr;
     use uuid::Uuid;
 
     fn make_cc_txn(

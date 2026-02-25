@@ -108,14 +108,8 @@ pub async fn create_manual_match(
     let sl = fetch_txn(pool, app_id, req.statement_line_id).await?;
     let bt = fetch_txn(pool, app_id, req.bank_transaction_id).await?;
 
-    if sl.is_none() {
-        return Err(ReconError::StatementLineNotFound(req.statement_line_id));
-    }
-    let sl = sl.unwrap();
-    if bt.is_none() {
-        return Err(ReconError::TransactionNotFound(req.bank_transaction_id));
-    }
-    let bt = bt.unwrap();
+    let sl = sl.ok_or(ReconError::StatementLineNotFound(req.statement_line_id))?;
+    let bt = bt.ok_or(ReconError::TransactionNotFound(req.bank_transaction_id))?;
 
     // Guard: currency must match
     if sl.currency != bt.currency {

@@ -8,7 +8,6 @@
 //! and credit card strategies produce different scoring for the same pair.
 
 use rust_decimal::Decimal;
-use std::str::FromStr;
 
 use super::models::UnmatchedTxn;
 use super::strategies::MatchStrategy;
@@ -103,17 +102,17 @@ impl MatchStrategy for BankStrategy {
 /// Score a candidate pair for bank recon. Amount match is a prerequisite
 /// (caller filters). Returns confidence in [0.5000, 1.0000].
 fn score_bank(sl: &UnmatchedTxn, pt: &UnmatchedTxn) -> Decimal {
-    let mut score = Decimal::from_str("0.5000").unwrap(); // base: amount match
+    let mut score = Decimal::new(5000, 4); // base: amount match
 
     // Date proximity bonus (up to +0.3)
     let day_diff = (sl.transaction_date - pt.transaction_date)
         .num_days()
         .unsigned_abs();
     let date_bonus = match day_diff {
-        0 => Decimal::from_str("0.3000").unwrap(),
-        1 => Decimal::from_str("0.2000").unwrap(),
-        2 => Decimal::from_str("0.1000").unwrap(),
-        3 => Decimal::from_str("0.0500").unwrap(),
+        0 => Decimal::new(3000, 4),
+        1 => Decimal::new(2000, 4),
+        2 => Decimal::new(1000, 4),
+        3 => Decimal::new(500, 4),
         _ => Decimal::ZERO,
     };
     score += date_bonus;
@@ -132,11 +131,11 @@ fn reference_similarity(a: Option<&str>, b: Option<&str>) -> Decimal {
             let ra = ra.trim().to_lowercase();
             let rb = rb.trim().to_lowercase();
             if ra == rb && !ra.is_empty() {
-                Decimal::from_str("0.2000").unwrap()
+                Decimal::new(2000, 4)
             } else if (!ra.is_empty() && rb.contains(&ra))
                 || (!rb.is_empty() && ra.contains(&rb))
             {
-                Decimal::from_str("0.1000").unwrap()
+                Decimal::new(1000, 4)
             } else {
                 Decimal::ZERO
             }
@@ -153,6 +152,7 @@ fn reference_similarity(a: Option<&str>, b: Option<&str>) -> Decimal {
 mod tests {
     use super::*;
     use chrono::NaiveDate;
+    use std::str::FromStr;
     use uuid::Uuid;
 
     fn make_txn(
