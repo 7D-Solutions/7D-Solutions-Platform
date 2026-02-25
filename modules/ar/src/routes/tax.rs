@@ -1,7 +1,7 @@
 //! Tax HTTP routes (bd-29j + bd-3fy)
 //!
 //! POST /api/ar/tax/quote  — Request a tax quote for an invoice draft
-//! GET  /api/ar/tax/quote   — Look up a cached tax quote by app_id + invoice_id
+//! GET  /api/ar/tax/quote   — Look up a cached tax quote by tenant + invoice_id
 //! POST /api/ar/tax/commit  — Commit tax when invoice is finalized
 //! POST /api/ar/tax/void    — Void committed tax on refund/cancellation
 
@@ -10,8 +10,9 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
     routing::post,
-    Json, Router,
+    Extension, Json, Router,
 };
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
@@ -25,7 +26,6 @@ use crate::tax::{
 
 #[derive(Debug, Deserialize)]
 pub struct QuoteTaxHttpRequest {
-    pub app_id: String,
     pub invoice_id: String,
     pub customer_id: String,
     pub ship_to: TaxAddress,
@@ -62,7 +62,6 @@ struct ErrorBody {
 
 #[derive(Debug, Deserialize)]
 pub struct LookupQuery {
-    pub app_id: String,
     pub invoice_id: String,
 }
 
@@ -72,7 +71,6 @@ pub struct LookupQuery {
 
 #[derive(Debug, Deserialize)]
 pub struct CommitTaxHttpRequest {
-    pub app_id: String,
     pub invoice_id: String,
     pub customer_id: String,
     pub correlation_id: Option<String>,
@@ -89,7 +87,6 @@ pub struct CommitTaxHttpResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct VoidTaxHttpRequest {
-    pub app_id: String,
     pub invoice_id: String,
     pub void_reason: String,
     pub correlation_id: Option<String>,
@@ -120,14 +117,22 @@ pub fn tax_router(db: PgPool) -> Router {
 
 async fn quote_tax_handler(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<QuoteTaxHttpRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err((status, Json(err))) => {
+            return (status, Json(ErrorBody { error: err.message })).into_response();
+        }
+    };
+
     let correlation_id = body
         .correlation_id
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
     let req = TaxQuoteRequest {
-        tenant_id: body.app_id.clone(),
+        tenant_id: tenant_id.clone(),
         invoice_id: body.invoice_id.clone(),
         customer_id: body.customer_id,
         ship_to: body.ship_to,
@@ -140,7 +145,7 @@ async fn quote_tax_handler(
 
     // Check if we already have a cached quote with the same request hash
     let request_hash = tax::compute_request_hash(&req);
-    let cached_hit = tax::find_cached_quote(&pool, &body.app_id, &body.invoice_id, &request_hash)
+    let cached_hit = tax::find_cached_quote(&pool, &tenant_id, &body.invoice_id, &request_hash)
         .await
         .ok()
         .flatten();
@@ -183,7 +188,7 @@ async fn quote_tax_handler(
 
     // Cache miss — call local provider
     let provider = LocalTaxProvider;
-    match tax::quote_tax_cached(&pool, &provider, &body.app_id, req).await {
+    match tax::quote_tax_cached(&pool, &provider, &tenant_id, req).await {
         Ok(response) => {
             let resp = QuoteTaxHttpResponse {
                 total_tax_minor: response.total_tax_minor,
@@ -216,14 +221,22 @@ async fn quote_tax_handler(
 }
 
 // ============================================================================
-// GET /api/ar/tax/quote?app_id=...&invoice_id=...
+// GET /api/ar/tax/quote?invoice_id=...
 // ============================================================================
 
 async fn lookup_cached_quote(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     axum::extract::Query(query): axum::extract::Query<LookupQuery>,
 ) -> impl IntoResponse {
-    // Look up the most recent cached quote for this app_id + invoice_id
+    let tenant_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err((status, Json(err))) => {
+            return (status, Json(ErrorBody { error: err.message })).into_response();
+        }
+    };
+
+    // Look up the most recent cached quote for this tenant + invoice_id
     let row = sqlx::query_as::<_, (
         uuid::Uuid,
         String,
@@ -243,7 +256,7 @@ async fn lookup_cached_quote(
         LIMIT 1
         "#,
     )
-    .bind(&query.app_id)
+    .bind(&tenant_id)
     .bind(&query.invoice_id)
     .fetch_optional(&pool)
     .await;
@@ -295,8 +308,16 @@ async fn lookup_cached_quote(
 
 async fn commit_tax_handler(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<CommitTaxHttpRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err((status, Json(err))) => {
+            return (status, Json(ErrorBody { error: err.message })).into_response();
+        }
+    };
+
     let correlation_id = body
         .correlation_id
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
@@ -305,7 +326,7 @@ async fn commit_tax_handler(
     match crate::finalization::commit_tax_for_invoice(
         &pool,
         &provider,
-        &body.app_id,
+        &tenant_id,
         &body.invoice_id,
         &body.customer_id,
         &correlation_id,
@@ -341,8 +362,16 @@ async fn commit_tax_handler(
 
 async fn void_tax_handler(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<VoidTaxHttpRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err((status, Json(err))) => {
+            return (status, Json(ErrorBody { error: err.message })).into_response();
+        }
+    };
+
     let correlation_id = body
         .correlation_id
         .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
@@ -351,7 +380,7 @@ async fn void_tax_handler(
     match crate::finalization::void_tax_for_invoice(
         &pool,
         &provider,
-        &body.app_id,
+        &tenant_id,
         &body.invoice_id,
         &body.void_reason,
         &correlation_id,
