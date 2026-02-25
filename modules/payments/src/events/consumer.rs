@@ -22,6 +22,7 @@ impl EventConsumer {
     /// Returns true if the event_id exists in processed_events table
     pub async fn is_processed(&self, event_id: Uuid) -> Result<bool, sqlx::Error> {
         #[derive(sqlx::FromRow)]
+        #[allow(dead_code)]
         struct ProcessedEvent {
             id: i32,
         }

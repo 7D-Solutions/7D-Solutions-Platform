@@ -173,19 +173,20 @@ pub async fn get_cash_flow(
         }
     }
 
-    let mut category_totals = Vec::new();
-    category_totals.push(CashFlowCategoryTotal {
-        category: "operating".to_string(),
-        total_minor: operating_total,
-    });
-    category_totals.push(CashFlowCategoryTotal {
-        category: "investing".to_string(),
-        total_minor: investing_total,
-    });
-    category_totals.push(CashFlowCategoryTotal {
-        category: "financing".to_string(),
-        total_minor: financing_total,
-    });
+    let category_totals = vec![
+        CashFlowCategoryTotal {
+            category: "operating".to_string(),
+            total_minor: operating_total,
+        },
+        CashFlowCategoryTotal {
+            category: "investing".to_string(),
+            total_minor: investing_total,
+        },
+        CashFlowCategoryTotal {
+            category: "financing".to_string(),
+            total_minor: financing_total,
+        },
+    ];
 
     let net_cash_flow = operating_total + investing_total + financing_total;
 

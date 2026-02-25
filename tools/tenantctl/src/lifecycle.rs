@@ -215,6 +215,7 @@ pub async fn deprovision_tenant(role: Role, actor: &str, tenant_id: &str) -> Res
 
 /// Minimal tenant record for lifecycle operations
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 struct TenantRecord {
     tenant_id: Uuid,
     status: String,
@@ -318,10 +319,10 @@ pub async fn demo_reset_tenant(
 
     // Resolve tenant ID (same logic as create_tenant)
     let tid = if tenant_id.len() == 36 {
-        let uuid = tenant_id
+        
+        tenant_id
             .parse::<Uuid>()
-            .context("Invalid tenant UUID format")?;
-        uuid
+            .context("Invalid tenant UUID format")?
     } else {
         let namespace = Uuid::NAMESPACE_DNS;
         Uuid::new_v5(&namespace, tenant_id.as_bytes())

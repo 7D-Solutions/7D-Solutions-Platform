@@ -403,6 +403,46 @@ jobs:
         working-directory: modules/gl
         run: cargo check --all-targets
 
+  clippy:
+    name: "Lint: cargo clippy"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-clippy-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Run cargo clippy
+        run: |
+          cargo clippy --workspace -- -D warnings \
+            -A dead-code \
+            -A unused-imports \
+            -A clippy::empty_line_after_doc_comments \
+            -A clippy::type_complexity \
+            -A clippy::too_many_arguments \
+            -A clippy::should_implement_trait \
+            -A clippy::unnecessary_map_or \
+            -A clippy::needless_borrows_for_generic_args \
+            -A clippy::redundant_closure \
+            -A clippy::doc_lazy_continuation \
+            -A clippy::doc_overindented_list_items \
+            -A clippy::manual_clamp \
+            -A clippy::unnecessary_unwrap
+
   lint-no-panic:
     name: Lint - No Unwrap/Expect in Critical Paths
     runs-on: ubuntu-latest

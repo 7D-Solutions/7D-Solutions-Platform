@@ -5,16 +5,16 @@
 //! and, if so, emits a deduped `inventory.low_stock_triggered` outbox event.
 //!
 //! ## Dedup rule (per policy)
-//!   - available < reorder_point  AND state.below_threshold = false
-//!       → emit signal, set state.below_threshold = true
-//!   - available >= reorder_point AND state.below_threshold = true
-//!       → reset state.below_threshold = false  (re-arms for next crossing)
-//!   - any other combination → no-op
+//! - available < reorder_point  AND state.below_threshold = false
+//!   → emit signal, set state.below_threshold = true
+//! - available >= reorder_point AND state.below_threshold = true
+//!   → reset state.below_threshold = false  (re-arms for next crossing)
+//! - any other combination → no-op
 //!
 //! ## Policy lookup
-//!   Given (tenant, item, warehouse, location_id):
-//!   1. If location_id is Some(L): check location-specific policy for L.
-//!   2. Always: check global (null-location) policy for the item.
+//! Given (tenant, item, warehouse, location_id):
+//! 1. If location_id is Some(L): check location-specific policy for L.
+//! 2. Always: check global (null-location) policy for the item.
 //!
 //! ## Available qty
 //!   Uses `quantity_available` from `item_on_hand` which is generated as

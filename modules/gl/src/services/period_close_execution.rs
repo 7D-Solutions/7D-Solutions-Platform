@@ -37,6 +37,7 @@ pub struct ClosePeriodResult {
 
 /// Period data with close fields for idempotency check
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 struct PeriodForClose {
     pub id: Uuid,
     pub tenant_id: String,
@@ -55,7 +56,7 @@ struct PeriodForClose {
 /// 1. Locks the period row (FOR UPDATE) to prevent concurrent closes
 /// 2. Checks if already closed (idempotency)
 /// 3. Runs pre-close validation defensively
-/// 3b. Revalue foreign-currency balances (Phase 23a)
+///    - Revalue foreign-currency balances (Phase 23a)
 /// 4. Creates sealed snapshot with hash (includes revaluation entries)
 /// 5. Updates period with close fields
 ///
@@ -139,7 +140,7 @@ pub async fn close_period(
     // ========================================
     // If period is already closed, return existing close status without mutation.
     // This check happens AFTER the lock to prevent TOCTOU (time-of-check-time-of-use) race.
-    if period.closed_at.is_some() {
+    if let Some(closed_at) = period.closed_at {
         tx.commit().await?;
 
         return Ok(ClosePeriodResult {
@@ -147,7 +148,7 @@ pub async fn close_period(
             tenant_id: tenant_id.to_string(),
             success: true,
             close_status: Some(CloseStatus::Closed {
-                closed_at: period.closed_at.unwrap(),
+                closed_at,
                 closed_by: period.closed_by.clone().unwrap_or_default(),
                 close_reason: period.close_reason.clone(),
                 close_hash: period.close_hash.clone().unwrap_or_default(),

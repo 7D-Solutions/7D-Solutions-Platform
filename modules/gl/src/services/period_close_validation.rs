@@ -34,6 +34,7 @@ pub enum PeriodCloseError {
 
 /// Accounting period data for validation
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 pub(crate) struct PeriodData {
     pub id: Uuid,
     pub tenant_id: String,
@@ -155,20 +156,17 @@ pub async fn validate_period_can_close(
     // ========================================
     // MANDATORY VALIDATION 2: Period not already closed
     // ========================================
-    if period.closed_at.is_some() {
+    if let Some(closed_at) = period.closed_at {
         issues.push(ValidationIssue {
             severity: ValidationSeverity::Error,
             code: "PERIOD_ALREADY_CLOSED".to_string(),
             message: format!(
                 "Period {} is already closed at {}",
                 period_id,
-                period
-                    .closed_at
-                    .unwrap()
-                    .to_rfc3339()
+                closed_at.to_rfc3339()
             ),
             metadata: Some(serde_json::json!({
-                "closed_at": period.closed_at.unwrap().to_rfc3339(),
+                "closed_at": closed_at.to_rfc3339(),
             })),
         });
     }

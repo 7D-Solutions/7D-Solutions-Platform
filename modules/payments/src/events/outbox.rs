@@ -62,8 +62,8 @@ pub async fn enqueue_event<T: Serialize>(
     .bind(&envelope.schema_version)
     .bind(envelope.replay_safe)
     .bind(&envelope.trace_id)
-    .bind(&envelope.reverses_event_id)
-    .bind(&envelope.supersedes_event_id)
+    .bind(envelope.reverses_event_id)
+    .bind(envelope.supersedes_event_id)
     .bind(&envelope.side_effect_id)
     .bind(&envelope.mutation_class)
     .execute(pool)
@@ -158,7 +158,7 @@ pub async fn start_outbox_publisher(
                 "payload": event.payload,
             });
 
-            let subject = format!("payments.events.{}", event.event_type.replace('.', "."));
+            let subject = format!("payments.events.{}", event.event_type);
             let payload_bytes = serde_json::to_vec(&full_envelope)?;
 
             // Publish to bus
@@ -257,8 +257,8 @@ pub async fn enqueue_event_tx<T: Serialize>(
     .bind(&envelope.schema_version)
     .bind(envelope.replay_safe)
     .bind(&envelope.trace_id)
-    .bind(&envelope.reverses_event_id)
-    .bind(&envelope.supersedes_event_id)
+    .bind(envelope.reverses_event_id)
+    .bind(envelope.supersedes_event_id)
     .bind(&envelope.side_effect_id)
     .bind(&envelope.mutation_class)
     .execute(&mut **tx)

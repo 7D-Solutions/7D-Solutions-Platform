@@ -183,6 +183,7 @@ pub async fn close_period_handler(
 
 /// Period data for close status query
 #[derive(Debug, sqlx::FromRow)]
+#[allow(dead_code)]
 struct PeriodCloseStatusData {
     pub id: Uuid,
     pub tenant_id: String,
@@ -245,9 +246,9 @@ pub async fn get_close_status(
             close_hash: period.close_hash.unwrap_or_default(),
             requested_at: period.close_requested_at,
         }
-    } else if period.close_requested_at.is_some() {
+    } else if let Some(requested_at) = period.close_requested_at {
         CloseStatus::CloseRequested {
-            requested_at: period.close_requested_at.unwrap(),
+            requested_at,
         }
     } else {
         CloseStatus::Open

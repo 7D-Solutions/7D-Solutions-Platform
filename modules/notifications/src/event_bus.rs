@@ -74,8 +74,8 @@ pub async fn enqueue_event<T: Serialize>(
     .bind(&envelope.trace_id)
     .bind(&envelope.correlation_id)
     .bind(&envelope.causation_id)
-    .bind(&envelope.reverses_event_id)
-    .bind(&envelope.supersedes_event_id)
+    .bind(envelope.reverses_event_id)
+    .bind(envelope.supersedes_event_id)
     .bind(&envelope.side_effect_id)
     .bind(&envelope.mutation_class)
     .execute(&mut **tx)
@@ -113,6 +113,7 @@ async fn publish_pending_events(
     bus: &Arc<dyn EventBus>,
 ) -> Result<usize, Box<dyn std::error::Error>> {
     #[derive(sqlx::FromRow)]
+    #[allow(dead_code)]
     struct OutboxEvent {
         id: i64,
         event_id: Uuid,
@@ -211,6 +212,7 @@ async fn publish_pending_events(
 /// Check if an event has already been processed (idempotency)
 pub async fn is_event_processed(db: &PgPool, event_id: Uuid) -> Result<bool, sqlx::Error> {
     #[derive(sqlx::FromRow)]
+    #[allow(dead_code)]
     struct EventIdRow {
         event_id: Uuid,
     }
@@ -321,7 +323,7 @@ pub async fn start_event_consumer<T, F, Fut>(
         };
 
         while let Some(msg) = stream.next().await {
-            match consume_event_idempotent(&db, &msg, |envelope| handler(envelope)).await {
+            match consume_event_idempotent(&db, &msg, &handler).await {
                 Ok(_) => {}
                 Err(e) => {
                     error!("Error processing event from {}: {}", msg.subject, e);

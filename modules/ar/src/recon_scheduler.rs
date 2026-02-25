@@ -18,11 +18,8 @@
 //!   never process the same run simultaneously.
 //! - **Atomic**: claim + matching + completion all commit in one transaction.
 
-use crate::events::{
-    build_recon_run_started_envelope, ReconRunStartedPayload, EVENT_TYPE_RECON_RUN_STARTED,
-};
 use crate::reconciliation::{run_reconciliation, RunReconRequest, RunReconOutcome};
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::fmt;
@@ -112,6 +109,7 @@ impl From<sqlx::Error> for ReconSchedulerError {
 // ============================================================================
 
 #[derive(Debug)]
+#[allow(dead_code)]
 struct ClaimableScheduledRun {
     id: i32,
     scheduled_run_id: Uuid,

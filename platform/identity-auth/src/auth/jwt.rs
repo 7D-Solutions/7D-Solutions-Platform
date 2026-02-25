@@ -85,6 +85,7 @@ pub struct JwtKeys {
     prev_public_key_pem: Option<String>,
 }
 
+#[allow(dead_code)]
 impl JwtKeys {
     pub fn from_pem(private_pem: &str, public_pem: &str, kid: String) -> Result<Self, String> {
         let encoding =

@@ -15,6 +15,7 @@ use crate::outbox;
 /// Minimal projection of fa_assets needed for depreciation — avoids decoding
 /// the fa_asset_status PostgreSQL ENUM (which requires a custom sqlx::Type impl).
 #[derive(sqlx::FromRow)]
+#[allow(dead_code)]
 struct AssetProjection {
     id: Uuid,
     tenant_id: String,

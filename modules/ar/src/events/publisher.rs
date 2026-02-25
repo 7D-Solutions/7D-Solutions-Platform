@@ -26,7 +26,7 @@ pub async fn run_publisher_task(
                 tracing::info!("Publisher tick {}: published {} events from outbox", tick_count, count);
             }
             Ok(_) => {
-                if tick_count <= 3 || tick_count % 60 == 0 {
+                if tick_count <= 3 || tick_count.is_multiple_of(60) {
                     tracing::info!("Publisher tick {}: no unpublished events", tick_count);
                 }
             }
@@ -53,7 +53,7 @@ async fn publish_batch(
             format!("gl.events.{}", event.event_type.strip_prefix("gl.").unwrap_or(&event.event_type))
         } else {
             // AR events go to ar.events.* namespace
-            format!("ar.events.{}", event.event_type.replace('.', "."))
+            format!("ar.events.{}", event.event_type)
         };
 
         // Serialize payload to bytes

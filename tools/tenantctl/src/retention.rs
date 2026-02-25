@@ -72,9 +72,9 @@ struct ProvRow {
 /// Export tenant data to a JSONL artifact.
 ///
 /// # Arguments
-/// * `tenant_id`    – tenant identifier (UUID or short name)
-/// * `output_path`  – file path to write; if None the bytes are still computed
-///                    for digest purposes but nothing is persisted to disk
+/// * `tenant_id` – tenant identifier (UUID or short name)
+/// * `output_path` – file path to write; if None the bytes are still computed
+///   for digest purposes but nothing is persisted to disk
 pub async fn export_tenant(tenant_id: &str, output_path: Option<&str>) -> Result<ExportResult> {
     let db_url = std::env::var("TENANT_REGISTRY_DATABASE_URL")
         .context("TENANT_REGISTRY_DATABASE_URL not set")?;
