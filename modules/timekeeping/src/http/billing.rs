@@ -1,15 +1,16 @@
 //! Billing rates + billing runs HTTP handlers.
 
 use axum::{
-    extract::{Query, State},
+    extract::State,
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
-use serde::Deserialize;
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::billing::{
         models::{BillingError, CreateBillingRateRequest, CreateBillingRunRequest},
@@ -43,23 +44,20 @@ fn billing_error_response(err: BillingError) -> impl IntoResponse {
 }
 
 // ============================================================================
-// Query params
-// ============================================================================
-
-#[derive(Debug, Deserialize)]
-pub struct ListRatesQuery {
-    pub app_id: String,
-}
-
-// ============================================================================
 // Handlers
 // ============================================================================
 
 /// POST /api/timekeeping/rates
 pub async fn create_rate(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateBillingRateRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateBillingRateRequest>,
 ) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.app_id = app_id;
     match service::create_billing_rate(&state.pool, &req).await {
         Ok(rate) => (StatusCode::CREATED, Json(json!(rate))).into_response(),
         Err(err) => billing_error_response(err).into_response(),
@@ -69,9 +67,13 @@ pub async fn create_rate(
 /// GET /api/timekeeping/rates
 pub async fn list_rates(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<ListRatesQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match service::list_billing_rates(&state.pool, &q.app_id).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::list_billing_rates(&state.pool, &app_id).await {
         Ok(rates) => (StatusCode::OK, Json(json!(rates))).into_response(),
         Err(err) => billing_error_response(err).into_response(),
     }
@@ -80,8 +82,14 @@ pub async fn list_rates(
 /// POST /api/timekeeping/billing-runs
 pub async fn create_billing_run(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateBillingRunRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateBillingRunRequest>,
 ) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.app_id = app_id;
     match service::create_billing_run(&state.pool, &req).await {
         Ok(result) => (StatusCode::CREATED, Json(json!(result))).into_response(),
         Err(err) => billing_error_response(err).into_response(),

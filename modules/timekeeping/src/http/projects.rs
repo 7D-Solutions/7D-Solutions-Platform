@@ -1,16 +1,17 @@
 //! Project and Task HTTP handlers — CRUD endpoints for project/task catalog.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
-use serde::Deserialize;
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::projects::{
         models::{
@@ -21,28 +22,6 @@ use crate::{
     },
     AppState,
 };
-
-// ============================================================================
-// Query params
-// ============================================================================
-
-#[derive(Debug, Deserialize)]
-pub struct AppIdQuery {
-    pub app_id: String,
-    #[serde(default = "default_true")]
-    pub active_only: bool,
-}
-
-fn default_true() -> bool {
-    true
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TaskListQuery {
-    pub app_id: String,
-    #[serde(default = "default_true")]
-    pub active_only: bool,
-}
 
 // ============================================================================
 // Project error mapping
@@ -111,8 +90,14 @@ fn task_error_response(err: TaskError) -> impl IntoResponse {
 /// POST /api/timekeeping/projects
 pub async fn create_project(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateProjectRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateProjectRequest>,
 ) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.app_id = app_id;
     match ProjectRepo::create(&state.pool, &req).await {
         Ok(proj) => (StatusCode::CREATED, Json(json!(proj))).into_response(),
         Err(err) => project_error_response(err).into_response(),
@@ -122,10 +107,14 @@ pub async fn create_project(
 /// GET /api/timekeeping/projects/:id
 pub async fn get_project(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<AppIdQuery>,
 ) -> impl IntoResponse {
-    match ProjectRepo::find_by_id(&state.pool, id, &q.app_id).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match ProjectRepo::find_by_id(&state.pool, id, &app_id).await {
         Ok(Some(proj)) => (StatusCode::OK, Json(json!(proj))).into_response(),
         Ok(None) => project_error_response(ProjectError::NotFound).into_response(),
         Err(err) => project_error_response(err).into_response(),
@@ -135,9 +124,13 @@ pub async fn get_project(
 /// GET /api/timekeeping/projects
 pub async fn list_projects(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<AppIdQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match ProjectRepo::list(&state.pool, &q.app_id, q.active_only).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match ProjectRepo::list(&state.pool, &app_id, true).await {
         Ok(projects) => (StatusCode::OK, Json(json!(projects))).into_response(),
         Err(err) => project_error_response(err).into_response(),
     }
@@ -158,10 +151,14 @@ pub async fn update_project(
 /// DELETE /api/timekeeping/projects/:id
 pub async fn deactivate_project(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<AppIdQuery>,
 ) -> impl IntoResponse {
-    match ProjectRepo::deactivate(&state.pool, id, &q.app_id).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match ProjectRepo::deactivate(&state.pool, id, &app_id).await {
         Ok(proj) => (StatusCode::OK, Json(json!(proj))).into_response(),
         Err(err) => project_error_response(err).into_response(),
     }
@@ -174,8 +171,14 @@ pub async fn deactivate_project(
 /// POST /api/timekeeping/tasks
 pub async fn create_task(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateTaskRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateTaskRequest>,
 ) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.app_id = app_id;
     match TaskRepo::create(&state.pool, &req).await {
         Ok(task) => (StatusCode::CREATED, Json(json!(task))).into_response(),
         Err(err) => task_error_response(err).into_response(),
@@ -185,10 +188,14 @@ pub async fn create_task(
 /// GET /api/timekeeping/projects/:project_id/tasks
 pub async fn list_tasks(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(project_id): Path<Uuid>,
-    Query(q): Query<TaskListQuery>,
 ) -> impl IntoResponse {
-    match TaskRepo::list_for_project(&state.pool, project_id, &q.app_id, q.active_only).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match TaskRepo::list_for_project(&state.pool, project_id, &app_id, true).await {
         Ok(tasks) => (StatusCode::OK, Json(json!(tasks))).into_response(),
         Err(err) => task_error_response(err).into_response(),
     }
@@ -197,10 +204,14 @@ pub async fn list_tasks(
 /// GET /api/timekeeping/tasks/:id
 pub async fn get_task(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<TaskListQuery>,
 ) -> impl IntoResponse {
-    match TaskRepo::find_by_id(&state.pool, id, &q.app_id).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match TaskRepo::find_by_id(&state.pool, id, &app_id).await {
         Ok(Some(task)) => (StatusCode::OK, Json(json!(task))).into_response(),
         Ok(None) => task_error_response(TaskError::NotFound).into_response(),
         Err(err) => task_error_response(err).into_response(),
@@ -222,10 +233,14 @@ pub async fn update_task(
 /// DELETE /api/timekeeping/tasks/:id
 pub async fn deactivate_task(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<TaskListQuery>,
 ) -> impl IntoResponse {
-    match TaskRepo::deactivate(&state.pool, id, &q.app_id).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match TaskRepo::deactivate(&state.pool, id, &app_id).await {
         Ok(task) => (StatusCode::OK, Json(json!(task))).into_response(),
         Err(err) => task_error_response(err).into_response(),
     }

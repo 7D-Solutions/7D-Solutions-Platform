@@ -4,14 +4,16 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 use chrono::NaiveDate;
+use security::VerifiedClaims;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::allocations::{
         models::{AllocationError, CreateAllocationRequest, UpdateAllocationRequest},
@@ -26,7 +28,6 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 pub struct AllocationListQuery {
-    pub app_id: String,
     pub employee_id: Option<Uuid>,
     pub project_id: Option<Uuid>,
     #[serde(default = "default_true")]
@@ -34,20 +35,7 @@ pub struct AllocationListQuery {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct AppIdQuery {
-    pub app_id: String,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct RollupQuery {
-    pub app_id: String,
-    pub from: NaiveDate,
-    pub to: NaiveDate,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct TaskRollupQuery {
-    pub app_id: String,
     pub from: NaiveDate,
     pub to: NaiveDate,
 }
@@ -84,8 +72,14 @@ fn allocation_error_response(err: AllocationError) -> impl IntoResponse {
 /// POST /api/timekeeping/allocations
 pub async fn create_allocation(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateAllocationRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateAllocationRequest>,
 ) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.app_id = app_id;
     match service::create_allocation(&state.pool, &req).await {
         Ok(alloc) => (StatusCode::CREATED, Json(json!(alloc))).into_response(),
         Err(err) => allocation_error_response(err).into_response(),
@@ -95,11 +89,16 @@ pub async fn create_allocation(
 /// GET /api/timekeeping/allocations
 pub async fn list_allocations(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<AllocationListQuery>,
 ) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
     match service::list_allocations(
         &state.pool,
-        &q.app_id,
+        &app_id,
         q.employee_id,
         q.project_id,
         q.active_only,
@@ -114,10 +113,14 @@ pub async fn list_allocations(
 /// GET /api/timekeeping/allocations/:id
 pub async fn get_allocation(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<AppIdQuery>,
 ) -> impl IntoResponse {
-    match service::get_allocation(&state.pool, id, &q.app_id).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::get_allocation(&state.pool, id, &app_id).await {
         Ok(alloc) => (StatusCode::OK, Json(json!(alloc))).into_response(),
         Err(err) => allocation_error_response(err).into_response(),
     }
@@ -138,10 +141,14 @@ pub async fn update_allocation(
 /// DELETE /api/timekeeping/allocations/:id
 pub async fn deactivate_allocation(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<AppIdQuery>,
 ) -> impl IntoResponse {
-    match service::deactivate_allocation(&state.pool, id, &q.app_id).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::deactivate_allocation(&state.pool, id, &app_id).await {
         Ok(alloc) => (StatusCode::OK, Json(json!(alloc))).into_response(),
         Err(err) => allocation_error_response(err).into_response(),
     }
@@ -154,9 +161,14 @@ pub async fn deactivate_allocation(
 /// GET /api/timekeeping/rollups/by-project
 pub async fn rollup_by_project(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<RollupQuery>,
 ) -> impl IntoResponse {
-    match service::rollup_by_project(&state.pool, &q.app_id, q.from, q.to).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::rollup_by_project(&state.pool, &app_id, q.from, q.to).await {
         Ok(rows) => (StatusCode::OK, Json(json!(rows))).into_response(),
         Err(err) => allocation_error_response(err).into_response(),
     }
@@ -165,9 +177,14 @@ pub async fn rollup_by_project(
 /// GET /api/timekeeping/rollups/by-employee
 pub async fn rollup_by_employee(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<RollupQuery>,
 ) -> impl IntoResponse {
-    match service::rollup_by_employee(&state.pool, &q.app_id, q.from, q.to).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::rollup_by_employee(&state.pool, &app_id, q.from, q.to).await {
         Ok(rows) => (StatusCode::OK, Json(json!(rows))).into_response(),
         Err(err) => allocation_error_response(err).into_response(),
     }
@@ -176,10 +193,15 @@ pub async fn rollup_by_employee(
 /// GET /api/timekeeping/rollups/by-task/:project_id
 pub async fn rollup_by_task(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(project_id): Path<Uuid>,
-    Query(q): Query<TaskRollupQuery>,
+    Query(q): Query<RollupQuery>,
 ) -> impl IntoResponse {
-    match service::rollup_by_task(&state.pool, &q.app_id, project_id, q.from, q.to).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::rollup_by_task(&state.pool, &app_id, project_id, q.from, q.to).await {
         Ok(rows) => (StatusCode::OK, Json(json!(rows))).into_response(),
         Err(err) => allocation_error_response(err).into_response(),
     }

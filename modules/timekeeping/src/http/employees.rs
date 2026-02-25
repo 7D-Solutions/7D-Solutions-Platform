@@ -1,16 +1,17 @@
 //! Employee HTTP handlers — CRUD endpoints for the employee directory.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
-use serde::Deserialize;
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::employees::{
         models::{CreateEmployeeRequest, EmployeeError, UpdateEmployeeRequest},
@@ -18,21 +19,6 @@ use crate::{
     },
     AppState,
 };
-
-// ============================================================================
-// Query params
-// ============================================================================
-
-#[derive(Debug, Deserialize)]
-pub struct ListEmployeesQuery {
-    pub app_id: String,
-    #[serde(default = "default_true")]
-    pub active_only: bool,
-}
-
-fn default_true() -> bool {
-    true
-}
 
 // ============================================================================
 // Error mapping
@@ -69,8 +55,14 @@ fn employee_error_response(err: EmployeeError) -> impl IntoResponse {
 /// POST /api/timekeeping/employees
 pub async fn create_employee(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateEmployeeRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateEmployeeRequest>,
 ) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.app_id = app_id;
     match EmployeeRepo::create(&state.pool, &req).await {
         Ok(emp) => (StatusCode::CREATED, Json(json!(emp))).into_response(),
         Err(err) => employee_error_response(err).into_response(),
@@ -80,10 +72,14 @@ pub async fn create_employee(
 /// GET /api/timekeeping/employees/:id
 pub async fn get_employee(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<ListEmployeesQuery>,
 ) -> impl IntoResponse {
-    match EmployeeRepo::find_by_id(&state.pool, id, &q.app_id).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match EmployeeRepo::find_by_id(&state.pool, id, &app_id).await {
         Ok(Some(emp)) => (StatusCode::OK, Json(json!(emp))).into_response(),
         Ok(None) => employee_error_response(EmployeeError::NotFound).into_response(),
         Err(err) => employee_error_response(err).into_response(),
@@ -93,9 +89,13 @@ pub async fn get_employee(
 /// GET /api/timekeeping/employees
 pub async fn list_employees(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<ListEmployeesQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match EmployeeRepo::list(&state.pool, &q.app_id, q.active_only).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match EmployeeRepo::list(&state.pool, &app_id, true).await {
         Ok(employees) => (StatusCode::OK, Json(json!(employees))).into_response(),
         Err(err) => employee_error_response(err).into_response(),
     }
@@ -116,10 +116,14 @@ pub async fn update_employee(
 /// DELETE /api/timekeeping/employees/:id
 pub async fn deactivate_employee(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<ListEmployeesQuery>,
 ) -> impl IntoResponse {
-    match EmployeeRepo::deactivate(&state.pool, id, &q.app_id).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match EmployeeRepo::deactivate(&state.pool, id, &app_id).await {
         Ok(emp) => (StatusCode::OK, Json(json!(emp))).into_response(),
         Err(err) => employee_error_response(err).into_response(),
     }

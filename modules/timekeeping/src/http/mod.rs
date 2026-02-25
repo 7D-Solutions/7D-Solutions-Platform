@@ -6,6 +6,7 @@ pub mod employees;
 pub mod entries;
 pub mod export;
 pub mod projects;
+pub mod tenant;
 
 use axum::{
     routing::{delete, get, post, put},

@@ -4,14 +4,16 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 use chrono::NaiveDate;
+use security::VerifiedClaims;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::approvals::{
         models::{
@@ -28,20 +30,9 @@ use crate::{
 
 #[derive(Debug, Deserialize)]
 pub struct ListApprovalsQuery {
-    pub app_id: String,
     pub employee_id: Uuid,
     pub from: NaiveDate,
     pub to: NaiveDate,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct ApprovalQuery {
-    pub app_id: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct PendingReviewQuery {
-    pub app_id: String,
 }
 
 // ============================================================================
@@ -86,8 +77,14 @@ fn approval_error_response(err: ApprovalError) -> impl IntoResponse {
 /// POST /api/timekeeping/approvals/submit
 pub async fn submit_approval(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<SubmitApprovalRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<SubmitApprovalRequest>,
 ) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.app_id = app_id;
     match service::submit(&state.pool, &req).await {
         Ok(approval) => (StatusCode::OK, Json(json!(approval))).into_response(),
         Err(err) => approval_error_response(err).into_response(),
@@ -97,8 +94,14 @@ pub async fn submit_approval(
 /// POST /api/timekeeping/approvals/approve
 pub async fn approve_approval(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<ReviewApprovalRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<ReviewApprovalRequest>,
 ) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.app_id = app_id;
     match service::approve(&state.pool, &req).await {
         Ok(approval) => (StatusCode::OK, Json(json!(approval))).into_response(),
         Err(err) => approval_error_response(err).into_response(),
@@ -108,8 +111,14 @@ pub async fn approve_approval(
 /// POST /api/timekeeping/approvals/reject
 pub async fn reject_approval(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<ReviewApprovalRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<ReviewApprovalRequest>,
 ) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.app_id = app_id;
     match service::reject(&state.pool, &req).await {
         Ok(approval) => (StatusCode::OK, Json(json!(approval))).into_response(),
         Err(err) => approval_error_response(err).into_response(),
@@ -119,8 +128,14 @@ pub async fn reject_approval(
 /// POST /api/timekeeping/approvals/recall
 pub async fn recall_approval(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<RecallApprovalRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<RecallApprovalRequest>,
 ) -> impl IntoResponse {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.app_id = app_id;
     match service::recall(&state.pool, &req).await {
         Ok(approval) => (StatusCode::OK, Json(json!(approval))).into_response(),
         Err(err) => approval_error_response(err).into_response(),
@@ -130,9 +145,14 @@ pub async fn recall_approval(
 /// GET /api/timekeeping/approvals
 pub async fn list_approvals(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<ListApprovalsQuery>,
 ) -> impl IntoResponse {
-    match service::list_approvals(&state.pool, &q.app_id, q.employee_id, q.from, q.to).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::list_approvals(&state.pool, &app_id, q.employee_id, q.from, q.to).await {
         Ok(approvals) => (StatusCode::OK, Json(json!(approvals))).into_response(),
         Err(err) => approval_error_response(err).into_response(),
     }
@@ -141,9 +161,13 @@ pub async fn list_approvals(
 /// GET /api/timekeeping/approvals/pending
 pub async fn list_pending(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<PendingReviewQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match service::list_pending_review(&state.pool, &q.app_id).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::list_pending_review(&state.pool, &app_id).await {
         Ok(approvals) => (StatusCode::OK, Json(json!(approvals))).into_response(),
         Err(err) => approval_error_response(err).into_response(),
     }
@@ -152,10 +176,14 @@ pub async fn list_pending(
 /// GET /api/timekeeping/approvals/:id
 pub async fn get_approval(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<ApprovalQuery>,
 ) -> impl IntoResponse {
-    match service::get_approval(&state.pool, &q.app_id, id).await {
+    let app_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::get_approval(&state.pool, &app_id, id).await {
         Ok(approval) => (StatusCode::OK, Json(json!(approval))).into_response(),
         Err(err) => approval_error_response(err).into_response(),
     }
