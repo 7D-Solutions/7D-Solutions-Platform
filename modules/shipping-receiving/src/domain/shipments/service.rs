@@ -21,6 +21,7 @@ use super::guards::{
 use super::state_machine::{validate_inbound, validate_outbound, TransitionError};
 use super::types::{Direction, InboundStatus, OutboundStatus};
 use crate::db::repository::ShipmentRepository;
+use crate::integrations::inventory_client::InventoryIntegration;
 use crate::outbox;
 
 // ── Domain model ──────────────────────────────────────────────
@@ -75,6 +76,9 @@ pub enum ShipmentError {
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
+
+    #[error("Inventory integration error: {0}")]
+    InventoryIntegration(String),
 }
 
 // ── Event subjects ────────────────────────────────────────────
@@ -95,11 +99,16 @@ impl ShipmentService {
     /// Transition a shipment's status with direction-specific state machine
     /// and guard enforcement. All invariants are checked within the same
     /// database transaction as the mutation and outbox write.
+    ///
+    /// Inventory integration: on inbound close, creates a receipt per accepted
+    /// line; on outbound ship, creates an issue per shipped line. If the
+    /// inventory call fails, the entire transaction is rolled back.
     pub async fn transition(
         pool: &PgPool,
         shipment_id: Uuid,
         tenant_id: Uuid,
         req: &TransitionRequest,
+        inventory: &InventoryIntegration,
     ) -> Result<Shipment, ShipmentError> {
         let mut tx = pool.begin().await?;
 
@@ -171,14 +180,48 @@ impl ShipmentService {
         )
         .await?;
 
+        // ── Inventory integration ──
+        let inventory_refs = if event_type == subjects::INBOUND_CLOSED
+            || event_type == subjects::OUTBOUND_SHIPPED
+        {
+            Self::process_inventory(
+                &mut tx,
+                inventory,
+                &current.direction,
+                shipment_id,
+                tenant_id,
+                current.currency.as_deref().unwrap_or("usd"),
+            )
+            .await?
+        } else {
+            Vec::new()
+        };
+
         // ── Outbox ──
-        let event_payload = serde_json::json!({
+        let mut event_payload = serde_json::json!({
             "shipment_id": shipment_id,
             "tenant_id": tenant_id,
             "direction": current.direction.as_str(),
             "from_status": from_status,
             "to_status": &req.status,
         });
+
+        if !inventory_refs.is_empty() {
+            let refs: Vec<serde_json::Value> = inventory_refs
+                .iter()
+                .map(|(line_id, ref_id)| {
+                    serde_json::json!({
+                        "line_id": line_id,
+                        "inventory_ref_id": ref_id,
+                    })
+                })
+                .collect();
+            event_payload
+                .as_object_mut()
+                .unwrap()
+                .insert("inventory_refs".to_string(), serde_json::Value::Array(refs));
+        }
+
         let event_id = Uuid::new_v4();
         outbox::enqueue_event_tx(
             &mut tx,
@@ -193,6 +236,61 @@ impl ShipmentService {
 
         tx.commit().await?;
         Ok(shipment)
+    }
+
+    /// Process inventory movements for a shipment's lines.
+    ///
+    /// - Inbound close: create a receipt for each line with qty_accepted > 0
+    /// - Outbound ship: create an issue for each line with qty_shipped > 0
+    ///
+    /// Lines where `inventory_ref_id` is already set are skipped (exactly-once).
+    /// Returns (line_id, inventory_ref_id) pairs for the outbox event payload.
+    async fn process_inventory(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        inventory: &InventoryIntegration,
+        direction: &Direction,
+        shipment_id: Uuid,
+        tenant_id: Uuid,
+        currency: &str,
+    ) -> Result<Vec<(Uuid, Uuid)>, ShipmentError> {
+        let lines =
+            ShipmentRepository::get_inventory_lines_tx(tx, shipment_id, tenant_id).await?;
+
+        let mut refs = Vec::new();
+
+        for line in &lines {
+            // Skip lines that already have an inventory reference (idempotency guard)
+            if line.inventory_ref_id.is_some() {
+                continue;
+            }
+
+            let qty = match direction {
+                Direction::Inbound => line.qty_accepted,
+                Direction::Outbound => line.qty_shipped,
+            };
+
+            if qty <= 0 {
+                continue;
+            }
+
+            let warehouse_id = line.warehouse_id.unwrap_or(Uuid::nil());
+
+            let ref_id = match direction {
+                Direction::Inbound => inventory
+                    .create_receipt(tenant_id, shipment_id, line.id, warehouse_id, qty, currency)
+                    .await
+                    .map_err(|e| ShipmentError::InventoryIntegration(e.to_string()))?,
+                Direction::Outbound => inventory
+                    .create_issue(tenant_id, shipment_id, line.id, warehouse_id, qty, currency)
+                    .await
+                    .map_err(|e| ShipmentError::InventoryIntegration(e.to_string()))?,
+            };
+
+            ShipmentRepository::set_inventory_ref_id_tx(tx, line.id, tenant_id, ref_id).await?;
+            refs.push((line.id, ref_id));
+        }
+
+        Ok(refs)
     }
 
     /// Find a shipment by ID within a tenant.

@@ -86,7 +86,22 @@ async fn main() {
         metrics::ShippingReceivingMetrics::new().expect("Failed to create metrics registry"),
     );
 
-    let app_state = Arc::new(AppState { pool, metrics });
+    let inventory = match &config.inventory_url {
+        Some(url) => {
+            tracing::info!("Shipping-Receiving: inventory integration HTTP mode → {}", url);
+            shipping_receiving_rs::InventoryIntegration::http(url)
+        }
+        None => {
+            tracing::info!("Shipping-Receiving: inventory integration deterministic mode");
+            shipping_receiving_rs::InventoryIntegration::deterministic()
+        }
+    };
+
+    let app_state = Arc::new(AppState {
+        pool,
+        metrics,
+        inventory,
+    });
 
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
@@ -170,6 +185,7 @@ mod tests {
             port: 8103,
             env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
+            inventory_url: None,
         };
         let _layer = build_cors_layer(&config);
     }
@@ -187,6 +203,7 @@ mod tests {
                 "http://localhost:3000".to_string(),
                 "https://app.example.com".to_string(),
             ],
+            inventory_url: None,
         };
         let _layer = build_cors_layer(&config);
     }

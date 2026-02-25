@@ -307,6 +307,50 @@ impl ShipmentRepository {
             .collect())
     }
 
+    // ── Inventory line helpers ─────────────────────────────────
+
+    /// Fetch lines for inventory processing within a transaction.
+    /// Returns id, warehouse_id, inventory_ref_id, qty_accepted, qty_shipped.
+    pub async fn get_inventory_lines_tx(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        shipment_id: Uuid,
+        tenant_id: Uuid,
+    ) -> Result<Vec<InventoryLineRow>, sqlx::Error> {
+        sqlx::query_as::<_, InventoryLineRow>(
+            r#"
+            SELECT id, warehouse_id, inventory_ref_id, qty_accepted, qty_shipped
+            FROM shipment_lines
+            WHERE shipment_id = $1 AND tenant_id = $2
+            "#,
+        )
+        .bind(shipment_id)
+        .bind(tenant_id)
+        .fetch_all(&mut **tx)
+        .await
+    }
+
+    /// Set the inventory_ref_id on a shipment line within a transaction.
+    pub async fn set_inventory_ref_id_tx(
+        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+        line_id: Uuid,
+        tenant_id: Uuid,
+        inventory_ref_id: Uuid,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query(
+            r#"
+            UPDATE shipment_lines
+            SET inventory_ref_id = $3, updated_at = NOW()
+            WHERE id = $1 AND tenant_id = $2
+            "#,
+        )
+        .bind(line_id)
+        .bind(tenant_id)
+        .bind(inventory_ref_id)
+        .execute(&mut **tx)
+        .await?;
+        Ok(())
+    }
+
     // ── Idempotency ──────────────────────────────────────────
 
     /// Check if an event has already been processed. Returns true if so.
@@ -353,4 +397,14 @@ struct LineQtyRow {
     qty_received: i64,
     qty_accepted: i64,
     qty_rejected: i64,
+}
+
+/// Row type for inventory-relevant line data within a transaction.
+#[derive(Debug, sqlx::FromRow)]
+pub struct InventoryLineRow {
+    pub id: Uuid,
+    pub warehouse_id: Option<Uuid>,
+    pub inventory_ref_id: Option<Uuid>,
+    pub qty_accepted: i64,
+    pub qty_shipped: i64,
 }

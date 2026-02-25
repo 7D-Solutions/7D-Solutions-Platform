@@ -60,6 +60,13 @@ pub fn error_response(err: ShipmentError) -> impl IntoResponse {
                 Json(json!({ "error": "internal_error", "message": "Internal server error" })),
             )
         }
+        ShipmentError::InventoryIntegration(msg) => {
+            tracing::error!("inventory integration error: {msg}");
+            (
+                StatusCode::BAD_GATEWAY,
+                Json(json!({ "error": "inventory_error", "message": "Inventory integration failed" })),
+            )
+        }
     }
 }
 

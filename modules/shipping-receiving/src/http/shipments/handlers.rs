@@ -175,7 +175,9 @@ pub async fn transition_status(
         closed_at: req.closed_at,
     };
 
-    match ShipmentService::transition(&state.pool, id, tenant_id, &domain_req).await {
+    match ShipmentService::transition(&state.pool, id, tenant_id, &domain_req, &state.inventory)
+        .await
+    {
         Ok(s) => (StatusCode::OK, Json(json!(s))).into_response(),
         Err(e) => error_response(e).into_response(),
     }
@@ -396,7 +398,7 @@ pub async fn close_shipment(
         closed_at: Some(Utc::now()),
     };
 
-    match ShipmentService::transition(&state.pool, id, tenant_id, &req).await {
+    match ShipmentService::transition(&state.pool, id, tenant_id, &req, &state.inventory).await {
         Ok(s) => (StatusCode::OK, Json(json!(s))).into_response(),
         Err(e) => error_response(e).into_response(),
     }
@@ -423,7 +425,7 @@ pub async fn ship_shipment(
         closed_at: None,
     };
 
-    match ShipmentService::transition(&state.pool, id, tenant_id, &req).await {
+    match ShipmentService::transition(&state.pool, id, tenant_id, &req, &state.inventory).await {
         Ok(s) => (StatusCode::OK, Json(json!(s))).into_response(),
         Err(e) => error_response(e).into_response(),
     }
@@ -450,7 +452,7 @@ pub async fn deliver_shipment(
         closed_at: None,
     };
 
-    match ShipmentService::transition(&state.pool, id, tenant_id, &req).await {
+    match ShipmentService::transition(&state.pool, id, tenant_id, &req, &state.inventory).await {
         Ok(s) => (StatusCode::OK, Json(json!(s))).into_response(),
         Err(e) => error_response(e).into_response(),
     }

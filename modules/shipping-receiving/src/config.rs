@@ -28,6 +28,7 @@ pub struct Config {
     pub port: u16,
     pub env: String,
     pub cors_origins: Vec<String>,
+    pub inventory_url: Option<String>,
 }
 
 impl Config {
@@ -73,6 +74,8 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
+        let inventory_url = env::var("INVENTORY_URL").ok().filter(|s| !s.is_empty());
+
         Ok(Config {
             database_url,
             bus_type,
@@ -81,6 +84,7 @@ impl Config {
             port,
             env: env_name,
             cors_origins,
+            inventory_url,
         })
     }
 }
