@@ -59,7 +59,7 @@ impl StreamHandler for TrialBalanceHandler {
         _event_id: &str,
         payload: &serde_json::Value,
     ) -> Result<(), anyhow::Error> {
-        let posting: GlPostingPayload = serde_json::from_value(payload.clone())
+        let posting = GlPostingPayload::deserialize(payload)
             .map_err(|e| anyhow::anyhow!("Failed to parse GL posting payload: {}", e))?;
 
         let as_of = NaiveDate::parse_from_str(&posting.posting_date, "%Y-%m-%d")

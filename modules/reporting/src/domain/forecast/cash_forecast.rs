@@ -52,18 +52,18 @@ pub async fn compute_cash_forecast(
     }
 
     // 2. Collect unique (customer_id, currency) pairs for profile resolution
-    let pairs: Vec<(String, String)> = invoices
+    let pairs: Vec<(&str, &str)> = invoices
         .iter()
-        .map(|inv| (inv.customer_id.clone(), inv.currency.clone()))
+        .map(|inv| (inv.customer_id.as_str(), inv.currency.as_str()))
         .collect();
 
     let profiles = load_profiles_for_tenant(pool, tenant_id, &pairs).await?;
 
     // 3. Group invoices by currency
-    let mut by_currency: BTreeMap<String, Vec<&OpenInvoice>> = BTreeMap::new();
+    let mut by_currency: BTreeMap<&str, Vec<&OpenInvoice>> = BTreeMap::new();
     for inv in &invoices {
         by_currency
-            .entry(inv.currency.clone())
+            .entry(&inv.currency)
             .or_default()
             .push(inv);
     }
@@ -90,7 +90,7 @@ pub async fn compute_cash_forecast(
 fn compute_currency_forecast(
     currency: &str,
     invoices: &[&OpenInvoice],
-    profiles: &HashMap<(String, String), PaymentProfile>,
+    profiles: &HashMap<(&str, &str), PaymentProfile>,
     horizons: &[u32],
     now: chrono::DateTime<Utc>,
 ) -> CurrencyForecast {
@@ -103,7 +103,7 @@ fn compute_currency_forecast(
 
         for inv in invoices {
             let age = inv.age_days(now) as u32;
-            let key = (inv.customer_id.clone(), inv.currency.clone());
+            let key = (inv.customer_id.as_str(), inv.currency.as_str());
 
             if let Some(profile) = profiles.get(&key) {
                 // Expected: amount × conditional probability
@@ -137,7 +137,7 @@ fn compute_currency_forecast(
     let mut at_risk = Vec::new();
     for inv in invoices {
         let age = inv.age_days(now) as u32;
-        let key = (inv.customer_id.clone(), inv.currency.clone());
+        let key = (inv.customer_id.as_str(), inv.currency.as_str());
 
         let p30 = profiles
             .get(&key)

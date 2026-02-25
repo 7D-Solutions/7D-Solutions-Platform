@@ -48,7 +48,7 @@ impl StreamHandler for InvoicePaidHandler {
         _event_id: &str,
         payload: &serde_json::Value,
     ) -> Result<(), anyhow::Error> {
-        let p: InvoicePaidPayload = serde_json::from_value(payload.clone())
+        let p = InvoicePaidPayload::deserialize(payload)
             .map_err(|e| anyhow::anyhow!("Failed to parse invoice_paid payload: {}", e))?;
 
         let paid_at = p.paid_at.unwrap_or_else(Utc::now);

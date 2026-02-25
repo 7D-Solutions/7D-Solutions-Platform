@@ -78,7 +78,7 @@ impl StreamHandler for ArAgingHandler {
         _event_id: &str,
         payload: &serde_json::Value,
     ) -> Result<(), anyhow::Error> {
-        let p: ArAgingUpdatedPayload = serde_json::from_value(payload.clone())
+        let p = ArAgingUpdatedPayload::deserialize(payload)
             .map_err(|e| anyhow::anyhow!("Failed to parse AR aging payload: {}", e))?;
 
         let as_of = p.calculated_at.date_naive();

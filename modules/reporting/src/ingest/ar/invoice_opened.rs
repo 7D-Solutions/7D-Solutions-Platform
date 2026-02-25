@@ -41,7 +41,7 @@ impl StreamHandler for InvoiceOpenedHandler {
         _event_id: &str,
         payload: &serde_json::Value,
     ) -> Result<(), anyhow::Error> {
-        let p: InvoiceOpenedPayload = serde_json::from_value(payload.clone())
+        let p = InvoiceOpenedPayload::deserialize(payload)
             .map_err(|e| anyhow::anyhow!("Failed to parse invoice_opened payload: {}", e))?;
 
         sqlx::query(

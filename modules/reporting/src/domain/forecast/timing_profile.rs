@@ -86,21 +86,20 @@ pub async fn resolve_profile(
 
 /// Batch-load all profiles for open invoices in a tenant.
 /// Returns map from (customer_id, currency) → PaymentProfile.
-pub async fn load_profiles_for_tenant(
+pub async fn load_profiles_for_tenant<'a>(
     pool: &PgPool,
     tenant_id: &str,
-    pairs: &[(String, String)],
-) -> Result<HashMap<(String, String), PaymentProfile>, anyhow::Error> {
+    pairs: &[(&'a str, &'a str)],
+) -> Result<HashMap<(&'a str, &'a str), PaymentProfile>, anyhow::Error> {
     let mut result = HashMap::new();
     // Deduplicate (customer_id, currency) pairs
     let mut seen = std::collections::HashSet::new();
-    for (cid, cur) in pairs {
-        let key = (cid.clone(), cur.clone());
-        if !seen.insert(key.clone()) {
+    for &(cid, cur) in pairs {
+        if !seen.insert((cid, cur)) {
             continue;
         }
         if let Some(profile) = resolve_profile(pool, tenant_id, cid, cur).await? {
-            result.insert(key, profile);
+            result.insert((cid, cur), profile);
         }
     }
     Ok(result)
