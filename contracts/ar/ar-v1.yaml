@@ -1,26 +1,81 @@
 openapi: 3.0.3
 info:
   title: Accounts Receivable API
-  version: 1.0.0
-  description: 'Accounts Receivable module — version 1.0.0 (proven 2026-02-22, bead bd-rqbr).
+  version: 1.0.10
+  description: >
+    Accounts Receivable module — manages billing records, payment method
+    references, aging, dunning, reconciliation, credit notes, write-offs,
+    usage billing, tax configuration, and GL journal emission.
 
+    Multi-tenant: all requests are scoped to a tenant (app_id) extracted from
+    the JWT or X-App-Id header. Mutation endpoints require the `ar.mutate`
+    permission claim.
 
-    Manages billing records, payment method references, aging, dunning, reconciliation,
-    credit notes, write-offs, usage billing, tax configuration, and GL journal emission.
-
-
-    No raw card data, API keys, gateway credentials, or sensitive secrets are accepted
-    or stored. Sensitive payment processing is delegated to the Payments module.'
+    No raw card data, API keys, gateway credentials, or sensitive secrets are
+    accepted or stored. Sensitive payment processing is delegated to the
+    Payments module.
+  contact:
+    name: 7D Solutions Platform
 servers:
-- url: https://ar.7dsolutions.io
-  description: Production
-- url: http://localhost:8086
-  description: Local development
+  - url: https://ar.7dsolutions.io
+    description: Production
+  - url: http://localhost:8086
+    description: Local development
+
+# ─── Security ──────────────────────────────────────────────────────────────────
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Customers
+    description: Customer lifecycle
+  - name: Subscriptions
+    description: Recurring billing subscriptions
+  - name: Invoices
+    description: Invoice lifecycle and finalization
+  - name: Charges
+    description: One-time and recurring charges
+  - name: Refunds
+    description: Charge refunds
+  - name: Disputes
+    description: Payment disputes and evidence
+  - name: PaymentMethods
+    description: Payment method references (no raw card data stored)
+  - name: Webhooks
+    description: Inbound webhook processing and replay
+  - name: Events
+    description: Event audit log
+  - name: Usage
+    description: Metered usage ingestion and billing
+  - name: Aging
+    description: Accounts receivable aging reports
+  - name: Dunning
+    description: Overdue invoice dunning
+  - name: Reconciliation
+    description: Payment reconciliation
+  - name: Allocation
+    description: Payment-to-invoice allocation
+  - name: TaxConfig
+    description: Tax jurisdiction and rule configuration
+  - name: TaxReports
+    description: Tax reporting and export
+  - name: Health
+    description: Service health probes
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PATHS
+# ═══════════════════════════════════════════════════════════════════════════════
 paths:
+
+  # ── Customers ────────────────────────────────────────────────────────────────
   /api/ar/customers:
     post:
+      tags: [Customers]
       summary: Create customer
       operationId: createCustomer
+      description: >
+        Creates a new AR customer. Email is required and must be unique within
+        the tenant. Returns 409 on duplicate email.
       requestBody:
         required: true
         content:
@@ -28,15 +83,32 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateCustomerRequest'
       responses:
-        '200':
+        '201':
           description: Customer created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Duplicate email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     get:
+      tags: [Customers]
       summary: List customers
       operationId: listCustomers
+      parameters:
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/OffsetParam'
+        - name: external_customer_id
+          in: query
+          schema:
+            type: string
+          description: Filter by external customer ID
       responses:
         '200':
           description: Customers list
@@ -46,16 +118,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Customer'
+
   /api/ar/customers/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     get:
-      summary: Get customer
+      tags: [Customers]
+      summary: Get customer by ID
       operationId: getCustomer
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Customer found
@@ -63,15 +133,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Customer'
+        '404':
+          $ref: '#/components/responses/NotFound'
     put:
+      tags: [Customers]
       summary: Update customer
       operationId: updateCustomer
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       requestBody:
         required: true
         content:
@@ -85,8 +152,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Subscriptions ────────────────────────────────────────────────────────────
   /api/ar/subscriptions:
     post:
+      tags: [Subscriptions]
       summary: Create subscription
       operationId: createSubscription
       requestBody:
@@ -96,15 +170,33 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateSubscriptionRequest'
       responses:
-        '200':
+        '201':
           description: Subscription created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
     get:
+      tags: [Subscriptions]
       summary: List subscriptions
       operationId: listSubscriptions
+      parameters:
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/OffsetParam'
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+          description: Filter by AR customer ID
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/SubscriptionStatus'
+          description: Filter by subscription status
       responses:
         '200':
           description: Subscriptions list
@@ -114,16 +206,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Subscription'
+
   /api/ar/subscriptions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     get:
-      summary: Get subscription
+      tags: [Subscriptions]
+      summary: Get subscription by ID
       operationId: getSubscription
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Subscription found
@@ -131,15 +221,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Subscription'
+        '404':
+          $ref: '#/components/responses/NotFound'
     put:
+      tags: [Subscriptions]
       summary: Update subscription
       operationId: updateSubscription
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       requestBody:
         required: true
         content:
@@ -153,16 +240,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/ar/subscriptions/{id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     post:
+      tags: [Subscriptions]
       summary: Cancel subscription
       operationId: cancelSubscription
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
+      description: >
+        Cancel immediately or schedule cancellation at period end.
+        Default is immediate cancellation.
       requestBody:
         required: true
         content:
@@ -176,10 +268,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Subscription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Invoices ─────────────────────────────────────────────────────────────────
   /api/ar/invoices:
     post:
+      tags: [Invoices]
       summary: Create invoice
       operationId: createInvoice
+      description: >
+        Creates a draft invoice. The referenced customer must exist in the
+        tenant. If a subscription_id is provided, it must belong to the same
+        customer. Emits ar.invoice_opened event atomically via outbox.
       requestBody:
         required: true
         content:
@@ -187,15 +288,38 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateInvoiceRequest'
       responses:
-        '200':
+        '201':
           description: Invoice created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Invoice'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
     get:
+      tags: [Invoices]
       summary: List invoices
       operationId: listInvoices
+      parameters:
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/OffsetParam'
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+          description: Filter by AR customer ID
+        - name: subscription_id
+          in: query
+          schema:
+            type: integer
+          description: Filter by subscription ID
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/InvoiceStatusEnum'
+          description: Filter by invoice status
       responses:
         '200':
           description: Invoices list
@@ -205,16 +329,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Invoice'
+
   /api/ar/invoices/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     get:
-      summary: Get invoice
+      tags: [Invoices]
+      summary: Get invoice by ID
       operationId: getInvoice
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Invoice found
@@ -222,15 +344,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Invoice'
+        '404':
+          $ref: '#/components/responses/NotFound'
     put:
+      tags: [Invoices]
       summary: Update invoice
       operationId: updateInvoice
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
+      description: At least one field (status, amount_cents, due_at, metadata) must be provided.
       requestBody:
         required: true
         content:
@@ -244,16 +364,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Invoice'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/ar/invoices/{id}/finalize:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     post:
+      tags: [Invoices]
       summary: Finalize invoice
       operationId: finalizeInvoice
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
+      description: >
+        Transitions a draft invoice to open status. Emits
+        payment.collection.requested and gl.posting.requested events
+        atomically via outbox. Only draft invoices can be finalized.
       requestBody:
         required: true
         content:
@@ -267,10 +393,74 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Invoice'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/ar/invoices/{id}/bill-usage:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
+    post:
+      tags: [Usage]
+      summary: Bill accrued usage onto an invoice
+      operationId: billUsage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Usage billed onto invoice
+
+  /api/ar/invoices/{id}/credit-notes:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
+    post:
+      tags: [Invoices]
+      summary: Issue credit note against invoice
+      operationId: issueCreditNote
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Credit note request (delegated to credit_notes module)
+      responses:
+        '200':
+          description: Credit note issued
+
+  /api/ar/invoices/{id}/write-off:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
+    post:
+      tags: [Invoices]
+      summary: Write off invoice balance
+      operationId: writeOffInvoice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Write-off request (delegated to write_offs module)
+      responses:
+        '200':
+          description: Invoice written off
+
+  # ── Charges ──────────────────────────────────────────────────────────────────
   /api/ar/charges:
     post:
+      tags: [Charges]
       summary: Create charge
       operationId: createCharge
+      description: >
+        Creates a one-time charge against a customer. Requires the customer to
+        have a default payment method. Duplicate reference_id returns the
+        existing charge (idempotent).
       requestBody:
         required: true
         content:
@@ -278,15 +468,47 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateChargeRequest'
       responses:
-        '200':
+        '201':
           description: Charge created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Charge'
+        '200':
+          description: Existing charge returned (duplicate reference_id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Charge'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: No default payment method on file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     get:
+      tags: [Charges]
       summary: List charges
       operationId: listCharges
+      parameters:
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/OffsetParam'
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+        - name: invoice_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            $ref: '#/components/schemas/ChargeStatusEnum'
       responses:
         '200':
           description: Charges list
@@ -296,16 +518,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Charge'
+
   /api/ar/charges/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     get:
-      summary: Get charge
+      tags: [Charges]
+      summary: Get charge by ID
       operationId: getCharge
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Charge found
@@ -313,16 +533,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Charge'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/ar/charges/{id}/capture:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     post:
-      summary: Capture charge
+      tags: [Charges]
+      summary: Capture an authorized charge
       operationId: captureCharge
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
+      description: Only charges with status "authorized" can be captured.
       requestBody:
         required: true
         content:
@@ -336,8 +557,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Charge'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Refunds ──────────────────────────────────────────────────────────────────
   /api/ar/refunds:
     post:
+      tags: [Refunds]
       summary: Create refund
       operationId: createRefund
       requestBody:
@@ -347,15 +575,35 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateRefundRequest'
       responses:
-        '200':
+        '201':
           description: Refund created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Refund'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
     get:
+      tags: [Refunds]
       summary: List refunds
       operationId: listRefunds
+      parameters:
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/OffsetParam'
+        - name: charge_id
+          in: query
+          schema:
+            type: integer
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: Refunds list
@@ -365,16 +613,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Refund'
+
   /api/ar/refunds/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     get:
-      summary: Get refund
+      tags: [Refunds]
+      summary: Get refund by ID
       operationId: getRefund
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Refund found
@@ -382,10 +628,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Refund'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Disputes ─────────────────────────────────────────────────────────────────
   /api/ar/disputes:
     get:
+      tags: [Disputes]
       summary: List disputes
       operationId: listDisputes
+      parameters:
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/OffsetParam'
+        - name: charge_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: Disputes list
@@ -395,16 +657,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Dispute'
+
   /api/ar/disputes/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     get:
-      summary: Get dispute
+      tags: [Disputes]
+      summary: Get dispute by ID
       operationId: getDispute
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Dispute found
@@ -412,16 +672,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Dispute'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/ar/disputes/{id}/evidence:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     post:
+      tags: [Disputes]
       summary: Submit dispute evidence
       operationId: submitDisputeEvidence
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       requestBody:
         required: true
         content:
@@ -435,10 +695,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Dispute'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Payment Methods ──────────────────────────────────────────────────────────
   /api/ar/payment-methods:
     post:
-      summary: Add payment method
+      tags: [PaymentMethods]
+      summary: Add payment method reference
       operationId: addPaymentMethod
+      description: >
+        Stores a reference to an externally-managed payment method. No raw card
+        data is accepted or stored.
       requestBody:
         required: true
         content:
@@ -446,15 +714,29 @@ paths:
             schema:
               $ref: '#/components/schemas/AddPaymentMethodRequest'
       responses:
-        '200':
+        '201':
           description: Payment method added
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentMethod'
+        '400':
+          $ref: '#/components/responses/BadRequest'
     get:
+      tags: [PaymentMethods]
       summary: List payment methods
       operationId: listPaymentMethods
+      parameters:
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/OffsetParam'
+        - name: customer_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: Payment methods list
@@ -464,16 +746,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PaymentMethod'
+
   /api/ar/payment-methods/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     get:
-      summary: Get payment method
+      tags: [PaymentMethods]
+      summary: Get payment method by ID
       operationId: getPaymentMethod
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Payment method found
@@ -481,15 +761,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentMethod'
+        '404':
+          $ref: '#/components/responses/NotFound'
     put:
-      summary: Update payment method
+      tags: [PaymentMethods]
+      summary: Update payment method metadata
       operationId: updatePaymentMethod
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       requestBody:
         required: true
         content:
@@ -503,28 +780,23 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentMethod'
+        '404':
+          $ref: '#/components/responses/NotFound'
     delete:
-      summary: Delete payment method
+      tags: [PaymentMethods]
+      summary: Soft-delete payment method
       operationId: deletePaymentMethod
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Payment method deleted
+
   /api/ar/payment-methods/{id}/set-default:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     post:
-      summary: Set default payment method
+      tags: [PaymentMethods]
+      summary: Set default payment method for customer
       operationId: setDefaultPaymentMethod
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Default payment method set
@@ -532,23 +804,47 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentMethod'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ── Webhooks ─────────────────────────────────────────────────────────────────
   /api/ar/webhooks/tilled:
     post:
+      tags: [Webhooks]
       summary: Receive Tilled webhook
       operationId: receiveTilledWebhook
+      description: >
+        Inbound webhook endpoint for Tilled payment processor events.
+        Rate-limited by source IP. No auth required.
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/TilledWebhookEvent'
       responses:
         '200':
           description: Webhook received
+        '429':
+          description: Rate limit exceeded
+
   /api/ar/webhooks:
     get:
+      tags: [Webhooks]
       summary: List webhooks
       operationId: listWebhooks
+      parameters:
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/OffsetParam'
+        - name: event_type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: Webhooks list
@@ -558,16 +854,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Webhook'
+
   /api/ar/webhooks/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     get:
-      summary: Get webhook
+      tags: [Webhooks]
+      summary: Get webhook by ID
       operationId: getWebhook
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Webhook found
@@ -575,16 +869,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Webhook'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/ar/webhooks/{id}/replay:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     post:
-      summary: Replay webhook
+      tags: [Webhooks]
+      summary: Replay a failed webhook
       operationId: replayWebhook
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       requestBody:
         required: true
         content:
@@ -594,10 +888,42 @@ paths:
       responses:
         '200':
           description: Webhook replayed
+
+  # ── Events ───────────────────────────────────────────────────────────────────
   /api/ar/events:
     get:
+      tags: [Events]
       summary: List events
       operationId: listEvents
+      parameters:
+        - $ref: '#/components/parameters/LimitParam'
+        - $ref: '#/components/parameters/OffsetParam'
+        - name: entity_id
+          in: query
+          schema:
+            type: string
+        - name: entity_type
+          in: query
+          schema:
+            type: string
+        - name: event_type
+          in: query
+          schema:
+            type: string
+        - name: source
+          in: query
+          schema:
+            type: string
+        - name: start
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          schema:
+            type: string
+            format: date-time
       responses:
         '200':
           description: Events list
@@ -607,16 +933,14 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Event'
+
   /api/ar/events/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     get:
-      summary: Get event
+      tags: [Events]
+      summary: Get event by ID
       operationId: getEvent
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Event found
@@ -624,104 +948,41 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Event'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
-  # ── Health (added in 1.0.0) ─────────────────────────────────────────────
-  /healthz:
-    get:
-      summary: Liveness probe
-      operationId: healthz
-      responses:
-        '200':
-          description: Service alive
-  /api/ready:
-    get:
-      summary: Readiness probe
-      operationId: ready
-      responses:
-        '200':
-          description: Service ready
-
-  # ── Usage billing (added in 1.0.0) ──────────────────────────────────────
+  # ── Usage ────────────────────────────────────────────────────────────────────
   /api/ar/usage:
     post:
-      summary: Capture usage event
+      tags: [Usage]
+      summary: Capture metered usage event
       operationId: captureUsage
+      description: >
+        Ingests a metered usage record. Idempotent — duplicate submissions
+        with the same idempotency_key return the original record.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: '#/components/schemas/CaptureUsageRequest'
       responses:
         '200':
-          description: Usage captured
-  /api/ar/invoices/{id}/bill-usage:
-    post:
-      summary: Bill accrued usage onto an invoice
-      operationId: billUsage
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-      responses:
-        '200':
-          description: Usage billed
+          description: Usage captured (or duplicate returned)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
-  # ── Credit notes (added in 1.0.0) ───────────────────────────────────────
-  /api/ar/invoices/{id}/credit-notes:
-    post:
-      summary: Issue credit note against invoice
-      operationId: issueCreditNote
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-      responses:
-        '200':
-          description: Credit note issued
-
-  # ── Write-offs (added in 1.0.0) ──────────────────────────────────────────
-  /api/ar/invoices/{id}/write-off:
-    post:
-      summary: Write off invoice balance
-      operationId: writeOffInvoice
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-      responses:
-        '200':
-          description: Invoice written off
-
-  # ── Aging (added in 1.0.0) ───────────────────────────────────────────────
+  # ── Aging ────────────────────────────────────────────────────────────────────
   /api/ar/aging:
     get:
-      summary: Get aging report (0-30, 31-60, 61-90, 90+ day buckets)
+      tags: [Aging]
+      summary: Get aging report
       operationId: getAging
+      description: Returns aging buckets (0-30, 31-60, 61-90, 90+ days).
       responses:
         '200':
           description: Aging report
@@ -729,49 +990,59 @@ paths:
             application/json:
               schema:
                 type: object
+
   /api/ar/aging/refresh:
     post:
+      tags: [Aging]
       summary: Refresh aging snapshot
       operationId: refreshAging
       responses:
         '200':
           description: Aging refreshed
 
-  # ── Dunning (added in 1.0.0) ─────────────────────────────────────────────
+  # ── Dunning ──────────────────────────────────────────────────────────────────
   /api/ar/dunning/poll:
     post:
-      summary: Poll dunning scheduler (trigger overdue actions)
+      tags: [Dunning]
+      summary: Poll dunning scheduler
       operationId: dunningPoll
+      description: Triggers overdue invoice actions (escalation, notifications).
       responses:
         '200':
           description: Dunning poll complete
 
-  # ── Reconciliation (added in 1.0.0) ──────────────────────────────────────
+  # ── Reconciliation ──────────────────────────────────────────────────────────
   /api/ar/recon/run:
     post:
+      tags: [Reconciliation]
       summary: Run reconciliation pass
       operationId: reconRun
       responses:
         '200':
           description: Reconciliation complete
+
   /api/ar/recon/schedule:
     post:
+      tags: [Reconciliation]
       summary: Schedule reconciliation job
       operationId: reconSchedule
       responses:
         '200':
           description: Reconciliation scheduled
+
   /api/ar/recon/poll:
     post:
+      tags: [Reconciliation]
       summary: Poll reconciliation queue
       operationId: reconPoll
       responses:
         '200':
           description: Reconciliation polled
 
-  # ── Payment allocation (added in 1.0.0) ──────────────────────────────────
+  # ── Payment Allocation ──────────────────────────────────────────────────────
   /api/ar/payments/allocate:
     post:
+      tags: [Allocation]
       summary: Allocate payment to invoices
       operationId: allocatePayment
       requestBody:
@@ -784,15 +1055,17 @@ paths:
         '200':
           description: Payment allocated
 
-  # ── Tax configuration (added in 1.0.0) ───────────────────────────────────
+  # ── Tax Configuration ───────────────────────────────────────────────────────
   /api/ar/tax/config/jurisdictions:
     get:
+      tags: [TaxConfig]
       summary: List tax jurisdictions
       operationId: listJurisdictions
       responses:
         '200':
           description: Jurisdictions list
     post:
+      tags: [TaxConfig]
       summary: Create tax jurisdiction
       operationId: createJurisdiction
       requestBody:
@@ -802,30 +1075,23 @@ paths:
             schema:
               type: object
       responses:
-        '200':
+        '201':
           description: Jurisdiction created
+
   /api/ar/tax/config/jurisdictions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     get:
+      tags: [TaxConfig]
       summary: Get tax jurisdiction
       operationId: getJurisdiction
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Jurisdiction found
     put:
+      tags: [TaxConfig]
       summary: Update tax jurisdiction
       operationId: updateJurisdiction
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       requestBody:
         required: true
         content:
@@ -835,14 +1101,17 @@ paths:
       responses:
         '200':
           description: Jurisdiction updated
+
   /api/ar/tax/config/rules:
     get:
+      tags: [TaxConfig]
       summary: List tax rules
       operationId: listTaxRules
       responses:
         '200':
           description: Tax rules list
     post:
+      tags: [TaxConfig]
       summary: Create tax rule
       operationId: createTaxRule
       requestBody:
@@ -852,30 +1121,23 @@ paths:
             schema:
               type: object
       responses:
-        '200':
+        '201':
           description: Tax rule created
+
   /api/ar/tax/config/rules/{id}:
+    parameters:
+      - $ref: '#/components/parameters/IntIdParam'
     get:
+      tags: [TaxConfig]
       summary: Get tax rule
       operationId: getTaxRule
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       responses:
         '200':
           description: Tax rule found
     put:
+      tags: [TaxConfig]
       summary: Update tax rule
       operationId: updateTaxRule
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
       requestBody:
         required: true
         content:
@@ -886,272 +1148,1040 @@ paths:
         '200':
           description: Tax rule updated
 
-  # ── Tax reports (added in 1.0.0) ──────────────────────────────────────────
+  # ── Tax Reports ─────────────────────────────────────────────────────────────
   /api/ar/tax/reports/summary:
     get:
+      tags: [TaxReports]
       summary: Tax report summary
       operationId: taxReportSummary
       responses:
         '200':
           description: Tax report summary
+
   /api/ar/tax/reports/export:
     get:
+      tags: [TaxReports]
       summary: Export tax report
       operationId: taxReportExport
       responses:
         '200':
-          description: Tax report export
+          description: Tax report export data
 
+  # ── Health ───────────────────────────────────────────────────────────────────
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Liveness probe
+      operationId: healthz
+      security: []
+      responses:
+        '200':
+          description: Service alive
+
+  /api/ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      operationId: ready
+      security: []
+      responses:
+        '200':
+          description: Service ready
+
+  /api/version:
+    get:
+      tags: [Health]
+      summary: Version info
+      operationId: version
+      security: []
+      responses:
+        '200':
+          description: Version information
+
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      operationId: metrics
+      security: []
+      responses:
+        '200':
+          description: Prometheus metrics text
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COMPONENTS
+# ═══════════════════════════════════════════════════════════════════════════════
 components:
+
+  # ── Security Schemes ─────────────────────────────────────────────────────────
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        JWT token with app_id claim for tenant scoping. Mutation endpoints
+        require the ar.mutate permission.
+
+  # ── Reusable Parameters ──────────────────────────────────────────────────────
+  parameters:
+    IntIdParam:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+      description: Resource ID
+    LimitParam:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 50
+        minimum: 1
+        maximum: 100
+      description: Page size (max 100)
+    OffsetParam:
+      name: offset
+      in: query
+      schema:
+        type: integer
+        default: 0
+        minimum: 0
+      description: Pagination offset
+
+  # ── Reusable Responses ───────────────────────────────────────────────────────
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  # ── Schemas ──────────────────────────────────────────────────────────────────
   schemas:
+
+    # -- Common --
+    ErrorResponse:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: Machine-readable error code
+          example: validation_error
+        message:
+          type: string
+          description: Human-readable error description
+
+    # -- Customer --
     Customer:
       type: object
-      required:
-      - id
-      - email
+      required: [id, app_id, status, email, retry_attempt_count, created_at, updated_at]
       properties:
         id:
+          type: integer
+        app_id:
           type: string
+        external_customer_id:
+          type: string
+          nullable: true
+        tilled_customer_id:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [pending, active, suspended, closed]
         email:
           type: string
           format: email
         name:
           type: string
+          nullable: true
+        default_payment_method_id:
+          type: string
+          nullable: true
+        payment_method_type:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        update_source:
+          type: string
+          nullable: true
+        updated_by:
+          type: string
+          nullable: true
+        delinquent_since:
+          type: string
+          format: date-time
+          nullable: true
+        grace_period_end:
+          type: string
+          format: date-time
+          nullable: true
+        next_retry_at:
+          type: string
+          format: date-time
+          nullable: true
+        retry_attempt_count:
+          type: integer
+        party_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Optional link to Party Master record
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     CreateCustomerRequest:
       type: object
-      required:
-      - email
+      required: [email]
       properties:
         email:
           type: string
           format: email
         name:
           type: string
+        external_customer_id:
+          type: string
+        metadata:
+          type: object
+        party_id:
+          type: string
+          format: uuid
+
     UpdateCustomerRequest:
       type: object
+      description: At least one field must be provided.
       properties:
         email:
           type: string
           format: email
         name:
           type: string
+        metadata:
+          type: object
+        party_id:
+          type: string
+          format: uuid
+
+    # -- Subscription --
+    SubscriptionStatus:
+      type: string
+      enum:
+        - incomplete
+        - incomplete_expired
+        - trialing
+        - active
+        - past_due
+        - canceled
+        - unpaid
+        - paused
+
+    SubscriptionInterval:
+      type: string
+      enum: [day, week, month, year]
+
     Subscription:
       type: object
       required:
-      - id
-      - customer_id
-      - status
+        - id
+        - app_id
+        - ar_customer_id
+        - tilled_subscription_id
+        - plan_id
+        - plan_name
+        - price_cents
+        - status
+        - interval_unit
+        - interval_count
+        - current_period_start
+        - current_period_end
+        - cancel_at_period_end
+        - payment_method_id
+        - payment_method_type
+        - created_at
+        - updated_at
       properties:
         id:
-          type: string
-        customer_id:
-          type: string
-        status:
-          type: string
-        interval:
-          type: string
-        amount:
           type: integer
+        app_id:
+          type: string
+        ar_customer_id:
+          type: integer
+        tilled_subscription_id:
+          type: string
+        plan_id:
+          type: string
+        plan_name:
+          type: string
+        price_cents:
+          type: integer
+          description: Price in minor currency units (cents)
+        status:
+          $ref: '#/components/schemas/SubscriptionStatus'
+        interval_unit:
+          $ref: '#/components/schemas/SubscriptionInterval'
+        interval_count:
+          type: integer
+        billing_cycle_anchor:
+          type: string
+          format: date-time
+          nullable: true
+        current_period_start:
+          type: string
+          format: date-time
+        current_period_end:
+          type: string
+          format: date-time
+        cancel_at_period_end:
+          type: boolean
+        cancel_at:
+          type: string
+          format: date-time
+          nullable: true
+        canceled_at:
+          type: string
+          format: date-time
+          nullable: true
+        ended_at:
+          type: string
+          format: date-time
+          nullable: true
+        payment_method_id:
+          type: string
+        payment_method_type:
+          type: string
+        metadata:
+          type: object
+          nullable: true
+        update_source:
+          type: string
+          nullable: true
+        updated_by:
+          type: string
+          nullable: true
+        party_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     CreateSubscriptionRequest:
       type: object
-      required:
-      - customer_id
+      required: [ar_customer_id, payment_method_id, plan_id, plan_name, price_cents]
       properties:
-        customer_id:
-          type: string
-        interval:
-          type: string
-        amount:
+        ar_customer_id:
           type: integer
+        payment_method_id:
+          type: string
+        plan_id:
+          type: string
+        plan_name:
+          type: string
+        price_cents:
+          type: integer
+          minimum: 1
+        interval_unit:
+          $ref: '#/components/schemas/SubscriptionInterval'
+        interval_count:
+          type: integer
+          default: 1
+        metadata:
+          type: object
+        party_id:
+          type: string
+          format: uuid
+
     UpdateSubscriptionRequest:
       type: object
+      description: At least one field must be provided.
       properties:
-        interval:
+        plan_id:
           type: string
-        amount:
+        plan_name:
+          type: string
+        price_cents:
           type: integer
+        metadata:
+          type: object
+
     CancelSubscriptionRequest:
       type: object
       properties:
-        reason:
-          type: string
+        cancel_at_period_end:
+          type: boolean
+          default: false
+          description: If true, cancel at current period end instead of immediately.
+
+    # -- Invoice --
+    InvoiceStatusEnum:
+      type: string
+      enum: [draft, open, paid, void, uncollectible]
+
     Invoice:
       type: object
       required:
-      - id
-      - customer_id
-      - status
+        - id
+        - app_id
+        - tilled_invoice_id
+        - ar_customer_id
+        - status
+        - amount_cents
+        - currency
+        - created_at
+        - updated_at
       properties:
         id:
-          type: string
-        customer_id:
-          type: string
-        status:
-          type: string
-        amount_due:
           type: integer
+        app_id:
+          type: string
+        tilled_invoice_id:
+          type: string
+        ar_customer_id:
+          type: integer
+        subscription_id:
+          type: integer
+          nullable: true
+        status:
+          $ref: '#/components/schemas/InvoiceStatusEnum'
+        amount_cents:
+          type: integer
+          description: Amount in minor currency units (cents)
+        currency:
+          type: string
+          example: usd
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+        paid_at:
+          type: string
+          format: date-time
+          nullable: true
+        hosted_url:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        billing_period_start:
+          type: string
+          format: date-time
+          nullable: true
+        billing_period_end:
+          type: string
+          format: date-time
+          nullable: true
+        line_item_details:
+          type: object
+          nullable: true
+        compliance_codes:
+          type: object
+          nullable: true
+        correlation_id:
+          type: string
+          nullable: true
+        party_id:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     CreateInvoiceRequest:
       type: object
-      required:
-      - customer_id
+      required: [ar_customer_id, amount_cents]
       properties:
-        customer_id:
-          type: string
-        amount_due:
+        ar_customer_id:
           type: integer
+        subscription_id:
+          type: integer
+        status:
+          $ref: '#/components/schemas/InvoiceStatusEnum'
+        amount_cents:
+          type: integer
+          minimum: 0
+        currency:
+          type: string
+          default: usd
+        due_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+        billing_period_start:
+          type: string
+          format: date-time
+        billing_period_end:
+          type: string
+          format: date-time
+        line_item_details:
+          type: object
+        compliance_codes:
+          type: object
+        correlation_id:
+          type: string
+        party_id:
+          type: string
+          format: uuid
+
     UpdateInvoiceRequest:
       type: object
+      description: At least one field must be provided.
       properties:
-        amount_due:
+        status:
+          $ref: '#/components/schemas/InvoiceStatusEnum'
+        amount_cents:
           type: integer
+        due_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+
     FinalizeInvoiceRequest:
       type: object
       properties:
-        auto_advance:
-          type: boolean
+        paid_at:
+          type: string
+          format: date-time
+          description: Override paid_at timestamp (defaults to now).
+
+    # -- Charge --
+    ChargeStatusEnum:
+      type: string
+      enum: [pending, authorized, captured, succeeded, failed]
+
     Charge:
       type: object
       required:
-      - id
-      - amount
-      - status
+        - id
+        - app_id
+        - ar_customer_id
+        - status
+        - amount_cents
+        - currency
+        - charge_type
+        - created_at
+        - updated_at
       properties:
         id:
-          type: string
-        amount:
           type: integer
+        app_id:
+          type: string
+        tilled_charge_id:
+          type: string
+          nullable: true
+        invoice_id:
+          type: integer
+          nullable: true
+        ar_customer_id:
+          type: integer
+        subscription_id:
+          type: integer
+          nullable: true
         status:
+          $ref: '#/components/schemas/ChargeStatusEnum'
+        amount_cents:
+          type: integer
+        currency:
           type: string
-        customer_id:
+        charge_type:
           type: string
+          enum: [one_time, recurring]
+        reason:
+          type: string
+          nullable: true
+        reference_id:
+          type: string
+          nullable: true
+        service_date:
+          type: string
+          format: date-time
+          nullable: true
+        note:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        failure_code:
+          type: string
+          nullable: true
+        failure_message:
+          type: string
+          nullable: true
+        product_type:
+          type: string
+          nullable: true
+        quantity:
+          type: integer
+          nullable: true
+        service_frequency:
+          type: string
+          nullable: true
+        weight_amount:
+          type: string
+          nullable: true
+        location_reference:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     CreateChargeRequest:
       type: object
-      required:
-      - amount
+      required: [ar_customer_id, amount_cents, reason, reference_id]
       properties:
-        amount:
+        ar_customer_id:
           type: integer
-        customer_id:
+        amount_cents:
+          type: integer
+          minimum: 1
+        currency:
           type: string
-        payment_method_id:
+          default: usd
+        charge_type:
           type: string
+          default: one_time
+        reason:
+          type: string
+        reference_id:
+          type: string
+          description: Idempotency reference — duplicate reference_id returns existing charge.
+        service_date:
+          type: string
+          format: date-time
+        note:
+          type: string
+        metadata:
+          type: object
+
     CaptureChargeRequest:
       type: object
       properties:
-        amount:
+        amount_cents:
           type: integer
+          description: Capture amount (defaults to authorized amount if omitted).
+
+    # -- Refund --
     Refund:
       type: object
       required:
-      - id
-      - charge_id
-      - amount
+        - id
+        - app_id
+        - ar_customer_id
+        - charge_id
+        - status
+        - amount_cents
+        - currency
+        - reference_id
+        - created_at
+        - updated_at
       properties:
         id:
-          type: string
-        charge_id:
-          type: string
-        amount:
           type: integer
+        app_id:
+          type: string
+        ar_customer_id:
+          type: integer
+        charge_id:
+          type: integer
+        tilled_refund_id:
+          type: string
+          nullable: true
+        tilled_charge_id:
+          type: string
+          nullable: true
         status:
           type: string
+        amount_cents:
+          type: integer
+        currency:
+          type: string
+        reason:
+          type: string
+          nullable: true
+        reference_id:
+          type: string
+        note:
+          type: string
+          nullable: true
+        metadata:
+          type: object
+          nullable: true
+        failure_code:
+          type: string
+          nullable: true
+        failure_message:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     CreateRefundRequest:
       type: object
-      required:
-      - charge_id
+      required: [charge_id, amount_cents, reference_id]
       properties:
         charge_id:
-          type: string
-        amount:
           type: integer
+        amount_cents:
+          type: integer
+        currency:
+          type: string
         reason:
           type: string
+        reference_id:
+          type: string
+        note:
+          type: string
+        metadata:
+          type: object
+
+    # -- Dispute --
     Dispute:
       type: object
-      required:
-      - id
-      - charge_id
-      - status
+      required: [id, app_id, tilled_dispute_id, status, created_at, updated_at]
       properties:
         id:
+          type: integer
+        app_id:
           type: string
+        tilled_dispute_id:
+          type: string
+        tilled_charge_id:
+          type: string
+          nullable: true
         charge_id:
-          type: string
+          type: integer
+          nullable: true
         status:
           type: string
+        amount_cents:
+          type: integer
+          nullable: true
+        currency:
+          type: string
+          nullable: true
         reason:
           type: string
+          nullable: true
+        reason_code:
+          type: string
+          nullable: true
+        evidence_due_by:
+          type: string
+          format: date-time
+          nullable: true
+        opened_at:
+          type: string
+          format: date-time
+          nullable: true
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     SubmitDisputeEvidenceRequest:
       type: object
-      required:
-      - evidence
+      required: [evidence]
       properties:
         evidence:
-          type: string
+          type: object
+          description: Arbitrary evidence payload (JSON)
+
+    # -- Payment Method --
     PaymentMethod:
       type: object
       required:
-      - id
-      - customer_id
-      - type
+        - id
+        - app_id
+        - ar_customer_id
+        - tilled_payment_method_id
+        - status
+        - type
+        - is_default
+        - created_at
+        - updated_at
       properties:
         id:
+          type: integer
+        app_id:
           type: string
-        customer_id:
+        ar_customer_id:
+          type: integer
+        tilled_payment_method_id:
+          type: string
+        status:
           type: string
         type:
           type: string
+          description: Payment method type (card, bank_account, etc.)
+        brand:
+          type: string
+          nullable: true
+        last4:
+          type: string
+          nullable: true
+        exp_month:
+          type: integer
+          nullable: true
+        exp_year:
+          type: integer
+          nullable: true
+        bank_name:
+          type: string
+          nullable: true
+        bank_last4:
+          type: string
+          nullable: true
         is_default:
           type: boolean
+        metadata:
+          type: object
+          nullable: true
+        deleted_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     AddPaymentMethodRequest:
       type: object
-      required:
-      - customer_id
-      - type
+      required: [ar_customer_id, tilled_payment_method_id]
       properties:
-        customer_id:
+        ar_customer_id:
+          type: integer
+        tilled_payment_method_id:
           type: string
-        type:
-          type: string
-        token:
-          type: string
+
     UpdatePaymentMethodRequest:
       type: object
       properties:
-        is_default:
-          type: boolean
+        metadata:
+          type: object
+
+    # -- Webhook --
+    WebhookStatus:
+      type: string
+      enum: [received, processing, processed, failed]
+
     Webhook:
       type: object
-      required:
-      - id
-      - event_type
-      - status
+      required: [id, app_id, event_id, event_type, status, attempt_count, received_at]
       properties:
         id:
+          type: integer
+        app_id:
+          type: string
+        event_id:
           type: string
         event_type:
           type: string
         status:
+          $ref: '#/components/schemas/WebhookStatus'
+        error:
           type: string
+          nullable: true
         payload:
           type: object
+          nullable: true
+        attempt_count:
+          type: integer
+        last_attempt_at:
+          type: string
+          format: date-time
+          nullable: true
+        next_attempt_at:
+          type: string
+          format: date-time
+          nullable: true
+        dead_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_code:
+          type: string
+          nullable: true
+        received_at:
+          type: string
+          format: date-time
+        processed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    TilledWebhookEvent:
+      type: object
+      required: [id, type, data, created_at]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        data:
+          type: object
+        created_at:
+          type: integer
+          format: int64
+          description: Unix timestamp
+        livemode:
+          type: boolean
+
     ReplayWebhookRequest:
       type: object
       properties:
         force:
           type: boolean
+
+    # -- Event --
     Event:
       type: object
-      required:
-      - id
-      - event_type
+      required: [id, app_id, event_type, source, created_at]
       properties:
         id:
+          type: integer
+        app_id:
           type: string
         event_type:
           type: string
-        data:
+        source:
+          type: string
+        entity_type:
+          type: string
+          nullable: true
+        entity_id:
+          type: string
+          nullable: true
+        payload:
           type: object
+          nullable: true
         created_at:
+          type: string
+          format: date-time
+
+    # -- Usage --
+    CaptureUsageRequest:
+      type: object
+      required:
+        - idempotency_key
+        - customer_id
+        - metric_name
+        - quantity
+        - unit
+        - unit_price_minor
+        - period_start
+        - period_end
+      properties:
+        idempotency_key:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+        metric_name:
+          type: string
+        quantity:
+          type: number
+          format: double
+        unit:
+          type: string
+        unit_price_minor:
+          type: integer
+          format: int64
+        period_start:
+          type: string
+          format: date-time
+        period_end:
+          type: string
+          format: date-time
+        subscription_id:
+          type: integer
+
+    UsageRecord:
+      type: object
+      required:
+        - id
+        - usage_uuid
+        - app_id
+        - customer_id
+        - metric_name
+        - quantity
+        - unit
+        - unit_price_cents
+        - period_start
+        - period_end
+        - recorded_at
+      properties:
+        id:
+          type: integer
+        usage_uuid:
+          type: string
+          format: uuid
+        idempotency_key:
+          type: string
+          format: uuid
+          nullable: true
+        app_id:
+          type: string
+        customer_id:
+          type: integer
+        metric_name:
+          type: string
+        quantity:
+          type: string
+          description: Numeric string (DECIMAL from Postgres)
+        unit:
+          type: string
+        unit_price_cents:
+          type: integer
+        period_start:
+          type: string
+          format: date-time
+        period_end:
+          type: string
+          format: date-time
+        recorded_at:
           type: string
           format: date-time
