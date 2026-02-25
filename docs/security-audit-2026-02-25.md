@@ -1,7 +1,7 @@
 # Security Audit Report — 2026-02-25 (Comprehensive)
 
 ## Executive Summary
-This report summarizes the findings of a full security audit across all 16 platform modules, core platform services, and frontend applications. The platform has strong authentication foundations (RS256 JWT, JWKS, Key Rotation). A systemic tenant isolation vulnerability (C1) was identified across multiple modules and has been **largely remediated** — 9 of 13 affected modules are now resolved. RBAC enforcement (H1) is **fully resolved** across all 7 affected modules. The CORS wildcard warning (M2) for pdf-editor is **resolved**.
+This report summarizes the findings of a full security audit across all 16 platform modules, core platform services, and frontend applications. The platform has strong authentication foundations (RS256 JWT, JWKS, Key Rotation). A systemic tenant isolation vulnerability (C1) was identified across multiple modules and has been **nearly fully remediated** — 12 of 13 affected modules are now resolved. RBAC enforcement (H1) is **fully resolved** across all 7 affected modules. The CORS wildcard warning (M2) for pdf-editor is **resolved**.
 
 ---
 
@@ -9,7 +9,7 @@ This report summarizes the findings of a full security audit across all 16 platf
 
 ### C1. Systemic Tenant Isolation Bypass (CRITICAL)
 **Severity: CRITICAL**
-**Status: PARTIALLY RESOLVED — 9/13 modules fixed, 4 in progress**
+**Status: PARTIALLY RESOLVED — 12/13 modules fixed, 1 in progress**
 
 Multiple modules derived the tenant or application identity (`tenant_id` / `app_id`) from client-supplied headers (`X-Tenant-Id`, `X-App-Id`), query parameters, or request bodies without verifying them against the authenticated JWT claims.
 
@@ -31,7 +31,10 @@ Multiple modules derived the tenant or application identity (`tenant_id` / `app_
 | Subscriptions | Client-supplied tenant in routes | RESOLVED | bd-2j5l |
 | Inventory | Query param `tenant_id` in `http/` handlers | RESOLVED | bd-30mj |
 | Fixed Assets | Path param `tenant_id` in `http/` handlers | IN PROGRESS | bd-24dc |
-| Maintenance, Payments, PDF-Editor, Reporting | Query/body `tenant_id` in handlers | IN PROGRESS | bd-1qme |
+| Maintenance | Query/body `tenant_id` in handlers | RESOLVED | bd-1qme |
+| Payments | Query/body `tenant_id` in handlers | RESOLVED | bd-1qme |
+| PDF-Editor | Query/body `tenant_id` in handlers | RESOLVED | bd-1qme |
+| Reporting | Query/body `tenant_id` in handlers | RESOLVED | bd-1qme |
 
 All resolved modules now derive identity exclusively from `VerifiedClaims` extracted from JWT claims.
 
@@ -104,14 +107,14 @@ The core identity service correctly implements RS256 signing, JWKS distribution,
 | 2026-02-25 | H1 fix: RBAC in Maintenance, Notifications, Payments | bd-f813 |
 | 2026-02-25 | M2 fix: CORS wildcard warning sweep (10 modules) | bd-kjgf |
 | 2026-02-25 | C1 fix: Fixed Assets — in progress | bd-24dc |
-| 2026-02-25 | C1 fix: Maintenance, Payments, PDF-Editor, Reporting — in progress | bd-1qme |
+| 2026-02-25 | C1 fix: Maintenance, Payments, PDF-Editor, Reporting tenant isolation | bd-1qme |
 
 ---
 
 ## Priority Action Items
 
-1. **[P0 — IN PROGRESS]** Complete C1 tenant isolation fixes for Fixed Assets (bd-24dc), Maintenance, Payments, PDF-Editor, Reporting (bd-1qme).
+1. **[P0 — IN PROGRESS]** Complete C1 tenant isolation fix for Fixed Assets (bd-24dc). All other modules resolved.
 2. **[P1 — PENDING]** Run verification sweep confirming all 18 modules derive tenant from VerifiedClaims (bd-ia5y).
 3. **[P1 — PENDING]** E2E test proving spoofed headers are ignored when JWT is present (bd-3mwl).
-4. **[P2 — PENDING]** Audit `platform/identity-auth` argon2 parameters against OWASP 2024 minimums (bd-1l2g).
+4. **[P2 — RESOLVED]** Audit `platform/identity-auth` argon2 parameters against OWASP 2024 minimums (bd-1l2g).
 5. **[P2 — OPEN]** Migrate service-to-service auth from symmetric HMAC to asymmetric RS256 (M1).
