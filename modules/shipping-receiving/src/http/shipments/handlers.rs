@@ -22,6 +22,7 @@ use super::types::{
     ListShipmentsQuery, ReceiveLineRequest, ShipLineQtyRequest, ShipmentLineRow,
     TransitionStatusRequest,
 };
+use crate::http::admin_types::ErrorBody;
 
 /// POST /api/shipping-receiving/shipments
 pub async fn create_shipment(
