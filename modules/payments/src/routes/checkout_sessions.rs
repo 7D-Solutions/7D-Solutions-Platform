@@ -16,8 +16,9 @@ use axum::{
     extract::{Path, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -120,12 +121,16 @@ fn validate_https_url(url: &str) -> bool {
 
 pub async fn create_checkout_session(
     State(state): State<Arc<crate::AppState>>,
-    Json(req): Json<CreateCheckoutSessionRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateCheckoutSessionRequest>,
 ) -> Result<Json<CreateCheckoutSessionResponse>, ApiError> {
-    if req.invoice_id.is_empty() || req.tenant_id.is_empty() || req.currency.is_empty() {
+    let tenant_id = extract_tenant(&claims)?;
+    req.tenant_id = tenant_id;
+
+    if req.invoice_id.is_empty() || req.currency.is_empty() {
         return Err(ApiError {
             status: StatusCode::BAD_REQUEST,
-            message: "invoice_id, tenant_id, and currency are required".to_string(),
+            message: "invoice_id and currency are required".to_string(),
         });
     }
     if req.amount <= 0 {
@@ -215,7 +220,10 @@ pub async fn create_checkout_session(
 pub async fn get_checkout_session(
     State(state): State<Arc<crate::AppState>>,
     Path(session_id): Path<Uuid>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> Result<Json<CheckoutSessionStatusResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+
     #[derive(sqlx::FromRow)]
     struct SessionRow {
         status: String,
@@ -232,9 +240,10 @@ pub async fn get_checkout_session(
     let row: Option<SessionRow> = sqlx::query_as(
         r#"SELECT status, processor_payment_id, invoice_id, tenant_id,
                   amount_minor, currency, client_secret, return_url, cancel_url
-           FROM checkout_sessions WHERE id = $1"#,
+           FROM checkout_sessions WHERE id = $1 AND tenant_id = $2"#,
     )
     .bind(session_id)
+    .bind(&tenant_id)
     .fetch_optional(&state.pool)
     .await
     .map_err(|e| ApiError {
@@ -246,14 +255,6 @@ pub async fn get_checkout_session(
         status: StatusCode::NOT_FOUND,
         message: format!("Checkout session not found: {}", session_id),
     })?;
-
-    // Tenant validation: session must belong to a real tenant
-    if session.tenant_id.is_empty() {
-        return Err(ApiError {
-            status: StatusCode::NOT_FOUND,
-            message: "Checkout session not found".to_string(),
-        });
-    }
 
     // For non-terminal sessions, poll Tilled for live status
     let is_non_terminal = matches!(session.status.as_str(), "created" | "presented");
@@ -307,13 +308,17 @@ pub async fn get_checkout_session(
 pub async fn present_checkout_session(
     State(state): State<Arc<crate::AppState>>,
     Path(session_id): Path<Uuid>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> Result<StatusCode, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+
     let rows = sqlx::query(
         "UPDATE checkout_sessions \
          SET status = 'presented', presented_at = NOW(), updated_at = NOW() \
-         WHERE id = $1 AND status = 'created'",
+         WHERE id = $1 AND status = 'created' AND tenant_id = $2",
     )
     .bind(session_id)
+    .bind(&tenant_id)
     .execute(&state.pool)
     .await
     .map_err(|e| ApiError {
@@ -325,9 +330,10 @@ pub async fn present_checkout_session(
     if rows == 0 {
         // 0 rows: either already in a later state (idempotent) or session not found
         let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM checkout_sessions WHERE id = $1)",
+            "SELECT EXISTS(SELECT 1 FROM checkout_sessions WHERE id = $1 AND tenant_id = $2)",
         )
         .bind(session_id)
+        .bind(&tenant_id)
         .fetch_one(&state.pool)
         .await
         .map_err(|e| ApiError {
@@ -357,10 +363,14 @@ pub async fn present_checkout_session(
 pub async fn poll_checkout_session_status(
     State(state): State<Arc<crate::AppState>>,
     Path(session_id): Path<Uuid>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> Result<Json<SessionStatusPollResponse>, ApiError> {
+    let tenant_id = extract_tenant(&claims)?;
+
     let status: Option<String> =
-        sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
+        sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1 AND tenant_id = $2")
             .bind(session_id)
+            .bind(&tenant_id)
             .fetch_optional(&state.pool)
             .await
             .map_err(|e| ApiError {
@@ -460,6 +470,22 @@ pub async fn tilled_webhook(
     );
 
     Ok(StatusCode::OK)
+}
+
+// ============================================================================
+// Auth helper
+// ============================================================================
+
+pub fn extract_tenant(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, ApiError> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err(ApiError {
+            status: StatusCode::UNAUTHORIZED,
+            message: "Missing or invalid authentication".to_string(),
+        }),
+    }
 }
 
 // ============================================================================

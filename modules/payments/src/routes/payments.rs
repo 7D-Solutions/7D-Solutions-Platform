@@ -7,20 +7,21 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
 use projections::{
     cursor::ProjectionCursor, CircuitBreaker, FallbackMetrics, FallbackPolicy,
 };
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::routes::checkout_sessions::extract_tenant;
+
 /// Query parameters for payment endpoint
 #[derive(Debug, Deserialize)]
 pub struct PaymentQuery {
-    /// Tenant identifier
-    pub tenant_id: String,
     /// Payment ID
     pub payment_id: Uuid,
 }
@@ -61,8 +62,14 @@ pub struct ErrorResponse {
 /// This prevents cascading failures when projections fall behind.
 pub async fn get_payment(
     State(app_state): State<Arc<crate::AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<PaymentQuery>,
 ) -> Result<Json<PaymentResponse>, PaymentErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|_| PaymentErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: "Missing or invalid authentication".to_string(),
+    })?;
+
     // In production, these would be stored in AppState
     let policy = FallbackPolicy::new(5000, 200); // 5s staleness, 200ms budget
     let metrics = FallbackMetrics::default();
@@ -72,7 +79,7 @@ pub async fn get_payment(
     let cursor = ProjectionCursor::load(
         &app_state.pool,
         "payment_projection",
-        &params.tenant_id,
+        &tenant_id,
     )
     .await
     .map_err(|e| PaymentErrorResponse {
@@ -93,8 +100,8 @@ pub async fn get_payment(
                 &metrics,
                 &circuit,
                 "payment_projection",
-                &params.tenant_id,
-                query_write_service(params.payment_id, params.tenant_id.clone()),
+                &tenant_id,
+                query_write_service(params.payment_id, tenant_id.clone()),
             )
             .await
         {
@@ -113,7 +120,7 @@ pub async fn get_payment(
     }
 
     // Query projection normally (fast path or fallback failed)
-    let payment = query_projection(&app_state.pool, &params.tenant_id, params.payment_id)
+    let payment = query_projection(&app_state.pool, &tenant_id, params.payment_id)
         .await
         .map_err(|e| PaymentErrorResponse {
             status: StatusCode::INTERNAL_SERVER_ERROR,

@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.1.6 | 2026-02-25 | bd-1qme | Replaced client-supplied `tenant_id` with JWT `VerifiedClaims` extraction in all checkout session handlers (`create`, `get`, `present`, `poll_status`) and `get_payment`. All SQL queries now scope by tenant_id from JWT. Added `extract_tenant` helper. Removed `tenant_id` from `PaymentQuery` query params. | Security audit C1: client-supplied tenant_id allows cross-tenant data access. Tenant must always come from verified JWT claims. | No |
 | 1.1.5 | 2026-02-25 | bd-f813 | Added `RequirePermissionsLayer` with `PAYMENTS_MUTATE` permission to all mutation routes (checkout-session and admin endpoints). Webhook endpoint remains ungated. Moved mutation routes into a merged sub-router with `route_layer`. | Security audit H1: mutation routes lacked RBAC enforcement, allowing any authenticated user to perform writes. | No |
 | 1.1.4 | 2026-02-25 | bd-5r2t | [PLACEHOLDER] | Internal update. | No |
 | 1.1.3 | 2026-02-24 | bd-smuk | Added a `tracing::warn!()` at startup if `CORS_ORIGINS` is set to wildcard (`*`) and the environment (`ENV`) is not `development`. Added `env` field to `Config`. | Security audit: production should never run with wildcard CORS origins even if risk is low. | No |
