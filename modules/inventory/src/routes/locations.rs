@@ -6,14 +6,16 @@
 //!   PUT   /api/inventory/locations/:id              — update location
 //!   POST  /api/inventory/locations/:id/deactivate   — soft-delete location
 //!   GET   /api/inventory/warehouses/:wid/locations  — list by warehouse
+//!
+//! Tenant identity derived from JWT `VerifiedClaims`.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
-use serde::Deserialize;
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -64,48 +66,53 @@ fn location_error_response(err: LocationError) -> impl IntoResponse {
 }
 
 // ============================================================================
-// Query params
-// ============================================================================
-
-#[derive(Deserialize)]
-pub struct TenantQuery {
-    pub tenant_id: String,
-}
-
-#[derive(Deserialize)]
-pub struct WarehouseQuery {
-    pub tenant_id: String,
-}
-
-// ============================================================================
 // Handlers
 // ============================================================================
 
 /// POST /api/inventory/locations
+///
+/// Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
 pub async fn create_location(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateLocationRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateLocationRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match LocationRepo::create(&state.pool, &req).await {
         Ok(loc) => (StatusCode::CREATED, Json(json!(loc))).into_response(),
         Err(e) => location_error_response(e).into_response(),
     }
 }
 
-/// GET /api/inventory/locations/:id?tenant_id=...
+/// GET /api/inventory/locations/:id
+///
+/// Tenant derived from JWT VerifiedClaims.
 pub async fn get_location(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
-    match LocationRepo::find_by_id(&state.pool, id, &q.tenant_id).await {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    match LocationRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(loc)) => (StatusCode::OK, Json(json!(loc))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -117,11 +124,25 @@ pub async fn get_location(
 }
 
 /// PUT /api/inventory/locations/:id
+///
+/// Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
 pub async fn update_location(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Json(req): Json<UpdateLocationRequest>,
+    Json(mut req): Json<UpdateLocationRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match LocationRepo::update(&state.pool, id, &req).await {
         Ok(loc) => (StatusCode::OK, Json(json!(loc))).into_response(),
         Err(e) => location_error_response(e).into_response(),
@@ -129,17 +150,19 @@ pub async fn update_location(
 }
 
 /// POST /api/inventory/locations/:id/deactivate
+///
+/// Tenant derived from JWT VerifiedClaims.
 pub async fn deactivate_location(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Json(body): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    let tenant_id = match body.get("tenant_id").and_then(|v| v.as_str()) {
-        Some(t) if !t.trim().is_empty() => t.to_string(),
-        _ => {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
             return (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
             )
                 .into_response();
         }
@@ -150,20 +173,25 @@ pub async fn deactivate_location(
     }
 }
 
-/// GET /api/inventory/warehouses/:warehouse_id/locations?tenant_id=...
+/// GET /api/inventory/warehouses/:warehouse_id/locations
+///
+/// Tenant derived from JWT VerifiedClaims.
 pub async fn list_locations(
     State(state): State<Arc<AppState>>,
     Path(warehouse_id): Path<Uuid>,
-    Query(q): Query<WarehouseQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
-    match LocationRepo::list_for_warehouse(&state.pool, &q.tenant_id, warehouse_id).await {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    match LocationRepo::list_for_warehouse(&state.pool, &tenant_id, warehouse_id).await {
         Ok(locs) => (StatusCode::OK, Json(json!(locs))).into_response(),
         Err(e) => location_error_response(e).into_response(),
     }

@@ -2,17 +2,19 @@
 //!
 //! Endpoints:
 //!   POST /api/inventory/uoms                             — create UoM
-//!   GET  /api/inventory/uoms?tenant_id=...              — list UoMs for tenant
+//!   GET  /api/inventory/uoms                             — list UoMs for tenant
 //!   POST /api/inventory/items/:id/uom-conversions       — add conversion
-//!   GET  /api/inventory/items/:id/uom-conversions?...   — list conversions
+//!   GET  /api/inventory/items/:id/uom-conversions       — list conversions
+//!
+//! Tenant identity derived from JWT `VerifiedClaims`.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
-use serde::Deserialize;
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -68,41 +70,55 @@ fn uom_error_response(err: UomError) -> impl IntoResponse {
 }
 
 // ============================================================================
-// Query params
-// ============================================================================
-
-#[derive(Deserialize)]
-pub struct TenantQuery {
-    pub tenant_id: String,
-}
-
-// ============================================================================
 // Handlers
 // ============================================================================
 
 /// POST /api/inventory/uoms
 ///
-/// Create a new unit of measure for the tenant.
+/// Create a new unit of measure. Tenant derived from JWT VerifiedClaims — body tenant_id
+/// is overridden.
 /// Returns 201 Created with the UoM, 409 Conflict if code already exists,
 /// 422 on validation failure.
 pub async fn create_uom(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateUomRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateUomRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match UomRepo::create(&state.pool, &req).await {
         Ok(uom) => (StatusCode::CREATED, Json(json!(uom))).into_response(),
         Err(e) => uom_error_response(e).into_response(),
     }
 }
 
-/// GET /api/inventory/uoms?tenant_id=...
+/// GET /api/inventory/uoms
 ///
-/// List all UoMs for a tenant, ordered by code.
+/// List all UoMs for the tenant (from JWT), ordered by code.
 pub async fn list_uoms(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match UomRepo::list_for_tenant(&state.pool, &q.tenant_id).await {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    match UomRepo::list_for_tenant(&state.pool, &tenant_id).await {
         Ok(uoms) => (StatusCode::OK, Json(json!(uoms))).into_response(),
         Err(e) => uom_error_response(e).into_response(),
     }
@@ -110,28 +126,51 @@ pub async fn list_uoms(
 
 /// POST /api/inventory/items/:id/uom-conversions
 ///
-/// Add a directional conversion factor for an item.
+/// Add a directional conversion factor for an item. Tenant derived from JWT VerifiedClaims —
+/// body tenant_id is overridden.
 /// Returns 201 Created, 409 if direction already defined, 422 on validation failure.
 pub async fn create_conversion(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(item_id): Path<Uuid>,
-    Json(req): Json<CreateConversionRequest>,
+    Json(mut req): Json<CreateConversionRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match ConversionRepo::create(&state.pool, item_id, &req).await {
         Ok(conv) => (StatusCode::CREATED, Json(json!(conv))).into_response(),
         Err(e) => uom_error_response(e).into_response(),
     }
 }
 
-/// GET /api/inventory/items/:id/uom-conversions?tenant_id=...
+/// GET /api/inventory/items/:id/uom-conversions
 ///
-/// List all UoM conversions defined for an item.
+/// List all UoM conversions defined for an item. Tenant from JWT.
 pub async fn list_conversions(
     State(state): State<Arc<AppState>>,
     Path(item_id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match ConversionRepo::list_for_item(&state.pool, item_id, &q.tenant_id).await {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    match ConversionRepo::list_for_item(&state.pool, item_id, &tenant_id).await {
         Ok(convs) => (StatusCode::OK, Json(json!(convs))).into_response(),
         Err(e) => uom_error_response(e).into_response(),
     }

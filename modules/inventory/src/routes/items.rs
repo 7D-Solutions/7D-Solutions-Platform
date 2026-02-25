@@ -2,17 +2,19 @@
 //!
 //! Endpoints:
 //!   POST  /api/inventory/items            — create item
-//!   GET   /api/inventory/items/:id        — get item (includes tracking_mode)
+//!   GET   /api/inventory/items/:id        — get item
 //!   PUT   /api/inventory/items/:id        — update item
 //!   POST  /api/inventory/items/:id/deactivate — soft-delete item
+//!
+//! Tenant identity derived from JWT `VerifiedClaims`.
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
-use serde::Deserialize;
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -21,11 +23,6 @@ use crate::{
     domain::items::{CreateItemRequest, ItemError, ItemRepo, UpdateItemRequest},
     AppState,
 };
-
-#[derive(Debug, Deserialize)]
-pub struct TenantQuery {
-    pub tenant_id: String,
-}
 
 // ============================================================================
 // Error mapping
@@ -64,37 +61,54 @@ fn item_error_response(err: ItemError) -> impl IntoResponse {
 
 /// POST /api/inventory/items
 ///
-/// Create a new item. Returns 201 Created with the item on success,
+/// Create a new item. Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
+/// Returns 201 Created with the item on success,
 /// 409 Conflict if the SKU already exists for the tenant,
 /// 422 Unprocessable Entity on validation failure.
 pub async fn create_item(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateItemRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateItemRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match ItemRepo::create(&state.pool, &req).await {
         Ok(item) => (StatusCode::CREATED, Json(json!(item))).into_response(),
         Err(e) => item_error_response(e).into_response(),
     }
 }
 
-/// GET /api/inventory/items/:id?tenant_id=...
+/// GET /api/inventory/items/:id
 ///
-/// Fetch an item by id scoped to tenant. Returns 200 OK with full item
-/// (including tracking_mode) on success, 404 Not Found if not found.
+/// Fetch an item by id scoped to tenant (from JWT).
+/// Returns 200 OK with full item (including tracking_mode) on success,
+/// 404 Not Found if not found.
 pub async fn get_item(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    Query(query): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    if query.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
 
-    match ItemRepo::find_by_id(&state.pool, id, &query.tenant_id).await {
+    match ItemRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(item)) => (StatusCode::OK, Json(json!(item))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -107,14 +121,27 @@ pub async fn get_item(
 
 /// PUT /api/inventory/items/:id
 ///
-/// Update mutable fields. Returns 200 OK with updated item on success,
+/// Update mutable fields. Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
+/// Returns 200 OK with updated item on success,
 /// 404 Not Found if item doesn't exist for tenant,
 /// 422 on validation failure.
 pub async fn update_item(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Json(req): Json<UpdateItemRequest>,
+    Json(mut req): Json<UpdateItemRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match ItemRepo::update(&state.pool, id, &req).await {
         Ok(item) => (StatusCode::OK, Json(json!(item))).into_response(),
         Err(e) => item_error_response(e).into_response(),
@@ -123,19 +150,19 @@ pub async fn update_item(
 
 /// POST /api/inventory/items/:id/deactivate
 ///
-/// Soft-delete an item. Idempotent — already-inactive items return 200.
-/// Body must contain `tenant_id` for cross-tenant safety.
+/// Soft-delete an item. Tenant derived from JWT VerifiedClaims.
+/// Idempotent — already-inactive items return 200.
 pub async fn deactivate_item(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
-    Json(body): Json<serde_json::Value>,
 ) -> impl IntoResponse {
-    let tenant_id = match body.get("tenant_id").and_then(|v| v.as_str()) {
-        Some(t) if !t.trim().is_empty() => t.to_string(),
-        _ => {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
             return (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
             )
                 .into_response();
         }
