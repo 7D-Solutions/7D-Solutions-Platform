@@ -222,21 +222,22 @@ This registry declares the single source of truth for each domain concept in the
 **Domain Ownership**:
 - **Items** (`items`) - Item master data, tracking mode (none/lot/serial)
 - **Inventory Ledger** (`inventory_ledger`) - Transaction journal (receipts, issues, adjustments, transfers)
-- **FIFO Layers** (`fifo_layers`) - Cost layer tracking for FIFO valuation
+- **FIFO Layers** (`inventory_layers`) - Cost layer tracking for FIFO valuation
+- **Layer Consumptions** (`layer_consumptions`) - FIFO consumption audit trail
 - **Reservations** (`inventory_reservations`) - Stock reservations against orders
-- **On-Hand Projection** (`item_on_hand_projection`) - Materialized on-hand quantities
-- **UOMs** (`uoms`) - Unit of measure definitions
+- **On-Hand Projection** (`item_on_hand`) - Materialized on-hand quantities
+- **Status-Bucketed On-Hand** (`item_on_hand_by_status`) - Per-status quantity breakdown
+- **UOMs** (`uoms`, `item_uom_conversions`) - Unit of measure definitions and conversions
 - **Lots** (`inventory_lots`) - Lot/batch tracking
 - **Serial Instances** (`inventory_serial_instances`) - Individual serial number tracking
-- **Status Buckets** (`status_buckets`) - Quality/hold status categories
 - **Locations** (`locations`) - Warehouse/bin locations
-- **Status Transfers** (`status_transfers`) - Quality status transitions
-- **Adjustments** (`adjustments`) - Inventory count adjustments
-- **Cycle Counts** (`cycle_count_*`) - Cycle count headers, lines, approvals
+- **Status Transfers** (`inv_status_transfers`) - Quality status transitions
+- **Adjustments** (`inv_adjustments`) - Inventory count adjustments
+- **Cycle Counts** (`cycle_count_tasks`, `cycle_count_lines`) - Cycle count headers and lines
 - **Transfers** (`inv_transfers`) - Inter-location stock transfers
 - **Reorder Policies** (`reorder_policies`) - Min/max and reorder point rules
-- **Valuation Snapshots** (`valuation_snapshots`) - Point-in-time inventory valuation
-- **Low Stock State** (`low_stock_state`) - Low stock detection state
+- **Valuation Snapshots** (`inventory_valuation_snapshots`, `inventory_valuation_lines`) - Point-in-time inventory valuation
+- **Low Stock State** (`inv_low_stock_state`) - Low stock detection state
 
 **Domain Responsibilities**:
 - Item master management
@@ -261,10 +262,10 @@ This registry declares the single source of truth for each domain concept in the
 **Port**: `8098`
 
 **Domain Ownership**:
-- **Parties** (`parties`) - Organizations and individuals (customers, vendors, carriers, employees)
+- **Parties** (`party_parties`, `party_companies`, `party_individuals`) - Organizations and individuals with typed extensions
 - **Party External Refs** (`party_external_refs`) - External system cross-references
-- **Contacts** (`contacts`) - Contact persons linked to parties
-- **Addresses** (`addresses`) - Physical/mailing addresses linked to parties
+- **Contacts** (`party_contacts`) - Contact persons linked to parties
+- **Addresses** (`party_addresses`) - Physical/mailing addresses linked to parties
 
 **Domain Responsibilities**:
 - Canonical identity registry for all external entities
