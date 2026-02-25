@@ -13,6 +13,8 @@ use axum::{
 };
 use projections::admin;
 use sqlx::PgPool;
+use std::sync::Arc;
+use crate::AppState;
 
 fn extract_token(headers: &HeaderMap) -> Option<&str> {
     headers
@@ -28,45 +30,45 @@ fn guard(headers: &HeaderMap) -> Result<(), (StatusCode, String)> {
 }
 
 async fn projection_status(
-    State(pool): State<PgPool>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(req): Json<admin::ProjectionStatusRequest>,
 ) -> Result<Json<admin::ProjectionStatusResponse>, (StatusCode, String)> {
     guard(&headers)?;
     tracing::info!(projection = %req.projection_name, "admin: projection-status");
-    let resp = admin::query_projection_status(&pool, &req)
+    let resp = admin::query_projection_status(&state.pool, &req)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     Ok(Json(resp))
 }
 
 async fn consistency_check(
-    State(pool): State<PgPool>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(req): Json<admin::ConsistencyCheckRequest>,
 ) -> Result<Json<admin::ConsistencyCheckResponse>, (StatusCode, String)> {
     guard(&headers)?;
     tracing::info!(projection = %req.projection_name, "admin: consistency-check");
-    let resp = admin::query_consistency_check(&pool, &req)
+    let resp = admin::query_consistency_check(&state.pool, &req)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     Ok(Json(resp))
 }
 
 async fn list_projections(
-    State(pool): State<PgPool>,
+    State(state): State<Arc<AppState>>,
     headers: HeaderMap,
 ) -> Result<Json<admin::ProjectionListResponse>, (StatusCode, String)> {
     guard(&headers)?;
     tracing::info!("admin: list projections");
-    let resp = admin::query_projection_list(&pool)
+    let resp = admin::query_projection_list(&state.pool)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     Ok(Json(resp))
 }
 
-/// Build the admin sub-router (state = PgPool).
-pub fn admin_router(pool: PgPool) -> Router {
+/// Build the admin sub-router (state = Arc<AppState>).
+pub fn admin_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
     Router::new()
         .route(
             "/api/payments/admin/projection-status",
@@ -77,7 +79,7 @@ pub fn admin_router(pool: PgPool) -> Router {
             post(consistency_check),
         )
         .route("/api/payments/admin/projections", get(list_projections))
-        .with_state(pool)
+        .with_state(state)
 }
 
 #[cfg(test)]
@@ -87,6 +89,13 @@ mod tests {
     #[tokio::test]
     async fn test_admin_router_builds() {
         let pool = PgPool::connect_lazy("postgres://localhost/fake").unwrap();
-        let _router = admin_router(pool);
+        let state = Arc::new(AppState {
+            pool,
+            tilled_api_key: None,
+            tilled_account_id: None,
+            tilled_webhook_secret: None,
+            tilled_webhook_secret_prev: None,
+        });
+        let _router = admin_router(state);
     }
 }

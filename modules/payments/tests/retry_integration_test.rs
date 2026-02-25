@@ -15,7 +15,7 @@ use uuid::Uuid;
 // Test helper to create a test database pool
 async fn setup_test_pool() -> PgPool {
     let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://postgres:postgres@localhost:5434/payments_test".to_string()
+        "postgres://payments_user:payments_pass@localhost:5436/payments_db".to_string()
     });
 
     let pool = sqlx::PgPool::connect(&database_url)

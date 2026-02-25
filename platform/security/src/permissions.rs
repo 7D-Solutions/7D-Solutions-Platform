@@ -32,6 +32,11 @@ pub const GL_READ: &str = "gl.read";
 
 pub const NOTIFICATIONS_MUTATE: &str = "notifications.mutate";
 
+// ── Maintenance ───────────────────────────────────────────────────────────────
+
+pub const MAINTENANCE_MUTATE: &str = "maintenance.mutate";
+pub const MAINTENANCE_READ: &str = "maintenance.read";
+
 // ── Inventory ─────────────────────────────────────────────────────────────────
 
 pub const INVENTORY_MUTATE: &str = "inventory.mutate";
@@ -182,6 +187,7 @@ mod tests {
             SUBSCRIPTIONS_MUTATE,
             GL_POST,
             NOTIFICATIONS_MUTATE,
+            MAINTENANCE_MUTATE,
             INVENTORY_MUTATE,
             REPORTING_MUTATE,
             TREASURY_MUTATE,
@@ -208,6 +214,7 @@ mod tests {
         assert_ne!(AR_MUTATE, AR_READ);
         assert_ne!(PAYMENTS_MUTATE, PAYMENTS_READ);
         assert_ne!(GL_POST, GL_READ);
+        assert_ne!(MAINTENANCE_MUTATE, MAINTENANCE_READ);
         assert_ne!(INVENTORY_MUTATE, INVENTORY_READ);
         assert_ne!(TREASURY_MUTATE, TREASURY_READ);
         assert_ne!(AP_MUTATE, AP_READ);
