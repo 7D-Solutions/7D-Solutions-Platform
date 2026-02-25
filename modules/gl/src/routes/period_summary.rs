@@ -6,20 +6,20 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::services::period_summary_service::{self, PeriodSummaryResponse};
+use super::auth::extract_tenant;
 
 /// Query parameters for period summary endpoint
 #[derive(Debug, Deserialize)]
 pub struct PeriodSummaryQuery {
-    /// Tenant identifier
-    pub tenant_id: String,
     /// Optional currency filter (e.g., "USD", "EUR")
     pub currency: Option<String>,
 }
@@ -34,15 +34,22 @@ pub struct ErrorResponse {
 ///
 /// Returns period summary for a tenant and period with optional currency filter.
 /// Prefers precomputed snapshot if present, otherwise computes from account_balances.
+/// Tenant identity is derived from JWT claims (VerifiedClaims).
 pub async fn get_period_summary(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(period_id): Path<Uuid>,
     Query(params): Query<PeriodSummaryQuery>,
 ) -> Result<Json<PeriodSummaryResponse>, PeriodSummaryErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodSummaryErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     // Query period summary (service layer handles snapshot vs computed logic)
     let response = period_summary_service::get_period_summary(
         &app_state.pool,
-        &params.tenant_id,
+        &tenant_id,
         period_id,
         params.currency.as_deref(),
     )

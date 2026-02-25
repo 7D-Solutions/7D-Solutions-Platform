@@ -12,9 +12,10 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -27,6 +28,7 @@ use crate::revrec::{
     PerformanceObligation, RecognitionPattern,
 };
 use crate::AppState;
+use super::auth::extract_tenant;
 
 // ============================================================================
 // Request / Response types
@@ -35,7 +37,6 @@ use crate::AppState;
 #[derive(Debug, Deserialize)]
 pub struct CreateContractRequest {
     pub contract_id: Uuid,
-    pub tenant_id: String,
     pub customer_id: String,
     pub contract_name: String,
     pub contract_start: String,
@@ -147,14 +148,20 @@ fn map_schedule_build_error(err: ScheduleBuildError) -> Response {
 /// Idempotent: returns 409 CONFLICT if contract_id already exists.
 pub async fn create_contract(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(request): Json<CreateContractRequest>,
 ) -> Result<(StatusCode, Json<CreateContractResponse>), Response> {
+    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
+        let body = Json(ErrorResponse { error: msg });
+        (status, body).into_response()
+    })?;
+
     let event_id = Uuid::new_v4();
     let now = Utc::now();
 
     let payload = ContractCreatedPayload {
         contract_id: request.contract_id,
-        tenant_id: request.tenant_id.clone(),
+        tenant_id: tenant_id.clone(),
         customer_id: request.customer_id.clone(),
         contract_name: request.contract_name.clone(),
         contract_start: request.contract_start.clone(),
@@ -176,7 +183,7 @@ pub async fn create_contract(
         StatusCode::CREATED,
         Json(CreateContractResponse {
             contract_id: request.contract_id,
-            tenant_id: request.tenant_id,
+            tenant_id,
             obligations_count,
             total_transaction_price_minor: request.total_transaction_price_minor,
             created_at: now,
@@ -192,7 +199,6 @@ pub async fn create_contract(
 pub struct GenerateScheduleRequest {
     pub contract_id: Uuid,
     pub obligation_id: Uuid,
-    pub tenant_id: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -218,8 +224,13 @@ pub struct GenerateScheduleResponse {
 /// linked to the previous schedule.
 pub async fn generate_schedule_handler(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(request): Json<GenerateScheduleRequest>,
 ) -> Result<(StatusCode, Json<GenerateScheduleResponse>), Response> {
+    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
+        let body = Json(ErrorResponse { error: msg });
+        (status, body).into_response()
+    })?;
     // Fetch obligation from DB
     let obligations = revrec_repo::get_obligations(&app_state.pool, request.contract_id)
         .await
@@ -273,7 +284,7 @@ pub async fn generate_schedule_handler(
         schedule_id,
         request.contract_id,
         &obligation,
-        &request.tenant_id,
+        &tenant_id,
         &contract.currency,
         now,
     )
@@ -317,7 +328,6 @@ pub async fn generate_schedule_handler(
 
 #[derive(Debug, Deserialize)]
 pub struct RecognitionRunRequest {
-    pub tenant_id: String,
     /// Target accounting period (YYYY-MM)
     pub period: String,
     /// Posting date for GL journal entries (YYYY-MM-DD)
@@ -371,11 +381,17 @@ fn map_recognition_run_error(err: RecognitionRunError) -> Response {
 /// Idempotent: re-running for the same period skips already-recognized lines.
 pub async fn run_recognition_handler(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(request): Json<RecognitionRunRequest>,
 ) -> Result<(StatusCode, Json<RecognitionRunResponse>), Response> {
+    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
+        let body = Json(ErrorResponse { error: msg });
+        (status, body).into_response()
+    })?;
+
     let result = recognition_run::run_recognition(
         &app_state.pool,
-        &request.tenant_id,
+        &tenant_id,
         &request.period,
         &request.posting_date,
     )
@@ -432,8 +448,16 @@ pub struct AmendContractResponse {
 /// Returns 201 on success, 409 if modification_id already exists.
 pub async fn amend_contract(
     State(app_state): State<Arc<AppState>>,
-    Json(payload): Json<ContractModifiedPayload>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut payload): Json<ContractModifiedPayload>,
 ) -> Result<(StatusCode, Json<AmendContractResponse>), Response> {
+    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
+        let body = Json(ErrorResponse { error: msg });
+        (status, body).into_response()
+    })?;
+    // Override client-supplied tenant_id with JWT claims
+    payload.tenant_id = tenant_id;
+
     let event_id = Uuid::new_v4();
     let modification_id = payload.modification_id;
     let contract_id = payload.contract_id;

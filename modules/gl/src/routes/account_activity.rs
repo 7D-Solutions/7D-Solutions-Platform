@@ -6,21 +6,21 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
 use chrono::{DateTime, Utc};
+use security::VerifiedClaims;
 use serde::Deserialize;
 use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::services::account_activity_service::{self, AccountActivityResponse};
+use super::auth::extract_tenant;
 
 /// Query parameters for account activity endpoint
 #[derive(Debug, Deserialize)]
 pub struct AccountActivityQuery {
-    /// Tenant identifier
-    pub tenant_id: String,
     /// Optional accounting period UUID (required if start_date/end_date not provided)
     pub period_id: Option<Uuid>,
     /// Optional start date (ISO 8601, required if period_id not provided)
@@ -56,7 +56,6 @@ pub struct ErrorResponse {
 /// - `account_code` (required): Chart of Accounts code (e.g., "1000")
 ///
 /// # Query Parameters
-/// - `tenant_id` (required): Tenant identifier
 /// - `period_id` (optional): Accounting period UUID (mutually exclusive with date range)
 /// - `start_date` (optional): Start date (ISO 8601, required if no period_id)
 /// - `end_date` (optional): End date (ISO 8601, required if no period_id)
@@ -64,19 +63,27 @@ pub struct ErrorResponse {
 /// - `limit` (optional): Page size (1-100, default 50)
 /// - `offset` (optional): Pagination offset (default 0)
 ///
+/// Tenant identity is derived from JWT claims (VerifiedClaims).
+///
 /// # Example
 /// ```text
-/// GET /api/gl/accounts/1000/activity?tenant_id=tenant_123&period_id=uuid&limit=20&offset=0
+/// GET /api/gl/accounts/1000/activity?period_id=uuid&limit=20&offset=0
 /// ```
 pub async fn get_account_activity(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(account_code): Path<String>,
     Query(params): Query<AccountActivityQuery>,
 ) -> Result<Json<AccountActivityResponse>, AccountActivityErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| AccountActivityErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     // Call service layer
     let response = account_activity_service::get_account_activity(
         &app_state.pool,
-        &params.tenant_id,
+        &tenant_id,
         &account_code,
         params.period_id,
         params.start_date,

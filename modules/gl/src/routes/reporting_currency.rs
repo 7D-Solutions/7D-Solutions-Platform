@@ -12,13 +12,15 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::AppState;
+use super::auth::extract_tenant;
 use crate::services::balance_sheet_service::{self, BalanceSheetResponse};
 use crate::services::income_statement_service::{self, IncomeStatementResponse};
 use crate::services::trial_balance_service::{self, TrialBalanceResponse};
@@ -29,7 +31,6 @@ use crate::services::trial_balance_service::{self, TrialBalanceResponse};
 /// The response contains only stored amounts in this currency — no live FX conversion.
 #[derive(Debug, Deserialize)]
 pub struct ReportingCurrencyQuery {
-    pub tenant_id: String,
     pub period_id: Uuid,
     pub reporting_currency: String,
 }
@@ -101,13 +102,19 @@ fn validate_reporting_currency(currency: &str) -> Result<(), ReportingErrorRespo
 /// + realized FX gain/loss + unrealized FX revaluation). No live conversion.
 pub async fn get_reporting_trial_balance(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<ReportingCurrencyQuery>,
 ) -> Result<Json<ReportingTrialBalanceResponse>, ReportingErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| ReportingErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     validate_reporting_currency(&params.reporting_currency)?;
 
     let statement = trial_balance_service::get_trial_balance(
         &app_state.pool,
-        &params.tenant_id,
+        &tenant_id,
         params.period_id,
         &params.reporting_currency,
     )
@@ -141,13 +148,19 @@ pub async fn get_reporting_trial_balance(
 /// Includes FX gain/loss accounts from revaluation and realized settlement.
 pub async fn get_reporting_income_statement(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<ReportingCurrencyQuery>,
 ) -> Result<Json<ReportingIncomeStatementResponse>, ReportingErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| ReportingErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     validate_reporting_currency(&params.reporting_currency)?;
 
     let statement = income_statement_service::get_income_statement(
         &app_state.pool,
-        &params.tenant_id,
+        &tenant_id,
         params.period_id,
         &params.reporting_currency,
     )
@@ -184,13 +197,19 @@ pub async fn get_reporting_income_statement(
 /// and unrealized revaluation from period close.
 pub async fn get_reporting_balance_sheet(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<ReportingCurrencyQuery>,
 ) -> Result<Json<ReportingBalanceSheetResponse>, ReportingErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| ReportingErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     validate_reporting_currency(&params.reporting_currency)?;
 
     let statement = balance_sheet_service::get_balance_sheet(
         &app_state.pool,
-        &params.tenant_id,
+        &tenant_id,
         params.period_id,
         &params.reporting_currency,
     )

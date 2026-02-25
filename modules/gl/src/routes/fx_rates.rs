@@ -2,15 +2,17 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
 use chrono::{DateTime, Utc};
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::services::fx_rate_service;
 use crate::AppState;
+use super::auth::extract_tenant;
 
 // ============================================================================
 // Request / Response types
@@ -18,7 +20,6 @@ use crate::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateFxRateRequest {
-    pub tenant_id: String,
     pub base_currency: String,
     pub quote_currency: String,
     pub rate: f64,
@@ -35,7 +36,6 @@ pub struct CreateFxRateResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct LatestRateQuery {
-    pub tenant_id: String,
     pub base_currency: String,
     pub quote_currency: String,
     pub as_of: Option<DateTime<Utc>>,
@@ -68,10 +68,16 @@ pub struct ErrorResponse {
 /// Create a new FX rate. Duplicate idempotency_key returns 200 with created=false.
 pub async fn create_fx_rate(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateFxRateRequest>,
 ) -> Result<Json<CreateFxRateResponse>, FxRateErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| FxRateErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     let svc_req = fx_rate_service::CreateFxRateRequest {
-        tenant_id: req.tenant_id,
+        tenant_id,
         base_currency: req.base_currency.to_uppercase(),
         quote_currency: req.quote_currency.to_uppercase(),
         rate: req.rate,
@@ -98,13 +104,19 @@ pub async fn create_fx_rate(
 /// Returns the latest rate for a currency pair as-of a given time (default: now).
 pub async fn get_latest_rate(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<LatestRateQuery>,
 ) -> Result<Json<FxRateResponse>, FxRateErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| FxRateErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     let as_of = params.as_of.unwrap_or_else(Utc::now);
 
     let rate = fx_rate_service::get_latest_rate(
         &app_state.pool,
-        &params.tenant_id,
+        &tenant_id,
         &params.base_currency.to_uppercase(),
         &params.quote_currency.to_uppercase(),
         as_of,

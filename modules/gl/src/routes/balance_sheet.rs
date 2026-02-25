@@ -6,20 +6,20 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::services::balance_sheet_service::{self, BalanceSheetResponse};
+use super::auth::extract_tenant;
 
 /// Query parameters for balance sheet endpoint
 #[derive(Debug, Deserialize)]
 pub struct BalanceSheetQuery {
-    /// Tenant identifier
-    pub tenant_id: String,
     /// Accounting period ID
     pub period_id: Uuid,
     /// Currency code (ISO 4217, required) - e.g., "USD", "EUR"
@@ -35,14 +35,21 @@ pub struct ErrorResponse {
 /// Handler for GET /api/gl/balance-sheet
 ///
 /// Returns balance sheet for a tenant and period with required currency.
+/// Tenant identity is derived from JWT claims (VerifiedClaims).
 pub async fn get_balance_sheet(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<BalanceSheetQuery>,
 ) -> Result<Json<BalanceSheetResponse>, BalanceSheetErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| BalanceSheetErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     // Query balance sheet (service layer handles all transformation and totals calculation)
     let response = balance_sheet_service::get_balance_sheet(
         &app_state.pool,
-        &params.tenant_id,
+        &tenant_id,
         params.period_id,
         &params.currency,
     )

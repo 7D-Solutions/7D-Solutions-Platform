@@ -10,19 +10,20 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::services::cashflow_service::{self, CashFlowResponse};
 use crate::AppState;
+use super::auth::extract_tenant;
 
 /// Query parameters for the cash flow endpoint.
 #[derive(Debug, Deserialize)]
 pub struct CashFlowQuery {
-    pub tenant_id: String,
     pub period_id: Uuid,
     pub currency: String,
     /// Comma-separated list of account codes designated as cash accounts
@@ -57,8 +58,14 @@ impl IntoResponse for CashFlowErrorResponse {
 /// Includes reconciliation: net cash flow should equal cash account net change.
 pub async fn get_cash_flow(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<CashFlowQuery>,
 ) -> Result<Json<CashFlowResponse>, CashFlowErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| CashFlowErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     // Validate currency format
     if params.currency.len() != 3 || !params.currency.chars().all(|c| c.is_ascii_uppercase()) {
         return Err(CashFlowErrorResponse {
@@ -82,7 +89,7 @@ pub async fn get_cash_flow(
 
     let response = cashflow_service::get_cash_flow(
         &app_state.pool,
-        &params.tenant_id,
+        &tenant_id,
         params.period_id,
         &params.currency,
         &cash_account_codes,

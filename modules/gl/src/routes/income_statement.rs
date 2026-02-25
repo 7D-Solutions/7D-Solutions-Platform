@@ -6,20 +6,20 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::services::income_statement_service::{self, IncomeStatementResponse};
+use super::auth::extract_tenant;
 
 /// Query parameters for income statement endpoint
 #[derive(Debug, Deserialize)]
 pub struct IncomeStatementQuery {
-    /// Tenant identifier
-    pub tenant_id: String,
     /// Accounting period ID
     pub period_id: Uuid,
     /// Currency code (ISO 4217, required) - e.g., "USD", "EUR"
@@ -35,14 +35,21 @@ pub struct ErrorResponse {
 /// Handler for GET /api/gl/income-statement
 ///
 /// Returns income statement (P&L) for a tenant and period with required currency.
+/// Tenant identity is derived from JWT claims (VerifiedClaims).
 pub async fn get_income_statement(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<IncomeStatementQuery>,
 ) -> Result<Json<IncomeStatementResponse>, IncomeStatementErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| IncomeStatementErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     // Query income statement (service layer handles all transformation and totals calculation)
     let response = income_statement_service::get_income_statement(
         &app_state.pool,
-        &params.tenant_id,
+        &tenant_id,
         params.period_id,
         &params.currency,
     )

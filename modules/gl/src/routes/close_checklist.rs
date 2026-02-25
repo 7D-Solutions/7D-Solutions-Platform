@@ -9,14 +9,16 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
 use chrono::{DateTime, Utc};
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::AppState;
+use super::auth::extract_tenant;
 use super::period_close::PeriodCloseHttpError;
 
 // ============================================================
@@ -25,7 +27,6 @@ use super::period_close::PeriodCloseHttpError;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateChecklistItemRequest {
-    pub tenant_id: String,
     pub label: String,
 }
 
@@ -55,20 +56,13 @@ struct ChecklistItemRow {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CompleteChecklistItemRequest {
-    pub tenant_id: String,
     pub completed_by: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WaiveChecklistItemRequest {
-    pub tenant_id: String,
     pub completed_by: String,
     pub waive_reason: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ChecklistStatusQuery {
-    pub tenant_id: String,
 }
 
 // ============================================================
@@ -78,9 +72,15 @@ pub struct ChecklistStatusQuery {
 /// POST /api/gl/periods/{period_id}/checklist — add a checklist item
 pub async fn create_checklist_item(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(period_id): Path<Uuid>,
     Json(request): Json<CreateChecklistItemRequest>,
 ) -> Result<(StatusCode, Json<ChecklistItemResponse>), PeriodCloseHttpError> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     let row = sqlx::query_as::<_, ChecklistItemRow>(
         r#"
         INSERT INTO close_checklist_items (tenant_id, period_id, label)
@@ -88,7 +88,7 @@ pub async fn create_checklist_item(
         RETURNING id, tenant_id, period_id, label, status, completed_by, completed_at, waive_reason
         "#,
     )
-    .bind(&request.tenant_id)
+    .bind(&tenant_id)
     .bind(period_id)
     .bind(&request.label)
     .fetch_one(&app_state.pool)
@@ -104,9 +104,15 @@ pub async fn create_checklist_item(
 /// POST /api/gl/periods/{period_id}/checklist/{item_id}/complete
 pub async fn complete_checklist_item(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path((period_id, item_id)): Path<(Uuid, Uuid)>,
     Json(request): Json<CompleteChecklistItemRequest>,
 ) -> Result<Json<ChecklistItemResponse>, PeriodCloseHttpError> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     let row = sqlx::query_as::<_, ChecklistItemRow>(
         r#"
         UPDATE close_checklist_items
@@ -118,7 +124,7 @@ pub async fn complete_checklist_item(
     .bind(&request.completed_by)
     .bind(item_id)
     .bind(period_id)
-    .bind(&request.tenant_id)
+    .bind(&tenant_id)
     .fetch_optional(&app_state.pool)
     .await
     .map_err(|e| PeriodCloseHttpError {
@@ -136,9 +142,15 @@ pub async fn complete_checklist_item(
 /// POST /api/gl/periods/{period_id}/checklist/{item_id}/waive
 pub async fn waive_checklist_item(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path((period_id, item_id)): Path<(Uuid, Uuid)>,
     Json(request): Json<WaiveChecklistItemRequest>,
 ) -> Result<Json<ChecklistItemResponse>, PeriodCloseHttpError> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     let row = sqlx::query_as::<_, ChecklistItemRow>(
         r#"
         UPDATE close_checklist_items
@@ -152,7 +164,7 @@ pub async fn waive_checklist_item(
     .bind(&request.waive_reason)
     .bind(item_id)
     .bind(period_id)
-    .bind(&request.tenant_id)
+    .bind(&tenant_id)
     .fetch_optional(&app_state.pool)
     .await
     .map_err(|e| PeriodCloseHttpError {
@@ -167,12 +179,17 @@ pub async fn waive_checklist_item(
     Ok(Json(to_checklist_response(row)))
 }
 
-/// GET /api/gl/periods/{period_id}/checklist?tenant_id=...
+/// GET /api/gl/periods/{period_id}/checklist
 pub async fn get_checklist_status(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(period_id): Path<Uuid>,
-    axum::extract::Query(query): axum::extract::Query<ChecklistStatusQuery>,
 ) -> Result<Json<Vec<ChecklistItemResponse>>, PeriodCloseHttpError> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     let rows = sqlx::query_as::<_, ChecklistItemRow>(
         r#"
         SELECT id, tenant_id, period_id, label, status, completed_by, completed_at, waive_reason
@@ -181,7 +198,7 @@ pub async fn get_checklist_status(
         ORDER BY created_at ASC
         "#,
     )
-    .bind(&query.tenant_id)
+    .bind(&tenant_id)
     .bind(period_id)
     .fetch_all(&app_state.pool)
     .await
@@ -212,7 +229,6 @@ fn to_checklist_response(row: ChecklistItemRow) -> ChecklistItemResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateApprovalRequest {
-    pub tenant_id: String,
     pub actor_id: String,
     pub approval_type: String,
     pub notes: Option<String>,
@@ -247,9 +263,15 @@ struct ApprovalRow {
 /// POST /api/gl/periods/{period_id}/approvals — record an approval signoff (idempotent)
 pub async fn create_approval(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(period_id): Path<Uuid>,
     Json(request): Json<CreateApprovalRequest>,
 ) -> Result<(StatusCode, Json<ApprovalResponse>), PeriodCloseHttpError> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     let row = sqlx::query_as::<_, ApprovalRow>(
         r#"
         INSERT INTO close_approvals (tenant_id, period_id, actor_id, approval_type, notes)
@@ -259,7 +281,7 @@ pub async fn create_approval(
         RETURNING id, tenant_id, period_id, actor_id, approval_type, notes, approved_at
         "#,
     )
-    .bind(&request.tenant_id)
+    .bind(&tenant_id)
     .bind(period_id)
     .bind(&request.actor_id)
     .bind(&request.approval_type)
@@ -285,12 +307,17 @@ pub async fn create_approval(
     ))
 }
 
-/// GET /api/gl/periods/{period_id}/approvals?tenant_id=...
+/// GET /api/gl/periods/{period_id}/approvals
 pub async fn get_approvals(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(period_id): Path<Uuid>,
-    axum::extract::Query(query): axum::extract::Query<ChecklistStatusQuery>,
 ) -> Result<Json<Vec<ApprovalResponse>>, PeriodCloseHttpError> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| PeriodCloseHttpError {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
+
     let rows = sqlx::query_as::<_, ApprovalRow>(
         r#"
         SELECT id, tenant_id, period_id, actor_id, approval_type, notes, approved_at
@@ -299,7 +326,7 @@ pub async fn get_approvals(
         ORDER BY approved_at ASC
         "#,
     )
-    .bind(&query.tenant_id)
+    .bind(&tenant_id)
     .bind(period_id)
     .fetch_all(&app_state.pool)
     .await
