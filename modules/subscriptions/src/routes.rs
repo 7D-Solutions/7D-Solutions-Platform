@@ -2,8 +2,9 @@ use axum::{
     extract::State,
     http::StatusCode,
     routing::post,
-    Json, Router,
+    Extension, Json, Router,
 };
+use security::VerifiedClaims;
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -25,8 +26,23 @@ pub fn subscriptions_router(db: PgPool) -> Router {
 /// POST /api/bill-runs/execute - Execute billing cycle
 async fn execute_bill_run(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<ExecuteBillRunRequest>,
 ) -> Result<(StatusCode, Json<BillRunResult>), (StatusCode, Json<ErrorResponse>)> {
+    // Extract tenant_id from JWT claims — never trust client-supplied values
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(ErrorResponse {
+                    error: "unauthorized".to_string(),
+                    message: "Missing or invalid authentication".to_string(),
+                    details: None,
+                }),
+            ));
+        }
+    };
     // Generate bill_run_id if not provided
     let bill_run_id = req.bill_run_id.unwrap_or_else(|| Uuid::new_v4().to_string());
 
@@ -118,8 +134,10 @@ async fn execute_bill_run(
         "SELECT id, tenant_id, ar_customer_id, price_minor, currency, next_bill_date
          FROM subscriptions
          WHERE status = 'active'
-           AND next_bill_date <= $1"
+           AND tenant_id = $1
+           AND next_bill_date <= $2"
     )
+    .bind(&tenant_id)
     .bind(execution_date)
     .fetch_all(&db)
     .await
@@ -296,10 +314,9 @@ async fn execute_bill_run(
     };
 
     // Create envelope with platform-standard fields
-    // TODO: Extract actual tenant_id when Subscriptions implements multi-tenancy
     let envelope = create_subscriptions_envelope(
         uuid::Uuid::new_v4(),
-        "default".to_string(),
+        tenant_id,
         "billrun.completed".to_string(),
         None, // No correlation_id for now
         None, // No causation_id for now
