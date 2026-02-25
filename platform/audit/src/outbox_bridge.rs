@@ -238,7 +238,7 @@ pub async fn backfill_missing_audit_records(
 /// Classify an event type into a MutationClass.
 ///
 /// Uses naming conventions across modules to infer the class.
-fn classify_event_type(event_type: &str) -> MutationClass {
+pub fn classify_event_type(event_type: &str) -> MutationClass {
     let lower = event_type.to_lowercase();
 
     if lower.contains("reversed") || lower.contains("written_off") || lower.contains("voided") {
