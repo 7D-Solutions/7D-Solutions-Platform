@@ -29,6 +29,8 @@ prometheus = "0.13"
 [dev-dependencies]
 serial_test = "3.3.1"
 reqwest = { version = "0.11", features = ["json"] }
+ap = { path = "../ap" }
+tax-core = { path = "../../platform/tax-core" }
 
 [[bin]]
 name = "rebuild_balances"
