@@ -35,10 +35,13 @@ Party does **NOT**:
 
 | Table | Purpose |
 |---|---|
-| `parties` | Core identity records with type and status |
+| `party_parties` | Core identity records with type and status |
+| `party_companies` | Company extension (1:1) |
+| `party_individuals` | Individual extension (1:1) |
 | `party_external_refs` | External system cross-references |
-| `contacts` | Contact persons per party |
-| `addresses` | Addresses per party |
+| `party_contacts` | Contact persons per party |
+| `party_addresses` | Typed addresses per party |
+| `party_idempotency_keys` | HTTP idempotency keys |
 | `party_outbox` | Module outbox for NATS |
 | `party_processed_events` | Consumer idempotency |
 
