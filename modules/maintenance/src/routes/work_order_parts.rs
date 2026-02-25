@@ -6,17 +6,17 @@
 //!   DELETE /api/maintenance/work-orders/:wo_id/parts/:part_id  — remove part
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::work_orders::{AddPartRequest, WoPartError, WoPartsRepo};
-use crate::routes::work_orders::TenantQuery;
 use crate::AppState;
 
 fn part_error_response(err: WoPartError) -> impl IntoResponse {
@@ -54,8 +54,14 @@ fn part_error_response(err: WoPartError) -> impl IntoResponse {
 pub async fn add_part(
     State(state): State<Arc<AppState>>,
     Path(wo_id): Path<Uuid>,
-    Json(req): Json<AddPartRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<AddPartRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    req.tenant_id = tenant_id;
     match WoPartsRepo::add(&state.pool, wo_id, &req).await {
         Ok(part) => (StatusCode::CREATED, Json(json!(part))).into_response(),
         Err(e) => part_error_response(e).into_response(),
@@ -66,9 +72,13 @@ pub async fn add_part(
 pub async fn list_parts(
     State(state): State<Arc<AppState>>,
     Path(wo_id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match WoPartsRepo::list(&state.pool, wo_id, &q.tenant_id).await {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    match WoPartsRepo::list(&state.pool, wo_id, &tenant_id).await {
         Ok(parts) => (StatusCode::OK, Json(json!(parts))).into_response(),
         Err(e) => part_error_response(e).into_response(),
     }
@@ -78,9 +88,13 @@ pub async fn list_parts(
 pub async fn remove_part(
     State(state): State<Arc<AppState>>,
     Path((wo_id, part_id)): Path<(Uuid, Uuid)>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match WoPartsRepo::remove(&state.pool, wo_id, part_id, &q.tenant_id).await {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    match WoPartsRepo::remove(&state.pool, wo_id, part_id, &tenant_id).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => part_error_response(e).into_response(),
     }

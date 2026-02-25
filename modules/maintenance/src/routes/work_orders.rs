@@ -10,8 +10,9 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -23,8 +24,11 @@ use crate::domain::work_orders::{
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
-pub struct TenantQuery {
-    pub tenant_id: String,
+pub struct ListWorkOrdersParams {
+    pub asset_id: Option<Uuid>,
+    pub status: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 fn wo_error_response(err: WoError) -> impl IntoResponse {
@@ -66,8 +70,14 @@ fn wo_error_response(err: WoError) -> impl IntoResponse {
 /// POST /api/maintenance/work-orders
 pub async fn create_work_order(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateWorkOrderRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateWorkOrderRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    req.tenant_id = tenant_id;
     match WorkOrderRepo::create(&state.pool, &req).await {
         Ok(wo) => (StatusCode::CREATED, Json(json!(wo))).into_response(),
         Err(e) => wo_error_response(e).into_response(),
@@ -77,8 +87,20 @@ pub async fn create_work_order(
 /// GET /api/maintenance/work-orders
 pub async fn list_work_orders(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<ListWorkOrdersQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(params): Query<ListWorkOrdersParams>,
 ) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    let q = ListWorkOrdersQuery {
+        tenant_id,
+        asset_id: params.asset_id,
+        status: params.status,
+        limit: params.limit,
+        offset: params.offset,
+    };
     match WorkOrderRepo::list(&state.pool, &q).await {
         Ok(orders) => (StatusCode::OK, Json(json!(orders))).into_response(),
         Err(e) => wo_error_response(e).into_response(),
@@ -89,17 +111,14 @@ pub async fn list_work_orders(
 pub async fn get_work_order(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
 
-    match WorkOrderRepo::find_by_id(&state.pool, id, &q.tenant_id).await {
+    match WorkOrderRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(wo)) => (StatusCode::OK, Json(json!(wo))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -119,5 +138,17 @@ pub async fn transition_work_order(
     match WorkOrderRepo::transition(&state.pool, id, &req).await {
         Ok(wo) => (StatusCode::OK, Json(json!(wo))).into_response(),
         Err(e) => wo_error_response(e).into_response(),
+    }
+}
+
+pub fn extract_tenant(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+        )),
     }
 }

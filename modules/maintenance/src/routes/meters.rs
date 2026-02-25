@@ -10,8 +10,9 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -24,13 +25,7 @@ use crate::domain::meters::{
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
-pub struct TenantQuery {
-    pub tenant_id: String,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct ListReadingsParams {
-    pub tenant_id: String,
     pub meter_type_id: Option<Uuid>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
@@ -82,8 +77,14 @@ fn meter_error_response(err: MeterError) -> impl IntoResponse {
 /// POST /api/maintenance/meter-types
 pub async fn create_meter_type(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateMeterTypeRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateMeterTypeRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    req.tenant_id = tenant_id;
     match MeterTypeRepo::create(&state.pool, &req).await {
         Ok(mt) => (StatusCode::CREATED, Json(json!(mt))).into_response(),
         Err(e) => meter_error_response(e).into_response(),
@@ -93,17 +94,14 @@ pub async fn create_meter_type(
 /// GET /api/maintenance/meter-types
 pub async fn list_meter_types(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
 
-    match MeterTypeRepo::list(&state.pool, &q.tenant_id).await {
+    match MeterTypeRepo::list(&state.pool, &tenant_id).await {
         Ok(types) => (StatusCode::OK, Json(json!(types))).into_response(),
         Err(e) => meter_error_response(e).into_response(),
     }
@@ -113,8 +111,14 @@ pub async fn list_meter_types(
 pub async fn record_reading(
     State(state): State<Arc<AppState>>,
     Path(asset_id): Path<Uuid>,
-    Json(req): Json<RecordReadingRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<RecordReadingRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    req.tenant_id = tenant_id;
     match MeterReadingRepo::record(&state.pool, asset_id, &req).await {
         Ok(reading) => (StatusCode::CREATED, Json(json!(reading))).into_response(),
         Err(e) => meter_error_response(e).into_response(),
@@ -125,15 +129,13 @@ pub async fn record_reading(
 pub async fn list_readings(
     State(state): State<Arc<AppState>>,
     Path(asset_id): Path<Uuid>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<ListReadingsParams>,
 ) -> impl IntoResponse {
-    if params.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
 
     let q = ListReadingsQuery {
         meter_type_id: params.meter_type_id,
@@ -141,7 +143,7 @@ pub async fn list_readings(
         offset: params.offset,
     };
 
-    match MeterReadingRepo::list(&state.pool, &params.tenant_id, asset_id, &q).await {
+    match MeterReadingRepo::list(&state.pool, &tenant_id, asset_id, &q).await {
         Ok(readings) => (StatusCode::OK, Json(json!(readings))).into_response(),
         Err(e) => meter_error_response(e).into_response(),
     }

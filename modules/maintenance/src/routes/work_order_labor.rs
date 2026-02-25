@@ -6,17 +6,17 @@
 //!   DELETE /api/maintenance/work-orders/:wo_id/labor/:labor_id   — remove labor
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::work_orders::{AddLaborRequest, WoLaborError, WoLaborRepo};
-use crate::routes::work_orders::TenantQuery;
 use crate::AppState;
 
 fn labor_error_response(err: WoLaborError) -> impl IntoResponse {
@@ -54,8 +54,14 @@ fn labor_error_response(err: WoLaborError) -> impl IntoResponse {
 pub async fn add_labor(
     State(state): State<Arc<AppState>>,
     Path(wo_id): Path<Uuid>,
-    Json(req): Json<AddLaborRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<AddLaborRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    req.tenant_id = tenant_id;
     match WoLaborRepo::add(&state.pool, wo_id, &req).await {
         Ok(labor) => (StatusCode::CREATED, Json(json!(labor))).into_response(),
         Err(e) => labor_error_response(e).into_response(),
@@ -66,9 +72,13 @@ pub async fn add_labor(
 pub async fn list_labor(
     State(state): State<Arc<AppState>>,
     Path(wo_id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match WoLaborRepo::list(&state.pool, wo_id, &q.tenant_id).await {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    match WoLaborRepo::list(&state.pool, wo_id, &tenant_id).await {
         Ok(entries) => (StatusCode::OK, Json(json!(entries))).into_response(),
         Err(e) => labor_error_response(e).into_response(),
     }
@@ -78,9 +88,13 @@ pub async fn list_labor(
 pub async fn remove_labor(
     State(state): State<Arc<AppState>>,
     Path((wo_id, labor_id)): Path<(Uuid, Uuid)>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    match WoLaborRepo::remove(&state.pool, wo_id, labor_id, &q.tenant_id).await {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    match WoLaborRepo::remove(&state.pool, wo_id, labor_id, &tenant_id).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => labor_error_response(e).into_response(),
     }

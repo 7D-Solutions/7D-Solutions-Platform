@@ -10,8 +10,9 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -23,8 +24,11 @@ use crate::domain::assets::{
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
-pub struct TenantQuery {
-    pub tenant_id: String,
+pub struct ListAssetsParams {
+    pub asset_type: Option<String>,
+    pub status: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 fn asset_error_response(err: AssetError) -> impl IntoResponse {
@@ -57,8 +61,14 @@ fn asset_error_response(err: AssetError) -> impl IntoResponse {
 /// POST /api/maintenance/assets
 pub async fn create_asset(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreateAssetRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreateAssetRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    req.tenant_id = tenant_id;
     match AssetRepo::create(&state.pool, &req).await {
         Ok(asset) => (StatusCode::CREATED, Json(json!(asset))).into_response(),
         Err(e) => asset_error_response(e).into_response(),
@@ -68,8 +78,20 @@ pub async fn create_asset(
 /// GET /api/maintenance/assets
 pub async fn list_assets(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<ListAssetsQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(params): Query<ListAssetsParams>,
 ) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    let q = ListAssetsQuery {
+        tenant_id,
+        asset_type: params.asset_type,
+        status: params.status,
+        limit: params.limit,
+        offset: params.offset,
+    };
     match AssetRepo::list(&state.pool, &q).await {
         Ok(resp) => (StatusCode::OK, Json(json!(resp))).into_response(),
         Err(e) => asset_error_response(e).into_response(),
@@ -80,17 +102,14 @@ pub async fn list_assets(
 pub async fn get_asset(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
 
-    match AssetRepo::find_by_id(&state.pool, id, &q.tenant_id).await {
+    match AssetRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(asset)) => (StatusCode::OK, Json(json!(asset))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -105,19 +124,28 @@ pub async fn get_asset(
 pub async fn update_asset(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<UpdateAssetRequest>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
 
-    match AssetRepo::update(&state.pool, id, &q.tenant_id, &req).await {
+    match AssetRepo::update(&state.pool, id, &tenant_id, &req).await {
         Ok(asset) => (StatusCode::OK, Json(json!(asset))).into_response(),
         Err(e) => asset_error_response(e).into_response(),
+    }
+}
+
+fn extract_tenant(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+        )),
     }
 }

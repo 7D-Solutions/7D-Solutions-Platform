@@ -12,8 +12,9 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -26,8 +27,18 @@ use crate::domain::plans::{
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
-pub struct TenantQuery {
-    pub tenant_id: String,
+pub struct ListPlansParams {
+    pub is_active: Option<bool>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListAssignmentsParams {
+    pub plan_id: Option<Uuid>,
+    pub asset_id: Option<Uuid>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 fn plan_error_response(err: PlanError) -> impl IntoResponse {
@@ -72,8 +83,14 @@ fn plan_error_response(err: PlanError) -> impl IntoResponse {
 /// POST /api/maintenance/plans
 pub async fn create_plan(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<CreatePlanRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<CreatePlanRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    req.tenant_id = tenant_id;
     match PlanRepo::create(&state.pool, &req).await {
         Ok(plan) => (StatusCode::CREATED, Json(json!(plan))).into_response(),
         Err(e) => plan_error_response(e).into_response(),
@@ -83,8 +100,19 @@ pub async fn create_plan(
 /// GET /api/maintenance/plans
 pub async fn list_plans(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<ListPlansQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(params): Query<ListPlansParams>,
 ) -> impl IntoResponse {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    let q = ListPlansQuery {
+        tenant_id,
+        is_active: params.is_active,
+        limit: params.limit,
+        offset: params.offset,
+    };
     match PlanRepo::list(&state.pool, &q).await {
         Ok(plans) => (StatusCode::OK, Json(json!(plans))).into_response(),
         Err(e) => plan_error_response(e).into_response(),
@@ -95,17 +123,14 @@ pub async fn list_plans(
 pub async fn get_plan(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
 
-    match PlanRepo::find_by_id(&state.pool, id, &q.tenant_id).await {
+    match PlanRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(plan)) => (StatusCode::OK, Json(json!(plan))).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -120,18 +145,15 @@ pub async fn get_plan(
 pub async fn update_plan(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    Query(q): Query<TenantQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<UpdatePlanRequest>,
 ) -> impl IntoResponse {
-    if q.tenant_id.trim().is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": "validation_error", "message": "tenant_id is required" })),
-        )
-            .into_response();
-    }
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
 
-    match PlanRepo::update(&state.pool, id, &q.tenant_id, &req).await {
+    match PlanRepo::update(&state.pool, id, &tenant_id, &req).await {
         Ok(plan) => (StatusCode::OK, Json(json!(plan))).into_response(),
         Err(e) => plan_error_response(e).into_response(),
     }
@@ -141,8 +163,14 @@ pub async fn update_plan(
 pub async fn assign_plan(
     State(state): State<Arc<AppState>>,
     Path(plan_id): Path<Uuid>,
-    Json(req): Json<AssignPlanRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<AssignPlanRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    req.tenant_id = tenant_id;
     match AssignmentRepo::assign(&state.pool, plan_id, &req).await {
         Ok(assignment) => (StatusCode::CREATED, Json(json!(assignment))).into_response(),
         Err(e) => plan_error_response(e).into_response(),
@@ -152,8 +180,20 @@ pub async fn assign_plan(
 /// GET /api/maintenance/assignments
 pub async fn list_assignments(
     State(state): State<Arc<AppState>>,
-    Query(q): Query<ListAssignmentsQuery>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(params): Query<ListAssignmentsParams>,
 ) -> impl IntoResponse {
+    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    let q = ListAssignmentsQuery {
+        tenant_id,
+        plan_id: params.plan_id,
+        asset_id: params.asset_id,
+        limit: params.limit,
+        offset: params.offset,
+    };
     match AssignmentRepo::list(&state.pool, &q).await {
         Ok(assignments) => (StatusCode::OK, Json(json!(assignments))).into_response(),
         Err(e) => plan_error_response(e).into_response(),
