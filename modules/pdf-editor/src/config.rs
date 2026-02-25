@@ -35,6 +35,8 @@ pub struct Config {
     pub port: u16,
     /// Comma-separated list of allowed CORS origins. "*" means allow any.
     pub cors_origins: Vec<String>,
+    /// Runtime environment (e.g. "development", "staging", "production").
+    pub env: String,
 }
 
 impl Config {
@@ -94,6 +96,10 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
+        let env_name = env::var("ENV")
+            .unwrap_or_else(|_| "development".to_string())
+            .to_lowercase();
+
         Ok(Config {
             database_url,
             bus_type,
@@ -101,6 +107,7 @@ impl Config {
             host,
             port,
             cors_origins,
+            env: env_name,
         })
     }
 }
