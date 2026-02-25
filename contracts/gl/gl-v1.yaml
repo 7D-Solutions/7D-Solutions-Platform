@@ -1,82 +1,1252 @@
 openapi: 3.0.3
 info:
   title: General Ledger API
-  version: 1.0.0
-  description: |
-    General Ledger API for managing journal entries, account balances, and trial balance reporting.
+  version: 1.0.1
+  description: >
+    General Ledger module — the financial backbone of the 7D Solutions Platform.
+    Manages journal entries, account balances, financial statements, period close
+    lifecycle, FX rates, revenue recognition (ASC 606), accruals, and
+    reporting-currency translations.
 
-    The GL service provides:
-    - Trial balance reporting backed by materialized account balances
-    - Multi-currency support with strict tenant isolation
-    - Period-aware balance queries for audit-grade reporting
+    Multi-tenant: all requests are scoped to a tenant extracted from the JWT or
+    X-App-Id header. Mutation endpoints require the `gl.post` permission claim.
+
+    All monetary amounts are in minor units (e.g., cents) as int64.
+  contact:
+    name: 7D Solutions Platform
 servers:
   - url: https://gl.7dsolutions.io
     description: Production
   - url: http://localhost:8090
     description: Local development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: TrialBalance
+    description: Trial balance reporting
+  - name: BalanceSheet
+    description: Balance sheet (assets = liabilities + equity)
+  - name: IncomeStatement
+    description: Income statement / P&L
+  - name: CashFlow
+    description: Cash flow statement (operating / investing / financing)
+  - name: PeriodSummary
+    description: Period-level aggregated summary
+  - name: GLDetail
+    description: Journal entry detail drill-down
+  - name: AccountActivity
+    description: Per-account transaction history
+  - name: PeriodClose
+    description: Period close lifecycle (validate, close, status)
+  - name: CloseChecklist
+    description: Pre-close checklist items and approvals
+  - name: Reopen
+    description: Controlled period reopen workflow
+  - name: FXRates
+    description: Foreign exchange rate management
+  - name: ReportingCurrency
+    description: Reporting (functional) currency statements
+  - name: RevRec
+    description: Revenue recognition (ASC 606) contracts and schedules
+  - name: Accruals
+    description: Accrual templates, instances, and auto-reversals
+  - name: Admin
+    description: Internal admin / projection management (requires X-Admin-Token)
+  - name: Health
+    description: Service health probes
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# PATHS
+# ═══════════════════════════════════════════════════════════════════════════════
 paths:
+
+  # ── Trial Balance ──────────────────────────────────────────────────────────
   /api/gl/trial-balance:
     get:
+      tags: [TrialBalance]
       summary: Get trial balance
       operationId: getTrialBalance
-      description: |
-        Returns trial balance for a specific tenant and accounting period.
-
-        The trial balance includes:
-        - Account metadata (code, name, type, normal balance)
-        - Debit/credit totals in minor units (e.g., cents)
-        - Net balance (debit_total - credit_total)
-
-        Query uses account_balances table (materialized rollups) for fast performance.
-        No journal table scans are performed.
+      description: >
+        Returns trial balance for a tenant and accounting period. Uses
+        materialized account_balances for fast O(accounts) performance.
+        Includes per-account debit/credit totals and overall balance check.
       parameters:
-        - name: tenant_id
-          in: query
-          required: true
-          description: Tenant identifier for isolation
-          schema:
-            type: string
-          example: "tenant_123"
-        - name: period_id
-          in: query
-          required: true
-          description: Accounting period UUID
-          schema:
-            type: string
-            format: uuid
-          example: "550e8400-e29b-41d4-a716-446655440000"
+        - $ref: '#/components/parameters/PeriodIdQuery'
         - name: currency
           in: query
           required: false
-          description: Optional currency filter (ISO 4217 code). If omitted, returns all currencies.
+          description: ISO 4217 currency filter. Defaults to USD if omitted.
           schema:
             type: string
             pattern: ^[A-Z]{3}$
-          example: "USD"
+          example: USD
       responses:
         '200':
-          description: Trial balance returned successfully
+          description: Trial balance returned
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TrialBalanceResponse'
         '400':
-          description: Invalid request parameters
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Balance Sheet ──────────────────────────────────────────────────────────
+  /api/gl/balance-sheet:
+    get:
+      tags: [BalanceSheet]
+      summary: Get balance sheet
+      operationId: getBalanceSheet
+      description: >
+        Returns balance sheet for a tenant, period, and currency.
+        Rows are asset, liability, and equity accounts. Totals verify
+        the accounting equation: assets = liabilities + equity.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdQuery'
+        - $ref: '#/components/parameters/CurrencyRequired'
+      responses:
+        '200':
+          description: Balance sheet returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalanceSheetResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Income Statement ───────────────────────────────────────────────────────
+  /api/gl/income-statement:
+    get:
+      tags: [IncomeStatement]
+      summary: Get income statement (P&L)
+      operationId: getIncomeStatement
+      description: >
+        Returns income statement (profit & loss) for a tenant, period, and
+        currency. Revenue and expense accounts with net income calculation.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdQuery'
+        - $ref: '#/components/parameters/CurrencyRequired'
+      responses:
+        '200':
+          description: Income statement returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncomeStatementResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Cash Flow ──────────────────────────────────────────────────────────────
+  /api/gl/cash-flow:
+    get:
+      tags: [CashFlow]
+      summary: Get cash flow statement
+      operationId: getCashFlow
+      description: >
+        Returns cash flow statement derived from GL journal lines, classified
+        into operating / investing / financing via account tagging. Includes
+        reconciliation check against designated cash account balance deltas.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdQuery'
+        - $ref: '#/components/parameters/CurrencyRequired'
+        - name: cash_accounts
+          in: query
+          required: false
+          description: >
+            Comma-separated list of account codes designated as cash accounts
+            for reconciliation (e.g., "1000,1010").
+          schema:
+            type: string
+          example: "1000,1010"
+      responses:
+        '200':
+          description: Cash flow statement returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CashFlowResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Period not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '500':
-          description: Internal server error
+          $ref: '#/components/responses/InternalError'
+
+  # ── GL Detail ──────────────────────────────────────────────────────────────
+  /api/gl/detail:
+    get:
+      tags: [GLDetail]
+      summary: Get GL detail (journal entries with lines)
+      operationId: getGLDetail
+      description: >
+        Returns paginated journal entries with their lines for a period.
+        Supports optional filtering by account code and currency.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdQuery'
+        - name: account_code
+          in: query
+          required: false
+          description: Filter by account code (e.g., "1000")
+          schema:
+            type: string
+          example: "1000"
+        - name: currency
+          in: query
+          required: false
+          description: Filter by currency (ISO 4217)
+          schema:
+            type: string
+            pattern: ^[A-Z]{3}$
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: GL detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GLDetailResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Period not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Account Activity ───────────────────────────────────────────────────────
+  /api/gl/accounts/{account_code}/activity:
+    get:
+      tags: [AccountActivity]
+      summary: Get account activity (journal lines for one account)
+      operationId: getAccountActivity
+      description: >
+        Returns paginated journal lines for a specific account. Filter by
+        period_id OR date range (start_date + end_date). At least one date
+        filter is required.
+      parameters:
+        - name: account_code
+          in: path
+          required: true
+          description: Chart of Accounts code
+          schema:
+            type: string
+          example: "1000"
+        - name: period_id
+          in: query
+          required: false
+          description: Accounting period UUID (mutually exclusive with date range)
+          schema:
+            type: string
+            format: uuid
+        - name: start_date
+          in: query
+          required: false
+          description: Start date (ISO 8601, required if no period_id)
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          required: false
+          description: End date (ISO 8601, required if no period_id)
+          schema:
+            type: string
+            format: date-time
+        - name: currency
+          in: query
+          required: false
+          description: Currency filter (ISO 4217)
+          schema:
+            type: string
+            pattern: ^[A-Z]{3}$
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: Account activity returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountActivityResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Period not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Period Summary ─────────────────────────────────────────────────────────
+  /api/gl/periods/{period_id}/summary:
+    get:
+      tags: [PeriodSummary]
+      summary: Get period summary
+      operationId: getPeriodSummary
+      description: >
+        Returns aggregated period summary (journal count, line count, debit/credit
+        totals, balance check). Prefers precomputed snapshot if available.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+        - name: currency
+          in: query
+          required: false
+          description: Optional currency filter
+          schema:
+            type: string
+            pattern: ^[A-Z]{3}$
+      responses:
+        '200':
+          description: Period summary returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeriodSummaryResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Period not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Period Close ───────────────────────────────────────────────────────────
+  /api/gl/periods/{period_id}/validate-close:
+    post:
+      tags: [PeriodClose]
+      summary: Validate period can be closed
+      operationId: validateClose
+      description: >
+        Pre-flight validation before closing a period. Does NOT modify state.
+        Returns a structured validation report with errors and warnings.
+        Requires gl.post permission.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateCloseRequest'
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidateCloseResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Period not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/periods/{period_id}/close:
+    post:
+      tags: [PeriodClose]
+      summary: Close an accounting period
+      operationId: closePeriod
+      description: >
+        Atomically close an accounting period. Idempotent — if already closed,
+        returns existing close status. Steps: lock period, validate, create
+        sealed snapshot with hash, update period. Requires gl.post permission.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClosePeriodRequest'
+      responses:
+        '200':
+          description: Period closed (or already closed)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClosePeriodResponse'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Period not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Period already closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/periods/{period_id}/close-status:
+    get:
+      tags: [PeriodClose]
+      summary: Get period close status
+      operationId: getCloseStatus
+      description: >
+        Query the current close status of a period (open, close_requested,
+        or closed). O(1) single-row lookup.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+      responses:
+        '200':
+          description: Close status returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CloseStatusResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Period not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Close Checklist ────────────────────────────────────────────────────────
+  /api/gl/periods/{period_id}/checklist:
+    get:
+      tags: [CloseChecklist]
+      summary: Get checklist items for a period
+      operationId: getChecklist
+      description: Returns all pre-close checklist items for the period, ordered by creation time.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+      responses:
+        '200':
+          description: Checklist items returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChecklistItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [CloseChecklist]
+      summary: Create a checklist item
+      operationId: createChecklistItem
+      description: Add a new pre-close checklist item for a period. Requires gl.post permission.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChecklistItemRequest'
+      responses:
+        '201':
+          description: Checklist item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChecklistItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/periods/{period_id}/checklist/{item_id}/complete:
+    post:
+      tags: [CloseChecklist]
+      summary: Complete a checklist item
+      operationId: completeChecklistItem
+      description: Mark a checklist item as complete. Requires gl.post permission.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+        - $ref: '#/components/parameters/ItemIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteChecklistItemRequest'
+      responses:
+        '200':
+          description: Checklist item completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChecklistItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Checklist item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/periods/{period_id}/checklist/{item_id}/waive:
+    post:
+      tags: [CloseChecklist]
+      summary: Waive a checklist item
+      operationId: waiveChecklistItem
+      description: Waive a checklist item with a reason. Requires gl.post permission.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+        - $ref: '#/components/parameters/ItemIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WaiveChecklistItemRequest'
+      responses:
+        '200':
+          description: Checklist item waived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChecklistItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Checklist item not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Approvals ──────────────────────────────────────────────────────────────
+  /api/gl/periods/{period_id}/approvals:
+    get:
+      tags: [CloseChecklist]
+      summary: List approval signoffs for a period
+      operationId: getApprovals
+      description: Returns all approval signoffs for the period, ordered by approval time.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+      responses:
+        '200':
+          description: Approvals returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApprovalResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [CloseChecklist]
+      summary: Record an approval signoff
+      operationId: createApproval
+      description: >
+        Record an approval signoff for a period (idempotent on
+        tenant + period + approval_type). Requires gl.post permission.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateApprovalRequest'
+      responses:
+        '201':
+          description: Approval recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Reopen ─────────────────────────────────────────────────────────────────
+  /api/gl/periods/{period_id}/reopen:
+    get:
+      tags: [Reopen]
+      summary: List reopen requests
+      operationId: listReopenRequests
+      description: Returns all reopen requests for the period.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+      responses:
+        '200':
+          description: Reopen requests returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReopenRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Reopen]
+      summary: Request a controlled period reopen
+      operationId: requestReopen
+      description: >
+        Submit a reopen request for a closed period. Must be approved
+        before the period is actually reopened. Requires gl.post permission.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReopenRequestPayload'
+      responses:
+        '201':
+          description: Reopen request created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReopenRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/periods/{period_id}/reopen/{request_id}/approve:
+    post:
+      tags: [Reopen]
+      summary: Approve a reopen request
+      operationId: approveReopen
+      description: Approve a pending reopen request. Requires gl.post permission.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+        - $ref: '#/components/parameters/RequestIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReopenApprovePayload'
+      responses:
+        '200':
+          description: Reopen approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReopenRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Reopen request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/periods/{period_id}/reopen/{request_id}/reject:
+    post:
+      tags: [Reopen]
+      summary: Reject a reopen request
+      operationId: rejectReopen
+      description: Reject a pending reopen request with reason. Requires gl.post permission.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdPath'
+        - $ref: '#/components/parameters/RequestIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReopenRejectPayload'
+      responses:
+        '200':
+          description: Reopen rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReopenRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Reopen request not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── FX Rates ───────────────────────────────────────────────────────────────
+  /api/gl/fx-rates:
+    post:
+      tags: [FXRates]
+      summary: Create FX rate
+      operationId: createFxRate
+      description: >
+        Create a new FX rate for a currency pair. Duplicate idempotency_key
+        returns 200 with created=false. Requires gl.post permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFxRateRequest'
+      responses:
+        '200':
+          description: FX rate created (or idempotent hit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateFxRateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/fx-rates/latest:
+    get:
+      tags: [FXRates]
+      summary: Get latest FX rate for a currency pair
+      operationId: getLatestFxRate
+      description: >
+        Returns the most recent rate for a currency pair as-of a given time
+        (default: now). Returns 404 if no rate exists.
+      parameters:
+        - name: base_currency
+          in: query
+          required: true
+          description: Base currency (ISO 4217)
+          schema:
+            type: string
+            pattern: ^[A-Z]{3}$
+          example: USD
+        - name: quote_currency
+          in: query
+          required: true
+          description: Quote currency (ISO 4217)
+          schema:
+            type: string
+            pattern: ^[A-Z]{3}$
+          example: EUR
+        - name: as_of
+          in: query
+          required: false
+          description: Point-in-time for rate lookup (ISO 8601). Defaults to now.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: FX rate returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FxRateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: No rate found for the pair/time
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Reporting Currency ─────────────────────────────────────────────────────
+  /api/gl/reporting/trial-balance:
+    get:
+      tags: [ReportingCurrency]
+      summary: Trial balance in reporting currency
+      operationId: getReportingTrialBalance
+      description: >
+        Returns trial balance in the tenant's reporting (functional) currency.
+        Amounts are from stored postings including realized FX gain/loss and
+        unrealized FX revaluation. No live conversion.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdQuery'
+        - $ref: '#/components/parameters/ReportingCurrency'
+      responses:
+        '200':
+          description: Reporting trial balance returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingTrialBalanceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/reporting/income-statement:
+    get:
+      tags: [ReportingCurrency]
+      summary: Income statement in reporting currency
+      operationId: getReportingIncomeStatement
+      description: >
+        Returns income statement in the tenant's reporting currency. Includes
+        FX gain/loss accounts from revaluation and realized settlement.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdQuery'
+        - $ref: '#/components/parameters/ReportingCurrency'
+      responses:
+        '200':
+          description: Reporting income statement returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingIncomeStatementResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/reporting/balance-sheet:
+    get:
+      tags: [ReportingCurrency]
+      summary: Balance sheet in reporting currency
+      operationId: getReportingBalanceSheet
+      description: >
+        Returns balance sheet in the tenant's reporting currency. Reflects
+        all FX adjustments: realized gain/loss and unrealized revaluation.
+      parameters:
+        - $ref: '#/components/parameters/PeriodIdQuery'
+        - $ref: '#/components/parameters/ReportingCurrency'
+      responses:
+        '200':
+          description: Reporting balance sheet returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportingBalanceSheetResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Revenue Recognition ────────────────────────────────────────────────────
+  /api/gl/revrec/contracts:
+    post:
+      tags: [RevRec]
+      summary: Create a revenue contract
+      operationId: createRevrecContract
+      description: >
+        Creates a revenue contract with performance obligations (ASC 606).
+        Atomic: contract + obligations + outbox event in a single transaction.
+        Idempotent: returns 409 if contract_id already exists.
+        Requires gl.post permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateContractRequest'
+      responses:
+        '201':
+          description: Contract created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateContractResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: Contract already exists (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/revrec/schedules:
+    post:
+      tags: [RevRec]
+      summary: Generate a recognition schedule
+      operationId: generateSchedule
+      description: >
+        Generates a recognition schedule for a performance obligation.
+        Versioned: if the obligation already has a schedule, creates a new
+        version linked to the previous. Requires gl.post permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateScheduleRequest'
+      responses:
+        '201':
+          description: Schedule generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateScheduleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Obligation or contract not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Schedule already exists (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/revrec/recognition-runs:
+    post:
+      tags: [RevRec]
+      summary: Execute a recognition run
+      operationId: runRecognition
+      description: >
+        Executes recognition for all due schedule lines in a period. Posts
+        balanced GL journal entries and emits outbox events. Idempotent:
+        re-running skips already-recognized lines. Requires gl.post permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecognitionRunRequest'
+      responses:
+        '200':
+          description: Recognition run completed (no new lines)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecognitionRunResponse'
+        '201':
+          description: Recognition run completed with new postings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecognitionRunResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/revrec/amendments:
+    post:
+      tags: [RevRec]
+      summary: Amend a revenue contract
+      operationId: amendContract
+      description: >
+        Record a contract modification (mid-cycle schedule versioning).
+        Returns 201 on success, 409 if modification_id already exists.
+        Requires gl.post permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractModifiedPayload'
+      responses:
+        '201':
+          description: Amendment recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AmendContractResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Contract not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Modification already exists (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Accruals ───────────────────────────────────────────────────────────────
+  /api/gl/accruals/templates:
+    post:
+      tags: [Accruals]
+      summary: Create an accrual template
+      operationId: createAccrualTemplate
+      description: >
+        Create a reusable accrual template with debit/credit accounts,
+        amount, currency, and optional reversal policy. Requires gl.post
+        permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTemplateRequest'
+      responses:
+        '201':
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/accruals/create:
+    post:
+      tags: [Accruals]
+      summary: Create an accrual instance from template
+      operationId: createAccrualInstance
+      description: >
+        Instantiate an accrual from a template for a specific period. Posts a
+        journal entry. Idempotent on template + period. Requires gl.post
+        permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccrualRequest'
+      responses:
+        '200':
+          description: Accrual already exists (idempotent hit)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccrualResult'
+        '201':
+          description: Accrual instance created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccrualResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/accruals/reversals/execute:
+    post:
+      tags: [Accruals]
+      summary: Execute auto-reversals for a target period
+      operationId: executeReversals
+      description: >
+        Execute automatic reversals for all accruals due in the target period.
+        Idempotent per accrual. Requires gl.post permission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExecuteReversalsRequest'
+      responses:
+        '200':
+          description: Reversals executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecuteReversalsResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Admin ──────────────────────────────────────────────────────────────────
+  /api/gl/admin/projection-status:
+    post:
+      tags: [Admin]
+      summary: Query projection status
+      operationId: adminProjectionStatus
+      description: >
+        Returns the current status of a named projection (lag, last offset,
+        etc.). Requires X-Admin-Token header.
+      parameters:
+        - $ref: '#/components/parameters/AdminToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProjectionStatusRequest'
+      responses:
+        '200':
+          description: Projection status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionStatusResponse'
+        '403':
+          description: Invalid or missing admin token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/admin/consistency-check:
+    post:
+      tags: [Admin]
+      summary: Run projection consistency check
+      operationId: adminConsistencyCheck
+      description: >
+        Runs a consistency check on a named projection. Requires X-Admin-Token
+        header.
+      parameters:
+        - $ref: '#/components/parameters/AdminToken'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsistencyCheckRequest'
+      responses:
+        '200':
+          description: Consistency check result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsistencyCheckResponse'
+        '403':
+          description: Invalid or missing admin token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/gl/admin/projections:
+    get:
+      tags: [Admin]
+      summary: List all projections
+      operationId: adminListProjections
+      description: Returns a list of all registered projections. Requires X-Admin-Token header.
+      parameters:
+        - $ref: '#/components/parameters/AdminToken'
+      responses:
+        '200':
+          description: Projection list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectionListResponse'
+        '403':
+          description: Invalid or missing admin token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ── Health ─────────────────────────────────────────────────────────────────
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Kubernetes liveness probe
+      operationId: healthz
+      security: []
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
   /api/health:
     get:
+      tags: [Health]
       summary: Health check
       operationId: healthCheck
-      description: Returns service health status
+      security: []
       responses:
         '200':
           description: Service is healthy
@@ -87,37 +1257,214 @@ paths:
                 properties:
                   status:
                     type: string
-                    example: "ok"
+                    example: ok
+
+  /api/ready:
+    get:
+      tags: [Health]
+      summary: Readiness probe
+      operationId: readyCheck
+      security: []
+      responses:
+        '200':
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ready
+
+  /api/version:
+    get:
+      tags: [Health]
+      summary: Service version
+      operationId: getVersion
+      security: []
+      responses:
+        '200':
+          description: Version info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+
+  /metrics:
+    get:
+      tags: [Health]
+      summary: Prometheus metrics
+      operationId: getMetrics
+      security: []
+      responses:
+        '200':
+          description: Prometheus text format
+          content:
+            text/plain:
+              schema:
+                type: string
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# COMPONENTS
+# ═══════════════════════════════════════════════════════════════════════════════
 components:
+
+  # ── Security Schemes ─────────────────────────────────────────────────────
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: >
+        JWT token with tenant_id claim. Mutation endpoints require the
+        `gl.post` permission claim.
+
+  # ── Reusable Parameters ──────────────────────────────────────────────────
+  parameters:
+    PeriodIdQuery:
+      name: period_id
+      in: query
+      required: true
+      description: Accounting period UUID
+      schema:
+        type: string
+        format: uuid
+      example: "550e8400-e29b-41d4-a716-446655440000"
+
+    PeriodIdPath:
+      name: period_id
+      in: path
+      required: true
+      description: Accounting period UUID
+      schema:
+        type: string
+        format: uuid
+
+    ItemIdPath:
+      name: item_id
+      in: path
+      required: true
+      description: Checklist item UUID
+      schema:
+        type: string
+        format: uuid
+
+    RequestIdPath:
+      name: request_id
+      in: path
+      required: true
+      description: Reopen request UUID
+      schema:
+        type: string
+        format: uuid
+
+    CurrencyRequired:
+      name: currency
+      in: query
+      required: true
+      description: ISO 4217 currency code
+      schema:
+        type: string
+        pattern: ^[A-Z]{3}$
+      example: USD
+
+    ReportingCurrency:
+      name: reporting_currency
+      in: query
+      required: true
+      description: Tenant's reporting (functional) currency (ISO 4217)
+      schema:
+        type: string
+        pattern: ^[A-Z]{3}$
+      example: USD
+
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size (1-100, default 50)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 50
+
+    Offset:
+      name: offset
+      in: query
+      required: false
+      description: Pagination offset (default 0)
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
+
+    AdminToken:
+      name: X-Admin-Token
+      in: header
+      required: true
+      description: Admin authentication token
+      schema:
+        type: string
+
+  # ── Reusable Responses ───────────────────────────────────────────────────
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  # ── Schemas ──────────────────────────────────────────────────────────────
   schemas:
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Invalid period_id format"
+
+    # -- Trial Balance --
     TrialBalanceResponse:
       type: object
-      required:
-        - tenant_id
-        - period_id
-        - rows
+      required: [tenant_id, period_id, rows]
       properties:
         tenant_id:
           type: string
-          description: Tenant identifier
-          example: "tenant_123"
         period_id:
           type: string
           format: uuid
-          description: Accounting period UUID
-          example: "550e8400-e29b-41d4-a716-446655440000"
         currency:
           type: string
           nullable: true
           description: Currency filter applied (null = all currencies)
-          example: "USD"
         rows:
           type: array
-          description: Trial balance rows ordered by account_code, currency
           items:
             $ref: '#/components/schemas/TrialBalanceRow'
         totals:
           $ref: '#/components/schemas/TrialBalanceTotals'
+
     TrialBalanceRow:
       type: object
       required:
@@ -132,68 +1479,1272 @@ components:
       properties:
         account_code:
           type: string
-          description: Chart of Accounts code
           example: "1000"
         account_name:
           type: string
-          description: Account name
           example: "Cash"
         account_type:
           type: string
           enum: [asset, liability, equity, revenue, expense]
-          description: Account type
-          example: "asset"
         normal_balance:
           type: string
           enum: [debit, credit]
-          description: Normal balance direction
-          example: "debit"
         currency:
           type: string
-          description: ISO 4217 currency code
-          example: "USD"
+          example: USD
         debit_total_minor:
           type: integer
           format: int64
-          description: Cumulative debit total in minor units (e.g., cents)
-          example: 100000
+          description: Cumulative debit total in minor units
         credit_total_minor:
           type: integer
           format: int64
-          description: Cumulative credit total in minor units (e.g., cents)
-          example: 0
+          description: Cumulative credit total in minor units
         net_balance_minor:
           type: integer
           format: int64
-          description: Net balance (debit_total - credit_total) in minor units
-          example: 100000
+          description: debit_total - credit_total in minor units
+
     TrialBalanceTotals:
       type: object
-      required:
-        - total_debits
-        - total_credits
-        - is_balanced
+      required: [total_debits, total_credits, is_balanced]
       properties:
         total_debits:
           type: integer
           format: int64
-          description: Sum of all debit totals in minor units
-          example: 500000
         total_credits:
           type: integer
           format: int64
-          description: Sum of all credit totals in minor units
-          example: 500000
         is_balanced:
           type: boolean
           description: Whether total debits equal total credits
-          example: true
-    ErrorResponse:
+
+    # -- Balance Sheet --
+    BalanceSheetResponse:
+      type: object
+      required: [tenant_id, period_id, currency, rows, totals]
+      properties:
+        tenant_id:
+          type: string
+        period_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/BalanceSheetRow'
+        totals:
+          $ref: '#/components/schemas/BalanceSheetTotals'
+
+    BalanceSheetRow:
+      type: object
+      required: [account_code, account_name, account_type, currency, amount_minor]
+      properties:
+        account_code:
+          type: string
+        account_name:
+          type: string
+        account_type:
+          type: string
+          enum: [asset, liability, equity]
+        currency:
+          type: string
+        amount_minor:
+          type: integer
+          format: int64
+          description: Account balance in minor units
+
+    BalanceSheetTotals:
+      type: object
+      required: [total_assets, total_liabilities, total_equity, is_balanced]
+      properties:
+        total_assets:
+          type: integer
+          format: int64
+        total_liabilities:
+          type: integer
+          format: int64
+        total_equity:
+          type: integer
+          format: int64
+        is_balanced:
+          type: boolean
+          description: Whether assets == liabilities + equity
+
+    # -- Income Statement --
+    IncomeStatementResponse:
+      type: object
+      required: [tenant_id, period_id, currency, rows, totals]
+      properties:
+        tenant_id:
+          type: string
+        period_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncomeStatementRow'
+        totals:
+          $ref: '#/components/schemas/IncomeStatementTotals'
+
+    IncomeStatementRow:
+      type: object
+      required: [account_code, account_name, account_type, currency, amount_minor]
+      properties:
+        account_code:
+          type: string
+        account_name:
+          type: string
+        account_type:
+          type: string
+          enum: [revenue, expense]
+        currency:
+          type: string
+        amount_minor:
+          type: integer
+          format: int64
+
+    IncomeStatementTotals:
+      type: object
+      required: [total_revenue, total_expenses, net_income]
+      properties:
+        total_revenue:
+          type: integer
+          format: int64
+          description: Total revenue (positive)
+        total_expenses:
+          type: integer
+          format: int64
+          description: Total expenses (negative)
+        net_income:
+          type: integer
+          format: int64
+          description: total_revenue - total_expenses
+
+    # -- Cash Flow --
+    CashFlowResponse:
       type: object
       required:
-        - error
+        - tenant_id
+        - period_id
+        - currency
+        - rows
+        - category_totals
+        - net_cash_flow
+        - cash_account_net_change
+        - reconciles
       properties:
-        error:
+        tenant_id:
           type: string
-          description: Error message
-          example: "Invalid period_id format"
+        period_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/CashFlowRow'
+        category_totals:
+          type: array
+          items:
+            $ref: '#/components/schemas/CashFlowCategoryTotal'
+        net_cash_flow:
+          type: integer
+          format: int64
+          description: Sum of all category totals
+        cash_account_net_change:
+          type: integer
+          format: int64
+          description: Net change in designated cash accounts
+        reconciles:
+          type: boolean
+          description: Whether net_cash_flow == cash_account_net_change
+
+    CashFlowRow:
+      type: object
+      required: [account_code, account_name, category, currency, amount_minor]
+      properties:
+        account_code:
+          type: string
+        account_name:
+          type: string
+        category:
+          type: string
+          enum: [operating, investing, financing]
+        currency:
+          type: string
+        amount_minor:
+          type: integer
+          format: int64
+          description: Net cash flow (positive = inflow, negative = outflow)
+
+    CashFlowCategoryTotal:
+      type: object
+      required: [category, total_minor]
+      properties:
+        category:
+          type: string
+          enum: [operating, investing, financing]
+        total_minor:
+          type: integer
+          format: int64
+
+    # -- GL Detail --
+    GLDetailResponse:
+      type: object
+      required: [tenant_id, period_start, period_end, entries, pagination]
+      properties:
+        tenant_id:
+          type: string
+        period_start:
+          type: string
+          description: ISO 8601 timestamp
+        period_end:
+          type: string
+          description: ISO 8601 timestamp
+        entries:
+          type: array
+          items:
+            $ref: '#/components/schemas/GLDetailEntry'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    GLDetailEntry:
+      type: object
+      required: [id, posted_at, currency, source_module, lines]
+      properties:
+        id:
+          type: string
+          format: uuid
+        posted_at:
+          type: string
+          description: ISO 8601 timestamp
+        description:
+          type: string
+          nullable: true
+        currency:
+          type: string
+        source_module:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/GLDetailEntryLine'
+
+    GLDetailEntryLine:
+      type: object
+      required: [line_no, account_code, account_name, debit_minor, credit_minor]
+      properties:
+        line_no:
+          type: integer
+        account_code:
+          type: string
+        account_name:
+          type: string
+        debit_minor:
+          type: integer
+          format: int64
+        credit_minor:
+          type: integer
+          format: int64
+        memo:
+          type: string
+          nullable: true
+
+    # -- Account Activity --
+    AccountActivityResponse:
+      type: object
+      required: [tenant_id, account_code, period_start, period_end, lines, pagination]
+      properties:
+        tenant_id:
+          type: string
+        account_code:
+          type: string
+        period_start:
+          type: string
+        period_end:
+          type: string
+        lines:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountActivityLine'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    AccountActivityLine:
+      type: object
+      required: [entry_id, posted_at, currency, debit_minor, credit_minor]
+      properties:
+        entry_id:
+          type: string
+          format: uuid
+        posted_at:
+          type: string
+        description:
+          type: string
+          nullable: true
+        currency:
+          type: string
+        debit_minor:
+          type: integer
+          format: int64
+        credit_minor:
+          type: integer
+          format: int64
+        memo:
+          type: string
+          nullable: true
+
+    PaginationMetadata:
+      type: object
+      required: [limit, offset, total_count, has_more]
+      properties:
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total_count:
+          type: integer
+          format: int64
+        has_more:
+          type: boolean
+
+    # -- Period Summary --
+    PeriodSummaryResponse:
+      type: object
+      required:
+        - tenant_id
+        - period_id
+        - currency
+        - journal_count
+        - line_count
+        - total_debits_minor
+        - total_credits_minor
+        - is_balanced
+        - data_source
+      properties:
+        tenant_id:
+          type: string
+        period_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+        journal_count:
+          type: integer
+        line_count:
+          type: integer
+        total_debits_minor:
+          type: integer
+          format: int64
+        total_credits_minor:
+          type: integer
+          format: int64
+        is_balanced:
+          type: boolean
+        data_source:
+          type: string
+          enum: [snapshot, computed]
+        snapshot_created_at:
+          type: string
+          nullable: true
+          description: ISO 8601 timestamp if data_source is snapshot
+
+    # -- Period Close --
+    ValidateCloseRequest:
+      type: object
+      required: [tenant_id]
+      properties:
+        tenant_id:
+          type: string
+
+    ValidateCloseResponse:
+      type: object
+      required: [period_id, tenant_id, can_close, validation_report, validated_at]
+      properties:
+        period_id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        can_close:
+          type: boolean
+        validation_report:
+          type: object
+          description: Structured validation report with errors and warnings
+        validated_at:
+          type: string
+          format: date-time
+
+    ClosePeriodRequest:
+      type: object
+      required: [tenant_id, closed_by]
+      properties:
+        tenant_id:
+          type: string
+        closed_by:
+          type: string
+          description: User or system identifier performing the close
+        close_reason:
+          type: string
+          nullable: true
+          description: Optional reason for audit trail
+
+    ClosePeriodResponse:
+      type: object
+      required: [period_id, tenant_id, success]
+      properties:
+        period_id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        success:
+          type: boolean
+        close_status:
+          $ref: '#/components/schemas/CloseStatus'
+        validation_report:
+          type: object
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+
+    CloseStatusResponse:
+      type: object
+      required: [period_id, tenant_id, period_start, period_end, close_status, timestamp]
+      properties:
+        period_id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        period_start:
+          type: string
+          description: YYYY-MM-DD
+        period_end:
+          type: string
+          description: YYYY-MM-DD
+        close_status:
+          $ref: '#/components/schemas/CloseStatus'
+        timestamp:
+          type: string
+          format: date-time
+
+    CloseStatus:
+      description: >
+        Period close status. One of: Open, CloseRequested (with requested_at),
+        or Closed (with full close metadata including hash).
+      oneOf:
+        - type: object
+          required: [Open]
+          properties:
+            Open:
+              type: object
+        - type: object
+          required: [CloseRequested]
+          properties:
+            CloseRequested:
+              type: object
+              required: [requested_at]
+              properties:
+                requested_at:
+                  type: string
+                  format: date-time
+        - type: object
+          required: [Closed]
+          properties:
+            Closed:
+              type: object
+              required: [closed_at, closed_by, close_hash]
+              properties:
+                closed_at:
+                  type: string
+                  format: date-time
+                closed_by:
+                  type: string
+                close_reason:
+                  type: string
+                  nullable: true
+                close_hash:
+                  type: string
+                  description: SHA-256 hash of sealed snapshot
+                requested_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+
+    # -- Close Checklist --
+    CreateChecklistItemRequest:
+      type: object
+      required: [label]
+      properties:
+        label:
+          type: string
+
+    CompleteChecklistItemRequest:
+      type: object
+      required: [completed_by]
+      properties:
+        completed_by:
+          type: string
+
+    WaiveChecklistItemRequest:
+      type: object
+      required: [completed_by, waive_reason]
+      properties:
+        completed_by:
+          type: string
+        waive_reason:
+          type: string
+
+    ChecklistItemResponse:
+      type: object
+      required: [id, tenant_id, period_id, label, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        period_id:
+          type: string
+          format: uuid
+        label:
+          type: string
+        status:
+          type: string
+          enum: [pending, complete, waived]
+        completed_by:
+          type: string
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        waive_reason:
+          type: string
+          nullable: true
+
+    # -- Approvals --
+    CreateApprovalRequest:
+      type: object
+      required: [actor_id, approval_type]
+      properties:
+        actor_id:
+          type: string
+        approval_type:
+          type: string
+        notes:
+          type: string
+          nullable: true
+
+    ApprovalResponse:
+      type: object
+      required: [id, tenant_id, period_id, actor_id, approval_type, approved_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        period_id:
+          type: string
+          format: uuid
+        actor_id:
+          type: string
+        approval_type:
+          type: string
+        notes:
+          type: string
+          nullable: true
+        approved_at:
+          type: string
+          format: date-time
+
+    # -- Reopen --
+    ReopenRequestPayload:
+      type: object
+      required: [requested_by, reason]
+      properties:
+        requested_by:
+          type: string
+        reason:
+          type: string
+
+    ReopenApprovePayload:
+      type: object
+      required: [approved_by]
+      properties:
+        approved_by:
+          type: string
+
+    ReopenRejectPayload:
+      type: object
+      required: [rejected_by, reject_reason]
+      properties:
+        rejected_by:
+          type: string
+        reject_reason:
+          type: string
+
+    ReopenRequest:
+      type: object
+      description: Reopen request record (fields vary by status)
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        period_id:
+          type: string
+          format: uuid
+        requested_by:
+          type: string
+        reason:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        approved_by:
+          type: string
+          nullable: true
+        rejected_by:
+          type: string
+          nullable: true
+        reject_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # -- FX Rates --
+    CreateFxRateRequest:
+      type: object
+      required:
+        - base_currency
+        - quote_currency
+        - rate
+        - effective_at
+        - source
+        - idempotency_key
+      properties:
+        base_currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+          example: USD
+        quote_currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+          example: EUR
+        rate:
+          type: number
+          format: double
+          description: Exchange rate (base/quote)
+          example: 0.92
+        effective_at:
+          type: string
+          format: date-time
+        source:
+          type: string
+          description: Rate source (e.g., "ecb", "manual")
+          example: ecb
+        idempotency_key:
+          type: string
+          description: Unique key for idempotent creation
+
+    CreateFxRateResponse:
+      type: object
+      required: [rate_id, created]
+      properties:
+        rate_id:
+          type: string
+          format: uuid
+        created:
+          type: boolean
+          description: false if idempotency_key was already used
+
+    FxRateResponse:
+      type: object
+      required:
+        - id
+        - tenant_id
+        - base_currency
+        - quote_currency
+        - rate
+        - inverse_rate
+        - effective_at
+        - source
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        base_currency:
+          type: string
+        quote_currency:
+          type: string
+        rate:
+          type: number
+          format: double
+        inverse_rate:
+          type: number
+          format: double
+        effective_at:
+          type: string
+          format: date-time
+        source:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # -- Reporting Currency --
+    ReportingTrialBalanceResponse:
+      type: object
+      required: [reporting_currency, is_reporting_currency, tenant_id, period_id, rows]
+      properties:
+        reporting_currency:
+          type: string
+        is_reporting_currency:
+          type: boolean
+        tenant_id:
+          type: string
+        period_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+          nullable: true
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrialBalanceRow'
+        totals:
+          $ref: '#/components/schemas/TrialBalanceTotals'
+
+    ReportingIncomeStatementResponse:
+      type: object
+      required: [reporting_currency, is_reporting_currency, tenant_id, period_id, currency, rows, totals]
+      properties:
+        reporting_currency:
+          type: string
+        is_reporting_currency:
+          type: boolean
+        tenant_id:
+          type: string
+        period_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncomeStatementRow'
+        totals:
+          $ref: '#/components/schemas/IncomeStatementTotals'
+
+    ReportingBalanceSheetResponse:
+      type: object
+      required: [reporting_currency, is_reporting_currency, tenant_id, period_id, currency, rows, totals]
+      properties:
+        reporting_currency:
+          type: string
+        is_reporting_currency:
+          type: boolean
+        tenant_id:
+          type: string
+        period_id:
+          type: string
+          format: uuid
+        currency:
+          type: string
+        rows:
+          type: array
+          items:
+            $ref: '#/components/schemas/BalanceSheetRow'
+        totals:
+          $ref: '#/components/schemas/BalanceSheetTotals'
+
+    # -- RevRec --
+    CreateContractRequest:
+      type: object
+      required:
+        - contract_id
+        - customer_id
+        - contract_name
+        - contract_start
+        - total_transaction_price_minor
+        - currency
+        - performance_obligations
+      properties:
+        contract_id:
+          type: string
+          format: uuid
+        customer_id:
+          type: string
+        contract_name:
+          type: string
+        contract_start:
+          type: string
+          description: YYYY-MM-DD
+        contract_end:
+          type: string
+          nullable: true
+          description: YYYY-MM-DD (optional for open-ended contracts)
+        total_transaction_price_minor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+        performance_obligations:
+          type: array
+          items:
+            $ref: '#/components/schemas/PerformanceObligation'
+        external_contract_ref:
+          type: string
+          nullable: true
+
+    PerformanceObligation:
+      type: object
+      required:
+        - obligation_id
+        - name
+        - allocated_amount_minor
+        - recognition_pattern
+        - satisfaction_start
+      properties:
+        obligation_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        allocated_amount_minor:
+          type: integer
+          format: int64
+        recognition_pattern:
+          type: object
+          description: Recognition pattern configuration (e.g., straight_line, point_in_time)
+        satisfaction_start:
+          type: string
+          description: YYYY-MM-DD
+        satisfaction_end:
+          type: string
+          nullable: true
+          description: YYYY-MM-DD
+
+    CreateContractResponse:
+      type: object
+      required: [contract_id, tenant_id, obligations_count, total_transaction_price_minor, created_at]
+      properties:
+        contract_id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        obligations_count:
+          type: integer
+        total_transaction_price_minor:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+          format: date-time
+
+    GenerateScheduleRequest:
+      type: object
+      required: [contract_id, obligation_id]
+      properties:
+        contract_id:
+          type: string
+          format: uuid
+        obligation_id:
+          type: string
+          format: uuid
+
+    GenerateScheduleResponse:
+      type: object
+      required:
+        - schedule_id
+        - contract_id
+        - obligation_id
+        - version
+        - lines_count
+        - total_to_recognize_minor
+        - first_period
+        - last_period
+        - created_at
+      properties:
+        schedule_id:
+          type: string
+          format: uuid
+        contract_id:
+          type: string
+          format: uuid
+        obligation_id:
+          type: string
+          format: uuid
+        version:
+          type: integer
+        lines_count:
+          type: integer
+        total_to_recognize_minor:
+          type: integer
+          format: int64
+        first_period:
+          type: string
+          description: YYYY-MM
+        last_period:
+          type: string
+          description: YYYY-MM
+        created_at:
+          type: string
+          format: date-time
+
+    RecognitionRunRequest:
+      type: object
+      required: [period, posting_date]
+      properties:
+        period:
+          type: string
+          description: Target accounting period (YYYY-MM)
+          example: "2026-01"
+        posting_date:
+          type: string
+          description: Posting date for GL entries (YYYY-MM-DD)
+          example: "2026-01-31"
+
+    RecognitionRunResponse:
+      type: object
+      required:
+        - period
+        - tenant_id
+        - lines_recognized
+        - lines_skipped
+        - total_recognized_minor
+        - postings
+      properties:
+        period:
+          type: string
+        tenant_id:
+          type: string
+        lines_recognized:
+          type: integer
+        lines_skipped:
+          type: integer
+        total_recognized_minor:
+          type: integer
+          format: int64
+        postings:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecognitionPostingResponse'
+
+    RecognitionPostingResponse:
+      type: object
+      required:
+        - run_id
+        - schedule_id
+        - contract_id
+        - obligation_id
+        - journal_entry_id
+        - amount_minor
+        - currency
+      properties:
+        run_id:
+          type: string
+          format: uuid
+        schedule_id:
+          type: string
+          format: uuid
+        contract_id:
+          type: string
+          format: uuid
+        obligation_id:
+          type: string
+          format: uuid
+        journal_entry_id:
+          type: string
+          format: uuid
+        amount_minor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+
+    ContractModifiedPayload:
+      type: object
+      required:
+        - modification_id
+        - contract_id
+        - tenant_id
+        - modification_type
+        - effective_date
+      properties:
+        modification_id:
+          type: string
+          format: uuid
+        contract_id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        modification_type:
+          type: string
+          description: Classification (e.g., price_change, scope_change, termination)
+        effective_date:
+          type: string
+          description: YYYY-MM-DD
+        new_total_transaction_price_minor:
+          type: integer
+          format: int64
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+
+    AmendContractResponse:
+      type: object
+      required: [modification_id, contract_id, event_id]
+      properties:
+        modification_id:
+          type: string
+          format: uuid
+        contract_id:
+          type: string
+          format: uuid
+        event_id:
+          type: string
+          format: uuid
+
+    # -- Accruals --
+    CreateTemplateRequest:
+      type: object
+      required:
+        - tenant_id
+        - name
+        - debit_account
+        - credit_account
+        - amount_minor
+        - currency
+      properties:
+        tenant_id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+        debit_account:
+          type: string
+        credit_account:
+          type: string
+        amount_minor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+          pattern: ^[A-Z]{3}$
+        reversal_policy:
+          type: string
+          nullable: true
+          description: Reversal policy (e.g., "next_period", "same_period")
+        cashflow_class:
+          type: string
+          nullable: true
+          description: Cash flow classification
+
+    TemplateResult:
+      type: object
+      required: [template_id, tenant_id]
+      properties:
+        template_id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+
+    CreateAccrualRequest:
+      type: object
+      required: [template_id, tenant_id, period, posting_date]
+      properties:
+        template_id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        period:
+          type: string
+          description: YYYY-MM
+        posting_date:
+          type: string
+          description: YYYY-MM-DD
+        correlation_id:
+          type: string
+          nullable: true
+
+    AccrualResult:
+      type: object
+      required:
+        - instance_id
+        - accrual_id
+        - template_id
+        - period
+        - journal_entry_id
+        - amount_minor
+        - currency
+        - idempotent_hit
+      properties:
+        instance_id:
+          type: string
+          format: uuid
+        accrual_id:
+          type: string
+          format: uuid
+        template_id:
+          type: string
+          format: uuid
+        period:
+          type: string
+        journal_entry_id:
+          type: string
+          format: uuid
+        amount_minor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        idempotent_hit:
+          type: boolean
+
+    ExecuteReversalsRequest:
+      type: object
+      required: [tenant_id, target_period, reversal_date]
+      properties:
+        tenant_id:
+          type: string
+        target_period:
+          type: string
+          description: YYYY-MM
+        reversal_date:
+          type: string
+          description: YYYY-MM-DD
+
+    ExecuteReversalsResult:
+      type: object
+      required: [target_period, reversals_executed, reversals_skipped, results]
+      properties:
+        target_period:
+          type: string
+        reversals_executed:
+          type: integer
+        reversals_skipped:
+          type: integer
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReversalResult'
+
+    ReversalResult:
+      type: object
+      required:
+        - reversal_id
+        - original_accrual_id
+        - journal_entry_id
+        - amount_minor
+        - currency
+        - idempotent_hit
+      properties:
+        reversal_id:
+          type: string
+          format: uuid
+        original_accrual_id:
+          type: string
+          format: uuid
+        journal_entry_id:
+          type: string
+          format: uuid
+        amount_minor:
+          type: integer
+          format: int64
+        currency:
+          type: string
+        idempotent_hit:
+          type: boolean
+
+    # -- Admin --
+    ProjectionStatusRequest:
+      type: object
+      required: [projection_name]
+      properties:
+        projection_name:
+          type: string
+
+    ProjectionStatusResponse:
+      type: object
+      properties:
+        projection_name:
+          type: string
+        last_offset:
+          type: integer
+          format: int64
+        lag:
+          type: integer
+          format: int64
+        last_processed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    ConsistencyCheckRequest:
+      type: object
+      required: [projection_name]
+      properties:
+        projection_name:
+          type: string
+
+    ConsistencyCheckResponse:
+      type: object
+      properties:
+        projection_name:
+          type: string
+        is_consistent:
+          type: boolean
+        details:
+          type: object
+          nullable: true
+
+    ProjectionListResponse:
+      type: object
+      properties:
+        projections:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              last_offset:
+                type: integer
+                format: int64
+              lag:
+                type: integer
+                format: int64
