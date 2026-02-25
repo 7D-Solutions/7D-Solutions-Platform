@@ -665,6 +665,39 @@ services:
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
 
+  # =========================
+  # SHIPPING-RECEIVING MODULE
+  # =========================
+  shipping-receiving:
+    container_name: 7d-shipping-receiving
+    build:
+      context: .
+      dockerfile: modules/shipping-receiving/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${SHIPPING_RECEIVING_POSTGRES_USER:-shipping_receiving_user}:${SHIPPING_RECEIVING_POSTGRES_PASSWORD:-shipping_receiving_pass}@7d-shipping-receiving-postgres:5432/${SHIPPING_RECEIVING_POSTGRES_DB:-shipping_receiving_db}
+      NATS_URL: nats://7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8103
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8103:8103"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8103/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "shipping-receiving"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
