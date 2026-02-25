@@ -47,21 +47,25 @@ Inventory does **NOT**:
 |---|---|
 | `items` | Item master with tracking_mode, tenant_id |
 | `inventory_ledger` | Immutable receipt/issue/adjustment/transfer journal |
-| `fifo_layers` | Per-item cost layers for FIFO valuation |
+| `inventory_layers` | Per-item cost layers for FIFO valuation |
+| `layer_consumptions` | FIFO consumption audit trail |
 | `inventory_reservations` | Stock reservations against orders |
-| `item_on_hand_projection` | Materialized on-hand by item/location/status |
+| `item_on_hand` | Materialized on-hand by item/location |
+| `item_on_hand_by_status` | Status-bucketed on-hand quantities |
 | `uoms` | Unit of measure definitions |
+| `item_uom_conversions` | Per-item UoM conversion factors |
 | `inventory_lots` | Lot/batch records with expiration dates |
 | `inventory_serial_instances` | Individual serial number records |
-| `status_buckets` | Quality status definitions |
 | `locations` | Warehouse/bin location hierarchy |
-| `status_transfers` | Quality status transition records |
-| `adjustments` | Inventory count adjustments |
-| `cycle_count_*` | Cycle count headers, lines, approvals |
+| `inv_status_transfers` | Quality status transition records |
+| `inv_adjustments` | Inventory count adjustments |
+| `cycle_count_tasks` | Cycle count headers |
+| `cycle_count_lines` | Per-item count lines within a task |
 | `inv_transfers` | Inter-location transfer records |
 | `reorder_policies` | Min/max reorder rules per item/location |
-| `valuation_snapshots` | Point-in-time valuation captures |
-| `low_stock_state` | Low stock detection state per item |
+| `inventory_valuation_snapshots` | Point-in-time valuation captures |
+| `inventory_valuation_lines` | Per-item valuation detail |
+| `inv_low_stock_state` | Low stock detection state per item |
 | `inv_outbox` | Module outbox for NATS |
 
 ---
