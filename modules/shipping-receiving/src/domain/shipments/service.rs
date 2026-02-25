@@ -19,7 +19,8 @@ use super::guards::{
     OutboundGuardContext,
 };
 use super::state_machine::{validate_inbound, validate_outbound, TransitionError};
-use super::types::{Direction, InboundStatus, LineQty, OutboundStatus};
+use super::types::{Direction, InboundStatus, OutboundStatus};
+use crate::db::repository::ShipmentRepository;
 use crate::outbox;
 
 // ── Domain model ──────────────────────────────────────────────
@@ -86,42 +87,11 @@ pub mod subjects {
     pub const OUTBOUND_DELIVERED: &str = "shipping.outbound.delivered";
 }
 
-// ── Repository / Service ──────────────────────────────────────
+// ── Service ──────────────────────────────────────────────────
 
 pub struct ShipmentService;
 
 impl ShipmentService {
-    /// Fetch shipment lines for invariant checking within a transaction.
-    async fn fetch_lines_tx(
-        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-        shipment_id: Uuid,
-        tenant_id: Uuid,
-    ) -> Result<Vec<LineQty>, sqlx::Error> {
-        let rows: Vec<LineQtyRow> = sqlx::query_as(
-            r#"
-            SELECT id, qty_expected, qty_shipped, qty_received, qty_accepted, qty_rejected
-            FROM shipment_lines
-            WHERE shipment_id = $1 AND tenant_id = $2
-            "#,
-        )
-        .bind(shipment_id)
-        .bind(tenant_id)
-        .fetch_all(&mut **tx)
-        .await?;
-
-        Ok(rows
-            .into_iter()
-            .map(|r| LineQty {
-                line_id: r.id,
-                qty_expected: r.qty_expected,
-                qty_shipped: r.qty_shipped,
-                qty_received: r.qty_received,
-                qty_accepted: r.qty_accepted,
-                qty_rejected: r.qty_rejected,
-            })
-            .collect())
-    }
-
     /// Transition a shipment's status with direction-specific state machine
     /// and guard enforcement. All invariants are checked within the same
     /// database transaction as the mutation and outbox write.
@@ -133,22 +103,14 @@ impl ShipmentService {
     ) -> Result<Shipment, ShipmentError> {
         let mut tx = pool.begin().await?;
 
-        // Fetch current shipment (row-level lock via FOR UPDATE)
-        let current = sqlx::query_as::<_, Shipment>(
-            "SELECT * FROM shipments WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
-        )
-        .bind(shipment_id)
-        .bind(tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(ShipmentError::NotFound)?;
+        let current = ShipmentRepository::get_shipment_for_update(&mut tx, shipment_id, tenant_id)
+            .await?
+            .ok_or(ShipmentError::NotFound)?;
 
         let from_status = &current.status;
 
-        // Fetch lines for invariant guards
-        let lines = Self::fetch_lines_tx(&mut tx, shipment_id, tenant_id).await?;
+        let lines = ShipmentRepository::get_line_qtys_tx(&mut tx, shipment_id, tenant_id).await?;
 
-        // Direction-specific validation
         let event_type = match current.direction {
             Direction::Inbound => {
                 let from = InboundStatus::from_str_value(from_status)
@@ -196,28 +158,17 @@ impl ShipmentService {
             }
         };
 
-        // ── Mutation ──
-        let shipment = sqlx::query_as::<_, Shipment>(
-            r#"
-            UPDATE shipments SET
-                status       = $3,
-                arrived_at   = COALESCE($4, arrived_at),
-                shipped_at   = COALESCE($5, shipped_at),
-                delivered_at = COALESCE($6, delivered_at),
-                closed_at    = COALESCE($7, closed_at),
-                updated_at   = NOW()
-            WHERE id = $1 AND tenant_id = $2
-            RETURNING *
-            "#,
+        // ── Mutation via repository ──
+        let shipment = ShipmentRepository::update_shipment_status(
+            &mut tx,
+            shipment_id,
+            tenant_id,
+            &req.status,
+            req.arrived_at,
+            req.shipped_at,
+            req.delivered_at,
+            req.closed_at,
         )
-        .bind(shipment_id)
-        .bind(tenant_id)
-        .bind(&req.status)
-        .bind(req.arrived_at)
-        .bind(req.shipped_at)
-        .bind(req.delivered_at)
-        .bind(req.closed_at)
-        .fetch_one(&mut *tx)
         .await?;
 
         // ── Outbox ──
@@ -250,24 +201,8 @@ impl ShipmentService {
         id: Uuid,
         tenant_id: Uuid,
     ) -> Result<Option<Shipment>, ShipmentError> {
-        sqlx::query_as::<_, Shipment>(
-            "SELECT * FROM shipments WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(ShipmentError::Database)
+        ShipmentRepository::get_shipment(pool, id, tenant_id)
+            .await
+            .map_err(ShipmentError::Database)
     }
-}
-
-/// Internal row type for line quantity queries.
-#[derive(sqlx::FromRow)]
-struct LineQtyRow {
-    id: Uuid,
-    qty_expected: i64,
-    qty_shipped: i64,
-    qty_received: i64,
-    qty_accepted: i64,
-    qty_rejected: i64,
 }

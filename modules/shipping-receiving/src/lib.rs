@@ -1,4 +1,6 @@
 pub mod config;
+pub mod consumers;
+pub mod db;
 pub mod domain;
 pub mod events;
 pub mod http;

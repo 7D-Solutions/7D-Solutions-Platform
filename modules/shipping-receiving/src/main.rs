@@ -69,6 +69,19 @@ async fn main() {
     });
     tracing::info!("Shipping-Receiving: outbox publisher task started");
 
+    // Start event consumers
+    shipping_receiving_rs::consumers::start_po_approved_consumer(
+        event_bus.clone(),
+        pool.clone(),
+    )
+    .await;
+    shipping_receiving_rs::consumers::start_so_released_consumer(
+        event_bus.clone(),
+        pool.clone(),
+    )
+    .await;
+    tracing::info!("Shipping-Receiving: event consumers started");
+
     let metrics = Arc::new(
         metrics::ShippingReceivingMetrics::new().expect("Failed to create metrics registry"),
     );
