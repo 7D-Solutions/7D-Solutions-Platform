@@ -1,4 +1,4 @@
-use axum::{extract::DefaultBodyLimit, http::Method, routing::get, Extension, Router};
+use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::middleware::{
     default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,

@@ -260,7 +260,7 @@ fn validate_currency(currency: &str) -> Result<(), AccountActivityServiceError> 
 
 /// Validate pagination parameters
 fn validate_pagination(limit: i64, offset: i64) -> Result<(), AccountActivityServiceError> {
-    if limit < 1 || limit > 100 {
+    if !(1..=100).contains(&limit) {
         return Err(AccountActivityServiceError::InvalidPagination(
             "limit must be between 1 and 100".to_string(),
         ));

@@ -17,7 +17,6 @@
 ///   5. Computes line_total = quantity * unit_price_minor (integer arithmetic, no rounding).
 ///
 /// Same inputs → same outputs, always.
-
 use chrono::{DateTime, NaiveDate, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;

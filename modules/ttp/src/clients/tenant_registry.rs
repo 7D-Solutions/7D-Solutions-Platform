@@ -6,7 +6,6 @@
 /// Endpoint: GET {base_url}/api/tenants/{tenant_id}/app-id
 ///
 /// Fail-closed: billing run aborts if app_id cannot be resolved.
-
 use serde::Deserialize;
 use uuid::Uuid;
 

@@ -9,7 +9,7 @@
 //! ```
 
 use chrono::NaiveDate;
-use sqlx::{PgConnection, PgPool};
+use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::cycle_gating::{
@@ -174,7 +174,7 @@ pub async fn create_gated_invoice(
     };
 
     let create_result = client
-        .post(&format!("{}/api/ar/invoices", ar_base_url))
+        .post(format!("{}/api/ar/invoices", ar_base_url))
         .json(&create_invoice_req)
         .send()
         .await
@@ -213,7 +213,7 @@ pub async fn create_gated_invoice(
     };
 
     let finalize_result = client
-        .post(&format!("{}/api/ar/invoices/{}/finalize", ar_base_url, invoice.id))
+        .post(format!("{}/api/ar/invoices/{}/finalize", ar_base_url, invoice.id))
         .json(&finalize_req)
         .send()
         .await

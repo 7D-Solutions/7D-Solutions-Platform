@@ -11,7 +11,6 @@
 ///   GET  /api/ttp/plans                               — List platform billing plans (plan catalog)
 ///   GET  /api/tenants                                 — Paginated tenant list (BFF-compatible)
 ///   GET  /api/tenants/:tenant_id                      — Tenant detail with derived name and seat_limit
-
 use axum::{extract::State, http::StatusCode, routing::{get, post}, Json, Router};
 use std::sync::Arc;
 use tenant_registry::routes::{summary_router, entitlements_router, status_router, app_id_router, SummaryState};

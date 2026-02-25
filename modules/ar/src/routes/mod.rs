@@ -24,7 +24,7 @@ pub mod write_offs;
 
 use axum::{
     middleware,
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
     Router,
 };
 use security::{permissions, ratelimit::WebhookRateLimiter, RequirePermissionsLayer};

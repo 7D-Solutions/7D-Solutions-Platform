@@ -189,7 +189,7 @@ async fn execute_bill_run(
         };
 
         let create_result = client
-            .post(&format!("{}/api/ar/invoices", ar_base_url))
+            .post(format!("{}/api/ar/invoices", ar_base_url))
             .json(&create_invoice_req)
             .send()
             .await;
@@ -229,7 +229,7 @@ async fn execute_bill_run(
         };
 
         let finalize_result = client
-            .post(&format!("{}/api/ar/invoices/{}/finalize", ar_base_url, invoice.id))
+            .post(format!("{}/api/ar/invoices/{}/finalize", ar_base_url, invoice.id))
             .json(&finalize_req)
             .send()
             .await;

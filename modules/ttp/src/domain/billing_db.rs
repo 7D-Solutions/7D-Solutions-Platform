@@ -1,7 +1,6 @@
 /// Database query helpers for TTP billing runs.
 ///
 /// Extracted from billing.rs to stay under the 500 LOC file size limit.
-
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;
 use uuid::Uuid;

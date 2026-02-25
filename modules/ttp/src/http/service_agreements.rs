@@ -30,7 +30,6 @@
 ///   "count": 1
 /// }
 /// ```
-
 use axum::{
     extract::{Query, State},
     http::StatusCode,

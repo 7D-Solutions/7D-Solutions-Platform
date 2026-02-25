@@ -88,7 +88,7 @@ pub async fn execute_payment_run(
 
     // Idempotency: already terminal — return existing state
     if run.status == "completed" || run.status == "failed" {
-        let executions = fetch_executions(&mut *tx, run_id).await?;
+        let executions = fetch_executions(&mut tx, run_id).await?;
         tx.commit().await?;
         return Ok(ExecuteResult { run, executions });
     }
@@ -122,7 +122,7 @@ pub async fn execute_payment_run(
 
     for item in &items {
         // Idempotency: skip if already executed
-        if let Some(exec) = fetch_execution_by_item(&mut *tx, run_id, item.id).await? {
+        if let Some(exec) = fetch_execution_by_item(&mut tx, run_id, item.id).await? {
             executions.push(exec);
             continue;
         }
@@ -141,7 +141,7 @@ pub async fn execute_payment_run(
         let mut actual_amount: i64 = 0;
 
         for &bill_id in &item.bill_ids {
-            let open_balance = query_open_balance(&mut *tx, tenant_id, bill_id).await?;
+            let open_balance = query_open_balance(&mut tx, tenant_id, bill_id).await?;
             if open_balance <= 0 {
                 continue; // Already fully paid — skip
             }

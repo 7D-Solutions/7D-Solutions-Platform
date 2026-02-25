@@ -142,7 +142,7 @@ pub async fn create_vendor(
     .bind(req.payment_terms_days)
     .bind(&req.payment_method)
     .bind(&req.remittance_email)
-    .bind(&req.party_id)
+    .bind(req.party_id)
     .bind(now)
     .fetch_one(&mut *tx)
     .await

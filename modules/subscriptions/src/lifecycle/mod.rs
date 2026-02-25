@@ -18,5 +18,7 @@
 pub mod state_machine;
 pub mod transitions;
 
+#[allow(unused_imports)]
 pub use state_machine::{SubscriptionStatus, TransitionError, transition_guard};
+#[allow(unused_imports)]
 pub use transitions::{transition_to_active, transition_to_past_due, transition_to_suspended};

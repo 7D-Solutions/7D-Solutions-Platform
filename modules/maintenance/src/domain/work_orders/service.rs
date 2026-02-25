@@ -533,8 +533,8 @@ impl WorkOrderRepo {
         if q.tenant_id.trim().is_empty() {
             return Err(WoError::Validation("tenant_id is required".into()));
         }
-        let limit = q.limit.unwrap_or(50).min(100).max(1);
-        let offset = q.offset.unwrap_or(0).max(0);
+        let limit = q.limit.unwrap_or(50).clamp(1, 100);
+        let offset = q.offset.unwrap_or(0);
 
         if let Some(ref s) = q.status {
             WoStatus::from_str_value(s)

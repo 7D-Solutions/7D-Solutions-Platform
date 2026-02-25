@@ -536,7 +536,7 @@ impl SimulationRunner {
     async fn create_payment_attempt(
         &self,
         app_id: &str,
-        invoice_id: i32,
+        _invoice_id: i32,
         tilled_invoice_id: &str,
         outcome: &failures::PaymentOutcome,
     ) -> Result<Uuid> {

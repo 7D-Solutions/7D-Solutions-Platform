@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 mod admin;
 mod admin_types;
 mod config;
@@ -104,7 +106,7 @@ async fn main() {
         metrics: metrics.clone(),
     });
 
-    let host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let _host = std::env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
     let port: u16 = std::env::var("PORT")
         .unwrap_or_else(|_| "8087".to_string())
         .parse()

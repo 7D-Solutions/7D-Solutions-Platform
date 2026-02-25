@@ -12,7 +12,6 @@
 /// AR uses integer IDs for customers and invoices internally.
 /// The `external_customer_id` field is used to store the party_id (UUID),
 /// allowing idempotent lookup-or-create for AR customers.
-
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

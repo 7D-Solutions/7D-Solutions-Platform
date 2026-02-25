@@ -5,7 +5,6 @@
 //! Used by statement services (trial balance, income statement, balance sheet).
 
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 /// Trial Balance Row
 ///

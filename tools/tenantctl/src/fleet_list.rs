@@ -93,8 +93,8 @@ pub async fn fleet_list() -> Result<CommandOutput> {
     // Print human-readable table
     eprintln!();
     eprintln!(
-        "{:<38} {:<14} {:<10} {:<12} {}",
-        "TENANT_ID", "STATUS", "ENV", "APP_ID", "UPDATED"
+        "{:<38} {:<14} {:<10} {:<12} UPDATED",
+        "TENANT_ID", "STATUS", "ENV", "APP_ID"
     );
     eprintln!("{}", "-".repeat(95));
     for t in &tenants {

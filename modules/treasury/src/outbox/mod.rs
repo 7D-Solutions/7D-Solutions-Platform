@@ -100,7 +100,7 @@ pub async fn run_publisher_task(db: PgPool, event_bus: Arc<dyn event_bus::EventB
                 );
             }
             Ok(_) => {
-                if tick_count <= 3 || tick_count % 60 == 0 {
+                if tick_count <= 3 || tick_count.is_multiple_of(60) {
                     tracing::debug!(
                         "Treasury publisher tick {}: no unpublished events",
                         tick_count

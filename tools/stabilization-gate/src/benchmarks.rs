@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Benchmark scenario implementations for the stabilization gate.
 //!
 //! Wave 0 (bd-jsko): each function validates connectivity and collects baseline

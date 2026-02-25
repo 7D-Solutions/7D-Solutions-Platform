@@ -2,12 +2,10 @@ use axum::{http::StatusCode, Extension, Json};
 use chrono::{DateTime, Utc};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use uuid::Uuid;
 
 use crate::domain::shipments::ShipmentError;
 use axum::http::HeaderMap;
-use axum::response::IntoResponse;
 
 #[derive(Debug, Serialize)]
 pub struct ErrorBody {

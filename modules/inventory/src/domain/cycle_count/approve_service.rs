@@ -7,6 +7,7 @@
 //!   2. Inserts an inv_adjustments business-key row
 //!   3. Upserts item_on_hand + item_on_hand_by_status projections
 //!   4. Emits inventory.adjusted to inv_outbox (one event per adjusted line)
+//!
 //! Then moves the task from 'submitted' → 'approved' and emits
 //! inventory.cycle_count_approved.
 //!

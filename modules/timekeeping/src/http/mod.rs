@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod admin_types;
 pub mod allocations;
 pub mod approvals;
 pub mod billing;
@@ -9,7 +10,7 @@ pub mod projects;
 pub mod tenant;
 
 use axum::{
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
     Router,
 };
 use security::{permissions, RequirePermissionsLayer};

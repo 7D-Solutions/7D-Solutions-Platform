@@ -1,4 +1,4 @@
-use axum::{extract::DefaultBodyLimit, http::Method, Extension};
+use axum::{extract::DefaultBodyLimit, Extension};
 use security::middleware::{
     default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
 };

@@ -10,7 +10,6 @@
 /// Returns 200 OK if idempotency key was already used (replays the result).
 /// Returns 422 Unprocessable Entity for validation errors.
 /// Returns 409 Conflict if tenant_id is explicitly supplied and already exists.
-
 use axum::{
     extract::State,
     http::StatusCode,

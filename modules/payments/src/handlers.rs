@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::events::{enqueue_event, EventEnvelope};
+use crate::events::enqueue_event;
 use crate::models::{PaymentCollectionRequestedPayload, PaymentFailedPayload, PaymentSucceededPayload};
 use crate::processor::MockPaymentProcessor;
 

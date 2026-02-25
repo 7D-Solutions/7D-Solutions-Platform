@@ -31,7 +31,6 @@
 ///   "was_noop": false
 /// }
 /// ```
-
 use axum::{extract::State, http::StatusCode, Extension, Json};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
@@ -236,7 +235,7 @@ fn is_valid_billing_period(period: &str) -> bool {
     let year = parts[0].parse::<u16>();
     let month = parts[1].parse::<u8>();
     match (year, month) {
-        (Ok(y), Ok(m)) => y >= 2020 && m >= 1 && m <= 12,
+        (Ok(y), Ok(m)) => y >= 2020 && (1..=12).contains(&m),
         _ => false,
     }
 }

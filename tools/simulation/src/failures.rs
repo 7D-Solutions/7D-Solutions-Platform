@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Failure Injection Model for Simulation (bd-3c2)
 //!
 //! **Purpose:** Deterministic failure scenarios for testing resilience

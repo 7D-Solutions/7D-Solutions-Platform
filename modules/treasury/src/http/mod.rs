@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod admin_types;
 pub mod accounts;
 pub mod import;
 pub mod recon;

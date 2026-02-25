@@ -310,7 +310,7 @@ pub async fn run_scheduler_task(pool: PgPool, interval_secs: u64) {
                 );
             }
             Ok(result) => {
-                if tick_count <= 3 || tick_count % 60 == 0 {
+                if tick_count <= 3 || tick_count.is_multiple_of(60) {
                     tracing::debug!(
                         tick = tick_count,
                         evaluated = result.evaluated,

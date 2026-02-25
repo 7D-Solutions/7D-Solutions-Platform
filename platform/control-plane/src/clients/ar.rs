@@ -5,7 +5,6 @@
 /// - find_or_create_platform_customer: ensures an AR customer exists for each tenant
 /// - create_platform_invoice_idempotent: inserts an invoice only if one does not already exist
 ///   for the given (tenant, period) correlation key.
-
 use chrono::{NaiveDate, NaiveDateTime};
 use sqlx::PgPool;
 use uuid::Uuid;

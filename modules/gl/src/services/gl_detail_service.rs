@@ -4,7 +4,7 @@
 //! Supports optional filtering by account_code and currency.
 //! Uses bounded queries with deterministic ordering to avoid full table scans.
 
-use chrono::{DateTime, NaiveTime, Utc};
+use chrono::NaiveTime;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use thiserror::Error;
@@ -278,7 +278,7 @@ fn validate_currency(currency: &str) -> Result<(), GLDetailServiceError> {
 
 /// Validate pagination parameters
 fn validate_pagination(limit: i64, offset: i64) -> Result<(), GLDetailServiceError> {
-    if limit < 1 || limit > 100 {
+    if !(1..=100).contains(&limit) {
         return Err(GLDetailServiceError::InvalidPagination(
             "limit must be between 1 and 100".to_string(),
         ));

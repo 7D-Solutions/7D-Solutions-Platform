@@ -364,7 +364,7 @@ async fn verify_connectivity(cfg: &Config) -> Result<()> {
 
 fn extract_host(url: &str) -> String {
     url.split('@')
-        .last()
+        .next_back()
         .and_then(|s| s.split('/').next())
         .unwrap_or("unknown")
         .to_string()

@@ -19,7 +19,7 @@
 //! - Wraps invoice creation in gated transaction
 
 use chrono::{Datelike, NaiveDate};
-use sqlx::{PgConnection, PgPool};
+use sqlx::PgConnection;
 use thiserror::Error;
 use uuid::Uuid;
 

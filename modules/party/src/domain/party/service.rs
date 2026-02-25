@@ -157,8 +157,8 @@ pub async fn search_parties(
     app_id: &str,
     query: &SearchQuery,
 ) -> Result<Vec<Party>, PartyError> {
-    let limit = query.limit.unwrap_or(50).min(200).max(1);
-    let offset = query.offset.unwrap_or(0).max(0);
+    let limit = query.limit.unwrap_or(50).clamp(1, 200);
+    let offset = query.offset.unwrap_or(0);
     let status = query.status.as_deref().unwrap_or("active");
 
     // When filtering by external ref, join and then fetch base party
@@ -532,16 +532,16 @@ pub async fn update_party(
         "#,
     )
     .bind(&new_name)
-    .bind(&new_email)
-    .bind(&new_phone)
-    .bind(&new_website)
-    .bind(&new_addr1)
-    .bind(&new_addr2)
-    .bind(&new_city)
-    .bind(&new_state)
-    .bind(&new_postal)
-    .bind(&new_country)
-    .bind(&new_metadata)
+    .bind(new_email)
+    .bind(new_phone)
+    .bind(new_website)
+    .bind(new_addr1)
+    .bind(new_addr2)
+    .bind(new_city)
+    .bind(new_state)
+    .bind(new_postal)
+    .bind(new_country)
+    .bind(new_metadata)
     .bind(now)
     .bind(party_id)
     .bind(app_id)

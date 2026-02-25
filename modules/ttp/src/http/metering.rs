@@ -2,7 +2,6 @@
 ///
 /// POST /api/metering/events  — idempotent event ingestion
 /// GET  /api/metering/trace   — deterministic price trace
-
 use axum::{
     extract::{Query, State},
     http::StatusCode,

@@ -3,7 +3,7 @@
 //! Called from within the run transaction so the data is consistent with the
 //! just-posted schedule rows.
 
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
 use super::models::DepreciationGlEntry;

@@ -83,7 +83,7 @@ where
 fn extract_host(url: &str) -> String {
     // postgres://user:pass@host:port/db  →  host:port
     url.split('@')
-        .last()
+        .next_back()
         .and_then(|s| s.split('/').next())
         .unwrap_or("unknown")
         .to_string()

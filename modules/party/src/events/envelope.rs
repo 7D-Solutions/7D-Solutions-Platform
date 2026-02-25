@@ -9,6 +9,7 @@ pub use event_bus::EventEnvelope;
 /// - schema_version: "1.0.0"
 /// - replay_safe: true
 /// - mutation_class: required
+///
 /// **Phase 40**: actor_id/actor_type carried from VerifiedClaims on HTTP mutations
 pub fn create_party_envelope<T>(
     event_id: uuid::Uuid,

@@ -20,6 +20,7 @@ use std::sync::Arc;
 use crate::domain::aging::{ap_aging, ar_aging};
 
 use super::statements::extract_tenant;
+use super::admin_types::ErrorBody;
 
 // ── AR aging ─────────────────────────────────────────────────────────────────
 
@@ -40,8 +41,11 @@ pub async fn get_ar_aging(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<ArAgingParams>,
-) -> Result<Json<ArAgingResponse>, (StatusCode, String)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> Result<Json<ArAgingResponse>, (StatusCode, Json<ErrorBody>)> {
+    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
+        (status, Json(ErrorBody::new("unauthorized", &msg)))
+    })?;
+    
     let aging = ar_aging::get_aging_summary(&state.pool, &tenant_id, params.as_of)
         .await
         .map_err(|e| {
@@ -51,7 +55,7 @@ pub async fn get_ar_aging(
                 error = %e,
                 "AR aging query failed"
             );
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::new("internal_error", e.to_string())))
         })?;
 
     Ok(Json(ArAgingResponse {
@@ -75,8 +79,11 @@ pub async fn get_ap_aging(
     State(state): State<Arc<crate::AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<ApAgingParams>,
-) -> Result<Json<ap_aging::ApAgingReport>, (StatusCode, String)> {
-    let tenant_id = extract_tenant(&claims)?;
+) -> Result<Json<ap_aging::ApAgingReport>, (StatusCode, Json<ErrorBody>)> {
+    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
+        (status, Json(ErrorBody::new("unauthorized", &msg)))
+    })?;
+    
     ap_aging::query_ap_aging(&state.pool, &tenant_id, params.as_of)
         .await
         .map(Json)
@@ -87,6 +94,6 @@ pub async fn get_ap_aging(
                 error = %e,
                 "AP aging query failed"
             );
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::new("internal_error", e.to_string())))
         })
 }

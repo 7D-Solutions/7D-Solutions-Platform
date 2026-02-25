@@ -1,8 +1,11 @@
+#![allow(dead_code)]
 //! Subscriptions module library interface
 //!
 //! This module provides public APIs for the subscriptions service,
 //! including lifecycle management for subscription states and cycle gating.
 
+pub mod admin;
+pub mod admin_types;
 pub mod config;
 pub mod consumer;
 pub mod cycle_gating;

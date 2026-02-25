@@ -122,7 +122,7 @@ pub async fn evaluate_overdue(pool: &PgPool) -> Result<OverdueResult, sqlx::Erro
         .bind(event_id)
         .bind(crate::events::subjects::WO_OVERDUE)
         .bind("work_order")
-        .bind(&wo.id.to_string())
+        .bind(wo.id.to_string())
         .bind(env_json)
         .execute(pool)
         .await?;

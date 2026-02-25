@@ -20,8 +20,7 @@
 
 use crate::dunning::{DunningError, DunningStateValue};
 use crate::events::{
-    build_dunning_state_changed_envelope, build_invoice_suspended_envelope,
-    DunningState, DunningStateChangedPayload, InvoiceSuspendedPayload,
+    build_dunning_state_changed_envelope, build_invoice_suspended_envelope, DunningStateChangedPayload, InvoiceSuspendedPayload,
     EVENT_TYPE_DUNNING_STATE_CHANGED, EVENT_TYPE_INVOICE_SUSPENDED,
 };
 use chrono::{DateTime, Duration, Utc};
@@ -246,7 +245,7 @@ pub async fn claim_and_execute_one(
     )
     .bind(target_state.as_str())
     .bind(new_attempt_count)
-    .bind(&next_attempt_at)
+    .bind(next_attempt_at)
     .bind(now)
     .bind(row.id)
     .bind(row.version)
@@ -351,7 +350,7 @@ pub async fn claim_and_execute_one(
         .bind(&suspended_envelope.schema_version)
         .bind(now)
         .bind(correlation_id)
-        .bind(&outbox_event_id.to_string())
+        .bind(outbox_event_id.to_string())
         .execute(&mut *tx)
         .await?;
     }

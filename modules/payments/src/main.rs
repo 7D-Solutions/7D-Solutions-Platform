@@ -36,7 +36,7 @@ async fn metrics_handler() -> String {
     encoder.encode(&slo_families, &mut prometheus_buffer)
         .expect("Failed to encode SLO metrics");
 
-    buffer.push_str("\n");
+    buffer.push('\n');
     buffer.push_str(&String::from_utf8(prometheus_buffer)
         .expect("Failed to convert metrics to UTF-8"));
 

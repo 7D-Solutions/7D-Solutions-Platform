@@ -337,8 +337,8 @@ impl MeterReadingRepo {
         asset_id: Uuid,
         q: &ListReadingsQuery,
     ) -> Result<Vec<MeterReading>, MeterError> {
-        let limit = q.limit.unwrap_or(50).min(100).max(1);
-        let offset = q.offset.unwrap_or(0).max(0);
+        let limit = q.limit.unwrap_or(50).clamp(1, 100);
+        let offset = q.offset.unwrap_or(0);
 
         sqlx::query_as::<_, MeterReading>(
             r#"

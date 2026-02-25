@@ -196,8 +196,8 @@ impl SubmissionRepo {
         if q.tenant_id.trim().is_empty() {
             return Err(SubmissionError::Validation("tenant_id is required".into()));
         }
-        let limit = q.limit.unwrap_or(50).min(100).max(1);
-        let offset = q.offset.unwrap_or(0).max(0);
+        let limit = q.limit.unwrap_or(50).clamp(1, 100);
+        let offset = q.offset.unwrap_or(0);
 
         sqlx::query_as::<_, FormSubmission>(
             r#"

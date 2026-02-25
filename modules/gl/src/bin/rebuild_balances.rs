@@ -37,7 +37,7 @@ impl Args {
         if args.len() != 7 {
             return Err(format!(
                 "Usage: {} --tenant TENANT_ID --from YYYY-MM-DD --to YYYY-MM-DD",
-                args.get(0).map(|s| s.as_str()).unwrap_or("rebuild_balances")
+                args.first().map(|s| s.as_str()).unwrap_or("rebuild_balances")
             ));
         }
 

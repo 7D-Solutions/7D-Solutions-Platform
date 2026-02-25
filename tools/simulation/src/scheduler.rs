@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Concurrent Scheduler for Simulation (bd-3c2)
 //!
 //! **Purpose:** Parallel execution with barrier synchronization
@@ -24,7 +25,7 @@ impl ConcurrentScheduler {
     ///
     /// **ChatGPT Requirement:** 8-32 workers
     pub fn new(worker_count: usize) -> Self {
-        assert!(worker_count >= 8 && worker_count <= 32,
+        assert!((8..=32).contains(&worker_count),
             "Worker count must be 8-32, got {}", worker_count);
         Self { worker_count }
     }

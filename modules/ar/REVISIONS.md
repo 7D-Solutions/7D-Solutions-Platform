@@ -7,7 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
-| 1.0.12 | 2026-02-25 | bd-289r | Fixed clippy warnings: removed unused imports, simplified borrowed expressions, removed redundant closures. | Enable cargo clippy -D warnings in CI. | No |
+| 1.0.13 | 2026-02-25 | bd-289r | Fixed clippy warnings: removed unused imports, simplified borrowed expressions, removed redundant closures. | Enable cargo clippy -D warnings in CI. | No |
 | 1.0.11 | 2026-02-25 | bd-1uce | Added graceful shutdown with SIGTERM/SIGINT signal handling. Server now drains in-flight requests before closing DB pool on shutdown. | Zero-downtime deploys require graceful shutdown to avoid dropping in-flight requests and losing outbox events. | No |
 | 1.0.10 | 2026-02-25 | bd-28tf | Replaced client-supplied `app_id` field with `VerifiedClaims` tenant extraction in `bill_usage_route`. Removed `app_id` from `BillUsageHttpRequest` struct. Handler now calls `super::tenant::extract_tenant(&claims)?` consistent with `capture_usage` in the same file. | Security audit finding C1: bill-usage endpoint allowed tenant spoofing via client-supplied `app_id` in request body. | No |
 | 1.0.9 | 2026-02-25 | bd-ia5y.5 | Replaced client-supplied `app_id` field with `VerifiedClaims` tenant extraction in all four tax route handlers (`quote_tax_handler`, `lookup_cached_quote`, `commit_tax_handler`, `void_tax_handler`). Removed `app_id` from `QuoteTaxHttpRequest`, `LookupQuery`, `CommitTaxHttpRequest`, and `VoidTaxHttpRequest` structs. | Security audit finding C1: tax endpoints allowed tenant spoofing via client-supplied `app_id` in request body/query. | No |

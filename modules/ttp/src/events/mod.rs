@@ -3,7 +3,6 @@
 /// All TTP events are tenant-scoped: `merchant_context = TENANT(tenant_id)`.
 /// This enforces money-mixing prevention — TTP processes revenue on behalf
 /// of tenants, never on behalf of the platform itself.
-
 use event_bus::{EventEnvelope, MerchantContext};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

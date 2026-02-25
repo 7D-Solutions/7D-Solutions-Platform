@@ -17,7 +17,6 @@
 ///   4. Finalize the AR invoice (draft → open).
 ///   5. Mark one-time charges as billed with ar_invoice_id.
 ///   6. Upsert a billing run item with status = invoiced.
-
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 

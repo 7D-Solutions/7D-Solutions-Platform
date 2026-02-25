@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Blue/Green swap orchestration for projection rebuild
 //!
 //! This module orchestrates the complete rebuild and swap workflow:
@@ -8,8 +9,7 @@
 
 use chrono::Utc;
 use projections::{
-    compute_digest, create_shadow_cursor_table, create_shadow_table, drop_shadow_table,
-    save_shadow_cursor, swap_cursor_tables_atomic, swap_tables_atomic, RebuildResult,
+    compute_digest, create_shadow_cursor_table, create_shadow_table, swap_cursor_tables_atomic, swap_tables_atomic, RebuildResult,
     RebuildSummary,
 };
 use sqlx::PgPool;

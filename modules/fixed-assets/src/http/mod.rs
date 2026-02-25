@@ -1,4 +1,5 @@
 pub mod admin;
+pub mod admin_types;
 pub mod assets;
 pub mod depreciation;
 pub mod disposals;

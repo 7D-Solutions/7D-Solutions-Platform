@@ -78,7 +78,7 @@ pub async fn start_gl_reversal_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
                         async move {
                             process_gl_reversal_message(&pool, &msg)
                                 .await
-                                .map_err(|e| format_error_for_retry(e))
+                                .map_err(format_error_for_retry)
                         }
                     },
                     &retry_config,

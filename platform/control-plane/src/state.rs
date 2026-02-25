@@ -1,5 +1,4 @@
 /// Application state for the control-plane service
-
 use sqlx::PgPool;
 
 /// Shared state injected into all handlers

@@ -7,7 +7,6 @@
 /// Idempotency:
 ///   - Re-running for the same period produces no duplicate invoices.
 ///   - Each tenant's invoice is keyed by correlation_id = "plat-{tenant_id}-{period}".
-
 use axum::{extract::State, http::StatusCode, Json};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
@@ -233,7 +232,7 @@ fn is_valid_period(period: &str) -> bool {
         return false;
     }
     let year_ok = parts[0].len() == 4 && parts[0].parse::<i32>().is_ok();
-    let month_ok = parts[1].len() == 2 && matches!(parts[1].parse::<u32>(), Ok(m) if m >= 1 && m <= 12);
+    let month_ok = parts[1].len() == 2 && matches!(parts[1].parse::<u32>(), Ok(m) if (1..=12).contains(&m));
     year_ok && month_ok
 }
 

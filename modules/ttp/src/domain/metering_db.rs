@@ -1,7 +1,6 @@
 /// Database query helpers for TTP metering.
 ///
 /// Extracted from metering.rs to stay under the 500 LOC file size limit.
-
 use chrono::NaiveDate;
 use sqlx::{PgPool, Row};
 use std::collections::HashMap;

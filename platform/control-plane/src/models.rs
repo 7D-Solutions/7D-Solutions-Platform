@@ -1,5 +1,4 @@
 /// Request and response types for the control-plane API
-
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

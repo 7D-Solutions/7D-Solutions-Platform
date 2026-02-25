@@ -1,7 +1,6 @@
 /// Queries the tenant-registry database for tenants eligible for platform billing.
 ///
 /// Eligible tenants: status IN ('active', 'trial') with a non-empty plan_code.
-
 use sqlx::PgPool;
 use uuid::Uuid;
 

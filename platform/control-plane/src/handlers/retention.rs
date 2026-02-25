@@ -9,7 +9,6 @@
 ///   - Tenant must already be in 'deleted' status.
 ///   - Sets data_tombstoned_at; writes an outbox event for downstream purge jobs.
 ///   - Idempotent: calling tombstone on already-tombstoned tenant returns 200.
-
 use axum::{
     extract::{Path, State},
     http::StatusCode,

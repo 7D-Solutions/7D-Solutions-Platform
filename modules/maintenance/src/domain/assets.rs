@@ -192,8 +192,8 @@ impl AssetRepo {
         if q.tenant_id.trim().is_empty() {
             return Err(AssetError::Validation("tenant_id is required".into()));
         }
-        let limit = q.limit.unwrap_or(50).min(100).max(1);
-        let offset = q.offset.unwrap_or(0).max(0);
+        let limit = q.limit.unwrap_or(50).clamp(1, 100);
+        let offset = q.offset.unwrap_or(0);
 
         // Validate optional filter values
         if let Some(ref at) = q.asset_type {

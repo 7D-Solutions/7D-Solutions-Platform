@@ -14,7 +14,7 @@ use axum::{
     response::{IntoResponse, Response},
     Extension, Json,
 };
-use chrono::{DateTime, Datelike, NaiveDate, Utc};
+use chrono::{DateTime, Utc};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -24,7 +24,7 @@ use crate::repos::revrec_repo::{self, RevrecRepoError};
 use crate::revrec::recognition_run::{self, RecognitionRunError};
 use crate::revrec::schedule_builder::{generate_schedule, ScheduleBuildError};
 use crate::revrec::{
-    AllocationChange, ContractCreatedPayload, ContractModifiedPayload, ModificationType,
+    ContractCreatedPayload, ContractModifiedPayload,
     PerformanceObligation, RecognitionPattern,
 };
 use crate::AppState;

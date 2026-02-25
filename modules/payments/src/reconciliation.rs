@@ -23,7 +23,7 @@
 
 use crate::lifecycle::{status, LifecycleError};
 use crate::processor::MockPaymentProcessor;
-use sqlx::{PgPool, Postgres, Transaction};
+use sqlx::PgPool;
 use std::fmt;
 use tracing::{info, warn};
 use uuid::Uuid;

@@ -7,7 +7,6 @@
 ///
 /// Connects to the tenant-registry database (required) and the AR database (optional).
 /// Runs SQLx migrations on startup.
-
 use control_plane::routes;
 use control_plane::state;
 

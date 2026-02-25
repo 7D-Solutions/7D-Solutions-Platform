@@ -174,7 +174,7 @@ async fn probe_service(client: &reqwest::Client, svc: &ServiceEndpoint) -> Servi
 
 fn print_health_table(results: &[ServiceHealthResult]) {
     eprintln!();
-    eprintln!("{:<18} {:>5}  {:<12} {:>6}  {}", "SERVICE", "PORT", "STATUS", "MS", "VERSION");
+    eprintln!("{:<18} {:>5}  {:<12} {:>6}  VERSION", "SERVICE", "PORT", "STATUS", "MS");
     eprintln!("{}", "-".repeat(65));
 
     for r in results {

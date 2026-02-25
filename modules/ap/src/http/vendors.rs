@@ -9,7 +9,7 @@ use axum::{
     Extension, Json,
 };
 use security::VerifiedClaims;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 

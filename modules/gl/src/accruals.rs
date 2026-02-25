@@ -124,7 +124,7 @@ pub async fn create_template(
         });
     let cashflow_class = req.cashflow_class.as_deref().unwrap_or("operating");
     let reversal_json =
-        serde_json::to_value(&reversal_policy).map_err(|e| AccrualError::Serialization(e))?;
+        serde_json::to_value(&reversal_policy).map_err(AccrualError::Serialization)?;
 
     sqlx::query(
         r#"
@@ -235,7 +235,7 @@ pub async fn create_accrual_instance(
     let template_name: String = template.get("name");
 
     let reversal_policy: ReversalPolicy = serde_json::from_value(reversal_json.clone())
-        .map_err(|e| AccrualError::Serialization(e))?;
+        .map_err(AccrualError::Serialization)?;
     let cashflow_class = parse_cashflow_class(&cashflow_str);
 
     // Deterministic IDs
@@ -390,7 +390,7 @@ pub async fn create_accrual_instance(
     };
 
     let event_payload =
-        serde_json::to_value(&payload).map_err(|e| AccrualError::Serialization(e))?;
+        serde_json::to_value(&payload).map_err(AccrualError::Serialization)?;
 
     outbox_repo::insert_outbox_event(
         &mut tx,
@@ -688,7 +688,7 @@ pub async fn execute_auto_reversals(
         };
 
         let event_payload =
-            serde_json::to_value(&payload).map_err(|e| AccrualError::Serialization(e))?;
+            serde_json::to_value(&payload).map_err(AccrualError::Serialization)?;
 
         outbox_repo::insert_outbox_event_with_linkage(
             &mut tx,
@@ -737,7 +737,7 @@ fn compute_prior_period(period: &str) -> Option<String> {
     }
     let year: i32 = parts[0].parse().ok()?;
     let month: u32 = parts[1].parse().ok()?;
-    if month < 1 || month > 12 {
+    if !(1..=12).contains(&month) {
         return None;
     }
     if month == 1 {

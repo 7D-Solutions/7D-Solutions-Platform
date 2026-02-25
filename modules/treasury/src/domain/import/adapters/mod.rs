@@ -70,8 +70,8 @@ fn is_amex_three_column(header: &str) -> bool {
     }
     // Must have the core Amex trio
     let has_core = cols[0] == "date"
-        && cols.iter().any(|c| *c == "amount")
-        && cols.iter().any(|c| *c == "description");
+        && cols.contains(&"amount")
+        && cols.contains(&"description");
     if !has_core {
         return false;
     }

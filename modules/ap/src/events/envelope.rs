@@ -9,6 +9,7 @@ pub use event_bus::EventEnvelope;
 /// - replay_safe: true (all AP events are self-contained at replay time)
 /// - mutation_class: required (DATA_MUTATION, REVERSAL, or LIFECYCLE)
 /// - trace_id: propagated from HTTP request context when available
+///
 /// **Phase 40**: actor_id/actor_type carried from VerifiedClaims on HTTP mutations
 pub fn create_ap_envelope<T>(
     event_id: uuid::Uuid,

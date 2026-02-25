@@ -1,4 +1,4 @@
-use axum::{extract::DefaultBodyLimit, http::Method, routing::{get, post, put}, Extension, Router};
+use axum::{extract::DefaultBodyLimit, routing::{get, post, put}, Extension, Router};
 use security::{optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::middleware::{

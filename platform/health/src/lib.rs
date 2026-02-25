@@ -18,6 +18,17 @@ pub enum CheckStatus {
     Down,
 }
 
+/// Connection pool metrics for observability.
+#[derive(Debug, Clone, Serialize)]
+pub struct PoolMetrics {
+    /// Total connections managed by the pool (active + idle).
+    pub size: u32,
+    /// Connections currently idle in the pool.
+    pub idle: u32,
+    /// Connections currently in use.
+    pub active: u32,
+}
+
 /// A single dependency check result.
 #[derive(Debug, Clone, Serialize)]
 pub struct HealthCheck {
@@ -26,6 +37,8 @@ pub struct HealthCheck {
     pub latency_ms: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pool: Option<PoolMetrics>,
 }
 
 /// Overall service status for the readiness response.
@@ -112,6 +125,26 @@ pub fn db_check(latency_ms: u64, error: Option<String>) -> HealthCheck {
         },
         latency_ms,
         error,
+        pool: None,
+    }
+}
+
+/// Build a `HealthCheck` from a DB probe result with connection pool metrics.
+pub fn db_check_with_pool(
+    latency_ms: u64,
+    error: Option<String>,
+    pool_metrics: PoolMetrics,
+) -> HealthCheck {
+    HealthCheck {
+        name: "database".to_string(),
+        status: if error.is_none() {
+            CheckStatus::Up
+        } else {
+            CheckStatus::Down
+        },
+        latency_ms,
+        error,
+        pool: Some(pool_metrics),
     }
 }
 
@@ -130,6 +163,7 @@ pub fn nats_check(connected: bool, latency_ms: u64) -> HealthCheck {
         } else {
             Some("not connected".to_string())
         },
+        pool: None,
     }
 }
 
@@ -175,5 +209,23 @@ mod tests {
         assert_eq!(json["degraded"], false);
         assert_eq!(json["checks"].as_array().unwrap().len(), 2);
         assert!(json["timestamp"].as_str().is_some());
+    }
+
+    #[test]
+    fn db_check_without_pool_omits_pool_field() {
+        let c = db_check(5, None);
+        let json = serde_json::to_value(&c).unwrap();
+        assert!(json.get("pool").is_none());
+    }
+
+    #[test]
+    fn db_check_with_pool_includes_metrics() {
+        let metrics = PoolMetrics { size: 10, idle: 7, active: 3 };
+        let c = db_check_with_pool(5, None, metrics);
+        let json = serde_json::to_value(&c).unwrap();
+        let pool = json.get("pool").expect("pool field must be present");
+        assert_eq!(pool["size"], 10);
+        assert_eq!(pool["idle"], 7);
+        assert_eq!(pool["active"], 3);
     }
 }

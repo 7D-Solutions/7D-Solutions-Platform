@@ -234,7 +234,7 @@ pub async fn transition_dunning(
     )
     .bind(req.to_state.as_str())
     .bind(new_attempt_count)
-    .bind(&req.next_attempt_at)
+    .bind(req.next_attempt_at)
     .bind(&req.last_error)
     .bind(now)
     .bind(&req.app_id)
@@ -342,7 +342,7 @@ pub async fn transition_dunning(
         .bind(&suspended_envelope.schema_version)
         .bind(now)
         .bind(&req.correlation_id)
-        .bind(&outbox_event_id.to_string())
+        .bind(outbox_event_id.to_string())
         .execute(&mut *tx)
         .await?;
     }

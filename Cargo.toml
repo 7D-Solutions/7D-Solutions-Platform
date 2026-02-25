@@ -46,6 +46,14 @@ resolver = "2"
 [workspace.lints.rust]
 unsafe_code = "deny"
 
+[workspace.lints.clippy]
+# Allow these lints workspace-wide — fixing them would require invasive
+# refactoring (struct wrappers, type aliases, trait renames) with no
+# correctness benefit.  Re-evaluate when the codebase stabilises.
+too_many_arguments = "allow"
+type_complexity    = "allow"
+should_implement_trait = "allow"   # from_str helpers that aren't FromStr
+
 # Future: shared dependencies can be defined here
 # [workspace.dependencies]
 

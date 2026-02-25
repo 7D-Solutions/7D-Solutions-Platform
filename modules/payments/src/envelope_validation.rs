@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::DateTime;
 use serde_json::Value;
 use std::env;
 use uuid::Uuid;

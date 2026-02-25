@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! Deterministic Seed Model for Simulation (bd-3c2)
 //!
 //! **Purpose:** Deterministic RNG using ChaCha20 for reproducible simulations
