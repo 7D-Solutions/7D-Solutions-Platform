@@ -190,7 +190,7 @@ mod tests {
 
     fn test_db_url() -> String {
         std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://sr_user:sr_pass@localhost:5452/sr_db".to_string()
+            "postgres://shipping_receiving_user:shipping_receiving_pass@localhost:5454/shipping_receiving_db".to_string()
         })
     }
 
