@@ -6,9 +6,10 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
 use chrono::{DateTime, Utc};
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -32,7 +33,6 @@ pub struct ErrorBody {
 
 #[derive(Debug, Deserialize)]
 pub struct IngestEventRequest {
-    pub tenant_id: Uuid,
     pub events: Vec<EventItem>,
 }
 
@@ -62,8 +62,19 @@ pub struct IngestResultItem {
 
 pub async fn ingest_events(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<IngestEventRequest>,
 ) -> Result<Json<IngestEventResponse>, (StatusCode, Json<ErrorBody>)> {
+    let tenant_id = claims
+        .map(|Extension(c)| c.tenant_id)
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorBody {
+                error: "Missing or invalid authentication".to_string(),
+                code: "unauthorized".to_string(),
+            }),
+        ))?;
+
     if req.events.is_empty() {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -109,7 +120,7 @@ pub async fn ingest_events(
         .events
         .iter()
         .map(|e| MeteringEventInput {
-            tenant_id: req.tenant_id,
+            tenant_id,
             dimension: e.dimension.clone(),
             quantity: e.quantity,
             occurred_at: e.occurred_at,
@@ -161,15 +172,25 @@ pub async fn ingest_events(
 
 #[derive(Debug, Deserialize)]
 pub struct TraceQuery {
-    pub tenant_id: Uuid,
     pub period: String,
 }
 
 pub async fn get_trace(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<TraceQuery>,
 ) -> Result<Json<PriceTrace>, (StatusCode, Json<ErrorBody>)> {
-    let trace = metering::compute_price_trace(&state.pool, query.tenant_id, &query.period)
+    let tenant_id = claims
+        .map(|Extension(c)| c.tenant_id)
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorBody {
+                error: "Missing or invalid authentication".to_string(),
+                code: "unauthorized".to_string(),
+            }),
+        ))?;
+
+    let trace = metering::compute_price_trace(&state.pool, tenant_id, &query.period)
         .await
         .map_err(|e| match &e {
             metering::MeteringError::InvalidPeriod(_) => (
@@ -205,7 +226,6 @@ mod tests {
     #[test]
     fn ingest_request_deserializes() {
         let json = serde_json::json!({
-            "tenant_id": "00000000-0000-0000-0000-000000000001",
             "events": [{
                 "dimension": "api_calls",
                 "quantity": 42,
@@ -222,7 +242,6 @@ mod tests {
     #[test]
     fn trace_query_deserializes() {
         let json = serde_json::json!({
-            "tenant_id": "00000000-0000-0000-0000-000000000001",
             "period": "2026-02"
         });
         let q: TraceQuery = serde_json::from_value(json).unwrap();

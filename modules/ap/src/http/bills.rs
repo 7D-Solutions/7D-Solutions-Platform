@@ -11,8 +11,9 @@
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -23,26 +24,13 @@ use crate::domain::bills::{
 };
 use crate::domain::r#match::{engine, MatchError, MatchOutcome, RunMatchRequest};
 use crate::domain::tax::{self, ApTaxSnapshot, ZeroTaxProvider};
+use crate::http::tenant::extract_tenant;
 use crate::http::vendors::ErrorBody;
 use crate::AppState;
 
 // ============================================================================
-// Shared helpers (local to bills; mirrors vendors.rs helpers)
+// Shared helpers
 // ============================================================================
-
-fn tenant_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-tenant-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_tenant", "X-Tenant-Id header is required")),
-            )
-        })
-}
 
 fn correlation_from_headers(headers: &HeaderMap) -> String {
     headers
@@ -125,10 +113,11 @@ pub struct ListBillsQuery {
 /// POST /api/ap/bills — create a vendor bill
 pub async fn create_bill(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<CreateBillRequest>,
 ) -> Result<(StatusCode, Json<VendorBillWithLines>), (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let bill = service::create_bill(&state.pool, &tenant_id, &req, correlation_id)
@@ -141,10 +130,10 @@ pub async fn create_bill(
 /// GET /api/ap/bills/:bill_id — get a single bill with its line items
 pub async fn get_bill(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(bill_id): Path<Uuid>,
 ) -> Result<Json<VendorBillWithLines>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let bill = service::get_bill(&state.pool, &tenant_id, bill_id)
         .await
@@ -165,10 +154,10 @@ pub async fn get_bill(
 /// GET /api/ap/bills — list bills for tenant
 pub async fn list_bills(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListBillsQuery>,
 ) -> Result<Json<Vec<VendorBill>>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let bills = service::list_bills(
         &state.pool,
@@ -189,11 +178,12 @@ pub async fn list_bills(
 /// POST /api/ap/bills/:bill_id/approve — approve a bill (enforces match policy)
 pub async fn approve_bill(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(bill_id): Path<Uuid>,
     Json(req): Json<ApproveBillRequest>,
 ) -> Result<Json<VendorBill>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
     let provider = ZeroTaxProvider;
 
@@ -214,11 +204,12 @@ pub async fn approve_bill(
 /// POST /api/ap/bills/:bill_id/void — void a bill (requires reason)
 pub async fn void_bill(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(bill_id): Path<Uuid>,
     Json(req): Json<VoidBillRequest>,
 ) -> Result<Json<VendorBill>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
     let provider = ZeroTaxProvider;
 
@@ -246,11 +237,12 @@ pub struct BillTaxQuoteRequest {
 /// POST /api/ap/bills/:bill_id/tax-quote — quote tax for a bill draft
 pub async fn quote_bill_tax(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(bill_id): Path<Uuid>,
     Json(req): Json<BillTaxQuoteRequest>,
 ) -> Result<Json<ApTaxSnapshot>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     // Fetch the bill and its lines to build the tax quote request
@@ -344,11 +336,12 @@ fn match_error_response(e: MatchError) -> (StatusCode, Json<ErrorBody>) {
 /// POST /api/ap/bills/:bill_id/match — run 3-way match engine for a bill
 pub async fn match_bill(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(bill_id): Path<Uuid>,
     Json(req): Json<RunMatchRequest>,
 ) -> Result<(StatusCode, Json<MatchOutcome>), (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let outcome = engine::run_match(&state.pool, &tenant_id, bill_id, &req, correlation_id)

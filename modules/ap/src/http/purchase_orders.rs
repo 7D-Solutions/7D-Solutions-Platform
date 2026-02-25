@@ -9,8 +9,9 @@
 use axum::{
     extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -19,26 +20,13 @@ use crate::domain::po::{
     approve, service, ApprovePoRequest, CreatePoRequest, PoError, PurchaseOrder,
     PurchaseOrderWithLines, UpdatePoLinesRequest,
 };
+use crate::http::tenant::extract_tenant;
 use crate::http::vendors::ErrorBody;
 use crate::AppState;
 
 // ============================================================================
 // Shared helpers
 // ============================================================================
-
-fn tenant_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-tenant-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_tenant", "X-Tenant-Id header is required")),
-            )
-        })
-}
 
 fn correlation_from_headers(headers: &HeaderMap) -> String {
     headers
@@ -112,10 +100,11 @@ pub struct ListPosQuery {
 /// POST /api/ap/pos — create a draft PO with line items
 pub async fn create_po(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Json(req): Json<CreatePoRequest>,
 ) -> Result<(StatusCode, Json<PurchaseOrderWithLines>), (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let po = service::create_po(&state.pool, &tenant_id, &req, correlation_id)
@@ -128,10 +117,10 @@ pub async fn create_po(
 /// GET /api/ap/pos/:po_id — get a single PO with its lines
 pub async fn get_po(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(po_id): Path<Uuid>,
 ) -> Result<Json<PurchaseOrderWithLines>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let po = service::get_po(&state.pool, &tenant_id, po_id)
         .await
@@ -149,10 +138,10 @@ pub async fn get_po(
 /// GET /api/ap/pos — list POs for tenant (optionally filtered by vendor_id or status)
 pub async fn list_pos(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListPosQuery>,
 ) -> Result<Json<Vec<PurchaseOrder>>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let pos = service::list_pos(
         &state.pool,
@@ -169,11 +158,11 @@ pub async fn list_pos(
 /// PUT /api/ap/pos/:po_id/lines — replace all lines on a draft PO (idempotent)
 pub async fn update_po_lines(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(po_id): Path<Uuid>,
     Json(req): Json<UpdatePoLinesRequest>,
 ) -> Result<Json<PurchaseOrderWithLines>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let po = service::update_po_lines(&state.pool, &tenant_id, po_id, &req)
         .await
@@ -189,11 +178,12 @@ pub async fn update_po_lines(
 /// Returns 422 if the PO is in a terminal state that cannot be approved.
 pub async fn approve_po(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     headers: HeaderMap,
     Path(po_id): Path<Uuid>,
     Json(req): Json<ApprovePoRequest>,
 ) -> Result<Json<PurchaseOrder>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
     let po = approve::approve_po(&state.pool, &tenant_id, po_id, &req, correlation_id)

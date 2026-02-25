@@ -6,34 +6,18 @@
 
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
-    Json,
+    http::StatusCode,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::allocations::{service, AllocationError, CreateAllocationRequest};
+use crate::http::tenant::extract_tenant;
 use crate::http::vendors::ErrorBody;
 use crate::AppState;
-
-// ============================================================================
-// Shared helpers
-// ============================================================================
-
-fn tenant_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-tenant-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_tenant", "X-Tenant-Id header is required")),
-            )
-        })
-}
 
 fn allocation_error_response(e: AllocationError) -> (StatusCode, Json<ErrorBody>) {
     match e {
@@ -86,11 +70,11 @@ fn allocation_error_response(e: AllocationError) -> (StatusCode, Json<ErrorBody>
 /// Idempotent: duplicate allocation_id returns the existing record (200 OK).
 pub async fn create_allocation(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(bill_id): Path<Uuid>,
-    headers: HeaderMap,
     Json(req): Json<CreateAllocationRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let record = service::apply_allocation(&state.pool, &tenant_id, bill_id, &req)
         .await
@@ -112,10 +96,10 @@ pub async fn create_allocation(
 /// List all allocations for a bill in insertion order.
 pub async fn list_allocations(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(bill_id): Path<Uuid>,
-    headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let records = service::get_allocations(&state.pool, &tenant_id, bill_id)
         .await
@@ -129,10 +113,10 @@ pub async fn list_allocations(
 /// Return remaining open balance for a bill.
 pub async fn get_balance(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(bill_id): Path<Uuid>,
-    headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let summary = service::get_bill_balance(&state.pool, &tenant_id, bill_id)
         .await

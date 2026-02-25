@@ -6,8 +6,9 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use crate::AppState;
 use std::sync::Arc;
@@ -18,8 +19,6 @@ use crate::services::gl_detail_service::{self, GLDetailResponse};
 /// Query parameters for GL detail endpoint
 #[derive(Debug, Deserialize)]
 pub struct GLDetailQuery {
-    /// Tenant identifier
-    pub tenant_id: String,
     /// Accounting period UUID
     pub period_id: Uuid,
     /// Optional account code filter (e.g., "1000")
@@ -51,25 +50,34 @@ pub struct ErrorResponse {
 /// Supports optional filtering by account_code and currency.
 ///
 /// # Query Parameters
-/// - `tenant_id` (required): Tenant identifier
 /// - `period_id` (required): Accounting period UUID
 /// - `account_code` (optional): Filter by account code
 /// - `currency` (optional): Filter by currency (ISO 4217)
 /// - `limit` (optional): Page size (1-100, default 50)
 /// - `offset` (optional): Pagination offset (default 0)
 ///
+/// Tenant identity is derived from JWT claims (VerifiedClaims).
+///
 /// # Example
 /// ```text
-/// GET /api/gl/detail?tenant_id=tenant_123&period_id=uuid&account_code=1000&limit=20&offset=0
+/// GET /api/gl/detail?period_id=uuid&account_code=1000&limit=20&offset=0
 /// ```
 pub async fn get_gl_detail(
     State(app_state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<GLDetailQuery>,
 ) -> Result<Json<GLDetailResponse>, GLDetailErrorResponse> {
+    let tenant_id = claims
+        .map(|Extension(c)| c.tenant_id.to_string())
+        .ok_or_else(|| GLDetailErrorResponse {
+            status: StatusCode::UNAUTHORIZED,
+            message: "Missing or invalid authentication".to_string(),
+        })?;
+
     // Call service layer
     let response = gl_detail_service::get_gl_detail(
         &app_state.pool,
-        &params.tenant_id,
+        &tenant_id,
         params.period_id,
         params.account_code.as_deref(),
         params.currency.as_deref(),

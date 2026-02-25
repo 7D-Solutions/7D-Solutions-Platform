@@ -6,18 +6,20 @@
 //!   - `as_of`     (YYYY-MM-DD, optional) — aging reference date, defaults to today
 //!   - `by_vendor` (bool, optional)       — include per-vendor breakdown, defaults to false
 //!
-//! Tenant is identified via the `X-Tenant-Id` header.
+//! Tenant is identified via JWT claims (VerifiedClaims).
 
 use axum::{
     extract::{Query, State},
-    http::{HeaderMap, StatusCode},
-    Json,
+    http::StatusCode,
+    Extension, Json,
 };
 use chrono::{NaiveDate, Utc};
+use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::domain::reports::aging::{compute_aging, AgingError};
+use crate::http::tenant::extract_tenant;
 use crate::http::vendors::ErrorBody;
 use crate::AppState;
 
@@ -47,10 +49,10 @@ pub struct AgingQuery {
 /// remaining open balance are included. Paid and voided bills are excluded.
 pub async fn aging_report(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<AgingQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let as_of = params
         .as_of
@@ -70,20 +72,6 @@ pub async fn aging_report(
 // ============================================================================
 // Shared helpers
 // ============================================================================
-
-fn tenant_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-tenant-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_tenant", "X-Tenant-Id header is required")),
-            )
-        })
-}
 
 fn aging_error_response(e: AgingError) -> (StatusCode, Json<ErrorBody>) {
     match e {

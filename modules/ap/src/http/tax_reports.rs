@@ -5,15 +5,17 @@
 
 use axum::{
     extract::{Query, State},
-    http::{header, HeaderMap, StatusCode},
+    http::{header, StatusCode},
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 use chrono::NaiveDate;
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::domain::tax::reports;
+use crate::http::tenant::extract_tenant;
 use crate::http::vendors::ErrorBody;
 use crate::AppState;
 
@@ -54,33 +56,15 @@ pub struct ApTaxReportResponse {
 }
 
 // ============================================================================
-// Shared helpers
-// ============================================================================
-
-fn tenant_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-tenant-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_tenant", "X-Tenant-Id header is required")),
-            )
-        })
-}
-
-// ============================================================================
 // GET /api/ap/tax/reports/summary
 // ============================================================================
 
 pub async fn tax_report_summary(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<TaxReportQuery>,
 ) -> Result<Json<ApTaxReportResponse>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     if params.from >= params.to {
         return Err((
@@ -118,10 +102,10 @@ pub async fn tax_report_summary(
 
 pub async fn tax_report_export(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<TaxExportQuery>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     if params.from >= params.to {
         return Err((

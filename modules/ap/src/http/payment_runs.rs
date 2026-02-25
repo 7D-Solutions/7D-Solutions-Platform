@@ -5,10 +5,11 @@
 
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
-    Json,
+    http::StatusCode,
+    Extension, Json,
 };
 use chrono::{DateTime, Utc};
+use security::VerifiedClaims;
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -19,6 +20,7 @@ use crate::domain::payment_runs::{
     execute::execute_payment_run,
     CreatePaymentRunRequest, PaymentRunError,
 };
+use crate::http::tenant::extract_tenant;
 use crate::http::vendors::ErrorBody;
 use crate::AppState;
 
@@ -35,24 +37,6 @@ pub struct CreatePaymentRunBody {
     pub created_by: String,
     pub due_on_or_before: Option<DateTime<Utc>>,
     pub vendor_ids: Option<Vec<Uuid>>,
-}
-
-// ============================================================================
-// Shared helpers
-// ============================================================================
-
-fn tenant_from_headers(headers: &HeaderMap) -> Result<String, (StatusCode, Json<ErrorBody>)> {
-    headers
-        .get("x-tenant-id")
-        .and_then(|v| v.to_str().ok())
-        .filter(|s| !s.trim().is_empty())
-        .map(|s| s.to_string())
-        .ok_or_else(|| {
-            (
-                StatusCode::BAD_REQUEST,
-                Json(ErrorBody::new("missing_tenant", "X-Tenant-Id header is required")),
-            )
-        })
 }
 
 fn run_error_response(e: PaymentRunError) -> (StatusCode, Json<ErrorBody>) {
@@ -112,10 +96,10 @@ fn run_error_response(e: PaymentRunError) -> (StatusCode, Json<ErrorBody>) {
 /// Idempotent: supplying the same `run_id` returns the existing run (200 OK).
 pub async fn create_run(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<CreatePaymentRunBody>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let run_id = body.run_id.unwrap_or_else(Uuid::new_v4);
 
@@ -167,10 +151,10 @@ pub async fn create_run(
 /// Fetch a payment run and its items.
 pub async fn get_run(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(run_id): Path<Uuid>,
-    headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let run: Option<crate::domain::payment_runs::PaymentRun> = sqlx::query_as(
         r#"
@@ -258,10 +242,10 @@ pub async fn get_run(
 /// existing execution state with 200 OK.
 pub async fn execute_run(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(run_id): Path<Uuid>,
-    headers: HeaderMap,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = tenant_from_headers(&headers)?;
+    let tenant_id = extract_tenant(&claims)?;
 
     let result = execute_payment_run(&state.pool, &tenant_id, run_id)
         .await
