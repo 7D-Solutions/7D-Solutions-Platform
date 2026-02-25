@@ -10,7 +10,7 @@ Swept all 18 modules for HTTP handlers that derive tenant identity from
 client-supplied input (query params, path params, request body, headers)
 instead of JWT `VerifiedClaims`.
 
-**Result: 13/18 modules PASS. 5 modules have remaining C1 violations.**
+**Result: 18/18 modules PASS. All 5 modules with violations have been remediated.**
 
 ---
 
@@ -51,7 +51,7 @@ instead of JWT `VerifiedClaims`.
 | 12 | Timekeeping | Uses `VerifiedClaims` |
 | 13 | Treasury | Uses `VerifiedClaims` |
 
-### FAIL (5 modules — 19 handler files total)
+### FAIL → REMEDIATED (5 modules — 19 handler files, all now fixed)
 
 #### GL — 11 files
 
@@ -114,13 +114,14 @@ Most handlers use `VerifiedClaims`. One file remains:
 
 ---
 
-## Remediation Required
+## Remediation Complete
 
-19 handler files across 5 modules still derive tenant from client input.
-Recommended new C1 fix beads:
+All 19 handler files across 5 modules have been fixed. Each now derives tenant exclusively from `VerifiedClaims`.
 
-1. **GL module** (11 files) — highest volume, critical financial data
-2. **TTP module** (2 files) — billing runs, service agreements
-3. **Consolidation module** (2 files) — financial consolidation
-4. **Inventory routes/** (3 files) — item/location/UoM management
-5. **AR tax.rs** (1 file) — tax quote endpoint
+| Module | Files Fixed | Bead | Status |
+|--------|------------|------|--------|
+| GL module | 11 route files | bd-ia5y.1 | RESOLVED |
+| TTP module | billing.rs, service_agreements.rs | bd-ia5y.2 | RESOLVED |
+| Consolidation module | consolidate.rs, intercompany.rs | bd-ia5y.3 | RESOLVED |
+| Inventory routes | items.rs, locations.rs, uom.rs | bd-ia5y.4 | RESOLVED |
+| AR tax.rs | tax.rs | bd-ia5y.5 | RESOLVED |
