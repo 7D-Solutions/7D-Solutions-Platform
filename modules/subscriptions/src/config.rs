@@ -41,6 +41,7 @@ pub struct Config {
     pub bus_type: BusType,
     pub database_url: String,
     pub nats_url: Option<String>,
+    pub env: String,
     /// Comma-separated list of allowed CORS origins. "*" means allow any.
     pub cors_origins: Vec<String>,
 }
@@ -87,6 +88,8 @@ impl Config {
             BusType::InMemory => None,
         };
 
+        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+
         let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
             .unwrap_or_else(|_| "*".to_string())
             .split(',')
@@ -98,6 +101,7 @@ impl Config {
             bus_type,
             database_url,
             nats_url,
+            env,
             cors_origins,
         })
     }
@@ -147,6 +151,7 @@ mod tests {
             database_url: "".to_string(),
             bus_type: BusType::InMemory,
             nats_url: None,
+            env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
         };
 
@@ -173,6 +178,7 @@ mod tests {
             database_url: "postgresql://localhost/test".to_string(),
             bus_type: BusType::InMemory,
             nats_url: None,
+            env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
         };
 
@@ -182,6 +188,7 @@ mod tests {
             database_url: "postgresql://localhost/test".to_string(),
             bus_type: BusType::Nats,
             nats_url: Some("nats://localhost:4222".to_string()),
+            env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
         };
 

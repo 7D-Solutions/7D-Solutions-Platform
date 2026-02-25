@@ -11,6 +11,7 @@ pub struct Config {
     pub database_url: String,
     pub host: String,
     pub port: u16,
+    pub env: String,
     /// Comma-separated list of allowed CORS origins. "*" means allow any.
     pub cors_origins: Vec<String>,
 }
@@ -47,6 +48,8 @@ impl Config {
                 )
             })?;
 
+        let env = env::var("ENV").unwrap_or_else(|_| "development".to_string());
+
         let cors_origins: Vec<String> = env::var("CORS_ORIGINS")
             .unwrap_or_else(|_| "*".to_string())
             .split(',')
@@ -58,6 +61,7 @@ impl Config {
             database_url,
             host,
             port,
+            env,
             cors_origins,
         })
     }
@@ -74,6 +78,7 @@ mod tests {
             database_url: "".to_string(),
             host: "0.0.0.0".to_string(),
             port: 8092,
+            env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
         };
         // Direct struct construction is valid; from_env requires the env var
@@ -86,6 +91,7 @@ mod tests {
             database_url: "postgresql://localhost/inventory_db".to_string(),
             host: "0.0.0.0".to_string(),
             port: 8092,
+            env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
         };
         assert_eq!(config.port, 8092);

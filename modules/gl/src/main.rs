@@ -248,6 +248,10 @@ async fn main() {
 fn build_cors_layer(config: &Config) -> CorsLayer {
     let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
 
+    if is_wildcard && config.env != "development" {
+        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+    }
+
     let layer = if is_wildcard {
         CorsLayer::new().allow_origin(AllowOrigin::any())
     } else {
@@ -276,6 +280,7 @@ mod tests {
             nats_url: "nats://localhost:4222".to_string(),
             host: "0.0.0.0".to_string(),
             port: 8090,
+            env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
             dlq_validation_enabled: false,
         };
@@ -290,6 +295,7 @@ mod tests {
             nats_url: "nats://localhost:4222".to_string(),
             host: "0.0.0.0".to_string(),
             port: 8090,
+            env: "development".to_string(),
             cors_origins: vec![
                 "http://localhost:3000".to_string(),
                 "https://app.example.com".to_string(),
