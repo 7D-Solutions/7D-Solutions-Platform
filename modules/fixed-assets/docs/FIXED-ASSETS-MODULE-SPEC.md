@@ -125,7 +125,7 @@ Every state-changing mutation writes its event to the outbox in the same databas
 | Layer | Technology | Notes |
 |-------|-----------|-------|
 | Language | Rust | Platform standard |
-| HTTP framework | Axum 0.8 | Port 8095 (default) |
+| HTTP framework | Axum 0.8 | Port 8104 (default) |
 | Database | PostgreSQL | Dedicated database, SQLx for queries and migrations |
 | Event bus | NATS | Via platform `event-bus` crate; falls back to in-memory bus |
 | Auth | JWT via platform `security` crate | Tenant-scoped, role-based; mutations require `fixed_assets:mutate` permission |

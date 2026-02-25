@@ -69,12 +69,12 @@ scrape_configs:
 
   - job_name: 'fixed-assets'
     static_configs:
-      - targets: ['7d-fixed-assets:8095']
+      - targets: ['7d-fixed-assets:8104']
     metrics_path: '/metrics'
 
   - job_name: 'consolidation'
     static_configs:
-      - targets: ['7d-consolidation:8096']
+      - targets: ['7d-consolidation:8105']
     metrics_path: '/metrics'
 
   - job_name: 'timekeeping'

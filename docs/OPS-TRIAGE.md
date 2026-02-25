@@ -43,8 +43,8 @@ curl -sf http://localhost:8089/api/health && echo "notifications OK"
 curl -sf http://localhost:8092/api/health && echo "inventory OK"
 curl -sf http://localhost:8093/api/health && echo "ap OK"
 curl -sf http://localhost:8094/api/health && echo "treasury OK"
-curl -sf http://localhost:8095/api/health && echo "fixed-assets OK"
-curl -sf http://localhost:8096/api/health && echo "consolidation OK"
+curl -sf http://localhost:8104/api/health && echo "fixed-assets OK"
+curl -sf http://localhost:8105/api/health && echo "consolidation OK"
 curl -sf http://localhost:8097/api/health && echo "timekeeping OK"
 curl -sf http://localhost:8098/api/health && echo "party OK"
 curl -sf http://localhost:8099/api/health && echo "integrations OK"
@@ -71,8 +71,8 @@ bash /opt/7d-platform/scripts/production/health_audit.sh
 | Inventory | `7d-inventory` | 8092 |
 | AP | `7d-ap` | 8093 |
 | Treasury | `7d-treasury` | 8094 |
-| Fixed Assets | `7d-fixed-assets` | 8095 |
-| Consolidation | `7d-consolidation` | 8096 |
+| Fixed Assets | `7d-fixed-assets` | 8104 |
+| Consolidation | `7d-consolidation` | 8105 |
 | Timekeeping | `7d-timekeeping` | 8097 |
 | Party | `7d-party` | 8098 |
 | Integrations | `7d-integrations` | 8099 |

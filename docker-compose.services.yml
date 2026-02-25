@@ -412,14 +412,14 @@ services:
       NATS_URL: nats://7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
-      PORT: 8095
+      PORT: 8104
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8095:8095"
+      - "8104:8104"
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8095/api/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8104/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -445,14 +445,14 @@ services:
       NATS_URL: nats://7d-nats:4222
       BUS_TYPE: nats
       HOST: 0.0.0.0
-      PORT: 8096
+      PORT: 8105
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8096:8096"
+      - "8105:8105"
     networks:
       - 7d-platform
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8096/api/health || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8105/api/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

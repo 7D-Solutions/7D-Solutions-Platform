@@ -55,8 +55,8 @@ Service ports (3000, 8080–8100) are not accessible from the internet. UFW bloc
 | Inventory | 8092 | internal only |
 | AP | 8093 | internal only |
 | Treasury | 8094 | internal only |
-| Fixed Assets | 8095 | internal only |
-| Consolidation | 8096 | internal only |
+| Fixed Assets | 8104 | internal only |
+| Consolidation | 8105 | internal only |
 | Timekeeping | 8097 | internal only |
 | Party | 8098 | internal only |
 | Integrations | 8099 | internal only |

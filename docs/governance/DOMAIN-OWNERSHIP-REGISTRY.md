@@ -109,7 +109,7 @@ This registry declares the single source of truth for each domain concept in the
 
 **Module Path**: `modules/subscriptions/`
 **Database**: `postgres://localhost:5432/subscriptions_db`
-**Port**: `8085`
+**Port**: `8087`
 
 **Domain Ownership**:
 - **Subscription Plans** (`subscription_plans`) - Plan definitions, pricing, schedules
@@ -182,7 +182,7 @@ This registry declares the single source of truth for each domain concept in the
 
 **Module Path**: `modules/ap/`
 **Database**: `ap_db`
-**Port**: `8095`
+**Port**: `8093`
 
 **Domain Ownership**:
 - **Vendors** (`vendors`) - Vendor master data with party linkage
@@ -303,7 +303,7 @@ This registry declares the single source of truth for each domain concept in the
 
 **Module Path**: `modules/fixed-assets/`
 **Database**: `fixed_assets_db`
-**Port**: `8095`
+**Port**: `8104`
 
 **Domain Ownership**:
 - **Asset Categories** (`asset_categories`) - Depreciation method/life defaults per category
@@ -357,7 +357,7 @@ This registry declares the single source of truth for each domain concept in the
 
 **Module Path**: `modules/consolidation/`
 **Database**: `consolidation_db`
-**Port**: `8096`
+**Port**: `8105`
 
 **Domain Ownership**:
 - **Consolidation Configs** (`consolidation_config`) - Multi-entity consolidation rules
@@ -453,7 +453,7 @@ This registry declares the single source of truth for each domain concept in the
 
 **Module Path**: `modules/pdf-editor/`
 **Database**: `pdf_editor_db`
-**Port**: `8101`
+**Port**: `8106`
 
 **Domain Ownership**:
 - **PDF Templates** - Document template definitions

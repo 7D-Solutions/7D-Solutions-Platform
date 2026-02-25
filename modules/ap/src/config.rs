@@ -32,7 +32,7 @@ impl Config {
     /// Load from environment variables.
     ///
     /// Required: `DATABASE_URL` — must follow `ap_{app_id}_db` naming convention.
-    /// Optional: `BUS_TYPE` (default: inmemory), `NATS_URL`, `HOST`, `PORT` (default: 8095).
+    /// Optional: `BUS_TYPE` (default: inmemory), `NATS_URL`, `HOST`, `PORT` (default: 8093).
     pub fn from_env() -> Result<Self, String> {
         let database_url = env::var("DATABASE_URL").map_err(|_| {
             "DATABASE_URL is required. Example: postgres://ap_user:pass@localhost/ap_default_db"
@@ -60,7 +60,7 @@ impl Config {
 
         let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
         let port: u16 = env::var("PORT")
-            .unwrap_or_else(|_| "8095".to_string())
+            .unwrap_or_else(|_| "8093".to_string())
             .parse()
             .map_err(|_| "PORT must be a valid u16".to_string())?;
 

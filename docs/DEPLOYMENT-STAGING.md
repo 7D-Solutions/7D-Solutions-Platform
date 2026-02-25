@@ -42,8 +42,8 @@ Provider-agnostic. Tested on Hetzner CX41, DigitalOcean c-4, Linode Dedicated 16
 | Inventory | 8092 | `/api/health` |
 | AP | 8093 | `/api/health` |
 | Treasury | 8094 | `/api/health` |
-| Fixed Assets | 8095 | `/api/health` |
-| Consolidation | 8096 | `/api/health` |
+| Fixed Assets | 8104 | `/api/health` |
+| Consolidation | 8105 | `/api/health` |
 | Timekeeping | 8097 | `/api/health` |
 | Party | 8098 | `/api/health` |
 | Integrations | 8099 | `/api/health` |

@@ -57,8 +57,8 @@ Every service exposes Prometheus-format metrics at `/metrics`. Prometheus scrape
 | Inventory | `7d-inventory` | 8092 | `/metrics` |
 | AP | `7d-ap` | 8093 | `/metrics` |
 | Treasury | `7d-treasury` | 8094 | `/metrics` |
-| Fixed Assets | `7d-fixed-assets` | 8095 | `/metrics` |
-| Consolidation | `7d-consolidation` | 8096 | `/metrics` |
+| Fixed Assets | `7d-fixed-assets` | 8104 | `/metrics` |
+| Consolidation | `7d-consolidation` | 8105 | `/metrics` |
 | Timekeeping | `7d-timekeeping` | 8097 | `/metrics` |
 | Party | `7d-party` | 8098 | `/metrics` |
 | Integrations | `7d-integrations` | 8099 | `/metrics` |

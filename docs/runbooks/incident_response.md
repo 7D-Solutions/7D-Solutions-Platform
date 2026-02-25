@@ -280,7 +280,7 @@ curl -sf http://localhost:8080/api/health && echo " OK auth"
 for svc_port in \
   "ar:8086" "subscriptions:8087" "payments:8088" "notifications:8089" \
   "gl:8090" "inventory:8092" "ap:8093" "treasury:8094" \
-  "fixed-assets:8095" "consolidation:8096" "timekeeping:8097" \
+  "fixed-assets:8104" "consolidation:8105" "timekeeping:8097" \
   "party:8098" "integrations:8099" "ttp:8100"; do
   svc="${svc_port%%:*}"
   port="${svc_port##*:}"

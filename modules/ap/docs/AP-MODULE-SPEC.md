@@ -140,7 +140,7 @@ Every write operation has an idempotency anchor: `allocation_id` for payments, `
 | Layer | Technology | Notes |
 |-------|-----------|-------|
 | Language | Rust | Platform standard |
-| HTTP framework | Axum | Port 8095 (default) |
+| HTTP framework | Axum | Port 8093 (default) |
 | Database | PostgreSQL | Dedicated database, SQLx for queries and migrations |
 | Event bus | NATS | Via platform `event-bus` crate; InMemory fallback for dev |
 | Auth | JWT via platform `security` crate | Tenant-scoped, role-based; `AP_MUTATE` permission for writes |

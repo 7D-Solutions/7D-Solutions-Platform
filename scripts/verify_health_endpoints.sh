@@ -13,22 +13,24 @@ ERRORS=()
 # Service name → port mapping (matches docker-compose ports)
 declare -A SERVICES=(
     [ar]=8086
-    [ap]=8089
-    [gl]=8088
-    [inventory]=8091
+    [ap]=8093
+    [gl]=8090
+    [inventory]=8092
     [subscriptions]=8087
-    [payments]=8085
-    [notifications]=8090
-    [treasury]=8093
-    [fixed-assets]=8094
-    [consolidation]=8098
-    [timekeeping]=8099
-    [party]=8096
-    [integrations]=8097
+    [payments]=8088
+    [notifications]=8089
+    [treasury]=8094
+    [fixed-assets]=8104
+    [consolidation]=8105
+    [timekeeping]=8097
+    [party]=8098
+    [integrations]=8099
     [ttp]=8100
-    [reporting]=8095
+    [reporting]=8096
+    [maintenance]=8101
+    [shipping-receiving]=8103
+    [pdf-editor]=8106
     [identity-auth]=8080
-    [control-plane]=8092
 )
 
 check_healthz() {
