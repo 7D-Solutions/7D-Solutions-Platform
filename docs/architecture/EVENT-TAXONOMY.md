@@ -76,13 +76,21 @@ Consumers must be idempotent:
 
 ## Ownership Rule
 An event's domain prefix indicates the owning module:
-- `ar.*` events: owned by AR
-- `payments.*` events: owned by Payments
-- `subscriptions.*` events: owned by Subscriptions
-- `notifications.*`: owned by Notifications
+- `ar.*`: owned by AR
+- `ap.*`: owned by AP
 - `gl.*`: owned by GL
-
+- `payments.*`: owned by Payments
+- `subscriptions.*`: owned by Subscriptions
+- `notifications.*`: owned by Notifications
+- `inventory.*`: owned by Inventory
 - `shipping-receiving.*`: owned by Shipping-Receiving
+- `party.*`: owned by Party Master
+- `maintenance.*`: owned by Maintenance
+- `timekeeping.*`: owned by Timekeeping
+- `fixed_assets.*`: owned by Fixed Assets
+- `external_ref.*`, `webhook.*`: owned by Integrations
+- `ttp.*`: owned by TTP
+- `tax.*`, `fx.*`, `revrec.*`: owned by GL (sub-domains)
 
 No other module may emit events under another module's domain prefix.
 

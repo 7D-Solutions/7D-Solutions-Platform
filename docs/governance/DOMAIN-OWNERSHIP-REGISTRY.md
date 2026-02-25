@@ -1,8 +1,8 @@
 # Domain Ownership Registry
 
-**Version**: 1.0
-**Last Updated**: 2026-02-16
-**Phase**: 16 - Event Envelope Hardening & Production Readiness
+**Version**: 2.0
+**Last Updated**: 2026-02-25
+**Phase**: Full Platform Registry Backfill
 
 ## Purpose
 
@@ -169,6 +169,324 @@ This registry declares the single source of truth for each domain concept in the
 - Produces: `shipping-receiving.shipment.*` lifecycle events
 - Calls: Inventory HTTP API (create receipt / create issue, idempotent)
 - References: Party (`carrier_party_id`), AP (`po_id`, `po_line_id`), AR (`source_ref_id`)
+
+---
+
+### AP (Accounts Payable)
+
+**Module Path**: `modules/ap/`
+**Database**: `ap_db`
+**Port**: `8095`
+
+**Domain Ownership**:
+- **Vendors** (`vendors`) - Vendor master data with party linkage
+- **Purchase Orders** (`purchase_orders`) - PO headers and lifecycle
+- **PO Lines** - Line items per purchase order
+- **PO Receipt Links** (`po_receipt_links`) - Links between PO lines and inventory receipts
+- **Vendor Bills** (`vendor_bills`) - Supplier invoices for 3-way match
+- **Three-Way Match** (`three_way_match`) - PO ↔ receipt ↔ bill reconciliation
+- **AP Allocations / Payment Runs** (`ap_allocations`, `payment_runs`, `payment_run_items`, `payment_run_executions`) - Vendor payment scheduling and execution
+- **AP Tax Snapshots** (`ap_tax_snapshots`) - Tax calculation snapshots
+- **Idempotency Keys** (`idempotency_keys`) - Consumer replay safety
+
+**Domain Responsibilities**:
+- Vendor management (CRUD, party linkage)
+- Purchase order lifecycle (draft → approved → closed)
+- Vendor bill matching (3-way match: PO ↔ receipt ↔ bill)
+- Payment run scheduling and execution
+- PO receipt linking (from inventory receipt events)
+
+**External Dependencies**:
+- Consumes: `inventory.item_received` (link receipts to PO lines)
+- Produces: `ap.po_created`, `ap.po_approved`, `ap.po_closed`, `ap.po_line_received_linked`, `ap.vendor_created`, `ap.vendor_updated`, `ap.vendor_bill_created`, `ap.vendor_bill_matched`, `ap.vendor_bill_approved`, `ap.vendor_bill_voided`, `ap.payment_run_created`, `ap.payment_executed`
+- References: Party (`party_id` on vendors)
+
+---
+
+### Inventory
+
+**Module Path**: `modules/inventory/`
+**Database**: `inventory_db`
+**Port**: `8092`
+
+**Domain Ownership**:
+- **Items** (`items`) - Item master data, tracking mode (none/lot/serial)
+- **Inventory Ledger** (`inventory_ledger`) - Transaction journal (receipts, issues, adjustments, transfers)
+- **FIFO Layers** (`fifo_layers`) - Cost layer tracking for FIFO valuation
+- **Reservations** (`inventory_reservations`) - Stock reservations against orders
+- **On-Hand Projection** (`item_on_hand_projection`) - Materialized on-hand quantities
+- **UOMs** (`uoms`) - Unit of measure definitions
+- **Lots** (`inventory_lots`) - Lot/batch tracking
+- **Serial Instances** (`inventory_serial_instances`) - Individual serial number tracking
+- **Status Buckets** (`status_buckets`) - Quality/hold status categories
+- **Locations** (`locations`) - Warehouse/bin locations
+- **Status Transfers** (`status_transfers`) - Quality status transitions
+- **Adjustments** (`adjustments`) - Inventory count adjustments
+- **Cycle Counts** (`cycle_count_*`) - Cycle count headers, lines, approvals
+- **Transfers** (`inv_transfers`) - Inter-location stock transfers
+- **Reorder Policies** (`reorder_policies`) - Min/max and reorder point rules
+- **Valuation Snapshots** (`valuation_snapshots`) - Point-in-time inventory valuation
+- **Low Stock State** (`low_stock_state`) - Low stock detection state
+
+**Domain Responsibilities**:
+- Item master management
+- Stock ledger (receipts, issues, adjustments, transfers)
+- FIFO cost layer tracking and valuation
+- Lot and serial number tracking
+- Location/warehouse management
+- Cycle count workflow (count → approve → adjust)
+- Reorder point monitoring and low stock alerts
+- Valuation snapshot generation
+
+**External Dependencies**:
+- Produces: `inventory.item_received`, `inventory.item_issued`, `inventory.adjusted`, `inventory.transfer_completed`, `inventory.low_stock_triggered`, `inventory.cycle_count_submitted`, `inventory.cycle_count_approved`, `inventory.status_changed`, `inventory.valuation_snapshot`
+- Consumes: none
+
+---
+
+### Party Master
+
+**Module Path**: `modules/party/`
+**Database**: `party_db`
+**Port**: `8098`
+
+**Domain Ownership**:
+- **Parties** (`parties`) - Organizations and individuals (customers, vendors, carriers, employees)
+- **Party External Refs** (`party_external_refs`) - External system cross-references
+- **Contacts** (`contacts`) - Contact persons linked to parties
+- **Addresses** (`addresses`) - Physical/mailing addresses linked to parties
+
+**Domain Responsibilities**:
+- Canonical identity registry for all external entities
+- Party lifecycle (create, update, deactivate)
+- Contact and address management
+- External reference linking (ERP IDs, tax IDs, etc.)
+
+**External Dependencies**:
+- Produces: `party.created`, `party.updated`, `party.deactivated`
+- Consumes: none
+- Referenced by: AP (vendor party_id), Shipping-Receiving (carrier_party_id), AR (customer party_id)
+
+---
+
+### Treasury
+
+**Module Path**: `modules/treasury/`
+**Database**: `treasury_db`
+**Port**: `8094`
+
+**Domain Ownership**:
+- **Bank Accounts** - Account definitions, types (checking, savings, credit card)
+- **Bank Transactions** - Individual transaction records
+- **Statement Imports** - Uploaded bank statement data with content hashing
+- **Reconciliation State** - Statement line matching and reconciliation status
+
+**Domain Responsibilities**:
+- Bank account management
+- Statement import and parsing
+- Bank reconciliation (match transactions to statements)
+- Cash position tracking
+
+**External Dependencies**:
+- Consumes: `payments.payment.succeeded`, `ap.payment_executed` (auto-create bank transactions)
+- Produces: none
+
+---
+
+### Fixed Assets
+
+**Module Path**: `modules/fixed-assets/`
+**Database**: `fixed_assets_db`
+**Port**: `8095`
+
+**Domain Ownership**:
+- **Asset Categories** (`asset_categories`) - Depreciation method/life defaults per category
+- **Assets** (`assets`) - Individual fixed asset records with cost basis and status
+- **Depreciation Schedules** (`depreciation_schedules`) - Per-asset depreciation plans
+- **Depreciation Runs** (`depreciation_runs`) - Periodic depreciation execution batches
+- **Disposals** (`disposals`) - Asset disposal/retirement records
+- **AP Capitalizations** (`ap_capitalizations`) - Links from AP bill lines to capitalized assets
+
+**Domain Responsibilities**:
+- Asset lifecycle (acquisition → active → disposed)
+- Depreciation calculation (straight-line, declining balance)
+- Periodic depreciation run execution
+- Asset disposal with gain/loss calculation
+- AP bill capitalization (auto-capitalize from approved vendor bills)
+
+**External Dependencies**:
+- Consumes: `ap.vendor_bill_approved` (auto-capitalize capex lines)
+- Produces: asset lifecycle events, `gl.posting.requested` (depreciation/disposal GL entries)
+
+---
+
+### Timekeeping
+
+**Module Path**: `modules/timekeeping/`
+**Database**: `timekeeping_db`
+**Port**: `8097`
+
+**Domain Ownership**:
+- **Employees** (`employees`) - Employee master data for time tracking
+- **Projects** (`projects`) - Project/job definitions for time allocation
+- **Timesheet Entries** (`timesheet_entries`) - Individual time records with billing rates
+- **Approvals** (`approvals`) - Timesheet approval workflow state
+- **Allocations/Exports** (`allocations`, `exports`) - Cost allocation and payroll export batches
+- **Billing Rates** (`billing_rates`) - Per-employee or per-project billing rates
+
+**Domain Responsibilities**:
+- Timesheet entry and editing
+- Approval workflow (submit → approve → reject)
+- Cost allocation to projects/jobs
+- Payroll/billing export generation
+- Billing rate management
+
+**External Dependencies**:
+- Produces: timesheet lifecycle events (planned)
+- Consumes: none
+
+---
+
+### Consolidation
+
+**Module Path**: `modules/consolidation/`
+**Database**: `consolidation_db`
+**Port**: `8096`
+
+**Domain Ownership**:
+- **Consolidation Configs** (`consolidation_config`) - Multi-entity consolidation rules
+- **Consolidation Caches** (`consolidation_caches`) - Cached consolidated balances
+- **Elimination Postings** (`elimination_postings`) - Intercompany elimination entries
+
+**Domain Responsibilities**:
+- Multi-entity financial consolidation
+- Intercompany elimination generation
+- Consolidated balance calculation and caching
+
+**External Dependencies**:
+- Reads: GL, AR, AP data via HTTP APIs (read-only aggregation)
+- Produces: none
+
+---
+
+### Integrations
+
+**Module Path**: `modules/integrations/`
+**Database**: `integrations_db`
+**Port**: `8099`
+
+**Domain Ownership**:
+- **Connector Configs** (`connector_configs`) - External system connection settings
+- **External Refs** (`external_refs`) - Cross-system entity reference mapping
+- **Webhook Endpoints** (`webhook_endpoints`) - Registered webhook receiver configs
+- **Webhook Ingest** (`webhook_ingest`) - Inbound webhook event log
+
+**Domain Responsibilities**:
+- External system connector management
+- Webhook ingestion, validation, and routing
+- Cross-system entity reference tracking
+- External ref lifecycle (create, update, delete)
+
+**External Dependencies**:
+- Produces: `external_ref.created`, `external_ref.updated`, `external_ref.deleted`, `webhook.received`, `webhook.routed`
+- Consumes: various (routes inbound webhooks to target modules)
+
+---
+
+### Maintenance
+
+**Module Path**: `modules/maintenance/`
+**Database**: `maintenance_db`
+**Port**: `8101`
+
+**Domain Ownership**:
+- **Work Orders** - Corrective and preventive maintenance tasks
+- **Preventive Maintenance Plans** - Scheduled/meter-based maintenance triggers
+- **Meter Readings** (`meter_readings`) - Equipment meter tracking
+- **Parts and Labor** (`parts_and_labor`) - Cost tracking per work order
+- **Tenant Config** (`tenant_config`) - Per-tenant maintenance settings
+
+**Domain Responsibilities**:
+- Work order lifecycle (open → in_progress → completed → closed)
+- Preventive maintenance scheduling (time-based and meter-based)
+- Meter reading recording and threshold detection
+- Parts/labor cost tracking per work order
+- Overdue detection and notification
+- GL cost posting for completed work orders
+
+**External Dependencies**:
+- Produces: `maintenance.work_order.*`, `maintenance.meter_reading.recorded`, `maintenance.plan.*`, `gl.posting.requested`
+- Consumes: none
+
+---
+
+### Reporting
+
+**Module Path**: `modules/reporting/`
+**Database**: `reporting_db`
+**Port**: `8096`
+
+**Domain Ownership**:
+- **Report Definitions** - Configured report templates
+- **Reporting Caches** (`reporting_caches`) - Pre-computed report data
+- **Forecast Caches** (`forecast_caches`) - Forward-looking projection data
+
+**Domain Responsibilities**:
+- Cross-module data aggregation (read-only)
+- Report generation and caching
+- Financial forecasting projections
+- Dashboard data serving
+
+**External Dependencies**:
+- Consumes: `gl.posting.requested`, `payments.payment.succeeded`, `ap.vendor_bill_created`, `ap.vendor_bill_voided`, `ap.payment_executed`, `inventory.valuation_snapshot`, `ar.invoice_opened`, `ar.invoice_paid`, `ar.ar_aging_updated`
+- Produces: none (read-only module)
+
+---
+
+### PDF Editor
+
+**Module Path**: `modules/pdf-editor/`
+**Database**: `pdf_editor_db`
+**Port**: `8101`
+
+**Domain Ownership**:
+- **PDF Templates** - Document template definitions
+- **Generated Documents** - Rendered PDF outputs with metadata
+
+**Domain Responsibilities**:
+- PDF template management
+- Document generation from templates + data
+- Generated document storage and retrieval
+
+**External Dependencies**:
+- Produces: none
+- Consumes: none (called via HTTP API by other modules)
+
+---
+
+### TTP (TrashTech Pro)
+
+**Module Path**: `modules/ttp/`
+**Database**: `ttp_db`
+**Port**: `8100`
+
+**Domain Ownership**:
+- **TTP Tenants/Service Configs** - Product-level tenant configuration
+- **Metering Events** - Usage/event ingestion for billing
+- **Billing Runs** (`billing_runs`) - Periodic billing execution batches
+- **Billing Run Items** (`billing_run_items`) - Per-customer billing run line items
+- **Billing Traces** (`billing_traces`) - Audit trail for billing calculations
+
+**Domain Responsibilities**:
+- Usage metering event ingestion
+- Billing run execution (calculate charges from metering data)
+- Billing trace/audit for charge verification
+- Invoice creation coordination (calls AR API)
+
+**External Dependencies**:
+- Produces: `ttp.billing_run.created`, `ttp.billing_run.completed`, `ttp.billing_run.failed`, `ttp.party.invoiced`
+- Calls: AR HTTP API (create invoices from billing runs)
+- Consumes: none
 
 ---
 

@@ -30,26 +30,43 @@ It is the single source of truth for: "Who owns what?" and "Who is allowed to ch
 |---|---|---|---|---|
 | `platform/identity-auth` | tenants, users, roles, permissions, auth sessions | yes | `auth.*` (as defined by auth contracts) | none |
 
-### Modules (Tier 2)
+### Financial (Tier 2)
 
 | Module | Owns | May mutate | Produces | Consumes |
 |---|---|---|---|---|
-| `modules/ar` | customers (billing context only), invoices, invoice lines, AR ledger state, allocations/payment applications, credits/adjustments, AR disputes (financial artifacts), AR reporting views | yes | `ar.invoice.*`, `ar.payment.collection.requested` (command), `ar.payment.applied`, `ar.adjustment.*`, `ar.dispute.*`, `gl.posting.requested` | `payments.payment.*`, `payments.refund.*`, `payments.dispute.*`, `gl.posting.accepted`, `gl.posting.rejected` |
-| `modules/subscriptions` (planned) | subscriptions/service agreements, schedules, proration policy flags, bill-run state, plan templates | yes | `subscriptions.*` (facts) + **OpenAPI command to AR** to create/issue invoice | none |
-| `modules/payments` (planned) | processor integrations, payment intents, payment captures, refunds execution state, webhook ingestion + verification, customer/payment method references (no secrets) | yes | `payments.payment.succeeded|failed`, `payments.refund.succeeded|failed`, `payments.dispute.*` | `ar.payment.collection.requested` (command) |
-| `modules/notifications` (planned) | notification preferences, templates, outbox, delivery attempts, provider routing | yes | `notifications.delivery.succeeded|failed` (optional) | `ar.invoice.*`, `ar.payment.*`, `payments.payment.*`, `payments.dispute.*` |
+| `modules/ar` | customers (billing context), invoices, invoice lines, AR ledger state, allocations/payment applications, credits/adjustments, AR disputes, AR reporting views | yes | `ar.invoice_opened`, `ar.invoice_paid`, `ar.payment.collection.requested` (command), `ar.payment_allocated`, `ar.credit_note_issued`, `ar.invoice_written_off`, `ar.usage_captured`, `ar.usage_invoiced`, `ar.recon_run_started`, `ar.recon_match_applied`, `ar.dunning_state_changed`, `ar.invoice_suspended`, `ar.invoice_settled_fx`, `tax.*`, `gl.posting.requested` | `payments.payment.*`, `payments.refund.*`, `payments.dispute.*`, `gl.posting.accepted`, `gl.posting.rejected` |
+| `modules/gl` | chart of accounts, journal entries, journal entry lines, account balances, periods, accruals, FX rates, FX revaluations, revenue recognition contracts/schedules | yes | `gl.posting.accepted`, `gl.posting.rejected`, `gl.accrual_created`, `gl.accrual_reversed`, `gl.fx_revaluation_posted`, `gl.fx_realized_posted`, `fx.rate_updated`, `revrec.contract_created`, `revrec.schedule_created`, `revrec.recognition_posted`, `revrec.contract_modified` | `gl.posting.requested` |
+| `modules/ap` | vendors, purchase orders, PO lines, PO receipt links, vendor bills, three-way match, AP allocations, payment runs, payment run items/executions, AP tax snapshots | yes | `ap.po_created`, `ap.po_approved`, `ap.po_closed`, `ap.po_line_received_linked`, `ap.vendor_created`, `ap.vendor_updated`, `ap.vendor_bill_created`, `ap.vendor_bill_matched`, `ap.vendor_bill_approved`, `ap.vendor_bill_voided`, `ap.payment_run_created`, `ap.payment_executed` | `inventory.item_received` |
+| `modules/payments` | processor integrations, payment intents, payment captures, refunds execution state, webhook ingestion + verification, customer/payment method references (no secrets) | yes | `payments.payment.succeeded`, `payments.payment.failed`, `payments.refund.succeeded`, `payments.refund.failed`, `payments.dispute.*` | `ar.payment.collection.requested` (command) |
+| `modules/subscriptions` | subscriptions/service agreements, schedules, proration policy flags, bill-run state, plan templates | yes | `subscriptions.*` (facts) + **OpenAPI command to AR** to create/issue invoice | `ar.invoice_suspended` |
+| `modules/treasury` | bank accounts, bank transactions, statement imports, reconciliation state, cash position | yes | none (internal state only) | `payments.payment.succeeded`, `ap.payment_executed` |
+| `modules/fixed-assets` | asset categories, assets, depreciation schedules, depreciation runs, disposals, AP capitalizations | yes | `fixed_assets.asset_created`, `fixed_assets.asset_updated`, `fixed_assets.asset_deactivated`, `fixed_assets.depreciation_run_completed`, `fixed_assets.asset_disposed`, `gl.posting.requested` | `ap.vendor_bill_approved` |
+| `modules/consolidation` | consolidation configs, consolidation caches, elimination postings | yes | none (internal aggregation only) | reads GL/AR/AP data via HTTP APIs |
 
 ### Operations (Tier 2)
 
 | Module | Owns | May mutate | Produces | Consumes |
 |---|---|---|---|---|
+| `modules/inventory` | items, inventory ledger, FIFO layers, reservations, on-hand projections, UOMs, lots, serial instances, status buckets, locations, status transfers, adjustments, cycle counts, transfers, reorder policies, valuation snapshots, low stock state | yes | `inventory.item_received`, `inventory.item_issued`, `inventory.adjusted`, `inventory.transfer_completed`, `inventory.low_stock_triggered`, `inventory.cycle_count_submitted`, `inventory.cycle_count_approved`, `inventory.status_changed`, `inventory.valuation_snapshot` | none |
 | `modules/shipping-receiving` | shipments, shipment_lines, shipment_status_history, outbox & idempotency keys | inventory stock ledger via Inventory API (receipts/issues) at lifecycle boundaries | `shipping-receiving.shipment.created`, `shipping-receiving.shipment.status_changed`, `shipping-receiving.shipment.cancelled`, `shipping-receiving.shipment.arrived`, `shipping-receiving.shipment.closed`, `shipping-receiving.shipment.shipped`, `shipping-receiving.shipment.delivered` | `ap.purchase_order.approved`, `ar.sales_order.released`, `inventory.receipt.confirmed`, `inventory.issue.confirmed` |
+| `modules/party` | parties (orgs, people), party external refs, contacts, addresses | yes | `party.created`, `party.updated`, `party.deactivated` | none |
+| `modules/maintenance` | work orders, preventive maintenance plans, meter readings, parts/labor records, tenant config | yes | `maintenance.work_order.created`, `maintenance.work_order.status_changed`, `maintenance.work_order.completed`, `maintenance.work_order.closed`, `maintenance.work_order.cancelled`, `maintenance.work_order.overdue`, `maintenance.meter_reading.recorded`, `maintenance.plan.due`, `maintenance.plan.assigned`, `gl.posting.requested` | none |
+| `modules/timekeeping` | employees, projects, timesheet entries, approvals, allocations, exports, billing rates | yes | `timekeeping.entry.*`, `timekeeping.approval.*` (planned) | none |
 
-### External / Future
+### Cross-Cutting (Tier 2)
 
 | Module | Owns | May mutate | Produces | Consumes |
 |---|---|---|---|---|
-| `modules/gl` (future) | chart of accounts, journal entries, posting rules | yes | `gl.posting.accepted`, `gl.posting.rejected` | `gl.posting.requested` |
+| `modules/integrations` | connector configs, external refs, webhook endpoints, webhook ingest logs | yes | `external_ref.created`, `external_ref.updated`, `external_ref.deleted`, `webhook.received`, `webhook.routed` | various (webhook routing) |
+| `modules/notifications` | notification preferences, templates, outbox, delivery attempts, provider routing | yes | `notifications.delivery.succeeded`, `notifications.delivery.failed` (optional) | `ar.invoice.*`, `ar.payment.*`, `payments.payment.*`, `payments.dispute.*` |
+| `modules/reporting` | report definitions, reporting caches, forecast caches | no (read-only aggregation) | none | `gl.posting.requested`, `payments.payment.succeeded`, `ap.vendor_bill_created`, `ap.vendor_bill_voided`, `ap.payment_executed`, `inventory.valuation_snapshot`, `ar.invoice_opened`, `ar.invoice_paid`, `ar.ar_aging_updated` |
+| `modules/pdf-editor` | PDF templates, generated documents | yes | none | none |
+
+### Product (Tier 3)
+
+| Module | Owns | May mutate | Produces | Consumes |
+|---|---|---|---|---|
+| `modules/ttp` | TTP tenants, service configs, metering events, billing runs, billing run items, billing traces | yes | `ttp.billing_run.created`, `ttp.billing_run.completed`, `ttp.billing_run.failed`, `ttp.party.invoiced` | none |
 
 ---
 

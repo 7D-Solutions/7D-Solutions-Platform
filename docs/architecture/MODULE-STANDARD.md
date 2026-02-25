@@ -186,6 +186,37 @@ git tag billing-v2.3.1
 ghcr.io/7d-solutions/billing:2.3.1
 ```
 
+## Documentation Requirements
+
+Every module MUST have the following documentation artifacts. These are not optional — a module without registry entries is invisible to the platform.
+
+### At Module Creation (scaffold bead)
+
+| Artifact | Location | Purpose |
+|---|---|---|
+| **Module Authority Matrix entry** | `docs/architecture/MODULE-AUTHORITY-MATRIX.md` | Declares what this module owns, may mutate, produces, and consumes |
+| **Domain Ownership Registry entry** | `docs/governance/DOMAIN-OWNERSHIP-REGISTRY.md` | Declares tables, responsibilities, and external dependencies |
+| **Event Taxonomy ownership line** | `docs/architecture/EVENT-TAXONOMY.md` | Declares `{domain}.*` event namespace (if module emits events) |
+
+### Before v0.1.0 Release
+
+| Artifact | Location | Purpose |
+|---|---|---|
+| **Vision/Spec document** | `docs/architecture/{MODULE}-VISION.md` or `{MODULE}-MODULE-SPEC.md` | Domain authority, state machines, integration map, roadmap, decision log |
+| **Docker entries** | `docker-compose.data.yml` + `docker-compose.services.yml` | Database container and service container |
+
+### At v1.0.0 (proven module)
+
+| Artifact | Location | Purpose |
+|---|---|---|
+| **REVISIONS.md** | `modules/{name}/REVISIONS.md` | Version history with migration notes (required for every version bump) |
+
+### Validation
+
+The scaffold bead for any new module MUST include creating the three registry entries as acceptance criteria. Code review should verify these entries exist before closing the scaffold bead.
+
+---
+
 ## Testing Standards
 
 ### Test Coverage Requirements
