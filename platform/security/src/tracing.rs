@@ -12,10 +12,27 @@
 //! | `X-Correlation-Id` | `TracingContext.correlation_id` | Falls back to trace_id   |
 //! | `X-Actor-Id`       | `TracingContext.actor_id`    | None (anonymous)            |
 //! | `X-Actor-Type`     | `TracingContext.actor_type`  | None                        |
+//!
+//! # Response Headers
+//!
+//! The middleware echoes tracing IDs back to the caller:
+//!
+//! | Response Header    | Value                       |
+//! |--------------------|-----------------------------|
+//! | `X-Request-Id`     | Same as trace_id            |
+//! | `X-Trace-Id`       | Same as trace_id            |
+//! | `X-Correlation-Id` | Correlation ID              |
+//!
+//! # Structured Logging
+//!
+//! Every request runs inside a `tracing::info_span!("request", ...)` that
+//! includes `trace_id`, `correlation_id`, HTTP method, and path. All log
+//! lines emitted during request processing automatically include these fields.
 
 use axum::{extract::Request, middleware::Next, response::Response};
 use event_bus::TracingContext;
 use http::HeaderMap;
+use tracing::Instrument;
 use uuid::Uuid;
 
 /// Extract a [`TracingContext`] from HTTP request headers.
@@ -70,9 +87,37 @@ pub fn tracing_context_from_headers(headers: &HeaderMap) -> TracingContext {
 pub async fn tracing_context_middleware(request: Request, next: Next) -> Response {
     let ctx = tracing_context_from_headers(request.headers());
 
+    let trace_id = ctx.trace_id.clone().unwrap_or_default();
+    let correlation_id = ctx.correlation_id.clone().unwrap_or_default();
+
+    let method = request.method().clone();
+    let uri = request.uri().path().to_string();
+
+    let span = tracing::info_span!(
+        "request",
+        trace_id = %trace_id,
+        correlation_id = %correlation_id,
+        method = %method,
+        path = %uri,
+    );
+
     let mut request = request;
     request.extensions_mut().insert(ctx);
-    next.run(request).await
+
+    let mut response = next.run(request).instrument(span).await;
+
+    // Echo tracing IDs in response headers so callers can correlate.
+    if let Ok(val) = trace_id.parse() {
+        response.headers_mut().insert("x-request-id", val);
+    }
+    if let Ok(val) = trace_id.parse() {
+        response.headers_mut().insert("x-trace-id", val);
+    }
+    if let Ok(val) = correlation_id.parse() {
+        response.headers_mut().insert("x-correlation-id", val);
+    }
+
+    response
 }
 
 fn header_string(headers: &HeaderMap, name: &str) -> Option<String> {
@@ -86,7 +131,9 @@ fn header_string(headers: &HeaderMap, name: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use http::HeaderMap;
+    use axum::{body::Body, routing::get, Router};
+    use http::{HeaderMap, Request as HttpRequest, StatusCode};
+    use tower::ServiceExt;
 
     #[test]
     fn test_auto_generates_trace_id_when_missing() {
@@ -177,5 +224,55 @@ mod tests {
         assert_eq!(envelope.correlation_id.as_deref(), Some("corr-rt"));
         assert_eq!(envelope.actor_id, Some(actor_id));
         assert_eq!(envelope.actor_type.as_deref(), Some("Service"));
+    }
+
+    /// Helper: build a tiny app with the tracing middleware and a 200 OK handler.
+    fn test_app() -> Router {
+        Router::new()
+            .route("/test", get(|| async { "ok" }))
+            .layer(axum::middleware::from_fn(tracing_context_middleware))
+    }
+
+    #[tokio::test]
+    async fn test_middleware_sets_response_headers_from_request() {
+        let app = test_app();
+
+        let req = HttpRequest::builder()
+            .uri("/test")
+            .header("x-trace-id", "trace-resp-1")
+            .header("x-correlation-id", "corr-resp-1")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        assert_eq!(resp.headers().get("x-request-id").unwrap(), "trace-resp-1");
+        assert_eq!(resp.headers().get("x-trace-id").unwrap(), "trace-resp-1");
+        assert_eq!(resp.headers().get("x-correlation-id").unwrap(), "corr-resp-1");
+    }
+
+    #[tokio::test]
+    async fn test_middleware_auto_generates_ids_in_response() {
+        let app = test_app();
+
+        let req = HttpRequest::builder()
+            .uri("/test")
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.oneshot(req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+
+        // All three headers should be present with auto-generated UUIDs
+        let request_id = resp.headers().get("x-request-id").unwrap().to_str().unwrap();
+        let trace_id = resp.headers().get("x-trace-id").unwrap().to_str().unwrap();
+        let corr_id = resp.headers().get("x-correlation-id").unwrap().to_str().unwrap();
+
+        assert!(Uuid::parse_str(request_id).is_ok());
+        // x-request-id and x-trace-id should be identical
+        assert_eq!(request_id, trace_id);
+        // correlation_id defaults to trace_id when not provided
+        assert_eq!(request_id, corr_id);
     }
 }
