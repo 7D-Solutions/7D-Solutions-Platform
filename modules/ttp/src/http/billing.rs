@@ -9,9 +9,10 @@
 ///
 /// # Request
 ///
+/// Tenant is derived from the JWT `VerifiedClaims`.
+///
 /// ```json
 /// {
-///   "tenant_id": "uuid",
 ///   "billing_period": "2026-02",
 ///   "idempotency_key": "caller-generated-key"
 /// }
@@ -31,7 +32,8 @@
 /// }
 /// ```
 
-use axum::{extract::State, http::StatusCode, Json};
+use axum::{extract::State, http::StatusCode, Extension, Json};
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
@@ -51,7 +53,6 @@ use crate::events::{
 
 #[derive(Debug, Deserialize)]
 pub struct BillingRunRequest {
-    pub tenant_id: Uuid,
     pub billing_period: String,
     pub idempotency_key: String,
 }
@@ -80,9 +81,19 @@ pub struct ErrorBody {
 /// POST /api/ttp/billing-runs
 pub async fn create_billing_run(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<BillingRunRequest>,
 ) -> Result<Json<BillingRunResponse>, (StatusCode, Json<ErrorBody>)>
 {
+    let tenant_id = claims
+        .map(|Extension(c)| c.tenant_id)
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorBody {
+                error: "Missing or invalid authentication".to_string(),
+                code: "unauthorized".to_string(),
+            }),
+        ))?;
     // Build clients from env — base URLs are resolved at request time from env so
     // they can be overridden in test environments.
     let registry_url = std::env::var("TENANT_REGISTRY_URL")
@@ -121,7 +132,7 @@ pub async fn create_billing_run(
         &state.pool,
         &registry,
         &ar,
-        req.tenant_id,
+        tenant_id,
         &req.billing_period,
         &req.idempotency_key,
     )
@@ -131,7 +142,7 @@ pub async fn create_billing_run(
             // Publish BillingRunCompleted event (best-effort; do not fail the HTTP response)
             let payload = BillingRunCompleted {
                 run_id: summary.run_id,
-                tenant_id: req.tenant_id,
+                tenant_id,
                 billing_period: req.billing_period.clone(),
                 parties_billed: summary.parties_billed,
                 total_amount_minor: summary.total_amount_minor,
@@ -140,7 +151,7 @@ pub async fn create_billing_run(
 
             if !summary.was_noop {
                 let _env = create_ttp_envelope(
-                    req.tenant_id,
+                    tenant_id,
                     BILLING_RUN_COMPLETED,
                     &correlation_id,
                     "billing",
@@ -153,7 +164,7 @@ pub async fn create_billing_run(
 
             Ok(Json(BillingRunResponse {
                 run_id: summary.run_id,
-                tenant_id: req.tenant_id,
+                tenant_id,
                 billing_period: req.billing_period,
                 parties_billed: summary.parties_billed,
                 total_amount_minor: summary.total_amount_minor,
@@ -186,13 +197,13 @@ pub async fn create_billing_run(
 
             // Publish BillingRunFailed event (best-effort)
             let _fail_env = create_ttp_envelope(
-                req.tenant_id,
+                tenant_id,
                 BILLING_RUN_FAILED,
                 &correlation_id,
                 "billing",
                 BillingRunFailed {
                     run_id: Uuid::nil(),
-                    tenant_id: req.tenant_id,
+                    tenant_id,
                     billing_period: req.billing_period.clone(),
                     reason: e.to_string(),
                 },
@@ -256,6 +267,12 @@ mod tests {
     // Integration tests against real DB + running services
     // ---------------------------------------------------------------------------
 
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use chrono::Utc;
+    use security::ActorType;
+    use tower::ServiceExt;
+
     /// Build a lazy pool that defers the actual TCP connection until first use.
     /// Validation-only tests (400 responses) never touch the DB so no connection is made.
     fn lazy_pool() -> sqlx::PgPool {
@@ -264,29 +281,72 @@ mod tests {
         sqlx::PgPool::connect_lazy(&url).expect("build lazy pool")
     }
 
-    /// Build the HTTP app for testing.
-    fn build_app(pool: sqlx::PgPool) -> axum::Router {
+    /// Build fake VerifiedClaims for a given tenant.
+    fn fake_claims(tenant_id: Uuid) -> VerifiedClaims {
+        let now = Utc::now();
+        VerifiedClaims {
+            user_id: Uuid::new_v4(),
+            tenant_id,
+            app_id: None,
+            roles: vec!["admin".into()],
+            perms: vec!["ttp.mutate".into()],
+            actor_type: ActorType::User,
+            issued_at: now,
+            expires_at: now + chrono::Duration::minutes(15),
+            token_id: Uuid::new_v4(),
+            version: "1".into(),
+        }
+    }
+
+    /// Build the HTTP app for testing, injecting VerifiedClaims via Extension.
+    fn build_app(pool: sqlx::PgPool, claims: VerifiedClaims) -> axum::Router {
         use crate::metrics::TtpMetrics;
         let metrics = Arc::new(TtpMetrics::new().unwrap());
         let state = Arc::new(crate::AppState { pool, metrics });
         axum::Router::new()
             .route("/api/ttp/billing-runs", axum::routing::post(create_billing_run))
+            .layer(Extension(claims))
             .with_state(state)
     }
 
     #[tokio::test]
-    async fn bad_billing_period_returns_400() {
-        let app = build_app(lazy_pool());
+    async fn missing_claims_returns_401() {
+        use crate::metrics::TtpMetrics;
+        let metrics = Arc::new(TtpMetrics::new().unwrap());
+        let state = Arc::new(crate::AppState { pool: lazy_pool(), metrics });
+        let app = axum::Router::new()
+            .route("/api/ttp/billing-runs", axum::routing::post(create_billing_run))
+            .with_state(state);
 
         let body = serde_json::json!({
-            "tenant_id": Uuid::new_v4(),
-            "billing_period": "202602",
+            "billing_period": "2026-02",
             "idempotency_key": "test-key"
         });
 
-        use axum::body::Body;
-        use axum::http::{Request, StatusCode};
-        use tower::ServiceExt;
+        let resp = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/ttp/billing-runs")
+                    .header("content-type", "application/json")
+                    .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn bad_billing_period_returns_400() {
+        let tenant_id = Uuid::new_v4();
+        let app = build_app(lazy_pool(), fake_claims(tenant_id));
+
+        let body = serde_json::json!({
+            "billing_period": "202602",
+            "idempotency_key": "test-key"
+        });
 
         let resp = app
             .oneshot(
@@ -305,17 +365,13 @@ mod tests {
 
     #[tokio::test]
     async fn empty_idempotency_key_returns_400() {
-        let app = build_app(lazy_pool());
+        let tenant_id = Uuid::new_v4();
+        let app = build_app(lazy_pool(), fake_claims(tenant_id));
 
         let body = serde_json::json!({
-            "tenant_id": Uuid::new_v4(),
             "billing_period": "2026-02",
             "idempotency_key": ""
         });
-
-        use axum::body::Body;
-        use axum::http::{Request, StatusCode};
-        use tower::ServiceExt;
 
         let resp = app
             .oneshot(
@@ -339,17 +395,13 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn integration_unknown_tenant_returns_404() {
-        let app = build_app(lazy_pool());
+        let tenant_id = Uuid::new_v4();
+        let app = build_app(lazy_pool(), fake_claims(tenant_id));
 
         let body = serde_json::json!({
-            "tenant_id": Uuid::new_v4(),
             "billing_period": "2026-02",
             "idempotency_key": "int-test-key-1"
         });
-
-        use axum::body::Body;
-        use axum::http::{Request, StatusCode};
-        use tower::ServiceExt;
 
         let resp = app
             .oneshot(

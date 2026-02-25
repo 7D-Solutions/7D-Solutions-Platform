@@ -3,9 +3,10 @@
 /// Lists service agreements (plans) for a tenant, sorted by plan_code then
 /// agreement_id for stable, deterministic output.
 ///
+/// Tenant is derived from the JWT `VerifiedClaims`.
+///
 /// # Query Parameters
 ///
-/// - `tenant_id` (required): UUID of the tenant
 /// - `status` (optional): filter by status — `active` | `suspended` | `cancelled`
 ///   Defaults to `active`.
 ///
@@ -33,9 +34,10 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
 use chrono::NaiveDate;
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 use std::sync::Arc;
@@ -49,7 +51,6 @@ use crate::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct ListQuery {
-    pub tenant_id: Uuid,
     /// Filter by status (default: "active"). Pass "all" to see every status.
     #[serde(default = "default_status")]
     pub status: String,
@@ -92,8 +93,19 @@ pub struct ErrorBody {
 /// GET /api/ttp/service-agreements
 pub async fn list_service_agreements(
     State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<ListServiceAgreementsResponse>, (StatusCode, Json<ErrorBody>)> {
+    let tenant_id = claims
+        .map(|Extension(c)| c.tenant_id)
+        .ok_or_else(|| (
+            StatusCode::UNAUTHORIZED,
+            Json(ErrorBody {
+                error: "Missing or invalid authentication".to_string(),
+                code: "unauthorized".to_string(),
+            }),
+        ))?;
+
     // Validate status value
     let status_filter = query.status.as_str();
     let valid_statuses = ["active", "suspended", "cancelled", "all"];
@@ -120,7 +132,7 @@ pub async fn list_service_agreements(
             ORDER BY plan_code, agreement_id
             "#,
         )
-        .bind(query.tenant_id)
+        .bind(tenant_id)
         .fetch_all(&state.pool)
         .await
     } else {
@@ -134,7 +146,7 @@ pub async fn list_service_agreements(
             ORDER BY plan_code, agreement_id
             "#,
         )
-        .bind(query.tenant_id)
+        .bind(tenant_id)
         .bind(status_filter)
         .fetch_all(&state.pool)
         .await
@@ -180,7 +192,7 @@ pub async fn list_service_agreements(
 
     let count = items.len();
     Ok(Json(ListServiceAgreementsResponse {
-        tenant_id: query.tenant_id,
+        tenant_id,
         items,
         count,
     }))
