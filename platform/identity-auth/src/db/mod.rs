@@ -1,3 +1,4 @@
+#[allow(dead_code)] // RBAC functions prepared for upcoming admin endpoints
 pub mod rbac;
 
 use sqlx::{postgres::PgPoolOptions, PgPool};

@@ -1,8 +1,8 @@
-/// Bridge between module outbox tables and the central audit log
-///
-/// Provides utilities to ensure every outbox event has a corresponding
-/// audit record (linked via causation_id). Used by the audit oracle
-/// test and can be called at module startup for backfill.
+//! Bridge between module outbox tables and the central audit log
+//!
+//! Provides utilities to ensure every outbox event has a corresponding
+//! audit record (linked via causation_id). Used by the audit oracle
+//! test and can be called at module startup for backfill.
 
 use crate::schema::{MutationClass, WriteAuditRequest};
 use sqlx::PgPool;

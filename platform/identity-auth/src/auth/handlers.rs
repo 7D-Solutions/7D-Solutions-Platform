@@ -184,11 +184,11 @@ pub async fn register(
                 data: Data { user_id: req.user_id.to_string(), email: email.clone() },
             };
 
-            if let Err(_) = state.events.publish(
+            if state.events.publish(
                 "auth.events.user.registered",
                 "auth.user.registered.v1.json",
                 &env
-            ).await {
+            ).await.is_err() {
                 state.metrics.auth_nats_publish_fail_total.with_label_values(&["auth.user.registered"]).inc();
             }
 
@@ -521,11 +521,11 @@ pub async fn login(
         data: Data { user_id: user_id.to_string() },
     };
 
-    if let Err(_) = state.events.publish(
+    if state.events.publish(
         "auth.events.user.logged_in",
         "auth.user.logged_in.v1.json",
         &env
-    ).await {
+    ).await.is_err() {
         state.metrics.auth_nats_publish_fail_total.with_label_values(&["auth.user.logged_in"]).inc();
     }
 

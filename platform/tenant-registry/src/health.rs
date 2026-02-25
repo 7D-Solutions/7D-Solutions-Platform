@@ -1,14 +1,14 @@
-/// Module health verification and tenant activation
-///
-/// Provides HTTP-based readiness checks for all platform modules and
-/// atomic tenant activation: status transition + provisioned outbox event
-/// in a single database transaction.
-///
-/// Activation contract:
-/// - ALL modules must report Ready before activation proceeds
-/// - Status update (→ active) and outbox event are committed in one transaction
-/// - If any module is unavailable, tenant stays in provisioning state
-/// - Outbox event type: tenant.provisioned
+//! Module health verification and tenant activation
+//!
+//! Provides HTTP-based readiness checks for all platform modules and
+//! atomic tenant activation: status transition + provisioned outbox event
+//! in a single database transaction.
+//!
+//! Activation contract:
+//! - ALL modules must report Ready before activation proceeds
+//! - Status update (→ active) and outbox event are committed in one transaction
+//! - If any module is unavailable, tenant stays in provisioning state
+//! - Outbox event type: tenant.provisioned
 
 use crate::lifecycle::event_types;
 use crate::summary::{ModuleReadiness, ModuleUrl, ReadinessStatus, MODULE_READINESS_TIMEOUT};

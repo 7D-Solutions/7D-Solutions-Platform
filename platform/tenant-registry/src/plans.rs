@@ -1,7 +1,7 @@
-/// Plan catalog route
-///
-/// Exposes:
-///   GET /api/ttp/plans  — list platform billing plans from cp_plans
+//! Plan catalog route
+//!
+//! Exposes:
+//!   GET /api/ttp/plans  — list platform billing plans from cp_plans
 
 use axum::{
     extract::{Query, State},

@@ -1,7 +1,7 @@
-/// Tenant summary aggregation
-///
-/// Fetches tenant record from DB and module readiness via parallel HTTP fanout.
-/// No direct cross-module DB reads — HTTP only.
+//! Tenant summary aggregation
+//!
+//! Fetches tenant record from DB and module readiness via parallel HTTP fanout.
+//! No direct cross-module DB reads — HTTP only.
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

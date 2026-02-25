@@ -1,7 +1,7 @@
-/// Tenant lifecycle management
-///
-/// Defines deterministic provisioning sequences with verification checks,
-/// provisioning state machine, and event type constants.
+//! Tenant lifecycle management
+//!
+//! Defines deterministic provisioning sequences with verification checks,
+//! provisioning state machine, and event type constants.
 
 use serde::{Deserialize, Serialize};
 

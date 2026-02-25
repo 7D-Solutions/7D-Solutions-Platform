@@ -117,7 +117,7 @@ pub async fn forgot_password(
             },
         };
 
-        if let Err(_) = state
+        if state
             .events
             .publish(
                 "auth.events.password_reset_requested",
@@ -125,6 +125,7 @@ pub async fn forgot_password(
                 &env,
             )
             .await
+            .is_err()
         {
             tracing::warn!(
                 user_id = %user_id,
@@ -240,7 +241,7 @@ pub async fn reset_password(
         },
     };
 
-    if let Err(_) = state
+    if state
         .events
         .publish(
             "auth.events.password_reset_completed",
@@ -248,6 +249,7 @@ pub async fn reset_password(
             &env,
         )
         .await
+        .is_err()
     {
         tracing::warn!(user_id = %user_id, "auth.reset_password.event_publish_failed");
         // Event failure is logged but does not fail the response — password is already reset.

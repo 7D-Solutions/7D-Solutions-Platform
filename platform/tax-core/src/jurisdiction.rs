@@ -90,7 +90,7 @@ pub fn resolve_jurisdiction(
                 && entry
                     .state
                     .as_ref()
-                    .map_or(true, |s| s.eq_ignore_ascii_case(&n.state))
+                    .is_none_or(|s| s.eq_ignore_ascii_case(&n.state))
         });
         if !has_nexus {
             return JurisdictionResult::Unknown;
@@ -106,7 +106,7 @@ pub fn resolve_jurisdiction(
         .rules
         .iter()
         .filter(|r| {
-            r.effective_from <= as_of && r.effective_to.map_or(true, |end| as_of <= end)
+            r.effective_from <= as_of && r.effective_to.is_none_or(|end| as_of <= end)
         })
         .filter_map(|r| {
             let (matches, is_specific) = match (&r.tax_codes, tax_code) {

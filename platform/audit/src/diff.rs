@@ -1,7 +1,7 @@
-/// Audit diff (before/after state changes)
-///
-/// Provides field-level diff capture for mutable_with_audit entities.
-/// Diffs are deterministic (stable ordering) and include complete metadata.
+//! Audit diff (before/after state changes)
+//!
+//! Provides field-level diff capture for mutable_with_audit entities.
+//! Diffs are deterministic (stable ordering) and include complete metadata.
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;

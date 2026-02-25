@@ -1,7 +1,7 @@
-/// Audit actor (who performed the action)
-///
-/// Actors represent the identity performing an action in the system.
-/// Every audited mutation must have a non-empty actor identity.
+//! Audit actor (who performed the action)
+//!
+//! Actors represent the identity performing an action in the system.
+//! Every audited mutation must have a non-empty actor identity.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

@@ -238,7 +238,7 @@ impl WebhookVerifier for NoopVerifier {
 // ============================================================================
 
 fn decode_hex(s: &str) -> Result<Vec<u8>, VerifyError> {
-    if s.len() % 2 != 0 {
+    if !s.len().is_multiple_of(2) {
         return Err(VerifyError::MalformedHeader);
     }
     (0..s.len())

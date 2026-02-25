@@ -1,6 +1,6 @@
-/// Tenant registry operations
-///
-/// Core registry logic for tenant lookup, provisioning status, and metadata queries
+//! Tenant registry operations
+//!
+//! Core registry logic for tenant lookup, provisioning status, and metadata queries
 
 use crate::schema::{TenantId, TenantRecord, TenantStatus, ProvisioningStep};
 use chrono::{DateTime, Utc};

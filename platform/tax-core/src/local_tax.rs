@@ -73,7 +73,7 @@ impl TaxProvider for LocalTaxProvider {
             let result = resolve_jurisdiction(
                 &req.ship_to,
                 &req.ship_to, // bill_to = ship_to (same field in request)
-                &[req.ship_from.clone()],
+                std::slice::from_ref(&req.ship_from),
                 line.tax_code.as_deref(),
                 as_of,
                 &self.config,

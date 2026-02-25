@@ -1,6 +1,6 @@
-/// Audit writer API
-///
-/// Provides a single writer interface for modules to record audit events
+//! Audit writer API
+//!
+//! Provides a single writer interface for modules to record audit events
 
 use crate::schema::{AuditEvent, WriteAuditRequest};
 use sqlx::{PgPool, Postgres, Transaction};

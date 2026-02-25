@@ -2,6 +2,7 @@ use serde::Deserialize;
 use std::env;
 
 #[derive(Debug, Clone, Deserialize)]
+#[allow(dead_code)]
 pub struct Config {
     pub database_url: String,
     pub nats_url: String,

@@ -1,23 +1,23 @@
-/// HTTP client for the tenant-registry entitlements and status endpoints.
-///
-/// Exposes:
-///   `get_concurrent_user_limit(tenant_id)` — concurrent_user_limit from:
-///     GET {base_url}/api/tenants/{tenant_id}/entitlements
-///   `get_tenant_status(tenant_id)` — lifecycle status from:
-///     GET {base_url}/api/tenants/{tenant_id}/status
-///
-/// Fail-closed policy (login is denied when data cannot be determined):
-///   1. Cache hit (within TTL): return cached value immediately.
-///   2. Cache miss / expired: fetch from tenant-registry.
-///      - Fetch OK → update cache, return fresh value.
-///      - Fetch fail + stale cache within grace period → use stale value (outage tolerance).
-///      - Fetch fail + no usable cache → deny (return error).
-///
-/// Tenant status policy:
-///   - trial / active → allow login and refresh
-///   - past_due → deny NEW logins (grace: allow refresh for 7 days after first past_due)
-///   - suspended / deleted → deny login and refresh
-///   - Registry unavailable + no cached status → deny (fail-closed)
+//! HTTP client for the tenant-registry entitlements and status endpoints.
+//!
+//! Exposes:
+//!   `get_concurrent_user_limit(tenant_id)` — concurrent_user_limit from:
+//!     GET {base_url}/api/tenants/{tenant_id}/entitlements
+//!   `get_tenant_status(tenant_id)` — lifecycle status from:
+//!     GET {base_url}/api/tenants/{tenant_id}/status
+//!
+//! Fail-closed policy (login is denied when data cannot be determined):
+//!   1. Cache hit (within TTL): return cached value immediately.
+//!   2. Cache miss / expired: fetch from tenant-registry.
+//!      - Fetch OK → update cache, return fresh value.
+//!      - Fetch fail + stale cache within grace period → use stale value (outage tolerance).
+//!      - Fetch fail + no usable cache → deny (return error).
+//!
+//! Tenant status policy:
+//!   - trial / active → allow login and refresh
+//!   - past_due → deny NEW logins (grace: allow refresh for 7 days after first past_due)
+//!   - suspended / deleted → deny login and refresh
+//!   - Registry unavailable + no cached status → deny (fail-closed)
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};

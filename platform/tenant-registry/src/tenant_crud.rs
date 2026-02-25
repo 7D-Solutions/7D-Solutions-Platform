@@ -1,8 +1,8 @@
-/// Tenant list and detail read routes
-///
-/// Exposes:
-///   GET /api/tenants            — paginated tenant list with optional filters
-///   GET /api/tenants/:tenant_id — tenant detail with derived name and seat_limit
+//! Tenant list and detail read routes
+//!
+//! Exposes:
+//!   GET /api/tenants            — paginated tenant list with optional filters
+//!   GET /api/tenants/:tenant_id — tenant detail with derived name and seat_limit
 
 use axum::{
     extract::{Path, Query, State},

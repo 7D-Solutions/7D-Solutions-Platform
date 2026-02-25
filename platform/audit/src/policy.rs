@@ -1,9 +1,9 @@
-/// Audit policy enforcement
-///
-/// Enforces mutation policies based on entity classification:
-/// - StrictImmutable: No updates/deletes allowed
-/// - CompensatingRequired: Must emit reversal/supersession linkage
-/// - MutableWithAudit: Must emit field-level diff audit
+//! Audit policy enforcement
+//!
+//! Enforces mutation policies based on entity classification:
+//! - StrictImmutable: No updates/deletes allowed
+//! - CompensatingRequired: Must emit reversal/supersession linkage
+//! - MutableWithAudit: Must emit field-level diff audit
 
 use serde::{Deserialize, Serialize};
 use chrono::Duration;

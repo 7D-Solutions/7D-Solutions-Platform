@@ -1,6 +1,6 @@
-/// Tenant schema definitions
-///
-/// Core types for tenant registry, status tracking, and schema versioning
+//! Tenant schema definitions
+//!
+//! Core types for tenant registry, status tracking, and schema versioning
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

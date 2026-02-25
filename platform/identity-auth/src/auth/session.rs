@@ -243,11 +243,11 @@ pub async fn refresh(
         data: Data { user_id: user_id.to_string() },
     };
 
-    if let Err(_) = state.events.publish(
+    if state.events.publish(
         "auth.events.token.refreshed",
         "auth.token.refreshed.v1.json",
         &env
-    ).await {
+    ).await.is_err() {
         state.metrics.auth_nats_publish_fail_total.with_label_values(&["auth.token.refreshed"]).inc();
     }
 

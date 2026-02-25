@@ -1,13 +1,13 @@
-/// HTTP routes for the tenant control-plane
-///
-/// Exposes a read-only summary endpoint:
-///   GET /api/control/tenants/{tenant_id}/summary
-///
-/// And an entitlements endpoint for identity-auth consumption:
-///   GET /api/tenants/{tenant_id}/entitlements
-///
-/// Uses parallel HTTP fanout to check module readiness.
-/// No direct cross-module DB reads.
+//! HTTP routes for the tenant control-plane
+//!
+//! Exposes a read-only summary endpoint:
+//!   GET /api/control/tenants/{tenant_id}/summary
+//!
+//! And an entitlements endpoint for identity-auth consumption:
+//!   GET /api/tenants/{tenant_id}/entitlements
+//!
+//! Uses parallel HTTP fanout to check module readiness.
+//! No direct cross-module DB reads.
 
 use axum::{
     extract::{Path, State},

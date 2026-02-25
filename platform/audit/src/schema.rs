@@ -1,6 +1,6 @@
-/// Audit event schema definitions
-///
-/// Rust types corresponding to the audit_events table
+//! Audit event schema definitions
+//!
+//! Rust types corresponding to the audit_events table
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

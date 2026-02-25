@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.3.4 | 2026-02-25 | bd-21a3 | Clippy lint fixes: converted outer doc comments to inner doc comments, replaced `if let Err(_)` with `.is_err()`, removed needless returns in JWT validation, extracted `LimiterMap` type alias to reduce type complexity, added `#[allow(dead_code)]` on future-use RBAC/config/JWT items. No runtime behavior change. | Preparing for `cargo clippy -D warnings` CI gate. | No |
 | 1.3.3 | 2026-02-25 | bd-1uce | Added graceful shutdown with SIGTERM/SIGINT signal handling. Server now drains in-flight requests before closing DB pool on shutdown. | Zero-downtime deploys require graceful shutdown to avoid dropping in-flight requests. | No |
 | 1.0.0 | 2026-02-14 | bd-266g | Initial proof. JWT auth, RBAC, API key management, rate limiting, session management, tenant isolation, NATS event publishing, contract validation. | Module build complete. All E2E tests passing. | — |
 | 1.1.0† | 2026-02-19 | bd-oht8 | Added RBAC data model: `migration 003_rbac.sql` creates `permissions` (global), `roles` (tenant-scoped), `role_permissions` junction, and `user_role_bindings` tables with indexes. Added `db/rbac.rs` with typed CRUD queries including `effective_permissions_for_user()` for JWT claims integration. | Phase 35 IAM/RBAC: needed persistent role and permission storage before JWT claims could embed entitlements. | No |

@@ -6,15 +6,17 @@ use governor::{
 };
 use std::{num::NonZeroU32, sync::Arc, time::Duration};
 
+type LimiterMap = Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>;
+
 #[derive(Clone)]
 pub struct KeyedLimiters {
     // key -> limiter
-    email_login: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
-    email_register: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
-    refresh: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
-    forgot_email: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
-    forgot_ip: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
-    reset_ip: Arc<DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>>,
+    email_login: LimiterMap,
+    email_register: LimiterMap,
+    refresh: LimiterMap,
+    forgot_email: LimiterMap,
+    forgot_ip: LimiterMap,
+    reset_ip: LimiterMap,
 }
 
 impl KeyedLimiters {

@@ -1,13 +1,13 @@
-/// Tenant seed data
-///
-/// Seeds required initial data into each module's database for a newly
-/// provisioned tenant. Called as part of the provisioning sequence after
-/// migrations have been applied.
-///
-/// Seed contract:
-/// - All operations are idempotent (safe to retry on partial failure)
-/// - Each module function is independent — failures don't cascade
-/// - No cross-module DB reads during seeding
+//! Tenant seed data
+//!
+//! Seeds required initial data into each module's database for a newly
+//! provisioned tenant. Called as part of the provisioning sequence after
+//! migrations have been applied.
+//!
+//! Seed contract:
+//! - All operations are idempotent (safe to retry on partial failure)
+//! - Each module function is independent — failures don't cascade
+//! - No cross-module DB reads during seeding
 
 use chrono::{Datelike, NaiveDate, Utc};
 use sqlx::PgPool;

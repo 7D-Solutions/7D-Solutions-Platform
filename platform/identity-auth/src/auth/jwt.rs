@@ -14,6 +14,7 @@ use rsa::RsaPublicKey;
 pub const CLAIMS_VERSION: &str = "1";
 
 /// Actor type constants — aligned with EventEnvelope `actor_type`.
+#[allow(dead_code)]
 pub mod actor_type {
     pub const USER: &str = "user";
     pub const SERVICE: &str = "service";
@@ -68,6 +69,7 @@ pub struct JwkKey {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct JwtKeys {
     pub encoding: EncodingKey,
     pub decoding: DecodingKey,
@@ -175,7 +177,7 @@ impl JwtKeys {
 
         // Try current key first.
         match jsonwebtoken::decode::<AccessClaims>(token, &self.decoding, &validation) {
-            Ok(data) => return Ok(data.claims),
+            Ok(data) => Ok(data.claims),
             Err(primary_err) => {
                 // During rotation overlap: fall back to previous key if present.
                 if let Some(ref prev) = self.prev_decoding {
@@ -185,7 +187,7 @@ impl JwtKeys {
                         return Ok(data.claims);
                     }
                 }
-                return Err(primary_err.to_string());
+                Err(primary_err.to_string())
             }
         }
     }
