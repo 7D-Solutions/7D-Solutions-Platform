@@ -1,4 +1,5 @@
 mod admin;
+mod admin_types;
 mod config;
 mod db;
 mod consumer;
