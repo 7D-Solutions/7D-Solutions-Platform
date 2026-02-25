@@ -463,7 +463,7 @@ This registry declares the single source of truth for each domain concept in the
 
 **Module Path**: `modules/pdf-editor/`
 **Database**: `pdf_editor_db`
-**Port**: `8106`
+**Port**: `8102`
 
 **Domain Ownership**:
 - **Form Templates** (`form_templates`) - Form template definitions with field layouts

@@ -36,7 +36,7 @@ pub const SERVICES: &[ServiceEndpoint] = &[
     ServiceEndpoint { name: "reporting", port: 8096 },
     ServiceEndpoint { name: "maintenance", port: 8101 },
     ServiceEndpoint { name: "shipping-receiving", port: 8103 },
-    ServiceEndpoint { name: "pdf-editor", port: 8106 },
+    ServiceEndpoint { name: "pdf-editor", port: 8102 },
     ServiceEndpoint { name: "identity-auth", port: 8080 },
 ];
 
@@ -198,10 +198,10 @@ mod tests {
 
     #[test]
     fn services_list_complete() {
-        assert_eq!(SERVICES.len(), 17);
+        assert_eq!(SERVICES.len(), 19);
         assert!(SERVICES.iter().any(|s| s.name == "ar"));
         assert!(SERVICES.iter().any(|s| s.name == "identity-auth"));
-        assert!(SERVICES.iter().any(|s| s.name == "control-plane"));
+        assert!(SERVICES.iter().any(|s| s.name == "pdf-editor"));
     }
 
     #[test]

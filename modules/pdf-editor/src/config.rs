@@ -49,7 +49,7 @@ impl Config {
     /// - `BUS_TYPE`: 'nats' or 'inmemory' (default: 'inmemory')
     /// - `NATS_URL`: NATS server URL (required if BUS_TYPE=nats)
     /// - `HOST`: Bind host (default: '0.0.0.0')
-    /// - `PORT`: HTTP port (default: '8106')
+    /// - `PORT`: HTTP port (default: '8102')
     /// - `CORS_ORIGINS`: Comma-separated allowed origins (default: '*')
     pub fn from_env() -> Result<Self, String> {
         let database_url = env::var("DATABASE_URL").map_err(|_| {
@@ -80,7 +80,7 @@ impl Config {
         let host = env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
 
         let port: u16 = env::var("PORT")
-            .unwrap_or_else(|_| "8106".to_string())
+            .unwrap_or_else(|_| "8102".to_string())
             .parse()
             .map_err(|_| {
                 format!(
