@@ -15,7 +15,7 @@
 //! Both queries are single-pass: one CTE computes open balances, the outer
 //! query groups into buckets — no N+1 behavior.
 
-use chrono::{DateTime, NaiveDate, TimeZone, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -94,8 +94,9 @@ pub async fn compute_aging(
     by_vendor: bool,
 ) -> Result<AgingReport, AgingError> {
     // Convert to midnight UTC so TIMESTAMPTZ comparisons are deterministic.
-    let as_of_dt: DateTime<Utc> = Utc
-        .from_utc_datetime(&as_of.and_hms_opt(0, 0, 0).expect("valid midnight"));
+    let as_of_dt = as_of.and_hms_opt(0, 0, 0)
+        .ok_or_else(|| AgingError::Database(sqlx::Error::Protocol("invalid date for midnight conversion".into())))?
+        .and_utc();
 
     let buckets_by_currency = query_currency_buckets(pool, tenant_id, as_of_dt).await?;
 
