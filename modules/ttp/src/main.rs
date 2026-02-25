@@ -54,18 +54,6 @@ async fn main() {
         metrics: ttp_metrics,
     });
 
-    let cors = CorsLayer::new()
-        .allow_origin([
-            "http://localhost:5173".parse().unwrap(),
-            "http://localhost:3000".parse().unwrap(),
-        ])
-        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers([
-            axum::http::header::CONTENT_TYPE,
-            axum::http::header::AUTHORIZATION,
-        ])
-        .allow_credentials(true);
-
     // Optional JWT verifier for claims extraction (requires JWT_PUBLIC_KEY env var).
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
@@ -92,4 +80,28 @@ async fn main() {
     axum::serve(listener, app)
         .await
         .expect("TTP: failed to start server");
+}
+
+fn build_cors_layer(config: &Config) -> CorsLayer {
+    let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
+
+    if is_wildcard && config.env != "development" {
+        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+    }
+
+    let layer = if is_wildcard {
+        CorsLayer::new().allow_origin(AllowOrigin::any())
+    } else {
+        let origins: Vec<_> = config
+            .cors_origins
+            .iter()
+            .filter_map(|o| o.parse().ok())
+            .collect();
+        CorsLayer::new().allow_origin(origins)
+    };
+
+    layer
+        .allow_methods(tower_http::cors::Any)
+        .allow_headers(tower_http::cors::Any)
+        .allow_credentials(false)
 }
