@@ -92,6 +92,21 @@ scrape_configs:
       - targets: ['7d-integrations:8099']
     metrics_path: '/metrics'
 
+  - job_name: 'maintenance'
+    static_configs:
+      - targets: ['7d-maintenance:8101']
+    metrics_path: '/metrics'
+
+  - job_name: 'pdf-editor'
+    static_configs:
+      - targets: ['7d-pdf-editor:8102']
+    metrics_path: '/metrics'
+
+  - job_name: 'shipping-receiving'
+    static_configs:
+      - targets: ['7d-shipping-receiving:8103']
+    metrics_path: '/metrics'
+
   # ── Infrastructure ─────────────────────────────────────────────────────────
   - job_name: 'nats'
     static_configs:

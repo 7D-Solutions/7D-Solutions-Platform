@@ -48,6 +48,9 @@ curl -sf http://localhost:8105/api/health && echo "consolidation OK"
 curl -sf http://localhost:8097/api/health && echo "timekeeping OK"
 curl -sf http://localhost:8098/api/health && echo "party OK"
 curl -sf http://localhost:8099/api/health && echo "integrations OK"
+curl -sf http://localhost:8101/api/health && echo "maintenance OK"
+curl -sf http://localhost:8102/api/health && echo "pdf-editor OK"
+curl -sf http://localhost:8103/api/health && echo "shipping-receiving OK"
 ```
 
 ### Full automated audit (DB + HTTP)
@@ -76,9 +79,12 @@ bash /opt/7d-platform/scripts/production/health_audit.sh
 | Timekeeping | `7d-timekeeping` | 8097 |
 | Party | `7d-party` | 8098 |
 | Integrations | `7d-integrations` | 8099 |
+| Maintenance | `7d-maintenance` | 8101 |
+| PDF Editor | `7d-pdf-editor` | 8102 |
+| Shipping-Receiving | `7d-shipping-receiving` | 8103 |
 | NATS | `7d-nats` | 4222 (client), 8222 (monitoring) |
-| Prometheus | `7d-prometheus` | 9090 |
-| Grafana | `7d-grafana` | 3001 |
+| Prometheus | `7d-prometheus` | 9091 (host) → 9090 (container) |
+| Grafana | `7d-grafana` | 3002 (host) → 3000 (container) |
 
 ---
 
@@ -168,12 +174,12 @@ docker logs --since 2h 7d-subscriptions 2>&1 | grep -i 'error\|cycle\|failed' | 
 
 ```bash
 # From your local machine, open Grafana tunnel:
-ssh -L 3001:localhost:3001 deploy@prod.7dsolutions.example.com
-# Then open http://localhost:3001 in your browser.
+ssh -L 3002:localhost:3002 deploy@prod.7dsolutions.example.com
+# Then open http://localhost:3002 in your browser.
 
 # Or query Prometheus directly:
-ssh -L 9090:localhost:9090 deploy@prod.7dsolutions.example.com
-# Then open http://localhost:9090
+ssh -L 9091:localhost:9091 deploy@prod.7dsolutions.example.com
+# Then open http://localhost:9091
 ```
 
 Useful PromQL queries:

@@ -210,12 +210,15 @@ Source: `docker-compose.yml` and each module's `main.rs`.
 | Timekeeping | **8097** | 5447 | 7d-timekeeping |
 | Party Master | **8098** | 5448 | 7d-party |
 | Integrations | **8099** | 5449 | 7d-integrations |
-| TTP (platform billing) | **8100** | 5450 | 7d-ttp |
+| TTP (platform billing) | **8100** | 5451 | 7d-ttp |
+| Maintenance | **8101** | 5452 | 7d-maintenance |
+| PDF Editor | **8102** | 5453 | 7d-pdf-editor |
+| Shipping-Receiving | **8103** | 5454 | 7d-shipping-receiving |
 
 **Standard endpoints on every module:**
 ```
-GET /api/health   — liveness
-GET /api/ready    — readiness
+GET /healthz      — liveness
+GET /api/ready    — readiness (also aliased as /api/health)
 GET /metrics      — Prometheus
 ```
 

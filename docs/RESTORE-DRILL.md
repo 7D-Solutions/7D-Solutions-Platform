@@ -13,7 +13,7 @@ infrastructure change and at minimum quarterly (SOC 2 requirement).
 | **Platform** | Auth, Tenant Registry, Audit | 1 hour | 2 hours |
 | **Critical** | GL, AR, AP, Payments, Treasury | 1 hour | 4 hours |
 | **High** | Subscriptions, Inventory, Fixed Assets, Consolidation | 1 hour | 4 hours |
-| **Standard** | Notifications, Projections, Timekeeping, Party, Integrations, TTP | 4 hours | 8 hours |
+| **Standard** | Notifications, Projections, Timekeeping, Party, Integrations, TTP, Maintenance, PDF Editor, Shipping-Receiving | 4 hours | 8 hours |
 
 **RPO** = Recovery Point Objective (maximum acceptable data loss interval).
 **RTO** = Recovery Time Objective (maximum acceptable restore duration).

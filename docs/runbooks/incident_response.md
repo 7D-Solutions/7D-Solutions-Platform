@@ -281,7 +281,8 @@ for svc_port in \
   "ar:8086" "subscriptions:8087" "payments:8088" "notifications:8089" \
   "gl:8090" "inventory:8092" "ap:8093" "treasury:8094" \
   "fixed-assets:8104" "consolidation:8105" "timekeeping:8097" \
-  "party:8098" "integrations:8099" "ttp:8100"; do
+  "party:8098" "integrations:8099" "ttp:8100" \
+  "maintenance:8101" "pdf-editor:8102" "shipping-receiving:8103"; do
   svc="${svc_port%%:*}"
   port="${svc_port##*:}"
   curl -sf "http://localhost:${port}/api/health" \

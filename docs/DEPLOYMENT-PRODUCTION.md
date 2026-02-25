@@ -61,6 +61,9 @@ Service ports (3000, 8080–8100) are not accessible from the internet. UFW bloc
 | Party | 8098 | internal only |
 | Integrations | 8099 | internal only |
 | TTP | 8100 | internal only |
+| Maintenance | 8101 | internal only |
+| PDF Editor | 8102 | internal only |
+| Shipping-Receiving | 8103 | internal only |
 
 ## Host Security Posture
 
@@ -211,6 +214,9 @@ Exit code 0 = ready to deploy. Non-zero = fix the reported issues first.
 | `PARTY_POSTGRES_PASSWORD` | Party module DB |
 | `INTEGRATIONS_POSTGRES_PASSWORD` | Integrations module DB |
 | `TTP_POSTGRES_PASSWORD` | TTP module DB |
+| `MAINTENANCE_POSTGRES_PASSWORD` | Maintenance module DB |
+| `PDF_EDITOR_POSTGRES_PASSWORD` | PDF Editor module DB |
+| `SHIPPING_RECEIVING_POSTGRES_PASSWORD` | Shipping-Receiving module DB |
 | `SEED_ADMIN_PASSWORD` | Initial admin password for new tenant seed (see below) |
 
 Variable names and DB usernames are documented in full in `scripts/production/env.example`.

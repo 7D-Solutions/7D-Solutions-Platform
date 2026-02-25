@@ -29,6 +29,9 @@ Covers full-platform backup, full-platform restore, and smoke-restore verificati
 | party | 7d-party-postgres | 5448 | party_db |
 | integrations | 7d-integrations-postgres | 5449 | integrations_db |
 | ttp | 7d-ttp-postgres | 5451 | ttp_db |
+| maintenance | 7d-maintenance-postgres | 5452 | maintenance_db |
+| pdf_editor | 7d-pdf-editor-postgres | 5453 | pdf_editor_db |
+| shipping_receiving | 7d-shipping-receiving-postgres | 5454 | shipping_receiving_db |
 
 ## Prerequisites
 

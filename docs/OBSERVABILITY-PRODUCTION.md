@@ -32,12 +32,12 @@ Both ports are bound to `127.0.0.1` only; UFW blocks external access. Use SSH tu
 
 ```bash
 # Grafana UI
-ssh -L 3001:localhost:3001 deploy@prod.7dsolutions.example.com
-# → open http://localhost:3001
+ssh -L 3002:localhost:3002 deploy@prod.7dsolutions.example.com
+# → open http://localhost:3002
 
 # Prometheus UI
-ssh -L 9090:localhost:9090 deploy@prod.7dsolutions.example.com
-# → open http://localhost:9090
+ssh -L 9091:localhost:9091 deploy@prod.7dsolutions.example.com
+# → open http://localhost:9091
 ```
 
 ## Metrics Endpoints
@@ -62,6 +62,9 @@ Every service exposes Prometheus-format metrics at `/metrics`. Prometheus scrape
 | Timekeeping | `7d-timekeeping` | 8097 | `/metrics` |
 | Party | `7d-party` | 8098 | `/metrics` |
 | Integrations | `7d-integrations` | 8099 | `/metrics` |
+| Maintenance | `7d-maintenance` | 8101 | `/metrics` |
+| PDF Editor | `7d-pdf-editor` | 8102 | `/metrics` |
+| Shipping-Receiving | `7d-shipping-receiving` | 8103 | `/metrics` |
 | NATS | `7d-nats` | 8222 | `/varz` |
 
 Scrape configuration: `infra/monitoring/prometheus.yml`
@@ -137,7 +140,7 @@ Pre-built Grafana dashboards are in `infra/monitoring/grafana/dashboards/`. They
 | `audit-integrity.json` | Invariant violation counts per module |
 | `projection-lag.json` | Event consumer lag per service (NATS) |
 
-Access dashboards via SSH tunnel to Grafana on port 3001.
+Access dashboards via SSH tunnel to Grafana on port 3002.
 
 ## Logs
 
@@ -191,7 +194,7 @@ After provisioning a new VPS:
 1. Deploy the application stacks (data → platform → services → frontend).
 2. Set `GRAFANA_ADMIN_PASSWORD` in the production secrets file.
 3. Start the monitoring stack: `docker compose -f docker-compose.monitoring.yml up -d`
-4. Verify Prometheus is scraping: SSH tunnel to port 9090 → Status → Targets.
+4. Verify Prometheus is scraping: SSH tunnel to port 9091 → Status → Targets.
 5. Verify alert rules loaded: Prometheus → Alerts (all rules should be listed).
 6. Run the health audit: `bash scripts/production/health_audit.sh`
 7. Run the smoke suite: `bash scripts/production/smoke.sh --host <VPS> --dry-run` then without `--dry-run`.

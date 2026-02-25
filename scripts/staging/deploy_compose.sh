@@ -71,6 +71,9 @@ smoke_check() {
         ["party"]="http://${host}:8098/api/health"
         ["integrations"]="http://${host}:8099/api/health"
         ["ttp"]="http://${host}:8100/api/health"
+        ["maintenance"]="http://${host}:8101/api/health"
+        ["pdf-editor"]="http://${host}:8102/api/health"
+        ["shipping-receiving"]="http://${host}:8103/api/health"
         ["tcp-ui"]="http://${host}:3000/login"
     )
 

@@ -26,10 +26,9 @@ declare -A SERVICES=(
     [party]=8098
     [integrations]=8099
     [ttp]=8100
-    [reporting]=8096
     [maintenance]=8101
     [shipping-receiving]=8103
-    [pdf-editor]=8106
+    [pdf-editor]=8102
     [identity-auth]=8080
 )
 

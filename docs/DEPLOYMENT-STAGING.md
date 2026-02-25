@@ -48,6 +48,9 @@ Provider-agnostic. Tested on Hetzner CX41, DigitalOcean c-4, Linode Dedicated 16
 | Party | 8098 | `/api/health` |
 | Integrations | 8099 | `/api/health` |
 | TTP | 8100 | `/api/health` |
+| Maintenance | 8101 | `/api/health` |
+| PDF Editor | 8102 | `/api/health` |
+| Shipping-Receiving | 8103 | `/api/health` |
 
 ## Environment Variable Contract
 

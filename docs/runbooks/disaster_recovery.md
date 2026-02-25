@@ -14,7 +14,7 @@ a repeatable quarterly drill process.
 |------|----------|-----|-----|-------|
 | **Critical** | GL, AR, AP, Payments, Treasury | 1 hour | 4 hours | Financial data — SOX-sensitive |
 | **High** | Subscriptions, Inventory, Fixed Assets, Consolidation | 1 hour | 4 hours | Core business operations |
-| **Standard** | Notifications, Projections, Timekeeping, Party, Integrations | 4 hours | 8 hours | Supportive services |
+| **Standard** | Notifications, Projections, Timekeeping, Party, Integrations, TTP, Maintenance, PDF Editor, Shipping-Receiving | 4 hours | 8 hours | Supportive services |
 | **Platform** | Auth, Tenant Registry, Audit | 1 hour | 2 hours | Must restore first — all services depend on these |
 | **Infrastructure** | NATS (event bus) | 0 (durable) | 1 hour | JetStream persists to disk; rebuilt from config |
 
@@ -181,7 +181,8 @@ docker compose -f docker-compose.modules.yml ps
    for svc_port in \
      "notifications:8089" "gl:8090" "inventory:8092" \
      "ap:8093" "treasury:8094" "fixed-assets:8104" \
-     "consolidation:8105" "timekeeping:8097" "party:8098" "integrations:8099"; do
+     "consolidation:8105" "timekeeping:8097" "party:8098" "integrations:8099" \
+     "maintenance:8101" "pdf-editor:8102" "shipping-receiving:8103"; do
      svc="${svc_port%%:*}"; port="${svc_port##*:}"
      curl -sf "http://localhost:${port}/api/health" && echo " OK ${svc}" || echo " FAIL ${svc}"
    done

@@ -44,6 +44,10 @@ declare -A SERVICE_PORTS=(
     [party]=8098
     [integrations]=8099
     [ttp]=8100
+    [maintenance]=8101
+    [pdf-editor]=8102
+    [shipping-receiving]=8103
+    [control-plane]=8091
 )
 
 # Resolve port for a service name. Falls back to the argument if numeric.

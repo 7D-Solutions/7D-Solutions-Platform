@@ -72,7 +72,7 @@ The TCP UI will show a warning notification and redirect to the tenant detail pa
 
 ```bash
 # tenantctl does not directly create users — use identity-auth admin API
-curl -X POST http://localhost:8090/api/auth/register \
+curl -X POST http://localhost:8080/api/auth/register \
   -H 'Content-Type: application/json' \
   -d '{
     "tenant_id": "<TENANT_ID>",
