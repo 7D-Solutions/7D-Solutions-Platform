@@ -1,4 +1,4 @@
-use axum::{routing::get, Router};
+use axum::{routing::{get, patch, post}, Router};
 use std::sync::Arc;
 
 use crate::http;
@@ -10,10 +10,53 @@ pub fn build_router() -> Router<Arc<AppState>> {
         .route("/api/health", get(http::health::health))
         .route("/api/ready", get(http::health::ready))
         .route("/api/version", get(http::health::version))
+        .route(
+            "/api/shipping-receiving/shipments",
+            get(http::shipments::list_shipments),
+        )
+        .route(
+            "/api/shipping-receiving/shipments/:id",
+            get(http::shipments::get_shipment),
+        )
 }
 
 /// Mutation routes — caller must apply RequirePermissionsLayer externally.
-/// Currently empty; future beads will add POST/PUT/PATCH/DELETE endpoints here.
 pub fn build_mutation_router() -> Router<Arc<AppState>> {
     Router::new()
+        .route(
+            "/api/shipping-receiving/shipments",
+            post(http::shipments::create_shipment),
+        )
+        .route(
+            "/api/shipping-receiving/shipments/:id/status",
+            patch(http::shipments::transition_status),
+        )
+        .route(
+            "/api/shipping-receiving/shipments/:id/lines",
+            post(http::shipments::add_line),
+        )
+        .route(
+            "/api/shipping-receiving/shipments/:id/lines/:line_id/receive",
+            post(http::shipments::receive_line),
+        )
+        .route(
+            "/api/shipping-receiving/shipments/:id/lines/:line_id/accept",
+            post(http::shipments::accept_line),
+        )
+        .route(
+            "/api/shipping-receiving/shipments/:id/lines/:line_id/ship-qty",
+            post(http::shipments::ship_line_qty),
+        )
+        .route(
+            "/api/shipping-receiving/shipments/:id/close",
+            post(http::shipments::close_shipment),
+        )
+        .route(
+            "/api/shipping-receiving/shipments/:id/ship",
+            post(http::shipments::ship_shipment),
+        )
+        .route(
+            "/api/shipping-receiving/shipments/:id/deliver",
+            post(http::shipments::deliver_shipment),
+        )
 }
