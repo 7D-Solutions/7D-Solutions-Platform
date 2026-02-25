@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     Extension, Json,
 };
+use event_bus::TracingContext;
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
@@ -22,9 +23,11 @@ use crate::models::{CaptureUsageRequest, ErrorResponse, UsageRecord};
 pub async fn capture_usage(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CaptureUsageRequest>,
 ) -> Result<Json<UsageRecord>, (StatusCode, Json<ErrorResponse>)> {
     let app_id = super::tenant::extract_tenant(&claims)?;
+    let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
 
     // Guard: check for duplicate idempotency_key (no-op return of original)
     let existing: Option<UsageRecord> = sqlx::query_as::<_, UsageRecord>(
@@ -132,7 +135,8 @@ pub async fn capture_usage(
         req.idempotency_key.to_string(), // correlation_id
         None,
         usage_payload,
-    );
+    )
+    .with_tracing_context(&tracing_ctx);
 
     crate::events::outbox::enqueue_event_tx(
         &mut tx,

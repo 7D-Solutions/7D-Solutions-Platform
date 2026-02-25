@@ -3,6 +3,7 @@ use axum::{
     http::StatusCode,
     Extension, Json,
 };
+use event_bus::TracingContext;
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
@@ -19,9 +20,11 @@ use crate::models::{
 pub async fn create_invoice(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<CreateInvoiceRequest>,
 ) -> Result<(StatusCode, Json<Invoice>), (StatusCode, Json<ErrorResponse>)> {
     let app_id = super::tenant::extract_tenant(&claims)?;
+    let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
 
     // Validate required fields
     if req.amount_cents < 0 {
@@ -226,7 +229,8 @@ pub async fn create_invoice(
         uuid::Uuid::new_v4().to_string(),
         None,
         event_payload,
-    );
+    )
+    .with_tracing_context(&tracing_ctx);
     crate::events::outbox::enqueue_event_tx_idempotent(
         &mut tx,
         EVENT_TYPE_INVOICE_OPENED,
@@ -555,10 +559,12 @@ pub async fn update_invoice(
 pub async fn finalize_invoice(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Path(id): Path<i32>,
     Json(req): Json<FinalizeInvoiceRequest>,
 ) -> Result<Json<Invoice>, (StatusCode, Json<ErrorResponse>)> {
     let app_id = super::tenant::extract_tenant(&claims)?;
+    let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
 
     // Verify invoice exists and belongs to app
     let existing = sqlx::query_as::<_, Invoice>(
@@ -688,7 +694,8 @@ pub async fn finalize_invoice(
         None,
         "DATA_MUTATION".to_string(), // Phase 16: Requests payment collection (financially significant)
         event_payload,
-    );
+    )
+    .with_tracing_context(&tracing_ctx);
 
     crate::events::outbox::enqueue_event_tx(
         &mut tx,
@@ -740,7 +747,8 @@ pub async fn finalize_invoice(
         None,
         "DATA_MUTATION".to_string(), // Phase 16: Requests GL journal entry (financially significant)
         gl_payload,
-    );
+    )
+    .with_tracing_context(&tracing_ctx);
 
     crate::events::outbox::enqueue_event_tx(
         &mut tx,

@@ -4,6 +4,7 @@ use axum::{
     routing::post,
     Extension, Json, Router,
 };
+use event_bus::TracingContext;
 use security::VerifiedClaims;
 use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use sqlx::PgPool;
@@ -27,8 +28,10 @@ pub fn subscriptions_router(db: PgPool) -> Router {
 async fn execute_bill_run(
     State(db): State<PgPool>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<ExecuteBillRunRequest>,
 ) -> Result<(StatusCode, Json<BillRunResult>), (StatusCode, Json<ErrorResponse>)> {
+    let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
     // Extract tenant_id from JWT claims — never trust client-supplied values
     let tenant_id = match &claims {
         Some(Extension(c)) => c.tenant_id.to_string(),
@@ -323,7 +326,8 @@ async fn execute_bill_run(
         None, // No causation_id for now
         "LIFECYCLE".to_string(), // Phase 16: Bill run completion is a lifecycle transition
         payload,
-    );
+    )
+    .with_tracing_context(&tracing_ctx);
 
     enqueue_event(&db, "billrun.completed", &envelope).await
     .map_err(|e| {

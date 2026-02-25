@@ -32,6 +32,7 @@
 /// }
 /// ```
 use axum::{extract::State, http::StatusCode, Extension, Json};
+use event_bus::TracingContext;
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -81,9 +82,11 @@ pub struct ErrorBody {
 pub async fn create_billing_run(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
+    tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<BillingRunRequest>,
 ) -> Result<Json<BillingRunResponse>, (StatusCode, Json<ErrorBody>)>
 {
+    let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
     let tenant_id = claims
         .map(|Extension(c)| c.tenant_id)
         .ok_or_else(|| (
@@ -155,7 +158,8 @@ pub async fn create_billing_run(
                     &correlation_id,
                     "billing",
                     payload,
-                );
+                )
+                .with_tracing_context(&tracing_ctx);
                 // NOTE: Event bus publishing is wired in the full service start; for now
                 // the envelope is created (and merchant_context validated) but not published.
                 // bd-2hdr (E2E proof) will verify end-to-end event delivery.
@@ -206,7 +210,8 @@ pub async fn create_billing_run(
                     billing_period: req.billing_period.clone(),
                     reason: e.to_string(),
                 },
-            );
+            )
+            .with_tracing_context(&tracing_ctx);
 
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
