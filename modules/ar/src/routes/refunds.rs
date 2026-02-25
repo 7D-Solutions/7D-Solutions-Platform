@@ -1,8 +1,9 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{Charge, CreateRefundRequest, ErrorResponse, ListRefundsQuery, Refund};
@@ -10,10 +11,10 @@ use crate::models::{Charge, CreateRefundRequest, ErrorResponse, ListRefundsQuery
 /// POST /api/ar/refunds - Create a refund for a charge
 pub async fn create_refund(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateRefundRequest>,
 ) -> Result<(StatusCode, Json<Refund>), (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Validate required fields
     if req.amount_cents <= 0 {
@@ -47,7 +48,7 @@ pub async fn create_refund(
         WHERE app_id = $1 AND reference_id = $2
         "#,
     )
-    .bind(app_id)
+    .bind(&app_id)
     .bind(&req.reference_id)
     .fetch_optional(&db)
     .await
@@ -85,7 +86,7 @@ pub async fn create_refund(
         "#,
     )
     .bind(req.charge_id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -139,7 +140,7 @@ pub async fn create_refund(
         "#,
     )
     .bind(req.charge_id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_one(&db)
     .await
     .map_err(|e| {
@@ -184,7 +185,7 @@ pub async fn create_refund(
             failure_code, failure_message, created_at, updated_at
         "#,
     )
-    .bind(app_id)
+    .bind(&app_id)
     .bind(charge.ar_customer_id)
     .bind(req.charge_id)
     .bind(&charge.tilled_charge_id)
@@ -248,10 +249,10 @@ pub async fn create_refund(
 /// GET /api/ar/refunds/{id} - Get a specific refund
 pub async fn get_refund(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
 ) -> Result<Json<Refund>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let refund = sqlx::query_as::<_, Refund>(
         r#"
@@ -264,7 +265,7 @@ pub async fn get_refund(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -290,10 +291,10 @@ pub async fn get_refund(
 /// GET /api/ar/refunds - List refunds with optional filters
 pub async fn list_refunds(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListRefundsQuery>,
 ) -> Result<Json<Vec<Refund>>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(100).min(500);
     let offset = query.offset.unwrap_or(0);
@@ -330,7 +331,7 @@ pub async fn list_refunds(
         bind_index + 1
     ));
 
-    let mut query_builder = sqlx::query_as::<_, Refund>(&sql).bind(app_id);
+    let mut query_builder = sqlx::query_as::<_, Refund>(&sql).bind(&app_id);
 
     if let Some(charge_id) = query.charge_id {
         query_builder = query_builder.bind(charge_id);

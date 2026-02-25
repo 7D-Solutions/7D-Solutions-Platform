@@ -1,8 +1,9 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{
@@ -12,10 +13,10 @@ use crate::models::{
 /// POST /api/ar/charges - Create a new charge
 pub async fn create_charge(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateChargeRequest>,
 ) -> Result<(StatusCode, Json<Charge>), (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Validate required fields
     if req.amount_cents <= 0 {
@@ -59,7 +60,7 @@ pub async fn create_charge(
         "#,
     )
     .bind(req.ar_customer_id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -106,7 +107,7 @@ pub async fn create_charge(
         WHERE app_id = $1 AND reference_id = $2
         "#,
     )
-    .bind(app_id)
+    .bind(&app_id)
     .bind(&req.reference_id)
     .fetch_optional(&db)
     .await
@@ -150,7 +151,7 @@ pub async fn create_charge(
             created_at, updated_at
         "#,
     )
-    .bind(app_id)
+    .bind(&app_id)
     .bind(req.ar_customer_id)
     .bind(req.amount_cents)
     .bind(&currency)
@@ -217,10 +218,10 @@ pub async fn create_charge(
 /// GET /api/ar/charges/:id - Get charge by ID
 pub async fn get_charge(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
 ) -> Result<Json<Charge>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let charge = sqlx::query_as::<_, Charge>(
         r#"
@@ -236,7 +237,7 @@ pub async fn get_charge(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -265,10 +266,10 @@ pub async fn get_charge(
 /// GET /api/ar/charges - List charges (with optional filtering)
 pub async fn list_charges(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListChargesQuery>,
 ) -> Result<Json<Vec<Charge>>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0).max(0);
@@ -291,7 +292,7 @@ pub async fn list_charges(
                 LIMIT $4 OFFSET $5
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(customer_id)
             .bind(status)
             .bind(limit)
@@ -315,7 +316,7 @@ pub async fn list_charges(
                 LIMIT $3 OFFSET $4
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(customer_id)
             .bind(limit)
             .bind(offset)
@@ -338,7 +339,7 @@ pub async fn list_charges(
                 LIMIT $3 OFFSET $4
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(invoice_id)
             .bind(limit)
             .bind(offset)
@@ -361,7 +362,7 @@ pub async fn list_charges(
                 LIMIT $3 OFFSET $4
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(status)
             .bind(limit)
             .bind(offset)
@@ -384,7 +385,7 @@ pub async fn list_charges(
                 LIMIT $2 OFFSET $3
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(limit)
             .bind(offset)
             .fetch_all(&db)
@@ -408,11 +409,11 @@ pub async fn list_charges(
 /// POST /api/ar/charges/:id/capture - Capture an authorized charge
 pub async fn capture_charge(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<CaptureChargeRequest>,
 ) -> Result<Json<Charge>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify charge exists and belongs to app
     let existing = sqlx::query_as::<_, Charge>(
@@ -429,7 +430,7 @@ pub async fn capture_charge(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {

@@ -1,7 +1,7 @@
 use axum::{
     body::Body,
     extract::{Request, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     middleware::Next,
     response::{IntoResponse, Response},
     Json,
@@ -11,13 +11,15 @@ use serde_json::Value as JsonValue;
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 
+use security::VerifiedClaims;
+
 use crate::models::{ErrorResponse, IdempotencyKey};
 
-/// Extract app_id from request (placeholder - should come from auth middleware)
-fn extract_app_id(_headers: &HeaderMap) -> Option<String> {
-    // TODO: Extract from auth middleware
-    // For now, use "test-app" to match the routes
-    Some("test-app".to_string())
+/// Extract app_id from request extensions (populated by auth middleware)
+fn extract_app_id(extensions: &axum::http::Extensions) -> Option<String> {
+    extensions
+        .get::<VerifiedClaims>()
+        .map(|c| c.tenant_id.to_string())
 }
 
 /// Check if request has already been processed via idempotency key
@@ -38,8 +40,8 @@ pub async fn check_idempotency(
         }
     };
 
-    // Get app_id from auth context
-    let app_id = match extract_app_id(headers) {
+    // Get app_id from auth context (VerifiedClaims in extensions)
+    let app_id = match extract_app_id(request.extensions()) {
         Some(id) => id,
         None => {
             return Err((

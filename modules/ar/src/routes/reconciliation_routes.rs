@@ -1,8 +1,9 @@
 use axum::{
     extract::State,
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::ErrorResponse;
@@ -24,10 +25,11 @@ pub struct ReconRunRequest {
 /// deterministic heuristic rules. Same inputs always produce same outputs.
 pub async fn recon_run_route(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<ReconRunRequest>,
 ) -> Result<Json<crate::reconciliation::ReconRunResult>, (StatusCode, Json<ErrorResponse>)> {
     let recon_run_id = req.recon_run_id.unwrap_or_else(uuid::Uuid::new_v4);
-    let app_id = "test-app".to_string(); // TODO: extract from auth middleware
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let result = crate::reconciliation::run_reconciliation(
         &db,

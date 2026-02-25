@@ -8,6 +8,9 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use sqlx::PgPool;
 
+use axum::Extension;
+use security::VerifiedClaims;
+
 use crate::models::{
     ErrorResponse, ListWebhooksQuery, ReplayWebhookRequest, TilledWebhookEvent, Webhook,
     WebhookStatus,
@@ -428,9 +431,15 @@ pub async fn receive_tilled_webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    // Extract app_id from headers or use default
-    // TODO: Extract from auth middleware when available
-    let app_id = "test-app";
+    // Webhook endpoints are called by Tilled (HMAC-authenticated, not JWT).
+    // Tenant is determined by the registered webhook endpoint configuration.
+    let app_id = std::env::var("TILLED_WEBHOOK_APP_ID").unwrap_or_else(|_| {
+        headers
+            .get("x-tilled-account")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or("unknown")
+            .to_string()
+    });
 
     // Get webhook secret from environment — required, no fallback
     let webhook_secret = std::env::var("TILLED_WEBHOOK_SECRET_TRASHTECH")
@@ -486,7 +495,7 @@ pub async fn receive_tilled_webhook(
         "#,
     )
     .bind(&event.id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -516,7 +525,7 @@ pub async fn receive_tilled_webhook(
         RETURNING id
         "#,
     )
-    .bind(app_id)
+    .bind(&app_id)
     .bind(&event.id)
     .bind(&event.event_type)
     .bind(serde_json::to_value(&event).unwrap())
@@ -557,7 +566,7 @@ pub async fn receive_tilled_webhook(
     })?;
 
     // Process the event
-    match process_webhook_event(&db, app_id, &event).await {
+    match process_webhook_event(&db, &app_id, &event).await {
         Ok(_) => {
             // Mark as processed
             sqlx::query(
@@ -601,10 +610,10 @@ pub async fn receive_tilled_webhook(
 /// GET /api/ar/webhooks - List webhooks (admin)
 pub async fn list_webhooks(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListWebhooksQuery>,
 ) -> Result<Json<Vec<Webhook>>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Add auth middleware to verify admin access
-    let app_id = "test-app";
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0);
@@ -639,7 +648,7 @@ pub async fn list_webhooks(
     param_count += 1;
     sql.push_str(&param_count.to_string());
 
-    let mut query_builder = sqlx::query_as::<_, Webhook>(&sql).bind(app_id);
+    let mut query_builder = sqlx::query_as::<_, Webhook>(&sql).bind(&app_id);
 
     if let Some(event_type) = &query.event_type {
         query_builder = query_builder.bind(event_type);
@@ -668,10 +677,10 @@ pub async fn list_webhooks(
 /// GET /api/ar/webhooks/:id - Get webhook details
 pub async fn get_webhook(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
 ) -> Result<Json<Webhook>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Add auth middleware to verify admin access
-    let app_id = "test-app";
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let webhook = sqlx::query_as::<_, Webhook>(
         r#"
@@ -684,7 +693,7 @@ pub async fn get_webhook(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -710,11 +719,11 @@ pub async fn get_webhook(
 /// POST /api/ar/webhooks/:id/replay - Replay a webhook
 pub async fn replay_webhook(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<ReplayWebhookRequest>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Add auth middleware to verify admin access
-    let app_id = "test-app";
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Fetch webhook
     let webhook = sqlx::query_as::<_, Webhook>(
@@ -728,7 +737,7 @@ pub async fn replay_webhook(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -803,7 +812,7 @@ pub async fn replay_webhook(
     })?;
 
     // Process the event
-    match process_webhook_event(&db, app_id, &event).await {
+    match process_webhook_event(&db, &app_id, &event).await {
         Ok(_) => {
             sqlx::query(
                 r#"

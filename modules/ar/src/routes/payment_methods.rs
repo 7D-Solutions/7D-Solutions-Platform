@@ -1,9 +1,10 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
 use chrono::Datelike;
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{
@@ -14,10 +15,10 @@ use crate::models::{
 /// POST /api/ar/payment-methods - Add a new payment method
 pub async fn add_payment_method(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<AddPaymentMethodRequest>,
 ) -> Result<(StatusCode, Json<PaymentMethod>), (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Validate required fields
     if req.tilled_payment_method_id.is_empty() {
@@ -44,7 +45,7 @@ pub async fn add_payment_method(
         "#,
     )
     .bind(req.ar_customer_id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -108,7 +109,7 @@ pub async fn add_payment_method(
                 deleted_at, created_at, updated_at
             "#,
         )
-        .bind(app_id)
+        .bind(&app_id)
         .bind(req.ar_customer_id)
         .bind(&req.tilled_payment_method_id)
         .fetch_one(&db)
@@ -139,7 +140,7 @@ pub async fn add_payment_method(
                 deleted_at, created_at, updated_at
             "#,
         )
-        .bind(app_id)
+        .bind(&app_id)
         .bind(req.ar_customer_id)
         .bind(&req.tilled_payment_method_id)
         .fetch_one(&db)
@@ -198,10 +199,10 @@ pub async fn add_payment_method(
 /// GET /api/ar/payment-methods/:id - Get payment method by ID
 pub async fn get_payment_method(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
 ) -> Result<Json<PaymentMethod>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
         r#"
@@ -216,7 +217,7 @@ pub async fn get_payment_method(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -245,10 +246,10 @@ pub async fn get_payment_method(
 /// GET /api/ar/payment-methods - List payment methods (with optional filtering)
 pub async fn list_payment_methods(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListPaymentMethodsQuery>,
 ) -> Result<Json<Vec<PaymentMethod>>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0).max(0);
@@ -272,7 +273,7 @@ pub async fn list_payment_methods(
                 LIMIT $4 OFFSET $5
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(customer_id)
             .bind(status)
             .bind(limit)
@@ -296,7 +297,7 @@ pub async fn list_payment_methods(
                 LIMIT $3 OFFSET $4
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(customer_id)
             .bind(limit)
             .bind(offset)
@@ -319,7 +320,7 @@ pub async fn list_payment_methods(
                 LIMIT $3 OFFSET $4
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(status)
             .bind(limit)
             .bind(offset)
@@ -342,7 +343,7 @@ pub async fn list_payment_methods(
                 LIMIT $2 OFFSET $3
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(limit)
             .bind(offset)
             .fetch_all(&db)
@@ -366,11 +367,11 @@ pub async fn list_payment_methods(
 /// PUT /api/ar/payment-methods/:id - Update payment method
 pub async fn update_payment_method(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdatePaymentMethodRequest>,
 ) -> Result<Json<PaymentMethod>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify payment method exists and belongs to app
     let existing = sqlx::query_as::<_, PaymentMethod>(
@@ -386,7 +387,7 @@ pub async fn update_payment_method(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -458,10 +459,10 @@ pub async fn update_payment_method(
 /// DELETE /api/ar/payment-methods/:id - Delete payment method (soft delete)
 pub async fn delete_payment_method(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
 ) -> Result<StatusCode, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify payment method exists and belongs to app
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
@@ -477,7 +478,7 @@ pub async fn delete_payment_method(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -558,10 +559,10 @@ pub async fn delete_payment_method(
 /// POST /api/ar/payment-methods/:id/set-default - Set payment method as default
 pub async fn set_default_payment_method(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
 ) -> Result<Json<PaymentMethod>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify payment method exists, belongs to app, and is active
     let payment_method = sqlx::query_as::<_, PaymentMethod>(
@@ -577,7 +578,7 @@ pub async fn set_default_payment_method(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -656,7 +657,7 @@ pub async fn set_default_payment_method(
         "#,
     )
     .bind(payment_method.ar_customer_id)
-    .bind(app_id)
+    .bind(&app_id)
     .execute(&mut *tx)
     .await
     .map_err(|e| {

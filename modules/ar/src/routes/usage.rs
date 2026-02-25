@@ -1,8 +1,9 @@
 use axum::{
     extract::{Path, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{CaptureUsageRequest, ErrorResponse, UsageRecord};
@@ -20,10 +21,10 @@ use crate::models::{CaptureUsageRequest, ErrorResponse, UsageRecord};
 /// Guard → Mutation → Outbox atomicity: all three happen in one transaction.
 pub async fn capture_usage(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CaptureUsageRequest>,
 ) -> Result<Json<UsageRecord>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract tenant_id from auth middleware; for now use idempotency_key as seed
-    let app_id = "default-tenant";
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Guard: check for duplicate idempotency_key (no-op return of original)
     let existing: Option<UsageRecord> = sqlx::query_as::<_, UsageRecord>(
@@ -88,7 +89,7 @@ pub async fn capture_usage(
                   quantity, unit, unit_price_cents, period_start, period_end, recorded_at
         "#,
     )
-    .bind(app_id)
+    .bind(&app_id)
     .bind(customer_id)
     .bind(&req.metric_name)
     .bind(req.quantity)
@@ -114,7 +115,7 @@ pub async fn capture_usage(
 
     let usage_payload = UsageCapturedPayload {
         usage_id: record.usage_uuid,
-        tenant_id: app_id.to_string(),
+        tenant_id: app_id.clone(),
         customer_id: record.customer_id.to_string(),
         metric_name: record.metric_name.clone(),
         quantity: req.quantity,
@@ -127,7 +128,7 @@ pub async fn capture_usage(
 
     let envelope = build_usage_captured_envelope(
         req.idempotency_key, // event_id = idempotency_key for determinism
-        app_id.to_string(),
+        app_id.clone(),
         req.idempotency_key.to_string(), // correlation_id
         None,
         usage_payload,

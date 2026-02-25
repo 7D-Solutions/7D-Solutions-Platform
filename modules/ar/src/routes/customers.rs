@@ -1,8 +1,9 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::idempotency::log_event_async;
@@ -13,6 +14,7 @@ use crate::models::{
 /// POST /api/ar/customers - Create a new customer
 pub async fn create_customer(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateCustomerRequest>,
 ) -> Result<(StatusCode, Json<Customer>), (StatusCode, Json<ErrorResponse>)> {
     // Validate email
@@ -26,14 +28,13 @@ pub async fn create_customer(
         }
     };
 
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Check for duplicate email
     let existing: Option<(i32,)> = sqlx::query_as(
         "SELECT id FROM ar_customers WHERE app_id = $1 AND email = $2 LIMIT 1",
     )
-    .bind(app_id)
+    .bind(&app_id)
     .bind(email)
     .fetch_optional(&db)
     .await
@@ -74,7 +75,7 @@ pub async fn create_customer(
             party_id, created_at, updated_at
         "#,
     )
-    .bind(app_id)
+    .bind(&app_id)
     .bind(req.external_customer_id)
     .bind(email)
     .bind(req.name)
@@ -139,7 +140,7 @@ pub async fn create_customer(
     // Log event asynchronously
     log_event_async(
         db.clone(),
-        app_id.to_string(),
+        app_id,
         "customer.created".to_string(),
         "api".to_string(),
         Some("customer".to_string()),
@@ -153,10 +154,10 @@ pub async fn create_customer(
 /// GET /api/ar/customers/:id - Get customer by ID
 pub async fn get_customer(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
 ) -> Result<Json<Customer>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let customer = sqlx::query_as::<_, Customer>(
         r#"
@@ -171,7 +172,7 @@ pub async fn get_customer(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -200,10 +201,10 @@ pub async fn get_customer(
 /// GET /api/ar/customers - List customers (with optional filtering)
 pub async fn list_customers(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListCustomersQuery>,
 ) -> Result<Json<Vec<Customer>>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100); // Max 100 per page
     let offset = query.offset.unwrap_or(0).max(0);
@@ -224,7 +225,7 @@ pub async fn list_customers(
             LIMIT $3 OFFSET $4
             "#,
         )
-        .bind(app_id)
+        .bind(&app_id)
         .bind(external_id)
         .bind(limit)
         .bind(offset)
@@ -246,7 +247,7 @@ pub async fn list_customers(
             LIMIT $2 OFFSET $3
             "#,
         )
-        .bind(app_id)
+        .bind(&app_id)
         .bind(limit)
         .bind(offset)
         .fetch_all(&db)
@@ -269,11 +270,11 @@ pub async fn list_customers(
 /// PUT /api/ar/customers/:id - Update customer
 pub async fn update_customer(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateCustomerRequest>,
 ) -> Result<Json<Customer>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify customer exists and belongs to app
     let existing = sqlx::query_as::<_, Customer>(
@@ -289,7 +290,7 @@ pub async fn update_customer(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {

@@ -1,8 +1,9 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{Dispute, ErrorResponse, ListDisputesQuery, SubmitDisputeEvidenceRequest};
@@ -10,10 +11,10 @@ use crate::models::{Dispute, ErrorResponse, ListDisputesQuery, SubmitDisputeEvid
 /// GET /api/ar/disputes - List disputes with optional filters
 pub async fn list_disputes(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListDisputesQuery>,
 ) -> Result<Json<Vec<Dispute>>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(100).min(500);
     let offset = query.offset.unwrap_or(0);
@@ -46,7 +47,7 @@ pub async fn list_disputes(
         bind_index + 1
     ));
 
-    let mut query_builder = sqlx::query_as::<_, Dispute>(&sql).bind(app_id);
+    let mut query_builder = sqlx::query_as::<_, Dispute>(&sql).bind(&app_id);
 
     if let Some(charge_id) = query.charge_id {
         query_builder = query_builder.bind(charge_id);
@@ -77,10 +78,10 @@ pub async fn list_disputes(
 /// GET /api/ar/disputes/{id} - Get a specific dispute
 pub async fn get_dispute(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
 ) -> Result<Json<Dispute>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let dispute = sqlx::query_as::<_, Dispute>(
         r#"
@@ -93,7 +94,7 @@ pub async fn get_dispute(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -119,11 +120,11 @@ pub async fn get_dispute(
 /// POST /api/ar/disputes/{id}/evidence - Submit evidence for a dispute
 pub async fn submit_dispute_evidence(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(_req): Json<SubmitDisputeEvidenceRequest>,
 ) -> Result<Json<Dispute>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify dispute exists and belongs to app
     let dispute = sqlx::query_as::<_, Dispute>(
@@ -137,7 +138,7 @@ pub async fn submit_dispute_evidence(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {

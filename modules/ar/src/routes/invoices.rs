@@ -1,8 +1,9 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::events::contracts::{
@@ -17,10 +18,10 @@ use crate::models::{
 /// POST /api/ar/invoices - Create a new invoice
 pub async fn create_invoice(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateInvoiceRequest>,
 ) -> Result<(StatusCode, Json<Invoice>), (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Validate required fields
     if req.amount_cents < 0 {
@@ -59,7 +60,7 @@ pub async fn create_invoice(
         "#,
     )
     .bind(req.ar_customer_id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -98,7 +99,7 @@ pub async fn create_invoice(
             "#,
         )
         .bind(subscription_id)
-        .bind(app_id)
+        .bind(&app_id)
         .bind(req.ar_customer_id)
         .fetch_optional(&db)
         .await
@@ -129,7 +130,7 @@ pub async fn create_invoice(
     // Validate party_id exists in Party Master if provided
     if let Some(pid) = req.party_id {
         let url = crate::integrations::party_client::party_master_url();
-        crate::integrations::party_client::verify_party(&url, pid, app_id)
+        crate::integrations::party_client::verify_party(&url, pid, &app_id)
             .await
             .map_err(|e| {
                 use crate::integrations::party_client::PartyClientError;
@@ -178,7 +179,7 @@ pub async fn create_invoice(
             correlation_id, party_id, created_at, updated_at
         "#,
     )
-    .bind(app_id)
+    .bind(&app_id)
     .bind(&tilled_invoice_id)
     .bind(req.ar_customer_id)
     .bind(req.subscription_id)
@@ -212,7 +213,7 @@ pub async fn create_invoice(
     let event_payload = InvoiceLifecyclePayload {
         invoice_id: invoice.id.to_string(),
         customer_id: invoice.ar_customer_id.to_string(),
-        app_id: app_id.to_string(),
+        app_id: app_id.clone(),
         amount_cents: invoice.amount_cents,
         currency: invoice.currency.clone(),
         created_at: invoice.created_at,
@@ -221,7 +222,7 @@ pub async fn create_invoice(
     };
     let envelope = build_invoice_opened_envelope(
         event_id,
-        app_id.to_string(),
+        app_id.clone(),
         uuid::Uuid::new_v4().to_string(),
         None,
         event_payload,
@@ -266,10 +267,10 @@ pub async fn create_invoice(
 /// GET /api/ar/invoices/:id - Get invoice by ID
 pub async fn get_invoice(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
 ) -> Result<Json<Invoice>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let invoice = sqlx::query_as::<_, Invoice>(
         r#"
@@ -284,7 +285,7 @@ pub async fn get_invoice(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -313,10 +314,10 @@ pub async fn get_invoice(
 /// GET /api/ar/invoices - List invoices (with optional filtering)
 pub async fn list_invoices(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListInvoicesQuery>,
 ) -> Result<Json<Vec<Invoice>>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100);
     let offset = query.offset.unwrap_or(0).max(0);
@@ -338,7 +339,7 @@ pub async fn list_invoices(
                 LIMIT $4 OFFSET $5
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(customer_id)
             .bind(status)
             .bind(limit)
@@ -361,7 +362,7 @@ pub async fn list_invoices(
                 LIMIT $3 OFFSET $4
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(customer_id)
             .bind(limit)
             .bind(offset)
@@ -383,7 +384,7 @@ pub async fn list_invoices(
                 LIMIT $3 OFFSET $4
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(subscription_id)
             .bind(limit)
             .bind(offset)
@@ -405,7 +406,7 @@ pub async fn list_invoices(
                 LIMIT $3 OFFSET $4
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(status)
             .bind(limit)
             .bind(offset)
@@ -427,7 +428,7 @@ pub async fn list_invoices(
                 LIMIT $2 OFFSET $3
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(limit)
             .bind(offset)
             .fetch_all(&db)
@@ -451,11 +452,11 @@ pub async fn list_invoices(
 /// PUT /api/ar/invoices/:id - Update invoice
 pub async fn update_invoice(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateInvoiceRequest>,
 ) -> Result<Json<Invoice>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify invoice exists and belongs to app
     let existing = sqlx::query_as::<_, Invoice>(
@@ -471,7 +472,7 @@ pub async fn update_invoice(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -553,11 +554,11 @@ pub async fn update_invoice(
 /// POST /api/ar/invoices/:id/finalize - Mark invoice as finalized (open or paid)
 pub async fn finalize_invoice(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<FinalizeInvoiceRequest>,
 ) -> Result<Json<Invoice>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify invoice exists and belongs to app
     let existing = sqlx::query_as::<_, Invoice>(
@@ -573,7 +574,7 @@ pub async fn finalize_invoice(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -681,7 +682,7 @@ pub async fn finalize_invoice(
 
     let event_envelope = crate::events::envelope::create_ar_envelope(
         uuid::Uuid::new_v4(),
-        app_id.to_string(),
+        app_id.clone(),
         "payment.collection.requested".to_string(),
         uuid::Uuid::new_v4().to_string(),
         None,
@@ -733,7 +734,7 @@ pub async fn finalize_invoice(
 
     let gl_envelope = crate::events::envelope::create_ar_envelope(
         uuid::Uuid::new_v4(),
-        app_id.to_string(),
+        app_id,
         "gl.posting.requested".to_string(),
         uuid::Uuid::new_v4().to_string(),
         None,

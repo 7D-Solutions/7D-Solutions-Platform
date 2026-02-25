@@ -1,8 +1,9 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::ErrorResponse;
@@ -23,13 +24,14 @@ pub struct AgingQuery {
 /// first to ensure the projection is current.
 pub async fn get_aging(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<AgingQuery>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
-    let app_id = "default-tenant"; // TODO: extract from auth middleware
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     match params.customer_id {
         Some(customer_id) => {
-            let snapshot = crate::aging::get_aging_for_customer(&db, app_id, customer_id)
+            let snapshot = crate::aging::get_aging_for_customer(&db, &app_id, customer_id)
                 .await
                 .map_err(|e| {
                     tracing::error!("Failed to fetch aging for customer {}: {:?}", customer_id, e);
@@ -45,7 +47,7 @@ pub async fn get_aging(
             }
         }
         None => {
-            let snapshots = crate::aging::get_aging_for_app(&db, app_id)
+            let snapshots = crate::aging::get_aging_for_app(&db, &app_id)
                 .await
                 .map_err(|e| {
                     tracing::error!("Failed to fetch aging for app: {:?}", e);
@@ -73,11 +75,12 @@ pub struct RefreshAgingRequest {
 /// into the outbox in the same transaction.
 pub async fn refresh_aging_route(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<RefreshAgingRequest>,
 ) -> Result<Json<crate::aging::AgingSnapshot>, (StatusCode, Json<ErrorResponse>)> {
-    let app_id = "default-tenant"; // TODO: extract from auth middleware
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
-    let snapshot = crate::aging::refresh_aging(&db, app_id, req.customer_id)
+    let snapshot = crate::aging::refresh_aging(&db, &app_id, req.customer_id)
         .await
         .map_err(|e| {
             tracing::error!("Failed to refresh aging for customer {}: {:?}", req.customer_id, e);

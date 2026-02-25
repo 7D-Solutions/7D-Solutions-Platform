@@ -1,8 +1,9 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{
@@ -14,10 +15,10 @@ use crate::models::{
 /// POST /api/ar/subscriptions - Create a new subscription
 pub async fn create_subscription(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<CreateSubscriptionRequest>,
 ) -> Result<(StatusCode, Json<Subscription>), (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Validate required fields
     if req.plan_id.is_empty() || req.plan_name.is_empty() {
@@ -54,7 +55,7 @@ pub async fn create_subscription(
         "#,
     )
     .bind(req.ar_customer_id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -80,7 +81,7 @@ pub async fn create_subscription(
     // Validate party_id exists in Party Master if provided
     if let Some(pid) = req.party_id {
         let url = crate::integrations::party_client::party_master_url();
-        crate::integrations::party_client::verify_party(&url, pid, app_id)
+        crate::integrations::party_client::verify_party(&url, pid, &app_id)
             .await
             .map_err(|e| {
                 use crate::integrations::party_client::PartyClientError;
@@ -135,7 +136,7 @@ pub async fn create_subscription(
             update_source, updated_by, party_id, created_at, updated_at
         "#,
     )
-    .bind(app_id)
+    .bind(&app_id)
     .bind(req.ar_customer_id)
     .bind(&tilled_subscription_id)
     .bind(&req.plan_id)
@@ -176,10 +177,10 @@ pub async fn create_subscription(
 /// GET /api/ar/subscriptions/:id - Get subscription by ID
 pub async fn get_subscription(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
 ) -> Result<Json<Subscription>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let subscription = sqlx::query_as::<_, Subscription>(
         r#"
@@ -196,7 +197,7 @@ pub async fn get_subscription(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -225,10 +226,10 @@ pub async fn get_subscription(
 /// GET /api/ar/subscriptions - List subscriptions (with optional filtering)
 pub async fn list_subscriptions(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListSubscriptionsQuery>,
 ) -> Result<Json<Vec<Subscription>>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(50).min(100); // Max 100 per page
     let offset = query.offset.unwrap_or(0).max(0);
@@ -253,7 +254,7 @@ pub async fn list_subscriptions(
                 LIMIT $4 OFFSET $5
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(customer_id)
             .bind(status)
             .bind(limit)
@@ -279,7 +280,7 @@ pub async fn list_subscriptions(
                 LIMIT $3 OFFSET $4
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(customer_id)
             .bind(limit)
             .bind(offset)
@@ -304,7 +305,7 @@ pub async fn list_subscriptions(
                 LIMIT $3 OFFSET $4
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(status)
             .bind(limit)
             .bind(offset)
@@ -329,7 +330,7 @@ pub async fn list_subscriptions(
                 LIMIT $2 OFFSET $3
                 "#,
             )
-            .bind(app_id)
+            .bind(&app_id)
             .bind(limit)
             .bind(offset)
             .fetch_all(&db)
@@ -353,11 +354,11 @@ pub async fn list_subscriptions(
 /// PUT /api/ar/subscriptions/:id - Update subscription
 pub async fn update_subscription(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<UpdateSubscriptionRequest>,
 ) -> Result<Json<Subscription>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify subscription exists and belongs to app
     let existing = sqlx::query_as::<_, Subscription>(
@@ -375,7 +376,7 @@ pub async fn update_subscription(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
@@ -461,11 +462,11 @@ pub async fn update_subscription(
 /// POST /api/ar/subscriptions/:id/cancel - Cancel subscription
 pub async fn cancel_subscription(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
     Json(req): Json<CancelSubscriptionRequest>,
 ) -> Result<Json<Subscription>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app"; // Placeholder
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     // Verify subscription exists and belongs to app
     let _existing = sqlx::query_as::<_, Subscription>(
@@ -483,7 +484,7 @@ pub async fn cancel_subscription(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {

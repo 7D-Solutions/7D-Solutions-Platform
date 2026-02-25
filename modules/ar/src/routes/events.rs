@@ -1,8 +1,9 @@
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
-    Json,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{ErrorResponse, Event, ListEventsQuery};
@@ -10,10 +11,10 @@ use crate::models::{ErrorResponse, Event, ListEventsQuery};
 /// GET /api/ar/events - List events with filtering
 pub async fn list_events(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListEventsQuery>,
 ) -> Result<Json<Vec<Event>>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app";
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let limit = query.limit.unwrap_or(100).min(1000);
     let offset = query.offset.unwrap_or(0);
@@ -63,7 +64,7 @@ pub async fn list_events(
     sql.push_str(&format!(" OFFSET ${}", param_count));
 
     // Build query with parameters
-    let mut q = sqlx::query_as::<_, Event>(&sql).bind(app_id);
+    let mut q = sqlx::query_as::<_, Event>(&sql).bind(&app_id);
 
     if let Some(ref entity_id) = query.entity_id {
         q = q.bind(entity_id);
@@ -100,10 +101,10 @@ pub async fn list_events(
 /// GET /api/ar/events/{id} - Get a single event by ID
 pub async fn get_event(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<i32>,
 ) -> Result<Json<Event>, (StatusCode, Json<ErrorResponse>)> {
-    // TODO: Extract app_id from auth middleware
-    let app_id = "test-app";
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let event = sqlx::query_as::<_, Event>(
         r#"
@@ -113,7 +114,7 @@ pub async fn get_event(
         "#,
     )
     .bind(id)
-    .bind(app_id)
+    .bind(&app_id)
     .fetch_optional(&db)
     .await
     .map_err(|e| {
