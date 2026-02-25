@@ -476,7 +476,7 @@ pub async fn update_party(
 
     let event_id = Uuid::new_v4();
     let now = Utc::now();
-    let actor = req.updated_by.clone().unwrap_or_else(|| "system".to_string());
+    let actor = req.updated_by.as_deref().unwrap_or("system");
 
     let mut tx = pool.begin().await?;
 
@@ -499,34 +499,23 @@ pub async fn update_party(
 
     let current = existing.ok_or(PartyError::NotFound(party_id))?;
 
-    // Resolve updated values
+    // Resolve updated values — use references to avoid cloning Option<String> fields.
+    // Only display_name needs an owned String due to trim().
     let new_name = req
         .display_name
         .as_deref()
         .map(|n| n.trim().to_string())
         .unwrap_or_else(|| current.display_name.clone());
-    let new_email = if req.email.is_some() { req.email.clone() } else { current.email.clone() };
-    let new_phone = if req.phone.is_some() { req.phone.clone() } else { current.phone.clone() };
-    let new_website =
-        if req.website.is_some() { req.website.clone() } else { current.website.clone() };
-    let new_addr1 = if req.address_line1.is_some() {
-        req.address_line1.clone()
-    } else {
-        current.address_line1.clone()
-    };
-    let new_addr2 = if req.address_line2.is_some() {
-        req.address_line2.clone()
-    } else {
-        current.address_line2.clone()
-    };
-    let new_city = if req.city.is_some() { req.city.clone() } else { current.city.clone() };
-    let new_state = if req.state.is_some() { req.state.clone() } else { current.state.clone() };
-    let new_postal =
-        if req.postal_code.is_some() { req.postal_code.clone() } else { current.postal_code.clone() };
-    let new_country =
-        if req.country.is_some() { req.country.clone() } else { current.country.clone() };
-    let new_metadata =
-        if req.metadata.is_some() { req.metadata.clone() } else { current.metadata.clone() };
+    let new_email = req.email.as_ref().or(current.email.as_ref());
+    let new_phone = req.phone.as_ref().or(current.phone.as_ref());
+    let new_website = req.website.as_ref().or(current.website.as_ref());
+    let new_addr1 = req.address_line1.as_ref().or(current.address_line1.as_ref());
+    let new_addr2 = req.address_line2.as_ref().or(current.address_line2.as_ref());
+    let new_city = req.city.as_ref().or(current.city.as_ref());
+    let new_state = req.state.as_ref().or(current.state.as_ref());
+    let new_postal = req.postal_code.as_ref().or(current.postal_code.as_ref());
+    let new_country = req.country.as_ref().or(current.country.as_ref());
+    let new_metadata = req.metadata.as_ref().or(current.metadata.as_ref());
 
     // Mutation
     let _updated: Party = sqlx::query_as(
@@ -565,7 +554,7 @@ pub async fn update_party(
         app_id: app_id.to_string(),
         display_name: req.display_name.clone(),
         email: req.email.clone(),
-        updated_by: actor,
+        updated_by: actor.to_string(),
         updated_at: now,
     };
 
