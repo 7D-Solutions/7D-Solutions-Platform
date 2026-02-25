@@ -23,26 +23,31 @@ use super::helpers::tenant::extract_tenant;
 // ============================================================================
 
 fn map_error(e: AssetError) -> (StatusCode, Json<serde_json::Value>) {
-    let (status, msg) = match &e {
-        AssetError::NotFound => (StatusCode::NOT_FOUND, e.to_string()),
-        AssetError::CategoryNotFound(_) => (StatusCode::NOT_FOUND, e.to_string()),
-        AssetError::Validation(_) => (StatusCode::BAD_REQUEST, e.to_string()),
-        AssetError::DuplicateTag(_, _) => (StatusCode::CONFLICT, e.to_string()),
-        AssetError::DuplicateCategoryCode(_, _) => (StatusCode::CONFLICT, e.to_string()),
-        AssetError::InvalidTransition(_) => (StatusCode::CONFLICT, e.to_string()),
+    let (status, code, msg) = match &e {
+        AssetError::NotFound => (StatusCode::NOT_FOUND, "not_found", e.to_string()),
+        AssetError::CategoryNotFound(_) => (StatusCode::NOT_FOUND, "not_found", e.to_string()),
+        AssetError::Validation(_) => (StatusCode::BAD_REQUEST, "validation_error", e.to_string()),
+        AssetError::DuplicateTag(_, _) => (StatusCode::CONFLICT, "duplicate_tag", e.to_string()),
+        AssetError::DuplicateCategoryCode(_, _) => {
+            (StatusCode::CONFLICT, "duplicate_category_code", e.to_string())
+        }
+        AssetError::InvalidTransition(_) => {
+            (StatusCode::CONFLICT, "invalid_transition", e.to_string())
+        }
         AssetError::Database(_) => (
             StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
             "Internal error".to_string(),
         ),
     };
-    (status, Json(serde_json::json!({ "error": msg })))
+    (status, Json(serde_json::json!({ "error": code, "message": msg })))
 }
 
 fn map_internal_error<E: std::fmt::Display>(e: E) -> (StatusCode, Json<serde_json::Value>) {
     tracing::error!(error = %e, "Internal error during serialization");
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        Json(serde_json::json!({ "error": "Internal error" })),
+        Json(serde_json::json!({ "error": "internal_error", "message": "Internal error" })),
     )
 }
 

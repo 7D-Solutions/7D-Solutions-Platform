@@ -179,6 +179,12 @@ fn pdf_response(bytes: Vec<u8>) -> Response {
 }
 
 fn error_response(status: StatusCode, message: &str) -> Response {
-    let body = json!({ "error": message });
+    let code = match status {
+        StatusCode::BAD_REQUEST => "bad_request",
+        StatusCode::NOT_FOUND => "not_found",
+        StatusCode::PAYLOAD_TOO_LARGE => "payload_too_large",
+        _ => "internal_error",
+    };
+    let body = json!({ "error": code, "message": message });
     (status, Json(body)).into_response()
 }
