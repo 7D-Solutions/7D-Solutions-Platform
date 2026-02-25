@@ -1,8 +1,9 @@
 use axum::{
     extract::{Path, State},
-    http::{HeaderMap, StatusCode},
-    Json,
+    http::StatusCode,
+    Extension, Json,
 };
+use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::credit_notes::{issue_credit_note, IssueCreditNoteRequest};
@@ -92,15 +93,11 @@ pub struct IssueCreditNoteResponse {
 pub async fn issue_credit_note_handler(
     State(pool): State<PgPool>,
     Path(invoice_id): Path<i32>,
-    headers: HeaderMap,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<IssueCreditNoteHttpRequest>,
 ) -> Result<(StatusCode, Json<IssueCreditNoteResponse>), (StatusCode, Json<ErrorResponse>)> {
-    // Extract tenant from app-id header (consistent with other AR endpoints)
-    let app_id = headers
-        .get("x-app-id")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("default")
-        .to_string();
+    // Extract tenant from verified JWT claims (C1 fix: was header-based)
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     let req = IssueCreditNoteRequest {
         credit_note_id: body.credit_note_id,
