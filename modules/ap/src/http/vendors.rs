@@ -16,6 +16,7 @@ use uuid::Uuid;
 use crate::domain::vendors::{
     service, CreateVendorRequest, UpdateVendorRequest, Vendor, VendorError,
 };
+pub use crate::http::admin_types::ErrorBody;
 use crate::http::tenant::extract_tenant;
 use crate::AppState;
 
@@ -54,21 +55,6 @@ fn vendor_error_response(e: VendorError) -> (StatusCode, Json<ErrorBody>) {
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorBody::new("database_error", "Internal database error")),
             )
-        }
-    }
-}
-
-#[derive(Debug, Serialize)]
-pub struct ErrorBody {
-    pub error: String,
-    pub message: String,
-}
-
-impl ErrorBody {
-    pub fn new(error: &str, message: &str) -> Self {
-        Self {
-            error: error.to_string(),
-            message: message.to_string(),
         }
     }
 }
