@@ -174,7 +174,6 @@ pub async fn capture_usage(
 
 #[derive(serde::Deserialize)]
 pub struct BillUsageHttpRequest {
-    pub app_id: String,
     pub customer_id: i32,
     pub period_start: chrono::DateTime<chrono::Utc>,
     pub period_end: chrono::DateTime<chrono::Utc>,
@@ -183,13 +182,13 @@ pub struct BillUsageHttpRequest {
 
 pub async fn bill_usage_route(
     State(db): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(invoice_id): Path<i32>,
     Json(req): Json<BillUsageHttpRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorResponse>)> {
     use crate::usage_billing::{bill_usage_for_invoice, BillUsageRequest};
 
-    // TODO: Extract from auth middleware; placeholder for tenant context
-    let app_id = req.app_id.clone();
+    let app_id = super::tenant::extract_tenant(&claims)?;
 
     bill_usage_for_invoice(
         &db,
