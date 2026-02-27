@@ -1,7 +1,7 @@
 use super::error::TilledError;
 use super::types::{ListResponse, User};
 use super::TilledClient;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize)]
 pub struct CreateUserRequest {
@@ -16,6 +16,19 @@ pub struct CreateUserRequest {
 pub struct UpdateUserRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
+}
+
+/// Response from impersonating a user.
+#[derive(Debug, Clone, Deserialize)]
+pub struct UserImpersonation {
+    #[serde(default)]
+    pub access_token: Option<String>,
+    #[serde(default)]
+    pub token_type: Option<String>,
+    #[serde(default)]
+    pub expires_in: Option<i64>,
+    #[serde(default)]
+    pub user: Option<User>,
 }
 
 impl TilledClient {
@@ -55,6 +68,78 @@ impl TilledClient {
     ) -> Result<User, TilledError> {
         let path = format!("/v1/users/{user_id}");
         self.patch(&path, &request).await
+    }
+
+    /// Impersonate a user — returns an access token for acting as that user.
+    pub async fn impersonate_user(
+        &self,
+        user_id: &str,
+    ) -> Result<UserImpersonation, TilledError> {
+        let path = format!("/v1/users/{user_id}/impersonate");
+        self.post(&path, &serde_json::json!({})).await
+    }
+
+    /// Reset a user's MFA enrollments.
+    /// Requires `verification_details` explaining why MFA is being reset.
+    /// May return 204 empty body on success.
+    pub async fn reset_user_mfa(
+        &self,
+        user_id: &str,
+        verification_details: &str,
+    ) -> Result<(), TilledError> {
+        let path = format!("/v1/users/{user_id}/reset-mfa");
+        let url = format!("{}{}", self.config.base_path, path);
+        let response = self
+            .http_client
+            .post(&url)
+            .headers(self.build_auth_headers()?)
+            .json(&serde_json::json!({ "verification_details": verification_details }))
+            .send()
+            .await
+            .map_err(|e| TilledError::HttpError(e.to_string()))?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let status_code = response.status().as_u16();
+            let message = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error response".to_string());
+            Err(TilledError::ApiError {
+                status_code,
+                message,
+            })
+        }
+    }
+
+    /// Unlock a locked user account.
+    /// May return 204 empty body on success.
+    pub async fn unlock_user(&self, user_id: &str) -> Result<(), TilledError> {
+        let path = format!("/v1/users/{user_id}/unlock");
+        let url = format!("{}{}", self.config.base_path, path);
+        let response = self
+            .http_client
+            .post(&url)
+            .headers(self.build_auth_headers()?)
+            .json(&serde_json::json!({}))
+            .send()
+            .await
+            .map_err(|e| TilledError::HttpError(e.to_string()))?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let status_code = response.status().as_u16();
+            let message = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error response".to_string());
+            Err(TilledError::ApiError {
+                status_code,
+                message,
+            })
+        }
     }
 
     /// Delete a user by ID.
