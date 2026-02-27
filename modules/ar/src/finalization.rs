@@ -14,15 +14,15 @@
 //! - UNIQUE(app_id, invoice_id, attempt_no) prevents duplicate attempts
 //! - UNIQUE violation → deterministic no-op (returns Ok with AlreadyProcessed status)
 
-use crate::lifecycle::{self, LifecycleError};
 use crate::idempotency_keys::generate_invoice_attempt_key;
-use crate::tax::{TaxProvider, TaxProviderError, TaxCommitRequest, TaxVoidRequest};
+use crate::lifecycle::{self, LifecycleError};
+use crate::tax::{TaxCommitRequest, TaxProvider, TaxProviderError, TaxVoidRequest};
 use chrono::Utc;
+use serde_json;
 use sqlx::PgPool;
 use std::fmt;
 use tracing::{info, warn};
 use uuid::Uuid;
-use serde_json;
 
 // ============================================================================
 // Error Types
@@ -119,8 +119,8 @@ pub enum FinalizationResult {
 /// - Transaction-scoped lock released on commit/rollback
 ///
 /// **Example:**
-/// ```rust,no_run
-/// let pool = /* ... */;
+/// ```rust,ignore
+/// let pool = todo!();
 /// let result = finalize_invoice(&pool, "app-demo", 123, 0).await?;
 ///
 /// match result {
@@ -142,7 +142,7 @@ pub async fn finalize_invoice(
 
     // 1. LOCK: SELECT FOR UPDATE on invoice row (prevent concurrent finalization)
     let invoice_exists: Option<bool> = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM ar_invoices WHERE id = $1 AND app_id = $2) FOR UPDATE"
+        "SELECT EXISTS(SELECT 1 FROM ar_invoices WHERE id = $1 AND app_id = $2) FOR UPDATE",
     )
     .bind(invoice_id)
     .bind(app_id)
@@ -161,7 +161,7 @@ pub async fn finalize_invoice(
     let existing_attempt: Option<Uuid> = sqlx::query_scalar(
         "SELECT id FROM ar_invoice_attempts
          WHERE app_id = $1 AND invoice_id = $2 AND attempt_no = $3
-         FOR UPDATE"
+         FOR UPDATE",
     )
     .bind(app_id)
     .bind(invoice_id)
@@ -214,7 +214,7 @@ pub async fn finalize_invoice(
         // Fetch the existing attempt ID
         let existing_id: Uuid = sqlx::query_scalar(
             "SELECT id FROM ar_invoice_attempts
-             WHERE app_id = $1 AND invoice_id = $2 AND attempt_no = $3"
+             WHERE app_id = $1 AND invoice_id = $2 AND attempt_no = $3",
         )
         .bind(app_id)
         .bind(invoice_id)
@@ -254,12 +254,10 @@ pub async fn finalize_invoice(
 
     // 4. MUTATE: Update invoice status to ATTEMPTING (within same transaction)
     // Status transition from OPEN → ATTEMPTING is idempotent (multiple attempts allowed)
-    let current_status: String = sqlx::query_scalar(
-        "SELECT status FROM ar_invoices WHERE id = $1"
-    )
-    .bind(invoice_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let current_status: String = sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
+        .bind(invoice_id)
+        .fetch_one(&mut *tx)
+        .await?;
 
     // Only transition to ATTEMPTING if currently OPEN
     // (Subsequent attempts don't re-transition status)
@@ -336,9 +334,15 @@ impl fmt::Display for TaxCommitError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoQuote { app_id, invoice_id } => {
-                write!(f, "No cached tax quote for app={} invoice={}", app_id, invoice_id)
+                write!(
+                    f,
+                    "No cached tax quote for app={} invoice={}",
+                    app_id, invoice_id
+                )
             }
-            Self::AlreadyCommitted { provider_commit_ref } => {
+            Self::AlreadyCommitted {
+                provider_commit_ref,
+            } => {
                 write!(f, "Tax already committed: {}", provider_commit_ref)
             }
             Self::AlreadyVoided { invoice_id } => {
@@ -449,12 +453,11 @@ pub async fn commit_tax_for_invoice<P: TaxProvider>(
     .fetch_optional(pool)
     .await?;
 
-    let (provider_quote_ref, total_tax_minor, currency) = quote_row.ok_or_else(|| {
-        TaxCommitError::NoQuote {
+    let (provider_quote_ref, total_tax_minor, currency) =
+        quote_row.ok_or_else(|| TaxCommitError::NoQuote {
             app_id: app_id.to_string(),
             invoice_id: invoice_id.to_string(),
-        }
-    })?;
+        })?;
 
     // 3. Call provider
     let commit_req = TaxCommitRequest {

@@ -57,10 +57,7 @@ pub enum RetryError {
         reason: String,
     },
     /// No more retry windows available (max attempts reached)
-    MaxAttemptsReached {
-        invoice_id: i32,
-        attempt_count: i32,
-    },
+    MaxAttemptsReached { invoice_id: i32, attempt_count: i32 },
     /// Database error
     DatabaseError(String),
 }
@@ -110,13 +107,16 @@ impl From<sqlx::Error> for RetryError {
 ///
 /// **Example:**
 /// ```rust,no_run
+/// use chrono::NaiveDate;
+/// use ar_rs::retry::calculate_retry_windows;
+///
 /// let due_date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
 /// let windows = calculate_retry_windows(due_date);
 /// // windows = [2026-02-15, 2026-02-18, 2026-02-22]
 /// ```
 pub fn calculate_retry_windows(due_date: NaiveDate) -> [NaiveDate; 3] {
     [
-        due_date, // Attempt 0: immediate
+        due_date,                                                            // Attempt 0: immediate
         due_date + chrono::Days::new(windows::ATTEMPT_1_OFFSET_DAYS as u64), // Attempt 1: +3 days
         due_date + chrono::Days::new(windows::ATTEMPT_2_OFFSET_DAYS as u64), // Attempt 2: +7 days
     ]
@@ -130,6 +130,9 @@ pub fn calculate_retry_windows(due_date: NaiveDate) -> [NaiveDate; 3] {
 ///
 /// **Example:**
 /// ```rust,no_run
+/// use chrono::NaiveDate;
+/// use ar_rs::retry::determine_current_window;
+///
 /// let due_date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
 /// let today = NaiveDate::from_ymd_opt(2026, 2, 18).unwrap();
 /// let window = determine_current_window(due_date, today);
@@ -191,7 +194,7 @@ pub async fn get_invoices_for_retry(
          WHERE app_id = $1
            AND status IN ('open', 'attempting', 'failed_retry')
            AND due_at IS NOT NULL
-         ORDER BY due_at ASC"
+         ORDER BY due_at ASC",
     )
     .bind(app_id)
     .fetch_all(pool)
@@ -217,7 +220,7 @@ pub async fn get_invoices_for_retry(
             "SELECT EXISTS(
                 SELECT 1 FROM ar_invoice_attempts
                 WHERE app_id = $1 AND invoice_id = $2 AND attempt_no = $3
-            )"
+            )",
         )
         .bind(app_id)
         .bind(invoice_id)
@@ -323,9 +326,6 @@ mod tests {
             invoice_id: 789,
             attempt_count: 3,
         };
-        assert_eq!(
-            err.to_string(),
-            "Invoice 789 has reached max attempts (3)"
-        );
+        assert_eq!(err.to_string(), "Invoice 789 has reached max attempts (3)");
     }
 }

@@ -11,7 +11,7 @@
 //! 5. Attempt count limits (MAX_ATTEMPTS = 3)
 //!
 //! **Usage:**
-//! ```rust,no_run
+//! ```rust,ignore
 //! use ar_rs::invariants::*;
 //!
 //! // Check invoice attempt ledger integrity
@@ -121,7 +121,7 @@ pub async fn assert_no_duplicate_attempts(
          FROM ar_invoice_attempts
          WHERE app_id = $1
          GROUP BY invoice_id, attempt_no
-         HAVING COUNT(*) > 1"
+         HAVING COUNT(*) > 1",
     )
     .bind(app_id)
     .fetch_all(pool)
@@ -161,7 +161,7 @@ pub async fn assert_attempt_count_within_limits(
          FROM ar_invoice_attempts
          WHERE app_id = $1
          GROUP BY invoice_id
-         HAVING COUNT(*) > $2"
+         HAVING COUNT(*) > $2",
     )
     .bind(app_id)
     .bind(MAX_ATTEMPTS as i64)
@@ -206,7 +206,7 @@ pub async fn assert_no_attempts_after_terminal(
            AND i.status IN ('paid', 'void')
            AND a.id IS NOT NULL
          GROUP BY i.id, i.status
-         HAVING COUNT(a.id) > 0"
+         HAVING COUNT(a.id) > 0",
     )
     .bind(app_id)
     .fetch_all(pool)

@@ -11,9 +11,9 @@
 //!
 //! **Usage:**
 //! ```rust,no_run
-//! use ar_rs::idempotency_keys::{generate_invoice_attempt_key, InvoiceAttemptKey};
+//! use ar_rs::idempotency_keys::generate_invoice_attempt_key;
 //!
-//! let key = generate_invoice_attempt_key("app-demo", 123, 0);
+//! let key = generate_invoice_attempt_key("app-demo", 123, 0).unwrap();
 //! assert_eq!(key.as_str(), "invoice:attempt:app-demo:123:0");
 //! ```
 
@@ -212,12 +212,10 @@ mod tests {
         let cycle_start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
         let cycle_end = NaiveDate::from_ymd_opt(2026, 3, 1).unwrap();
 
-        let key1 =
-            generate_invoice_generation_key(app_id, subscription_id, cycle_start, cycle_end)
-                .unwrap();
-        let key2 =
-            generate_invoice_generation_key(app_id, subscription_id, cycle_start, cycle_end)
-                .unwrap();
+        let key1 = generate_invoice_generation_key(app_id, subscription_id, cycle_start, cycle_end)
+            .unwrap();
+        let key2 = generate_invoice_generation_key(app_id, subscription_id, cycle_start, cycle_end)
+            .unwrap();
 
         assert_eq!(key1, key2);
     }

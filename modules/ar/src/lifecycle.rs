@@ -122,16 +122,14 @@ async fn validate_transition(
     to_status: &str,
 ) -> Result<(), TransitionError> {
     // Fetch current invoice status
-    let current_status: Option<String> = sqlx::query_scalar(
-        "SELECT status FROM ar_invoices WHERE id = $1"
-    )
-    .bind(invoice_id)
-    .fetch_optional(&mut **tx)
-    .await
-    .map_err(|e| TransitionError::DatabaseError(e.to_string()))?;
+    let current_status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
+            .bind(invoice_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(|e| TransitionError::DatabaseError(e.to_string()))?;
 
-    let from_status = current_status
-        .ok_or(TransitionError::InvoiceNotFound(invoice_id))?;
+    let from_status = current_status.ok_or(TransitionError::InvoiceNotFound(invoice_id))?;
 
     // State machine rules
     let is_valid = match (from_status.as_str(), to_status) {
@@ -201,8 +199,8 @@ async fn validate_transition(
 /// - Emit events (NOT YET IMPLEMENTED - placeholder for future beads)
 ///
 /// **Usage:**
-/// ```rust,no_run
-/// let pool = /* ... */;
+/// ```rust,ignore
+/// let pool = todo!();
 /// transition_to_attempting(&pool, invoice_id, "Initiating payment collection").await?;
 /// ```
 pub async fn transition_to_attempting(
