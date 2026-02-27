@@ -1,4 +1,5 @@
 pub mod accounts;
+pub mod auth_links;
 pub mod balance_transaction;
 pub mod charge;
 pub mod checkout_session;
@@ -7,6 +8,8 @@ pub mod dispute;
 pub mod error;
 pub mod events;
 pub mod files;
+pub mod merchant_application;
+pub mod onboarding;
 pub mod payment_intent;
 pub mod payment_method;
 pub mod payouts;
