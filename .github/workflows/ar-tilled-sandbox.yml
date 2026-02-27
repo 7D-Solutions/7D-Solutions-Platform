@@ -1,0 +1,59 @@
+name: "AR Tilled Sandbox Tests"
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'modules/ar/src/tilled/**'
+      - 'modules/ar/src/routes/customers.rs'
+      - 'modules/ar/src/routes/charges.rs'
+      - 'modules/ar/src/routes/refunds.rs'
+      - 'modules/ar/src/routes/disputes.rs'
+      - 'modules/ar/src/routes/subscriptions.rs'
+      - 'modules/ar/src/routes/payment_methods.rs'
+      - 'modules/ar/src/routes/webhooks.rs'
+      - 'modules/ar/tests/tilled_sandbox/**'
+      - 'modules/ar/tests/tilled_sandbox_tests.rs'
+
+jobs:
+  ar-tilled-sandbox:
+    name: "Tilled Sandbox Suite"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-tilled-sandbox-${{ hashFiles('modules/ar/Cargo.lock') }}
+
+      - name: Validate sandbox credentials
+        run: |
+          if [ -z "$TILLED_SECRET_KEY" ] || [ -z "$TILLED_ACCOUNT_ID" ]; then
+            echo "::error::TILLED_SECRET_KEY and TILLED_ACCOUNT_ID must be set as repository secrets"
+            exit 1
+          fi
+          echo "✓ Sandbox credentials present"
+        env:
+          TILLED_SECRET_KEY: ${{ secrets.TILLED_SECRET_KEY }}
+          TILLED_ACCOUNT_ID: ${{ secrets.TILLED_ACCOUNT_ID }}
+
+      - name: Run Tilled sandbox tests
+        working-directory: modules/ar
+        run: cargo test --test tilled_sandbox_tests -- --test-threads=1 --nocapture
+        env:
+          TILLED_SECRET_KEY: ${{ secrets.TILLED_SECRET_KEY }}
+          TILLED_ACCOUNT_ID: ${{ secrets.TILLED_ACCOUNT_ID }}
+          TILLED_WEBHOOK_SECRET: ${{ secrets.TILLED_WEBHOOK_SECRET }}
+          TILLED_SANDBOX: "true"
+          RUST_LOG: info
