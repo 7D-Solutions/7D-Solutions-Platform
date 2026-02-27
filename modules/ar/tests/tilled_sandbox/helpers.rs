@@ -20,6 +20,17 @@ impl Default for RetryPolicy {
 }
 
 impl RetryPolicy {
+    /// More patient retry for endpoints prone to Cloudflare rate limiting (429/1015).
+    /// 5 attempts with 3s base: 3s, 6s, 12s, 24s, 48s window.
+    pub fn patient() -> Self {
+        Self {
+            max_attempts: 5,
+            base_delay: Duration::from_secs(3),
+        }
+    }
+}
+
+impl RetryPolicy {
     /// Execute an async closure with bounded retries on transient errors.
     /// Retries on: network errors (reqwest), HTTP 5xx, HTTP 429.
     /// Fails fast on: 4xx (except 429), parse errors, config errors.
