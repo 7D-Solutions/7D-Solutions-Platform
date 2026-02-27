@@ -1,7 +1,8 @@
 use super::error::TilledError;
-use super::types::{normalize_currency, Metadata, PaymentIntent};
+use super::types::{normalize_currency, ListResponse, Metadata, PaymentIntent};
 use super::TilledClient;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Serialize)]
 pub struct CreatePaymentIntentRequest {
@@ -26,6 +27,16 @@ pub struct CreatePaymentIntentRequest {
 pub struct ConfirmPaymentIntentRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payment_method_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UpdatePaymentIntentRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub amount: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub currency: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -80,6 +91,52 @@ impl TilledClient {
         }
 
         self.post(&path, &body).await
+    }
+
+    /// List payment intents with optional filters
+    pub async fn list_payment_intents(
+        &self,
+        filters: Option<HashMap<String, String>>,
+    ) -> Result<ListResponse<PaymentIntent>, TilledError> {
+        self.get("/v1/payment-intents", filters).await
+    }
+
+    /// Get a payment intent by ID
+    pub async fn get_payment_intent(
+        &self,
+        payment_intent_id: &str,
+    ) -> Result<PaymentIntent, TilledError> {
+        self.get(
+            &format!("/v1/payment-intents/{payment_intent_id}"),
+            None,
+        )
+        .await
+    }
+
+    /// Update a payment intent (amount, metadata, etc)
+    pub async fn update_payment_intent(
+        &self,
+        payment_intent_id: &str,
+        request: UpdatePaymentIntentRequest,
+    ) -> Result<PaymentIntent, TilledError> {
+        self.patch(
+            &format!("/v1/payment-intents/{payment_intent_id}"),
+            &request,
+        )
+        .await
+    }
+
+    /// Cancel a payment intent
+    pub async fn cancel_payment_intent(
+        &self,
+        payment_intent_id: &str,
+    ) -> Result<PaymentIntent, TilledError> {
+        let empty: HashMap<String, String> = HashMap::new();
+        self.post(
+            &format!("/v1/payment-intents/{payment_intent_id}/cancel"),
+            &empty,
+        )
+        .await
     }
 
     /// Create a one-time charge (convenience method)
