@@ -12,6 +12,12 @@ pub struct CreateUserRequest {
     pub name: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct UpdateUserRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+}
+
 impl TilledClient {
     /// Create a user in the current account scope.
     pub async fn create_user(
@@ -39,6 +45,16 @@ impl TilledClient {
     pub async fn get_user(&self, user_id: &str) -> Result<User, TilledError> {
         let path = format!("/v1/users/{user_id}");
         self.get(&path, None).await
+    }
+
+    /// Update a user by ID.
+    pub async fn update_user(
+        &self,
+        user_id: &str,
+        request: UpdateUserRequest,
+    ) -> Result<User, TilledError> {
+        let path = format!("/v1/users/{user_id}");
+        self.patch(&path, &request).await
     }
 
     /// Delete a user by ID.
@@ -72,7 +88,7 @@ impl TilledClient {
 
 #[cfg(test)]
 mod tests {
-    use super::CreateUserRequest;
+    use super::{CreateUserRequest, UpdateUserRequest};
 
     #[test]
     fn create_user_payload_serializes_expected_fields() {
@@ -88,5 +104,18 @@ mod tests {
         assert_eq!(value.get("role").unwrap(), "merchant_admin");
         assert_eq!(value.get("password").unwrap(), "Test1234");
         assert_eq!(value.get("name").unwrap(), "User Test");
+    }
+
+    #[test]
+    fn update_user_payload_omits_none_fields() {
+        let payload = UpdateUserRequest { name: None };
+        let value = serde_json::to_value(payload).unwrap();
+        assert!(value.get("name").is_none());
+
+        let payload = UpdateUserRequest {
+            name: Some("Updated User".to_string()),
+        };
+        let value = serde_json::to_value(payload).unwrap();
+        assert_eq!(value.get("name").unwrap(), "Updated User");
     }
 }

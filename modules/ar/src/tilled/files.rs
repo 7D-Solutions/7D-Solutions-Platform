@@ -1,7 +1,9 @@
 use super::error::TilledError;
+use super::types::ListResponse;
 use super::TilledClient;
 use reqwest::multipart::{Form, Part};
 use serde::Deserialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct FileObject {
@@ -47,6 +49,79 @@ impl TilledClient {
             .map_err(|e| TilledError::HttpError(e.to_string()))?;
 
         self.handle_response(response).await
+    }
+
+    /// List files with optional filters.
+    pub async fn list_files(
+        &self,
+        filters: Option<HashMap<String, String>>,
+    ) -> Result<ListResponse<FileObject>, TilledError> {
+        self.get("/v1/files", filters).await
+    }
+
+    /// Get file metadata by ID.
+    pub async fn get_file(&self, file_id: &str) -> Result<FileObject, TilledError> {
+        let path = format!("/v1/files/{file_id}");
+        self.get(&path, None).await
+    }
+
+    /// Get raw file bytes by file ID.
+    pub async fn get_file_contents(&self, file_id: &str) -> Result<Vec<u8>, TilledError> {
+        let path = format!("/v1/files/{file_id}/contents");
+        let url = format!("{}{}", self.config.base_path, path);
+        let response = self
+            .http_client
+            .get(&url)
+            .headers(self.build_auth_headers()?)
+            .send()
+            .await
+            .map_err(|e| TilledError::HttpError(e.to_string()))?;
+
+        if response.status().is_success() {
+            let bytes = response
+                .bytes()
+                .await
+                .map_err(|e| TilledError::HttpError(e.to_string()))?;
+            Ok(bytes.to_vec())
+        } else {
+            let status_code = response.status().as_u16();
+            let message = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error response".to_string());
+            Err(TilledError::ApiError {
+                status_code,
+                message,
+            })
+        }
+    }
+
+    /// Delete file by ID.
+    /// Tilled may return 204 with empty body for successful deletes.
+    pub async fn delete_file(&self, file_id: &str) -> Result<(), TilledError> {
+        let path = format!("/v1/files/{file_id}");
+        let url = format!("{}{}", self.config.base_path, path);
+        let response = self
+            .http_client
+            .delete(&url)
+            .headers(self.build_auth_headers()?)
+            .send()
+            .await
+            .map_err(|e| TilledError::HttpError(e.to_string()))?;
+
+        if response.status().is_success() {
+            Ok(())
+        } else {
+            let status_code = response.status().as_u16();
+            let message = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read error response".to_string());
+            Err(TilledError::ApiError {
+                status_code,
+                message,
+            })
+        }
     }
 }
 
