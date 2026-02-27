@@ -46,10 +46,32 @@ impl TilledClient {
     pub async fn list_payment_methods(
         &self,
         customer_id: &str,
+        pm_type: &str,
     ) -> Result<ListResponse<PaymentMethod>, TilledError> {
-        let mut params = HashMap::new();
-        params.insert("customer_id".to_string(), customer_id.to_string());
+        let params = build_list_payment_methods_params(customer_id, pm_type);
 
         self.get("/v1/payment-methods", Some(params)).await
+    }
+}
+
+fn build_list_payment_methods_params(customer_id: &str, pm_type: &str) -> HashMap<String, String> {
+    let mut params = HashMap::new();
+    params.insert("customer_id".to_string(), customer_id.to_string());
+    params.insert("type".to_string(), pm_type.to_string());
+    params
+}
+
+#[cfg(test)]
+mod tests {
+    use super::build_list_payment_methods_params;
+
+    #[test]
+    fn list_payment_methods_query_includes_customer_and_type() {
+        let params = build_list_payment_methods_params("cus_123", "card");
+        assert_eq!(
+            params.get("customer_id").map(String::as_str),
+            Some("cus_123")
+        );
+        assert_eq!(params.get("type").map(String::as_str), Some("card"));
     }
 }

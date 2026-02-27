@@ -14,12 +14,15 @@ A Rust client library for the Tilled payment processor API.
 
 ## Configuration
 
-The client is configured using environment variables per app:
+The client is configured using app-scoped environment variables with global fallback:
 
 ```bash
 TILLED_SECRET_KEY_{APP_ID}=tsk_...
 TILLED_ACCOUNT_ID_{APP_ID}=acct_...
 TILLED_WEBHOOK_SECRET_{APP_ID}=whsec_...
+TILLED_SECRET_KEY=tsk_...           # fallback if app-scoped key is absent
+TILLED_ACCOUNT_ID=acct_...          # fallback if app-scoped key is absent
+TILLED_WEBHOOK_SECRET=whsec_...     # fallback if app-scoped key is absent
 TILLED_SANDBOX=true  # or false for production
 ```
 
@@ -82,8 +85,8 @@ let payment_method = client.attach_payment_method(
     "cus_123".to_string(),
 ).await?;
 
-// List customer's payment methods
-let methods = client.list_payment_methods("cus_123").await?;
+// List customer's card payment methods
+let methods = client.list_payment_methods("cus_123", "card").await?;
 
 // Detach a payment method
 client.detach_payment_method("pm_123").await?;

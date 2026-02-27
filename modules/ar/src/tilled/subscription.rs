@@ -1,6 +1,7 @@
 use super::error::TilledError;
 use super::types::{Metadata, Subscription};
 use super::TilledClient;
+use chrono::Utc;
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -11,8 +12,7 @@ pub struct CreateSubscriptionRequest {
     pub currency: String,
     pub interval_unit: String,
     pub interval_count: i32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub billing_cycle_anchor: Option<i64>,
+    pub billing_cycle_anchor: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub trial_end: Option<i64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -35,7 +35,7 @@ pub struct UpdateSubscriptionRequest {
 pub struct SubscriptionOptions {
     pub interval_unit: Option<String>,
     pub interval_count: Option<i32>,
-    pub billing_cycle_anchor: Option<i64>,
+    pub billing_cycle_anchor: Option<String>,
     pub trial_end: Option<i64>,
     pub cancel_at_period_end: Option<bool>,
     pub metadata: Option<Metadata>,
@@ -59,7 +59,9 @@ impl TilledClient {
             currency: "usd".to_string(),
             interval_unit: opts.interval_unit.unwrap_or_else(|| "month".to_string()),
             interval_count: opts.interval_count.unwrap_or(1),
-            billing_cycle_anchor: opts.billing_cycle_anchor,
+            billing_cycle_anchor: opts
+                .billing_cycle_anchor
+                .unwrap_or_else(|| Utc::now().to_rfc3339()),
             trial_end: opts.trial_end,
             cancel_at_period_end: opts.cancel_at_period_end,
             metadata: opts.metadata,
@@ -95,5 +97,29 @@ impl TilledClient {
     ) -> Result<Subscription, TilledError> {
         let path = format!("/v1/subscriptions/{}", subscription_id);
         self.get(&path, None).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CreateSubscriptionRequest;
+
+    #[test]
+    fn subscription_payload_serializes_billing_cycle_anchor_as_string() {
+        let payload = CreateSubscriptionRequest {
+            customer_id: "cus_123".to_string(),
+            payment_method_id: "pm_123".to_string(),
+            price: 1000,
+            currency: "usd".to_string(),
+            interval_unit: "month".to_string(),
+            interval_count: 1,
+            billing_cycle_anchor: "2026-02-27T00:00:00Z".to_string(),
+            trial_end: None,
+            cancel_at_period_end: None,
+            metadata: None,
+        };
+
+        let json = serde_json::to_value(payload).unwrap();
+        assert_eq!(json["billing_cycle_anchor"], "2026-02-27T00:00:00Z");
     }
 }

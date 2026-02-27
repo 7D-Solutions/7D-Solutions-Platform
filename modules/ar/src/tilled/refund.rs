@@ -1,5 +1,5 @@
 use super::error::TilledError;
-use super::types::{ListResponse, Metadata, Refund};
+use super::types::{normalize_currency, ListResponse, Metadata, Refund};
 use super::TilledClient;
 use serde::Serialize;
 use std::collections::HashMap;
@@ -19,16 +19,16 @@ impl TilledClient {
     /// Create a refund
     pub async fn create_refund(
         &self,
-        charge_id: String,
+        payment_intent_id: String,
         amount_cents: i64,
         currency: Option<String>,
         reason: Option<String>,
         metadata: Option<Metadata>,
     ) -> Result<Refund, TilledError> {
         let request = CreateRefundRequest {
-            payment_intent_id: charge_id,
+            payment_intent_id,
             amount: amount_cents,
-            currency: currency.unwrap_or_else(|| "usd".to_string()),
+            currency: normalize_currency(currency.as_deref().unwrap_or("usd"))?,
             reason,
             metadata,
         };
@@ -48,5 +48,24 @@ impl TilledClient {
         filters: Option<HashMap<String, String>>,
     ) -> Result<ListResponse<Refund>, TilledError> {
         self.get("/v1/refunds", filters).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CreateRefundRequest;
+
+    #[test]
+    fn refund_payload_uses_payment_intent_id_field() {
+        let payload = CreateRefundRequest {
+            payment_intent_id: "pi_123".to_string(),
+            amount: 500,
+            currency: "usd".to_string(),
+            reason: Some("requested_by_customer".to_string()),
+            metadata: None,
+        };
+
+        let json = serde_json::to_value(payload).unwrap();
+        assert_eq!(json.get("payment_intent_id").unwrap(), "pi_123");
     }
 }

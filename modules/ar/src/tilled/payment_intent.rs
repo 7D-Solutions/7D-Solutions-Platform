@@ -1,5 +1,5 @@
 use super::error::TilledError;
-use super::types::{Metadata, PaymentIntent};
+use super::types::{normalize_currency, Metadata, PaymentIntent};
 use super::TilledClient;
 use serde::{Deserialize, Serialize};
 
@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct CreatePaymentIntentRequest {
     pub amount: i64,
     pub currency: String,
+    pub payment_method_types: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub customer_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -39,8 +40,12 @@ impl TilledClient {
     /// Create a payment intent
     pub async fn create_payment_intent(
         &self,
-        request: CreatePaymentIntentRequest,
+        mut request: CreatePaymentIntentRequest,
     ) -> Result<PaymentIntent, TilledError> {
+        request.currency = normalize_currency(&request.currency)?;
+        if request.payment_method_types.is_empty() {
+            request.payment_method_types = vec!["card".to_string()];
+        }
         self.post("/v1/payment-intents", &request).await
     }
 
@@ -85,6 +90,7 @@ impl TilledClient {
         let request = CreatePaymentIntentRequest {
             amount: amount_cents,
             currency: currency.unwrap_or_else(|| "usd".to_string()),
+            payment_method_types: vec!["card".to_string()],
             customer_id: Some(customer_id),
             payment_method_id: Some(payment_method_id),
             description,
@@ -102,8 +108,38 @@ impl TilledClient {
             } else {
                 "pending".to_string()
             },
-            failure_code: payment_intent.last_payment_error.as_ref().map(|e| e.code.clone()),
-            failure_message: payment_intent.last_payment_error.as_ref().map(|e| e.message.clone()),
+            failure_code: payment_intent
+                .last_payment_error
+                .as_ref()
+                .map(|e| e.code.clone()),
+            failure_message: payment_intent
+                .last_payment_error
+                .as_ref()
+                .map(|e| e.message.clone()),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::CreatePaymentIntentRequest;
+
+    #[test]
+    fn create_payment_intent_payload_includes_required_payment_method_types() {
+        let payload = CreatePaymentIntentRequest {
+            amount: 1000,
+            currency: "usd".to_string(),
+            payment_method_types: vec!["card".to_string()],
+            customer_id: Some("cus_123".to_string()),
+            payment_method_id: Some("pm_123".to_string()),
+            description: Some("test".to_string()),
+            metadata: None,
+            confirm: Some(true),
+            capture_method: Some("automatic".to_string()),
+        };
+
+        let json = serde_json::to_value(payload).unwrap();
+        assert_eq!(json["payment_method_types"][0], "card");
+        assert_eq!(json["currency"], "usd");
     }
 }

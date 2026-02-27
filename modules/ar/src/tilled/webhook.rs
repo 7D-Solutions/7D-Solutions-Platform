@@ -30,22 +30,27 @@ pub fn verify_webhook_signature(
     // Parse signature header
     let parts: Vec<&str> = signature.split(',').collect();
 
-    let timestamp_part = parts.iter()
+    let timestamp_part = parts
+        .iter()
         .find(|p| p.starts_with("t="))
         .ok_or(TilledError::WebhookVerificationFailed)?;
 
-    let signature_part = parts.iter()
+    let signature_part = parts
+        .iter()
         .find(|p| p.starts_with("v1="))
         .ok_or(TilledError::WebhookVerificationFailed)?;
 
-    let timestamp = timestamp_part.strip_prefix("t=")
+    let timestamp = timestamp_part
+        .strip_prefix("t=")
         .ok_or(TilledError::WebhookVerificationFailed)?;
 
-    let received_signature = signature_part.strip_prefix("v1=")
+    let received_signature = signature_part
+        .strip_prefix("v1=")
         .ok_or(TilledError::WebhookVerificationFailed)?;
 
     // Check timestamp tolerance (prevent replay attacks)
-    let webhook_time = timestamp.parse::<i64>()
+    let webhook_time = timestamp
+        .parse::<i64>()
         .map_err(|_| TilledError::WebhookVerificationFailed)?;
 
     let current_time = SystemTime::now()
@@ -72,10 +77,10 @@ pub fn verify_webhook_signature(
         return Err(TilledError::WebhookVerificationFailed);
     }
 
-    let received_bytes = hex::decode(received_signature)
-        .map_err(|_| TilledError::WebhookVerificationFailed)?;
-    let expected_bytes = hex::decode(&expected_signature)
-        .map_err(|_| TilledError::WebhookVerificationFailed)?;
+    let received_bytes =
+        hex::decode(received_signature).map_err(|_| TilledError::WebhookVerificationFailed)?;
+    let expected_bytes =
+        hex::decode(&expected_signature).map_err(|_| TilledError::WebhookVerificationFailed)?;
 
     if received_bytes.len() != expected_bytes.len() {
         return Err(TilledError::WebhookVerificationFailed);

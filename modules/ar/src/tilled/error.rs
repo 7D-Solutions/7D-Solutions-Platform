@@ -9,13 +9,13 @@ pub enum TilledError {
     HttpError(String),
 
     #[error("API error (status {status_code}): {message}")]
-    ApiError {
-        status_code: u16,
-        message: String,
-    },
+    ApiError { status_code: u16, message: String },
 
     #[error("Parse error: {0}")]
     ParseError(String),
+
+    #[error("Validation error: {0}")]
+    ValidationError(String),
 
     #[error("Webhook signature verification failed")]
     WebhookVerificationFailed,
