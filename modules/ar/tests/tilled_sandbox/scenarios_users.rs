@@ -18,6 +18,7 @@ mod tests {
 
         let email = unique_email();
         let role = "merchant_admin".to_string();
+        let password = format!("SandboxTest1{}", uuid::Uuid::new_v4().simple());
         let name = Some("Sandbox User".to_string());
 
         let created = retry
@@ -25,8 +26,9 @@ mod tests {
                 let c = client.clone();
                 let e = email.clone();
                 let r = role.clone();
+                let p = password.clone();
                 let n = name.clone();
-                async move { c.create_user(e, r, n).await }
+                async move { c.create_user(e, r, p, n).await }
             })
             .await
             .expect("create_user failed");

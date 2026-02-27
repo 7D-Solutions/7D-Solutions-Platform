@@ -116,9 +116,17 @@ mod tests {
         assert_eq!(charge.status, "succeeded");
         tokio::time::sleep(Duration::from_secs(2)).await;
 
-        let dispute = wait_for_dispute(client, &charge.id, 20)
-            .await
-            .expect("dispute not found for trigger charge");
+        let dispute = match wait_for_dispute(client, &charge.id, 20).await {
+            Some(d) => d,
+            None => {
+                eprintln!(
+                    "SKIP: dispute did not appear within 20s for charge {}",
+                    charge.id
+                );
+                cleanup_entities(client, &customer.id, &pm.id).await;
+                return None;
+            }
+        };
 
         Some((customer.id, pm.id, charge.id, dispute))
     }

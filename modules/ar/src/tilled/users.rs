@@ -7,6 +7,7 @@ use serde::Serialize;
 pub struct CreateUserRequest {
     pub email: String,
     pub role: String,
+    pub password: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
 }
@@ -17,9 +18,15 @@ impl TilledClient {
         &self,
         email: String,
         role: String,
+        password: String,
         name: Option<String>,
     ) -> Result<User, TilledError> {
-        let request = CreateUserRequest { email, role, name };
+        let request = CreateUserRequest {
+            email,
+            role,
+            password,
+            name,
+        };
         self.post("/v1/users", &request).await
     }
 
@@ -72,12 +79,14 @@ mod tests {
         let payload = CreateUserRequest {
             email: "user@example.com".to_string(),
             role: "merchant_admin".to_string(),
+            password: "Test1234".to_string(),
             name: Some("User Test".to_string()),
         };
 
         let value = serde_json::to_value(payload).unwrap();
         assert_eq!(value.get("email").unwrap(), "user@example.com");
         assert_eq!(value.get("role").unwrap(), "merchant_admin");
+        assert_eq!(value.get("password").unwrap(), "Test1234");
         assert_eq!(value.get("name").unwrap(), "User Test");
     }
 }
