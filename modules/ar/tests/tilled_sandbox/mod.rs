@@ -11,6 +11,7 @@
 
 pub mod helpers;
 pub mod scenarios;
+pub mod scenarios_balance;
 pub mod scenarios_disputes;
 pub mod scenarios_merchants;
 pub mod scenarios_ops;
