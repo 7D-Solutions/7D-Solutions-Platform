@@ -9,7 +9,7 @@
 
 modules/gl/src/repos/revrec_repo.rs       # 951 LOC — revrec repository
 modules/gl/src/accruals.rs                # 778 LOC — accrual engine
-modules/ar/src/routes/webhooks.rs         # 746 LOC — webhook handlers
+modules/ar/src/routes/webhooks.rs         # 1233 LOC — webhook handlers (hardened processors)
 modules/ar/src/routes/payment_methods.rs  # 743 LOC — payment method routes
 modules/gl/src/routes/revrec.rs           # 740 LOC — revrec HTTP routes
 modules/ar/src/finalization.rs            # 734 LOC — invoice finalization
