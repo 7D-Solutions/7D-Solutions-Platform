@@ -107,6 +107,46 @@ impl TilledClient {
     ) -> Result<ListResponse<Subscription>, TilledError> {
         self.get("/v1/subscriptions", filters).await
     }
+
+    /// Confirm a subscription
+    pub async fn confirm_subscription(
+        &self,
+        subscription_id: &str,
+    ) -> Result<Subscription, TilledError> {
+        let path = format!("/v1/subscriptions/{}/confirm", subscription_id);
+        let empty: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+        self.post(&path, &empty).await
+    }
+
+    /// Pause a subscription
+    pub async fn pause_subscription(
+        &self,
+        subscription_id: &str,
+    ) -> Result<Subscription, TilledError> {
+        let path = format!("/v1/subscriptions/{}/pause", subscription_id);
+        let empty: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+        self.post(&path, &empty).await
+    }
+
+    /// Resume a paused subscription
+    pub async fn resume_subscription(
+        &self,
+        subscription_id: &str,
+    ) -> Result<Subscription, TilledError> {
+        let path = format!("/v1/subscriptions/{}/resume", subscription_id);
+        let empty: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+        self.post(&path, &empty).await
+    }
+
+    /// Retry a failed subscription payment
+    pub async fn retry_subscription(
+        &self,
+        subscription_id: &str,
+    ) -> Result<Subscription, TilledError> {
+        let path = format!("/v1/subscriptions/{}/retry", subscription_id);
+        let empty: serde_json::Map<String, serde_json::Value> = serde_json::Map::new();
+        self.post(&path, &empty).await
+    }
 }
 
 #[cfg(test)]

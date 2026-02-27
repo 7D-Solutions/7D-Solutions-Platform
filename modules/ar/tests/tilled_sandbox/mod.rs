@@ -12,13 +12,17 @@
 pub mod helpers;
 pub mod scenarios;
 pub mod scenarios_balance;
+pub mod scenarios_checkout;
+pub mod scenarios_coverage_gaps;
 pub mod scenarios_disputes;
+pub mod scenarios_events;
 pub mod scenarios_merchants;
 pub mod scenarios_ops;
 pub mod scenarios_payments;
+pub mod scenarios_subscription_lifecycle;
 pub mod scenarios_subscriptions;
-pub mod scenarios_coverage_gaps;
 pub mod scenarios_users;
+pub mod scenarios_webhooks;
 
 use ar_rs::tilled::{TilledClient, TilledConfig};
 
