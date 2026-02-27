@@ -6,8 +6,8 @@
 #[cfg(test)]
 mod tests {
     use crate::tilled_sandbox::helpers::{
-        cleanup_customer, cleanup_payment_method, create_test_payment_method, unique_email,
-        unique_metadata, RetryPolicy,
+        cleanup_customer, cleanup_payment_method, try_create_test_payment_method,
+        unique_email, unique_metadata, RetryPolicy,
     };
     use crate::tilled_sandbox::try_sandbox_client;
     use ar_rs::tilled::payment_intent::CreatePaymentIntentRequest;
@@ -108,15 +108,13 @@ mod tests {
             .expect("create_customer failed");
 
         // Create payment method (raw API — sandbox allows card details)
-        let pm = retry
-            .execute(|| {
-                let s = sk.clone();
-                let a = acct.clone();
-                let b = base_url.clone();
-                async move { create_test_payment_method(&s, &a, &b).await }
-            })
-            .await
-            .expect("create_test_payment_method failed");
+        let pm = match try_create_test_payment_method(&sk, &acct, &base_url).await {
+            Some(pm) => pm,
+            None => {
+                cleanup_customer(&client, &customer.id).await;
+                return;
+            }
+        };
 
         eprintln!(
             "[scenario-02] created PM: {} for customer: {}",
@@ -148,8 +146,8 @@ mod tests {
             .await
             .expect("list_payment_methods failed");
 
-        assert!(!list.data.is_empty(), "should have at least 1 PM");
-        let found = list.data.iter().any(|p| p.id == pm.id);
+        assert!(!list.items.is_empty(), "should have at least 1 PM");
+        let found = list.items.iter().any(|p| p.id == pm.id);
         assert!(found, "attached PM should appear in list");
 
         cleanup_payment_method(&client, &pm.id).await;
@@ -187,15 +185,13 @@ mod tests {
             .await
             .expect("create_customer failed");
 
-        let pm = retry
-            .execute(|| {
-                let s = sk.clone();
-                let a = acct.clone();
-                let b = base_url.clone();
-                async move { create_test_payment_method(&s, &a, &b).await }
-            })
-            .await
-            .expect("create_test_payment_method failed");
+        let pm = match try_create_test_payment_method(&sk, &acct, &base_url).await {
+            Some(pm) => pm,
+            None => {
+                cleanup_customer(&client, &customer.id).await;
+                return;
+            }
+        };
 
         retry
             .execute(|| {
@@ -293,15 +289,13 @@ mod tests {
             .await
             .expect("create_customer failed");
 
-        let pm = retry
-            .execute(|| {
-                let s = sk.clone();
-                let a = acct.clone();
-                let b = base_url.clone();
-                async move { create_test_payment_method(&s, &a, &b).await }
-            })
-            .await
-            .expect("create_test_payment_method failed");
+        let pm = match try_create_test_payment_method(&sk, &acct, &base_url).await {
+            Some(pm) => pm,
+            None => {
+                cleanup_customer(&client, &customer.id).await;
+                return;
+            }
+        };
 
         retry
             .execute(|| {

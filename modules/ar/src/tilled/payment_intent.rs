@@ -111,11 +111,11 @@ impl TilledClient {
             failure_code: payment_intent
                 .last_payment_error
                 .as_ref()
-                .map(|e| e.code.clone()),
+                .and_then(|e| e.code.clone()),
             failure_message: payment_intent
                 .last_payment_error
                 .as_ref()
-                .map(|e| e.message.clone()),
+                .and_then(|e| e.message.clone()),
         })
     }
 }

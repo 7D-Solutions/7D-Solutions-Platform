@@ -9,23 +9,34 @@ pub type Metadata = HashMap<String, String>;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Customer {
     pub id: String,
+    #[serde(default)]
     pub email: Option<String>,
+    #[serde(default)]
     pub first_name: Option<String>,
+    #[serde(default)]
     pub last_name: Option<String>,
+    #[serde(default)]
     pub metadata: Option<Metadata>,
-    pub created_at: Option<i64>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
 }
 
 /// Payment method response from Tilled API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaymentMethod {
     pub id: String,
+    #[serde(default)]
     pub customer_id: Option<String>,
     #[serde(rename = "type")]
     pub payment_type: String,
+    #[serde(default)]
     pub card: Option<CardDetails>,
+    #[serde(default)]
     pub billing_details: Option<BillingDetails>,
-    pub created_at: Option<i64>,
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -60,37 +71,57 @@ pub struct PaymentIntent {
     pub amount: i64,
     pub currency: String,
     pub status: String,
+    #[serde(default)]
     pub customer_id: Option<String>,
+    #[serde(default)]
     pub payment_method_id: Option<String>,
+    #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
     pub metadata: Option<Metadata>,
+    #[serde(default)]
     pub last_payment_error: Option<PaymentError>,
-    pub created_at: Option<i64>,
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PaymentError {
-    pub code: String,
-    pub message: String,
+    #[serde(default)]
+    pub code: Option<String>,
+    #[serde(default)]
+    pub message: Option<String>,
 }
 
 /// Subscription response from Tilled API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Subscription {
     pub id: String,
-    pub customer_id: String,
-    pub payment_method_id: String,
+    #[serde(default)]
+    pub customer_id: Option<String>,
+    #[serde(default)]
+    pub payment_method_id: Option<String>,
     pub status: String,
-    pub price: i64,
-    pub currency: String,
-    pub interval_unit: String,
-    pub interval_count: i32,
-    pub billing_cycle_anchor: Option<i64>,
-    pub trial_end: Option<i64>,
+    #[serde(default)]
+    pub price: Option<i64>,
+    #[serde(default)]
+    pub currency: Option<String>,
+    #[serde(default)]
+    pub interval_unit: Option<String>,
+    #[serde(default)]
+    pub interval_count: Option<i32>,
+    #[serde(default)]
+    pub billing_cycle_anchor: Option<String>,
+    #[serde(default)]
+    pub trial_end: Option<String>,
+    #[serde(default)]
     pub cancel_at_period_end: bool,
+    #[serde(default)]
     pub metadata: Option<Metadata>,
-    pub created_at: Option<i64>,
-    pub canceled_at: Option<i64>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub canceled_at: Option<String>,
 }
 
 /// Refund response from Tilled API
@@ -98,32 +129,51 @@ pub struct Subscription {
 pub struct Refund {
     pub id: String,
     pub amount: i64,
-    pub currency: String,
+    #[serde(default)]
+    pub currency: Option<String>,
     pub status: String,
+    #[serde(default)]
     pub payment_intent_id: Option<String>,
+    #[serde(default)]
     pub charge_id: Option<String>,
+    #[serde(default)]
     pub reason: Option<String>,
+    #[serde(default)]
     pub metadata: Option<Metadata>,
-    pub created_at: Option<i64>,
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 /// Dispute response from Tilled API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Dispute {
     pub id: String,
-    pub amount: i64,
-    pub currency: String,
+    #[serde(default)]
+    pub amount: Option<i64>,
+    #[serde(default)]
+    pub currency: Option<String>,
     pub status: String,
+    #[serde(default)]
     pub payment_intent_id: Option<String>,
-    pub reason: String,
-    pub created_at: Option<i64>,
+    #[serde(default)]
+    pub reason: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
-/// List response wrapper
+/// List response wrapper — Tilled uses `items` as the array field
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListResponse<T> {
-    pub data: Vec<T>,
+    #[serde(alias = "data")]
+    pub items: Vec<T>,
+    #[serde(default)]
     pub has_more: bool,
+    #[serde(default)]
+    pub offset: Option<i64>,
+    #[serde(default)]
+    pub limit: Option<i64>,
+    #[serde(default)]
+    pub total: Option<i64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

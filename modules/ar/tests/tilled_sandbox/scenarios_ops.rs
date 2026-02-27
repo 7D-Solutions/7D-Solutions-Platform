@@ -6,7 +6,7 @@
 mod tests {
     use crate::tilled_sandbox::helpers::{
         cleanup_customer, cleanup_payment_method, cleanup_subscription,
-        create_test_payment_method, unique_email, RetryPolicy,
+        try_create_test_payment_method, unique_email, RetryPolicy,
     };
     use crate::tilled_sandbox::try_sandbox_client;
     use ar_rs::tilled::subscription::SubscriptionOptions;
@@ -40,7 +40,7 @@ mod tests {
             .await
             .expect("list_disputes failed");
 
-        if disputes.data.is_empty() {
+        if disputes.items.is_empty() {
             eprintln!(
                 "SKIP: no disputes in sandbox account — \
                  Tilled sandbox does not support programmatic dispute creation."
@@ -49,7 +49,7 @@ mod tests {
         }
 
         let eligible = disputes
-            .data
+            .items
             .iter()
             .find(|d| d.status == "warning_needs_response" || d.status == "needs_response");
 
@@ -58,8 +58,8 @@ mod tests {
             None => {
                 eprintln!(
                     "SKIP: no evidence-eligible dispute (have {} disputes, statuses: {:?})",
-                    disputes.data.len(),
-                    disputes.data.iter().map(|d| &d.status).collect::<Vec<_>>()
+                    disputes.items.len(),
+                    disputes.items.iter().map(|d| &d.status).collect::<Vec<_>>()
                 );
                 return;
             }
@@ -120,15 +120,13 @@ mod tests {
             .await
             .expect("create_customer failed");
 
-        let pm = retry
-            .execute(|| {
-                let s = sk.clone();
-                let a = acct.clone();
-                let b = base_url.clone();
-                async move { create_test_payment_method(&s, &a, &b).await }
-            })
-            .await
-            .expect("create_test_payment_method failed");
+        let pm = match try_create_test_payment_method(&sk, &acct, &base_url).await {
+            Some(pm) => pm,
+            None => {
+                cleanup_customer(&client, &customer.id).await;
+                return;
+            }
+        };
 
         retry
             .execute(|| {
@@ -170,8 +168,8 @@ mod tests {
             "expected active/trialing, got: {}",
             sub.status
         );
-        assert_eq!(sub.customer_id, customer.id);
-        assert_eq!(sub.price, 999);
+        assert_eq!(sub.customer_id.as_deref(), Some(customer.id.as_str()));
+        assert_eq!(sub.price, Some(999));
 
         // Verify via GET
         let fetched = retry
@@ -256,15 +254,13 @@ mod tests {
             .await
             .expect("create_customer failed");
 
-        let pm = retry
-            .execute(|| {
-                let s = sk.clone();
-                let a = acct.clone();
-                let b = base_url.clone();
-                async move { create_test_payment_method(&s, &a, &b).await }
-            })
-            .await
-            .expect("create_test_payment_method failed");
+        let pm = match try_create_test_payment_method(&sk, &acct, &base_url).await {
+            Some(pm) => pm,
+            None => {
+                cleanup_customer(&client, &customer.id).await;
+                return;
+            }
+        };
 
         retry
             .execute(|| {

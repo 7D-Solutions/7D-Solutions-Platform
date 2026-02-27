@@ -145,7 +145,7 @@ dependencies = [
 
 [[package]]
 name = "ar-rs"
-version = "1.0.16"
+version = "1.0.21"
 dependencies = [
  "async-nats 0.33.0",
  "axum",

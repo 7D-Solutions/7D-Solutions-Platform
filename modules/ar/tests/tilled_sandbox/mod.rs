@@ -79,8 +79,9 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn try_sandbox_client_returns_none_without_creds() {
-        // Save and clear
+        // Save and clear — must be serial to avoid poisoning parallel tests
         let saved_sk = std::env::var("TILLED_SECRET_KEY").ok();
         let saved_acct = std::env::var("TILLED_ACCOUNT_ID").ok();
         std::env::remove_var("TILLED_SECRET_KEY");

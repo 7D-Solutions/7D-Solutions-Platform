@@ -161,6 +161,27 @@ pub async fn create_test_payment_method(
     }
 }
 
+/// Try to create a test payment method — returns None if cards aren't enabled
+/// on this sandbox account (instead of panicking).
+pub async fn try_create_test_payment_method(
+    secret_key: &str,
+    account_id: &str,
+    base_url: &str,
+) -> Option<ar_rs::tilled::types::PaymentMethod> {
+    match create_test_payment_method(secret_key, account_id, base_url).await {
+        Ok(pm) => Some(pm),
+        Err(ar_rs::tilled::error::TilledError::ApiError { status_code: 400, ref message })
+            if message.contains("not enabled") =>
+        {
+            eprintln!(
+                "SKIP: card payment methods not enabled on this sandbox account"
+            );
+            None
+        }
+        Err(e) => panic!("create_test_payment_method failed unexpectedly: {e}"),
+    }
+}
+
 /// Best-effort cancel of a subscription by ID.
 pub async fn cleanup_subscription(client: &ar_rs::tilled::TilledClient, sub_id: &str) {
     match client.cancel_subscription(sub_id).await {
