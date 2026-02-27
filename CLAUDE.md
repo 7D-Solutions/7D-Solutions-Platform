@@ -5,6 +5,7 @@
 - Do NOT use the Task tool to spawn subagents. Do all work directly.
 - Do NOT ask the user what to do. Work autonomously.
 - Keep commits small and focused.
+- **Pre-existing issues:** If you encounter a bug, broken test, dead code, incorrect logic, or any other pre-existing issue in files you are working in — do NOT silently skip it. Either fix it (as a child bead if out of scope) or mail the orchestrator (BrightHill) describing the issue, its location, and severity. Never leave known problems unreported.
 
 ## Cargo Build Slots (MANDATORY)
 
