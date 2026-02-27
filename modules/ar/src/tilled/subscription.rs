@@ -1,8 +1,9 @@
 use super::error::TilledError;
-use super::types::{Metadata, Subscription};
+use super::types::{ListResponse, Metadata, Subscription};
 use super::TilledClient;
 use chrono::Utc;
 use serde::Serialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Serialize)]
 pub struct CreateSubscriptionRequest {
@@ -97,6 +98,14 @@ impl TilledClient {
     ) -> Result<Subscription, TilledError> {
         let path = format!("/v1/subscriptions/{}", subscription_id);
         self.get(&path, None).await
+    }
+
+    /// List subscriptions with optional filters (customer_id, status)
+    pub async fn list_subscriptions(
+        &self,
+        filters: Option<HashMap<String, String>>,
+    ) -> Result<ListResponse<Subscription>, TilledError> {
+        self.get("/v1/subscriptions", filters).await
     }
 }
 
