@@ -11,6 +11,7 @@
 
 pub mod helpers;
 pub mod scenarios;
+pub mod scenarios_account_self;
 pub mod scenarios_balance;
 pub mod scenarios_checkout;
 pub mod scenarios_coverage_gaps;

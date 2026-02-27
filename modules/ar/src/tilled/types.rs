@@ -185,6 +185,55 @@ pub struct Dispute {
     pub created_at: Option<String>,
 }
 
+/// Full account response from Tilled API (GET/PATCH /v1/accounts self).
+/// Uses `serde_json::Value` for deeply nested structures (settings, business_profile)
+/// since these have many optional sub-objects that vary by account type.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Account {
+    pub id: String,
+    #[serde(default, rename = "type")]
+    pub account_type: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub email: Option<String>,
+    pub status: String,
+    #[serde(default)]
+    pub metadata: Option<Metadata>,
+    #[serde(default)]
+    pub capabilities: Vec<AccountCapability>,
+    #[serde(default)]
+    pub bank_accounts: Option<Vec<serde_json::Value>>,
+    #[serde(default)]
+    pub settings: Option<serde_json::Value>,
+    #[serde(default)]
+    pub business_profile: Option<serde_json::Value>,
+    #[serde(default)]
+    pub merchant_support: Option<bool>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+}
+
+/// Account capability (pricing product attached to an account).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccountCapability {
+    pub id: String,
+    #[serde(default)]
+    pub product_code: Option<serde_json::Value>,
+    #[serde(default)]
+    pub pricing_template: Option<serde_json::Value>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub requirements_errors: Option<Vec<serde_json::Value>>,
+    #[serde(default)]
+    pub onboarding_application_progress: Option<i32>,
+    #[serde(default)]
+    pub attributes: Option<serde_json::Value>,
+}
+
 /// Connected account response from Tilled API
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectedAccount {
@@ -348,6 +397,57 @@ mod tests {
     #[test]
     fn amount_conversion_rejects_out_of_range_i64() {
         assert!(checked_i64_to_i32(i64::from(i32::MAX) + 1).is_err());
+    }
+
+    #[test]
+    fn account_deserializes_with_capabilities() {
+        use super::{Account, AccountCapability};
+        let value = serde_json::json!({
+            "id": "acct_123",
+            "type": "merchant",
+            "status": "active",
+            "name": "Test Merchant",
+            "capabilities": [
+                {
+                    "id": "pp_123",
+                    "status": "active",
+                    "onboarding_application_progress": 94
+                }
+            ]
+        });
+        let account: Account = serde_json::from_value(value).unwrap();
+        assert_eq!(account.id, "acct_123");
+        assert_eq!(account.account_type.as_deref(), Some("merchant"));
+        assert_eq!(account.capabilities.len(), 1);
+        assert_eq!(account.capabilities[0].id, "pp_123");
+        assert_eq!(account.capabilities[0].status.as_deref(), Some("active"));
+    }
+
+    #[test]
+    fn account_deserializes_minimal() {
+        use super::Account;
+        let value = serde_json::json!({
+            "id": "acct_min",
+            "status": "active"
+        });
+        let account: Account = serde_json::from_value(value).unwrap();
+        assert_eq!(account.id, "acct_min");
+        assert!(account.capabilities.is_empty());
+        assert!(account.name.is_none());
+    }
+
+    #[test]
+    fn account_capability_deserializes() {
+        use super::AccountCapability;
+        let value = serde_json::json!({
+            "id": "pp_456",
+            "status": "active",
+            "product_code": {"id": "pc_789", "payment_method_type": "card"},
+            "onboarding_application_progress": 100
+        });
+        let cap: AccountCapability = serde_json::from_value(value).unwrap();
+        assert_eq!(cap.id, "pp_456");
+        assert_eq!(cap.onboarding_application_progress, Some(100));
     }
 
     #[test]
