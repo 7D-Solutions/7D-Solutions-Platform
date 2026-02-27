@@ -92,8 +92,20 @@ pub struct PaymentIntent {
 pub struct Charge {
     pub id: String,
     pub status: String,
-    #[serde(default)]
+    #[serde(default, alias = "amount_cents")]
     pub amount: Option<i64>,
+    #[serde(default)]
+    pub currency: Option<String>,
+    #[serde(default)]
+    pub payment_intent_id: Option<String>,
+    #[serde(default)]
+    pub payment_method_id: Option<String>,
+    #[serde(default)]
+    pub customer_id: Option<String>,
+    #[serde(default)]
+    pub metadata: Option<Metadata>,
+    #[serde(default)]
+    pub created_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -305,7 +317,7 @@ pub fn checked_i64_to_i32(amount: i64) -> Result<i32, TilledError> {
 #[cfg(test)]
 mod tests {
     use super::{
-        checked_i32_to_i64, checked_i64_to_i32, normalize_currency, BalanceTransaction,
+        checked_i32_to_i64, checked_i64_to_i32, normalize_currency, BalanceTransaction, Charge,
         ConnectedAccount, Payout, SupportedCurrency, User,
     };
 
@@ -403,10 +415,7 @@ mod tests {
         assert_eq!(dispute.charge_id.as_deref(), Some("ch_456"));
         assert_eq!(dispute.status, "needs_response");
         assert_eq!(dispute.amount, Some(777799));
-        assert_eq!(
-            dispute.reason_description.as_deref(),
-            Some("fraudulent")
-        );
+        assert_eq!(dispute.reason_description.as_deref(), Some("fraudulent"));
     }
 
     #[test]
@@ -449,6 +458,23 @@ mod tests {
         });
         let pi: PaymentIntent = serde_json::from_value(value).unwrap();
         assert!(pi.charges.is_empty());
+    }
+
+    #[test]
+    fn charge_supports_get_charge_shape() {
+        let value = serde_json::json!({
+            "id": "ch_123",
+            "status": "succeeded",
+            "amount": 1500,
+            "currency": "usd",
+            "payment_intent_id": "pi_123",
+            "customer_id": "cus_123"
+        });
+        let charge: Charge = serde_json::from_value(value).unwrap();
+        assert_eq!(charge.id, "ch_123");
+        assert_eq!(charge.amount, Some(1500));
+        assert_eq!(charge.currency.as_deref(), Some("usd"));
+        assert_eq!(charge.payment_intent_id.as_deref(), Some("pi_123"));
     }
 
     #[test]

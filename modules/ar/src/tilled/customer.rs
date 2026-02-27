@@ -1,7 +1,8 @@
 use super::error::TilledError;
-use super::types::{Customer, Metadata};
+use super::types::{Customer, ListResponse, Metadata};
 use super::TilledClient;
 use serde::Serialize;
+use std::collections::HashMap;
 
 #[derive(Debug, Serialize)]
 pub struct CreateCustomerRequest {
@@ -47,6 +48,14 @@ impl TilledClient {
     pub async fn get_customer(&self, customer_id: &str) -> Result<Customer, TilledError> {
         let path = format!("/v1/customers/{}", customer_id);
         self.get(&path, None).await
+    }
+
+    /// List customers with optional filters (offset/limit/email/external_id where supported)
+    pub async fn list_customers(
+        &self,
+        filters: Option<HashMap<String, String>>,
+    ) -> Result<ListResponse<Customer>, TilledError> {
+        self.get("/v1/customers", filters).await
     }
 
     /// Update a customer
