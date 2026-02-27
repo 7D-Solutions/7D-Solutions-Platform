@@ -1,8 +1,11 @@
 pub mod accounts;
 pub mod balance_transaction;
+pub mod checkout_session;
+pub mod charge;
 pub mod customer;
 pub mod dispute;
 pub mod error;
+pub mod events;
 pub mod files;
 pub mod payment_intent;
 pub mod payment_method;
@@ -12,6 +15,7 @@ pub mod subscription;
 pub mod types;
 pub mod users;
 pub mod webhook;
+pub mod webhook_endpoint;
 
 use error::TilledError;
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue, AUTHORIZATION};
