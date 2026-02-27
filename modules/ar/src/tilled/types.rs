@@ -82,7 +82,18 @@ pub struct PaymentIntent {
     #[serde(default)]
     pub last_payment_error: Option<PaymentError>,
     #[serde(default)]
+    pub charges: Vec<Charge>,
+    #[serde(default)]
     pub created_at: Option<String>,
+}
+
+/// Individual charge within a payment intent
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Charge {
+    pub id: String,
+    pub status: String,
+    #[serde(default)]
+    pub amount: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -153,10 +164,11 @@ pub struct Dispute {
     #[serde(default)]
     pub currency: Option<String>,
     pub status: String,
-    #[serde(default)]
-    pub payment_intent_id: Option<String>,
-    #[serde(default)]
-    pub reason: Option<String>,
+    /// Tilled returns `charge_id`; alias for legacy code that used `payment_intent_id`.
+    #[serde(default, alias = "payment_intent_id")]
+    pub charge_id: Option<String>,
+    #[serde(default, alias = "reason")]
+    pub reason_description: Option<String>,
     #[serde(default)]
     pub created_at: Option<String>,
 }

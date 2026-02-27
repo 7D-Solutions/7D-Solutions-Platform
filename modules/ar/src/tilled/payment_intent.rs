@@ -30,8 +30,13 @@ pub struct ConfirmPaymentIntentRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ChargeResponse {
+    /// Payment intent ID (`pi_...`)
     pub id: String,
     pub status: String,
+    #[serde(default)]
+    pub amount: Option<i64>,
+    /// Actual charge ID (`ch_...`) from the charges array, if available.
+    pub charge_id: Option<String>,
     pub failure_code: Option<String>,
     pub failure_message: Option<String>,
 }
@@ -101,6 +106,8 @@ impl TilledClient {
 
         let payment_intent = self.create_payment_intent(request).await?;
 
+        let charge_id = payment_intent.charges.first().map(|c| c.id.clone());
+
         Ok(ChargeResponse {
             id: payment_intent.id,
             status: if payment_intent.status == "succeeded" {
@@ -108,6 +115,8 @@ impl TilledClient {
             } else {
                 "pending".to_string()
             },
+            amount: Some(payment_intent.amount),
+            charge_id,
             failure_code: payment_intent
                 .last_payment_error
                 .as_ref()

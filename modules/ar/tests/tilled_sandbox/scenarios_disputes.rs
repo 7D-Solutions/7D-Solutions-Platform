@@ -38,7 +38,7 @@ mod tests {
 
     async fn wait_for_dispute(
         client: &TilledClient,
-        payment_intent_id: &str,
+        charge_id: &str,
         max_wait_secs: u64,
     ) -> Option<Dispute> {
         let deadline = Instant::now() + Duration::from_secs(max_wait_secs);
@@ -48,7 +48,7 @@ mod tests {
                     if let Some(dispute) = list
                         .items
                         .into_iter()
-                        .find(|d| d.payment_intent_id.as_deref() == Some(payment_intent_id))
+                        .find(|d| d.charge_id.as_deref() == Some(charge_id))
                     {
                         return Some(dispute);
                     }
@@ -114,21 +114,34 @@ mod tests {
             .expect("create_charge failed");
 
         assert_eq!(charge.status, "succeeded");
-        tokio::time::sleep(Duration::from_secs(2)).await;
 
-        let dispute = match wait_for_dispute(client, &charge.id, 20).await {
-            Some(d) => d,
+        let ch_id = match &charge.charge_id {
+            Some(id) => id.clone(),
             None => {
                 eprintln!(
-                    "SKIP: dispute did not appear within 20s for charge {}",
+                    "SKIP: no charge_id in response for PI {} — cannot match disputes",
                     charge.id
                 );
                 cleanup_entities(client, &customer.id, &pm.id).await;
                 return None;
             }
         };
+        eprintln!("[disputes] PI={} charge_id={}", charge.id, ch_id);
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
-        Some((customer.id, pm.id, charge.id, dispute))
+        let dispute = match wait_for_dispute(client, &ch_id, 20).await {
+            Some(d) => d,
+            None => {
+                eprintln!(
+                    "SKIP: dispute did not appear within 20s for charge {}",
+                    ch_id
+                );
+                cleanup_entities(client, &customer.id, &pm.id).await;
+                return None;
+            }
+        };
+
+        Some((customer.id, pm.id, ch_id, dispute))
     }
 
     async fn cleanup_entities(client: &TilledClient, customer_id: &str, pm_id: &str) {
@@ -162,7 +175,7 @@ mod tests {
             charge_id, dispute.id, dispute.status
         );
         assert_eq!(
-            dispute.payment_intent_id.as_deref(),
+            dispute.charge_id.as_deref(),
             Some(charge_id.as_str())
         );
         assert!(!dispute.id.is_empty());
