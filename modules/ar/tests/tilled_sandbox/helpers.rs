@@ -107,3 +107,64 @@ pub async fn cleanup_payment_method(client: &ar_rs::tilled::TilledClient, pm_id:
         Err(e) => eprintln!("[sandbox-cleanup] could not detach pm {pm_id}: {e}"),
     }
 }
+
+/// Create a test payment method via the Tilled API using sandbox test card.
+/// Tilled.js is the normal path, but sandbox allows raw card details server-side.
+/// Returns the payment method ID on success.
+pub async fn create_test_payment_method(
+    secret_key: &str,
+    account_id: &str,
+    base_url: &str,
+) -> Result<ar_rs::tilled::types::PaymentMethod, ar_rs::tilled::error::TilledError> {
+    let http = reqwest::Client::new();
+    let body = serde_json::json!({
+        "type": "card",
+        "card": {
+            "number": "4111111111111111",
+            "exp_month": 12,
+            "exp_year": 2030,
+            "cvv": "123"
+        },
+        "billing_details": {
+            "name": format!("Sandbox Test {}", Uuid::new_v4()),
+            "address": {
+                "country": "US",
+                "zip": "90210"
+            }
+        }
+    });
+
+    let resp = http
+        .post(format!("{base_url}/v1/payment-methods"))
+        .header("Authorization", format!("Bearer {secret_key}"))
+        .header("tilled-account", account_id)
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| ar_rs::tilled::error::TilledError::HttpError(e.to_string()))?;
+
+    let status = resp.status();
+    if status.is_success() {
+        resp.json()
+            .await
+            .map_err(|e| ar_rs::tilled::error::TilledError::ParseError(e.to_string()))
+    } else {
+        let text = resp
+            .text()
+            .await
+            .unwrap_or_else(|_| "unknown".to_string());
+        Err(ar_rs::tilled::error::TilledError::ApiError {
+            status_code: status.as_u16(),
+            message: text,
+        })
+    }
+}
+
+/// Best-effort cancel of a subscription by ID.
+pub async fn cleanup_subscription(client: &ar_rs::tilled::TilledClient, sub_id: &str) {
+    match client.cancel_subscription(sub_id).await {
+        Ok(_) => eprintln!("[sandbox-cleanup] canceled subscription {sub_id}"),
+        Err(e) => eprintln!("[sandbox-cleanup] could not cancel sub {sub_id}: {e}"),
+    }
+}

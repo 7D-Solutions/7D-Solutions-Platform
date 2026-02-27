@@ -7,6 +7,8 @@
 //!             CI sets these as repository secrets so they always run there.
 
 pub mod helpers;
+pub mod scenarios;
+pub mod scenarios_ops;
 
 use ar_rs::tilled::{TilledClient, TilledConfig};
 
