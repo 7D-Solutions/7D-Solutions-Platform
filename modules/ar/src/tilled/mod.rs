@@ -1,7 +1,7 @@
 pub mod accounts;
 pub mod balance_transaction;
-pub mod checkout_session;
 pub mod charge;
+pub mod checkout_session;
 pub mod customer;
 pub mod dispute;
 pub mod error;
