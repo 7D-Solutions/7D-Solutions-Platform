@@ -12,8 +12,7 @@ use uuid::Uuid;
 async fn setup_test_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
 
-    let database_url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for tests");
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -42,8 +41,8 @@ async fn insert_session(pool: &sqlx::PgPool, invoice_id: &str, status: &str) -> 
     let session_id: Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO checkout_sessions
-            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, client_secret, status)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, status)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
         "#,
     )
@@ -52,7 +51,6 @@ async fn insert_session(pool: &sqlx::PgPool, invoice_id: &str, status: &str) -> 
     .bind(2500_i32)
     .bind("usd")
     .bind(&pi_id)
-    .bind("cs_secret_test")
     .bind(status)
     .fetch_one(pool)
     .await
@@ -75,13 +73,12 @@ async fn test_checkout_session_created_with_mock() {
 
     // Insert a checkout session directly (simulating what the handler does)
     let pi_id = format!("mock_pi_{}", Uuid::new_v4().simple());
-    let client_secret = format!("{}_secret_{}", pi_id, Uuid::new_v4().simple());
 
     let session_id: Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO checkout_sessions
-            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, client_secret)
-        VALUES ($1, $2, $3, $4, $5, $6)
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id
         "#,
     )
@@ -90,32 +87,18 @@ async fn test_checkout_session_created_with_mock() {
     .bind(5000_i32)
     .bind("usd")
     .bind(&pi_id)
-    .bind(&client_secret)
     .fetch_one(&pool)
     .await
     .expect("Failed to insert checkout session");
 
     // New state machine: initial status is 'created' (not 'pending')
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
-            .bind(session_id)
-            .fetch_one(&pool)
-            .await
-            .expect("Failed to query session");
+    let status: String = sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query session");
 
     assert_eq!(status, "created");
-
-    // Verify client_secret was stored
-    let stored_secret: String = sqlx::query_scalar(
-        "SELECT client_secret FROM checkout_sessions WHERE id = $1",
-    )
-    .bind(session_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to query client_secret");
-
-    assert!(!stored_secret.is_empty(), "client_secret should be non-empty");
-    assert_eq!(stored_secret, client_secret);
 
     cleanup_sessions(&pool).await;
 }
@@ -147,23 +130,24 @@ async fn test_present_transition_created_to_presented() {
 
     assert_eq!(rows, 1, "First present should update exactly 1 row");
 
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
-            .bind(session_id)
-            .fetch_one(&pool)
-            .await
-            .expect("Failed to query status");
+    let status: String = sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query status");
     assert_eq!(status, "presented");
 
     // presented_at should be set
-    let presented_at: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
-        "SELECT presented_at FROM checkout_sessions WHERE id = $1",
-    )
-    .bind(session_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to query presented_at");
-    assert!(presented_at.is_some(), "presented_at must be set after present");
+    let presented_at: Option<chrono::DateTime<chrono::Utc>> =
+        sqlx::query_scalar("SELECT presented_at FROM checkout_sessions WHERE id = $1")
+            .bind(session_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to query presented_at");
+    assert!(
+        presented_at.is_some(),
+        "presented_at must be set after present"
+    );
 
     cleanup_sessions(&pool).await;
 }
@@ -203,16 +187,21 @@ async fn test_present_transition_is_idempotent() {
     .expect("Failed to re-present session")
     .rows_affected();
 
-    assert_eq!(rows2, 0, "Second present on already-presented session must be a no-op");
+    assert_eq!(
+        rows2, 0,
+        "Second present on already-presented session must be a no-op"
+    );
 
     // Status remains 'presented'
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
-            .bind(session_id)
-            .fetch_one(&pool)
-            .await
-            .expect("Failed to query status");
-    assert_eq!(status, "presented", "Status must remain presented after idempotent call");
+    let status: String = sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query status");
+    assert_eq!(
+        status, "presented",
+        "Status must remain presented after idempotent call"
+    );
 
     cleanup_sessions(&pool).await;
 }
@@ -244,12 +233,11 @@ async fn test_webhook_updates_checkout_session_to_completed() {
 
     assert_eq!(rows, 1, "Webhook should update exactly one session");
 
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
-            .bind(session_id)
-            .fetch_one(&pool)
-            .await
-            .expect("Failed to query status");
+    let status: String = sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query status");
 
     assert_eq!(status, "completed");
 
@@ -295,17 +283,22 @@ async fn test_webhook_replay_is_idempotent() {
     .expect("Failed on replayed webhook update")
     .rows_affected();
 
-    assert_eq!(rows2, 0, "Webhook replay must NOT mutate an already-terminal session");
+    assert_eq!(
+        rows2, 0,
+        "Webhook replay must NOT mutate an already-terminal session"
+    );
 
     // Session is still 'completed' — not corrupted by replay
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
-            .bind(session_id)
-            .fetch_one(&pool)
-            .await
-            .expect("Failed to query final status");
+    let status: String = sqlx::query_scalar("SELECT status FROM checkout_sessions WHERE id = $1")
+        .bind(session_id)
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to query final status");
 
-    assert_eq!(status, "completed", "Status must remain completed after webhook replay");
+    assert_eq!(
+        status, "completed",
+        "Status must remain completed after webhook replay"
+    );
 
     cleanup_sessions(&pool).await;
 }
@@ -367,8 +360,8 @@ async fn test_get_checkout_session_by_id() {
     let session_id: Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO checkout_sessions
-            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, client_secret)
-        VALUES ($1, $2, $3, $4, $5, $6)
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id)
+        VALUES ($1, $2, $3, $4, $5)
         RETURNING id
         "#,
     )
@@ -377,7 +370,6 @@ async fn test_get_checkout_session_by_id() {
     .bind(amount)
     .bind(currency)
     .bind(&pi_id)
-    .bind("cs_get_test_secret")
     .fetch_one(&pool)
     .await
     .expect("Failed to insert session");

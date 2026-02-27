@@ -5,6 +5,7 @@
 //!   POST /api/payments/admin/consistency-check
 //!   GET  /api/payments/admin/projections
 
+use crate::AppState;
 use axum::{
     extract::State,
     http::{HeaderMap, StatusCode},
@@ -13,14 +14,11 @@ use axum::{
 };
 use projections::admin;
 use std::sync::Arc;
-use crate::AppState;
 
 use super::admin_types::ErrorBody;
 
 fn extract_token(headers: &HeaderMap) -> Option<&str> {
-    headers
-        .get("x-admin-token")
-        .and_then(|v| v.to_str().ok())
+    headers.get("x-admin-token").and_then(|v| v.to_str().ok())
 }
 
 fn guard(headers: &HeaderMap) -> Result<(), (StatusCode, Json<ErrorBody>)> {
@@ -104,6 +102,7 @@ pub fn admin_router(state: Arc<AppState>) -> Router<Arc<AppState>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sqlx::PgPool;
 
     #[tokio::test]
     async fn test_admin_router_builds() {

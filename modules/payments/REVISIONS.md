@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.1.12 | 2026-02-27 | bd-1lcy | Dropped `client_secret` column from `checkout_sessions` table. POST create-session still returns client_secret as a pass-through from Tilled API, but it is no longer persisted. GET session response no longer includes client_secret. | Server never reads client_secret after creation — only the browser needs it from the initial POST response. Storing it is unnecessary and a security concern. | No — POST response unchanged. GET response removes `client_secret` field; consumers relying on GET to retrieve the secret must use the POST response instead. |
 | 1.1.11 | 2026-02-25 | bd-2ivp | Added connection pool metrics (size, idle, active) to `/api/ready` response via `db_check_with_pool`. | Ops needs pool saturation visibility to detect connection exhaustion before it causes request timeouts. | No |
 | 1.1.10 | 2026-02-25 | bd-289r | Fixed clippy warnings: removed unused imports, simplified borrowed expressions, removed redundant closures. | Enable cargo clippy -D warnings in CI. | No |
 | 1.1.8 | 2026-02-25 | bd-1uce | Added graceful shutdown with SIGTERM/SIGINT signal handling. Server now drains in-flight requests before closing DB pool on shutdown. | Zero-downtime deploys require graceful shutdown to avoid dropping in-flight requests. | No |

@@ -5,7 +5,7 @@
 //!
 //! Endpoints:
 //!   POST /api/payments/checkout-sessions            — create session, return client_secret
-//!   GET  /api/payments/checkout-sessions/:id        — full session data (includes client_secret)
+//!   GET  /api/payments/checkout-sessions/:id        — full session data (no secrets)
 //!   POST /api/payments/checkout-sessions/:id/present — idempotent: created → presented
 //!   GET  /api/payments/checkout-sessions/:id/status  — lightweight status poll (no secret)
 //!   POST /api/payments/webhook/tilled               — Tilled webhook callbacks
@@ -62,8 +62,6 @@ pub struct CheckoutSessionStatusResponse {
     pub tenant_id: String,
     pub amount: i32,
     pub currency: String,
-    /// Tilled.js client secret — used by hosted pay page to init Tilled.js
-    pub client_secret: String,
     /// URL to redirect after successful payment (stored at creation time)
     pub return_url: Option<String>,
     /// URL to redirect after cancelled payment (stored at creation time)
@@ -91,7 +89,13 @@ pub struct ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (self.status, Json(ErrorBody { error: self.message })).into_response()
+        (
+            self.status,
+            Json(ErrorBody {
+                error: self.message,
+            }),
+        )
+            .into_response()
     }
 }
 
@@ -178,8 +182,8 @@ pub async fn create_checkout_session(
     let session_id: Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO checkout_sessions
-            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, client_secret, return_url, cancel_url)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            (invoice_id, tenant_id, amount_minor, currency, processor_payment_id, return_url, cancel_url)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id
         "#,
     )
@@ -188,7 +192,6 @@ pub async fn create_checkout_session(
     .bind(req.amount)
     .bind(&req.currency)
     .bind(&pi_id)
-    .bind(&client_secret)
     .bind(&req.return_url)
     .bind(&req.cancel_url)
     .fetch_one(&state.pool)
@@ -232,14 +235,13 @@ pub async fn get_checkout_session(
         tenant_id: String,
         amount_minor: i32,
         currency: String,
-        client_secret: String,
         return_url: Option<String>,
         cancel_url: Option<String>,
     }
 
     let row: Option<SessionRow> = sqlx::query_as(
         r#"SELECT status, processor_payment_id, invoice_id, tenant_id,
-                  amount_minor, currency, client_secret, return_url, cancel_url
+                  amount_minor, currency, return_url, cancel_url
            FROM checkout_sessions WHERE id = $1 AND tenant_id = $2"#,
     )
     .bind(session_id)
@@ -263,7 +265,9 @@ pub async fn get_checkout_session(
             state.tilled_api_key.as_deref(),
             state.tilled_account_id.as_deref(),
         ) {
-            match poll_tilled_intent_status(api_key, account_id, &session.processor_payment_id).await {
+            match poll_tilled_intent_status(api_key, account_id, &session.processor_payment_id)
+                .await
+            {
                 Ok(live_status) if live_status != session.status => {
                     // Update cached status if it changed
                     let _ = sqlx::query(
@@ -293,7 +297,6 @@ pub async fn get_checkout_session(
         tenant_id: session.tenant_id,
         amount: session.amount_minor,
         currency: session.currency,
-        client_secret: session.client_secret,
         return_url: session.return_url,
         cancel_url: session.cancel_url,
     }))
@@ -402,7 +405,9 @@ pub async fn tilled_webhook(
     let header_map: std::collections::HashMap<String, String> = headers
         .iter()
         .filter_map(|(k, v)| {
-            v.to_str().ok().map(|val| (k.as_str().to_lowercase(), val.to_string()))
+            v.to_str()
+                .ok()
+                .map(|val| (k.as_str().to_lowercase(), val.to_string()))
         })
         .collect();
 
@@ -416,12 +421,12 @@ pub async fn tilled_webhook(
         secrets.push(prev_str);
     }
 
-    validate_webhook_signature(WebhookSource::Tilled, &header_map, &body, &secrets).map_err(|e| {
-        ApiError {
+    validate_webhook_signature(WebhookSource::Tilled, &header_map, &body, &secrets).map_err(
+        |e| ApiError {
             status: StatusCode::UNAUTHORIZED,
             message: format!("Webhook signature invalid: {}", e),
-        }
-    })?;
+        },
+    )?;
 
     let event: serde_json::Value = serde_json::from_slice(&body).map_err(|_| ApiError {
         status: StatusCode::BAD_REQUEST,
@@ -476,9 +481,7 @@ pub async fn tilled_webhook(
 // Auth helper
 // ============================================================================
 
-pub fn extract_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, ApiError> {
+pub fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ApiError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
         None => Err(ApiError {
