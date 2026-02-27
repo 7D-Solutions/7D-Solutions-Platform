@@ -204,18 +204,27 @@ pub async fn submit_dispute_evidence(
         )
     })?;
 
-    // Extract evidence fields from the generic JSON payload
-    let evidence_text = req.evidence.get("evidence_text").and_then(|v| v.as_str()).map(String::from);
-    let evidence_file = req.evidence.get("evidence_file").and_then(|v| v.as_str()).map(String::from);
-    let customer_communication = req.evidence.get("customer_communication").and_then(|v| v.as_str()).map(String::from);
-    let uncategorized_text = req.evidence.get("uncategorized_text").and_then(|v| v.as_str()).map(String::from);
+    // Map evidence payload to current provider contract while supporting legacy keys.
+    let description = req
+        .evidence
+        .get("description")
+        .and_then(|v| v.as_str())
+        .or_else(|| {
+            req.evidence
+                .get("evidence_description")
+                .and_then(|v| v.as_str())
+        })
+        .or_else(|| req.evidence.get("evidence_text").and_then(|v| v.as_str()))
+        .map(String::from);
+    let files = req.evidence.get("files").and_then(|v| {
+        v.as_array().map(|arr| {
+            arr.iter()
+                .filter_map(|entry| entry.as_str().map(String::from))
+                .collect::<Vec<_>>()
+        })
+    });
 
-    let tilled_req = SubmitEvidenceRequest {
-        evidence_text,
-        evidence_file,
-        customer_communication,
-        uncategorized_text,
-    };
+    let tilled_req = SubmitEvidenceRequest { description, files };
 
     match client
         .submit_dispute_evidence(&dispute.tilled_dispute_id, tilled_req)
@@ -238,7 +247,10 @@ pub async fn submit_dispute_evidence(
             .fetch_one(&db)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to update dispute after evidence submission: {:?}", e);
+                tracing::error!(
+                    "Failed to update dispute after evidence submission: {:?}",
+                    e
+                );
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ErrorResponse::new(

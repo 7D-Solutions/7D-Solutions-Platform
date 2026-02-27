@@ -18,8 +18,16 @@ impl TilledClient {
     ) -> Result<PaymentMethod, TilledError> {
         let path = format!("/v1/payment-methods/{}/attach", payment_method_id);
         let request = AttachPaymentMethodRequest { customer_id };
-
-        self.post(&path, &request).await
+        let url = format!("{}{}", self.config().base_path, path);
+        let response = self
+            .http_client
+            .put(&url)
+            .headers(self.build_auth_headers()?)
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| TilledError::HttpError(e.to_string()))?;
+        self.handle_response(response).await
     }
 
     /// Detach a payment method from a customer
@@ -28,9 +36,18 @@ impl TilledClient {
         payment_method_id: &str,
     ) -> Result<PaymentMethod, TilledError> {
         let path = format!("/v1/payment-methods/{}/detach", payment_method_id);
-        // POST with empty body
+        // PUT with empty body
         let empty: HashMap<String, String> = HashMap::new();
-        self.post(&path, &empty).await
+        let url = format!("{}{}", self.config().base_path, path);
+        let response = self
+            .http_client
+            .put(&url)
+            .headers(self.build_auth_headers()?)
+            .json(&empty)
+            .send()
+            .await
+            .map_err(|e| TilledError::HttpError(e.to_string()))?;
+        self.handle_response(response).await
     }
 
     /// Get a payment method by ID

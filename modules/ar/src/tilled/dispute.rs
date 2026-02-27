@@ -7,13 +7,9 @@ use std::collections::HashMap;
 #[derive(Debug, Serialize)]
 pub struct SubmitEvidenceRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub evidence_text: Option<String>,
+    pub description: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub evidence_file: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub customer_communication: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub uncategorized_text: Option<String>,
+    pub files: Option<Vec<String>>,
 }
 
 impl TilledClient {
@@ -37,7 +33,7 @@ impl TilledClient {
         dispute_id: &str,
         evidence: SubmitEvidenceRequest,
     ) -> Result<Dispute, TilledError> {
-        let path = format!("/v1/disputes/{}/evidence", dispute_id);
+        let path = format!("/v1/disputes/{}", dispute_id);
         self.post(&path, &evidence).await
     }
 }

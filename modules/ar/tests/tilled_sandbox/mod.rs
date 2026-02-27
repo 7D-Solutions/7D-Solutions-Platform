@@ -5,6 +5,9 @@
 //! - Present → tests run normally
 //! - Absent  → tests skip with a clear message (in local dev)
 //!             CI sets these as repository secrets so they always run there.
+//!
+//! Optional platform-level account support:
+//! - `TILLED_PARTNER_ACCOUNT_ID` can be used when a test needs partner-scope APIs.
 
 pub mod helpers;
 pub mod scenarios;
@@ -12,13 +15,14 @@ pub mod scenarios_ops;
 
 use ar_rs::tilled::{TilledClient, TilledConfig};
 
-/// Check whether sandbox credentials are available.
-/// Returns `None` (skip) when creds are missing.
-pub fn try_sandbox_client() -> Option<TilledClient> {
-    let secret_key = std::env::var("TILLED_SECRET_KEY").ok()?;
-    let account_id = std::env::var("TILLED_ACCOUNT_ID").ok()?;
-    let webhook_secret =
-        std::env::var("TILLED_WEBHOOK_SECRET").unwrap_or_else(|_| "not-set".to_string());
+fn build_sandbox_client(
+    secret_key: Option<String>,
+    account_id: Option<String>,
+    webhook_secret: Option<String>,
+) -> Option<TilledClient> {
+    let secret_key = secret_key?;
+    let account_id = account_id?;
+    let webhook_secret = webhook_secret.unwrap_or_else(|| "not-set".to_string());
 
     if secret_key.is_empty() || account_id.is_empty() {
         return None;
@@ -33,6 +37,26 @@ pub fn try_sandbox_client() -> Option<TilledClient> {
     };
 
     TilledClient::new(config).ok()
+}
+
+/// Check whether sandbox credentials are available.
+/// Returns `None` (skip) when creds are missing.
+pub fn try_sandbox_client() -> Option<TilledClient> {
+    build_sandbox_client(
+        std::env::var("TILLED_SECRET_KEY").ok(),
+        std::env::var("TILLED_ACCOUNT_ID").ok(),
+        std::env::var("TILLED_WEBHOOK_SECRET").ok(),
+    )
+}
+
+/// Build a partner-scope sandbox client when platform-level credentials are available.
+/// Returns `None` when `TILLED_PARTNER_ACCOUNT_ID` is not configured.
+pub fn try_partner_client() -> Option<TilledClient> {
+    build_sandbox_client(
+        std::env::var("TILLED_SECRET_KEY").ok(),
+        std::env::var("TILLED_PARTNER_ACCOUNT_ID").ok(),
+        std::env::var("TILLED_WEBHOOK_SECRET").ok(),
+    )
 }
 
 /// Macro to skip a test when sandbox credentials are not available.
@@ -79,23 +103,15 @@ mod tests {
     }
 
     #[test]
-    #[serial_test::serial]
     fn try_sandbox_client_returns_none_without_creds() {
-        // Save and clear — must be serial to avoid poisoning parallel tests
-        let saved_sk = std::env::var("TILLED_SECRET_KEY").ok();
-        let saved_acct = std::env::var("TILLED_ACCOUNT_ID").ok();
-        std::env::remove_var("TILLED_SECRET_KEY");
-        std::env::remove_var("TILLED_ACCOUNT_ID");
+        assert!(build_sandbox_client(None, Some("acct_123".to_string()), None).is_none());
+        assert!(build_sandbox_client(Some("sk_123".to_string()), None, None).is_none());
+    }
 
-        assert!(try_sandbox_client().is_none());
-
-        // Restore
-        if let Some(v) = saved_sk {
-            std::env::set_var("TILLED_SECRET_KEY", v);
-        }
-        if let Some(v) = saved_acct {
-            std::env::set_var("TILLED_ACCOUNT_ID", v);
-        }
+    #[test]
+    fn try_partner_client_returns_none_without_partner_account() {
+        assert!(build_sandbox_client(None, Some("acct_partner".to_string()), None).is_none());
+        assert!(build_sandbox_client(Some("sk_123".to_string()), None, None).is_none());
     }
 
     #[tokio::test]
