@@ -11,6 +11,7 @@ use crate::models::{
     AddPaymentMethodRequest, Customer, ErrorResponse, ListPaymentMethodsQuery, PaymentMethod,
     UpdatePaymentMethodRequest,
 };
+use crate::tilled::TilledClient;
 
 /// POST /api/ar/payment-methods - Add a new payment method
 pub async fn add_payment_method(
@@ -474,9 +475,72 @@ pub async fn delete_payment_method(
         )
     })?;
 
-    // TODO: Check if payment method has pending charges before deletion
+    // Guard: block detach if there are pending or authorized charges using this PM
+    let blocking_charge_count: Option<i64> = sqlx::query_scalar(
+        r#"
+        SELECT COUNT(*)
+        FROM ar_charges
+        WHERE ar_customer_id = $1 AND status IN ('pending', 'authorized')
+        "#,
+    )
+    .bind(payment_method.ar_customer_id)
+    .fetch_one(&db)
+    .await
+    .map_err(|e| {
+        tracing::error!("Database error checking blocking charges: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new(
+                "database_error",
+                format!("Failed to check blocking charges: {}", e),
+            )),
+        )
+    })?;
 
-    // TODO: Integrate with Tilled API to detach payment method
+    if blocking_charge_count.unwrap_or(0) > 0 {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(ErrorResponse::new(
+                "conflict",
+                format!(
+                    "Cannot detach payment method: {} pending/authorized charge(s) exist for this customer",
+                    blocking_charge_count.unwrap_or(0)
+                ),
+            )),
+        ));
+    }
+
+    // Detach from Tilled if we have a provider ID
+    if !payment_method.tilled_payment_method_id.is_empty() {
+        let client = TilledClient::from_env(&app_id).map_err(|e| {
+            tracing::error!("Failed to create Tilled client: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse::new(
+                    "provider_config_error",
+                    format!("Failed to initialize payment provider: {}", e),
+                )),
+            )
+        })?;
+
+        if let Err(e) = client
+            .detach_payment_method(&payment_method.tilled_payment_method_id)
+            .await
+        {
+            tracing::error!(
+                "Tilled detach failed for payment method {}: {:?}",
+                id,
+                e
+            );
+            return Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse::new(
+                    "provider_error",
+                    format!("Payment provider detach failed: {}", e),
+                )),
+            ));
+        }
+    }
 
     // Soft delete the payment method
     sqlx::query(

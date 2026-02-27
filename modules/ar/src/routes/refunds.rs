@@ -7,6 +7,8 @@ use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{Charge, CreateRefundRequest, ErrorResponse, ListRefundsQuery, Refund};
+use crate::tilled::types::checked_i32_to_i64;
+use crate::tilled::TilledClient;
 
 /// POST /api/ar/refunds - Create a refund for a charge
 pub async fn create_refund(
@@ -208,42 +210,88 @@ pub async fn create_refund(
         )
     })?;
 
-    // TODO: Integrate with Tilled API to create actual refund
-    // For now, we'll update status to succeeded
-    let refund = sqlx::query_as::<_, Refund>(
-        r#"
-        UPDATE ar_refunds
-        SET status = 'succeeded', tilled_refund_id = $1, updated_at = NOW()
-        WHERE id = $2
-        RETURNING
-            id, app_id, ar_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
-            status, amount_cents, currency, reason, reference_id, note, metadata,
-            failure_code, failure_message, created_at, updated_at
-        "#,
-    )
-    .bind(format!("ref_mock_{}", refund.id))  // Mock Tilled refund ID
-    .bind(refund.id)
-    .fetch_one(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to update refund: {:?}", e);
+    // Call Tilled API to create the refund
+    let payment_intent_id = charge.tilled_charge_id.unwrap(); // already validated above
+    let client = TilledClient::from_env(&app_id).map_err(|e| {
+        tracing::error!("Failed to create Tilled client: {:?}", e);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse::new(
-                "database_error",
-                "Failed to update refund",
+                "provider_config_error",
+                format!("Failed to initialize payment provider: {}", e),
             )),
         )
     })?;
 
-    tracing::info!(
-        "Created refund {} for charge {} (amount: {})",
-        refund.id,
-        req.charge_id,
-        req.amount_cents
-    );
+    let amount_i64 = checked_i32_to_i64(req.amount_cents);
+    let tilled_metadata = req.metadata.as_ref().and_then(|m| {
+        serde_json::from_value::<std::collections::HashMap<String, String>>(m.clone()).ok()
+    });
 
-    Ok((StatusCode::CREATED, Json(refund)))
+    match client
+        .create_refund(
+            payment_intent_id,
+            amount_i64,
+            req.currency.clone(),
+            req.reason.clone(),
+            tilled_metadata,
+        )
+        .await
+    {
+        Ok(tilled_refund) => {
+            let refund = sqlx::query_as::<_, Refund>(
+                r#"
+                UPDATE ar_refunds
+                SET status = $1, tilled_refund_id = $2, updated_at = NOW()
+                WHERE id = $3
+                RETURNING
+                    id, app_id, ar_customer_id, charge_id, tilled_refund_id, tilled_charge_id,
+                    status, amount_cents, currency, reason, reference_id, note, metadata,
+                    failure_code, failure_message, created_at, updated_at
+                "#,
+            )
+            .bind(&tilled_refund.status)
+            .bind(&tilled_refund.id)
+            .bind(refund.id)
+            .fetch_one(&db)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to update refund after provider call: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse::new(
+                        "database_error",
+                        "Failed to update refund",
+                    )),
+                )
+            })?;
+
+            tracing::info!(
+                "Created refund {} for charge {} (amount: {}, tilled_id: {})",
+                refund.id,
+                req.charge_id,
+                req.amount_cents,
+                tilled_refund.id,
+            );
+
+            Ok((StatusCode::CREATED, Json(refund)))
+        }
+        Err(e) => {
+            tracing::error!(
+                "Tilled refund failed for charge {}: {:?}",
+                req.charge_id,
+                e
+            );
+            // Keep refund as 'pending' — do not advance status on failure
+            Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse::new(
+                    "provider_error",
+                    format!("Payment provider refund failed: {}", e),
+                )),
+            ))
+        }
+    }
 }
 
 /// GET /api/ar/refunds/{id} - Get a specific refund
@@ -281,7 +329,10 @@ pub async fn get_refund(
     .ok_or_else(|| {
         (
             StatusCode::NOT_FOUND,
-            Json(ErrorResponse::new("not_found", format!("Refund {} not found", id))),
+            Json(ErrorResponse::new(
+                "not_found",
+                format!("Refund {} not found", id),
+            )),
         )
     })?;
 

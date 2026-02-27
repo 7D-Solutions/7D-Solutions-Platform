@@ -9,6 +9,8 @@ use sqlx::PgPool;
 use crate::models::{
     CaptureChargeRequest, Charge, CreateChargeRequest, Customer, ErrorResponse, ListChargesQuery,
 };
+use crate::tilled::types::checked_i32_to_i64;
+use crate::tilled::TilledClient;
 
 /// POST /api/ar/charges - Create a new charge
 pub async fn create_charge(
@@ -448,38 +450,82 @@ pub async fn capture_charge(
         ));
     }
 
-    // TODO: Integrate with Tilled API to capture the charge
-    // For now, update status to succeeded (captured and processing)
-
-    let charge = sqlx::query_as::<_, Charge>(
-        r#"
-        UPDATE ar_charges
-        SET status = 'succeeded', amount_cents = $1, updated_at = NOW()
-        WHERE id = $2
-        RETURNING
-            id, app_id, tilled_charge_id, invoice_id, ar_customer_id, subscription_id,
-            status, amount_cents, currency, charge_type, reason, reference_id,
-            service_date, note, metadata, failure_code, failure_message,
-            product_type, quantity, service_frequency, weight_amount, location_reference,
-            created_at, updated_at
-        "#,
-    )
-    .bind(capture_amount)
-    .bind(id)
-    .fetch_one(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to capture charge: {:?}", e);
+    // Require a provider ID — capture only works on charges that Tilled knows about
+    let tilled_charge_id = existing.tilled_charge_id.as_deref().ok_or_else(|| {
         (
-            StatusCode::INTERNAL_SERVER_ERROR,
+            StatusCode::CONFLICT,
             Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to capture charge: {}", e),
+                "conflict",
+                "Charge has no provider ID — cannot capture until provider confirms authorization",
             )),
         )
     })?;
 
-    tracing::info!("Captured charge {} (amount: {})", id, capture_amount);
+    let client = TilledClient::from_env(&app_id).map_err(|e| {
+        tracing::error!("Failed to create Tilled client: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new(
+                "provider_config_error",
+                format!("Failed to initialize payment provider: {}", e),
+            )),
+        )
+    })?;
 
-    Ok(Json(charge))
+    let capture_amount_i64 = checked_i32_to_i64(capture_amount);
+
+    match client
+        .capture_payment_intent(tilled_charge_id, Some(capture_amount_i64))
+        .await
+    {
+        Ok(pi) => {
+            let new_status = if pi.status == "succeeded" {
+                "succeeded"
+            } else {
+                &pi.status
+            };
+
+            let charge = sqlx::query_as::<_, Charge>(
+                r#"
+                UPDATE ar_charges
+                SET status = $1, amount_cents = $2, updated_at = NOW()
+                WHERE id = $3
+                RETURNING
+                    id, app_id, tilled_charge_id, invoice_id, ar_customer_id, subscription_id,
+                    status, amount_cents, currency, charge_type, reason, reference_id,
+                    service_date, note, metadata, failure_code, failure_message,
+                    product_type, quantity, service_frequency, weight_amount, location_reference,
+                    created_at, updated_at
+                "#,
+            )
+            .bind(new_status)
+            .bind(capture_amount)
+            .bind(id)
+            .fetch_one(&db)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to update charge after capture: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ErrorResponse::new(
+                        "database_error",
+                        format!("Failed to update charge: {}", e),
+                    )),
+                )
+            })?;
+
+            tracing::info!("Captured charge {} (amount: {})", id, capture_amount);
+            Ok(Json(charge))
+        }
+        Err(e) => {
+            tracing::error!("Tilled capture failed for charge {}: {:?}", id, e);
+            Err((
+                StatusCode::BAD_GATEWAY,
+                Json(ErrorResponse::new(
+                    "provider_error",
+                    format!("Payment provider capture failed: {}", e),
+                )),
+            ))
+        }
+    }
 }

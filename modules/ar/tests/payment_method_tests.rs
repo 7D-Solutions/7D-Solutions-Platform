@@ -250,10 +250,12 @@ async fn test_update_payment_method_success() {
     common::teardown_pool(pool).await;
 }
 
-/// TEST 7: Delete payment method (soft delete)
+/// TEST 7: Delete payment method — validates provider detach path is wired
+/// Without Tilled sandbox credentials, the route returns a provider error.
+/// Full success path is tested in bd-1upz sandbox harness.
 #[tokio::test]
 #[serial]
-async fn test_delete_payment_method_success() {
+async fn test_delete_payment_method_reaches_provider() {
     let pool = common::setup_pool().await;
     let app = common::app(&pool);
 
@@ -271,10 +273,15 @@ async fn test_delete_payment_method_success() {
         .await
         .unwrap();
 
-    // Assert 204 No Content
-    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+    // Without sandbox credentials, expect provider config/API error
+    assert!(
+        response.status() == StatusCode::INTERNAL_SERVER_ERROR
+            || response.status() == StatusCode::BAD_GATEWAY,
+        "Expected provider error without sandbox credentials, got: {}",
+        response.status()
+    );
 
-    // Verify soft delete in database (deleted_at should be set)
+    // Verify payment method was NOT deleted (failure safety)
     let deleted_at: Option<chrono::NaiveDateTime> =
         sqlx::query_scalar("SELECT deleted_at FROM ar_payment_methods WHERE id = $1")
             .bind(pm_id)
@@ -282,18 +289,9 @@ async fn test_delete_payment_method_success() {
             .await
             .unwrap();
     assert!(
-        deleted_at.is_some(),
-        "Payment method should be soft deleted"
+        deleted_at.is_none(),
+        "Payment method should NOT be soft deleted on provider failure"
     );
-
-    // Verify is_default is cleared
-    let is_default: bool =
-        sqlx::query_scalar("SELECT is_default FROM ar_payment_methods WHERE id = $1")
-            .bind(pm_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
-    assert_eq!(is_default, false, "Default flag should be cleared");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
