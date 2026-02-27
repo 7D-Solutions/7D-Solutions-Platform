@@ -1,8 +1,11 @@
+pub mod accounts;
+pub mod balance_transaction;
 pub mod customer;
 pub mod dispute;
 pub mod error;
 pub mod payment_intent;
 pub mod payment_method;
+pub mod payouts;
 pub mod refund;
 pub mod subscription;
 pub mod types;

@@ -161,6 +161,66 @@ pub struct Dispute {
     pub created_at: Option<String>,
 }
 
+/// Connected account response from Tilled API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectedAccount {
+    pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub email: Option<String>,
+    pub status: String,
+    #[serde(default)]
+    pub capabilities: Option<serde_json::Value>,
+    #[serde(default)]
+    pub bank_accounts: Option<Vec<serde_json::Value>>,
+    #[serde(default)]
+    pub metadata: Option<Metadata>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+}
+
+/// Payout response from Tilled API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Payout {
+    pub id: String,
+    #[serde(default)]
+    pub amount: Option<i64>,
+    #[serde(default)]
+    pub currency: Option<String>,
+    pub status: String,
+    #[serde(default)]
+    pub arrival_date: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+}
+
+/// Balance transaction response from Tilled API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BalanceTransaction {
+    pub id: String,
+    pub amount: f64,
+    #[serde(default)]
+    pub fee: Option<f64>,
+    #[serde(default)]
+    pub net: Option<f64>,
+    #[serde(default)]
+    pub currency: Option<String>,
+    pub status: String,
+    #[serde(default)]
+    pub source_type: Option<String>,
+    #[serde(default)]
+    pub source_id: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub payout_id: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+}
+
 /// List response wrapper — Tilled uses `items` as the array field
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListResponse<T> {
@@ -214,7 +274,10 @@ pub fn checked_i64_to_i32(amount: i64) -> Result<i32, TilledError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{checked_i32_to_i64, checked_i64_to_i32, normalize_currency, SupportedCurrency};
+    use super::{
+        checked_i32_to_i64, checked_i64_to_i32, normalize_currency, BalanceTransaction,
+        ConnectedAccount, Payout, SupportedCurrency,
+    };
 
     #[test]
     fn currency_normalizes_to_lowercase_usd() {
@@ -243,5 +306,55 @@ mod tests {
     #[test]
     fn amount_conversion_rejects_out_of_range_i64() {
         assert!(checked_i64_to_i32(i64::from(i32::MAX) + 1).is_err());
+    }
+
+    #[test]
+    fn connected_account_serialization_round_trip() {
+        let value = serde_json::json!({
+            "id": "acct_123",
+            "status": "active",
+            "email": "merchant@example.com"
+        });
+        let account: ConnectedAccount = serde_json::from_value(value).unwrap();
+        assert_eq!(account.id, "acct_123");
+        assert_eq!(account.email.as_deref(), Some("merchant@example.com"));
+        assert!(account.capabilities.is_none());
+
+        let serialized = serde_json::to_value(account).unwrap();
+        assert_eq!(serialized.get("status").unwrap(), "active");
+    }
+
+    #[test]
+    fn payout_serialization_round_trip() {
+        let value = serde_json::json!({
+            "id": "po_123",
+            "status": "paid",
+            "amount": 5000
+        });
+        let payout: Payout = serde_json::from_value(value).unwrap();
+        assert_eq!(payout.id, "po_123");
+        assert_eq!(payout.amount, Some(5000));
+        assert!(payout.currency.is_none());
+
+        let serialized = serde_json::to_value(payout).unwrap();
+        assert_eq!(serialized.get("status").unwrap(), "paid");
+    }
+
+    #[test]
+    fn balance_transaction_serialization_round_trip() {
+        let value = serde_json::json!({
+            "id": "bt_123",
+            "amount": -22556.171,
+            "status": "posted",
+            "fee": -12.34
+        });
+        let txn: BalanceTransaction = serde_json::from_value(value).unwrap();
+        assert_eq!(txn.id, "bt_123");
+        assert_eq!(txn.amount, -22556.171);
+        assert_eq!(txn.fee, Some(-12.34));
+        assert!(txn.payout_id.is_none());
+
+        let serialized = serde_json::to_value(txn).unwrap();
+        assert_eq!(serialized.get("status").unwrap(), "posted");
     }
 }
