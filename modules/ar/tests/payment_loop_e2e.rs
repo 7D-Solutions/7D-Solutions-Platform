@@ -22,7 +22,7 @@ use serial_test::serial;
 use sha2::Sha256;
 use tower::ServiceExt;
 
-const APP_ID: &str = "test-app";
+const APP_ID: &str = "00000000-0000-0000-0000-000000000001";
 const WEBHOOK_SECRET: &str = "whsec_loop_test_secret";
 
 /// Set the webhook secret env vars so the AR router accepts our test payloads.
@@ -55,6 +55,7 @@ async fn deliver_webhook(
                 .uri("/api/ar/webhooks/tilled")
                 .header("content-type", "application/json")
                 .header("tilled-signature", sig)
+                .header("x-tilled-account", APP_ID)
                 .body(Body::from(payload_str.to_owned()))
                 .unwrap(),
         )

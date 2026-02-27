@@ -54,7 +54,29 @@ pub fn unique_reference_id() -> String {
 /// Uses the permissive variant (no permission enforcement) so mutation routes
 /// can be exercised without JWT infrastructure.
 pub fn app(pool: &PgPool) -> Router {
+    use axum::Extension;
+    use chrono::Utc;
+    use security::{claims::ActorType, VerifiedClaims};
+    use uuid::Uuid;
+
+    // Fixed UUID for "test-app" used in tests
+    let tenant_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+
+    let claims = VerifiedClaims {
+        user_id: Uuid::new_v4(),
+        tenant_id,
+        app_id: None,
+        roles: vec!["admin".to_string()],
+        perms: vec!["ar.mutate".to_string(), "ar.read".to_string()],
+        actor_type: ActorType::User,
+        issued_at: Utc::now(),
+        expires_at: Utc::now() + chrono::Duration::hours(1),
+        token_id: Uuid::new_v4(),
+        version: "1".to_string(),
+    };
+
     ar_rs::routes::ar_router_permissive(pool.clone())
+        .layer(Extension(claims))
 }
 
 /// Read response body as JSON.

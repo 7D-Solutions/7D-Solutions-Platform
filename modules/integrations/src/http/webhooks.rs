@@ -38,15 +38,20 @@ pub async fn inbound_webhook(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Json<Value>, (StatusCode, Json<Value>)> {
-    // ── Extract app_id from JWT VerifiedClaims ────────────────────────────
+    // ── Determine app_id ──────────────────────────────────────────────────
+    // Internal callers: extract from JWT claims.
+    // External webhooks (Stripe/GitHub/Tilled): derive from system-specific
+    // trusted sources — the payload account field or a provider-set header
+    // that is validated by signature verification.
     let app_id = match &claims {
         Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return Err((
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "Missing or invalid authentication" })),
-            ));
-        }
+        None => extract_app_id_from_webhook(&system, &headers, &body)
+            .map_err(|msg| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    Json(json!({ "error": msg })),
+                )
+            })?,
     };
 
     // ── Convert headers to HashMap<String, String> (lowercase) ────────────
@@ -110,6 +115,63 @@ pub async fn inbound_webhook(
                 Json(json!({ "error": "Internal error" })),
             ))
         }
+    }
+}
+
+/// Derive tenant (app_id) from system-specific trusted sources.
+///
+/// External webhooks are unauthenticated (no JWT), so tenant must come from
+/// the provider's own payload or headers — which are covered by HMAC signature
+/// verification. We never accept a generic user-supplied header.
+fn extract_app_id_from_webhook(
+    system: &str,
+    headers: &HeaderMap,
+    body: &Bytes,
+) -> Result<String, String> {
+    match system {
+        "stripe" => {
+            // Stripe Connect sets the account in the payload's `account` field
+            let payload: Value = serde_json::from_slice(body)
+                .map_err(|_| "Cannot parse payload for tenant extraction".to_string())?;
+            payload
+                .get("account")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .ok_or_else(|| {
+                    "Stripe webhook missing 'account' field — cannot determine tenant".to_string()
+                })
+        }
+        "tilled" => {
+            // Tilled sends account ID in x-tilled-account header (covered by signature)
+            headers
+                .get("x-tilled-account")
+                .and_then(|v| v.to_str().ok())
+                .map(str::to_string)
+                .ok_or_else(|| {
+                    "Tilled webhook missing x-tilled-account header".to_string()
+                })
+        }
+        "github" => {
+            // GitHub App webhooks include installation.account.id in the payload
+            let payload: Value = serde_json::from_slice(body)
+                .map_err(|_| "Cannot parse payload for tenant extraction".to_string())?;
+            payload
+                .pointer("/installation/account/id")
+                .and_then(|v| v.as_i64())
+                .map(|id| id.to_string())
+                .ok_or_else(|| {
+                    "GitHub webhook missing installation.account.id — cannot determine tenant"
+                        .to_string()
+                })
+        }
+        "internal" => {
+            // Internal system webhooks must carry JWT — reject if we got here
+            Err("Internal webhooks require JWT authentication".to_string())
+        }
+        other => Err(format!(
+            "Unsupported webhook system '{}' — cannot determine tenant",
+            other
+        )),
     }
 }
 

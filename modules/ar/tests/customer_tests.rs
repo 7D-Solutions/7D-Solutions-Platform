@@ -5,7 +5,7 @@ use axum::http::{Request, StatusCode};
 use serial_test::serial;
 use tower::ServiceExt;
 
-const APP_ID: &str = "test-app";
+const APP_ID: &str = "00000000-0000-0000-0000-000000000001";
 
 /// TEST 1: Create customer with valid data
 #[tokio::test]

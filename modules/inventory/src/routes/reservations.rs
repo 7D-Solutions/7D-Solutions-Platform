@@ -18,6 +18,7 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::{
         fulfill_service::{process_fulfill, FulfillError, FulfillRequest},
@@ -129,15 +130,9 @@ pub async fn post_reserve(
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<ReserveRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
     match process_reserve(&state.pool, &req).await {
@@ -169,15 +164,9 @@ pub async fn post_release(
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<ReleaseRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
     match process_release(&state.pool, &req).await {
@@ -266,15 +255,9 @@ pub async fn post_fulfill(
     Path(reservation_id): Path<Uuid>,
     Json(mut req): Json<FulfillRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
     // Inject path param into request body for consistency.

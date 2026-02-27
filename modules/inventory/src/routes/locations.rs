@@ -20,6 +20,7 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::locations::{
         CreateLocationRequest, LocationError, LocationRepo, UpdateLocationRequest,
@@ -77,15 +78,9 @@ pub async fn create_location(
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<CreateLocationRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
     match LocationRepo::create(&state.pool, &req).await {
@@ -102,15 +97,9 @@ pub async fn get_location(
     Path(id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     match LocationRepo::find_by_id(&state.pool, id, &tenant_id).await {
         Ok(Some(loc)) => (StatusCode::OK, Json(json!(loc))).into_response(),
@@ -132,15 +121,9 @@ pub async fn update_location(
     Path(id): Path<Uuid>,
     Json(mut req): Json<UpdateLocationRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
     match LocationRepo::update(&state.pool, id, &req).await {
@@ -157,15 +140,9 @@ pub async fn deactivate_location(
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     match LocationRepo::deactivate(&state.pool, id, &tenant_id).await {
         Ok(loc) => (StatusCode::OK, Json(json!(loc))).into_response(),
@@ -181,15 +158,9 @@ pub async fn list_locations(
     Path(warehouse_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     match LocationRepo::list_for_warehouse(&state.pool, &tenant_id, warehouse_id).await {
         Ok(locs) => (StatusCode::OK, Json(json!(locs))).into_response(),

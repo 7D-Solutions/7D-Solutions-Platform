@@ -16,12 +16,15 @@ use crate::{metrics, ops, AppState};
 /// Mutation routes (POST / PUT / DELETE) require the `integrations.mutate`
 /// permission in the caller's JWT.  Read routes are unenforced at this stage.
 pub fn router(state: Arc<AppState>) -> Router {
-    let mutations = Router::new()
-        // Inbound webhooks — write
+    let webhook_inbound = Router::new()
+        // Inbound webhooks — unauthenticated (gated by signature verification in handler)
         .route(
             "/api/webhooks/inbound/{system}",
             post(webhooks::inbound_webhook),
         )
+        .with_state(state.clone());
+
+    let mutations = Router::new()
         // External refs — write
         .route(
             "/api/integrations/external-refs",
@@ -79,5 +82,8 @@ pub fn router(state: Arc<AppState>) -> Router {
         )
         .with_state(state);
 
-    Router::new().merge(mutations).merge(reads)
+    Router::new()
+        .merge(mutations)
+        .merge(reads)
+        .merge(webhook_inbound)
 }

@@ -19,6 +19,7 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::items::{CreateItemRequest, ItemError, ItemRepo, UpdateItemRequest},
     AppState,
@@ -70,15 +71,9 @@ pub async fn create_item(
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<CreateItemRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
     match ItemRepo::create(&state.pool, &req).await {
@@ -97,15 +92,9 @@ pub async fn get_item(
     Path(id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
 
     match ItemRepo::find_by_id(&state.pool, id, &tenant_id).await {
@@ -131,15 +120,9 @@ pub async fn update_item(
     Path(id): Path<Uuid>,
     Json(mut req): Json<UpdateItemRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
     match ItemRepo::update(&state.pool, id, &req).await {
@@ -157,15 +140,9 @@ pub async fn deactivate_item(
     claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
 
     match ItemRepo::deactivate(&state.pool, id, &tenant_id).await {

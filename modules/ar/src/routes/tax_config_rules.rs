@@ -8,14 +8,17 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 use chrono::NaiveDate;
+use security::VerifiedClaims;
 use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::tax_config::{db_error, get_rule_by_id, row_to_rule, ErrorBody, RuleResponse};
+use super::tax_config::{
+    db_error, get_rule_by_id_and_tenant, row_to_rule, ErrorBody, RuleResponse,
+};
 
 // ============================================================================
 // Request / Response types — Rules
@@ -24,7 +27,6 @@ use super::tax_config::{db_error, get_rule_by_id, row_to_rule, ErrorBody, RuleRe
 #[derive(Debug, Deserialize)]
 pub struct CreateRuleRequest {
     pub jurisdiction_id: Uuid,
-    pub app_id: String,
     pub tax_code: Option<String>,
     pub rate: f64,
     pub flat_amount_minor: Option<i64>,
@@ -45,7 +47,6 @@ pub struct UpdateRuleRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ListRulesQuery {
-    pub app_id: String,
     pub jurisdiction_id: Option<Uuid>,
     /// If set, only return rules effective on this date.
     pub as_of: Option<NaiveDate>,
@@ -58,17 +59,13 @@ pub struct ListRulesQuery {
 /// POST /api/ar/tax/config/rules
 pub async fn create_rule(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<CreateRuleRequest>,
 ) -> impl IntoResponse {
-    if body.app_id.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: "app_id is required".into(),
-            }),
-        )
-            .into_response();
-    }
+    let app_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
 
     let flat = body.flat_amount_minor.unwrap_or(0);
     let is_exempt = body.is_exempt.unwrap_or(false);
@@ -77,7 +74,7 @@ pub async fn create_rule(
     let id = crate::tax::insert_tax_rule(
         &pool,
         body.jurisdiction_id,
-        &body.app_id,
+        &app_id,
         body.tax_code.as_deref(),
         body.rate,
         flat,
@@ -89,7 +86,7 @@ pub async fn create_rule(
     .await;
 
     match id {
-        Ok(id) => match get_rule_by_id(&pool, id).await {
+        Ok(id) => match get_rule_by_id_and_tenant(&pool, id, &app_id).await {
             Ok(Some(r)) => (StatusCode::CREATED, Json(r)).into_response(),
             Ok(None) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -107,17 +104,13 @@ pub async fn create_rule(
 /// GET /api/ar/tax/config/rules
 pub async fn list_rules(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<ListRulesQuery>,
 ) -> impl IntoResponse {
-    if q.app_id.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: "app_id is required".into(),
-            }),
-        )
-            .into_response();
-    }
+    let app_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
 
     let rows = sqlx::query_as::<_, (
         Uuid, Uuid, String, Option<String>, f64,
@@ -135,7 +128,7 @@ pub async fn list_rules(
         ORDER BY jurisdiction_id, priority DESC, effective_from DESC
         "#,
     )
-    .bind(&q.app_id)
+    .bind(&app_id)
     .bind(q.jurisdiction_id)
     .bind(q.as_of)
     .fetch_all(&pool)
@@ -153,9 +146,15 @@ pub async fn list_rules(
 /// GET /api/ar/tax/config/rules/:id
 pub async fn get_rule(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    match get_rule_by_id(&pool, id).await {
+    let app_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
+    match get_rule_by_id_and_tenant(&pool, id, &app_id).await {
         Ok(Some(r)) => (StatusCode::OK, Json(r)).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -171,9 +170,15 @@ pub async fn get_rule(
 /// PUT /api/ar/tax/config/rules/:id
 pub async fn update_rule(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateRuleRequest>,
 ) -> impl IntoResponse {
+    let app_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
     let result = sqlx::query(
         r#"
         UPDATE ar_tax_rules SET
@@ -183,7 +188,7 @@ pub async fn update_rule(
             effective_to     = COALESCE($5, effective_to),
             priority         = COALESCE($6, priority),
             updated_at       = NOW()
-        WHERE id = $1
+        WHERE id = $1 AND app_id = $7
         "#,
     )
     .bind(id)
@@ -192,6 +197,7 @@ pub async fn update_rule(
     .bind(body.is_exempt)
     .bind(body.effective_to)
     .bind(body.priority)
+    .bind(&app_id)
     .execute(&pool)
     .await;
 
@@ -203,7 +209,7 @@ pub async fn update_rule(
             }),
         )
             .into_response(),
-        Ok(_) => match get_rule_by_id(&pool, id).await {
+        Ok(_) => match get_rule_by_id_and_tenant(&pool, id, &app_id).await {
             Ok(Some(r)) => (StatusCode::OK, Json(r)).into_response(),
             Ok(None) => (
                 StatusCode::INTERNAL_SERVER_ERROR,

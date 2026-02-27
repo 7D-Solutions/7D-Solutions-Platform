@@ -9,9 +9,10 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 use chrono::NaiveDate;
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -22,7 +23,6 @@ use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct CreateJurisdictionRequest {
-    pub app_id: String,
     pub country_code: String,
     pub state_code: Option<String>,
     pub postal_pattern: Option<String>,
@@ -53,7 +53,6 @@ pub struct JurisdictionResponse {
 
 #[derive(Debug, Deserialize)]
 pub struct ListJurisdictionsQuery {
-    pub app_id: String,
     pub country_code: Option<String>,
     pub state_code: Option<String>,
     pub is_active: Option<bool>,
@@ -91,13 +90,19 @@ pub(crate) struct ErrorBody {
 /// POST /api/ar/tax/config/jurisdictions
 pub async fn create_jurisdiction(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Json(body): Json<CreateJurisdictionRequest>,
 ) -> impl IntoResponse {
-    if body.app_id.is_empty() || body.country_code.is_empty() || body.jurisdiction_name.is_empty() {
+    let app_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
+    if body.country_code.is_empty() || body.jurisdiction_name.is_empty() {
         return (
             StatusCode::BAD_REQUEST,
             Json(ErrorBody {
-                error: "app_id, country_code, and jurisdiction_name are required".into(),
+                error: "country_code and jurisdiction_name are required".into(),
             }),
         )
             .into_response();
@@ -107,7 +112,7 @@ pub async fn create_jurisdiction(
 
     let id = crate::tax::insert_jurisdiction(
         &pool,
-        &body.app_id,
+        &app_id,
         &body.country_code,
         body.state_code.as_deref(),
         body.postal_pattern.as_deref(),
@@ -117,7 +122,7 @@ pub async fn create_jurisdiction(
     .await;
 
     match id {
-        Ok(id) => match get_jurisdiction_by_id(&pool, id).await {
+        Ok(id) => match get_jurisdiction_by_id_and_tenant(&pool, id, &app_id).await {
             Ok(Some(j)) => (StatusCode::CREATED, Json(j)).into_response(),
             Ok(None) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -135,17 +140,13 @@ pub async fn create_jurisdiction(
 /// GET /api/ar/tax/config/jurisdictions
 pub async fn list_jurisdictions(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(q): Query<ListJurisdictionsQuery>,
 ) -> impl IntoResponse {
-    if q.app_id.is_empty() {
-        return (
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: "app_id is required".into(),
-            }),
-        )
-            .into_response();
-    }
+    let app_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
 
     let is_active = q.is_active.unwrap_or(true);
 
@@ -165,7 +166,7 @@ pub async fn list_jurisdictions(
         ORDER BY country_code, state_code, postal_pattern
         "#,
     )
-    .bind(&q.app_id)
+    .bind(&app_id)
     .bind(is_active)
     .bind(&q.country_code)
     .bind(&q.state_code)
@@ -185,9 +186,15 @@ pub async fn list_jurisdictions(
 /// GET /api/ar/tax/config/jurisdictions/:id
 pub async fn get_jurisdiction(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    match get_jurisdiction_by_id(&pool, id).await {
+    let app_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
+    match get_jurisdiction_by_id_and_tenant(&pool, id, &app_id).await {
         Ok(Some(j)) => (StatusCode::OK, Json(j)).into_response(),
         Ok(None) => (
             StatusCode::NOT_FOUND,
@@ -203,9 +210,15 @@ pub async fn get_jurisdiction(
 /// PUT /api/ar/tax/config/jurisdictions/:id
 pub async fn update_jurisdiction(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateJurisdictionRequest>,
 ) -> impl IntoResponse {
+    let app_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
     let result = sqlx::query(
         r#"
         UPDATE ar_tax_jurisdictions SET
@@ -213,13 +226,14 @@ pub async fn update_jurisdiction(
             tax_type = COALESCE($3, tax_type),
             is_active = COALESCE($4, is_active),
             updated_at = NOW()
-        WHERE id = $1
+        WHERE id = $1 AND app_id = $5
         "#,
     )
     .bind(id)
     .bind(&body.jurisdiction_name)
     .bind(&body.tax_type)
     .bind(body.is_active)
+    .bind(&app_id)
     .execute(&pool)
     .await;
 
@@ -231,7 +245,7 @@ pub async fn update_jurisdiction(
             }),
         )
             .into_response(),
-        Ok(_) => match get_jurisdiction_by_id(&pool, id).await {
+        Ok(_) => match get_jurisdiction_by_id_and_tenant(&pool, id, &app_id).await {
             Ok(Some(j)) => (StatusCode::OK, Json(j)).into_response(),
             Ok(None) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
@@ -250,9 +264,10 @@ pub async fn update_jurisdiction(
 // Shared helpers
 // ============================================================================
 
-pub(crate) async fn get_jurisdiction_by_id(
+pub(crate) async fn get_jurisdiction_by_id_and_tenant(
     pool: &PgPool,
     id: Uuid,
+    app_id: &str,
 ) -> Result<Option<JurisdictionResponse>, sqlx::Error> {
     let row = sqlx::query_as::<_, (
         Uuid, String, String, Option<String>, Option<String>,
@@ -263,19 +278,21 @@ pub(crate) async fn get_jurisdiction_by_id(
         SELECT id, app_id, country_code, state_code, postal_pattern,
                jurisdiction_name, tax_type, is_active, created_at, updated_at
         FROM ar_tax_jurisdictions
-        WHERE id = $1
+        WHERE id = $1 AND app_id = $2
         "#,
     )
     .bind(id)
+    .bind(app_id)
     .fetch_optional(pool)
     .await?;
 
     Ok(row.map(row_to_jurisdiction))
 }
 
-pub(crate) async fn get_rule_by_id(
+pub(crate) async fn get_rule_by_id_and_tenant(
     pool: &PgPool,
     id: Uuid,
+    app_id: &str,
 ) -> Result<Option<RuleResponse>, sqlx::Error> {
     let row = sqlx::query_as::<_, (
         Uuid, Uuid, String, Option<String>, f64,
@@ -287,10 +304,11 @@ pub(crate) async fn get_rule_by_id(
                flat_amount_minor, is_exempt, effective_from, effective_to, priority,
                created_at, updated_at
         FROM ar_tax_rules
-        WHERE id = $1
+        WHERE id = $1 AND app_id = $2
         "#,
     )
     .bind(id)
+    .bind(app_id)
     .fetch_optional(pool)
     .await?;
 

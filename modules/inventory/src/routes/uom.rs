@@ -19,6 +19,7 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::uom::models::{
         ConversionRepo, CreateConversionRequest, CreateUomRequest, UomError, UomRepo,
@@ -84,15 +85,9 @@ pub async fn create_uom(
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<CreateUomRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
     match UomRepo::create(&state.pool, &req).await {
@@ -108,15 +103,9 @@ pub async fn list_uoms(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     match UomRepo::list_for_tenant(&state.pool, &tenant_id).await {
         Ok(uoms) => (StatusCode::OK, Json(json!(uoms))).into_response(),
@@ -135,15 +124,9 @@ pub async fn create_conversion(
     Path(item_id): Path<Uuid>,
     Json(mut req): Json<CreateConversionRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
     match ConversionRepo::create(&state.pool, item_id, &req).await {
@@ -160,15 +143,9 @@ pub async fn list_conversions(
     Path(item_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     match ConversionRepo::list_for_item(&state.pool, item_id, &tenant_id).await {
         Ok(convs) => (StatusCode::OK, Json(json!(convs))).into_response(),

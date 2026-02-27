@@ -21,6 +21,7 @@ use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::{
         adjust_service::{process_adjustment, AdjustError, AdjustRequest},
@@ -122,15 +123,9 @@ pub async fn post_adjustment(
     Json(mut req): Json<AdjustRequest>,
 ) -> impl IntoResponse {
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
     match process_adjustment(&state.pool, &req, Some(&tracing_ctx)).await {

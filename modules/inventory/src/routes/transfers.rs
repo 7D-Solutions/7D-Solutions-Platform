@@ -16,6 +16,7 @@ use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::{
         guards::GuardError,
@@ -133,15 +134,9 @@ pub async fn post_transfer(
     Json(mut req): Json<TransferRequest>,
 ) -> impl IntoResponse {
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
-    let tenant_id = match &claims {
-        Some(Extension(c)) => c.tenant_id.to_string(),
-        None => {
-            return (
-                StatusCode::UNAUTHORIZED,
-                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
-            )
-                .into_response();
-        }
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
     match process_transfer(&state.pool, &req, Some(&tracing_ctx)).await {

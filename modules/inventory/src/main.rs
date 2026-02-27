@@ -251,6 +251,7 @@ mod tests {
             database_url: "postgresql://localhost/test".to_string(),
             host: "0.0.0.0".to_string(),
             port: 8092,
+            env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
         };
         let _layer = build_cors_layer(&config);
@@ -262,6 +263,7 @@ mod tests {
             database_url: "postgresql://localhost/test".to_string(),
             host: "0.0.0.0".to_string(),
             port: 8092,
+            env: "development".to_string(),
             cors_origins: vec![
                 "http://localhost:3000".to_string(),
                 "https://app.example.com".to_string(),

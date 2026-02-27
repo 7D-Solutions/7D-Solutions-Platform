@@ -8,7 +8,7 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use hex;
 
-const APP_ID: &str = "test-app";
+const APP_ID: &str = "00000000-0000-0000-0000-000000000001";
 const TEST_WEBHOOK_SECRET: &str = "whsec_test_secret";
 
 /// Set up test environment with webhook secret
@@ -68,7 +68,7 @@ async fn test_receive_webhook_valid_signature() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/ar/webhooks/tilled")
+                .uri("/api/ar/webhooks/tilled").header("x-tilled-account", APP_ID)
                 .header("content-type", "application/json")
                 .header("tilled-signature", format!("t={},v1={}", timestamp, signature))
                 .body(Body::from(payload_str))
@@ -125,7 +125,7 @@ async fn test_receive_webhook_invalid_signature() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/ar/webhooks/tilled")
+                .uri("/api/ar/webhooks/tilled").header("x-tilled-account", APP_ID)
                 .header("content-type", "application/json")
                 .header("tilled-signature", format!("t={},v1={}", timestamp, invalid_signature))
                 .body(Body::from(payload_str))
@@ -182,7 +182,7 @@ async fn test_receive_webhook_duplicate_event_id() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/ar/webhooks/tilled")
+                .uri("/api/ar/webhooks/tilled").header("x-tilled-account", APP_ID)
                 .header("content-type", "application/json")
                 .header("tilled-signature", format!("t={},v1={}", timestamp, signature))
                 .body(Body::from(payload_str))
@@ -457,7 +457,7 @@ async fn test_receive_webhook_missing_signature_header() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/ar/webhooks/tilled")
+                .uri("/api/ar/webhooks/tilled").header("x-tilled-account", APP_ID)
                 .header("content-type", "application/json")
                 .body(Body::from(payload_str))
                 .unwrap(),
@@ -512,7 +512,7 @@ async fn test_receive_webhook_stale_timestamp_rejected() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/ar/webhooks/tilled")
+                .uri("/api/ar/webhooks/tilled").header("x-tilled-account", APP_ID)
                 .header("content-type", "application/json")
                 .header("tilled-signature", format!("t={},v1={}", stale_ts, signature))
                 .body(Body::from(payload_str))
@@ -569,7 +569,7 @@ async fn test_receive_webhooks_out_of_order() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/ar/webhooks/tilled")
+                .uri("/api/ar/webhooks/tilled").header("x-tilled-account", APP_ID)
                 .header("content-type", "application/json")
                 .header("tilled-signature", format!("t={},v1={}", timestamp + 10, signature2))
                 .body(Body::from(payload2_str))
@@ -595,7 +595,7 @@ async fn test_receive_webhooks_out_of_order() {
         .oneshot(
             Request::builder()
                 .method("POST")
-                .uri("/api/ar/webhooks/tilled")
+                .uri("/api/ar/webhooks/tilled").header("x-tilled-account", APP_ID)
                 .header("content-type", "application/json")
                 .header("tilled-signature", format!("t={},v1={}", timestamp, signature1))
                 .body(Body::from(payload1_str))

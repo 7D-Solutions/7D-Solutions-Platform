@@ -127,17 +127,16 @@ pub async fn bill_usage_for_invoice(
 
         // Step 2a: Insert invoice line item
         // Cast quantity string to NUMERIC via SQL
-        let line_item_id: i32 = sqlx::query_scalar(&format!(
+        let line_item_id: i32 = sqlx::query_scalar(
             r#"
             INSERT INTO ar_invoice_line_items (
                 app_id, invoice_id, line_item_type, description,
                 quantity, unit_price_cents, amount_cents, created_at
             )
-            VALUES ($1, $2, 'metered_usage', $3, {}::NUMERIC, $4, $5, NOW())
+            VALUES ($1, $2, 'metered_usage', $3, $4, $5, $6, NOW())
             RETURNING id
             "#,
-            qty
-        ))
+        )
         .bind(&req.app_id)
         .bind(req.invoice_id)
         .bind(format!(
@@ -146,6 +145,7 @@ pub async fn bill_usage_for_invoice(
             row.period_start.format("%Y-%m-%d"),
             row.period_end.format("%Y-%m-%d")
         ))
+        .bind(qty)
         .bind(row.unit_price_cents)
         .bind(amount_cents)
         .fetch_one(&mut *tx)

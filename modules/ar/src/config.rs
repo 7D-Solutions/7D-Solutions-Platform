@@ -195,6 +195,8 @@ mod tests {
             port: 8086,
             party_master_url: "http://7d-party:8098".to_string(),
             webhook_secret: "whsec_test".to_string(),
+            env: "development".to_string(),
+            cors_origins: vec!["*".to_string()],
         };
 
         let err = config.validate().unwrap_err();
@@ -211,6 +213,8 @@ mod tests {
             port: 8086,
             party_master_url: "http://7d-party:8098".to_string(),
             webhook_secret: "whsec_test".to_string(),
+            env: "development".to_string(),
+            cors_origins: vec!["*".to_string()],
         };
 
         let err = config.validate().unwrap_err();
@@ -227,6 +231,8 @@ mod tests {
             port: 8086,
             party_master_url: "http://7d-party:8098".to_string(),
             webhook_secret: "".to_string(),
+            env: "development".to_string(),
+            cors_origins: vec!["*".to_string()],
         };
 
         let err = config.validate().unwrap_err();
@@ -243,6 +249,8 @@ mod tests {
             port: 8086,
             party_master_url: "http://7d-party:8098".to_string(),
             webhook_secret: "whsec_test".to_string(),
+            env: "development".to_string(),
+            cors_origins: vec!["*".to_string()],
         };
 
         assert!(config.validate().is_ok());
@@ -255,6 +263,8 @@ mod tests {
             port: 8086,
             party_master_url: "http://7d-party:8098".to_string(),
             webhook_secret: "whsec_test".to_string(),
+            env: "development".to_string(),
+            cors_origins: vec!["*".to_string()],
         };
 
         assert!(config_nats.validate().is_ok());

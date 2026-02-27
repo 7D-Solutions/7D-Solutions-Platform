@@ -7,9 +7,10 @@ use axum::{
     extract::{Query, State},
     http::{header, StatusCode},
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 use chrono::NaiveDate;
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
@@ -21,14 +22,12 @@ use crate::tax::reporting;
 
 #[derive(Debug, Deserialize)]
 pub struct TaxReportQuery {
-    pub app_id: String,
     pub from: NaiveDate,
     pub to: NaiveDate,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct TaxExportQuery {
-    pub app_id: String,
     pub from: NaiveDate,
     pub to: NaiveDate,
     /// "csv" or "json" (default: "json")
@@ -66,8 +65,14 @@ struct ErrorBody {
 /// Returns AR collected-tax summaries grouped by period and jurisdiction.
 pub async fn tax_report_summary(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<TaxReportQuery>,
 ) -> impl IntoResponse {
+    let app_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
     if params.from >= params.to {
         return (
             StatusCode::BAD_REQUEST,
@@ -78,13 +83,13 @@ pub async fn tax_report_summary(
             .into_response();
     }
 
-    match reporting::tax_summary_by_period(&pool, &params.app_id, params.from, params.to).await {
+    match reporting::tax_summary_by_period(&pool, &app_id, params.from, params.to).await {
         Ok(rows) => {
             let total_tax: i64 = rows.iter().map(|r| r.total_tax_minor).sum();
             let total_inv: i64 = rows.iter().map(|r| r.invoice_count).sum();
 
             let resp = TaxReportResponse {
-                app_id: params.app_id,
+                app_id,
                 from: params.from.to_string(),
                 to: params.to.to_string(),
                 rows,
@@ -113,8 +118,14 @@ pub async fn tax_report_summary(
 /// Returns AR collected-tax summaries as a deterministic CSV or JSON file.
 pub async fn tax_report_export(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<TaxExportQuery>,
 ) -> impl IntoResponse {
+    let app_id = match super::tenant::extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
     if params.from >= params.to {
         return (
             StatusCode::BAD_REQUEST,
@@ -126,7 +137,7 @@ pub async fn tax_report_export(
     }
 
     let rows =
-        match reporting::tax_summary_by_period(&pool, &params.app_id, params.from, params.to)
+        match reporting::tax_summary_by_period(&pool, &app_id, params.from, params.to)
             .await
         {
             Ok(r) => r,
@@ -157,7 +168,7 @@ pub async fn tax_report_export(
             let total_inv: i64 = rows.iter().map(|r| r.invoice_count).sum();
 
             let resp = TaxReportResponse {
-                app_id: params.app_id,
+                app_id,
                 from: params.from.to_string(),
                 to: params.to.to_string(),
                 rows,
