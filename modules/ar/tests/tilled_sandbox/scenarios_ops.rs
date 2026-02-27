@@ -5,10 +5,11 @@
 #[cfg(test)]
 mod tests {
     use crate::tilled_sandbox::helpers::{
-        cleanup_customer, cleanup_payment_method, cleanup_subscription,
+        cleanup_customer, cleanup_payment_method, cleanup_subscription, minimal_png,
         try_create_test_payment_method, unique_email, RetryPolicy,
     };
     use crate::tilled_sandbox::try_sandbox_client;
+    use ar_rs::tilled::dispute::{EvidenceFile, SubmitEvidenceRequest};
     use ar_rs::tilled::subscription::SubscriptionOptions;
 
     fn sandbox_config() -> Option<(String, String, String)> {
@@ -71,27 +72,30 @@ mod tests {
             dispute.id, dispute.status
         );
 
-        let evidence = ar_rs::tilled::dispute::SubmitEvidenceRequest {
+        let evidence = SubmitEvidenceRequest {
             description: Some(format!(
                 "REVERSAL - automated sandbox test run {}",
                 uuid::Uuid::new_v4()
             )),
-            files: None,
+            files: Some(vec![EvidenceFile {
+                file_id: client
+                    .upload_file(
+                        minimal_png(),
+                        "evidence-ops.png",
+                        "image/png",
+                        "dispute_evidence",
+                    )
+                    .await
+                    .expect("upload_file failed")
+                    .id,
+                evidence_type: "service_documentation".to_string(),
+            }]),
         };
 
-        let updated = match client.submit_dispute_evidence(&dispute.id, evidence).await {
-            Ok(updated) => updated,
-            Err(ar_rs::tilled::error::TilledError::ApiError {
-                status_code: 400,
-                message,
-            }) if message.contains("Must provide at least one file") => {
-                eprintln!(
-                    "SKIP: dispute evidence API requires file uploads in this sandbox account"
-                );
-                return;
-            }
-            Err(e) => panic!("submit_dispute_evidence failed: {e}"),
-        };
+        let updated = client
+            .submit_dispute_evidence(&dispute.id, evidence)
+            .await
+            .expect("submit_dispute_evidence failed");
 
         eprintln!(
             "[scenario-05] evidence submitted, dispute status: {}",

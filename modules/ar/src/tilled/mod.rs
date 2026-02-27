@@ -3,6 +3,7 @@ pub mod balance_transaction;
 pub mod customer;
 pub mod dispute;
 pub mod error;
+pub mod files;
 pub mod payment_intent;
 pub mod payment_method;
 pub mod payouts;

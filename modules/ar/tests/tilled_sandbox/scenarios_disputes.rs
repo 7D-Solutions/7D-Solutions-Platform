@@ -3,13 +3,13 @@
 #[cfg(test)]
 mod tests {
     use crate::tilled_sandbox::helpers::{
-        cleanup_customer, cleanup_payment_method, try_create_test_payment_method, unique_email,
-        RetryPolicy,
+        cleanup_customer, cleanup_payment_method, minimal_png, try_create_test_payment_method,
+        unique_email, RetryPolicy,
     };
     use crate::tilled_sandbox::try_sandbox_client;
-    use ar_rs::tilled::dispute::SubmitEvidenceRequest;
+    use ar_rs::tilled::dispute::{EvidenceFile, SubmitEvidenceRequest};
     use ar_rs::tilled::types::Dispute;
-    use ar_rs::tilled::{error::TilledError, TilledClient};
+    use ar_rs::tilled::TilledClient;
     use std::time::{Duration, Instant};
 
     const DISPUTE_TRIGGER_AMOUNT: i64 = 777_799;
@@ -26,14 +26,6 @@ mod tests {
 
     fn is_evidence_eligible(status: &str) -> bool {
         status == "needs_response" || status == "warning_needs_response"
-    }
-
-    fn is_file_required_error(error: &TilledError) -> bool {
-        matches!(
-            error,
-            TilledError::ApiError { status_code: 400, message }
-                if message.contains("Must provide at least one file")
-        )
     }
 
     async fn wait_for_dispute(
@@ -174,10 +166,7 @@ mod tests {
             "[scenario-08] charge={} dispute={} status={}",
             charge_id, dispute.id, dispute.status
         );
-        assert_eq!(
-            dispute.charge_id.as_deref(),
-            Some(charge_id.as_str())
-        );
+        assert_eq!(dispute.charge_id.as_deref(), Some(charge_id.as_str()));
         assert!(!dispute.id.is_empty());
 
         cleanup_entities(&client, &customer_id, &pm_id).await;
@@ -218,17 +207,24 @@ mod tests {
                 "REVERSAL - sandbox scenario 09 {}",
                 uuid::Uuid::new_v4()
             )),
-            files: None,
+            files: Some(vec![EvidenceFile {
+                file_id: client
+                    .upload_file(
+                        minimal_png(),
+                        "evidence-reversal.png",
+                        "image/png",
+                        "dispute_evidence",
+                    )
+                    .await
+                    .expect("upload_file failed")
+                    .id,
+                evidence_type: "service_documentation".to_string(),
+            }]),
         };
-        let updated = match client.submit_dispute_evidence(&dispute.id, evidence).await {
-            Ok(v) => v,
-            Err(e) if is_file_required_error(&e) => {
-                eprintln!("SKIP: sandbox requires file upload for evidence");
-                cleanup_entities(&client, &customer_id, &pm_id).await;
-                return;
-            }
-            Err(e) => panic!("submit_dispute_evidence failed: {e}"),
-        };
+        let updated = client
+            .submit_dispute_evidence(&dispute.id, evidence)
+            .await
+            .expect("submit_dispute_evidence failed");
 
         eprintln!(
             "[scenario-09] charge={} dispute={} status_after={}",
@@ -274,17 +270,24 @@ mod tests {
                 "LOSS - sandbox scenario 10 {}",
                 uuid::Uuid::new_v4()
             )),
-            files: None,
+            files: Some(vec![EvidenceFile {
+                file_id: client
+                    .upload_file(
+                        minimal_png(),
+                        "evidence-loss.png",
+                        "image/png",
+                        "dispute_evidence",
+                    )
+                    .await
+                    .expect("upload_file failed")
+                    .id,
+                evidence_type: "service_documentation".to_string(),
+            }]),
         };
-        let updated = match client.submit_dispute_evidence(&dispute.id, evidence).await {
-            Ok(v) => v,
-            Err(e) if is_file_required_error(&e) => {
-                eprintln!("SKIP: sandbox requires file upload for evidence");
-                cleanup_entities(&client, &customer_id, &pm_id).await;
-                return;
-            }
-            Err(e) => panic!("submit_dispute_evidence failed: {e}"),
-        };
+        let updated = client
+            .submit_dispute_evidence(&dispute.id, evidence)
+            .await
+            .expect("submit_dispute_evidence failed");
 
         eprintln!(
             "[scenario-10] charge={} dispute={} status_after={}",

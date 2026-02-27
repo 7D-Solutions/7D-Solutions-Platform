@@ -7,7 +7,7 @@ use security::VerifiedClaims;
 use sqlx::PgPool;
 
 use crate::models::{Dispute, ErrorResponse, ListDisputesQuery, SubmitDisputeEvidenceRequest};
-use crate::tilled::dispute::SubmitEvidenceRequest;
+use crate::tilled::dispute::{EvidenceFile, SubmitEvidenceRequest};
 use crate::tilled::TilledClient;
 
 /// GET /api/ar/disputes - List disputes with optional filters
@@ -219,7 +219,25 @@ pub async fn submit_dispute_evidence(
     let files = req.evidence.get("files").and_then(|v| {
         v.as_array().map(|arr| {
             arr.iter()
-                .filter_map(|entry| entry.as_str().map(String::from))
+                .filter_map(|entry| {
+                    if let Some(file_id) = entry.as_str() {
+                        Some(EvidenceFile {
+                            file_id: file_id.to_string(),
+                            evidence_type: "uncategorized".to_string(),
+                        })
+                    } else {
+                        let file_id = entry.get("file_id").and_then(|v| v.as_str())?;
+                        let evidence_type = entry
+                            .get("type")
+                            .and_then(|v| v.as_str())
+                            .or_else(|| entry.get("evidence_type").and_then(|v| v.as_str()))
+                            .unwrap_or("uncategorized");
+                        Some(EvidenceFile {
+                            file_id: file_id.to_string(),
+                            evidence_type: evidence_type.to_string(),
+                        })
+                    }
+                })
                 .collect::<Vec<_>>()
         })
     });
