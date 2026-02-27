@@ -389,6 +389,69 @@ mod tests {
     }
 
     #[test]
+    fn dispute_serialization_with_charge_id() {
+        use super::Dispute;
+        let value = serde_json::json!({
+            "id": "dp_123",
+            "charge_id": "ch_456",
+            "status": "needs_response",
+            "amount": 777799,
+            "reason_description": "fraudulent"
+        });
+        let dispute: Dispute = serde_json::from_value(value).unwrap();
+        assert_eq!(dispute.id, "dp_123");
+        assert_eq!(dispute.charge_id.as_deref(), Some("ch_456"));
+        assert_eq!(dispute.status, "needs_response");
+        assert_eq!(dispute.amount, Some(777799));
+        assert_eq!(
+            dispute.reason_description.as_deref(),
+            Some("fraudulent")
+        );
+    }
+
+    #[test]
+    fn dispute_alias_payment_intent_id_maps_to_charge_id() {
+        use super::Dispute;
+        let value = serde_json::json!({
+            "id": "dp_789",
+            "payment_intent_id": "pi_legacy",
+            "status": "won",
+            "reason": "general"
+        });
+        let dispute: Dispute = serde_json::from_value(value).unwrap();
+        assert_eq!(dispute.charge_id.as_deref(), Some("pi_legacy"));
+        assert_eq!(dispute.reason_description.as_deref(), Some("general"));
+    }
+
+    #[test]
+    fn payment_intent_charges_array_deserializes() {
+        use super::PaymentIntent;
+        let value = serde_json::json!({
+            "id": "pi_abc",
+            "amount": 5000,
+            "currency": "usd",
+            "status": "succeeded",
+            "charges": [{"id": "ch_xyz", "status": "succeeded", "amount": 5000}]
+        });
+        let pi: PaymentIntent = serde_json::from_value(value).unwrap();
+        assert_eq!(pi.charges.len(), 1);
+        assert_eq!(pi.charges[0].id, "ch_xyz");
+    }
+
+    #[test]
+    fn payment_intent_empty_charges_defaults() {
+        use super::PaymentIntent;
+        let value = serde_json::json!({
+            "id": "pi_no_charges",
+            "amount": 1000,
+            "currency": "usd",
+            "status": "requires_payment_method"
+        });
+        let pi: PaymentIntent = serde_json::from_value(value).unwrap();
+        assert!(pi.charges.is_empty());
+    }
+
+    #[test]
     fn user_serialization_round_trip() {
         let value = serde_json::json!({
             "id": "usr_123",
