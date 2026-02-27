@@ -3,14 +3,11 @@
 #[cfg(test)]
 mod tests {
     use crate::tilled_sandbox::helpers::{
-        cleanup_customer, cleanup_payment_method, try_create_test_payment_method, unique_email,
-        RetryPolicy,
+        cleanup_customer, cleanup_payment_method, create_test_payment_method,
+        try_create_test_payment_method, unique_email, RetryPolicy,
     };
     use crate::tilled_sandbox::try_sandbox_client;
-    use ar_rs::tilled::payment_method::{
-        AddressRequest, BillingDetailsRequest, CardDetailsRequest, CreatePaymentMethodRequest,
-        UpdatePaymentMethodRequest,
-    };
+    use ar_rs::tilled::payment_method::{BillingDetailsRequest, UpdatePaymentMethodRequest};
     use std::collections::HashMap;
 
     fn sandbox_config() -> Option<(String, String, String)> {
@@ -175,45 +172,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn d4_create_payment_method() {
+    async fn d4_create_payment_method_via_helper() {
         let client = match try_sandbox_client() {
             Some(c) => c,
             None => return,
         };
-        let retry = RetryPolicy::default();
-
-        let req = CreatePaymentMethodRequest {
-            payment_type: "card".to_string(),
-            billing_details: Some(BillingDetailsRequest {
-                name: Some("PM Create Test".to_string()),
-                email: Some(unique_email()),
-                address: Some(AddressRequest {
-                    line1: None,
-                    line2: None,
-                    city: None,
-                    state: None,
-                    postal_code: None,
-                    country: Some("US".to_string()),
-                    zip: Some("90210".to_string()),
-                }),
-            }),
-            card: Some(CardDetailsRequest {
-                number: "4111111111111111".to_string(),
-                exp_month: 12,
-                exp_year: 2030,
-                cvv: "123".to_string(),
-            }),
-            nick_name: Some("sandbox-create".to_string()),
+        let (sk, acct, base_url) = match sandbox_config() {
+            Some(c) => c,
+            None => return,
         };
 
-        let pm = retry
-            .execute(|| {
-                let c = client.clone();
-                let r = req.clone();
-                async move { c.create_payment_method(r).await }
-            })
+        let pm = create_test_payment_method(&sk, &acct, &base_url)
             .await
-            .expect("create_payment_method failed");
+            .expect("create_test_payment_method failed");
 
         assert!(!pm.id.is_empty());
         assert_eq!(pm.payment_type, "card");
@@ -227,30 +198,15 @@ mod tests {
             Some(c) => c,
             None => return,
         };
+        let (sk, acct, base_url) = match sandbox_config() {
+            Some(c) => c,
+            None => return,
+        };
         let retry = RetryPolicy::default();
 
-        let created = retry
-            .execute(|| {
-                let c = client.clone();
-                let req = CreatePaymentMethodRequest {
-                    payment_type: "card".to_string(),
-                    billing_details: Some(BillingDetailsRequest {
-                        name: Some("PM Update Before".to_string()),
-                        email: Some(unique_email()),
-                        address: None,
-                    }),
-                    card: Some(CardDetailsRequest {
-                        number: "4111111111111111".to_string(),
-                        exp_month: 12,
-                        exp_year: 2030,
-                        cvv: "123".to_string(),
-                    }),
-                    nick_name: Some("before".to_string()),
-                };
-                async move { c.create_payment_method(req).await }
-            })
+        let created = create_test_payment_method(&sk, &acct, &base_url)
             .await
-            .expect("create_payment_method failed");
+            .expect("create_test_payment_method failed");
 
         let updated = retry
             .execute(|| {

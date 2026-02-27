@@ -10,14 +10,6 @@ pub struct AttachPaymentMethodRequest {
 }
 
 #[derive(Debug, Serialize, Clone)]
-pub struct CardDetailsRequest {
-    pub number: String,
-    pub exp_month: i32,
-    pub exp_year: i32,
-    pub cvv: String,
-}
-
-#[derive(Debug, Serialize, Clone)]
 pub struct AddressRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub line1: Option<String>,
@@ -46,18 +38,6 @@ pub struct BillingDetailsRequest {
 }
 
 #[derive(Debug, Serialize, Clone)]
-pub struct CreatePaymentMethodRequest {
-    #[serde(rename = "type")]
-    pub payment_type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub billing_details: Option<BillingDetailsRequest>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub card: Option<CardDetailsRequest>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub nick_name: Option<String>,
-}
-
-#[derive(Debug, Serialize, Clone)]
 pub struct UpdatePaymentMethodRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub billing_details: Option<BillingDetailsRequest>,
@@ -66,14 +46,6 @@ pub struct UpdatePaymentMethodRequest {
 }
 
 impl TilledClient {
-    /// Create a payment method (sandbox supports server-side card details for test cards).
-    pub async fn create_payment_method(
-        &self,
-        request: CreatePaymentMethodRequest,
-    ) -> Result<PaymentMethod, TilledError> {
-        self.post("/v1/payment-methods", &request).await
-    }
-
     /// Attach a payment method to a customer
     pub async fn attach_payment_method(
         &self,
@@ -154,10 +126,7 @@ fn build_list_payment_methods_params(customer_id: &str, pm_type: &str) -> HashMa
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        build_list_payment_methods_params, AddressRequest, BillingDetailsRequest,
-        CreatePaymentMethodRequest,
-    };
+    use super::build_list_payment_methods_params;
 
     #[test]
     fn list_payment_methods_query_includes_customer_and_type() {
@@ -167,29 +136,5 @@ mod tests {
             Some("cus_123")
         );
         assert_eq!(params.get("type").map(String::as_str), Some("card"));
-    }
-
-    #[test]
-    fn create_payment_method_payload_uses_type_field() {
-        let payload = CreatePaymentMethodRequest {
-            payment_type: "card".to_string(),
-            billing_details: Some(BillingDetailsRequest {
-                name: Some("Sandbox Test".to_string()),
-                email: None,
-                address: Some(AddressRequest {
-                    line1: None,
-                    line2: None,
-                    city: None,
-                    state: None,
-                    postal_code: None,
-                    country: Some("US".to_string()),
-                    zip: Some("90210".to_string()),
-                }),
-            }),
-            card: None,
-            nick_name: None,
-        };
-        let json = serde_json::to_value(payload).unwrap();
-        assert_eq!(json.get("type").unwrap(), "card");
     }
 }
