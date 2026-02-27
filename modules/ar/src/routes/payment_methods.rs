@@ -94,12 +94,15 @@ pub async fn add_payment_method(
         )
     })?;
 
+    // Local-first, low-code pattern: status starts as 'pending_sync'.
+    // The provider webhook (payment_method.attached) will set card details
+    // (brand, last4, etc.) and transition status to 'active'.
     let payment_method = if let Some(_pm) = existing {
         // Update existing record (reactivate if deleted)
         sqlx::query_as::<_, PaymentMethod>(
             r#"
             UPDATE ar_payment_methods
-            SET app_id = $1, ar_customer_id = $2, status = 'pending',
+            SET app_id = $1, ar_customer_id = $2, status = 'pending_sync',
                 deleted_at = NULL, updated_at = NOW()
             WHERE tilled_payment_method_id = $3
             RETURNING
@@ -125,14 +128,14 @@ pub async fn add_payment_method(
             )
         })?
     } else {
-        // Create new payment method record (local-first pattern)
+        // Create new payment method record
         sqlx::query_as::<_, PaymentMethod>(
             r#"
             INSERT INTO ar_payment_methods (
                 app_id, ar_customer_id, tilled_payment_method_id,
                 type, status, is_default, metadata, created_at, updated_at
             )
-            VALUES ($1, $2, $3, 'card', 'pending', FALSE, '{}', NOW(), NOW())
+            VALUES ($1, $2, $3, 'card', 'pending_sync', FALSE, '{}', NOW(), NOW())
             RETURNING
                 id, app_id, ar_customer_id, tilled_payment_method_id,
                 status, type, brand, last4, exp_month, exp_year,
@@ -156,36 +159,6 @@ pub async fn add_payment_method(
             )
         })?
     };
-
-    // TODO: Integrate with Tilled API to:
-    // 1. Attach payment method to customer
-    // 2. Fetch full payment method details (brand, last4, etc.)
-    // For now, mark as active immediately
-    let payment_method = sqlx::query_as::<_, PaymentMethod>(
-        r#"
-        UPDATE ar_payment_methods
-        SET status = 'active', updated_at = NOW()
-        WHERE id = $1
-        RETURNING
-            id, app_id, ar_customer_id, tilled_payment_method_id,
-            status, type, brand, last4, exp_month, exp_year,
-            bank_name, bank_last4, is_default, metadata,
-            deleted_at, created_at, updated_at
-        "#,
-    )
-    .bind(payment_method.id)
-    .fetch_one(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to update payment method status: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to update payment method: {}", e),
-            )),
-        )
-    })?;
 
     tracing::info!(
         "Added payment method {} for customer {}",
@@ -540,7 +513,10 @@ pub async fn delete_payment_method(
         .execute(&db)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to clear default payment method from customer: {:?}", e);
+            tracing::error!(
+                "Failed to clear default payment method from customer: {:?}",
+                e
+            );
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ErrorResponse::new(

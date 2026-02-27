@@ -40,22 +40,24 @@ async fn test_create_customer_success() {
 
     // Assert response body
     let json = common::body_json(response).await;
-    assert!(json["id"].is_number(), "Response should contain customer id");
+    assert!(
+        json["id"].is_number(),
+        "Response should contain customer id"
+    );
     assert_eq!(json["email"], email);
     assert_eq!(json["name"], "John Doe");
-    assert_eq!(json["status"], "active");
+    assert_eq!(json["status"], "pending_sync");
     assert_eq!(json["external_customer_id"], external_id);
 
     // Verify customer was created in database
     let customer_id = json["id"].as_i64().unwrap() as i32;
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_customers WHERE id = $1 AND email = $2"
-    )
-    .bind(customer_id)
-    .bind(&email)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_customers WHERE id = $1 AND email = $2")
+            .bind(customer_id)
+            .bind(&email)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(count, 1, "Customer should exist in database");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
@@ -219,7 +221,10 @@ async fn test_list_customers_with_pagination() {
 
     let json = common::body_json(response).await;
     assert!(json.is_array(), "Response should be array");
-    assert!(json.as_array().unwrap().len() >= 2, "Should have at least 2 customers");
+    assert!(
+        json.as_array().unwrap().len() >= 2,
+        "Should have at least 2 customers"
+    );
 
     common::cleanup_customers(&pool, &[customer1_id, customer2_id, customer3_id]).await;
     common::teardown_pool(pool).await;
@@ -261,13 +266,11 @@ async fn test_update_customer_success() {
     assert_eq!(json["name"], "Updated Name");
 
     // Verify update in database
-    let updated_name: String = sqlx::query_scalar(
-        "SELECT name FROM ar_customers WHERE id = $1"
-    )
-    .bind(customer_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let updated_name: String = sqlx::query_scalar("SELECT name FROM ar_customers WHERE id = $1")
+        .bind(customer_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(updated_name, "Updated Name");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
@@ -287,7 +290,10 @@ async fn test_list_customers_by_external_id() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/ar/customers?external_customer_id={}", external_id))
+                .uri(&format!(
+                    "/api/ar/customers?external_customer_id={}",
+                    external_id
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -298,7 +304,11 @@ async fn test_list_customers_by_external_id() {
 
     let json = common::body_json(response).await;
     assert!(json.is_array(), "Response should be array");
-    assert_eq!(json.as_array().unwrap().len(), 1, "Should find exactly 1 customer");
+    assert_eq!(
+        json.as_array().unwrap().len(),
+        1,
+        "Should find exactly 1 customer"
+    );
     assert_eq!(json[0]["id"], customer_id);
     assert_eq!(json[0]["external_customer_id"], external_id);
 

@@ -15,8 +15,8 @@ const TEST_WEBHOOK_SECRET: &str = "whsec_test_secret";
 /// Generate HMAC signature for webhook payload (Tilled format).
 fn generate_webhook_signature(payload: &str, timestamp: i64, secret: &str) -> String {
     let signed_payload = format!("{}.{}", timestamp, payload);
-    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
-        .expect("HMAC can take key of any size");
+    let mut mac =
+        Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC can take key of any size");
     mac.update(signed_payload.as_bytes());
     let result = mac.finalize();
     hex::encode(result.into_bytes())
@@ -168,7 +168,7 @@ async fn test_subscription_workflow() {
     assert_eq!(response.status(), StatusCode::CREATED);
     let subscription = common::body_json(response).await;
     let subscription_id = subscription["id"].as_i64().unwrap() as i32;
-    assert_eq!(subscription["status"], "active");
+    assert_eq!(subscription["status"], "pending_sync");
 
     // Step 3: Update subscription
     let update_sub_body = serde_json::json!({
@@ -258,7 +258,14 @@ async fn test_payment_workflow() {
     let charge = common::body_json(response).await;
     let charge_id = charge["id"].as_i64().unwrap() as i32;
     assert_eq!(charge["amount_cents"], 5000);
-    assert_eq!(charge["status"], "authorized");
+    assert_eq!(charge["status"], "pending");
+
+    // Simulate webhook: transition charge to "authorized" so capture can proceed
+    sqlx::query("UPDATE ar_charges SET status = 'authorized', tilled_charge_id = 'pi_webhook_sim' WHERE id = $1")
+        .bind(charge_id)
+        .execute(&pool)
+        .await
+        .unwrap();
 
     // Step 3: Capture charge
     let capture_body = serde_json::json!({
@@ -351,7 +358,9 @@ async fn test_invoice_workflow() {
                 .method("POST")
                 .uri("/api/ar/invoices")
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&create_invoice_body).unwrap()))
+                .body(Body::from(
+                    serde_json::to_vec(&create_invoice_body).unwrap(),
+                ))
                 .unwrap(),
         )
         .await
@@ -360,7 +369,10 @@ async fn test_invoice_workflow() {
     let status = response.status();
     if status != StatusCode::CREATED {
         let error_body = common::body_json(response).await;
-        panic!("Expected 201 CREATED, got {}. Error: {:?}", status, error_body);
+        panic!(
+            "Expected 201 CREATED, got {}. Error: {:?}",
+            status, error_body
+        );
     }
     assert_eq!(status, StatusCode::CREATED);
     let invoice = common::body_json(response).await;
@@ -415,7 +427,7 @@ async fn test_invoice_workflow() {
     assert_eq!(response.status(), StatusCode::CREATED);
     let payment = common::body_json(response).await;
     assert_eq!(payment["amount_cents"], 40000);
-    assert_eq!(payment["status"], "authorized");
+    assert_eq!(payment["status"], "pending");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
@@ -464,7 +476,10 @@ async fn test_webhook_workflow() {
                 .method("POST")
                 .uri("/api/ar/webhooks/tilled")
                 .header("content-type", "application/json")
-                .header("tilled-signature", format!("t={},v1={}", timestamp, signature))
+                .header(
+                    "tilled-signature",
+                    format!("t={},v1={}", timestamp, signature),
+                )
                 .header("x-tilled-account", APP_ID)
                 .body(Body::from(payload_str))
                 .unwrap(),
@@ -572,13 +587,11 @@ async fn test_error_recovery_workflow() {
     assert_eq!(customer2["email"], customer1["email"]);
 
     // Step 3: Verify only one customer was created
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_customers WHERE email = $1"
-    )
-    .bind(&email)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_customers WHERE email = $1")
+        .bind(&email)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(count, 1, "Should only have one customer despite retry");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
@@ -598,13 +611,11 @@ async fn test_multi_tenant_isolation() {
     let (customer2_id, _email2, _) = common::seed_customer(&pool, APP_ID).await;
 
     // Verify both exist in database
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_customers WHERE app_id = $1"
-    )
-    .bind(APP_ID)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_customers WHERE app_id = $1")
+        .bind(APP_ID)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert!(count >= 2, "Expected at least 2 customers in database");
 
     // List customers (should see all in test context, but app filtering would apply in production)

@@ -44,11 +44,14 @@ async fn test_create_subscription_success() {
 
     // Assert response body
     let json = common::body_json(response).await;
-    assert!(json["id"].is_number(), "Response should contain subscription id");
+    assert!(
+        json["id"].is_number(),
+        "Response should contain subscription id"
+    );
     assert_eq!(json["ar_customer_id"], customer_id);
     assert_eq!(json["plan_name"], "Pro Plan");
     assert_eq!(json["price_cents"], 2999);
-    assert_eq!(json["status"], "active");
+    assert_eq!(json["status"], "pending_sync");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
@@ -157,13 +160,12 @@ async fn test_cancel_subscription_at_period_end() {
     assert_eq!(json["cancel_at_period_end"], true);
 
     // Verify in database
-    let cancel_at_period_end: bool = sqlx::query_scalar(
-        "SELECT cancel_at_period_end FROM ar_subscriptions WHERE id = $1"
-    )
-    .bind(subscription_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let cancel_at_period_end: bool =
+        sqlx::query_scalar("SELECT cancel_at_period_end FROM ar_subscriptions WHERE id = $1")
+            .bind(subscription_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(cancel_at_period_end, true);
 
     common::cleanup_customers(&pool, &[customer_id]).await;
@@ -200,17 +202,16 @@ async fn test_cancel_subscription_immediately() {
 
     let json = common::body_json(response).await;
     assert_eq!(json["id"], subscription_id);
-    assert_eq!(json["status"], "canceled");
+    assert_eq!(json["status"], "canceling");
 
     // Verify in database
-    let status: String = sqlx::query_scalar(
-        "SELECT status::text FROM ar_subscriptions WHERE id = $1"
-    )
-    .bind(subscription_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(status, "canceled");
+    let status: String =
+        sqlx::query_scalar("SELECT status::text FROM ar_subscriptions WHERE id = $1")
+            .bind(subscription_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(status, "canceling");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
@@ -231,7 +232,10 @@ async fn test_list_subscriptions_by_customer() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/ar/subscriptions?customer_id={}", customer_id))
+                .uri(&format!(
+                    "/api/ar/subscriptions?customer_id={}",
+                    customer_id
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -242,7 +246,11 @@ async fn test_list_subscriptions_by_customer() {
 
     let json = common::body_json(response).await;
     assert!(json.is_array(), "Response should be array");
-    assert_eq!(json.as_array().unwrap().len(), 2, "Should have 2 subscriptions");
+    assert_eq!(
+        json.as_array().unwrap().len(),
+        2,
+        "Should have 2 subscriptions"
+    );
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
@@ -264,7 +272,10 @@ async fn test_list_subscriptions_by_status() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/ar/subscriptions?customer_id={}&status=active", customer_id))
+                .uri(&format!(
+                    "/api/ar/subscriptions?customer_id={}&status=active",
+                    customer_id
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -275,7 +286,11 @@ async fn test_list_subscriptions_by_status() {
 
     let json = common::body_json(response).await;
     assert!(json.is_array(), "Response should be array");
-    assert_eq!(json.as_array().unwrap().len(), 1, "Should have 1 active subscription");
+    assert_eq!(
+        json.as_array().unwrap().len(),
+        1,
+        "Should have 1 active subscription"
+    );
     assert_eq!(json[0]["id"], active_sub_id);
     assert_eq!(json[0]["status"], "active");
 
@@ -318,13 +333,11 @@ async fn test_update_subscription_price() {
     assert_eq!(json["plan_name"], "Premium Plan");
 
     // Verify in database
-    let price: i32 = sqlx::query_scalar(
-        "SELECT price_cents FROM ar_subscriptions WHERE id = $1"
-    )
-    .bind(subscription_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let price: i32 = sqlx::query_scalar("SELECT price_cents FROM ar_subscriptions WHERE id = $1")
+        .bind(subscription_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(price, 3999);
 
     common::cleanup_customers(&pool, &[customer_id]).await;

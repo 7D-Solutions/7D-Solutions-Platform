@@ -16,6 +16,8 @@ pub enum SubscriptionStatus {
     Canceled,
     Unpaid,
     Paused,
+    PendingSync,
+    Canceling,
 }
 
 /// Subscription interval enum
@@ -35,7 +37,7 @@ pub struct Subscription {
     pub id: i32,
     pub app_id: String,
     pub ar_customer_id: i32,
-    pub tilled_subscription_id: String,
+    pub tilled_subscription_id: Option<String>,
     pub plan_id: String,
     pub plan_name: String,
     pub price_cents: i32,

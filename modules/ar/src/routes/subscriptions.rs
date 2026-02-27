@@ -86,10 +86,9 @@ pub async fn create_subscription(
             .map_err(|e| {
                 use crate::integrations::party_client::PartyClientError;
                 let (status, code) = match &e {
-                    PartyClientError::ServiceUnavailable(_) => (
-                        StatusCode::SERVICE_UNAVAILABLE,
-                        "party_service_unavailable",
-                    ),
+                    PartyClientError::ServiceUnavailable(_) => {
+                        (StatusCode::SERVICE_UNAVAILABLE, "party_service_unavailable")
+                    }
                     _ => (StatusCode::UNPROCESSABLE_ENTITY, "party_not_found"),
                 };
                 tracing::warn!("Party validation failed for subscription create: {}", e);
@@ -97,26 +96,23 @@ pub async fn create_subscription(
             })?;
     }
 
-    // Generate a placeholder Tilled subscription ID
-    // TODO: Integrate with Tilled API to create actual subscription
-    let tilled_subscription_id = format!("sub_{}", uuid::Uuid::new_v4());
-
     // Set defaults
     let interval_unit = req.interval_unit.unwrap_or(SubscriptionInterval::Month);
     let interval_count = req.interval_count.unwrap_or(1);
 
-    // Calculate period dates (simplified - in production would use Tilled response)
+    // Calculate period dates (simplified — in production the webhook response refines these)
     let now = chrono::Utc::now().naive_utc();
     let current_period_end = match interval_unit {
         SubscriptionInterval::Day => now + chrono::Duration::days(interval_count as i64),
         SubscriptionInterval::Week => now + chrono::Duration::weeks(interval_count as i64),
-        SubscriptionInterval::Month => {
-            now + chrono::Duration::days(30 * interval_count as i64)
-        }
+        SubscriptionInterval::Month => now + chrono::Duration::days(30 * interval_count as i64),
         SubscriptionInterval::Year => now + chrono::Duration::days(365 * interval_count as i64),
     };
 
-    // Create subscription in database
+    // Create subscription in database (local-first, low-code pattern).
+    // Status starts as pending_sync with NULL tilled_subscription_id.
+    // The provider webhook (subscription.created) will set the real provider ID
+    // and transition status to active.
     let subscription = sqlx::query_as::<_, Subscription>(
         r#"
         INSERT INTO ar_subscriptions (
@@ -126,7 +122,7 @@ pub async fn create_subscription(
             payment_method_id, payment_method_type, metadata, party_id,
             created_at, updated_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
+        VALUES ($1, $2, NULL, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, NOW(), NOW())
         RETURNING
             id, app_id, ar_customer_id, tilled_subscription_id,
             plan_id, plan_name, price_cents, status, interval_unit, interval_count,
@@ -138,11 +134,10 @@ pub async fn create_subscription(
     )
     .bind(&app_id)
     .bind(req.ar_customer_id)
-    .bind(&tilled_subscription_id)
     .bind(&req.plan_id)
     .bind(&req.plan_name)
     .bind(req.price_cents)
-    .bind(SubscriptionStatus::Active) // Default to active for now
+    .bind(SubscriptionStatus::PendingSync)
     .bind(&interval_unit)
     .bind(interval_count)
     .bind(now)
@@ -420,10 +415,13 @@ pub async fn update_subscription(
     let price_cents = req.price_cents.unwrap_or(existing.price_cents);
     let metadata = req.metadata.or(existing.metadata);
 
+    // Update local fields immediately. Set update_source = 'local' to distinguish
+    // from webhook-driven updates.
     let subscription = sqlx::query_as::<_, Subscription>(
         r#"
         UPDATE ar_subscriptions
-        SET plan_id = $1, plan_name = $2, price_cents = $3, metadata = $4, updated_at = NOW()
+        SET plan_id = $1, plan_name = $2, price_cents = $3, metadata = $4,
+            update_source = 'local', updated_at = NOW()
         WHERE id = $5
         RETURNING
             id, app_id, ar_customer_id, tilled_subscription_id,
@@ -453,8 +451,6 @@ pub async fn update_subscription(
     })?;
 
     tracing::info!("Updated subscription {}", id);
-
-    // TODO: Sync with Tilled API
 
     Ok(Json(subscription))
 }
@@ -539,13 +535,13 @@ pub async fn cancel_subscription(
             )
         })?
     } else {
-        // Immediate cancellation
-        let now = chrono::Utc::now().naive_utc();
+        // Immediate cancellation intent. Status transitions to 'canceling' —
+        // the provider webhook (subscription.canceled) will finalize to 'canceled'.
         sqlx::query_as::<_, Subscription>(
             r#"
             UPDATE ar_subscriptions
-            SET status = 'canceled', canceled_at = $1, ended_at = $1, updated_at = NOW()
-            WHERE id = $2
+            SET status = 'canceling', updated_at = NOW()
+            WHERE id = $1
             RETURNING
                 id, app_id, ar_customer_id, tilled_subscription_id,
                 plan_id, plan_name, price_cents, status, interval_unit, interval_count,
@@ -555,7 +551,6 @@ pub async fn cancel_subscription(
                 update_source, updated_by, created_at, updated_at
             "#,
         )
-        .bind(now)
         .bind(id)
         .fetch_one(&db)
         .await
@@ -576,8 +571,6 @@ pub async fn cancel_subscription(
         id,
         cancel_at_period_end
     );
-
-    // TODO: Sync with Tilled API
 
     Ok(Json(subscription))
 }

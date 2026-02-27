@@ -174,36 +174,9 @@ pub async fn create_charge(
         )
     })?;
 
-    // TODO: Integrate with Tilled API to create actual charge
-    // For now, mark as authorized and set mock tilled_charge_id for tests
-    let mock_tilled_id = format!("pi_test_{}", charge.id);
-    let charge = sqlx::query_as::<_, Charge>(
-        r#"
-        UPDATE ar_charges
-        SET status = 'authorized', tilled_charge_id = $2, updated_at = NOW()
-        WHERE id = $1
-        RETURNING
-            id, app_id, tilled_charge_id, invoice_id, ar_customer_id, subscription_id,
-            status, amount_cents, currency, charge_type, reason, reference_id,
-            service_date, note, metadata, failure_code, failure_message,
-            product_type, quantity, service_frequency, weight_amount, location_reference,
-            created_at, updated_at
-        "#,
-    )
-    .bind(charge.id)
-    .bind(&mock_tilled_id)
-    .fetch_one(&db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to update charge status: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse::new(
-                "database_error",
-                format!("Failed to update charge: {}", e),
-            )),
-        )
-    })?;
+    // Charge stays pending with NULL tilled_charge_id.
+    // The provider webhook (payment_intent.succeeded / charge.succeeded)
+    // will set the real provider ID and transition status.
 
     tracing::info!(
         "Created charge {} for customer {} (amount: {})",

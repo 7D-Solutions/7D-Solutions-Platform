@@ -40,16 +40,19 @@ async fn test_add_payment_method_success() {
 
     // Assert response body
     let json = common::body_json(response).await;
-    assert!(json["id"].is_number(), "Response should contain payment method id");
+    assert!(
+        json["id"].is_number(),
+        "Response should contain payment method id"
+    );
     assert_eq!(json["ar_customer_id"], customer_id);
     assert_eq!(json["tilled_payment_method_id"], tilled_pm_id);
-    assert_eq!(json["status"], "active");
+    assert_eq!(json["status"], "pending_sync");
     assert_eq!(json["type"], "card");
 
     // Verify payment method was created in database
     let pm_id = json["id"].as_i64().unwrap() as i32;
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_payment_methods WHERE id = $1 AND ar_customer_id = $2"
+        "SELECT COUNT(*) FROM ar_payment_methods WHERE id = $1 AND ar_customer_id = $2",
     )
     .bind(pm_id)
     .bind(customer_id)
@@ -112,7 +115,10 @@ async fn test_list_payment_methods_by_customer() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/ar/payment-methods?customer_id={}", customer_id))
+                .uri(&format!(
+                    "/api/ar/payment-methods?customer_id={}",
+                    customer_id
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -123,7 +129,11 @@ async fn test_list_payment_methods_by_customer() {
 
     let json = common::body_json(response).await;
     assert!(json.is_array(), "Response should be array");
-    assert_eq!(json.as_array().unwrap().len(), 2, "Should have 2 payment methods");
+    assert_eq!(
+        json.as_array().unwrap().len(),
+        2,
+        "Should have 2 payment methods"
+    );
 
     // Verify default payment method is listed first
     assert_eq!(json[0]["id"], pm1_id);
@@ -228,13 +238,12 @@ async fn test_update_payment_method_success() {
     assert_eq!(json["metadata"]["nickname"], "Primary Card");
 
     // Verify update in database
-    let metadata: serde_json::Value = sqlx::query_scalar(
-        "SELECT metadata FROM ar_payment_methods WHERE id = $1"
-    )
-    .bind(pm_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let metadata: serde_json::Value =
+        sqlx::query_scalar("SELECT metadata FROM ar_payment_methods WHERE id = $1")
+            .bind(pm_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(metadata["nickname"], "Primary Card");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
@@ -266,23 +275,24 @@ async fn test_delete_payment_method_success() {
     assert_eq!(response.status(), StatusCode::NO_CONTENT);
 
     // Verify soft delete in database (deleted_at should be set)
-    let deleted_at: Option<chrono::NaiveDateTime> = sqlx::query_scalar(
-        "SELECT deleted_at FROM ar_payment_methods WHERE id = $1"
-    )
-    .bind(pm_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert!(deleted_at.is_some(), "Payment method should be soft deleted");
+    let deleted_at: Option<chrono::NaiveDateTime> =
+        sqlx::query_scalar("SELECT deleted_at FROM ar_payment_methods WHERE id = $1")
+            .bind(pm_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(
+        deleted_at.is_some(),
+        "Payment method should be soft deleted"
+    );
 
     // Verify is_default is cleared
-    let is_default: bool = sqlx::query_scalar(
-        "SELECT is_default FROM ar_payment_methods WHERE id = $1"
-    )
-    .bind(pm_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let is_default: bool =
+        sqlx::query_scalar("SELECT is_default FROM ar_payment_methods WHERE id = $1")
+            .bind(pm_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(is_default, false, "Default flag should be cleared");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
@@ -343,23 +353,21 @@ async fn test_set_default_payment_method_success() {
     assert_eq!(json["is_default"], true);
 
     // Verify pm1 is no longer default
-    let pm1_is_default: bool = sqlx::query_scalar(
-        "SELECT is_default FROM ar_payment_methods WHERE id = $1"
-    )
-    .bind(pm1_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let pm1_is_default: bool =
+        sqlx::query_scalar("SELECT is_default FROM ar_payment_methods WHERE id = $1")
+            .bind(pm1_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(pm1_is_default, false, "Previous default should be cleared");
 
     // Verify pm2 is now default
-    let pm2_is_default: bool = sqlx::query_scalar(
-        "SELECT is_default FROM ar_payment_methods WHERE id = $1"
-    )
-    .bind(pm2_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let pm2_is_default: bool =
+        sqlx::query_scalar("SELECT is_default FROM ar_payment_methods WHERE id = $1")
+            .bind(pm2_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(pm2_is_default, true, "New payment method should be default");
 
     common::cleanup_customers(&pool, &[customer_id]).await;
@@ -416,7 +424,10 @@ async fn test_list_payment_methods_with_pagination() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/ar/payment-methods?customer_id={}&limit=2", customer_id))
+                .uri(&format!(
+                    "/api/ar/payment-methods?customer_id={}&limit=2",
+                    customer_id
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -427,7 +438,11 @@ async fn test_list_payment_methods_with_pagination() {
 
     let json = common::body_json(response).await;
     assert!(json.is_array(), "Response should be array");
-    assert_eq!(json.as_array().unwrap().len(), 2, "Should have 2 payment methods with limit");
+    assert_eq!(
+        json.as_array().unwrap().len(),
+        2,
+        "Should have 2 payment methods with limit"
+    );
 
     common::cleanup_customers(&pool, &[customer_id]).await;
     common::teardown_pool(pool).await;
@@ -463,7 +478,10 @@ async fn test_list_payment_methods_by_status() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri(&format!("/api/ar/payment-methods?customer_id={}&status=active", customer_id))
+                .uri(&format!(
+                    "/api/ar/payment-methods?customer_id={}&status=active",
+                    customer_id
+                ))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -474,7 +492,11 @@ async fn test_list_payment_methods_by_status() {
 
     let json = common::body_json(response).await;
     assert!(json.is_array(), "Response should be array");
-    assert_eq!(json.as_array().unwrap().len(), 1, "Should have 1 active payment method");
+    assert_eq!(
+        json.as_array().unwrap().len(),
+        1,
+        "Should have 1 active payment method"
+    );
     assert_eq!(json[0]["id"], pm_id);
     assert_eq!(json[0]["status"], "active");
 
