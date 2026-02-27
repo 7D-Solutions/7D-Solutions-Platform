@@ -221,6 +221,24 @@ pub struct BalanceTransaction {
     pub created_at: Option<String>,
 }
 
+/// User response from Tilled API
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct User {
+    pub id: String,
+    #[serde(default)]
+    pub email: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub role: Option<String>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub created_at: Option<String>,
+    #[serde(default)]
+    pub updated_at: Option<String>,
+}
+
 /// List response wrapper — Tilled uses `items` as the array field
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListResponse<T> {
@@ -276,7 +294,7 @@ pub fn checked_i64_to_i32(amount: i64) -> Result<i32, TilledError> {
 mod tests {
     use super::{
         checked_i32_to_i64, checked_i64_to_i32, normalize_currency, BalanceTransaction,
-        ConnectedAccount, Payout, SupportedCurrency,
+        ConnectedAccount, Payout, SupportedCurrency, User,
     };
 
     #[test]
@@ -356,5 +374,21 @@ mod tests {
 
         let serialized = serde_json::to_value(txn).unwrap();
         assert_eq!(serialized.get("status").unwrap(), "posted");
+    }
+
+    #[test]
+    fn user_serialization_round_trip() {
+        let value = serde_json::json!({
+            "id": "usr_123",
+            "email": "merchant-user@example.com",
+            "role": "merchant_admin",
+            "status": "active"
+        });
+        let user: User = serde_json::from_value(value).unwrap();
+        assert_eq!(user.id, "usr_123");
+        assert_eq!(user.email.as_deref(), Some("merchant-user@example.com"));
+        assert_eq!(user.role.as_deref(), Some("merchant_admin"));
+        assert_eq!(user.status.as_deref(), Some("active"));
+        assert!(user.created_at.is_none());
     }
 }

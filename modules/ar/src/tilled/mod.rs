@@ -9,6 +9,7 @@ pub mod payouts;
 pub mod refund;
 pub mod subscription;
 pub mod types;
+pub mod users;
 pub mod webhook;
 
 use error::TilledError;
