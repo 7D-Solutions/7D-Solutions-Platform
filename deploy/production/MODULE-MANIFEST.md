@@ -15,7 +15,6 @@
 | Module: TTP | `ttp` | 1.0.0 | — | `7dsolutions/ttp:1.0.0-{sha}` | Promoted P44 (bd-2dq8). Pending image build/push via promote.yml |
 | Module: AR | `ar` | 1.0.0 | — | `7dsolutions/ar:1.0.0-{sha}` | Promoted P44 (bd-rqbr). Pending image build/push via promote.yml |
 | Module: Payments | `payments` | 1.0.0 | — | `7dsolutions/payments:1.0.0-{sha}` | Promoted P44 (bd-1b1x). Pending image build/push via promote.yml |
-| App: TCP UI | `tenant-control-plane-ui` | 0.1.0 | — | `7dsolutions/tenant-control-plane-ui:0.1.0-{sha}` | Pending first production deploy |
 
 ## How to Update This File
 

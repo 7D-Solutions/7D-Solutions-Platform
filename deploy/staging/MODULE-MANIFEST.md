@@ -14,7 +14,6 @@
 | Module: TTP | `ttp` | 0.1.0 | — | `7dsolutions/ttp:0.1.0-{sha}` | Pending first staging push |
 | Module: AR | `ar` | 0.1.0 | — | `7dsolutions/ar:0.1.0-{sha}` | Pending first staging push |
 | Module: Payments | `payments` | 0.1.0 | — | `7dsolutions/payments:0.1.0-{sha}` | Pending first staging push |
-| App: TCP UI | `tenant-control-plane-ui` | 0.1.0 | — | `7dsolutions/tenant-control-plane-ui:0.1.0-{sha}` | Pending first staging push |
 
 ## How to Update This File
 

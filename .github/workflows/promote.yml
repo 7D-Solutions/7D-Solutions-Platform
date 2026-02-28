@@ -119,34 +119,6 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
 
-      - name: Set up Node.js for Playwright smoke
-        if: ${{ inputs.skip_smoke != true }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: apps/tenant-control-plane-ui/package-lock.json
-
-      - name: Install Playwright dependencies
-        if: ${{ inputs.skip_smoke != true }}
-        working-directory: apps/tenant-control-plane-ui
-        run: |
-          npm ci --prefer-offline
-          npx playwright install chromium --with-deps
-
-      - name: Playwright staging smoke
-        if: ${{ inputs.skip_smoke != true }}
-        working-directory: apps/tenant-control-plane-ui
-        env:
-          BASE_URL:            "http://${{ env.STAGING_HOST }}:3000"
-          TEST_STAFF_EMAIL:    ${{ secrets.SMOKE_STAFF_EMAIL }}
-          TEST_STAFF_PASSWORD: ${{ secrets.SMOKE_STAFF_PASSWORD }}
-          CI: "true"
-        run: |
-          npx playwright test tests/e2e/staging/smoke.spec.ts \
-            --reporter=list \
-            --timeout=60000
-
       - name: Record deployment artifact
         run: |
           TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -290,71 +262,6 @@ jobs:
           retention-days: 90
           if-no-files-found: warn
 
-      - name: Set up Node.js for Playwright smoke
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: apps/tenant-control-plane-ui/package-lock.json
-
-      - name: Install Playwright dependencies
-        working-directory: apps/tenant-control-plane-ui
-        run: |
-          npm ci --prefer-offline
-          npx playwright install chromium --with-deps
-
-      - name: Open SSH tunnel to production TCP UI
-        run: |
-          # Forward localhost:3001 → VPS:3000 so Playwright can reach the UI
-          # without requiring production to expose port 3000 publicly.
-          ssh -o StrictHostKeyChecking=no -o BatchMode=yes \
-            -p "${{ env.PROD_SSH_PORT }}" \
-            -L 3001:localhost:3000 \
-            -N "${{ env.PROD_USER }}@${{ env.PROD_HOST }}" &
-          TUNNEL_PID=$!
-          echo "TUNNEL_PID=${TUNNEL_PID}" >> "$GITHUB_ENV"
-          # Wait for tunnel to be ready
-          for i in $(seq 1 10); do
-            if curl -s -o /dev/null http://localhost:3001/login; then
-              echo "SSH tunnel ready (attempt ${i})"
-              break
-            fi
-            sleep 2
-          done
-
-      - name: Playwright production smoke
-        working-directory: apps/tenant-control-plane-ui
-        env:
-          BASE_URL:            "http://localhost:3001"
-          TEST_STAFF_EMAIL:    ${{ secrets.SMOKE_STAFF_EMAIL }}
-          TEST_STAFF_PASSWORD: ${{ secrets.SMOKE_STAFF_PASSWORD }}
-          CI: "true"
-        run: |
-          npx playwright test tests/e2e/production/smoke.spec.ts \
-            --reporter=list \
-            --timeout=60000
-
-      - name: Playwright production isolation
-        working-directory: apps/tenant-control-plane-ui
-        env:
-          BASE_URL:              "http://localhost:3001"
-          ISOLATION_TOKEN_A:     ${{ env.ISOLATION_TOKEN_A }}
-          ISOLATION_TOKEN_B:     ${{ env.ISOLATION_TOKEN_B }}
-          ISOLATION_TENANT_A_ID: ${{ env.ISOLATION_TENANT_A_ID }}
-          ISOLATION_TENANT_B_ID: ${{ env.ISOLATION_TENANT_B_ID }}
-          CI: "true"
-        run: |
-          npx playwright test tests/e2e/production/isolation.spec.ts \
-            --reporter=list \
-            --timeout=60000
-
-      - name: Close SSH tunnel
-        if: always()
-        run: |
-          if [[ -n "${TUNNEL_PID:-}" ]]; then
-            kill "$TUNNEL_PID" 2>/dev/null || true
-          fi
-
       - name: Record deployment artifact
         run: |
           TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -405,8 +312,6 @@ jobs:
           echo "**Gate 3 drift diff:** passed ✓ (running images match manifest)" >> $GITHUB_STEP_SUMMARY
           echo "**Secrets check:** passed ✓ (no defaults, mode 0600, root-owned)" >> $GITHUB_STEP_SUMMARY
           echo "**Production proof gate:** passed ✓ (smoke + isolation + payment verify + rollback rehearsal)" >> $GITHUB_STEP_SUMMARY
-          echo "**Production smoke (Playwright):** passed ✓ (TCP UI nav + BFF endpoints)" >> $GITHUB_STEP_SUMMARY
-          echo "**Production isolation (Playwright):** passed ✓ (UI redirect + BFF denial via SSH tunnel)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Proof gate logs stored as artifact: \`production-proof-gate-logs-${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
           echo "Deploy artifacts (manifest + secrets check log) stored as: \`production-deploy-artifacts-${{ github.run_id }}\`" >> $GITHUB_STEP_SUMMARY
