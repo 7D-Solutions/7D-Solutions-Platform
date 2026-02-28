@@ -35,8 +35,6 @@ members = [
   "tools/demo-seed",
   "tools/stabilization-gate",
   "e2e-tests",
-  "products/trashtech/tt-core",
-  "products/trashtech/tt-integrations"
 ]
 
 # Workspace-level settings
