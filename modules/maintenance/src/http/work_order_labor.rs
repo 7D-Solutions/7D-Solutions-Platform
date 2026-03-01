@@ -16,9 +16,9 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::ErrorBody;
 use crate::domain::work_orders::{AddLaborRequest, WoLaborError, WoLaborRepo};
 use crate::AppState;
-use super::ErrorBody;
 
 fn labor_error_response(err: WoLaborError) -> (StatusCode, Json<ErrorBody>) {
     match err {

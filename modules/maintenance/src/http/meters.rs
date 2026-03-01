@@ -18,12 +18,12 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::ErrorBody;
 use crate::domain::meters::{
     CreateMeterTypeRequest, ListReadingsQuery, MeterError, MeterReadingRepo, MeterTypeRepo,
     RecordReadingRequest,
 };
 use crate::AppState;
-use super::ErrorBody;
 
 #[derive(Debug, Deserialize)]
 pub struct ListReadingsParams {
@@ -38,7 +38,10 @@ fn meter_error_response(err: MeterError) -> (StatusCode, Json<ErrorBody>) {
             StatusCode::CONFLICT,
             Json(ErrorBody::new(
                 "duplicate_meter_type",
-                &format!("Meter type '{}' already exists for tenant '{}'", name, tenant),
+                &format!(
+                    "Meter type '{}' already exists for tenant '{}'",
+                    name, tenant
+                ),
             )),
         ),
         MeterError::MeterTypeNotFound => (
@@ -49,7 +52,10 @@ fn meter_error_response(err: MeterError) -> (StatusCode, Json<ErrorBody>) {
             StatusCode::NOT_FOUND,
             Json(ErrorBody::new("not_found", "Asset not found")),
         ),
-        MeterError::MonotonicityViolation { previous, attempted } => (
+        MeterError::MonotonicityViolation {
+            previous,
+            attempted,
+        } => (
             StatusCode::BAD_REQUEST,
             Json(ErrorBody::new(
                 "monotonicity_violation",

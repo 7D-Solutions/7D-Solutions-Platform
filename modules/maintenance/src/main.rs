@@ -1,8 +1,14 @@
-use axum::{extract::DefaultBodyLimit, routing::{get, post}, Extension, Router};
+use axum::{
+    extract::DefaultBodyLimit,
+    routing::{get, post},
+    Extension, Router,
+};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
-use maintenance_rs::{config::Config, metrics, outbox, routes, AppState};
+use maintenance_rs::{config::Config, http, metrics, outbox, AppState};
 use security::{
-    middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
+    middleware::{
+        default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+    },
     optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 use std::net::SocketAddr;
@@ -79,11 +85,8 @@ async fn main() {
     let scheduler_pool = pool.clone();
     let scheduler_interval = config.scheduler_interval_secs;
     tokio::spawn(async move {
-        maintenance_rs::domain::scheduler::run_scheduler_task(
-            scheduler_pool,
-            scheduler_interval,
-        )
-        .await;
+        maintenance_rs::domain::scheduler::run_scheduler_task(scheduler_pool, scheduler_interval)
+            .await;
     });
     tracing::info!(
         interval_secs = config.scheduler_interval_secs,
@@ -105,82 +108,82 @@ async fn main() {
 
     let app = Router::new()
         .route("/healthz", get(health::healthz))
-        .route("/api/health", get(routes::health::health))
-        .route("/api/ready", get(routes::health::ready))
-        .route("/api/version", get(routes::health::version))
+        .route("/api/health", get(http::health::health))
+        .route("/api/ready", get(http::health::ready))
+        .route("/api/version", get(http::health::version))
         .route("/metrics", get(metrics::metrics_handler))
         .merge(
             Router::new()
                 // Asset endpoints
                 .route(
                     "/api/maintenance/assets",
-                    post(routes::assets::create_asset).get(routes::assets::list_assets),
+                    post(http::assets::create_asset).get(http::assets::list_assets),
                 )
                 .route(
                     "/api/maintenance/assets/{asset_id}",
-                    get(routes::assets::get_asset).patch(routes::assets::update_asset),
+                    get(http::assets::get_asset).patch(http::assets::update_asset),
                 )
                 // Meter type endpoints
                 .route(
                     "/api/maintenance/meter-types",
-                    post(routes::meters::create_meter_type).get(routes::meters::list_meter_types),
+                    post(http::meters::create_meter_type).get(http::meters::list_meter_types),
                 )
                 // Meter reading endpoints
                 .route(
                     "/api/maintenance/assets/{asset_id}/readings",
-                    post(routes::meters::record_reading).get(routes::meters::list_readings),
+                    post(http::meters::record_reading).get(http::meters::list_readings),
                 )
                 // Plan endpoints
                 .route(
                     "/api/maintenance/plans",
-                    post(routes::plans::create_plan).get(routes::plans::list_plans),
+                    post(http::plans::create_plan).get(http::plans::list_plans),
                 )
                 .route(
                     "/api/maintenance/plans/{plan_id}",
-                    get(routes::plans::get_plan).patch(routes::plans::update_plan),
+                    get(http::plans::get_plan).patch(http::plans::update_plan),
                 )
                 .route(
                     "/api/maintenance/plans/{plan_id}/assign",
-                    post(routes::plans::assign_plan),
+                    post(http::plans::assign_plan),
                 )
                 // Assignment endpoints
                 .route(
                     "/api/maintenance/assignments",
-                    get(routes::plans::list_assignments),
+                    get(http::plans::list_assignments),
                 )
                 // Work order endpoints
                 .route(
                     "/api/maintenance/work-orders",
-                    post(routes::work_orders::create_work_order)
-                        .get(routes::work_orders::list_work_orders),
+                    post(http::work_orders::create_work_order)
+                        .get(http::work_orders::list_work_orders),
                 )
                 .route(
                     "/api/maintenance/work-orders/{wo_id}",
-                    get(routes::work_orders::get_work_order),
+                    get(http::work_orders::get_work_order),
                 )
                 .route(
                     "/api/maintenance/work-orders/{wo_id}/transition",
-                    axum::routing::patch(routes::work_orders::transition_work_order),
+                    axum::routing::patch(http::work_orders::transition_work_order),
                 )
                 // Work order parts subresource
                 .route(
                     "/api/maintenance/work-orders/{wo_id}/parts",
-                    post(routes::work_order_parts::add_part)
-                        .get(routes::work_order_parts::list_parts),
+                    post(http::work_order_parts::add_part)
+                        .get(http::work_order_parts::list_parts),
                 )
                 .route(
                     "/api/maintenance/work-orders/{wo_id}/parts/{part_id}",
-                    axum::routing::delete(routes::work_order_parts::remove_part),
+                    axum::routing::delete(http::work_order_parts::remove_part),
                 )
                 // Work order labor subresource
                 .route(
                     "/api/maintenance/work-orders/{wo_id}/labor",
-                    post(routes::work_order_labor::add_labor)
-                        .get(routes::work_order_labor::list_labor),
+                    post(http::work_order_labor::add_labor)
+                        .get(http::work_order_labor::list_labor),
                 )
                 .route(
                     "/api/maintenance/work-orders/{wo_id}/labor/{labor_id}",
-                    axum::routing::delete(routes::work_order_labor::remove_labor),
+                    axum::routing::delete(http::work_order_labor::remove_labor),
                 )
                 .route_layer(RequirePermissionsLayer::new(&[
                     permissions::MAINTENANCE_MUTATE,
@@ -251,7 +254,9 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
     let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
 
     if is_wildcard && config.env != "development" {
-        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+        tracing::warn!(
+            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
+        );
     }
 
     let layer = if is_wildcard {

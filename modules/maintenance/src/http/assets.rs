@@ -18,11 +18,11 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::ErrorBody;
 use crate::domain::assets::{
     AssetError, AssetRepo, CreateAssetRequest, ListAssetsQuery, UpdateAssetRequest,
 };
 use crate::AppState;
-use super::ErrorBody;
 
 #[derive(Debug, Deserialize)]
 pub struct ListAssetsParams {
@@ -142,7 +142,10 @@ fn extract_tenant(
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
         None => Err((
             StatusCode::UNAUTHORIZED,
-            Json(ErrorBody::new("unauthorized", "Missing or invalid authentication")),
+            Json(ErrorBody::new(
+                "unauthorized",
+                "Missing or invalid authentication",
+            )),
         )),
     }
 }

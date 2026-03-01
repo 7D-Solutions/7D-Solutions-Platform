@@ -20,12 +20,12 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::ErrorBody;
 use crate::domain::plans::{
-    AssignPlanRequest, AssignmentRepo, CreatePlanRequest, ListAssignmentsQuery,
-    ListPlansQuery, PlanError, PlanRepo, UpdatePlanRequest,
+    AssignPlanRequest, AssignmentRepo, CreatePlanRequest, ListAssignmentsQuery, ListPlansQuery,
+    PlanError, PlanRepo, UpdatePlanRequest,
 };
 use crate::AppState;
-use super::ErrorBody;
 
 #[derive(Debug, Deserialize)]
 pub struct ListPlansParams {

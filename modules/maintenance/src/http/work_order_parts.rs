@@ -16,9 +16,9 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::ErrorBody;
 use crate::domain::work_orders::{AddPartRequest, WoPartError, WoPartsRepo};
 use crate::AppState;
-use super::ErrorBody;
 
 fn part_error_response(err: WoPartError) -> (StatusCode, Json<ErrorBody>) {
     match err {

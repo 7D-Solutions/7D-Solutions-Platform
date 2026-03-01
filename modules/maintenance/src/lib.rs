@@ -7,7 +7,7 @@ pub mod domain;
 pub mod events;
 pub mod metrics;
 pub mod outbox;
-pub mod routes;
+pub mod http;
 
 pub use config::Config;
 
