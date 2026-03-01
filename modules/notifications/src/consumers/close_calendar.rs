@@ -305,7 +305,7 @@ mod tests {
             owner_role: "controller".to_string(),
             reminder_type: ReminderType::Upcoming,
             reminder_key: "upcoming:7d:2026-03-01".to_string(),
-            expected_close_date: NaiveDate::from_ymd_opt(2026, 3, 1).unwrap(),
+            expected_close_date: NaiveDate::from_ymd_opt(2026, 3, 1).expect("valid test date"),
             days_offset: 7,
         };
 
@@ -324,7 +324,7 @@ mod tests {
             owner_role: "accounting_manager".to_string(),
             reminder_type: ReminderType::Overdue,
             reminder_key: "overdue:day1:2026-02-28".to_string(),
-            expected_close_date: NaiveDate::from_ymd_opt(2026, 2, 28).unwrap(),
+            expected_close_date: NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid test date"),
             days_offset: -1,
         };
 

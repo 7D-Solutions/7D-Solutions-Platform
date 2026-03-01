@@ -147,7 +147,7 @@ async fn smoke_all_module_health_handlers() {
     let Json(v) = reporting::http::health().await;
     assert_health_contract(&v, "reporting");
 
-    let Json(v) = notifications_rs::routes::health::health().await;
+    let Json(v) = notifications_rs::http::health::health().await;
     assert_health_contract(&v, "notifications-rs");
 
     println!("\n✅ All in-process health handlers passed (11/11)\n");
@@ -195,7 +195,7 @@ async fn smoke_all_module_version_handlers() {
     let Json(v) = reporting::http::version().await;
     assert_version_contract(&v, "reporting");
 
-    let Json(v) = notifications_rs::routes::health::version().await;
+    let Json(v) = notifications_rs::http::health::version().await;
     assert_version_contract(&v, "notifications-rs");
 
     println!("\n✅ All in-process version handlers passed (11/11)\n");

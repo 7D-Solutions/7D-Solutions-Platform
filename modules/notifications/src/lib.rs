@@ -4,7 +4,7 @@
 //! handler functions directly without going through NATS.
 
 pub mod config;
-pub mod consumer;
+pub mod consumers;
 pub mod consumer_tasks;
 pub mod db;
 pub mod dlq;
@@ -13,5 +13,5 @@ pub mod event_bus;
 pub mod handlers;
 pub mod metrics;
 pub mod models;
-pub mod routes;
+pub mod http;
 pub mod scheduled;
