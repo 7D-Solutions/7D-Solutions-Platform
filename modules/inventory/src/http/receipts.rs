@@ -1,8 +1,7 @@
-//! Stock issue HTTP handler.
+//! Stock receipt HTTP handler.
 //!
 //! Endpoint:
-//!   POST /api/inventory/issues — atomic issue: ledger row + FIFO layer consumptions
-//!                                + on-hand projection + outbox event (inventory.item_issued)
+//!   POST /api/inventory/receipts — atomic receipt: ledger row + FIFO layer + outbox event
 //!
 //! Tenant identity derived from JWT `VerifiedClaims`.
 //!
@@ -11,12 +10,7 @@
 //!   Duplicate keys with the same body return 200 OK with the stored result.
 //!   Duplicate keys with a different body return 409 Conflict.
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Extension, Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use event_bus::TracingContext;
 use security::VerifiedClaims;
 use serde_json::json;
@@ -26,7 +20,7 @@ use super::tenant::extract_tenant;
 use crate::{
     domain::{
         guards::GuardError,
-        issue_service::{process_issue, IssueError, IssueRequest},
+        receipt_service::{process_receipt, ReceiptError, ReceiptRequest},
     },
     AppState,
 };
@@ -35,113 +29,93 @@ use crate::{
 // Error mapping
 // ============================================================================
 
-fn issue_error_response(err: IssueError) -> impl IntoResponse {
+fn receipt_error_response(err: ReceiptError) -> impl IntoResponse {
     match err {
-        IssueError::Guard(GuardError::ItemNotFound) => (
+        ReceiptError::Guard(GuardError::ItemNotFound) => (
             StatusCode::NOT_FOUND,
             Json(json!({
                 "error": "item_not_found",
                 "message": "Item not found or does not belong to this tenant"
             })),
         ),
-        IssueError::Guard(GuardError::ItemInactive) => (
+        ReceiptError::Guard(GuardError::ItemInactive) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({
                 "error": "item_inactive",
-                "message": "Item is inactive and cannot be issued"
+                "message": "Item is inactive and cannot receive stock"
             })),
         ),
-        IssueError::Guard(GuardError::Validation(msg)) => (
+        ReceiptError::Guard(GuardError::Validation(msg)) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({ "error": "validation_error", "message": msg })),
         ),
-        IssueError::Guard(GuardError::NoBaseUom) => (
+        ReceiptError::Guard(GuardError::NoBaseUom) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({
                 "error": "no_base_uom",
                 "message": "Item has no base_uom configured; cannot convert input UoM"
             })),
         ),
-        IssueError::Guard(GuardError::UomConversion(e)) => (
+        ReceiptError::Guard(GuardError::UomConversion(e)) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({ "error": "uom_conversion_error", "message": e.to_string() })),
         ),
-        IssueError::Guard(GuardError::Database(e)) => {
-            tracing::error!(error = %e, "guard database error in issue");
+        ReceiptError::Guard(GuardError::Database(e)) => {
+            tracing::error!(error = %e, "guard database error");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": "internal_error", "message": "Database error" })),
             )
         }
-        IssueError::InsufficientQuantity { requested, available } => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "insufficient_quantity",
-                "message": format!(
-                    "Insufficient stock: requested {requested}, available {available}"
-                )
-            })),
-        ),
-        IssueError::Fifo(e) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "fifo_error", "message": e.to_string() })),
-        ),
-        IssueError::NoLayersAvailable => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "no_stock",
-                "message": "No stock layers available for this item/warehouse"
-            })),
-        ),
-        IssueError::ConflictingIdempotencyKey => (
-            StatusCode::CONFLICT,
-            Json(json!({
-                "error": "idempotency_conflict",
-                "message": "Idempotency key already used with a different request body"
-            })),
-        ),
-        IssueError::Serialization(e) => {
-            tracing::error!(error = %e, "issue serialization error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
-            )
-        }
-        IssueError::Database(e) => {
-            tracing::error!(error = %e, "issue database error");
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({ "error": "internal_error", "message": "Database error" })),
-            )
-        }
-        IssueError::LotRequired => (
+        ReceiptError::LotCodeRequired => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({
                 "error": "lot_code_required",
                 "message": "lot_code is required for lot-tracked items"
             })),
         ),
-        IssueError::LotNotFound(code) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "lot_not_found",
-                "message": format!("Lot '{}' not found for this item/tenant", code)
-            })),
-        ),
-        IssueError::SerialRequired => (
+        ReceiptError::SerialCodesRequired => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({
                 "error": "serial_codes_required",
-                "message": "serial_codes is required (non-empty) for serial-tracked items"
+                "message": "serial_codes is required for serial-tracked items"
             })),
         ),
-        IssueError::SerialNotAvailable(code) => (
+        ReceiptError::SerialCountMismatch { expected, got } => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({
-                "error": "serial_not_available",
-                "message": format!("Serial '{}' is not available (not found or not on_hand)", code)
+                "error": "serial_count_mismatch",
+                "message": format!("serial_codes length {} must equal quantity {}", got, expected)
             })),
         ),
+        ReceiptError::DuplicateSerialCode => (
+            StatusCode::CONFLICT,
+            Json(json!({
+                "error": "duplicate_serial_code",
+                "message": "One or more serial codes already exist for this tenant/item"
+            })),
+        ),
+        ReceiptError::ConflictingIdempotencyKey => (
+            StatusCode::CONFLICT,
+            Json(json!({
+                "error": "idempotency_conflict",
+                "message": "Idempotency key already used with a different request body"
+            })),
+        ),
+        ReceiptError::Serialization(e) => {
+            tracing::error!(error = %e, "receipt serialization error");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": "Serialization error" })),
+            )
+        }
+        ReceiptError::Database(e) => {
+            tracing::error!(error = %e, "receipt database error");
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "internal_error", "message": "Database error" })),
+            )
+        }
     }
 }
 
@@ -149,23 +123,23 @@ fn issue_error_response(err: IssueError) -> impl IntoResponse {
 // Handler
 // ============================================================================
 
-/// POST /api/inventory/issues
+/// POST /api/inventory/receipts
 ///
-/// Issues stock atomically: ledger row (negative qty) + layer_consumptions +
-/// updated FIFO layers + on-hand projection + outbox event, all in one transaction.
+/// Creates a stock receipt atomically: ledger row + FIFO layer + outbox event,
+/// all in a single database transaction.
 ///
 /// Responses:
-///   201 Created  — issue created, rows committed
-///   200 OK       — idempotency replay (same key + same body)
+///   201 Created  — receipt created, rows committed
+///   200 OK       — idempotency replay (same key + same body, stored result returned)
 ///   409 Conflict — same idempotency key with a different request body
 ///   404 Not Found — item not found or wrong tenant
-///   422 Unprocessable Entity — validation failure or insufficient stock
+///   422 Unprocessable Entity — validation failure (inactive item, zero qty, zero cost)
 ///   500 Internal Server Error — unexpected error
-pub async fn post_issue(
+pub async fn post_receipt(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
-    Json(mut req): Json<IssueRequest>,
+    Json(mut req): Json<ReceiptRequest>,
 ) -> impl IntoResponse {
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
     let tenant_id = match extract_tenant(&claims) {
@@ -173,7 +147,7 @@ pub async fn post_issue(
         Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
-    match process_issue(&state.pool, &req, Some(&tracing_ctx)).await {
+    match process_receipt(&state.pool, &req, Some(&tracing_ctx)).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {
                 StatusCode::OK
@@ -182,7 +156,7 @@ pub async fn post_issue(
             };
             (status, Json(json!(result))).into_response()
         }
-        Err(e) => issue_error_response(e).into_response(),
+        Err(e) => receipt_error_response(e).into_response(),
     }
 }
 
@@ -192,8 +166,11 @@ pub async fn post_issue(
 
 #[cfg(test)]
 mod tests {
+    /// DB integration tests live in the integration test suite (cargo test -p inventory).
+    /// Unit tests for request/response parsing belong here.
+
     #[test]
-    fn placeholder_issues_module_compiles() {
-        // DB integration tests live in tests/issue_integration.rs
+    fn placeholder_receipts_module_compiles() {
+        // Ensures this module compiles cleanly.
     }
 }

@@ -12,7 +12,12 @@
 //!   Duplicate keys with the same body return 200 OK with the stored result.
 //!   Duplicate keys with a different body return 409 Conflict.
 
-use axum::{extract::{Path, State}, http::StatusCode, response::IntoResponse, Extension, Json};
+use axum::{
+    extract::{Path, State},
+    http::StatusCode,
+    response::IntoResponse,
+    Extension, Json,
+};
 use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;

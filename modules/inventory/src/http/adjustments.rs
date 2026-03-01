@@ -1,7 +1,7 @@
-//! Stock transfer HTTP handler.
+//! Stock adjustment HTTP handler.
 //!
 //! Endpoint:
-//!   POST /api/inventory/transfers — move stock between warehouses (paired ledger entries)
+//!   POST /api/inventory/adjustments — create a compensating ledger entry
 //!
 //! Tenant identity derived from JWT `VerifiedClaims`.
 //!
@@ -19,8 +19,8 @@ use std::sync::Arc;
 use super::tenant::extract_tenant;
 use crate::{
     domain::{
+        adjust_service::{process_adjustment, AdjustError, AdjustRequest},
         guards::GuardError,
-        transfer_service::{process_transfer, TransferError, TransferRequest},
     },
     AppState,
 };
@@ -29,9 +29,9 @@ use crate::{
 // Error mapping
 // ============================================================================
 
-fn transfer_error_response(err: TransferError) -> impl IntoResponse {
+fn adjust_error_response(err: AdjustError) -> impl IntoResponse {
     match err {
-        TransferError::Guard(GuardError::ItemNotFound) => (
+        AdjustError::Guard(GuardError::ItemNotFound) => (
             StatusCode::NOT_FOUND,
             Json(json!({
                 "error": "item_not_found",
@@ -39,57 +39,47 @@ fn transfer_error_response(err: TransferError) -> impl IntoResponse {
             })),
         )
             .into_response(),
-        TransferError::Guard(GuardError::ItemInactive) => (
+        AdjustError::Guard(GuardError::ItemInactive) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({
                 "error": "item_inactive",
-                "message": "Item is inactive and cannot be transferred"
+                "message": "Item is inactive and cannot be adjusted"
             })),
         )
             .into_response(),
-        TransferError::Guard(GuardError::Validation(msg)) => (
+        AdjustError::Guard(GuardError::Validation(msg)) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({ "error": "validation_error", "message": msg })),
         )
             .into_response(),
-        TransferError::Guard(GuardError::Database(e)) => {
-            tracing::error!(error = %e, "guard database error in transfer");
+        AdjustError::Guard(GuardError::Database(e)) => {
+            tracing::error!(error = %e, "guard database error in adjustment");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": "internal_error", "message": "Database error" })),
             )
                 .into_response()
         }
-        TransferError::Guard(e) => (
+        AdjustError::Guard(e) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({ "error": "guard_error", "message": e.to_string() })),
         )
             .into_response(),
-        TransferError::SameWarehouse => (
+        AdjustError::NegativeOnHand {
+            available,
+            would_be,
+        } => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({
-                "error": "same_warehouse",
-                "message": "Source and destination warehouse must be different"
-            })),
-        )
-            .into_response(),
-        TransferError::InsufficientQuantity { requested, available } => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({
-                "error": "insufficient_quantity",
+                "error": "negative_on_hand",
                 "message": format!(
-                    "Insufficient stock: requested {}, available {}",
-                    requested, available
+                    "Adjustment would drive on-hand negative: have {}, would become {}",
+                    available, would_be
                 )
             })),
         )
             .into_response(),
-        TransferError::Fifo(e) => (
-            StatusCode::UNPROCESSABLE_ENTITY,
-            Json(json!({ "error": "fifo_error", "message": e.to_string() })),
-        )
-            .into_response(),
-        TransferError::ConflictingIdempotencyKey => (
+        AdjustError::ConflictingIdempotencyKey => (
             StatusCode::CONFLICT,
             Json(json!({
                 "error": "idempotency_conflict",
@@ -97,16 +87,16 @@ fn transfer_error_response(err: TransferError) -> impl IntoResponse {
             })),
         )
             .into_response(),
-        TransferError::Serialization(e) => {
-            tracing::error!(error = %e, "serialization error in transfer");
+        AdjustError::Serialization(e) => {
+            tracing::error!(error = %e, "serialization error in adjustment");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": "internal_error", "message": "Serialization error" })),
             )
                 .into_response()
         }
-        TransferError::Database(e) => {
-            tracing::error!(error = %e, "database error in transfer");
+        AdjustError::Database(e) => {
+            tracing::error!(error = %e, "database error in adjustment");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(json!({ "error": "internal_error", "message": "Database error" })),
@@ -120,18 +110,15 @@ fn transfer_error_response(err: TransferError) -> impl IntoResponse {
 // Handler
 // ============================================================================
 
-/// POST /api/inventory/transfers
+/// POST /api/inventory/adjustments
 ///
-/// Moves stock between warehouses as paired ledger entries (transfer_out + transfer_in)
-/// in a single atomic transaction. FIFO is consumed on the source side; a new cost
-/// layer is created at the destination at weighted average cost.
-///
-/// Returns 201 Created on new transfer; 200 OK on idempotency replay.
-pub async fn post_transfer(
+/// Creates a compensating ledger entry to correct physical reality.
+/// Returns 201 Created on new adjustment; 200 OK on idempotency replay.
+pub async fn post_adjustment(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
-    Json(mut req): Json<TransferRequest>,
+    Json(mut req): Json<AdjustRequest>,
 ) -> impl IntoResponse {
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
     let tenant_id = match extract_tenant(&claims) {
@@ -139,7 +126,7 @@ pub async fn post_transfer(
         Err(e) => return e.into_response(),
     };
     req.tenant_id = tenant_id;
-    match process_transfer(&state.pool, &req, Some(&tracing_ctx)).await {
+    match process_adjustment(&state.pool, &req, Some(&tracing_ctx)).await {
         Ok((result, is_replay)) => {
             let status = if is_replay {
                 StatusCode::OK
@@ -148,6 +135,6 @@ pub async fn post_transfer(
             };
             (status, Json(result)).into_response()
         }
-        Err(err) => transfer_error_response(err).into_response(),
+        Err(err) => adjust_error_response(err).into_response(),
     }
 }
