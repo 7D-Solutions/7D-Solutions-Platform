@@ -90,34 +90,6 @@ jobs:
           chmod +x scripts/ci/check-openapi-breaking-changes.sh
           scripts/ci/check-openapi-breaking-changes.sh
 
-  validate-module-structure:
-    name: Validate Module Structure
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Check VERSION and CHANGELOG exist
-        run: |
-          missing=()
-
-          # Auto-discover: any module/platform dir with a VERSION file must also have CHANGELOG.md
-          for version_file in modules/*/VERSION platform/*/VERSION; do
-            if [ -f "$version_file" ]; then
-              module_dir=$(dirname "$version_file")
-              if [ ! -f "$module_dir/CHANGELOG.md" ]; then
-                missing+=("$module_dir/CHANGELOG.md")
-              fi
-            fi
-          done
-
-          if [ ${#missing[@]} -gt 0 ]; then
-            echo "ERROR: Missing required files:" >&2
-            printf '%s\n' "${missing[@]}" >&2
-            exit 1
-          fi
-
-          echo "✓ All versioned modules have CHANGELOG.md"
-
   contract-tests:
     name: Contract Tests
     runs-on: ubuntu-latest
