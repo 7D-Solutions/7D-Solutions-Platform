@@ -35,7 +35,9 @@ fn form_error_response(err: FormError) -> impl IntoResponse {
         ),
         FormError::DuplicateFieldKey => (
             StatusCode::CONFLICT,
-            Json(json!({ "error": "duplicate_field_key", "message": "Field key already exists on this template" })),
+            Json(
+                json!({ "error": "duplicate_field_key", "message": "Field key already exists on this template" }),
+            ),
         ),
         FormError::Validation(msg) => (
             StatusCode::BAD_REQUEST,

@@ -29,7 +29,10 @@ pub async fn render_annotations(mut multipart: Multipart) -> Result<Response, Re
         match name.as_str() {
             "file" => {
                 let data = field.bytes().await.map_err(|e| {
-                    error_response(StatusCode::BAD_REQUEST, &format!("Failed to read file: {e}"))
+                    error_response(
+                        StatusCode::BAD_REQUEST,
+                        &format!("Failed to read file: {e}"),
+                    )
                 })?;
                 pdf_bytes = Some(data.to_vec());
             }
@@ -54,8 +57,8 @@ pub async fn render_annotations(mut multipart: Multipart) -> Result<Response, Re
         }
     }
 
-    let pdf_bytes = pdf_bytes
-        .ok_or_else(|| error_response(StatusCode::BAD_REQUEST, "Missing 'file' field"))?;
+    let pdf_bytes =
+        pdf_bytes.ok_or_else(|| error_response(StatusCode::BAD_REQUEST, "Missing 'file' field"))?;
     let annotations = annotations
         .ok_or_else(|| error_response(StatusCode::BAD_REQUEST, "Missing 'annotations' field"))?;
 
@@ -64,16 +67,15 @@ pub async fn render_annotations(mut multipart: Multipart) -> Result<Response, Re
         return Ok(pdf_response(pdf_bytes));
     }
 
-    let result = tokio::task::spawn_blocking(move || {
-        render::render_annotations(&pdf_bytes, &annotations)
-    })
-    .await
-    .map_err(|e| {
-        error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            &format!("Render task failed: {e}"),
-        )
-    })?;
+    let result =
+        tokio::task::spawn_blocking(move || render::render_annotations(&pdf_bytes, &annotations))
+            .await
+            .map_err(|e| {
+                error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    &format!("Render task failed: {e}"),
+                )
+            })?;
 
     match result {
         Ok(output_bytes) => Ok(pdf_response(output_bytes)),
@@ -105,7 +107,7 @@ fn pdf_response(bytes: Vec<u8>) -> Response {
             "attachment; filename=\"annotated.pdf\"",
         )
         .body(Body::from(bytes))
-        .unwrap()
+        .expect("static PDF response headers are valid")
 }
 
 fn error_response(status: StatusCode, message: &str) -> Response {

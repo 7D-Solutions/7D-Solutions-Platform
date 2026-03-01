@@ -1,9 +1,15 @@
-use axum::{extract::DefaultBodyLimit, routing::{get, post, put}, Extension, Router};
 use ::event_bus::{EventBus, InMemoryBus, NatsBus};
+use axum::{
+    extract::DefaultBodyLimit,
+    routing::{get, post, put},
+    Extension, Router,
+};
 use http::HeaderName;
-use pdf_editor_rs::{config, config::Config, db, event_bus, metrics, routes};
+use pdf_editor_rs::{config, config::Config, db, event_bus, http as handlers, metrics};
 use security::{
-    middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
+    middleware::{
+        default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+    },
     optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 use std::net::SocketAddr;
@@ -75,38 +81,82 @@ async fn main() {
     // HTTP server
     let maybe_verifier = JwtVerifier::from_env_with_overlap().map(Arc::new);
 
-    // Mutation routes — require pdf_editor.mutate permission.
+    // Mutation handlers — require pdf_editor.mutate permission.
     let mutations = Router::new()
         // Form templates — write
-        .route("/api/pdf/forms/templates", post(routes::templates::create_template))
-        .route("/api/pdf/forms/templates/{id}", put(routes::templates::update_template))
+        .route(
+            "/api/pdf/forms/templates",
+            post(handlers::templates::create_template),
+        )
+        .route(
+            "/api/pdf/forms/templates/{id}",
+            put(handlers::templates::update_template),
+        )
         // Form fields — write
-        .route("/api/pdf/forms/templates/{id}/fields", post(routes::fields::create_field))
-        .route("/api/pdf/forms/templates/{tid}/fields/{fid}", put(routes::fields::update_field))
-        .route("/api/pdf/forms/templates/{id}/fields/reorder", post(routes::fields::reorder_fields))
+        .route(
+            "/api/pdf/forms/templates/{id}/fields",
+            post(handlers::fields::create_field),
+        )
+        .route(
+            "/api/pdf/forms/templates/{tid}/fields/{fid}",
+            put(handlers::fields::update_field),
+        )
+        .route(
+            "/api/pdf/forms/templates/{id}/fields/reorder",
+            post(handlers::fields::reorder_fields),
+        )
         // Form submissions — write
-        .route("/api/pdf/forms/submissions", post(routes::submissions::create_submission))
-        .route("/api/pdf/forms/submissions/{id}", put(routes::submissions::autosave_submission))
-        .route("/api/pdf/forms/submissions/{id}/submit", post(routes::submissions::submit_submission))
-        .route("/api/pdf/forms/submissions/{id}/generate", post(routes::generate::generate_pdf))
-        .route_layer(RequirePermissionsLayer::new(&[permissions::PDF_EDITOR_MUTATE]))
+        .route(
+            "/api/pdf/forms/submissions",
+            post(handlers::submissions::create_submission),
+        )
+        .route(
+            "/api/pdf/forms/submissions/{id}",
+            put(handlers::submissions::autosave_submission),
+        )
+        .route(
+            "/api/pdf/forms/submissions/{id}/submit",
+            post(handlers::submissions::submit_submission),
+        )
+        .route(
+            "/api/pdf/forms/submissions/{id}/generate",
+            post(handlers::generate::generate_pdf),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::PDF_EDITOR_MUTATE,
+        ]))
         .with_state(db.clone());
 
-    // Read routes — no permission gate.
+    // Read handlers — no permission gate.
     let reads = Router::new()
         .route("/healthz", get(health::healthz))
-        .route("/api/health", get(routes::health::health))
-        .route("/api/ready", get(routes::health::ready))
-        .route("/api/version", get(routes::health::version))
+        .route("/api/health", get(handlers::health::health))
+        .route("/api/ready", get(handlers::health::ready))
+        .route("/api/version", get(handlers::health::version))
         .route("/metrics", get(metrics::metrics_handler))
         // Form templates — read
-        .route("/api/pdf/forms/templates", get(routes::templates::list_templates))
-        .route("/api/pdf/forms/templates/{id}", get(routes::templates::get_template))
+        .route(
+            "/api/pdf/forms/templates",
+            get(handlers::templates::list_templates),
+        )
+        .route(
+            "/api/pdf/forms/templates/{id}",
+            get(handlers::templates::get_template),
+        )
         // Form fields — read
-        .route("/api/pdf/forms/templates/{id}/fields", get(routes::fields::list_fields))
+        .route(
+            "/api/pdf/forms/templates/{id}/fields",
+            get(handlers::fields::list_fields),
+        )
         // Form submissions — read
-        .route("/api/pdf/forms/submissions", get(routes::submissions::list_submissions))
-        .route("/api/pdf/forms/submissions/{id}", get(routes::submissions::get_submission))
+        .route(
+            "/api/pdf/forms/submissions",
+            get(handlers::submissions::list_submissions),
+        )
+        .route(
+            "/api/pdf/forms/submissions/{id}",
+            get(handlers::submissions::get_submission),
+        )
         .with_state(db.clone());
 
     let app = Router::new()
@@ -116,16 +166,26 @@ async fn main() {
         // Nested router with its own 50 MB body limit for PDF uploads.
         .merge(
             Router::new()
-                .route("/api/pdf/render-annotations", post(routes::annotations::render_annotations))
-                .route_layer(RequirePermissionsLayer::new(&[permissions::PDF_EDITOR_MUTATE]))
-                .layer(DefaultBodyLimit::max(52_428_800))
+                .route(
+                    "/api/pdf/render-annotations",
+                    post(handlers::annotations::render_annotations),
+                )
+                .route_layer(RequirePermissionsLayer::new(&[
+                    permissions::PDF_EDITOR_MUTATE,
+                ]))
+                .layer(DefaultBodyLimit::max(52_428_800)),
         )
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
+        .layer(axum::middleware::from_fn(
+            security::tracing::tracing_context_middleware,
+        ))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
+        .layer(axum::middleware::from_fn_with_state(
+            maybe_verifier,
+            optional_claims_mw,
+        ))
         .layer(cors)
         .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -184,7 +244,9 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
     let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
 
     if is_wildcard && config.env != "development" {
-        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+        tracing::warn!(
+            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
+        );
     }
 
     let layer = if is_wildcard {

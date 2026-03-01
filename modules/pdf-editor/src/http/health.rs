@@ -1,5 +1,7 @@
 use axum::{extract::State, http::StatusCode, Json};
-use health::{build_ready_response, db_check_with_pool, ready_response_to_axum, PoolMetrics, ReadyResponse};
+use health::{
+    build_ready_response, db_check_with_pool, ready_response_to_axum, PoolMetrics, ReadyResponse,
+};
 use sqlx::PgPool;
 use std::time::Instant;
 

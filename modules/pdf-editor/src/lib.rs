@@ -8,4 +8,4 @@ pub mod db;
 pub mod domain;
 pub mod event_bus;
 pub mod metrics;
-pub mod routes;
+pub mod http;

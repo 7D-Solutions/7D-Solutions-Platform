@@ -45,9 +45,8 @@ pub async fn generate_pdf(
     claims: Option<Extension<VerifiedClaims>>,
     multipart: Multipart,
 ) -> Result<Response, Response> {
-    let tenant_id = extract_tenant(&claims).map_err(|(status, body)| {
-        (status, body).into_response()
-    })?;
+    let tenant_id =
+        extract_tenant(&claims).map_err(|(status, body)| (status, body).into_response())?;
 
     let pdf_bytes = extract_pdf_bytes(multipart).await?;
 
@@ -76,23 +75,25 @@ pub async fn generate_pdf(
         })?;
 
     let field_data = submission.field_data.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        generate_filled_pdf(&pdf_bytes, &fields, &field_data)
-    })
-    .await
-    .map_err(|e| {
-        error_response(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            &format!("Generation task failed: {e}"),
-        )
-    })?;
+    let result =
+        tokio::task::spawn_blocking(move || generate_filled_pdf(&pdf_bytes, &fields, &field_data))
+            .await
+            .map_err(|e| {
+                error_response(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    &format!("Generation task failed: {e}"),
+                )
+            })?;
 
     use crate::domain::generate::GenerateError;
 
     let output_bytes = match result {
         Ok(bytes) => bytes,
         Err(GenerateError::TooLarge) => {
-            return Err(error_response(StatusCode::PAYLOAD_TOO_LARGE, "PDF too large"));
+            return Err(error_response(
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "PDF too large",
+            ));
         }
         Err(GenerateError::InvalidMagic) => {
             return Err(error_response(StatusCode::BAD_REQUEST, "Invalid PDF file"));
@@ -158,12 +159,18 @@ async fn extract_pdf_bytes(mut multipart: Multipart) -> Result<Vec<u8>, Response
         let name = field.name().unwrap_or("").to_string();
         if name == "file" {
             let data = field.bytes().await.map_err(|e| {
-                error_response(StatusCode::BAD_REQUEST, &format!("Failed to read file: {e}"))
+                error_response(
+                    StatusCode::BAD_REQUEST,
+                    &format!("Failed to read file: {e}"),
+                )
             })?;
             return Ok(data.to_vec());
         }
     }
-    Err(error_response(StatusCode::BAD_REQUEST, "Missing 'file' field"))
+    Err(error_response(
+        StatusCode::BAD_REQUEST,
+        "Missing 'file' field",
+    ))
 }
 
 fn pdf_response(bytes: Vec<u8>) -> Response {
@@ -175,7 +182,7 @@ fn pdf_response(bytes: Vec<u8>) -> Response {
             "attachment; filename=\"generated.pdf\"",
         )
         .body(Body::from(bytes))
-        .unwrap()
+        .expect("static PDF response headers are valid")
 }
 
 fn error_response(status: StatusCode, message: &str) -> Response {

@@ -20,8 +20,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::domain::submissions::{
-    AutosaveRequest, CreateSubmissionRequest, ListSubmissionsQuery, SubmissionError,
-    SubmissionRepo,
+    AutosaveRequest, CreateSubmissionRequest, ListSubmissionsQuery, SubmissionError, SubmissionRepo,
 };
 
 use super::templates::extract_tenant;
@@ -46,7 +45,9 @@ fn submission_error_response(err: SubmissionError) -> impl IntoResponse {
         ),
         SubmissionError::AlreadySubmitted => (
             StatusCode::CONFLICT,
-            Json(json!({ "error": "already_submitted", "message": "Submission has already been submitted" })),
+            Json(
+                json!({ "error": "already_submitted", "message": "Submission has already been submitted" }),
+            ),
         ),
         SubmissionError::Validation(msg) => (
             StatusCode::BAD_REQUEST,

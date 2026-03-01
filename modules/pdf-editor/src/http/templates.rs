@@ -35,7 +35,9 @@ pub fn extract_tenant(
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
         None => Err((
             StatusCode::UNAUTHORIZED,
-            Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            Json(
+                json!({ "error": "unauthorized", "message": "Missing or invalid authentication" }),
+            ),
         )),
     }
 }
@@ -52,7 +54,9 @@ fn form_error_response(err: FormError) -> impl IntoResponse {
         ),
         FormError::DuplicateFieldKey => (
             StatusCode::CONFLICT,
-            Json(json!({ "error": "duplicate_field_key", "message": "Field key already exists on this template" })),
+            Json(
+                json!({ "error": "duplicate_field_key", "message": "Field key already exists on this template" }),
+            ),
         ),
         FormError::Validation(msg) => (
             StatusCode::BAD_REQUEST,
