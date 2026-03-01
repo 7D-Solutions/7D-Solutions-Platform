@@ -56,7 +56,7 @@ const MODULE_DEFS: &[ModuleDef] = &[
         postgres_port: 5435,
         postgres_user: "subscriptions_user",
         password_env_var: "SUBSCRIPTIONS_DB_PASSWORD",
-        migrations_path: "./modules/subscriptions/migrations",
+        migrations_path: "./modules/subscriptions/db/migrations",
         http_port: 8087,
     },
     ModuleDef {

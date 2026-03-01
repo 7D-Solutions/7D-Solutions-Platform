@@ -1,33 +1,41 @@
--- Add envelope metadata columns to events_outbox (bd-24o3)
--- Phase 16: Envelope Metadata Queryability
+-- Add envelope metadata columns to events_outbox for Phase 16
+-- These columns make envelope metadata queryable and support deterministic replay analysis
 
--- Add required envelope metadata columns (nullable for backward compatibility)
+-- Required envelope fields
 ALTER TABLE events_outbox
-    ADD COLUMN IF NOT EXISTS event_id UUID,
-    ADD COLUMN IF NOT EXISTS event_type TEXT,
-    ADD COLUMN IF NOT EXISTS tenant_id TEXT,
-    ADD COLUMN IF NOT EXISTS source_module TEXT,
-    ADD COLUMN IF NOT EXISTS source_version TEXT,
-    ADD COLUMN IF NOT EXISTS schema_version TEXT,
-    ADD COLUMN IF NOT EXISTS replay_safe BOOLEAN,
-    ADD COLUMN IF NOT EXISTS occurred_at TIMESTAMPTZ;
+  ADD COLUMN event_id UUID,
+  ADD COLUMN event_type VARCHAR(255),
+  ADD COLUMN tenant_id VARCHAR(255),
+  ADD COLUMN source_module VARCHAR(100),
+  ADD COLUMN source_version VARCHAR(50),
+  ADD COLUMN schema_version VARCHAR(50),
+  ADD COLUMN replay_safe BOOLEAN DEFAULT true;
 
--- Add optional envelope metadata columns (for tracing, linkage, classification)
+-- Optional envelope fields
 ALTER TABLE events_outbox
-    ADD COLUMN IF NOT EXISTS trace_id TEXT,
-    ADD COLUMN IF NOT EXISTS correlation_id TEXT,
-    ADD COLUMN IF NOT EXISTS causation_id TEXT,
-    ADD COLUMN IF NOT EXISTS reverses_event_id UUID,
-    ADD COLUMN IF NOT EXISTS supersedes_event_id UUID,
-    ADD COLUMN IF NOT EXISTS side_effect_id TEXT,
-    ADD COLUMN IF NOT EXISTS mutation_class TEXT;
+  ADD COLUMN trace_id VARCHAR(255),
+  ADD COLUMN correlation_id VARCHAR(255),
+  ADD COLUMN causation_id VARCHAR(255),
+  ADD COLUMN reverses_event_id UUID,
+  ADD COLUMN supersedes_event_id UUID,
+  ADD COLUMN side_effect_id VARCHAR(255),
+  ADD COLUMN mutation_class VARCHAR(100);
 
--- Create indexes for operational queries
-CREATE INDEX IF NOT EXISTS idx_events_outbox_event_id ON events_outbox(event_id);
-CREATE INDEX IF NOT EXISTS idx_events_outbox_tenant_id ON events_outbox(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_events_outbox_trace_id ON events_outbox(trace_id) WHERE trace_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_events_outbox_mutation_class ON events_outbox(mutation_class) WHERE mutation_class IS NOT NULL;
-CREATE INDEX IF NOT EXISTS idx_events_outbox_occurred_at ON events_outbox(occurred_at);
+-- Add occurred_at from envelope (different from created_at which is when row was inserted)
+ALTER TABLE events_outbox
+  ADD COLUMN occurred_at TIMESTAMPTZ;
 
--- Add comment for documentation
-COMMENT ON TABLE events_outbox IS 'Transactional outbox for reliable event publishing. Contains EventEnvelope metadata for deterministic replay.';
+-- Create index on event_id for deduplication and lookups
+CREATE INDEX idx_events_outbox_event_id ON events_outbox(event_id);
+
+-- Create index on tenant_id for tenant-scoped queries
+CREATE INDEX idx_events_outbox_tenant_id ON events_outbox(tenant_id);
+
+-- Create index on mutation_class for operational queries
+CREATE INDEX idx_events_outbox_mutation_class ON events_outbox(mutation_class) WHERE mutation_class IS NOT NULL;
+
+-- Create index on trace_id for distributed tracing
+CREATE INDEX idx_events_outbox_trace_id ON events_outbox(trace_id) WHERE trace_id IS NOT NULL;
+
+-- Comment on table
+COMMENT ON TABLE events_outbox IS 'Transactional outbox for reliable event publishing with full envelope metadata';

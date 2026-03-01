@@ -39,7 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /app/target/release/subscriptions-rs /usr/local/bin/subscriptions-rs
-COPY --from=builder /app/modules/subscriptions/migrations /app/migrations
+COPY --from=builder /app/modules/subscriptions/db/migrations /app/migrations
 
 ENV HOST=0.0.0.0
 ENV PORT=8086

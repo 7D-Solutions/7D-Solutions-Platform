@@ -39,24 +39,32 @@ jobs:
 
       - name: Collect binaries and compute checksums
         run: |
-          # Find all binary executables in target/release
-          for binary in ar-rs payments-rs subscriptions-rs gl-rs notifications-rs identity-auth; do
+          # Auto-discover all workspace binary targets from Cargo metadata
+          BINARIES=$(cargo metadata --format-version 1 --no-deps \
+            | jq -r '.packages[] | .targets[] | select(.kind[] == "bin") | .name')
+
+          collected=0
+          skipped=0
+          for binary in $BINARIES; do
             if [ -f "target/release/$binary" ]; then
               echo "Processing $binary..."
-
-              # Copy binary to artifacts directory
               cp "target/release/$binary" "artifacts/$binary"
-
-              # Compute SHA256 checksum
               cd artifacts
               sha256sum "$binary" > "${binary}.sha256"
               cd ..
-
               echo "✓ $binary → artifacts/ (with checksum)"
+              collected=$((collected + 1))
             else
-              echo "⚠ Binary $binary not found (may be lib-only crate)"
+              echo "⚠ Binary $binary not found in target/release/"
+              skipped=$((skipped + 1))
             fi
           done
+
+          echo ""
+          echo "=== Collection summary: $collected collected, $skipped skipped ==="
+          if [ "$skipped" -gt 0 ]; then
+            echo "::warning::$skipped workspace binaries were not found in target/release/"
+          fi
 
       - name: Create release manifest
         run: |

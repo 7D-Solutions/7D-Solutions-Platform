@@ -3,9 +3,9 @@
 mod admin;
 mod admin_types;
 mod config;
-mod db;
 mod consumer;
 mod cycle_gating;
+mod db;
 mod dlq;
 mod envelope;
 mod envelope_validation;
@@ -22,7 +22,9 @@ use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use config::Config;
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::{
-    middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
+    middleware::{
+        default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+    },
     optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 
@@ -64,7 +66,7 @@ async fn main() {
     tracing::info!("Database connection established");
 
     // Run migrations
-    sqlx::migrate!("./migrations")
+    sqlx::migrate!("./db/migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations");
@@ -74,7 +76,10 @@ async fn main() {
     // Initialize event bus
     let bus: Arc<dyn EventBus> = match config.bus_type {
         config::BusType::Nats => {
-            let nats_url = config.nats_url.as_ref().expect("NATS_URL required for NATS bus");
+            let nats_url = config
+                .nats_url
+                .as_ref()
+                .expect("NATS_URL required for NATS bus");
             tracing::info!("Connecting to NATS at {}", nats_url);
             let nats_client = async_nats::connect(nats_url)
                 .await
@@ -121,17 +126,21 @@ async fn main() {
         .route("/api/version", get(routes::version))
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state.clone())
-        .merge(
-            routes::subscriptions_router(pool.clone())
-                .route_layer(RequirePermissionsLayer::new(&[permissions::SUBSCRIPTIONS_MUTATE])),
-        )
+        .merge(routes::subscriptions_router(pool.clone()).route_layer(
+            RequirePermissionsLayer::new(&[permissions::SUBSCRIPTIONS_MUTATE]),
+        ))
         .merge(admin::admin_router(pool))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
+        .layer(axum::middleware::from_fn(
+            security::tracing::tracing_context_middleware,
+        ))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
+        .layer(axum::middleware::from_fn_with_state(
+            maybe_verifier,
+            optional_claims_mw,
+        ))
         .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -182,7 +191,9 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
     let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
 
     if is_wildcard && config.env != "development" {
-        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+        tracing::warn!(
+            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
+        );
     }
 
     let layer = if is_wildcard {
