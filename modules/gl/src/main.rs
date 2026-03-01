@@ -15,13 +15,13 @@ use tracing_subscriber::EnvFilter;
 
 use gl_rs::{
     config::Config,
-    consumers::ap_vendor_bill_approved_consumers::start_ap_vendor_bill_approved_consumer,
+    consumers::ap_vendor_bill_approved_consumer::start_ap_vendor_bill_approved_consumer,
     consumers::ar_tax_liability::{start_ar_tax_committed_consumer, start_ar_tax_voided_consumer},
     consumers::fixed_assets_depreciation::start_fixed_assets_depreciation_consumer,
-    consumers::gl_credit_note_consumers::start_gl_credit_note_consumer,
-    consumers::gl_fx_realized_consumers::start_gl_fx_realized_consumer,
-    consumers::gl_inventory_consumers::start_gl_inventory_consumer,
-    consumers::gl_writeoff_consumers::start_gl_writeoff_consumer,
+    consumers::gl_credit_note_consumer::start_gl_credit_note_consumer,
+    consumers::gl_fx_realized_consumer::start_gl_fx_realized_consumer,
+    consumers::gl_inventory_consumer::start_gl_inventory_consumer,
+    consumers::gl_writeoff_consumer::start_gl_writeoff_consumer,
     consumers::timekeeping_labor_cost::start_gl_labor_cost_consumer,
     http::account_activity::get_account_activity,
     http::accruals::{

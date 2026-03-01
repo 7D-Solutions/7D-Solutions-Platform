@@ -432,7 +432,7 @@ name = "subscription_ttp_ar_lifecycle_e2e"
 path = "tests/subscription_ttp_ar_lifecycle_e2e.rs"
 
 [dependencies]
-sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "macros"] }
+sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "macros"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -440,7 +440,7 @@ uuid = { version = "1.0", features = ["v4", "v5", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", features = ["json"] }
 event-bus = { path = "../platform/event-bus" }
-async-nats = "0.33"
+async-nats = "0.38"
 futures = "0.3"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

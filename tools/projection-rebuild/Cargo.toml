@@ -16,7 +16,7 @@ security = { path = "../../platform/security" }
 clap = { version = "4.5", features = ["derive", "env"] }
 
 # Database
-sqlx = { version = "0.8.2", features = ["runtime-tokio-native-tls", "postgres", "uuid", "chrono"] }
+sqlx = { version = "0.8.2", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
