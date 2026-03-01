@@ -6,12 +6,12 @@
 //!
 //! All lifecycle transitions are auditable and atomic.
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 use audit::schema::{MutationClass, WriteAuditRequest};
 use audit::writer::AuditWriter;
-use security::{RbacPolicy, Role, Operation};
+use security::{Operation, RbacPolicy, Role};
 use sqlx::{PgPool, Postgres, Transaction};
-use tenant_registry::{TenantStatus, is_valid_state_transition};
+use tenant_registry::{is_valid_state_transition, TenantStatus};
 use uuid::Uuid;
 
 // ============================================================================
@@ -67,8 +67,7 @@ pub async fn suspend_tenant(role: Role, actor: &str, tenant_id: &str) -> Result<
     let audit_pool = get_audit_pool().await?;
 
     // Parse tenant ID
-    let tenant_uuid = Uuid::parse_str(tenant_id)
-        .context("Invalid tenant ID format")?;
+    let tenant_uuid = Uuid::parse_str(tenant_id).context("Invalid tenant ID format")?;
 
     // Start transaction for atomic state transition
     let mut tx = registry_pool.begin().await?;
@@ -98,7 +97,7 @@ pub async fn suspend_tenant(role: Role, actor: &str, tenant_id: &str) -> Result<
         SET status = 'suspended',
             updated_at = CURRENT_TIMESTAMP
         WHERE tenant_id = $1
-        "#
+        "#,
     )
     .bind(tenant_uuid)
     .execute(&mut *tx)
@@ -106,7 +105,9 @@ pub async fn suspend_tenant(role: Role, actor: &str, tenant_id: &str) -> Result<
     .context("Failed to update tenant status to suspended")?;
 
     // Commit registry transaction
-    tx.commit().await.context("Failed to commit tenant suspension")?;
+    tx.commit()
+        .await
+        .context("Failed to commit tenant suspension")?;
 
     // Write audit log entry
     write_lifecycle_audit_entry(
@@ -153,8 +154,7 @@ pub async fn deprovision_tenant(role: Role, actor: &str, tenant_id: &str) -> Res
     let audit_pool = get_audit_pool().await?;
 
     // Parse tenant ID
-    let tenant_uuid = Uuid::parse_str(tenant_id)
-        .context("Invalid tenant ID format")?;
+    let tenant_uuid = Uuid::parse_str(tenant_id).context("Invalid tenant ID format")?;
 
     // Start transaction for atomic state transition
     let mut tx = registry_pool.begin().await?;
@@ -185,7 +185,7 @@ pub async fn deprovision_tenant(role: Role, actor: &str, tenant_id: &str) -> Res
             deleted_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE tenant_id = $1
-        "#
+        "#,
     )
     .bind(tenant_uuid)
     .execute(&mut *tx)
@@ -193,7 +193,9 @@ pub async fn deprovision_tenant(role: Role, actor: &str, tenant_id: &str) -> Res
     .context("Failed to update tenant status to deleted")?;
 
     // Commit registry transaction
-    tx.commit().await.context("Failed to commit tenant deprovision")?;
+    tx.commit()
+        .await
+        .context("Failed to commit tenant deprovision")?;
 
     // Write audit log entry
     write_lifecycle_audit_entry(
@@ -234,17 +236,12 @@ impl TenantRecord {
 }
 
 /// Fetch tenant record from registry
-async fn fetch_tenant(
-    tx: &mut Transaction<'_, Postgres>,
-    tenant_id: Uuid,
-) -> Result<TenantRecord> {
-    sqlx::query_as::<_, TenantRecord>(
-        "SELECT tenant_id, status FROM tenants WHERE tenant_id = $1"
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **tx)
-    .await?
-    .ok_or_else(|| anyhow::anyhow!("Tenant not found: {}", tenant_id))
+async fn fetch_tenant(tx: &mut Transaction<'_, Postgres>, tenant_id: Uuid) -> Result<TenantRecord> {
+    sqlx::query_as::<_, TenantRecord>("SELECT tenant_id, status FROM tenants WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_optional(&mut **tx)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Tenant not found: {}", tenant_id))
 }
 
 /// Write audit log entry for lifecycle transition
@@ -312,14 +309,13 @@ pub async fn demo_reset_tenant(
     seed: u64,
     ar_base_url: &str,
 ) -> Result<DemoResetResult> {
-    use crate::provision::{create_tenant, MODULES};
+    use crate::provision::{create_tenant, load_modules};
     use sqlx::Connection;
 
     tracing::info!(tenant_id, seed, "Starting demo reset");
 
     // Resolve tenant ID (same logic as create_tenant)
     let tid = if tenant_id.len() == 36 {
-        
         tenant_id
             .parse::<Uuid>()
             .context("Invalid tenant UUID format")?
@@ -329,7 +325,8 @@ pub async fn demo_reset_tenant(
     };
 
     // 1. Drop all module databases for this tenant
-    for module in MODULES {
+    let modules = load_modules();
+    for module in &modules {
         let db_name = format!("tenant_{}_{}_db", tid, module.name);
         let base_url = format!(
             "postgres://{}:{}@{}:{}/postgres",
@@ -343,7 +340,7 @@ pub async fn demo_reset_tenant(
             Ok(mut conn) => {
                 // Terminate existing connections to the database before dropping
                 let _ = sqlx::query(
-                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1"
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1",
                 )
                 .bind(&db_name)
                 .execute(&mut conn)
@@ -389,8 +386,8 @@ pub async fn demo_reset_tenant(
     //
     // We invoke the compiled demo-seed binary. In CI, it should already be
     // compiled. In dev, we use `cargo run -p demo-seed`.
-    let demo_seed_binary = std::env::var("DEMO_SEED_BINARY")
-        .unwrap_or_else(|_| "cargo".to_string());
+    let demo_seed_binary =
+        std::env::var("DEMO_SEED_BINARY").unwrap_or_else(|_| "cargo".to_string());
 
     let mut cmd = if demo_seed_binary == "cargo" {
         let mut c = std::process::Command::new("cargo");
@@ -401,9 +398,12 @@ pub async fn demo_reset_tenant(
     };
 
     cmd.args([
-        "--tenant", tenant_id,
-        "--seed", &seed.to_string(),
-        "--ar-url", ar_base_url,
+        "--tenant",
+        tenant_id,
+        "--seed",
+        &seed.to_string(),
+        "--ar-url",
+        ar_base_url,
     ]);
 
     tracing::info!(tenant_id, seed, ar_base_url, "Running demo-seed");

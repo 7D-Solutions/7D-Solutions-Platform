@@ -4,11 +4,11 @@
 //! for all modules to ensure proper provisioning and operational readiness.
 
 use anyhow::Result;
-use serde::Deserialize;
 use security::get_service_token;
+use serde::Deserialize;
 use tracing::{info, warn};
 
-use crate::provision::MODULES;
+use crate::provision::load_modules;
 
 /// Health endpoint response
 #[derive(Debug, Deserialize)]
@@ -61,7 +61,8 @@ pub async fn verify_tenant(tenant_id: &str) -> Result<TenantVerification> {
     let mut module_results = Vec::new();
     let mut all_passed = true;
 
-    for module in MODULES {
+    let modules = load_modules();
+    for module in &modules {
         let verification = verify_module(module.name, module.http_port).await;
 
         if !verification.ready_check || !verification.version_check {
@@ -126,8 +127,14 @@ async fn verify_module(module_name: &str, http_port: u16) -> ModuleVerification 
                             ready_check = true;
                             info!("  ✓ {} /ready endpoint passed", module_name);
                         } else {
-                            error_messages.push(format!("Ready check status mismatch: {}", ready_resp.status));
-                            warn!("  ✗ {} /ready endpoint failed: status={}", module_name, ready_resp.status);
+                            error_messages.push(format!(
+                                "Ready check status mismatch: {}",
+                                ready_resp.status
+                            ));
+                            warn!(
+                                "  ✗ {} /ready endpoint failed: status={}",
+                                module_name, ready_resp.status
+                            );
                         }
                     }
                     Err(e) => {
@@ -137,7 +144,11 @@ async fn verify_module(module_name: &str, http_port: u16) -> ModuleVerification 
                 }
             } else {
                 error_messages.push(format!("Ready endpoint returned {}", response.status()));
-                warn!("  ✗ {} /ready endpoint returned {}", module_name, response.status());
+                warn!(
+                    "  ✗ {} /ready endpoint returned {}",
+                    module_name,
+                    response.status()
+                );
             }
         }
         Err(e) => {
@@ -160,17 +171,26 @@ async fn verify_module(module_name: &str, http_port: u16) -> ModuleVerification 
                     Ok(version_resp) => {
                         schema_version = Some(version_resp.schema_version.clone());
                         version_check = true;
-                        info!("  ✓ {} /version endpoint passed (schema: {})",
-                              module_name, version_resp.schema_version);
+                        info!(
+                            "  ✓ {} /version endpoint passed (schema: {})",
+                            module_name, version_resp.schema_version
+                        );
                     }
                     Err(e) => {
                         error_messages.push(format!("Failed to parse version response: {}", e));
-                        warn!("  ✗ {} /version response parsing failed: {}", module_name, e);
+                        warn!(
+                            "  ✗ {} /version response parsing failed: {}",
+                            module_name, e
+                        );
                     }
                 }
             } else {
                 error_messages.push(format!("Version endpoint returned {}", response.status()));
-                warn!("  ✗ {} /version endpoint returned {}", module_name, response.status());
+                warn!(
+                    "  ✗ {} /version endpoint returned {}",
+                    module_name,
+                    response.status()
+                );
             }
         }
         Err(e) => {
@@ -200,29 +220,49 @@ fn print_verification_summary(result: &TenantVerification) {
     info!("Tenant ID: {}", result.tenant_id);
 
     let total_checks = result.module_results.len() * 2; // ready + version per module
-    let passed_checks = result.module_results.iter()
+    let passed_checks = result
+        .module_results
+        .iter()
         .map(|m| (m.ready_check as usize) + (m.version_check as usize))
         .sum::<usize>();
 
     info!("Total Checks:  {}", total_checks);
-    info!("Passed:        {} ({:.1}%)",
-          passed_checks,
-          (passed_checks as f64 / total_checks as f64) * 100.0);
+    info!(
+        "Passed:        {} ({:.1}%)",
+        passed_checks,
+        (passed_checks as f64 / total_checks as f64) * 100.0
+    );
     info!("Failed:        {}", total_checks - passed_checks);
     info!("{}", "=".repeat(60));
 
     // Print per-module results
     for module_result in &result.module_results {
-        let ready_icon = if module_result.ready_check { "✓" } else { "✗" };
-        let version_icon = if module_result.version_check { "✓" } else { "✗" };
+        let ready_icon = if module_result.ready_check {
+            "✓"
+        } else {
+            "✗"
+        };
+        let version_icon = if module_result.version_check {
+            "✓"
+        } else {
+            "✗"
+        };
 
         info!(
             "{} {} - Ready: {} | Version: {} {}",
-            if module_result.ready_check && module_result.version_check { "✅" } else { "❌" },
+            if module_result.ready_check && module_result.version_check {
+                "✅"
+            } else {
+                "❌"
+            },
             module_result.module_name,
             ready_icon,
             version_icon,
-            module_result.schema_version.as_ref().map(|v| format!("({})", v)).unwrap_or_default()
+            module_result
+                .schema_version
+                .as_ref()
+                .map(|v| format!("({})", v))
+                .unwrap_or_default()
         );
     }
 

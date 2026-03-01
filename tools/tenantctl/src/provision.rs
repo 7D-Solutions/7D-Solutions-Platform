@@ -15,59 +15,99 @@ pub struct ModuleConfig {
     pub postgres_host: &'static str,
     pub postgres_port: u16,
     pub postgres_user: &'static str,
-    pub postgres_password: &'static str,
+    pub postgres_password: String,
     pub migrations_path: &'static str,
     pub http_port: u16,
 }
 
-/// Standard module configurations
-pub const MODULES: &[ModuleConfig] = &[
-    ModuleConfig {
+/// Module definition without credentials (static data only)
+struct ModuleDef {
+    name: &'static str,
+    postgres_host: &'static str,
+    postgres_port: u16,
+    postgres_user: &'static str,
+    password_env_var: &'static str,
+    migrations_path: &'static str,
+    http_port: u16,
+}
+
+const MODULE_DEFS: &[ModuleDef] = &[
+    ModuleDef {
         name: "ar",
         postgres_host: "localhost",
         postgres_port: 5434,
         postgres_user: "ar_user",
-        postgres_password: "ar_pass",
+        password_env_var: "AR_DB_PASSWORD",
         migrations_path: "./modules/ar/db/migrations",
         http_port: 8086,
     },
-    ModuleConfig {
+    ModuleDef {
         name: "payments",
         postgres_host: "localhost",
         postgres_port: 5436,
         postgres_user: "payments_user",
-        postgres_password: "payments_pass",
+        password_env_var: "PAYMENTS_DB_PASSWORD",
         migrations_path: "./modules/payments/db/migrations",
         http_port: 8088,
     },
-    ModuleConfig {
+    ModuleDef {
         name: "subscriptions",
         postgres_host: "localhost",
         postgres_port: 5435,
         postgres_user: "subscriptions_user",
-        postgres_password: "subscriptions_pass",
+        password_env_var: "SUBSCRIPTIONS_DB_PASSWORD",
         migrations_path: "./modules/subscriptions/migrations",
         http_port: 8087,
     },
-    ModuleConfig {
+    ModuleDef {
         name: "gl",
         postgres_host: "localhost",
         postgres_port: 5438,
         postgres_user: "gl_user",
-        postgres_password: "gl_pass",
+        password_env_var: "GL_DB_PASSWORD",
         migrations_path: "./modules/gl/db/migrations",
         http_port: 8090,
     },
-    ModuleConfig {
+    ModuleDef {
         name: "notifications",
         postgres_host: "localhost",
         postgres_port: 5437,
         postgres_user: "notifications_user",
-        postgres_password: "notifications_pass",
+        password_env_var: "NOTIFICATIONS_DB_PASSWORD",
         migrations_path: "./modules/notifications/db/migrations",
         http_port: 8089,
     },
 ];
+
+/// Build module configurations by reading passwords from environment variables.
+///
+/// Required env vars: AR_DB_PASSWORD, PAYMENTS_DB_PASSWORD,
+/// SUBSCRIPTIONS_DB_PASSWORD, GL_DB_PASSWORD, NOTIFICATIONS_DB_PASSWORD.
+///
+/// Panics with a clear message if any required env var is unset.
+pub fn load_modules() -> Vec<ModuleConfig> {
+    MODULE_DEFS
+        .iter()
+        .map(|def| {
+            let password = std::env::var(def.password_env_var).unwrap_or_else(|_| {
+                panic!(
+                    "Required environment variable {} is not set. \
+                     Set it to the {} module's database password.",
+                    def.password_env_var, def.name
+                )
+            });
+            ModuleConfig {
+                name: def.name,
+                postgres_host: def.postgres_host,
+                postgres_port: def.postgres_port,
+                postgres_user: def.postgres_user,
+                postgres_password: password,
+                migrations_path: def.migrations_path,
+                http_port: def.http_port,
+            }
+        })
+        .collect()
+}
 
 /// Result of tenant provisioning operation
 pub struct ProvisioningResult {
@@ -85,7 +125,8 @@ pub async fn create_tenant(tenant_id: &str) -> Result<ProvisioningResult> {
     // Parse tenant ID (for now, just create a new one based on the input)
     let tid = if tenant_id.len() == 36 {
         // Try to parse as UUID
-        let uuid = tenant_id.parse::<uuid::Uuid>()
+        let uuid = tenant_id
+            .parse::<uuid::Uuid>()
             .context("Failed to parse tenant ID as UUID")?;
         TenantId::from_uuid(uuid)
     } else {
@@ -98,22 +139,29 @@ pub async fn create_tenant(tenant_id: &str) -> Result<ProvisioningResult> {
 
     info!("Tenant ID resolved to: {}", tid);
 
+    let modules = load_modules();
     let mut module_versions = ModuleSchemaVersions::new();
     let mut overall_success = true;
     let mut error_messages = Vec::new();
 
     // Provision each module database
-    for module in MODULES {
+    for module in &modules {
         match provision_tenant_module(tid, module).await {
             Ok(version) => {
                 module_versions.insert(module.name.to_string(), version);
-                info!("✓ Tenant {} - {} provisioned successfully", tid, module.name);
+                info!(
+                    "✓ Tenant {} - {} provisioned successfully",
+                    tid, module.name
+                );
             }
             Err(e) => {
                 overall_success = false;
                 let error_msg = format!("{}: {}", module.name, e);
                 error_messages.push(error_msg.clone());
-                warn!("✗ Tenant {} - {} provisioning failed: {}", tid, module.name, e);
+                warn!(
+                    "✗ Tenant {} - {} provisioning failed: {}",
+                    tid, module.name, e
+                );
             }
         }
     }
@@ -154,13 +202,12 @@ async fn provision_tenant_module(tenant_id: TenantId, module: &ModuleConfig) -> 
         .context("Failed to connect to PostgreSQL")?;
 
     // Check if database exists
-    let db_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)"
-    )
-    .bind(&tenant_db_name)
-    .fetch_one(&mut conn)
-    .await
-    .context("Failed to check if database exists")?;
+    let db_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = $1)")
+            .bind(&tenant_db_name)
+            .fetch_one(&mut conn)
+            .await
+            .context("Failed to check if database exists")?;
 
     if !db_exists {
         // Create database
@@ -198,10 +245,10 @@ async fn provision_tenant_module(tenant_id: TenantId, module: &ModuleConfig) -> 
         .await
         .context("Failed to create migrator")?;
 
-    migrator
-        .run(&pool)
-        .await
-        .context(format!("Failed to run migrations for {} module", module.name))?;
+    migrator.run(&pool).await.context(format!(
+        "Failed to run migrations for {} module",
+        module.name
+    ))?;
 
     info!("  Migrations applied to {}", tenant_db_name);
 
@@ -221,7 +268,7 @@ async fn get_latest_migration_version(pool: &sqlx::PgPool) -> Result<String> {
             SELECT FROM information_schema.tables
             WHERE table_schema = 'public'
             AND table_name = '_sqlx_migrations'
-        )"
+        )",
     )
     .fetch_one(pool)
     .await
@@ -232,14 +279,15 @@ async fn get_latest_migration_version(pool: &sqlx::PgPool) -> Result<String> {
     }
 
     // Get latest version
-    let version: Option<i64> = sqlx::query_scalar(
-        "SELECT version FROM _sqlx_migrations ORDER BY version DESC LIMIT 1"
-    )
-    .fetch_optional(pool)
-    .await
-    .context("Failed to query migration version")?;
+    let version: Option<i64> =
+        sqlx::query_scalar("SELECT version FROM _sqlx_migrations ORDER BY version DESC LIMIT 1")
+            .fetch_optional(pool)
+            .await
+            .context("Failed to query migration version")?;
 
-    Ok(version.map(|v| v.to_string()).unwrap_or_else(|| "none".to_string()))
+    Ok(version
+        .map(|v| v.to_string())
+        .unwrap_or_else(|| "none".to_string()))
 }
 
 /// Activate a tenant (transition from provisioning to active)
@@ -251,7 +299,10 @@ pub async fn activate_tenant(tenant_id: &str) -> Result<()> {
     // 2. Enable access controls
     // 3. Initialize any runtime state
 
-    info!("✅ Tenant {} activated (registry update pending full implementation)", tenant_id);
+    info!(
+        "✅ Tenant {} activated (registry update pending full implementation)",
+        tenant_id
+    );
 
     Ok(())
 }
@@ -262,25 +313,44 @@ mod tests {
 
     #[test]
     fn module_configurations_complete() {
-        assert_eq!(MODULES.len(), 5);
-        assert!(MODULES.iter().any(|m| m.name == "ar"));
-        assert!(MODULES.iter().any(|m| m.name == "payments"));
-        assert!(MODULES.iter().any(|m| m.name == "subscriptions"));
-        assert!(MODULES.iter().any(|m| m.name == "gl"));
-        assert!(MODULES.iter().any(|m| m.name == "notifications"));
+        // Set env vars for test
+        std::env::set_var("AR_DB_PASSWORD", "test");
+        std::env::set_var("PAYMENTS_DB_PASSWORD", "test");
+        std::env::set_var("SUBSCRIPTIONS_DB_PASSWORD", "test");
+        std::env::set_var("GL_DB_PASSWORD", "test");
+        std::env::set_var("NOTIFICATIONS_DB_PASSWORD", "test");
+
+        let modules = load_modules();
+        assert_eq!(modules.len(), 5);
+        assert!(modules.iter().any(|m| m.name == "ar"));
+        assert!(modules.iter().any(|m| m.name == "payments"));
+        assert!(modules.iter().any(|m| m.name == "subscriptions"));
+        assert!(modules.iter().any(|m| m.name == "gl"));
+        assert!(modules.iter().any(|m| m.name == "notifications"));
     }
 
     #[test]
     fn module_ports_unique() {
-        let mut postgres_ports = MODULES.iter().map(|m| m.postgres_port).collect::<Vec<_>>();
+        std::env::set_var("AR_DB_PASSWORD", "test");
+        std::env::set_var("PAYMENTS_DB_PASSWORD", "test");
+        std::env::set_var("SUBSCRIPTIONS_DB_PASSWORD", "test");
+        std::env::set_var("GL_DB_PASSWORD", "test");
+        std::env::set_var("NOTIFICATIONS_DB_PASSWORD", "test");
+
+        let modules = load_modules();
+        let mut postgres_ports = modules.iter().map(|m| m.postgres_port).collect::<Vec<_>>();
         postgres_ports.sort();
         postgres_ports.dedup();
-        assert_eq!(postgres_ports.len(), MODULES.len(), "PostgreSQL ports must be unique");
+        assert_eq!(
+            postgres_ports.len(),
+            modules.len(),
+            "PostgreSQL ports must be unique"
+        );
 
-        let mut http_ports = MODULES.iter().map(|m| m.http_port).collect::<Vec<_>>();
+        let mut http_ports = modules.iter().map(|m| m.http_port).collect::<Vec<_>>();
         http_ports.sort();
         http_ports.dedup();
-        assert_eq!(http_ports.len(), MODULES.len(), "HTTP ports must be unique");
+        assert_eq!(http_ports.len(), modules.len(), "HTTP ports must be unique");
     }
 
     #[test]
