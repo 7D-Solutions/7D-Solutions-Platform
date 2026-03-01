@@ -1,100 +1,119 @@
 #!/usr/bin/env bash
 # Migration Boundary Checker
-# Ensures SQL migrations do not reference tables from other modules
+# Ensures SQL migrations do not reference tables from other modules.
+# Auto-discovers all modules from the filesystem.
 
 set -euo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Define all module migration directories
-declare -A MODULES
-MODULES[AUTH]="platform/identity-auth/db/migrations"
-MODULES[AR]="modules/ar/db/migrations"
-MODULES[SUBSCRIPTIONS]="modules/subscriptions/db/migrations"
-MODULES[PAYMENTS]="modules/payments/db/migrations"
-MODULES[NOTIFICATIONS]="modules/notifications/db/migrations"
-MODULES[GL]="modules/gl/db/migrations"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO_ROOT"
 
-# Define forbidden patterns for each module
-# Pattern explanation:
-# - REFERENCES <other_module_prefix>_<table> - Foreign keys to other modules
-# - FROM <other_module_prefix>_<table> - Queries against other modules
-# - JOIN <other_module_prefix>_<table> - Joins to other modules
-# - schema <module_name> - Explicit schema references
-# Excludes: Column names or table prefixes within the same module
+# Shared table names that multiple modules legitimately create independently.
+# These are per-module copies, not cross-module references.
+SHARED_TABLES="events_outbox processed_events failed_events idempotency_keys"
 
-declare -A FORBIDDEN_PATTERNS
-FORBIDDEN_PATTERNS[AUTH]='(REFERENCES\s+(ar_|subscriptions_|payments_|notifications_|journal_|accounts_|gl_)|FROM\s+(ar_|subscriptions_|payments_|notifications_|journal_|accounts_|gl_)|JOIN\s+(ar_|subscriptions_|payments_|notifications_|journal_|accounts_|gl_)|schema\s+(ar|subscriptions|payments|notifications|gl))'
-FORBIDDEN_PATTERNS[AR]='(REFERENCES\s+(auth_|subscriptions_|payments_|notifications_|journal_|accounts_|gl_)|FROM\s+(auth_|subscriptions_|payments_|notifications_|journal_|accounts_|gl_)|JOIN\s+(auth_|subscriptions_|payments_|notifications_|journal_|accounts_|gl_)|schema\s+(auth|subscriptions|payments|notifications|gl))'
-FORBIDDEN_PATTERNS[SUBSCRIPTIONS]='(REFERENCES\s+(auth_|ar_|payments_|notifications_|journal_|accounts_|gl_)|FROM\s+(auth_|ar_|payments_|notifications_|journal_|accounts_|gl_)|JOIN\s+(auth_|ar_|payments_|notifications_|journal_|accounts_|gl_)|schema\s+(auth|ar|payments|notifications|gl))'
-FORBIDDEN_PATTERNS[PAYMENTS]='(REFERENCES\s+(auth_|ar_|subscriptions_|notifications_|journal_|accounts_|gl_)|FROM\s+(auth_|ar_|subscriptions_|notifications_|journal_|accounts_|gl_)|JOIN\s+(auth_|ar_|subscriptions_|notifications_|journal_|accounts_|gl_)|schema\s+(auth|ar|subscriptions|notifications|gl))'
-FORBIDDEN_PATTERNS[NOTIFICATIONS]='(REFERENCES\s+(auth_|ar_|subscriptions_|payments_|journal_|accounts_|gl_)|FROM\s+(auth_|ar_|subscriptions_|payments_|journal_|accounts_|gl_)|JOIN\s+(auth_|ar_|subscriptions_|payments_|journal_|accounts_|gl_)|schema\s+(auth|ar|subscriptions|payments|gl))'
-FORBIDDEN_PATTERNS[GL]='(REFERENCES\s+(auth_|ar_|subscriptions_|payments_|notifications_)|FROM\s+(auth_|ar_|subscriptions_|payments_|notifications_)|JOIN\s+(auth_|ar_|subscriptions_|payments_|notifications_)|schema\s+(auth|ar|subscriptions|payments|notifications))'
+# Auto-discover all migration directories
+declare -a MODULE_NAMES=()
+declare -a MODULE_DIRS=()
 
-violations=0
-
-echo "Checking migration boundaries for all modules..."
-
-# Check if at least one module directory exists
-found_any=false
-for module in "${!MODULES[@]}"; do
-    if [ -d "${MODULES[$module]}" ]; then
-        found_any=true
-        break
+for mig_dir in modules/*/db/migrations platform/*/db/migrations; do
+    if [ -d "$mig_dir" ]; then
+        # Extract module name from path (e.g., modules/ar/db/migrations -> ar)
+        mod_path="${mig_dir%/db/migrations}"
+        mod_name=$(basename "$mod_path")
+        MODULE_NAMES+=("$mod_name")
+        MODULE_DIRS+=("$mig_dir")
     fi
 done
 
-if [ "$found_any" = false ]; then
+if [ ${#MODULE_NAMES[@]} -eq 0 ]; then
     echo -e "${YELLOW}Warning: No migration directories found${NC}"
     exit 0
 fi
 
-# Function to check for forbidden patterns
-check_migration_file() {
-    local file=$1
-    local forbidden_pattern=$2
-    local module_name=$3
+echo "Checking migration boundaries for ${#MODULE_NAMES[@]} modules..."
 
-    # Search for patterns (case-insensitive)
-    matches=$(grep -inE "$forbidden_pattern" "$file" 2>/dev/null || true)
+# Step 1: Collect table names created by each module
+declare -A MODULE_TABLES
+for i in "${!MODULE_NAMES[@]}"; do
+    mod="${MODULE_NAMES[$i]}"
+    dir="${MODULE_DIRS[$i]}"
+    # Extract table names from CREATE TABLE statements
+    tables=$(grep -ohiE 'CREATE TABLE\s+(IF NOT EXISTS\s+)?([a-z_][a-z0-9_]+)' "$dir"/*.sql 2>/dev/null \
+        | sed -E 's/CREATE TABLE\s+(IF NOT EXISTS\s+)?//' \
+        | sort -u \
+        | tr '\n' ' ')
+    MODULE_TABLES[$mod]="$tables"
+done
 
-    if [ -n "$matches" ]; then
-        echo -e "${RED}✗ Boundary violation in $file${NC}"
-        echo -e "${RED}  $module_name migration references other module tables:${NC}"
-        echo "$matches" | while IFS=: read -r line_num line_content; do
-            echo -e "${RED}    Line $line_num: $(echo "$line_content" | xargs)${NC}"
+# Step 2: For each module, check its migrations don't REFERENCES/FROM/JOIN tables owned by other modules
+violations=0
+
+for i in "${!MODULE_NAMES[@]}"; do
+    current_mod="${MODULE_NAMES[$i]}"
+    current_dir="${MODULE_DIRS[$i]}"
+
+    # Build a list of forbidden table names: all tables from OTHER modules
+    forbidden_tables=()
+    for j in "${!MODULE_NAMES[@]}"; do
+        if [ "$i" = "$j" ]; then
+            continue
+        fi
+        for table in ${MODULE_TABLES[${MODULE_NAMES[$j]}]}; do
+            # Skip shared infrastructure tables
+            is_shared=false
+            for shared in $SHARED_TABLES; do
+                if [ "$table" = "$shared" ]; then
+                    is_shared=true
+                    break
+                fi
+            done
+            if [ "$is_shared" = false ]; then
+                forbidden_tables+=("$table")
+            fi
         done
-        echo ""
-        ((violations++))
-        return 1
-    fi
-    return 0
-}
+    done
 
-# Check each module's migrations for cross-module references
-for module in "${!MODULES[@]}"; do
-    migrations_dir="${MODULES[$module]}"
-
-    if [ ! -d "$migrations_dir" ]; then
-        echo -e "${YELLOW}Skipping $module (directory not found)${NC}"
+    if [ ${#forbidden_tables[@]} -eq 0 ]; then
         continue
     fi
 
-    echo "Checking $module migrations for cross-module references..."
+    # Build a single grep pattern: (REFERENCES|FROM|JOIN)\s+<table_name>
+    # We check for these keywords followed by a foreign table name
+    pattern_parts=()
+    for table in "${forbidden_tables[@]}"; do
+        pattern_parts+=("$table")
+    done
 
-    for file in "$migrations_dir"/*.sql; do
-        if [ -f "$file" ]; then
-            forbidden_pattern="${FORBIDDEN_PATTERNS[$module]}"
-            check_migration_file "$file" "$forbidden_pattern" "$module" || true
+    # Join table names with | for alternation
+    tables_alt=$(printf '%s\n' "${pattern_parts[@]}" | sort -u | paste -sd'|' -)
+    pattern="(REFERENCES|FROM|JOIN)[[:space:]]+(${tables_alt})[[:space:]]*[^a-z0-9_]"
+
+    # Check each migration file
+    for file in "$current_dir"/*.sql; do
+        if [ ! -f "$file" ]; then
+            continue
+        fi
+        matches=$(grep -inE "$pattern" "$file" 2>/dev/null || true)
+        if [ -n "$matches" ]; then
+            echo -e "${RED}✗ Boundary violation in $file${NC}"
+            echo -e "${RED}  $current_mod migration references other module tables:${NC}"
+            echo "$matches" | head -5 | while IFS= read -r line; do
+                echo -e "${RED}    $line${NC}"
+            done
+            echo ""
+            ((violations++)) || true
         fi
     done
 done
 
 if [ $violations -eq 0 ]; then
-    echo -e "${GREEN}✓ No migration boundary violations detected${NC}"
+    echo -e "${GREEN}✓ No migration boundary violations detected (${#MODULE_NAMES[@]} modules checked)${NC}"
     exit 0
 else
     echo -e "${RED}✗ Found $violations migration boundary violation(s)${NC}"
