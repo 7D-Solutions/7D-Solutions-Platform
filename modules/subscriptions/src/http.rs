@@ -1,21 +1,16 @@
-use axum::{
-    extract::State,
-    http::StatusCode,
-    routing::post,
-    Extension, Json, Router,
-};
+use axum::{extract::State, http::StatusCode, routing::post, Extension, Json, Router};
+use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use event_bus::TracingContext;
 use security::VerifiedClaims;
-use chrono::{DateTime, Datelike, NaiveDate, Utc};
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::envelope::create_subscriptions_envelope;
 use crate::models::{
     BillRunCompletedPayload, BillRunResult, CreateInvoiceRequest, ErrorResponse,
     ExecuteBillRunRequest, FinalizeInvoiceRequest, Invoice,
 };
-use crate::envelope::create_subscriptions_envelope;
 use crate::outbox::enqueue_event;
 
 pub fn subscriptions_router(db: PgPool) -> Router {
@@ -47,12 +42,14 @@ async fn execute_bill_run(
         }
     };
     // Generate bill_run_id if not provided
-    let bill_run_id = req.bill_run_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+    let bill_run_id = req
+        .bill_run_id
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
 
     // Use today's date if not specified
-    let execution_date = req.execution_date.unwrap_or_else(|| {
-        Utc::now().date_naive()
-    });
+    let execution_date = req
+        .execution_date
+        .unwrap_or_else(|| Utc::now().date_naive());
 
     // Check if this bill run has already been executed (idempotency)
     #[derive(sqlx::FromRow)]
@@ -67,7 +64,7 @@ async fn execute_bill_run(
     let existing = sqlx::query_as::<_, ExistingBillRun>(
         "SELECT id, subscriptions_processed, invoices_created, failures, created_at
          FROM bill_runs
-         WHERE bill_run_id = $1"
+         WHERE bill_run_id = $1",
     )
     .bind(&bill_run_id)
     .fetch_optional(&db)
@@ -104,7 +101,7 @@ async fn execute_bill_run(
     // Create bill run record
     sqlx::query(
         "INSERT INTO bill_runs (bill_run_id, execution_date, status)
-         VALUES ($1, $2, 'running')"
+         VALUES ($1, $2, 'running')",
     )
     .bind(&bill_run_id)
     .bind(execution_date)
@@ -139,7 +136,7 @@ async fn execute_bill_run(
          FROM subscriptions
          WHERE status = 'active'
            AND tenant_id = $1
-           AND next_bill_date <= $2"
+           AND next_bill_date <= $2",
     )
     .bind(&tenant_id)
     .bind(execution_date)
@@ -162,8 +159,8 @@ async fn execute_bill_run(
     let mut failures = 0;
 
     // Get AR service URL from environment
-    let ar_base_url = std::env::var("AR_BASE_URL")
-        .unwrap_or_else(|_| "http://localhost:8086".to_string());
+    let ar_base_url =
+        std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
 
     let client = reqwest::Client::new();
 
@@ -180,7 +177,11 @@ async fn execute_bill_run(
         let ar_customer_id: i32 = match subscription.ar_customer_id.parse() {
             Ok(id) => id,
             Err(e) => {
-                tracing::error!("Failed to parse ar_customer_id '{}': {}", subscription.ar_customer_id, e);
+                tracing::error!(
+                    "Failed to parse ar_customer_id '{}': {}",
+                    subscription.ar_customer_id,
+                    e
+                );
                 failures += 1;
                 continue;
             }
@@ -209,10 +210,7 @@ async fn execute_bill_run(
                         }
                     }
                 } else {
-                    tracing::error!(
-                        "AR API returned error status: {}",
-                        response.status()
-                    );
+                    tracing::error!("AR API returned error status: {}", response.status());
                     failures += 1;
                     continue;
                 }
@@ -224,7 +222,11 @@ async fn execute_bill_run(
             }
         };
 
-        tracing::info!("Created invoice {} for subscription {}", invoice.id, subscription.id);
+        tracing::info!(
+            "Created invoice {} for subscription {}",
+            invoice.id,
+            subscription.id
+        );
 
         // Call AR OpenAPI to finalize invoice
         let finalize_req = FinalizeInvoiceRequest {
@@ -232,7 +234,10 @@ async fn execute_bill_run(
         };
 
         let finalize_result = client
-            .post(format!("{}/api/ar/invoices/{}/finalize", ar_base_url, invoice.id))
+            .post(format!(
+                "{}/api/ar/invoices/{}/finalize",
+                ar_base_url, invoice.id
+            ))
             .json(&finalize_req)
             .send()
             .await;
@@ -252,7 +257,7 @@ async fn execute_bill_run(
                     let update_result = sqlx::query(
                         "UPDATE subscriptions
                          SET next_bill_date = $1, updated_at = NOW()
-                         WHERE id = $2"
+                         WHERE id = $2",
                     )
                     .bind(new_next_bill_date)
                     .bind(subscription.id)
@@ -287,7 +292,7 @@ async fn execute_bill_run(
              failures = $3,
              status = 'completed',
              updated_at = $4
-         WHERE bill_run_id = $5"
+         WHERE bill_run_id = $5",
     )
     .bind(subscriptions_processed)
     .bind(invoices_created)
@@ -322,25 +327,26 @@ async fn execute_bill_run(
         uuid::Uuid::new_v4(),
         tenant_id,
         "billrun.completed".to_string(),
-        None, // No correlation_id for now
-        None, // No causation_id for now
+        None,                    // No correlation_id for now
+        None,                    // No causation_id for now
         "LIFECYCLE".to_string(), // Phase 16: Bill run completion is a lifecycle transition
         payload,
     )
     .with_tracing_context(&tracing_ctx);
 
-    enqueue_event(&db, "billrun.completed", &envelope).await
-    .map_err(|e| {
-        tracing::error!("Failed to enqueue event: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "event_error".to_string(),
-                message: "Failed to enqueue event".to_string(),
-                details: None,
-            }),
-        )
-    })?;
+    enqueue_event(&db, "billrun.completed", &envelope)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to enqueue event: {}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorResponse {
+                    error: "event_error".to_string(),
+                    message: "Failed to enqueue event".to_string(),
+                    details: None,
+                }),
+            )
+        })?;
 
     tracing::info!(
         "Bill run {} completed: processed={}, created={}, failures={}",
@@ -374,10 +380,10 @@ fn calculate_next_bill_date(current_date: &NaiveDate, schedule: &str) -> NaiveDa
 
             if month == 12 {
                 NaiveDate::from_ymd_opt(year + 1, 1, day)
-                    .unwrap_or_else(|| NaiveDate::from_ymd_opt(year + 1, 1, 1).unwrap())
+                    .unwrap_or_else(|| NaiveDate::from_ymd_opt(year + 1, 1, 1).expect("Jan 1 is valid"))
             } else {
                 NaiveDate::from_ymd_opt(year, month + 1, day)
-                    .unwrap_or_else(|| NaiveDate::from_ymd_opt(year, month + 1, 1).unwrap())
+                    .unwrap_or_else(|| NaiveDate::from_ymd_opt(year, month + 1, 1).expect("first of month is valid"))
             }
         }
         _ => *current_date + chrono::Duration::weeks(4), // Default to 4 weeks for custom
@@ -410,7 +416,10 @@ pub async fn ready(
     let pool_metrics = health::PoolMetrics {
         size: app_state.pool.size(),
         idle: app_state.pool.num_idle() as u32,
-        active: app_state.pool.size().saturating_sub(app_state.pool.num_idle() as u32),
+        active: app_state
+            .pool
+            .size()
+            .saturating_sub(app_state.pool.num_idle() as u32),
     };
 
     let resp = health::build_ready_response(

@@ -16,7 +16,7 @@ mod metrics;
 mod models;
 mod outbox;
 mod publisher;
-mod routes;
+mod http;
 
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use config::Config;
@@ -121,12 +121,12 @@ async fn main() {
 
     let app = Router::new()
         .route("/healthz", get(health::healthz))
-        .route("/api/health", get(routes::health))
-        .route("/api/ready", get(routes::ready))
-        .route("/api/version", get(routes::version))
+        .route("/api/health", get(http::health))
+        .route("/api/ready", get(http::ready))
+        .route("/api/version", get(http::version))
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state.clone())
-        .merge(routes::subscriptions_router(pool.clone()).route_layer(
+        .merge(http::subscriptions_router(pool.clone()).route_layer(
             RequirePermissionsLayer::new(&[permissions::SUBSCRIPTIONS_MUTATE]),
         ))
         .merge(admin::admin_router(pool))
