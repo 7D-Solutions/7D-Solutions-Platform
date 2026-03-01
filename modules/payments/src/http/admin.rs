@@ -106,7 +106,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_admin_router_builds() {
-        let pool = PgPool::connect_lazy("postgres://localhost/fake").unwrap();
+        let pool = PgPool::connect_lazy("postgres://localhost/fake").expect("test pool");
         let state = Arc::new(AppState {
             pool,
             tilled_api_key: None,

@@ -123,7 +123,7 @@ async fn smoke_all_module_health_handlers() {
     let Json(v) = gl_rs::http::health::health().await;
     assert_health_contract(&v, "gl-rs");
 
-    let Json(v) = payments_rs::routes::health::health().await;
+    let Json(v) = payments_rs::http::health::health().await;
     assert_health_contract(&v, "payments-rs");
 
     let Json(v) = inventory_rs::routes::health::health().await;
@@ -171,7 +171,7 @@ async fn smoke_all_module_version_handlers() {
     let Json(v) = gl_rs::http::health::version().await;
     assert_version_contract(&v, "gl-rs");
 
-    let Json(v) = payments_rs::routes::health::version().await;
+    let Json(v) = payments_rs::http::health::version().await;
     assert_version_contract(&v, "payments-rs");
 
     let Json(v) = inventory_rs::routes::health::version().await;

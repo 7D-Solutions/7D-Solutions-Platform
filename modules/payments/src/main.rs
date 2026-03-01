@@ -1,7 +1,13 @@
-use axum::{extract::DefaultBodyLimit, routing::{get, post}, Extension, Router};
+use axum::{
+    extract::DefaultBodyLimit,
+    routing::{get, post},
+    Extension, Router,
+};
 use event_bus::{EventBus, InMemoryBus};
 use security::{
-    middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
+    middleware::{
+        default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+    },
     optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 use std::net::SocketAddr;
@@ -18,9 +24,11 @@ async fn metrics_handler() -> String {
     use prometheus_client::encoding::text::encode;
 
     // Encode prometheus-client metrics
-    let registry = payments_rs::metrics::METRICS_REGISTRY.lock().unwrap();
+    let registry = payments_rs::metrics::METRICS_REGISTRY
+        .lock()
+        .expect("metrics registry lock poisoned");
     let mut buffer = String::new();
-    encode(&mut buffer, &registry).unwrap();
+    encode(&mut buffer, &registry).expect("metrics encoding failed");
 
     // Append standard prometheus metrics (projection + SLO metrics)
     use prometheus::{Encoder, TextEncoder};
@@ -28,17 +36,20 @@ async fn metrics_handler() -> String {
 
     let projection_families = payments_rs::metrics::PROJECTION_METRICS.registry().gather();
     let mut prometheus_buffer = Vec::new();
-    encoder.encode(&projection_families, &mut prometheus_buffer)
+    encoder
+        .encode(&projection_families, &mut prometheus_buffer)
         .expect("Failed to encode projection metrics");
 
     // SLO metrics (latency, error rate, consumer lag)
     let slo_families = payments_rs::metrics::SLO_REGISTRY.gather();
-    encoder.encode(&slo_families, &mut prometheus_buffer)
+    encoder
+        .encode(&slo_families, &mut prometheus_buffer)
         .expect("Failed to encode SLO metrics");
 
     buffer.push('\n');
-    buffer.push_str(&String::from_utf8(prometheus_buffer)
-        .expect("Failed to convert metrics to UTF-8"));
+    buffer.push_str(
+        &String::from_utf8(prometheus_buffer).expect("Failed to convert metrics to UTF-8"),
+    );
 
     buffer
 }
@@ -104,7 +115,9 @@ async fn main() {
     let publisher_bus = bus.clone();
     tokio::spawn(async move {
         tracing::info!("Starting outbox publisher...");
-        if let Err(e) = payments_rs::events::outbox::start_outbox_publisher(publisher_pool, publisher_bus).await {
+        if let Err(e) =
+            payments_rs::events::outbox::start_outbox_publisher(publisher_pool, publisher_bus).await
+        {
             tracing::error!("Outbox publisher error: {}", e);
         }
     });
@@ -127,43 +140,50 @@ async fn main() {
 
     let app = Router::new()
         .route("/healthz", get(health::healthz))
-        .route("/api/health", get(payments_rs::routes::health::health))
-        .route("/api/ready", get(payments_rs::routes::health::ready))
-        .route("/api/version", get(payments_rs::routes::health::version))
+        .route("/api/health", get(payments_rs::http::health::health))
+        .route("/api/ready", get(payments_rs::http::health::ready))
+        .route("/api/version", get(payments_rs::http::health::version))
         .route("/metrics", get(metrics_handler))
         .route(
             "/api/payments/webhook/tilled",
-            post(payments_rs::routes::checkout_sessions::tilled_webhook),
+            post(payments_rs::http::checkout_sessions::tilled_webhook),
         )
         .merge(
             Router::new()
                 // Checkout session endpoints (bd-ddsm, bd-x0rt)
                 .route(
                     "/api/payments/checkout-sessions",
-                    post(payments_rs::routes::checkout_sessions::create_checkout_session),
+                    post(payments_rs::http::checkout_sessions::create_checkout_session),
                 )
                 .route(
                     "/api/payments/checkout-sessions/{id}",
-                    get(payments_rs::routes::checkout_sessions::get_checkout_session),
+                    get(payments_rs::http::checkout_sessions::get_checkout_session),
                 )
                 .route(
                     "/api/payments/checkout-sessions/{id}/present",
-                    post(payments_rs::routes::checkout_sessions::present_checkout_session),
+                    post(payments_rs::http::checkout_sessions::present_checkout_session),
                 )
                 .route(
                     "/api/payments/checkout-sessions/{id}/status",
-                    get(payments_rs::routes::checkout_sessions::poll_checkout_session_status),
+                    get(payments_rs::http::checkout_sessions::poll_checkout_session_status),
                 )
-                .merge(payments_rs::routes::admin::admin_router(app_state.clone()))
-                .route_layer(RequirePermissionsLayer::new(&[permissions::PAYMENTS_MUTATE])),
+                .merge(payments_rs::http::admin::admin_router(app_state.clone()))
+                .route_layer(RequirePermissionsLayer::new(&[
+                    permissions::PAYMENTS_MUTATE,
+                ])),
         )
         .with_state(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
+        .layer(axum::middleware::from_fn(
+            security::tracing::tracing_context_middleware,
+        ))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
+        .layer(axum::middleware::from_fn_with_state(
+            maybe_verifier,
+            optional_claims_mw,
+        ))
         .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -216,7 +236,9 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
     let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
 
     if is_wildcard && config.env != "development" {
-        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+        tracing::warn!(
+            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
+        );
     }
 
     let layer = if is_wildcard {

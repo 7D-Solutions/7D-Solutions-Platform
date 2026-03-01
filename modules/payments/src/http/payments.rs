@@ -9,9 +9,7 @@ use axum::{
     response::{IntoResponse, Response},
     Extension, Json,
 };
-use projections::{
-    cursor::ProjectionCursor, CircuitBreaker, FallbackMetrics, FallbackPolicy,
-};
+use projections::{cursor::ProjectionCursor, CircuitBreaker, FallbackMetrics, FallbackPolicy};
 use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -76,16 +74,12 @@ pub async fn get_payment(
     let circuit = CircuitBreaker::new(5, 2); // 5 failures to open, 2 successes to close
 
     // Load projection cursor to check staleness
-    let cursor = ProjectionCursor::load(
-        &app_state.pool,
-        "payment_projection",
-        &tenant_id,
-    )
-    .await
-    .map_err(|e| PaymentErrorResponse {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Failed to load projection cursor: {}", e),
-    })?;
+    let cursor = ProjectionCursor::load(&app_state.pool, "payment_projection", &tenant_id)
+        .await
+        .map_err(|e| PaymentErrorResponse {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: format!("Failed to load projection cursor: {}", e),
+        })?;
 
     // Check if projection is stale and fallback is possible
     let use_fallback = cursor

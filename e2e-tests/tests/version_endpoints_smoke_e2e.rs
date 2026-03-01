@@ -73,7 +73,7 @@ async fn test_version_endpoints_library_modules() -> Result<(), Box<dyn std::err
     let Json(gl_version) = gl_rs::http::health::version().await;
     assert_version_contract(&gl_version, "gl-rs");
 
-    let Json(payments_version) = payments_rs::routes::health::version().await;
+    let Json(payments_version) = payments_rs::http::health::version().await;
     assert_version_contract(&payments_version, "payments-rs");
 
     println!("\n✅ AR, GL, Payments version endpoints verified in-process");
