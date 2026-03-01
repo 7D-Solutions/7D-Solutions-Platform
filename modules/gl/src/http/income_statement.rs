@@ -1,7 +1,8 @@
-//! Balance Sheet API Routes (Phase 14.7)
+//! Income Statement API Routes (Phase 14.7)
 //!
-//! Provides HTTP endpoints for querying balance sheet reports.
+//! Provides HTTP endpoints for querying income statement (P&L) reports.
 
+use crate::AppState;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -10,44 +11,43 @@ use axum::{
 };
 use security::VerifiedClaims;
 use serde::Deserialize;
-use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::services::balance_sheet_service::{self, BalanceSheetResponse};
 use super::auth::extract_tenant;
+use crate::services::income_statement_service::{self, IncomeStatementResponse};
 
-/// Query parameters for balance sheet endpoint
+/// Query parameters for income statement endpoint
 #[derive(Debug, Deserialize)]
-pub struct BalanceSheetQuery {
+pub struct IncomeStatementQuery {
     /// Accounting period ID
     pub period_id: Uuid,
     /// Currency code (ISO 4217, required) - e.g., "USD", "EUR"
     pub currency: String,
 }
 
-/// Balance sheet error response
+/// Income statement error response
 #[derive(Debug, serde::Serialize)]
 pub struct ErrorResponse {
     pub error: String,
 }
 
-/// Handler for GET /api/gl/balance-sheet
+/// Handler for GET /api/gl/income-statement
 ///
-/// Returns balance sheet for a tenant and period with required currency.
+/// Returns income statement (P&L) for a tenant and period with required currency.
 /// Tenant identity is derived from JWT claims (VerifiedClaims).
-pub async fn get_balance_sheet(
+pub async fn get_income_statement(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-    Query(params): Query<BalanceSheetQuery>,
-) -> Result<Json<BalanceSheetResponse>, BalanceSheetErrorResponse> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| BalanceSheetErrorResponse {
+    Query(params): Query<IncomeStatementQuery>,
+) -> Result<Json<IncomeStatementResponse>, IncomeStatementErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| IncomeStatementErrorResponse {
         status: StatusCode::UNAUTHORIZED,
         message: msg,
     })?;
 
-    // Query balance sheet (service layer handles all transformation and totals calculation)
-    let response = balance_sheet_service::get_balance_sheet(
+    // Query income statement (service layer handles all transformation and totals calculation)
+    let response = income_statement_service::get_income_statement(
         &app_state.pool,
         &tenant_id,
         params.period_id,
@@ -57,18 +57,18 @@ pub async fn get_balance_sheet(
     .map_err(|e| {
         // Map service errors to appropriate HTTP status codes
         let status = match e {
-            balance_sheet_service::BalanceSheetError::InvalidTenantId(_) => {
+            income_statement_service::IncomeStatementError::InvalidTenantId(_) => {
                 StatusCode::BAD_REQUEST
             }
-            balance_sheet_service::BalanceSheetError::Unbalanced { .. } => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-            balance_sheet_service::BalanceSheetError::StatementRepo(_) => {
+            income_statement_service::IncomeStatementError::AccountingEquationViolation {
+                ..
+            } => StatusCode::INTERNAL_SERVER_ERROR,
+            income_statement_service::IncomeStatementError::StatementRepo(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
         };
 
-        BalanceSheetErrorResponse {
+        IncomeStatementErrorResponse {
             status,
             message: e.to_string(),
         }
@@ -79,12 +79,12 @@ pub async fn get_balance_sheet(
 
 /// Error response wrapper for proper HTTP error handling
 #[derive(Debug)]
-pub struct BalanceSheetErrorResponse {
+pub struct IncomeStatementErrorResponse {
     pub status: StatusCode,
     pub message: String,
 }
 
-impl IntoResponse for BalanceSheetErrorResponse {
+impl IntoResponse for IncomeStatementErrorResponse {
     fn into_response(self) -> Response {
         let body = Json(ErrorResponse {
             error: self.message,

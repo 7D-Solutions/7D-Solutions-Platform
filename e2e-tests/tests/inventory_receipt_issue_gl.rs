@@ -17,16 +17,15 @@ mod common;
 use anyhow::Result;
 use chrono::Utc;
 use common::{generate_test_tenant, get_gl_pool};
-use gl_rs::consumer::gl_inventory_consumer::{
-    process_inventory_cogs_posting,
-    ConsumedLayer as GlConsumedLayer, ItemIssuedPayload as GlItemIssuedPayload,
-    SourceRef as GlSourceRef,
+use gl_rs::consumers::gl_inventory_consumer::{
+    process_inventory_cogs_posting, ConsumedLayer as GlConsumedLayer,
+    ItemIssuedPayload as GlItemIssuedPayload, SourceRef as GlSourceRef,
 };
 use inventory_rs::domain::{
+    issue_service::{process_issue, IssueRequest},
     items::{CreateItemRequest, ItemRepo, TrackingMode},
-    issue_service::{IssueRequest, process_issue},
-    receipt_service::{ReceiptRequest, process_receipt},
-    reservation_service::{ReserveRequest, process_reserve},
+    receipt_service::{process_receipt, ReceiptRequest},
+    reservation_service::{process_reserve, ReserveRequest},
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -106,24 +105,23 @@ async fn setup_closed_period(pool: &sqlx::PgPool, tenant_id: &str) -> Result<()>
 }
 
 async fn count_journal_entries(pool: &sqlx::PgPool, source_event_id: Uuid) -> Result<i64> {
-    Ok(sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE source_event_id = $1",
+    Ok(
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE source_event_id = $1")
+            .bind(source_event_id)
+            .fetch_one(pool)
+            .await?,
     )
-    .bind(source_event_id)
-    .fetch_one(pool)
-    .await?)
 }
 
 async fn get_journal_lines(
     pool: &sqlx::PgPool,
     source_event_id: Uuid,
 ) -> Result<Vec<(String, i64, i64)>> {
-    let entry_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM journal_entries WHERE source_event_id = $1 LIMIT 1",
-    )
-    .bind(source_event_id)
-    .fetch_optional(pool)
-    .await?;
+    let entry_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT id FROM journal_entries WHERE source_event_id = $1 LIMIT 1")
+            .bind(source_event_id)
+            .fetch_optional(pool)
+            .await?;
 
     let entry_id = match entry_id {
         Some(id) => id,
@@ -369,7 +367,11 @@ async fn inventory_full_pipeline_receipt_reserve_issue_gl_cogs() -> Result<()> {
     assert_eq!(issue.quantity, 50);
     // All from the $25.00 layer: 50 × 2500 = 125000
     assert_eq!(issue.total_cost_minor, 125_000, "total cost = 50 × $25.00");
-    assert_eq!(issue.consumed_layers.len(), 1, "consumed from a single layer");
+    assert_eq!(
+        issue.consumed_layers.len(),
+        1,
+        "consumed from a single layer"
+    );
     assert_eq!(issue.consumed_layers[0].quantity, 50);
     assert_eq!(issue.consumed_layers[0].unit_cost_minor, 2500);
 
@@ -377,15 +379,10 @@ async fn inventory_full_pipeline_receipt_reserve_issue_gl_cogs() -> Result<()> {
     let gl_payload = to_gl_payload(&issue, sku);
     let gl_event_id = issue.event_id;
 
-    let entry_id = process_inventory_cogs_posting(
-        &gl_pool,
-        gl_event_id,
-        &tenant_id,
-        "inventory",
-        &gl_payload,
-    )
-    .await
-    .expect("GL COGS posting must succeed");
+    let entry_id =
+        process_inventory_cogs_posting(&gl_pool, gl_event_id, &tenant_id, "inventory", &gl_payload)
+            .await
+            .expect("GL COGS posting must succeed");
 
     // Verify balanced journal entry: DR COGS $1250.00 / CR INVENTORY $1250.00
     let lines = get_journal_lines(&gl_pool, gl_event_id).await?;
@@ -410,26 +407,23 @@ async fn inventory_full_pipeline_receipt_reserve_issue_gl_cogs() -> Result<()> {
     assert_eq!(cogs_dr + inv_dr, cogs_cr + inv_cr, "entry must be balanced");
 
     // processed_events row exists
-    let pe_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM processed_events WHERE event_id = $1",
-    )
-    .bind(gl_event_id)
-    .fetch_one(&gl_pool)
-    .await?;
+    let pe_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
+            .bind(gl_event_id)
+            .fetch_one(&gl_pool)
+            .await?;
     assert_eq!(pe_count, 1, "exactly one processed_events row");
 
     // --- Step 5: Exactly-once — second GL post with same event_id → DuplicateEvent ---
-    let second = process_inventory_cogs_posting(
-        &gl_pool,
-        gl_event_id,
-        &tenant_id,
-        "inventory",
-        &gl_payload,
-    )
-    .await;
+    let second =
+        process_inventory_cogs_posting(&gl_pool, gl_event_id, &tenant_id, "inventory", &gl_payload)
+            .await;
 
     assert!(
-        matches!(second, Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))),
+        matches!(
+            second,
+            Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))
+        ),
         "second post with same event_id must return DuplicateEvent, got: {:?}",
         second,
     );

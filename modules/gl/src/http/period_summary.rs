@@ -2,6 +2,7 @@
 //!
 //! Provides HTTP endpoints for querying period summary reports.
 
+use crate::AppState;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -10,12 +11,11 @@ use axum::{
 };
 use security::VerifiedClaims;
 use serde::Deserialize;
-use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::services::period_summary_service::{self, PeriodSummaryResponse};
 use super::auth::extract_tenant;
+use crate::services::period_summary_service::{self, PeriodSummaryResponse};
 
 /// Query parameters for period summary endpoint
 #[derive(Debug, Deserialize)]
@@ -63,16 +63,15 @@ pub async fn get_period_summary(
             period_summary_service::PeriodSummaryServiceError::InvalidCurrency(_) => {
                 StatusCode::BAD_REQUEST
             }
-            period_summary_service::PeriodSummaryServiceError::Repo(ref repo_err) => {
-                match repo_err {
-                    crate::repos::period_summary_repo::PeriodSummaryError::PeriodNotFound(_) => {
-                        StatusCode::NOT_FOUND
-                    }
-                    crate::repos::period_summary_repo::PeriodSummaryError::Database(_) => {
-                        StatusCode::INTERNAL_SERVER_ERROR
-                    }
+            period_summary_service::PeriodSummaryServiceError::Repo(ref repo_err) => match repo_err
+            {
+                crate::repos::period_summary_repo::PeriodSummaryError::PeriodNotFound(_) => {
+                    StatusCode::NOT_FOUND
                 }
-            }
+                crate::repos::period_summary_repo::PeriodSummaryError::Database(_) => {
+                    StatusCode::INTERNAL_SERVER_ERROR
+                }
+            },
         };
 
         PeriodSummaryErrorResponse {

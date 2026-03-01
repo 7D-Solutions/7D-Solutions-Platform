@@ -116,11 +116,12 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
         .expect("Failed to cleanup journal lines");
 
     // Get event IDs for this tenant before deleting journal entries
-    let event_ids: Vec<uuid::Uuid> = sqlx::query_scalar("SELECT source_event_id FROM journal_entries WHERE tenant_id = $1")
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await
-        .expect("Failed to fetch event IDs");
+    let event_ids: Vec<uuid::Uuid> =
+        sqlx::query_scalar("SELECT source_event_id FROM journal_entries WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_all(pool)
+            .await
+            .expect("Failed to fetch event IDs");
 
     sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
         .bind(tenant_id)
@@ -289,13 +290,18 @@ async fn test_e2e_reversal_updates_balances_and_trial_balance() {
     .await
     .expect("Failed to process posting request");
 
-    assert_ne!(original_entry_id, Uuid::nil(), "Entry ID should be generated");
+    assert_ne!(
+        original_entry_id,
+        Uuid::nil(),
+        "Entry ID should be generated"
+    );
 
     // Step 2: Verify initial balances
-    let balance_ar_initial = balance_repo::find_by_grain(&pool, tenant_id, period_id, "1100", "USD")
-        .await
-        .expect("Failed to query AR balance")
-        .expect("AR balance should exist");
+    let balance_ar_initial =
+        balance_repo::find_by_grain(&pool, tenant_id, period_id, "1100", "USD")
+            .await
+            .expect("Failed to query AR balance")
+            .expect("AR balance should exist");
 
     assert_eq!(balance_ar_initial.debit_total_minor, 100000); // $1000.00
     assert_eq!(balance_ar_initial.credit_total_minor, 0);
@@ -327,7 +333,7 @@ async fn test_e2e_reversal_updates_balances_and_trial_balance() {
     let bus = Arc::new(InMemoryBus::new()) as Arc<dyn EventBus>;
 
     // Start reversal consumer
-    gl_rs::consumer::gl_reversal_consumer::start_gl_reversal_consumer(
+    gl_rs::consumers::gl_reversal_consumer::start_gl_reversal_consumer(
         Arc::clone(&bus),
         pool.clone(),
     )
@@ -376,15 +382,27 @@ async fn test_e2e_reversal_updates_balances_and_trial_balance() {
         .iter()
         .find(|l| l.account_ref == "1100")
         .expect("AR line should exist in reversal");
-    assert_eq!(reversal_ar_line.debit_minor, 0, "AR debit should be inverted to 0");
-    assert_eq!(reversal_ar_line.credit_minor, 100000, "AR credit should be 1000.00");
+    assert_eq!(
+        reversal_ar_line.debit_minor, 0,
+        "AR debit should be inverted to 0"
+    );
+    assert_eq!(
+        reversal_ar_line.credit_minor, 100000,
+        "AR credit should be 1000.00"
+    );
 
     let reversal_revenue_line = reversal_lines
         .iter()
         .find(|l| l.account_ref == "4000")
         .expect("Revenue line should exist in reversal");
-    assert_eq!(reversal_revenue_line.debit_minor, 100000, "Revenue debit should be 1000.00");
-    assert_eq!(reversal_revenue_line.credit_minor, 0, "Revenue credit should be inverted to 0");
+    assert_eq!(
+        reversal_revenue_line.debit_minor, 100000,
+        "Revenue debit should be 1000.00"
+    );
+    assert_eq!(
+        reversal_revenue_line.credit_minor, 0,
+        "Revenue credit should be inverted to 0"
+    );
 
     // Step 8: Verify balances are updated correctly after reversal
     let balance_ar_after = balance_repo::find_by_grain(&pool, tenant_id, period_id, "1100", "USD")
@@ -430,7 +448,11 @@ async fn test_e2e_reversal_updates_balances_and_trial_balance() {
             .await
             .expect("Failed to get trial balance after reversal");
 
-    assert_eq!(trial_balance_after.rows.len(), 2, "Should still have 2 accounts");
+    assert_eq!(
+        trial_balance_after.rows.len(),
+        2,
+        "Should still have 2 accounts"
+    );
     assert_eq!(
         trial_balance_after.totals.total_debits, 200000,
         "Total debits should be 2000.00 (original + reversal)"
@@ -439,7 +461,10 @@ async fn test_e2e_reversal_updates_balances_and_trial_balance() {
         trial_balance_after.totals.total_credits, 200000,
         "Total credits should be 2000.00 (original + reversal)"
     );
-    assert!(trial_balance_after.totals.is_balanced, "Trial balance should still be balanced");
+    assert!(
+        trial_balance_after.totals.is_balanced,
+        "Trial balance should still be balanced"
+    );
 
     // Verify individual account rows show net zero
     let ar_row = trial_balance_after
@@ -454,7 +479,10 @@ async fn test_e2e_reversal_updates_balances_and_trial_balance() {
         .iter()
         .find(|r| r.account_code == "4000")
         .expect("Revenue should be in trial balance");
-    assert_eq!(revenue_row.net_balance_minor, 0, "Revenue net should be zero");
+    assert_eq!(
+        revenue_row.net_balance_minor, 0,
+        "Revenue net should be zero"
+    );
 
     // Step 10: Test idempotency - replay the same reversal request
     tracing::info!("Testing idempotency by replaying reversal request");
@@ -509,13 +537,12 @@ async fn test_e2e_reversal_updates_balances_and_trial_balance() {
     );
 
     // Verify only ONE reversal entry exists (not duplicated)
-    let reversal_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE reverses_entry_id = $1",
-    )
-    .bind(original_entry_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count reversal entries");
+    let reversal_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE reverses_entry_id = $1")
+            .bind(original_entry_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to count reversal entries");
 
     assert_eq!(
         reversal_count, 1,

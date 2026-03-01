@@ -16,9 +16,7 @@ mod common;
 use anyhow::Result;
 use chrono::Utc;
 use common::{generate_test_tenant, get_gl_pool};
-use gl_rs::consumer::gl_writeoff_consumer::{
-    process_writeoff_posting, InvoiceWrittenOffPayload,
-};
+use gl_rs::consumers::gl_writeoff_consumer::{process_writeoff_posting, InvoiceWrittenOffPayload};
 use uuid::Uuid;
 
 // ============================================================================
@@ -62,20 +60,16 @@ async fn setup_accounting_period(pool: &sqlx::PgPool, tenant_id: &str) -> Result
 ///
 /// journal_entries.source_event_id is UNIQUE — one entry per event.
 async fn get_journal_entry_id(pool: &sqlx::PgPool, event_id: Uuid) -> Result<Option<Uuid>> {
-    let row: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM journal_entries WHERE source_event_id = $1 LIMIT 1",
-    )
-    .bind(event_id)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM journal_entries WHERE source_event_id = $1 LIMIT 1")
+            .bind(event_id)
+            .fetch_optional(pool)
+            .await?;
     Ok(row.map(|(id,)| id))
 }
 
 /// Get journal lines for a given journal entry.
-async fn get_journal_lines(
-    pool: &sqlx::PgPool,
-    entry_id: Uuid,
-) -> Result<Vec<(String, f64, f64)>> {
+async fn get_journal_lines(pool: &sqlx::PgPool, entry_id: Uuid) -> Result<Vec<(String, f64, f64)>> {
     // Returns (account_ref, debit, credit) in major currency units
     let rows: Vec<(String, f64, f64)> = sqlx::query_as(
         r#"
@@ -96,12 +90,11 @@ async fn get_journal_lines(
 /// Count processed_events rows for a given event_id.
 /// processed_events has: event_id (UUID UNIQUE), event_type, processed_at, processor
 async fn count_processed_events(pool: &sqlx::PgPool, event_id: Uuid) -> Result<i64> {
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM processed_events WHERE event_id = $1",
-    )
-    .bind(event_id)
-    .fetch_one(pool)
-    .await?;
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
+            .bind(event_id)
+            .fetch_one(pool)
+            .await?;
     Ok(count)
 }
 
@@ -161,7 +154,11 @@ async fn cleanup_tenant(pool: &sqlx::PgPool, tenant_id: &str) -> Result<()> {
 }
 
 /// Build a sample write-off payload.
-fn sample_payload(tenant_id: &str, invoice_id: &str, amount_minor: i64) -> InvoiceWrittenOffPayload {
+fn sample_payload(
+    tenant_id: &str,
+    invoice_id: &str,
+    amount_minor: i64,
+) -> InvoiceWrittenOffPayload {
     InvoiceWrittenOffPayload {
         tenant_id: tenant_id.to_string(),
         invoice_id: invoice_id.to_string(),
@@ -227,10 +224,7 @@ async fn test_writeoff_posts_balanced_gl_entry() -> Result<()> {
         (*bad_debt_credit).abs() < 0.01,
         "BAD_DEBT credit should be $0.00"
     );
-    assert!(
-        (*ar_debit).abs() < 0.01,
-        "AR debit should be $0.00"
-    );
+    assert!((*ar_debit).abs() < 0.01, "AR debit should be $0.00");
     assert!(
         (*ar_credit - 500.0).abs() < 0.01,
         "AR credit should be $500.00, got {}",
@@ -285,13 +279,11 @@ async fn test_writeoff_idempotency_prevents_duplicate_entry() -> Result<()> {
     let payload = sample_payload(&tenant_id, "inv-idem-001", 25000);
 
     // First posting — should succeed
-    let first_result =
-        process_writeoff_posting(&pool, event_id, &tenant_id, "ar", &payload).await;
+    let first_result = process_writeoff_posting(&pool, event_id, &tenant_id, "ar", &payload).await;
     assert!(first_result.is_ok(), "First posting should succeed");
 
     // Second posting with same event_id — should return DuplicateEvent (no-op)
-    let second_result =
-        process_writeoff_posting(&pool, event_id, &tenant_id, "ar", &payload).await;
+    let second_result = process_writeoff_posting(&pool, event_id, &tenant_id, "ar", &payload).await;
 
     match second_result {
         Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_)) => {
@@ -322,14 +314,12 @@ async fn test_writeoff_different_events_create_separate_entries() -> Result<()> 
     let payload_1 = sample_payload(&tenant_id, "inv-sep-001", 10000);
     let payload_2 = sample_payload(&tenant_id, "inv-sep-002", 20000);
 
-    let entry_id_1 =
-        process_writeoff_posting(&pool, event_id_1, &tenant_id, "ar", &payload_1)
-            .await
-            .expect("first posting should succeed");
-    let entry_id_2 =
-        process_writeoff_posting(&pool, event_id_2, &tenant_id, "ar", &payload_2)
-            .await
-            .expect("second posting should succeed");
+    let entry_id_1 = process_writeoff_posting(&pool, event_id_1, &tenant_id, "ar", &payload_1)
+        .await
+        .expect("first posting should succeed");
+    let entry_id_2 = process_writeoff_posting(&pool, event_id_2, &tenant_id, "ar", &payload_2)
+        .await
+        .expect("second posting should succeed");
 
     assert_ne!(
         entry_id_1, entry_id_2,
@@ -382,12 +372,11 @@ async fn test_writeoff_journal_entry_description() -> Result<()> {
         .await
         .expect("posting should succeed");
 
-    let description: String = sqlx::query_scalar(
-        "SELECT description FROM journal_entries WHERE id = $1",
-    )
-    .bind(entry_id)
-    .fetch_one(&pool)
-    .await?;
+    let description: String =
+        sqlx::query_scalar("SELECT description FROM journal_entries WHERE id = $1")
+            .bind(entry_id)
+            .fetch_one(&pool)
+            .await?;
 
     assert!(
         description.contains(invoice_id),

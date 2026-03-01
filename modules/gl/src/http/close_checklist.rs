@@ -17,9 +17,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::AppState;
 use super::auth::extract_tenant;
 use super::period_close::PeriodCloseHttpError;
+use crate::AppState;
 
 // ============================================================
 // CHECKLIST TYPES

@@ -1,6 +1,6 @@
-//! GL Entry Reversal Consumer
+//! GL Posting Request Consumer
 //!
-//! This consumer subscribes to `gl.events.entry.reverse.requested` and creates reversal entries.
+//! This consumer subscribes to `gl.events.posting.requested` and creates journal entries.
 
 use event_bus::consumer_retry::{retry_with_backoff, RetryConfig};
 use event_bus::{BusMessage, EventBus, EventEnvelope};
@@ -10,22 +10,22 @@ use std::sync::Arc;
 use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::contracts::gl_entry_reverse_request_v1::GlEntryReverseRequestV1;
-use crate::services::reversal_service::{create_reversal_entry, ReversalError};
+use crate::contracts::gl_posting_request_v1::GlPostingRequestV1;
+use crate::services::journal_service::{process_gl_posting_request, JournalError};
 
-/// Start the GL reversal consumer task
+/// Start the GL posting consumer task
 ///
 /// This function spawns a background task that:
-/// 1. Subscribes to gl.events.entry.reverse.requested
-/// 2. Validates and processes reversal requests
-/// 3. Creates reversal journal entries with idempotency
+/// 1. Subscribes to gl.events.posting.requested
+/// 2. Validates and processes GL posting requests
+/// 3. Creates journal entries with idempotency
 /// 4. Sends failed events to DLQ after retries
-pub async fn start_gl_reversal_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
+pub async fn start_gl_posting_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
     tokio::spawn(async move {
-        tracing::info!("Starting GL reversal consumer");
+        tracing::info!("Starting GL posting consumer");
 
-        // Subscribe to GL reversal events
-        let subject = "gl.events.entry.reverse.requested";
+        // Subscribe to GL posting events
+        let subject = "gl.events.posting.requested";
         let mut stream = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {
@@ -56,7 +56,7 @@ pub async fn start_gl_reversal_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
 
             // Create tracing span with correlation fields
             let span = tracing::info_span!(
-                "process_gl_reversal",
+                "process_gl_posting",
                 event_id = %event_id,
                 subject = %msg.subject,
                 tenant_id = %tenant_id,
@@ -76,13 +76,13 @@ pub async fn start_gl_reversal_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
                         let pool = pool_clone.clone();
                         let msg = msg_clone.clone();
                         async move {
-                            process_gl_reversal_message(&pool, &msg)
+                            process_gl_posting_message(&pool, &msg)
                                 .await
                                 .map_err(format_error_for_retry)
                         }
                     },
                     &retry_config,
-                    "gl_reversal_consumer",
+                    "gl_posting_consumer",
                 )
                 .await;
 
@@ -91,7 +91,7 @@ pub async fn start_gl_reversal_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
                     tracing::error!(
                         error = %error_msg,
                         retry_count = retry_config.max_attempts,
-                        "Reversal processing failed after retries, sending to DLQ"
+                        "Event processing failed after retries, sending to DLQ"
                     );
 
                     crate::dlq::handle_processing_error(
@@ -107,83 +107,76 @@ pub async fn start_gl_reversal_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
             .await;
         }
 
-        tracing::warn!("GL reversal consumer stopped");
+        tracing::warn!("GL posting consumer stopped");
     });
 }
 
-/// Process a GL reversal message
-async fn process_gl_reversal_message(
+/// Process a GL posting message
+async fn process_gl_posting_message(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), ProcessingError> {
     // Parse the event envelope
-    let envelope: EventEnvelope<GlEntryReverseRequestV1> =
-        serde_json::from_slice(&msg.payload).map_err(|e| {
-            ProcessingError::Validation(format!("Failed to parse envelope: {}", e))
-        })?;
+    let envelope: EventEnvelope<GlPostingRequestV1> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| ProcessingError::Validation(format!("Failed to parse envelope: {}", e)))?;
 
     tracing::info!(
         event_id = %envelope.event_id,
         tenant_id = %envelope.tenant_id,
         source_module = %envelope.source_module,
-        original_entry_id = %envelope.payload.original_entry_id,
-        "Processing GL reversal request"
+        "Processing GL posting request"
     );
 
-    // Process the reversal request
-    match create_reversal_entry(
+    // Parse correlation_id from string to Uuid
+    let correlation_id = envelope
+        .correlation_id
+        .as_ref()
+        .and_then(|id_str| Uuid::parse_str(id_str).ok());
+
+    // Process the posting request
+    match process_gl_posting_request(
         pool,
         envelope.event_id,
-        envelope.payload.original_entry_id,
+        &envelope.tenant_id,
+        &envelope.source_module,
+        &msg.subject,
+        &envelope.payload,
+        correlation_id, // Phase 16: Propagate correlation_id for audit traceability
     )
     .await
     {
-        Ok(reversal_entry_id) => {
+        Ok(entry_id) => {
             tracing::info!(
                 event_id = %envelope.event_id,
-                original_entry_id = %envelope.payload.original_entry_id,
-                reversal_entry_id = %reversal_entry_id,
-                "Successfully created reversal entry"
+                entry_id = %entry_id,
+                "Successfully created journal entry"
             );
             Ok(())
         }
-        Err(ReversalError::EntryNotFound(entry_id)) => {
-            // Entry not found is not retriable
+        Err(JournalError::Validation(e)) => {
+            // Validation errors are not retriable - go straight to DLQ
             Err(ProcessingError::Validation(format!(
-                "Original entry not found: {}",
-                entry_id
-            )))
-        }
-        Err(ReversalError::AlreadyReversed(entry_id)) => {
-            // Already reversed is not retriable
-            Err(ProcessingError::Validation(format!(
-                "Entry already reversed: {}",
-                entry_id
-            )))
-        }
-        Err(ReversalError::OriginalPeriodClosed { original_entry_id, period_id }) => {
-            // Original period closed is not retriable (Phase 13 hard lock enforcement)
-            Err(ProcessingError::Validation(format!(
-                "Cannot reverse entry {} - original period {} is closed",
-                original_entry_id, period_id
-            )))
-        }
-        Err(ReversalError::Period(e)) => {
-            // Period errors (closed period, missing period) are not retriable
-            Err(ProcessingError::Validation(format!(
-                "Period validation failed: {}",
+                "Validation failed: {}",
                 e
             )))
         }
-        Err(ReversalError::DuplicateEvent(event_id)) => {
+        Err(JournalError::InvalidDate(e)) => {
+            // Date parsing errors are not retriable
+            Err(ProcessingError::Validation(format!("Invalid date: {}", e)))
+        }
+        Err(JournalError::Period(e)) => {
+            // Period errors (closed period, missing period) are not retriable
+            Err(ProcessingError::Validation(format!("Period error: {}", e)))
+        }
+        Err(JournalError::DuplicateEvent(event_id)) => {
             // Duplicate events are expected (idempotency) - not an error
             tracing::info!(
                 event_id = %event_id,
-                "Duplicate reversal event ignored (already processed)"
+                "Duplicate event ignored (already processed)"
             );
             Ok(())
         }
-        Err(ReversalError::Balance(e)) => {
+        Err(JournalError::Balance(e)) => {
             // Balance errors could be database or validation issues
             // Most are likely database errors, so mark as retriable
             Err(ProcessingError::Retriable(format!(
@@ -191,7 +184,7 @@ async fn process_gl_reversal_message(
                 e
             )))
         }
-        Err(ReversalError::Database(e)) => {
+        Err(JournalError::Database(e)) => {
             // Database errors are retriable
             Err(ProcessingError::Retriable(format!("Database error: {}", e)))
         }
@@ -231,7 +224,7 @@ fn extract_correlation_fields(
     Ok((event_id, tenant_id, correlation_id, source_module))
 }
 
-/// Error types for processing GL reversal requests
+/// Error types for processing GL posting requests
 #[derive(Debug)]
 enum ProcessingError {
     /// Validation errors are not retriable (send to DLQ immediately)
@@ -257,6 +250,7 @@ fn format_error_for_retry(error: ProcessingError) -> String {
     match error {
         ProcessingError::Validation(msg) => {
             // For validation errors, we want to fail immediately without retries
+            // The retry_with_backoff will not retry if we return this error
             format!("[NON_RETRIABLE] {}", msg)
         }
         ProcessingError::Retriable(msg) => {

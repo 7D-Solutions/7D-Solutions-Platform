@@ -10,8 +10,11 @@ mod common;
 
 use anyhow::Result;
 use chrono::Utc;
-use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool, get_subscriptions_pool};
-use gl_rs::consumer::gl_credit_note_consumer::{
+use common::{
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
+    get_subscriptions_pool,
+};
+use gl_rs::consumers::gl_credit_note_consumer::{
     process_credit_note_posting, CreditNoteIssuedPayload,
 };
 use gl_rs::services::journal_service::JournalError;
@@ -71,7 +74,11 @@ async fn setup_closed_period(gl_pool: &PgPool, tenant_id: &str) -> Result<Uuid> 
     Ok(period_id)
 }
 
-fn make_payload(tenant_id: &str, amount_minor: i64, issued_at: chrono::DateTime<Utc>) -> CreditNoteIssuedPayload {
+fn make_payload(
+    tenant_id: &str,
+    amount_minor: i64,
+    issued_at: chrono::DateTime<Utc>,
+) -> CreditNoteIssuedPayload {
     CreditNoteIssuedPayload {
         credit_note_id: Uuid::new_v4(),
         tenant_id: tenant_id.to_string(),
@@ -85,12 +92,11 @@ fn make_payload(tenant_id: &str, amount_minor: i64, issued_at: chrono::DateTime<
 }
 
 async fn count_journal_entries(gl_pool: &PgPool, tenant_id: &str) -> Result<i64> {
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(gl_pool)
-    .await?;
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_one(gl_pool)
+            .await?;
     Ok(count)
 }
 
@@ -108,9 +114,15 @@ async fn test_credit_note_produces_balanced_journal_entry() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     setup_gl_accounts(&gl_pool, &tenant_id).await?;
     setup_open_period(&gl_pool, &tenant_id).await?;
@@ -122,15 +134,16 @@ async fn test_credit_note_produces_balanced_journal_entry() -> Result<()> {
         .with_timezone(&Utc);
     let payload = make_payload(&tenant_id, 5000, issued_at); // $50.00
 
-    let entry_id = process_credit_note_posting(
-        &gl_pool, event_id, &tenant_id, "ar", &payload,
-    )
-    .await
-    .map_err(|e| anyhow::anyhow!("GL posting failed: {:?}", e))?;
+    let entry_id = process_credit_note_posting(&gl_pool, event_id, &tenant_id, "ar", &payload)
+        .await
+        .map_err(|e| anyhow::anyhow!("GL posting failed: {:?}", e))?;
 
     // Verify journal entry exists
     let entry_count = count_journal_entries(&gl_pool, &tenant_id).await?;
-    assert_eq!(entry_count, 1, "Exactly one journal entry should be created");
+    assert_eq!(
+        entry_count, 1,
+        "Exactly one journal entry should be created"
+    );
 
     // Verify journal lines: DR REV 50.00, CR AR 50.00
     let lines: Vec<(String, i64, i64)> = sqlx::query_as(
@@ -147,19 +160,34 @@ async fn test_credit_note_produces_balanced_journal_entry() -> Result<()> {
 
     assert_eq!(lines.len(), 2, "Two journal lines (DR + CR)");
 
-    let ar_line = lines.iter().find(|(acct, _, _)| acct == "AR").expect("AR line missing");
-    let rev_line = lines.iter().find(|(acct, _, _)| acct == "REV").expect("REV line missing");
+    let ar_line = lines
+        .iter()
+        .find(|(acct, _, _)| acct == "AR")
+        .expect("AR line missing");
+    let rev_line = lines
+        .iter()
+        .find(|(acct, _, _)| acct == "REV")
+        .expect("REV line missing");
 
     assert_eq!(ar_line.1, 0, "AR line: debit = 0");
     assert_eq!(ar_line.2, 5000, "AR line: credit = 5000 minor units");
     assert_eq!(rev_line.1, 5000, "REV line: debit = 5000 minor units");
     assert_eq!(rev_line.2, 0, "REV line: credit = 0");
 
-    println!("✅ Credit note GL entry: DR REV {}, CR AR {}", rev_line.1, ar_line.2);
+    println!(
+        "✅ Credit note GL entry: DR REV {}, CR AR {}",
+        rev_line.1, ar_line.2
+    );
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }
 
@@ -173,9 +201,15 @@ async fn test_credit_note_posting_idempotent() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     setup_gl_accounts(&gl_pool, &tenant_id).await?;
     setup_open_period(&gl_pool, &tenant_id).await?;
@@ -192,12 +226,12 @@ async fn test_credit_note_posting_idempotent() -> Result<()> {
         .map_err(|e| anyhow::anyhow!("First posting failed: {:?}", e))?;
 
     // Second call — same event_id → DuplicateEvent
-    let second = process_credit_note_posting(&gl_pool, event_id, &tenant_id, "ar", &payload)
-        .await;
+    let second = process_credit_note_posting(&gl_pool, event_id, &tenant_id, "ar", &payload).await;
 
     assert!(
         matches!(second, Err(JournalError::DuplicateEvent(_))),
-        "Second call with same event_id must return DuplicateEvent, got: {:?}", second
+        "Second call with same event_id must return DuplicateEvent, got: {:?}",
+        second
     );
 
     // Still only one entry
@@ -206,9 +240,15 @@ async fn test_credit_note_posting_idempotent() -> Result<()> {
 
     println!("✅ Credit note posting is idempotent: duplicate event_id rejected");
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }
 
@@ -222,9 +262,15 @@ async fn test_credit_note_rejects_closed_period() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     setup_gl_accounts(&gl_pool, &tenant_id).await?;
     setup_closed_period(&gl_pool, &tenant_id).await?;
@@ -236,12 +282,12 @@ async fn test_credit_note_rejects_closed_period() -> Result<()> {
         .with_timezone(&Utc);
     let payload = make_payload(&tenant_id, 2000, issued_at);
 
-    let result = process_credit_note_posting(&gl_pool, event_id, &tenant_id, "ar", &payload)
-        .await;
+    let result = process_credit_note_posting(&gl_pool, event_id, &tenant_id, "ar", &payload).await;
 
     assert!(
         matches!(result, Err(JournalError::Period(_))),
-        "Posting to closed period must return Period error, got: {:?}", result
+        "Posting to closed period must return Period error, got: {:?}",
+        result
     );
 
     let entry_count = count_journal_entries(&gl_pool, &tenant_id).await?;
@@ -249,8 +295,14 @@ async fn test_credit_note_rejects_closed_period() -> Result<()> {
 
     println!("✅ Credit note posting rejected for closed period");
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }

@@ -108,7 +108,8 @@ pub async fn process_depreciation_entry_posting(
                 credit: 0.0,
                 memo: Some(format!(
                     "Depreciation expense — asset {} ({})",
-                    entry.asset_id, entry.currency.to_uppercase(),
+                    entry.asset_id,
+                    entry.currency.to_uppercase(),
                 )),
                 dimensions: Some(Dimensions {
                     customer_id: None,
@@ -143,8 +144,16 @@ pub async fn process_depreciation_entry_posting(
 
     let subject = format!("fa.depreciation.entry.{}", entry.entry_id);
 
-    process_gl_posting_request(pool, entry.entry_id, tenant_id, "fixed-assets", &subject, &posting, None)
-        .await
+    process_gl_posting_request(
+        pool,
+        entry.entry_id,
+        tenant_id,
+        "fixed-assets",
+        &subject,
+        &posting,
+        None,
+    )
+    .await
 }
 
 // ============================================================================
@@ -168,7 +177,10 @@ pub async fn start_fixed_assets_depreciation_consumer(bus: Arc<dyn EventBus>, po
             }
         };
 
-        tracing::info!(subject, "Subscribed to FA depreciation run completed events");
+        tracing::info!(
+            subject,
+            "Subscribed to FA depreciation run completed events"
+        );
 
         let retry_config = RetryConfig::default();
 
@@ -331,9 +343,8 @@ mod tests {
     const TEST_TENANT: &str = "test-fa-depr-gl-consumer";
 
     fn test_db_url() -> String {
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string()
-        })
+        std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string())
     }
 
     async fn test_pool() -> PgPool {
@@ -401,7 +412,7 @@ mod tests {
         DepreciationGlEntry {
             entry_id: Uuid::new_v4(),
             asset_id: Uuid::new_v4(),
-            period_end: NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(),
+            period_end: NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid test date"),
             depreciation_amount_minor: amount,
             currency: "USD".to_string(),
             expense_account_ref: "6100".to_string(),
@@ -423,13 +434,12 @@ mod tests {
             .await
             .expect("posting should succeed");
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .fetch_one(&pool)
-        .await
-        .expect("count journal entries");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+                .bind(TEST_TENANT)
+                .fetch_one(&pool)
+                .await
+                .expect("count journal entries");
         assert_eq!(count, 1, "exactly one journal entry created");
 
         let lines: Vec<(String, f64, f64)> = sqlx::query_as(
@@ -442,8 +452,14 @@ mod tests {
         .expect("fetch lines");
         assert_eq!(lines.len(), 2, "two lines (DR + CR)");
 
-        let debit_line = lines.iter().find(|(a, d, _)| a == "6100" && *d > 0.0).expect("DR line");
-        let credit_line = lines.iter().find(|(a, _, c)| a == "1510" && *c > 0.0).expect("CR line");
+        let debit_line = lines
+            .iter()
+            .find(|(a, d, _)| a == "6100" && *d > 0.0)
+            .expect("DR line");
+        let credit_line = lines
+            .iter()
+            .find(|(a, _, c)| a == "1510" && *c > 0.0)
+            .expect("CR line");
         assert_eq!(debit_line.1, credit_line.2, "balanced: debit == credit");
 
         cleanup(&pool).await;
@@ -467,16 +483,16 @@ mod tests {
         let result = process_depreciation_entry_posting(&pool, TEST_TENANT, &entry).await;
         assert!(
             matches!(result, Err(JournalError::DuplicateEvent(_))),
-            "replay must return DuplicateEvent, got {:?}", result
+            "replay must return DuplicateEvent, got {:?}",
+            result
         );
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .fetch_one(&pool)
-        .await
-        .expect("count");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+                .bind(TEST_TENANT)
+                .fetch_one(&pool)
+                .await
+                .expect("count");
         assert_eq!(count, 1, "no duplicate journal entries on replay");
 
         cleanup(&pool).await;
@@ -498,13 +514,12 @@ mod tests {
                 .expect("posting should succeed");
         }
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .fetch_one(&pool)
-        .await
-        .expect("count");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+                .bind(TEST_TENANT)
+                .fetch_one(&pool)
+                .await
+                .expect("count");
         assert_eq!(count, 3, "one journal entry per schedule period");
 
         cleanup(&pool).await;

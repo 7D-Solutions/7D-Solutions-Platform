@@ -16,7 +16,7 @@ mod common;
 use anyhow::Result;
 use chrono::Utc;
 use common::{generate_test_tenant, get_gl_pool};
-use gl_rs::consumer::gl_inventory_consumer::{
+use gl_rs::consumers::gl_inventory_consumer::{
     process_inventory_cogs_posting, ConsumedLayer, ItemIssuedPayload, SourceRef,
 };
 use uuid::Uuid;
@@ -86,10 +86,7 @@ async fn get_journal_entry_id(pool: &sqlx::PgPool, event_id: Uuid) -> Result<Opt
 }
 
 /// Get journal lines for a given journal entry.
-async fn get_journal_lines(
-    pool: &sqlx::PgPool,
-    entry_id: Uuid,
-) -> Result<Vec<(String, f64, f64)>> {
+async fn get_journal_lines(pool: &sqlx::PgPool, entry_id: Uuid) -> Result<Vec<(String, f64, f64)>> {
     let rows: Vec<(String, f64, f64)> = sqlx::query_as(
         r#"
         SELECT account_ref,
@@ -383,10 +380,7 @@ async fn test_inventory_issue_closed_period_rejected() -> Result<()> {
     let result =
         process_inventory_cogs_posting(&pool, event_id, &tenant_id, "inventory", &payload).await;
 
-    assert!(
-        result.is_err(),
-        "Posting to a closed period must fail"
-    );
+    assert!(result.is_err(), "Posting to a closed period must fail");
 
     cleanup_tenant(&pool, &tenant_id).await?;
     Ok(())

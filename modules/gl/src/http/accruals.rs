@@ -4,12 +4,7 @@
 //! POST /api/gl/accruals/create              — Create an accrual instance from template
 //! POST /api/gl/accruals/reversals/execute   — Execute auto-reversals for a target period
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use std::sync::Arc;
 
 use crate::accruals;
@@ -39,7 +34,13 @@ pub async fn create_template_handler(
                 accruals::AccrualError::Validation(_) => StatusCode::BAD_REQUEST,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             };
-            (status, Json(ErrorBody { error: e.to_string() })).into_response()
+            (
+                status,
+                Json(ErrorBody {
+                    error: e.to_string(),
+                }),
+            )
+                .into_response()
         }
     }
 }
@@ -66,7 +67,13 @@ pub async fn create_accrual_handler(
                 accruals::AccrualError::Validation(_) => StatusCode::BAD_REQUEST,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             };
-            (status, Json(ErrorBody { error: e.to_string() })).into_response()
+            (
+                status,
+                Json(ErrorBody {
+                    error: e.to_string(),
+                }),
+            )
+                .into_response()
         }
     }
 }
@@ -86,7 +93,13 @@ pub async fn execute_reversals_handler(
                 accruals::AccrualError::Validation(_) => StatusCode::BAD_REQUEST,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             };
-            (status, Json(ErrorBody { error: e.to_string() })).into_response()
+            (
+                status,
+                Json(ErrorBody {
+                    error: e.to_string(),
+                }),
+            )
+                .into_response()
         }
     }
 }

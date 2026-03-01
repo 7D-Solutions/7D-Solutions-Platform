@@ -145,8 +145,16 @@ pub async fn process_tax_committed_posting(
 
     let subject = format!("tax.committed.{}", event_id);
 
-    process_gl_posting_request(pool, event_id, tenant_id, source_module, &subject, &posting, None)
-        .await
+    process_gl_posting_request(
+        pool,
+        event_id,
+        tenant_id,
+        source_module,
+        &subject,
+        &posting,
+        None,
+    )
+    .await
 }
 
 /// Process a tax.voided event and post the reversal GL journal entry.
@@ -207,8 +215,16 @@ pub async fn process_tax_voided_posting(
 
     let subject = format!("tax.voided.{}", event_id);
 
-    process_gl_posting_request(pool, event_id, tenant_id, source_module, &subject, &posting, None)
-        .await
+    process_gl_posting_request(
+        pool,
+        event_id,
+        tenant_id,
+        source_module,
+        &subject,
+        &posting,
+        None,
+    )
+    .await
 }
 
 // ============================================================================
@@ -273,7 +289,10 @@ pub async fn start_ar_tax_committed_consumer(bus: Arc<dyn EventBus>, pool: PgPoo
                 if let Err(error_msg) = result {
                     tracing::error!(error = %error_msg, "Tax committed GL posting failed, DLQ");
                     crate::dlq::handle_processing_error(
-                        &pool, &msg, &error_msg, retry_config.max_attempts as i32,
+                        &pool,
+                        &msg,
+                        &error_msg,
+                        retry_config.max_attempts as i32,
                     )
                     .await;
                 }
@@ -344,7 +363,10 @@ pub async fn start_ar_tax_voided_consumer(bus: Arc<dyn EventBus>, pool: PgPool) 
                 if let Err(error_msg) = result {
                     tracing::error!(error = %error_msg, "Tax voided GL posting failed, DLQ");
                     crate::dlq::handle_processing_error(
-                        &pool, &msg, &error_msg, retry_config.max_attempts as i32,
+                        &pool,
+                        &msg,
+                        &error_msg,
+                        retry_config.max_attempts as i32,
                     )
                     .await;
                 }
@@ -362,8 +384,8 @@ pub async fn start_ar_tax_voided_consumer(bus: Arc<dyn EventBus>, pool: PgPool) 
 // ============================================================================
 
 async fn process_committed_message(pool: &PgPool, msg: &BusMessage) -> Result<(), ProcessingError> {
-    let envelope: EventEnvelope<TaxCommittedPayload> =
-        serde_json::from_slice(&msg.payload).map_err(|e| {
+    let envelope: EventEnvelope<TaxCommittedPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| {
             ProcessingError::Validation(format!("Failed to parse tax.committed envelope: {}", e))
         })?;
 
@@ -452,7 +474,10 @@ fn extract_correlation_fields(
 ) -> Result<(Uuid, String, Option<String>, Option<String>), Box<dyn std::error::Error>> {
     let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
     let event_id = Uuid::parse_str(
-        envelope.get("event_id").and_then(|v| v.as_str()).ok_or("Missing event_id")?,
+        envelope
+            .get("event_id")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing event_id")?,
     )?;
     let tenant_id = envelope
         .get("tenant_id")

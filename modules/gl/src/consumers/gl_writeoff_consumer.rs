@@ -1,23 +1,23 @@
-//! GL Timekeeping Labor Cost Consumer
+//! GL Write-off Posting Consumer (bd-1rp)
 //!
-//! Handles `timekeeping.labor_cost` events and posts balanced labor cost
-//! accrual journal entries to GL.
+//! Handles `ar.invoice_written_off` events and posts balanced journal entries to GL.
 //!
-//! ## Accounting Entry
+//! ## Accounting Entry (direct write-off method)
 //!
 //! ```text
-//! DR  LABOR_EXPENSE   total_cost_minor / 100.0  ← labor cost recognized
-//! CR  ACCRUED_LABOR   total_cost_minor / 100.0  ← accrued labor liability
+//! DR  Bad Debt Expense ("BAD_DEBT")  amount_minor / 100.0   ← expense recognized
+//! CR  Accounts Receivable ("AR")     amount_minor / 100.0   ← AR balance reduced
 //! ```
 //!
 //! ## Idempotency
-//! Uses `processed_events` table via `process_gl_posting_request`. The deterministic
-//! `posting_id` from the timekeeping module is the event_id / idempotency key.
+//! Uses `processed_events` table via `process_gl_posting_request`. The event_id from
+//! the incoming envelope is the idempotency key — duplicate events are silently skipped.
 //!
 //! ## Period Validation
 //! `process_gl_posting_request` enforces period existence and open/closed state.
+//! Events targeting a closed period return `JournalError::Period` (non-retriable → DLQ).
 
-use chrono::NaiveDate;
+use chrono::Utc;
 use event_bus::consumer_retry::{retry_with_backoff, RetryConfig};
 use event_bus::{BusMessage, EventBus, EventEnvelope};
 use futures::StreamExt;
@@ -26,120 +26,128 @@ use std::sync::Arc;
 use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::contracts::gl_posting_request_v1::{
-    Dimensions, GlPostingRequestV1, JournalLine, SourceDocType,
-};
+use crate::contracts::gl_posting_request_v1::{GlPostingRequestV1, JournalLine, SourceDocType};
 use crate::services::journal_service::{process_gl_posting_request, JournalError};
 
 // ============================================================================
-// Labor cost payload (mirrors timekeeping::domain::integrations::gl::service)
+// AR write-off payload (mirrors ar::events::contracts::InvoiceWrittenOffPayload)
+// Deserialized from the NATS envelope payload field.
 // ============================================================================
 
 #[derive(Debug, Clone, serde::Deserialize)]
-pub struct LaborCostPostingPayload {
-    pub posting_id: Uuid,
-    pub app_id: String,
-    pub employee_id: Uuid,
-    pub employee_name: String,
-    pub project_id: Option<Uuid>,
-    pub project_name: Option<String>,
-    pub period_start: NaiveDate,
-    pub period_end: NaiveDate,
-    pub total_minutes: i32,
-    pub hourly_rate_minor: i64,
+pub struct InvoiceWrittenOffPayload {
+    pub tenant_id: String,
+    pub invoice_id: String,
+    pub customer_id: String,
+    pub written_off_amount_minor: i64,
     pub currency: String,
-    pub total_cost_minor: i64,
-    pub posting_date: String,
+    pub reason: String,
+    pub authorized_by: Option<String>,
+    pub written_off_at: chrono::DateTime<Utc>,
 }
 
 // ============================================================================
 // Public processing function (testable without NATS)
 // ============================================================================
 
-/// Process a labor cost posting event and create the balanced GL journal entry.
+/// Process a write-off event and post the balanced GL journal entry.
 ///
-/// Returns the created journal entry ID on success.
-/// Duplicate posting_ids return `JournalError::DuplicateEvent` (idempotent no-op).
-pub async fn process_labor_cost_posting(
+/// Returns the created journal entry ID on success, or `JournalError` on failure.
+/// Duplicate event_ids return `JournalError::DuplicateEvent` (idempotent no-op).
+///
+/// ## Journal entry
+/// Direct write-off method:
+///   DR  Bad Debt Expense ("BAD_DEBT") — expense recognized for uncollectable debt
+///   CR  Accounts Receivable ("AR")    — removes the receivable from the books
+pub async fn process_writeoff_posting(
     pool: &PgPool,
     event_id: Uuid,
     tenant_id: &str,
     source_module: &str,
-    payload: &LaborCostPostingPayload,
+    payload: &InvoiceWrittenOffPayload,
 ) -> Result<Uuid, JournalError> {
-    let amount = payload.total_cost_minor as f64 / 100.0;
-    let hours = payload.total_minutes as f64 / 60.0;
+    // Convert minor units to major units (cents → dollars)
+    let amount = payload.written_off_amount_minor as f64 / 100.0;
 
-    let description = if let Some(ref proj) = payload.project_name {
-        format!(
-            "Labor cost accrual — {} ({:.1}h on {})",
-            payload.employee_name, hours, proj,
-        )
-    } else {
-        format!(
-            "Labor cost accrual — {} ({:.1}h)",
-            payload.employee_name, hours,
-        )
-    };
-
-    let dimensions = Some(Dimensions {
-        customer_id: None,
-        vendor_id: None,
-        location_id: None,
-        job_id: payload.project_id.map(|p| p.to_string()),
-        department: None,
-        class: None,
-        project: payload.project_name.clone(),
-    });
-
+    // Build balanced journal entry (direct write-off method):
+    //   DR Bad Debt Expense ← recognizes the uncollectable amount as expense
+    //   CR Accounts Receivable ← removes the receivable from the books
     let posting = GlPostingRequestV1 {
-        posting_date: payload.posting_date.clone(),
+        posting_date: payload.written_off_at.format("%Y-%m-%d").to_string(),
         currency: payload.currency.to_uppercase(),
-        source_doc_type: SourceDocType::LaborCostAccrual,
-        source_doc_id: payload.posting_id.to_string(),
-        description,
+        source_doc_type: SourceDocType::ArAdjustment,
+        source_doc_id: payload.invoice_id.clone(),
+        description: format!(
+            "Write-off invoice {} — {}",
+            payload.invoice_id, payload.reason
+        ),
         lines: vec![
             JournalLine {
-                account_ref: "LABOR_EXPENSE".to_string(),
+                account_ref: "BAD_DEBT".to_string(),
                 debit: amount,
                 credit: 0.0,
                 memo: Some(format!(
-                    "Labor expense — {} ({:.1}h @ ${:.2}/hr)",
-                    payload.employee_name,
-                    hours,
-                    payload.hourly_rate_minor as f64 / 100.0,
+                    "Bad debt expense — write-off invoice {} ({})",
+                    payload.invoice_id, payload.reason
                 )),
-                dimensions: dimensions.clone(),
+                dimensions: Some(crate::contracts::gl_posting_request_v1::Dimensions {
+                    customer_id: Some(payload.customer_id.clone()),
+                    vendor_id: None,
+                    location_id: None,
+                    job_id: None,
+                    department: None,
+                    class: None,
+                    project: None,
+                }),
             },
             JournalLine {
-                account_ref: "ACCRUED_LABOR".to_string(),
+                account_ref: "AR".to_string(),
                 debit: 0.0,
                 credit: amount,
                 memo: Some(format!(
-                    "Accrued labor — {} ({:.1}h)",
-                    payload.employee_name, hours,
+                    "AR reduction — written off invoice {}",
+                    payload.invoice_id
                 )),
-                dimensions,
+                dimensions: Some(crate::contracts::gl_posting_request_v1::Dimensions {
+                    customer_id: Some(payload.customer_id.clone()),
+                    vendor_id: None,
+                    location_id: None,
+                    job_id: None,
+                    department: None,
+                    class: None,
+                    project: None,
+                }),
             },
         ],
     };
 
-    let subject = format!("timekeeping.labor_cost.{}", event_id);
+    let subject = format!("ar.invoice_written_off.{}", event_id);
 
-    process_gl_posting_request(pool, event_id, tenant_id, source_module, &subject, &posting, None)
-        .await
+    process_gl_posting_request(
+        pool,
+        event_id,
+        tenant_id,
+        source_module,
+        &subject,
+        &posting,
+        None, // correlation_id propagation handled by envelope if needed
+    )
+    .await
 }
 
 // ============================================================================
 // NATS consumer (production entry point)
 // ============================================================================
 
-/// Start the GL timekeeping labor cost consumer task.
-pub async fn start_gl_labor_cost_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
+/// Start the GL write-off consumer task.
+///
+/// Subscribes to `ar.invoice_written_off` NATS subject and posts GL journal
+/// entries via `process_writeoff_posting`.
+pub async fn start_gl_writeoff_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
     tokio::spawn(async move {
-        tracing::info!("Starting GL timekeeping labor cost consumer");
+        tracing::info!("Starting GL write-off consumer");
 
-        let subject = "timekeeping.labor_cost";
+        let subject = "ar.invoice_written_off";
         let mut stream = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {
@@ -167,7 +175,7 @@ pub async fn start_gl_labor_cost_consumer(bus: Arc<dyn EventBus>, pool: PgPool) 
                 };
 
             let span = tracing::info_span!(
-                "process_labor_cost_posting",
+                "process_writeoff_gl_posting",
                 event_id = %event_id,
                 tenant_id = %tenant_id,
                 correlation_id = %correlation_id.as_deref().unwrap_or("none"),
@@ -183,20 +191,20 @@ pub async fn start_gl_labor_cost_consumer(bus: Arc<dyn EventBus>, pool: PgPool) 
                         let pool = pool_clone.clone();
                         let msg = msg_clone.clone();
                         async move {
-                            process_labor_cost_message(&pool, &msg)
+                            process_writeoff_message(&pool, &msg)
                                 .await
                                 .map_err(format_error_for_retry)
                         }
                     },
                     &retry_config,
-                    "gl_labor_cost_consumer",
+                    "gl_writeoff_consumer",
                 )
                 .await;
 
                 if let Err(error_msg) = result {
                     tracing::error!(
                         error = %error_msg,
-                        "Labor cost GL posting failed after retries, sending to DLQ"
+                        "Write-off GL posting failed after retries, sending to DLQ"
                     );
                     crate::dlq::handle_processing_error(
                         &pool,
@@ -211,7 +219,7 @@ pub async fn start_gl_labor_cost_consumer(bus: Arc<dyn EventBus>, pool: PgPool) 
             .await;
         }
 
-        tracing::warn!("GL timekeeping labor cost consumer stopped");
+        tracing::warn!("GL write-off consumer stopped");
     });
 }
 
@@ -219,27 +227,21 @@ pub async fn start_gl_labor_cost_consumer(bus: Arc<dyn EventBus>, pool: PgPool) 
 // Internal message processing
 // ============================================================================
 
-async fn process_labor_cost_message(
-    pool: &PgPool,
-    msg: &BusMessage,
-) -> Result<(), ProcessingError> {
-    let envelope: EventEnvelope<LaborCostPostingPayload> =
-        serde_json::from_slice(&msg.payload).map_err(|e| {
-            ProcessingError::Validation(format!(
-                "Failed to parse labor_cost envelope: {}",
-                e
-            ))
+async fn process_writeoff_message(pool: &PgPool, msg: &BusMessage) -> Result<(), ProcessingError> {
+    let envelope: EventEnvelope<InvoiceWrittenOffPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| {
+            ProcessingError::Validation(format!("Failed to parse write-off envelope: {}", e))
         })?;
 
     tracing::info!(
         event_id = %envelope.event_id,
         tenant_id = %envelope.tenant_id,
-        employee_id = %envelope.payload.employee_id,
-        total_cost_minor = %envelope.payload.total_cost_minor,
-        "Processing timekeeping labor cost GL posting"
+        invoice_id = %envelope.payload.invoice_id,
+        written_off_amount_minor = %envelope.payload.written_off_amount_minor,
+        "Processing write-off GL posting"
     );
 
-    match process_labor_cost_posting(
+    match process_writeoff_posting(
         pool,
         envelope.event_id,
         &envelope.tenant_id,
@@ -252,12 +254,12 @@ async fn process_labor_cost_message(
             tracing::info!(
                 event_id = %envelope.event_id,
                 entry_id = %entry_id,
-                "Labor cost GL journal entry created"
+                "Write-off GL journal entry created"
             );
             Ok(())
         }
         Err(JournalError::DuplicateEvent(event_id)) => {
-            tracing::info!(event_id = %event_id, "Duplicate labor_cost event ignored");
+            tracing::info!(event_id = %event_id, "Duplicate write-off event ignored");
             Ok(())
         }
         Err(JournalError::Validation(e)) => {

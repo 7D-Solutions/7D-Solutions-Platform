@@ -129,7 +129,10 @@ pub async fn process_ap_bill_approved_posting(
 
     // Resolve per-line debit allocations: (account_ref, amount_minor)
     let debit_lines: Vec<(String, i64)> = if payload.gl_lines.is_empty() {
-        vec![(DEFAULT_EXPENSE_ACCOUNT.to_string(), payload.approved_amount_minor)]
+        vec![(
+            DEFAULT_EXPENSE_ACCOUNT.to_string(),
+            payload.approved_amount_minor,
+        )]
     } else {
         payload
             .gl_lines
@@ -148,8 +151,7 @@ pub async fn process_ap_bill_approved_posting(
     let total_debits_minor: i64 = debit_lines.iter().map(|(_, amt)| amt).sum();
 
     // Build balanced line pairs: (debit_minor, credit_minor) for optional FX conversion
-    let mut line_pairs: Vec<(i64, i64)> =
-        debit_lines.iter().map(|(_, amt)| (*amt, 0i64)).collect();
+    let mut line_pairs: Vec<(i64, i64)> = debit_lines.iter().map(|(_, amt)| (*amt, 0i64)).collect();
     line_pairs.push((0i64, total_debits_minor));
 
     // Determine posting currency and optionally convert via FX rate
@@ -286,8 +288,9 @@ async fn resolve_posting_currency(
         quote_currency: rate.quote_currency.clone(),
     };
 
-    let converted = convert_journal_lines(&line_pairs, &snapshot, &bill_ccy, &reporting_currency)
-        .map_err(|e| JournalError::InvalidDate(format!("FX conversion failed: {}", e)))?;
+    let converted =
+        convert_journal_lines(&line_pairs, &snapshot, &bill_ccy, &reporting_currency)
+            .map_err(|e| JournalError::InvalidDate(format!("FX conversion failed: {}", e)))?;
 
     let pairs: Vec<(i64, i64)> = converted
         .iter()
@@ -389,17 +392,14 @@ pub async fn start_ap_vendor_bill_approved_consumer(bus: Arc<dyn EventBus>, pool
 // Internal message processing
 // ============================================================================
 
-async fn process_ap_bill_message(
-    pool: &PgPool,
-    msg: &BusMessage,
-) -> Result<(), ProcessingError> {
-    let envelope: EventEnvelope<VendorBillApprovedPayload> =
-        serde_json::from_slice(&msg.payload).map_err(|e| {
-            ProcessingError::Validation(format!(
-                "Failed to parse vendor_bill_approved envelope: {}",
-                e
-            ))
-        })?;
+async fn process_ap_bill_message(pool: &PgPool, msg: &BusMessage) -> Result<(), ProcessingError> {
+    let envelope: EventEnvelope<VendorBillApprovedPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| {
+        ProcessingError::Validation(format!(
+            "Failed to parse vendor_bill_approved envelope: {}",
+            e
+        ))
+    })?;
 
     tracing::info!(
         event_id = %envelope.event_id,
@@ -454,7 +454,10 @@ fn extract_correlation_fields(
 ) -> Result<(Uuid, String, Option<String>, Option<String>), Box<dyn std::error::Error>> {
     let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
     let event_id = Uuid::parse_str(
-        envelope.get("event_id").and_then(|v| v.as_str()).ok_or("Missing event_id")?,
+        envelope
+            .get("event_id")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing event_id")?,
     )?;
     let tenant_id = envelope
         .get("tenant_id")

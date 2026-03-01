@@ -1,9 +1,13 @@
-use axum::{extract::DefaultBodyLimit, routing::{get, post}, Extension, Router};
-use security::{permissions, optional_claims_mw, JwtVerifier, RequirePermissionsLayer};
+use axum::{
+    extract::DefaultBodyLimit,
+    routing::{get, post},
+    Extension, Router,
+};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::middleware::{
     default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
 };
+use security::{optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -11,41 +15,41 @@ use tracing_subscriber::EnvFilter;
 
 use gl_rs::{
     config::Config,
-    routes::account_activity::get_account_activity,
-    routes::balance_sheet::get_balance_sheet,
-    routes::gl_detail::get_gl_detail,
-    routes::health::{health, ready, version},
-    routes::income_statement::get_income_statement,
-    routes::close_checklist::{
-        complete_checklist_item, create_approval, create_checklist_item,
-        get_approvals, get_checklist_status, waive_checklist_item,
+    consumers::ap_vendor_bill_approved_consumers::start_ap_vendor_bill_approved_consumer,
+    consumers::ar_tax_liability::{start_ar_tax_committed_consumer, start_ar_tax_voided_consumer},
+    consumers::fixed_assets_depreciation::start_fixed_assets_depreciation_consumer,
+    consumers::gl_credit_note_consumers::start_gl_credit_note_consumer,
+    consumers::gl_fx_realized_consumers::start_gl_fx_realized_consumer,
+    consumers::gl_inventory_consumers::start_gl_inventory_consumer,
+    consumers::gl_writeoff_consumers::start_gl_writeoff_consumer,
+    consumers::timekeeping_labor_cost::start_gl_labor_cost_consumer,
+    http::account_activity::get_account_activity,
+    http::accruals::{
+        create_accrual_handler, create_template_handler, execute_reversals_handler,
     },
-    routes::period_close::{
-        close_period_handler, get_close_status, validate_close,
-        request_reopen, approve_reopen, reject_reopen, list_reopen_requests,
+    http::balance_sheet::get_balance_sheet,
+    http::cashflow::get_cash_flow,
+    http::close_checklist::{
+        complete_checklist_item, create_approval, create_checklist_item, get_approvals,
+        get_checklist_status, waive_checklist_item,
     },
-    routes::period_summary::get_period_summary,
-    routes::fx_rates::{create_fx_rate, get_latest_rate as get_latest_fx_rate},
-    routes::accruals::{create_template_handler, create_accrual_handler, execute_reversals_handler},
-    routes::revrec::{amend_contract, create_contract, generate_schedule_handler, run_recognition_handler},
-    routes::trial_balance::get_trial_balance,
-    routes::cashflow::get_cash_flow,
-    routes::reporting_currency::{
-        get_reporting_trial_balance,
-        get_reporting_income_statement,
-        get_reporting_balance_sheet,
+    http::fx_rates::{create_fx_rate, get_latest_rate as get_latest_fx_rate},
+    http::gl_detail::get_gl_detail,
+    http::health::{health, ready, version},
+    http::income_statement::get_income_statement,
+    http::period_close::{
+        approve_reopen, close_period_handler, get_close_status, list_reopen_requests,
+        reject_reopen, request_reopen, validate_close,
     },
-    consumer::ap_vendor_bill_approved_consumer::start_ap_vendor_bill_approved_consumer,
-    consumer::ar_tax_liability::{start_ar_tax_committed_consumer, start_ar_tax_voided_consumer},
-    consumer::fixed_assets_depreciation::start_fixed_assets_depreciation_consumer,
-    consumer::gl_credit_note_consumer::start_gl_credit_note_consumer,
-    consumer::gl_fx_realized_consumer::start_gl_fx_realized_consumer,
-    consumer::gl_inventory_consumer::start_gl_inventory_consumer,
-    consumer::gl_writeoff_consumer::start_gl_writeoff_consumer,
-    consumer::timekeeping_labor_cost::start_gl_labor_cost_consumer,
-    start_gl_posting_consumer,
-    start_gl_reversal_consumer,
-    AppState,
+    http::period_summary::get_period_summary,
+    http::reporting_currency::{
+        get_reporting_balance_sheet, get_reporting_income_statement, get_reporting_trial_balance,
+    },
+    http::revrec::{
+        amend_contract, create_contract, generate_schedule_handler, run_recognition_handler,
+    },
+    http::trial_balance::get_trial_balance,
+    start_gl_posting_consumer, start_gl_reversal_consumer, AppState,
 };
 
 #[tokio::main]
@@ -98,11 +102,14 @@ async fn main() {
         "nats" => {
             tracing::info!("Connecting to NATS at {}", config.nats_url);
             let client = async_nats::connect(&config.nats_url)
-        .await
+                .await
                 .expect("Failed to connect to NATS");
             Arc::new(NatsBus::new(client))
         }
-        _ => panic!("Invalid BUS_TYPE: {}. Must be 'inmemory' or 'nats'", config.bus_type),
+        _ => panic!(
+            "Invalid BUS_TYPE: {}. Must be 'inmemory' or 'nats'",
+            config.bus_type
+        ),
     };
 
     // Start GL posting consumer
@@ -160,10 +167,8 @@ async fn main() {
     start_gl_labor_cost_consumer(labor_bus, labor_pool).await;
 
     // Create metrics registry
-    let metrics = Arc::new(
-        gl_rs::metrics::GlMetrics::new()
-            .expect("Failed to create metrics registry")
-    );
+    let metrics =
+        Arc::new(gl_rs::metrics::GlMetrics::new().expect("Failed to create metrics registry"));
 
     // Create application state
     let app_state = Arc::new(AppState {
@@ -177,23 +182,53 @@ async fn main() {
 
     // GL mutation routes — require gl.post permission.
     let gl_mutations = Router::new()
-        .route("/api/gl/periods/{period_id}/validate-close", post(validate_close))
-        .route("/api/gl/periods/{period_id}/close", post(close_period_handler))
-        .route("/api/gl/periods/{period_id}/checklist", post(create_checklist_item))
-        .route("/api/gl/periods/{period_id}/checklist/{item_id}/complete", post(complete_checklist_item))
-        .route("/api/gl/periods/{period_id}/checklist/{item_id}/waive", post(waive_checklist_item))
-        .route("/api/gl/periods/{period_id}/approvals", post(create_approval))
+        .route(
+            "/api/gl/periods/{period_id}/validate-close",
+            post(validate_close),
+        )
+        .route(
+            "/api/gl/periods/{period_id}/close",
+            post(close_period_handler),
+        )
+        .route(
+            "/api/gl/periods/{period_id}/checklist",
+            post(create_checklist_item),
+        )
+        .route(
+            "/api/gl/periods/{period_id}/checklist/{item_id}/complete",
+            post(complete_checklist_item),
+        )
+        .route(
+            "/api/gl/periods/{period_id}/checklist/{item_id}/waive",
+            post(waive_checklist_item),
+        )
+        .route(
+            "/api/gl/periods/{period_id}/approvals",
+            post(create_approval),
+        )
         .route("/api/gl/periods/{period_id}/reopen", post(request_reopen))
-        .route("/api/gl/periods/{period_id}/reopen/{request_id}/approve", post(approve_reopen))
-        .route("/api/gl/periods/{period_id}/reopen/{request_id}/reject", post(reject_reopen))
+        .route(
+            "/api/gl/periods/{period_id}/reopen/{request_id}/approve",
+            post(approve_reopen),
+        )
+        .route(
+            "/api/gl/periods/{period_id}/reopen/{request_id}/reject",
+            post(reject_reopen),
+        )
         .route("/api/gl/fx-rates", post(create_fx_rate))
         .route("/api/gl/revrec/contracts", post(create_contract))
         .route("/api/gl/revrec/schedules", post(generate_schedule_handler))
-        .route("/api/gl/revrec/recognition-runs", post(run_recognition_handler))
+        .route(
+            "/api/gl/revrec/recognition-runs",
+            post(run_recognition_handler),
+        )
         .route("/api/gl/revrec/amendments", post(amend_contract))
         .route("/api/gl/accruals/templates", post(create_template_handler))
         .route("/api/gl/accruals/create", post(create_accrual_handler))
-        .route("/api/gl/accruals/reversals/execute", post(execute_reversals_handler))
+        .route(
+            "/api/gl/accruals/reversals/execute",
+            post(execute_reversals_handler),
+        )
         .route_layer(RequirePermissionsLayer::new(&[permissions::GL_POST]))
         .with_state(app_state.clone());
 
@@ -209,27 +244,56 @@ async fn main() {
         .route("/api/gl/trial-balance", get(get_trial_balance))
         .route("/api/gl/income-statement", get(get_income_statement))
         .route("/api/gl/balance-sheet", get(get_balance_sheet))
-        .route("/api/gl/reporting/trial-balance", get(get_reporting_trial_balance))
-        .route("/api/gl/reporting/income-statement", get(get_reporting_income_statement))
-        .route("/api/gl/reporting/balance-sheet", get(get_reporting_balance_sheet))
-        .route("/api/gl/periods/{period_id}/summary", get(get_period_summary))
-        .route("/api/gl/periods/{period_id}/close-status", get(get_close_status))
-        .route("/api/gl/periods/{period_id}/checklist", get(get_checklist_status))
+        .route(
+            "/api/gl/reporting/trial-balance",
+            get(get_reporting_trial_balance),
+        )
+        .route(
+            "/api/gl/reporting/income-statement",
+            get(get_reporting_income_statement),
+        )
+        .route(
+            "/api/gl/reporting/balance-sheet",
+            get(get_reporting_balance_sheet),
+        )
+        .route(
+            "/api/gl/periods/{period_id}/summary",
+            get(get_period_summary),
+        )
+        .route(
+            "/api/gl/periods/{period_id}/close-status",
+            get(get_close_status),
+        )
+        .route(
+            "/api/gl/periods/{period_id}/checklist",
+            get(get_checklist_status),
+        )
         .route("/api/gl/periods/{period_id}/approvals", get(get_approvals))
-        .route("/api/gl/periods/{period_id}/reopen", get(list_reopen_requests))
+        .route(
+            "/api/gl/periods/{period_id}/reopen",
+            get(list_reopen_requests),
+        )
         .route("/api/gl/detail", get(get_gl_detail))
-        .route("/api/gl/accounts/{account_code}/activity", get(get_account_activity))
+        .route(
+            "/api/gl/accounts/{account_code}/activity",
+            get(get_account_activity),
+        )
         .route("/api/gl/fx-rates/latest", get(get_latest_fx_rate))
         .route("/api/gl/cash-flow", get(get_cash_flow))
         .with_state(app_state)
         .merge(gl_mutations)
-        .merge(gl_rs::routes::admin::admin_router(pool.clone()))
+        .merge(gl_rs::http::admin::admin_router(pool.clone()))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
+        .layer(axum::middleware::from_fn(
+            security::tracing::tracing_context_middleware,
+        ))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
+        .layer(axum::middleware::from_fn_with_state(
+            maybe_verifier,
+            optional_claims_mw,
+        ))
         .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -282,7 +346,9 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
     let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
 
     if is_wildcard && config.env != "development" {
-        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+        tracing::warn!(
+            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
+        );
     }
 
     let layer = if is_wildcard {

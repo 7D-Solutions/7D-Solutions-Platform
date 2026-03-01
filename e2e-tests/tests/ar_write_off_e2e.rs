@@ -23,12 +23,14 @@ mod common;
 
 use anyhow::Result;
 use ar_rs::{
-    events::outbox::{mark_as_published},
+    events::outbox::mark_as_published,
     write_offs::{write_off_invoice, WriteOffInvoiceRequest, WriteOffInvoiceResult},
 };
-use common::{generate_test_tenant, get_ar_pool, get_gl_pool, setup_nats_client, subscribe_to_events};
+use common::{
+    generate_test_tenant, get_ar_pool, get_gl_pool, setup_nats_client, subscribe_to_events,
+};
 use futures::StreamExt;
-use gl_rs::consumer::gl_writeoff_consumer::{process_writeoff_posting, InvoiceWrittenOffPayload};
+use gl_rs::consumers::gl_writeoff_consumer::{process_writeoff_posting, InvoiceWrittenOffPayload};
 use serial_test::serial;
 use sqlx::PgPool;
 use std::time::Duration;
@@ -192,7 +194,10 @@ async fn test_write_off_nats_event_and_gl_entry() -> Result<()> {
             written_off_at,
         } => {
             assert_eq!(returned_id, write_off_id, "write_off_id must round-trip");
-            assert!(write_off_row_id > 0, "write_off_row_id must be a positive DB serial");
+            assert!(
+                write_off_row_id > 0,
+                "write_off_row_id must be a positive DB serial"
+            );
             written_off_at
         }
         other => panic!("expected WrittenOff, got {:?}", other),
@@ -209,15 +214,17 @@ async fn test_write_off_nats_event_and_gl_entry() -> Result<()> {
     .await
     .expect("outbox event must exist after write-off");
 
-    let mutation_class: String = sqlx::query_scalar(
-        "SELECT mutation_class FROM events_outbox WHERE event_id = $1",
-    )
-    .bind(outbox_event_id)
-    .fetch_one(&ar_pool)
-    .await
-    .expect("fetch mutation_class from outbox");
+    let mutation_class: String =
+        sqlx::query_scalar("SELECT mutation_class FROM events_outbox WHERE event_id = $1")
+            .bind(outbox_event_id)
+            .fetch_one(&ar_pool)
+            .await
+            .expect("fetch mutation_class from outbox");
 
-    assert_eq!(mutation_class, "REVERSAL", "write-off outbox event must be REVERSAL class");
+    assert_eq!(
+        mutation_class, "REVERSAL",
+        "write-off outbox event must be REVERSAL class"
+    );
 
     // Manually publish outbox event to NATS (simulates the background publisher)
     let payload_bytes = serde_json::to_vec(&outbox_payload).expect("serialize outbox payload");
@@ -245,7 +252,9 @@ async fn test_write_off_nats_event_and_gl_entry() -> Result<()> {
 
     let payload_inner = &envelope["payload"];
     assert_eq!(
-        payload_inner["written_off_amount_minor"].as_i64().unwrap_or(0),
+        payload_inner["written_off_amount_minor"]
+            .as_i64()
+            .unwrap_or(0),
         AMOUNT as i64,
         "NATS payload written_off_amount_minor must equal {}",
         AMOUNT
@@ -281,7 +290,11 @@ async fn test_write_off_nats_event_and_gl_entry() -> Result<()> {
     .fetch_all(&gl_pool)
     .await?;
 
-    assert_eq!(lines.len(), 2, "exactly 2 journal lines (BAD_DEBT DR + AR CR)");
+    assert_eq!(
+        lines.len(),
+        2,
+        "exactly 2 journal lines (BAD_DEBT DR + AR CR)"
+    );
 
     let bad_debt_line = lines
         .iter()
@@ -408,7 +421,10 @@ async fn test_second_write_off_returns_already_written_off() -> Result<()> {
             .bind(invoice_id)
             .fetch_one(&ar_pool)
             .await?;
-    assert_eq!(row_count, 1, "exactly one write-off row per invoice (guard enforced)");
+    assert_eq!(
+        row_count, 1,
+        "exactly one write-off row per invoice (guard enforced)"
+    );
 
     // Exactly one outbox event must exist (rejected attempt produces no event)
     let event_count: i64 = sqlx::query_scalar(

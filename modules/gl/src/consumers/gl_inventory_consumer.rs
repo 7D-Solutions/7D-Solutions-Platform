@@ -1,12 +1,12 @@
-//! GL Credit Note Posting Consumer (bd-3vm)
+//! GL Inventory COGS Consumer (bd-1121)
 //!
-//! Handles `ar.credit_note_issued` events and posts balanced journal entries to GL.
+//! Handles `inventory.item_issued` events and posts balanced COGS journal entries to GL.
 //!
-//! ## Accounting Entry (credit note reduces AR and reverses revenue)
+//! ## Accounting Entry
 //!
 //! ```text
-//! DR  Revenue ("REV")         amount_minor / 100.0   ← revenue reduction
-//! CR  Accounts Receivable ("AR")  amount_minor / 100.0   ← AR reduction
+//! DR  COGS      total_cost_minor / 100.0   ← cost of goods recognized
+//! CR  INVENTORY total_cost_minor / 100.0   ← inventory asset reduced
 //! ```
 //!
 //! ## Idempotency
@@ -17,7 +17,7 @@
 //! `process_gl_posting_request` enforces period existence and open/closed state.
 //! Events targeting a closed period return `JournalError::Period` (non-retriable → DLQ).
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use event_bus::consumer_retry::{retry_with_backoff, RetryConfig};
 use event_bus::{BusMessage, EventBus, EventEnvelope};
 use futures::StreamExt;
@@ -26,93 +26,101 @@ use std::sync::Arc;
 use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::contracts::gl_posting_request_v1::{
-    GlPostingRequestV1, JournalLine, SourceDocType,
-};
+use crate::contracts::gl_posting_request_v1::{GlPostingRequestV1, JournalLine, SourceDocType};
 use crate::services::journal_service::{process_gl_posting_request, JournalError};
 
 // ============================================================================
-// AR credit note payload (mirrors ar::events::contracts::CreditNoteIssuedPayload)
+// Inventory item_issued payload (mirrors inventory::events::contracts::ItemIssuedPayload)
 // Deserialized from the NATS envelope payload field.
 // ============================================================================
 
 #[derive(Debug, Clone, serde::Deserialize)]
-pub struct CreditNoteIssuedPayload {
-    pub credit_note_id: Uuid,
+pub struct ConsumedLayer {
+    pub layer_id: Uuid,
+    pub quantity: i64,
+    pub unit_cost_minor: i64,
+    pub extended_cost_minor: i64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct SourceRef {
+    pub source_module: String,
+    pub source_type: String,
+    pub source_id: String,
+    pub source_line_id: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ItemIssuedPayload {
+    pub issue_line_id: Uuid,
     pub tenant_id: String,
-    pub customer_id: String,
-    pub invoice_id: String,
-    pub amount_minor: i64,
+    pub item_id: Uuid,
+    pub sku: String,
+    pub warehouse_id: Uuid,
+    pub quantity: i64,
+    pub total_cost_minor: i64,
     pub currency: String,
-    pub reason: String,
-    pub issued_at: chrono::DateTime<Utc>,
+    pub consumed_layers: Vec<ConsumedLayer>,
+    pub source_ref: SourceRef,
+    pub issued_at: DateTime<Utc>,
 }
 
 // ============================================================================
 // Public processing function (testable without NATS)
 // ============================================================================
 
-/// Process a credit note event and post the balanced GL journal entry.
+/// Process an item_issued event and post the balanced COGS GL journal entry.
 ///
 /// Returns the created journal entry ID on success, or `JournalError` on failure.
 /// Duplicate event_ids return `JournalError::DuplicateEvent` (idempotent no-op).
-pub async fn process_credit_note_posting(
+///
+/// ## Journal entry
+///   DR  COGS      — cost of goods recognized (inventory consumed)
+///   CR  INVENTORY — inventory asset balance reduced
+pub async fn process_inventory_cogs_posting(
     pool: &PgPool,
     event_id: Uuid,
     tenant_id: &str,
     source_module: &str,
-    payload: &CreditNoteIssuedPayload,
+    payload: &ItemIssuedPayload,
 ) -> Result<Uuid, JournalError> {
     // Convert minor units to major units (cents → dollars)
-    let amount = payload.amount_minor as f64 / 100.0;
+    let amount = payload.total_cost_minor as f64 / 100.0;
 
-    // Build balanced journal entry:
-    //   DR Revenue  ← reversal of recognized revenue
-    //   CR AR       ← reduces receivable
     let posting = GlPostingRequestV1 {
         posting_date: payload.issued_at.format("%Y-%m-%d").to_string(),
         currency: payload.currency.to_uppercase(),
-        source_doc_type: SourceDocType::ArCreditMemo,
-        source_doc_id: payload.credit_note_id.to_string(),
+        source_doc_type: SourceDocType::InventoryIssue,
+        source_doc_id: payload.issue_line_id.to_string(),
         description: format!(
-            "Credit note {} against invoice {} — {}",
-            payload.credit_note_id, payload.invoice_id, payload.reason
+            "COGS — issued {} units of {} ({})",
+            payload.quantity, payload.sku, payload.source_ref.source_id
         ),
         lines: vec![
             JournalLine {
-                account_ref: "REV".to_string(),
+                account_ref: "COGS".to_string(),
                 debit: amount,
                 credit: 0.0,
-                memo: Some(format!("Revenue reversal — credit note {}", payload.credit_note_id)),
-                dimensions: Some(crate::contracts::gl_posting_request_v1::Dimensions {
-                    customer_id: Some(payload.customer_id.clone()),
-                    vendor_id: None,
-                    location_id: None,
-                    job_id: None,
-                    department: None,
-                    class: None,
-                    project: None,
-                }),
+                memo: Some(format!(
+                    "Cost of goods sold — {} units SKU {}",
+                    payload.quantity, payload.sku
+                )),
+                dimensions: None,
             },
             JournalLine {
-                account_ref: "AR".to_string(),
+                account_ref: "INVENTORY".to_string(),
                 debit: 0.0,
                 credit: amount,
-                memo: Some(format!("AR reduction — credit note {}", payload.credit_note_id)),
-                dimensions: Some(crate::contracts::gl_posting_request_v1::Dimensions {
-                    customer_id: Some(payload.customer_id.clone()),
-                    vendor_id: None,
-                    location_id: None,
-                    job_id: None,
-                    department: None,
-                    class: None,
-                    project: None,
-                }),
+                memo: Some(format!(
+                    "Inventory reduction — issued {} units SKU {}",
+                    payload.quantity, payload.sku
+                )),
+                dimensions: None,
             },
         ],
     };
 
-    let subject = format!("ar.credit_note_issued.{}", event_id);
+    let subject = format!("inventory.item_issued.{}", event_id);
 
     process_gl_posting_request(
         pool,
@@ -121,7 +129,7 @@ pub async fn process_credit_note_posting(
         source_module,
         &subject,
         &posting,
-        None, // correlation_id propagation handled by envelope if needed
+        None,
     )
     .await
 }
@@ -130,15 +138,15 @@ pub async fn process_credit_note_posting(
 // NATS consumer (production entry point)
 // ============================================================================
 
-/// Start the GL credit note consumer task.
+/// Start the GL inventory COGS consumer task.
 ///
-/// Subscribes to `ar.credit_note_issued` NATS subject and posts GL journal
-/// entries via `process_credit_note_posting`.
-pub async fn start_gl_credit_note_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
+/// Subscribes to `inventory.item_issued` NATS subject and posts COGS GL journal
+/// entries via `process_inventory_cogs_posting`.
+pub async fn start_gl_inventory_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
     tokio::spawn(async move {
-        tracing::info!("Starting GL credit note consumer");
+        tracing::info!("Starting GL inventory COGS consumer");
 
-        let subject = "ar.credit_note_issued";
+        let subject = "inventory.item_issued";
         let mut stream = match bus.subscribe(subject).await {
             Ok(s) => s,
             Err(e) => {
@@ -166,7 +174,7 @@ pub async fn start_gl_credit_note_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
                 };
 
             let span = tracing::info_span!(
-                "process_credit_note_gl_posting",
+                "process_inventory_cogs_posting",
                 event_id = %event_id,
                 tenant_id = %tenant_id,
                 correlation_id = %correlation_id.as_deref().unwrap_or("none"),
@@ -182,20 +190,20 @@ pub async fn start_gl_credit_note_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
                         let pool = pool_clone.clone();
                         let msg = msg_clone.clone();
                         async move {
-                            process_credit_note_message(&pool, &msg)
+                            process_item_issued_message(&pool, &msg)
                                 .await
                                 .map_err(format_error_for_retry)
                         }
                     },
                     &retry_config,
-                    "gl_credit_note_consumer",
+                    "gl_inventory_consumer",
                 )
                 .await;
 
                 if let Err(error_msg) = result {
                     tracing::error!(
                         error = %error_msg,
-                        "Credit note GL posting failed after retries, sending to DLQ"
+                        "Inventory COGS GL posting failed after retries, sending to DLQ"
                     );
                     crate::dlq::handle_processing_error(
                         &pool,
@@ -210,7 +218,7 @@ pub async fn start_gl_credit_note_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
             .await;
         }
 
-        tracing::warn!("GL credit note consumer stopped");
+        tracing::warn!("GL inventory COGS consumer stopped");
     });
 }
 
@@ -218,24 +226,26 @@ pub async fn start_gl_credit_note_consumer(bus: Arc<dyn EventBus>, pool: PgPool)
 // Internal message processing
 // ============================================================================
 
-async fn process_credit_note_message(
+async fn process_item_issued_message(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), ProcessingError> {
-    let envelope: EventEnvelope<CreditNoteIssuedPayload> =
+    let envelope: EventEnvelope<ItemIssuedPayload> =
         serde_json::from_slice(&msg.payload).map_err(|e| {
-            ProcessingError::Validation(format!("Failed to parse credit note envelope: {}", e))
+            ProcessingError::Validation(format!("Failed to parse item_issued envelope: {}", e))
         })?;
 
     tracing::info!(
         event_id = %envelope.event_id,
         tenant_id = %envelope.tenant_id,
-        credit_note_id = %envelope.payload.credit_note_id,
-        amount_minor = %envelope.payload.amount_minor,
-        "Processing credit note GL posting"
+        item_id = %envelope.payload.item_id,
+        sku = %envelope.payload.sku,
+        quantity = %envelope.payload.quantity,
+        total_cost_minor = %envelope.payload.total_cost_minor,
+        "Processing inventory COGS GL posting"
     );
 
-    match process_credit_note_posting(
+    match process_inventory_cogs_posting(
         pool,
         envelope.event_id,
         &envelope.tenant_id,
@@ -248,12 +258,12 @@ async fn process_credit_note_message(
             tracing::info!(
                 event_id = %envelope.event_id,
                 entry_id = %entry_id,
-                "Credit note GL journal entry created"
+                "Inventory COGS GL journal entry created"
             );
             Ok(())
         }
         Err(JournalError::DuplicateEvent(event_id)) => {
-            tracing::info!(event_id = %event_id, "Duplicate credit note event ignored");
+            tracing::info!(event_id = %event_id, "Duplicate item_issued event ignored");
             Ok(())
         }
         Err(JournalError::Validation(e)) => {
@@ -279,7 +289,10 @@ fn extract_correlation_fields(
 ) -> Result<(Uuid, String, Option<String>, Option<String>), Box<dyn std::error::Error>> {
     let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
     let event_id = Uuid::parse_str(
-        envelope.get("event_id").and_then(|v| v.as_str()).ok_or("Missing event_id")?,
+        envelope
+            .get("event_id")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing event_id")?,
     )?;
     let tenant_id = envelope
         .get("tenant_id")

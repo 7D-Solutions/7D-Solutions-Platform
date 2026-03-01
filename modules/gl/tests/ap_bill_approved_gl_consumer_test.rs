@@ -11,7 +11,7 @@ mod common;
 
 use chrono::Utc;
 use common::{get_test_pool, setup_test_account, setup_test_period};
-use gl_rs::consumer::ap_vendor_bill_approved_consumer::{
+use gl_rs::consumers::ap_vendor_bill_approved_consumer::{
     process_ap_bill_approved_posting, ApprovedGlLine, VendorBillApprovedPayload,
     AP_CLEARING_ACCOUNT,
 };
@@ -51,11 +51,7 @@ async fn cleanup(pool: &sqlx::PgPool) {
         "DELETE FROM accounts WHERE tenant_id = $1",
         "DELETE FROM accounting_periods WHERE tenant_id = $1",
     ] {
-        sqlx::query(q)
-            .bind(TEST_TENANT)
-            .execute(pool)
-            .await
-            .ok();
+        sqlx::query(q).bind(TEST_TENANT).execute(pool).await.ok();
     }
 }
 
@@ -106,14 +102,13 @@ async fn test_ap_bill_approved_single_expense_line_posts_balanced_entry() {
         .expect("posting should succeed");
 
     // Journal entry was created
-    let (count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_entries WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(result)
-    .bind(TEST_TENANT)
-    .fetch_one(&pool)
-    .await
-    .expect("query journal_entries");
+    let (count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE id = $1 AND tenant_id = $2")
+            .bind(result)
+            .bind(TEST_TENANT)
+            .fetch_one(&pool)
+            .await
+            .expect("query journal_entries");
     assert_eq!(count, 1, "journal entry should be created");
 
     // Lines: DR 6100, CR AP
@@ -176,7 +171,10 @@ async fn test_ap_bill_approved_po_backed_line_posts_to_ap_clearing() {
     .fetch_one(&pool)
     .await
     .expect("fetch debit line");
-    assert_eq!(debit_account, AP_CLEARING_ACCOUNT, "PO-backed: debit should go to AP_CLEARING, not expense account");
+    assert_eq!(
+        debit_account, AP_CLEARING_ACCOUNT,
+        "PO-backed: debit should go to AP_CLEARING, not expense account"
+    );
 
     cleanup(&pool).await;
     pool.close().await;
@@ -199,14 +197,16 @@ async fn test_ap_bill_approved_empty_gl_lines_fallback_to_expense() {
         .expect("fallback posting should succeed");
 
     // Should have exactly 2 lines (DR EXPENSE, CR AP)
-    let (total_lines,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_lines WHERE journal_entry_id = $1",
-    )
-    .bind(result)
-    .fetch_one(&pool)
-    .await
-    .expect("count lines");
-    assert_eq!(total_lines, 2, "fallback: 2 lines expected (DR EXPENSE + CR AP)");
+    let (total_lines,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_lines WHERE journal_entry_id = $1")
+            .bind(result)
+            .fetch_one(&pool)
+            .await
+            .expect("count lines");
+    assert_eq!(
+        total_lines, 2,
+        "fallback: 2 lines expected (DR EXPENSE + CR AP)"
+    );
 
     cleanup(&pool).await;
     pool.close().await;
@@ -242,13 +242,12 @@ async fn test_ap_bill_approved_multi_line_bill_all_debit_to_expense_accounts() {
         .expect("multi-line posting should succeed");
 
     // 3 lines: DR 6100, DR 6200, CR AP
-    let (total_lines,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_lines WHERE journal_entry_id = $1",
-    )
-    .bind(result)
-    .fetch_one(&pool)
-    .await
-    .expect("count lines");
+    let (total_lines,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_lines WHERE journal_entry_id = $1")
+            .bind(result)
+            .fetch_one(&pool)
+            .await
+            .expect("count lines");
     assert_eq!(total_lines, 3, "multi-line: 3 journal lines expected");
 
     // Total debits == total credits (cast SUM from NUMERIC to BIGINT)
@@ -289,10 +288,13 @@ async fn test_ap_bill_approved_idempotent_no_duplicate_entry() {
         .expect("first posting");
 
     // Second posting (same event_id) must return DuplicateEvent, not create a second entry
-    let second = process_ap_bill_approved_posting(&pool, event_id, TEST_TENANT, "ap", &payload)
-        .await;
+    let second =
+        process_ap_bill_approved_posting(&pool, event_id, TEST_TENANT, "ap", &payload).await;
     assert!(
-        matches!(second, Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))),
+        matches!(
+            second,
+            Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))
+        ),
         "second posting with same event_id must return DuplicateEvent"
     );
 

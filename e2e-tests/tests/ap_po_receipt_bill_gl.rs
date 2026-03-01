@@ -26,15 +26,14 @@ use ap::domain::bills::{
     approve::approve_bill, service::create_bill, ApproveBillRequest, CreateBillLineRequest,
     CreateBillRequest,
 };
-use ap::domain::tax::ZeroTaxProvider;
+use ap::domain::po::{
+    approve::approve_po, service::create_po, ApprovePoRequest, CreatePoLineRequest, CreatePoRequest,
+};
 use ap::domain::r#match::engine::run_match;
 use ap::domain::r#match::RunMatchRequest;
-use ap::domain::po::{
-    approve::approve_po, service::create_po, ApprovePoRequest, CreatePoLineRequest,
-    CreatePoRequest,
-};
 use ap::domain::receipts_link::{service::ingest_receipt_link, IngestReceiptLinkRequest};
-use gl_rs::consumer::ap_vendor_bill_approved_consumer::{
+use ap::domain::tax::ZeroTaxProvider;
+use gl_rs::consumers::ap_vendor_bill_approved_consumer::{
     process_ap_bill_approved_posting, ApprovedGlLine, VendorBillApprovedPayload,
     AP_CLEARING_ACCOUNT, AP_LIABILITY_ACCOUNT,
 };
@@ -190,20 +189,30 @@ async fn test_po_receipt_bill_approve_gl_full_spine() {
         }],
     };
 
-    let po_with_lines = create_po(&ap, TENANT_A, &create_po_req, "corr-e2e-po-create".to_string())
-        .await
-        .expect("create_po failed");
+    let po_with_lines = create_po(
+        &ap,
+        TENANT_A,
+        &create_po_req,
+        "corr-e2e-po-create".to_string(),
+    )
+    .await
+    .expect("create_po failed");
     let po_id = po_with_lines.po.po_id;
     let po_line_id = po_with_lines.lines[0].line_id;
     assert_eq!(po_with_lines.po.status, "draft");
-    assert_eq!(po_with_lines.po.total_minor, po_line_qty as i64 * po_unit_price);
+    assert_eq!(
+        po_with_lines.po.total_minor,
+        po_line_qty as i64 * po_unit_price
+    );
 
     // Step 3: Approve the PO
     let approved_po = approve_po(
         &ap,
         TENANT_A,
         po_id,
-        &ApprovePoRequest { approved_by: "manager-e2e".to_string() },
+        &ApprovePoRequest {
+            approved_by: "manager-e2e".to_string(),
+        },
         "corr-e2e-po-approve".to_string(),
     )
     .await
@@ -291,14 +300,29 @@ async fn test_po_receipt_bill_approve_gl_full_spine() {
     .expect("run_match failed");
 
     // Assert 3-way match (receipt exists) and within tolerance
-    assert!(match_outcome.fully_matched, "3-way match must be fully matched");
+    assert!(
+        match_outcome.fully_matched,
+        "3-way match must be fully matched"
+    );
     assert_eq!(match_outcome.lines.len(), 1);
     let match_line = &match_outcome.lines[0];
-    assert_eq!(match_line.match_type, "three_way", "must be three_way with receipt");
+    assert_eq!(
+        match_line.match_type, "three_way",
+        "must be three_way with receipt"
+    );
     assert!(match_line.within_tolerance, "price/qty within tolerance");
-    assert_eq!(match_line.price_variance_minor, 0, "no price variance on exact match");
-    assert!(match_line.qty_variance.abs() < 1e-6, "no qty variance on exact match");
-    assert!(match_line.receipt_id.is_some(), "receipt_id captured in match");
+    assert_eq!(
+        match_line.price_variance_minor, 0,
+        "no price variance on exact match"
+    );
+    assert!(
+        match_line.qty_variance.abs() < 1e-6,
+        "no qty variance on exact match"
+    );
+    assert!(
+        match_line.receipt_id.is_some(),
+        "receipt_id captured in match"
+    );
 
     // Bill status must be 'matched' after the engine runs
     let (bill_status,): (String,) =
@@ -318,7 +342,10 @@ async fn test_po_receipt_bill_approve_gl_full_spine() {
     .fetch_one(&ap)
     .await
     .expect("match event count");
-    assert!(match_ev_count >= 1, "vendor_bill_matched outbox event must be enqueued");
+    assert!(
+        match_ev_count >= 1,
+        "vendor_bill_matched outbox event must be enqueued"
+    );
 
     // Step 7: Approve the matched bill (no override needed — within tolerance)
     let approved_bill = approve_bill(
@@ -345,7 +372,10 @@ async fn test_po_receipt_bill_approve_gl_full_spine() {
     .fetch_one(&ap)
     .await
     .expect("approved event count");
-    assert_eq!(approve_ev_count, 1, "vendor_bill_approved must be enqueued exactly once");
+    assert_eq!(
+        approve_ev_count, 1,
+        "vendor_bill_approved must be enqueued exactly once"
+    );
 
     // Step 8: Drive GL posting directly (bypasses NATS; tests the processing function)
     let gl_event_id = Uuid::new_v4();
@@ -372,15 +402,10 @@ async fn test_po_receipt_bill_approve_gl_full_spine() {
         }],
     };
 
-    let journal_id = process_ap_bill_approved_posting(
-        &gl,
-        gl_event_id,
-        TENANT_A,
-        "ap",
-        &gl_payload,
-    )
-    .await
-    .expect("GL posting failed");
+    let journal_id =
+        process_ap_bill_approved_posting(&gl, gl_event_id, TENANT_A, "ap", &gl_payload)
+            .await
+            .expect("GL posting failed");
 
     // Step 9: Assert GL journal entry is correct
 
@@ -415,7 +440,10 @@ async fn test_po_receipt_bill_approve_gl_full_spine() {
         "GL must balance: debits={} credits={}",
         total_debits, total_credits
     );
-    assert_eq!(total_debits, total_minor, "total debits must equal bill amount");
+    assert_eq!(
+        total_debits, total_minor,
+        "total debits must equal bill amount"
+    );
 
     // For PO-backed line: debit side must be AP_CLEARING
     let debit_accounts: Vec<&str> = lines
@@ -516,7 +544,10 @@ async fn test_gl_posting_idempotent_on_duplicate_event() {
     .fetch_one(&gl)
     .await
     .expect("count");
-    assert_eq!(count, 1, "idempotent: only one GL journal entry allowed per event");
+    assert_eq!(
+        count, 1,
+        "idempotent: only one GL journal entry allowed per event"
+    );
 
     cleanup_ap(&ap, TENANT_A).await;
     cleanup_gl(&gl, TENANT_A).await;
@@ -558,7 +589,9 @@ async fn test_price_mismatch_blocks_approval_without_override() {
         &ap,
         TENANT_A,
         po_id,
-        &ApprovePoRequest { approved_by: "manager".to_string() },
+        &ApprovePoRequest {
+            approved_by: "manager".to_string(),
+        },
         "corr-mm-po-approve".to_string(),
     )
     .await
@@ -633,7 +666,10 @@ async fn test_price_mismatch_blocks_approval_without_override() {
     .await;
 
     assert!(
-        matches!(approve_result, Err(ap::domain::bills::BillError::MatchPolicyViolation(_))),
+        matches!(
+            approve_result,
+            Err(ap::domain::bills::BillError::MatchPolicyViolation(_))
+        ),
         "approve without override must fail on tolerance violation, got {:?}",
         approve_result
     );
@@ -696,14 +732,16 @@ async fn test_cross_tenant_gl_isolation() {
         .expect("GL posting for TENANT_A failed");
 
     // TENANT_B must have zero journal entries
-    let (tenant_b_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(TENANT_B)
-    .fetch_one(&gl)
-    .await
-    .expect("tenant_b count");
-    assert_eq!(tenant_b_count, 0, "TENANT_B must not see TENANT_A's GL entries");
+    let (tenant_b_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(TENANT_B)
+            .fetch_one(&gl)
+            .await
+            .expect("tenant_b count");
+    assert_eq!(
+        tenant_b_count, 0,
+        "TENANT_B must not see TENANT_A's GL entries"
+    );
 
     // TENANT_A must have exactly one
     let (tenant_a_count,): (i64,) = sqlx::query_as(

@@ -19,11 +19,11 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::AppState;
 use super::auth::extract_tenant;
 use crate::services::balance_sheet_service::{self, BalanceSheetResponse};
 use crate::services::income_statement_service::{self, IncomeStatementResponse};
 use crate::services::trial_balance_service::{self, TrialBalanceResponse};
+use crate::AppState;
 
 /// Query parameters for reporting currency statement endpoints.
 ///
@@ -216,9 +216,7 @@ pub async fn get_reporting_balance_sheet(
     .await
     .map_err(|e| {
         let status = match &e {
-            balance_sheet_service::BalanceSheetError::InvalidTenantId(_) => {
-                StatusCode::BAD_REQUEST
-            }
+            balance_sheet_service::BalanceSheetError::InvalidTenantId(_) => StatusCode::BAD_REQUEST,
             balance_sheet_service::BalanceSheetError::Unbalanced { .. } => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }

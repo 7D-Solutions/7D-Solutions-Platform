@@ -1,7 +1,8 @@
-//! Income Statement API Routes (Phase 14.7)
+//! Balance Sheet API Routes (Phase 14.7)
 //!
-//! Provides HTTP endpoints for querying income statement (P&L) reports.
+//! Provides HTTP endpoints for querying balance sheet reports.
 
+use crate::AppState;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -10,44 +11,43 @@ use axum::{
 };
 use security::VerifiedClaims;
 use serde::Deserialize;
-use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::services::income_statement_service::{self, IncomeStatementResponse};
 use super::auth::extract_tenant;
+use crate::services::balance_sheet_service::{self, BalanceSheetResponse};
 
-/// Query parameters for income statement endpoint
+/// Query parameters for balance sheet endpoint
 #[derive(Debug, Deserialize)]
-pub struct IncomeStatementQuery {
+pub struct BalanceSheetQuery {
     /// Accounting period ID
     pub period_id: Uuid,
     /// Currency code (ISO 4217, required) - e.g., "USD", "EUR"
     pub currency: String,
 }
 
-/// Income statement error response
+/// Balance sheet error response
 #[derive(Debug, serde::Serialize)]
 pub struct ErrorResponse {
     pub error: String,
 }
 
-/// Handler for GET /api/gl/income-statement
+/// Handler for GET /api/gl/balance-sheet
 ///
-/// Returns income statement (P&L) for a tenant and period with required currency.
+/// Returns balance sheet for a tenant and period with required currency.
 /// Tenant identity is derived from JWT claims (VerifiedClaims).
-pub async fn get_income_statement(
+pub async fn get_balance_sheet(
     State(app_state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
-    Query(params): Query<IncomeStatementQuery>,
-) -> Result<Json<IncomeStatementResponse>, IncomeStatementErrorResponse> {
-    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| IncomeStatementErrorResponse {
+    Query(params): Query<BalanceSheetQuery>,
+) -> Result<Json<BalanceSheetResponse>, BalanceSheetErrorResponse> {
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| BalanceSheetErrorResponse {
         status: StatusCode::UNAUTHORIZED,
         message: msg,
     })?;
 
-    // Query income statement (service layer handles all transformation and totals calculation)
-    let response = income_statement_service::get_income_statement(
+    // Query balance sheet (service layer handles all transformation and totals calculation)
+    let response = balance_sheet_service::get_balance_sheet(
         &app_state.pool,
         &tenant_id,
         params.period_id,
@@ -57,18 +57,16 @@ pub async fn get_income_statement(
     .map_err(|e| {
         // Map service errors to appropriate HTTP status codes
         let status = match e {
-            income_statement_service::IncomeStatementError::InvalidTenantId(_) => {
-                StatusCode::BAD_REQUEST
-            }
-            income_statement_service::IncomeStatementError::AccountingEquationViolation { .. } => {
+            balance_sheet_service::BalanceSheetError::InvalidTenantId(_) => StatusCode::BAD_REQUEST,
+            balance_sheet_service::BalanceSheetError::Unbalanced { .. } => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
-            income_statement_service::IncomeStatementError::StatementRepo(_) => {
+            balance_sheet_service::BalanceSheetError::StatementRepo(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
         };
 
-        IncomeStatementErrorResponse {
+        BalanceSheetErrorResponse {
             status,
             message: e.to_string(),
         }
@@ -79,12 +77,12 @@ pub async fn get_income_statement(
 
 /// Error response wrapper for proper HTTP error handling
 #[derive(Debug)]
-pub struct IncomeStatementErrorResponse {
+pub struct BalanceSheetErrorResponse {
     pub status: StatusCode,
     pub message: String,
 }
 
-impl IntoResponse for IncomeStatementErrorResponse {
+impl IntoResponse for BalanceSheetErrorResponse {
     fn into_response(self) -> Response {
         let body = Json(ErrorResponse {
             error: self.message,

@@ -14,7 +14,7 @@ mod common;
 use anyhow::Result;
 use chrono::Utc;
 use common::{generate_test_tenant, get_ap_pool, get_gl_pool};
-use gl_rs::consumer::ap_vendor_bill_approved_consumer::{
+use gl_rs::consumers::ap_vendor_bill_approved_consumer::{
     process_ap_bill_approved_posting, ApprovedGlLine, VendorBillApprovedPayload,
 };
 use gl_rs::services::journal_service::JournalError;
@@ -264,8 +264,12 @@ async fn test_ap_multicurrency_bill_approval_posts_gl_in_reporting_currency() {
     cleanup_gl(&gl_pool, &tenant_id).await;
 
     // Setup
-    setup_gl_accounts(&gl_pool, &tenant_id).await.expect("GL accounts");
-    setup_open_period(&gl_pool, &tenant_id).await.expect("GL period");
+    setup_gl_accounts(&gl_pool, &tenant_id)
+        .await
+        .expect("GL accounts");
+    setup_open_period(&gl_pool, &tenant_id)
+        .await
+        .expect("GL period");
     let fx_rate_id = setup_fx_rate(&gl_pool, &tenant_id).await.expect("FX rate");
 
     let vendor_id = create_vendor(&ap_pool, &tenant_id).await.expect("vendor");
@@ -295,15 +299,9 @@ async fn test_ap_multicurrency_bill_approval_posts_gl_in_reporting_currency() {
     };
 
     // Post GL journal entry via AP consumer logic
-    let entry_id = process_ap_bill_approved_posting(
-        &gl_pool,
-        event_id,
-        &tenant_id,
-        "ap",
-        &payload,
-    )
-    .await
-    .expect("GL posting failed");
+    let entry_id = process_ap_bill_approved_posting(&gl_pool, event_id, &tenant_id, "ap", &payload)
+        .await
+        .expect("GL posting failed");
 
     assert_ne!(entry_id, Uuid::nil(), "entry_id must be non-nil");
 
@@ -345,8 +343,12 @@ async fn test_ap_multicurrency_gl_posting_is_idempotent() {
     cleanup_ap(&ap_pool, &tenant_id).await;
     cleanup_gl(&gl_pool, &tenant_id).await;
 
-    setup_gl_accounts(&gl_pool, &tenant_id).await.expect("GL accounts");
-    setup_open_period(&gl_pool, &tenant_id).await.expect("GL period");
+    setup_gl_accounts(&gl_pool, &tenant_id)
+        .await
+        .expect("GL accounts");
+    setup_open_period(&gl_pool, &tenant_id)
+        .await
+        .expect("GL period");
     let fx_rate_id = setup_fx_rate(&gl_pool, &tenant_id).await.expect("FX rate");
 
     let vendor_id = create_vendor(&ap_pool, &tenant_id).await.expect("vendor");
@@ -380,8 +382,8 @@ async fn test_ap_multicurrency_gl_posting_is_idempotent() {
         .expect("first GL posting failed");
 
     // Second posting (same event_id): must return DuplicateEvent
-    let second = process_ap_bill_approved_posting(&gl_pool, event_id, &tenant_id, "ap", &payload)
-        .await;
+    let second =
+        process_ap_bill_approved_posting(&gl_pool, event_id, &tenant_id, "ap", &payload).await;
     assert!(
         matches!(second, Err(JournalError::DuplicateEvent(_))),
         "expected DuplicateEvent on second posting, got {:?}",
@@ -392,7 +394,10 @@ async fn test_ap_multicurrency_gl_posting_is_idempotent() {
     let count = count_gl_entries(&gl_pool, &tenant_id, &bill_id.to_string())
         .await
         .expect("count");
-    assert_eq!(count, 1, "idempotent second posting must not create a second entry");
+    assert_eq!(
+        count, 1,
+        "idempotent second posting must not create a second entry"
+    );
 
     cleanup_ap(&ap_pool, &tenant_id).await;
     cleanup_gl(&gl_pool, &tenant_id).await;
@@ -411,8 +416,12 @@ async fn test_ap_same_currency_bill_posts_without_fx_conversion() {
     cleanup_ap(&ap_pool, &tenant_id).await;
     cleanup_gl(&gl_pool, &tenant_id).await;
 
-    setup_gl_accounts(&gl_pool, &tenant_id).await.expect("GL accounts");
-    setup_open_period(&gl_pool, &tenant_id).await.expect("GL period");
+    setup_gl_accounts(&gl_pool, &tenant_id)
+        .await
+        .expect("GL accounts");
+    setup_open_period(&gl_pool, &tenant_id)
+        .await
+        .expect("GL period");
 
     let vendor_id = create_vendor(&ap_pool, &tenant_id).await.expect("vendor");
     let bill_id = Uuid::new_v4();
@@ -480,7 +489,11 @@ async fn test_ap_same_currency_bill_posts_without_fx_conversion() {
         debits, credits
     );
     // 5000 minor units = 50.00 USD (no FX conversion)
-    assert_eq!(debits, 5000, "expected 5000 USD minor (50.00) debit, got {}", debits);
+    assert_eq!(
+        debits, 5000,
+        "expected 5000 USD minor (50.00) debit, got {}",
+        debits
+    );
 
     cleanup_ap(&ap_pool, &tenant_id).await;
     cleanup_gl(&gl_pool, &tenant_id).await;
@@ -518,26 +531,27 @@ async fn test_ap_multicurrency_no_cross_tenant_contamination() {
         .await
         .expect("bill B");
 
-    let make_payload = |bill_id: Uuid, line_id: Uuid, tenant_id: &str, vendor_id: Uuid, fx_rate_id: Uuid| {
-        VendorBillApprovedPayload {
-            bill_id,
-            tenant_id: tenant_id.to_string(),
-            vendor_id,
-            vendor_invoice_ref: format!("EUR-INV-{}", &bill_id.to_string()[..8]),
-            approved_amount_minor: 10000,
-            currency: "EUR".to_string(),
-            due_date: Utc::now() + chrono::Duration::days(30),
-            approved_by: "e2e-approver".to_string(),
-            approved_at: Utc::now(),
-            fx_rate_id: Some(fx_rate_id),
-            gl_lines: vec![ApprovedGlLine {
-                line_id,
-                gl_account_code: "6100".to_string(),
-                amount_minor: 10000,
-                po_line_id: None,
-            }],
-        }
-    };
+    let make_payload =
+        |bill_id: Uuid, line_id: Uuid, tenant_id: &str, vendor_id: Uuid, fx_rate_id: Uuid| {
+            VendorBillApprovedPayload {
+                bill_id,
+                tenant_id: tenant_id.to_string(),
+                vendor_id,
+                vendor_invoice_ref: format!("EUR-INV-{}", &bill_id.to_string()[..8]),
+                approved_amount_minor: 10000,
+                currency: "EUR".to_string(),
+                due_date: Utc::now() + chrono::Duration::days(30),
+                approved_by: "e2e-approver".to_string(),
+                approved_at: Utc::now(),
+                fx_rate_id: Some(fx_rate_id),
+                gl_lines: vec![ApprovedGlLine {
+                    line_id,
+                    gl_account_code: "6100".to_string(),
+                    amount_minor: 10000,
+                    po_line_id: None,
+                }],
+            }
+        };
 
     let payload_a = make_payload(bill_a, line_a, &tenant_a, vendor_a, fx_rate_a);
     let payload_b = make_payload(bill_b, line_b, &tenant_b, vendor_b, fx_rate_b);

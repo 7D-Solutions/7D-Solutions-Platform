@@ -2,6 +2,7 @@
 //!
 //! Provides HTTP endpoints for querying GL detail reports (journal entries and lines).
 
+use crate::AppState;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -10,7 +11,6 @@ use axum::{
 };
 use security::VerifiedClaims;
 use serde::Deserialize;
-use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -88,24 +88,14 @@ pub async fn get_gl_detail(
     .map_err(|e| {
         // Map service errors to appropriate HTTP status codes
         let status = match e {
-            gl_detail_service::GLDetailServiceError::InvalidTenantId(_) => {
-                StatusCode::BAD_REQUEST
-            }
-            gl_detail_service::GLDetailServiceError::InvalidPeriod(_) => {
-                StatusCode::BAD_REQUEST
-            }
-            gl_detail_service::GLDetailServiceError::InvalidCurrency(_) => {
-                StatusCode::BAD_REQUEST
-            }
+            gl_detail_service::GLDetailServiceError::InvalidTenantId(_) => StatusCode::BAD_REQUEST,
+            gl_detail_service::GLDetailServiceError::InvalidPeriod(_) => StatusCode::BAD_REQUEST,
+            gl_detail_service::GLDetailServiceError::InvalidCurrency(_) => StatusCode::BAD_REQUEST,
             gl_detail_service::GLDetailServiceError::InvalidPagination(_) => {
                 StatusCode::BAD_REQUEST
             }
-            gl_detail_service::GLDetailServiceError::PeriodNotFound { .. } => {
-                StatusCode::NOT_FOUND
-            }
-            gl_detail_service::GLDetailServiceError::Repo(_) => {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
+            gl_detail_service::GLDetailServiceError::PeriodNotFound { .. } => StatusCode::NOT_FOUND,
+            gl_detail_service::GLDetailServiceError::Repo(_) => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
         GLDetailErrorResponse {

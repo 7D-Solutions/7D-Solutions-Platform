@@ -20,15 +20,14 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::auth::extract_tenant;
 use crate::repos::revrec_repo::{self, RevrecRepoError};
 use crate::revrec::recognition_run::{self, RecognitionRunError};
 use crate::revrec::schedule_builder::{generate_schedule, ScheduleBuildError};
 use crate::revrec::{
-    ContractCreatedPayload, ContractModifiedPayload,
-    PerformanceObligation, RecognitionPattern,
+    ContractCreatedPayload, ContractModifiedPayload, PerformanceObligation, RecognitionPattern,
 };
 use crate::AppState;
-use super::auth::extract_tenant;
 
 // ============================================================================
 // Request / Response types
@@ -258,7 +257,10 @@ pub async fn generate_schedule_handler(
         description: obligation_row.description.clone(),
         allocated_amount_minor: obligation_row.allocated_amount_minor,
         recognition_pattern,
-        satisfaction_start: obligation_row.satisfaction_start.format("%Y-%m-%d").to_string(),
+        satisfaction_start: obligation_row
+            .satisfaction_start
+            .format("%Y-%m-%d")
+            .to_string(),
         satisfaction_end: obligation_row
             .satisfaction_end
             .map(|d| d.format("%Y-%m-%d").to_string()),

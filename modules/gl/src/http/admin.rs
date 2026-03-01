@@ -17,9 +17,7 @@ use sqlx::PgPool;
 use super::admin_types::ErrorBody;
 
 fn extract_token(headers: &HeaderMap) -> Option<&str> {
-    headers
-        .get("x-admin-token")
-        .and_then(|v| v.to_str().ok())
+    headers.get("x-admin-token").and_then(|v| v.to_str().ok())
 }
 
 fn guard(headers: &HeaderMap) -> Result<(), (StatusCode, Json<ErrorBody>)> {
@@ -74,14 +72,12 @@ async fn list_projections(
 ) -> Result<Json<admin::ProjectionListResponse>, (StatusCode, Json<ErrorBody>)> {
     guard(&headers)?;
     tracing::info!("admin: list projections");
-    let resp = admin::query_projection_list(&pool)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", &e)),
-            )
-        })?;
+    let resp = admin::query_projection_list(&pool).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorBody::new("internal_error", &e)),
+        )
+    })?;
     Ok(Json(resp))
 }
 
@@ -89,10 +85,7 @@ async fn list_projections(
 pub fn admin_router(pool: PgPool) -> Router {
     Router::new()
         .route("/api/gl/admin/projection-status", post(projection_status))
-        .route(
-            "/api/gl/admin/consistency-check",
-            post(consistency_check),
-        )
+        .route("/api/gl/admin/consistency-check", post(consistency_check))
         .route("/api/gl/admin/projections", get(list_projections))
         .with_state(pool)
 }
@@ -103,7 +96,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_admin_router_builds() {
-        let pool = PgPool::connect_lazy("postgres://localhost/fake").unwrap();
+        let pool = PgPool::connect_lazy("postgres://localhost/fake").expect("test pool");
         let _router = admin_router(pool);
     }
 }

@@ -33,9 +33,7 @@ use std::sync::Arc;
 use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::contracts::gl_posting_request_v1::{
-    GlPostingRequestV1, JournalLine, SourceDocType,
-};
+use crate::contracts::gl_posting_request_v1::{GlPostingRequestV1, JournalLine, SourceDocType};
 use crate::services::journal_service::{process_gl_posting_request, JournalError};
 
 // ============================================================================
@@ -297,8 +295,8 @@ async fn process_fx_realized_message(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), ProcessingError> {
-    let envelope: EventEnvelope<InvoiceSettledFxPayload> =
-        serde_json::from_slice(&msg.payload).map_err(|e| {
+    let envelope: EventEnvelope<InvoiceSettledFxPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| {
             ProcessingError::Validation(format!("Failed to parse FX settlement envelope: {}", e))
         })?;
 
@@ -361,7 +359,10 @@ fn extract_correlation_fields(
 ) -> Result<(Uuid, String, Option<String>, Option<String>), Box<dyn std::error::Error>> {
     let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
     let event_id = Uuid::parse_str(
-        envelope.get("event_id").and_then(|v| v.as_str()).ok_or("Missing event_id")?,
+        envelope
+            .get("event_id")
+            .and_then(|v| v.as_str())
+            .ok_or("Missing event_id")?,
     )?;
     let tenant_id = envelope
         .get("tenant_id")

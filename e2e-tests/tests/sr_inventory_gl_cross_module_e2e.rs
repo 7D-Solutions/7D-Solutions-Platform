@@ -6,7 +6,7 @@ mod common;
 use anyhow::Result;
 use chrono::Utc;
 use common::{generate_test_tenant, get_gl_pool};
-use gl_rs::consumer::gl_inventory_consumer::{
+use gl_rs::consumers::gl_inventory_consumer::{
     process_inventory_cogs_posting, ConsumedLayer as GlConsumedLayer,
     ItemIssuedPayload as GlItemIssuedPayload, SourceRef as GlSourceRef,
 };
@@ -98,7 +98,10 @@ async fn cleanup_sr(pool: &sqlx::PgPool, tenant_uuid: Uuid) {
         sqlx::query(q).bind(tenant_uuid).execute(pool).await.ok();
     }
     sqlx::query("DELETE FROM sr_events_outbox WHERE tenant_id = $1")
-        .bind(&tid).execute(pool).await.ok();
+        .bind(&tid)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 async fn cleanup_inventory(pool: &sqlx::PgPool, tenant_id: &str) {
@@ -238,7 +241,9 @@ async fn sr_inbound_close_inventory_receipt_gl_cogs_full_pipeline() -> Result<()
         ("receiving", None, None),
     ] {
         ShipmentService::transition(
-            &sr_pool, shipment_id, tenant_uuid,
+            &sr_pool,
+            shipment_id,
+            tenant_uuid,
             &TransitionRequest {
                 status: target.to_string(),
                 arrived_at: arrived,
@@ -264,7 +269,9 @@ async fn sr_inbound_close_inventory_receipt_gl_cogs_full_pipeline() -> Result<()
     .expect("update line qty");
 
     let closed = ShipmentService::transition(
-        &sr_pool, shipment_id, tenant_uuid,
+        &sr_pool,
+        shipment_id,
+        tenant_uuid,
         &TransitionRequest {
             status: "closed".to_string(),
             arrived_at: None,
@@ -288,7 +295,10 @@ async fn sr_inbound_close_inventory_receipt_gl_cogs_full_pipeline() -> Result<()
     .fetch_one(&sr_pool)
     .await
     .expect("fetch inv ref");
-    assert!(inv_ref.is_some(), "inventory_ref_id must be set after close");
+    assert!(
+        inv_ref.is_some(),
+        "inventory_ref_id must be set after close"
+    );
 
     // Verify outbox event
     let (outbox_count,): (i64,) = sqlx::query_as(
@@ -400,19 +410,17 @@ async fn sr_inbound_close_inventory_receipt_gl_cogs_full_pipeline() -> Result<()
     // Step 7: GL COGS posting
     let gl_payload = to_gl_payload(&issue, sku);
     let gl_event_id = issue.event_id;
-    let entry_id = process_inventory_cogs_posting(
-        &gl_pool, gl_event_id, &tenant_id, "inventory", &gl_payload,
-    )
-    .await
-    .expect("GL COGS posting");
+    let entry_id =
+        process_inventory_cogs_posting(&gl_pool, gl_event_id, &tenant_id, "inventory", &gl_payload)
+            .await
+            .expect("GL COGS posting");
 
     // Step 8: Verify GL journal entry
-    let (je_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_entries WHERE source_event_id = $1",
-    )
-    .bind(gl_event_id)
-    .fetch_one(&gl_pool)
-    .await?;
+    let (je_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE source_event_id = $1")
+            .bind(gl_event_id)
+            .fetch_one(&gl_pool)
+            .await?;
     assert_eq!(je_count, 1, "exactly one GL journal entry");
 
     let lines: Vec<(String, i64, i64)> = sqlx::query_as(
@@ -424,8 +432,14 @@ async fn sr_inbound_close_inventory_receipt_gl_cogs_full_pipeline() -> Result<()
     .await?;
     assert_eq!(lines.len(), 2, "exactly 2 journal lines");
 
-    let cogs = lines.iter().find(|(a, _, _)| a == "COGS").expect("COGS line");
-    let inv = lines.iter().find(|(a, _, _)| a == "INVENTORY").expect("INV line");
+    let cogs = lines
+        .iter()
+        .find(|(a, _, _)| a == "COGS")
+        .expect("COGS line");
+    let inv = lines
+        .iter()
+        .find(|(a, _, _)| a == "INVENTORY")
+        .expect("INV line");
     assert_eq!(cogs.1, 100_000, "COGS debit = $1000.00");
     assert_eq!(cogs.2, 0);
     assert_eq!(inv.1, 0);
@@ -436,21 +450,22 @@ async fn sr_inbound_close_inventory_receipt_gl_cogs_full_pipeline() -> Result<()
     assert_eq!(total_dr, total_cr, "journal must be balanced");
 
     // Exactly-once guard
-    let (pe_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM processed_events WHERE event_id = $1",
-    )
-    .bind(gl_event_id)
-    .fetch_one(&gl_pool)
-    .await?;
+    let (pe_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
+            .bind(gl_event_id)
+            .fetch_one(&gl_pool)
+            .await?;
     assert_eq!(pe_count, 1, "exactly one processed_events row");
 
     // Idempotency check
-    let second = process_inventory_cogs_posting(
-        &gl_pool, gl_event_id, &tenant_id, "inventory", &gl_payload,
-    )
-    .await;
+    let second =
+        process_inventory_cogs_posting(&gl_pool, gl_event_id, &tenant_id, "inventory", &gl_payload)
+            .await;
     assert!(
-        matches!(second, Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))),
+        matches!(
+            second,
+            Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))
+        ),
         "second GL post must return DuplicateEvent, got: {second:?}",
     );
 

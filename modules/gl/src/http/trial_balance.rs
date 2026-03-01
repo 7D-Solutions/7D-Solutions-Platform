@@ -2,6 +2,7 @@
 //!
 //! Provides HTTP endpoints for querying trial balance reports.
 
+use crate::AppState;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
@@ -10,12 +11,11 @@ use axum::{
 };
 use security::VerifiedClaims;
 use serde::Deserialize;
-use crate::AppState;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::services::trial_balance_service::{self, TrialBalanceResponse};
 use super::auth::extract_tenant;
+use crate::services::trial_balance_service::{self, TrialBalanceResponse};
 
 /// Query parameters for trial balance endpoint
 #[derive(Debug, Deserialize)]
@@ -58,8 +58,12 @@ pub async fn get_trial_balance(
         // Map service errors to appropriate HTTP status codes
         let status = match e {
             trial_balance_service::TrialBalanceError::InvalidTenantId(_) => StatusCode::BAD_REQUEST,
-            trial_balance_service::TrialBalanceError::Unbalanced { .. } => StatusCode::INTERNAL_SERVER_ERROR,
-            trial_balance_service::TrialBalanceError::StatementRepo(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            trial_balance_service::TrialBalanceError::Unbalanced { .. } => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+            trial_balance_service::TrialBalanceError::StatementRepo(_) => {
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
         };
 
         TrialBalanceErrorResponse {

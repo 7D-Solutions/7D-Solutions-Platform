@@ -11,10 +11,9 @@ mod common;
 
 use chrono::Utc;
 use common::{get_test_pool, setup_test_account, setup_test_period};
-use gl_rs::consumer::ar_tax_liability::{
-    process_tax_committed_posting, process_tax_voided_posting,
-    TaxCommittedPayload, TaxVoidedPayload,
-    TAX_COLLECTED_ACCOUNT, TAX_PAYABLE_ACCOUNT,
+use gl_rs::consumers::ar_tax_liability::{
+    process_tax_committed_posting, process_tax_voided_posting, TaxCommittedPayload,
+    TaxVoidedPayload, TAX_COLLECTED_ACCOUNT, TAX_PAYABLE_ACCOUNT,
 };
 use serial_test::serial;
 use uuid::Uuid;
@@ -29,7 +28,12 @@ async fn setup_gl_env(pool: &sqlx::PgPool) {
 
     for (code, name, acct_type, normal) in [
         (TAX_COLLECTED_ACCOUNT, "Tax Collected", "asset", "debit"),
-        (TAX_PAYABLE_ACCOUNT, "Sales Tax Payable", "liability", "credit"),
+        (
+            TAX_PAYABLE_ACCOUNT,
+            "Sales Tax Payable",
+            "liability",
+            "credit",
+        ),
     ] {
         setup_test_account(pool, TEST_TENANT, code, name, acct_type, normal).await;
     }
@@ -97,14 +101,13 @@ async fn test_tax_committed_posts_balanced_liability_entry() {
         .expect("tax committed posting should succeed");
 
     // Verify journal entry exists
-    let (count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_entries WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(entry_id)
-    .bind(TEST_TENANT)
-    .fetch_one(&pool)
-    .await
-    .expect("query journal_entries");
+    let (count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE id = $1 AND tenant_id = $2")
+            .bind(entry_id)
+            .bind(TEST_TENANT)
+            .fetch_one(&pool)
+            .await
+            .expect("query journal_entries");
     assert_eq!(count, 1, "journal entry should exist");
 
     // Verify balanced: DR TAX_COLLECTED, CR TAX_PAYABLE
@@ -117,7 +120,10 @@ async fn test_tax_committed_posts_balanced_liability_entry() {
     .await
     .expect("sum journal_lines");
     assert_eq!(total_dr, total_cr, "journal must balance");
-    assert_eq!(total_dr, 850, "debit should equal tax amount in minor units");
+    assert_eq!(
+        total_dr, 850,
+        "debit should equal tax amount in minor units"
+    );
 
     // Verify account references
     let debit_account: (String,) = sqlx::query_as(
@@ -162,7 +168,10 @@ async fn test_tax_committed_idempotent_no_duplicate() {
     // Second posting with same event_id returns DuplicateEvent
     let second = process_tax_committed_posting(&pool, event_id, TEST_TENANT, "ar", &payload).await;
     assert!(
-        matches!(second, Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))),
+        matches!(
+            second,
+            Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))
+        ),
         "second posting must return DuplicateEvent"
     );
 
@@ -220,7 +229,10 @@ async fn test_tax_voided_posts_reversal_entry() {
     .fetch_one(&pool)
     .await
     .expect("fetch debit line");
-    assert_eq!(debit_account.0, TAX_PAYABLE_ACCOUNT, "void debits TAX_PAYABLE");
+    assert_eq!(
+        debit_account.0, TAX_PAYABLE_ACCOUNT,
+        "void debits TAX_PAYABLE"
+    );
 
     let credit_account: (String,) = sqlx::query_as(
         "SELECT account_ref FROM journal_lines \
@@ -230,7 +242,10 @@ async fn test_tax_voided_posts_reversal_entry() {
     .fetch_one(&pool)
     .await
     .expect("fetch credit line");
-    assert_eq!(credit_account.0, TAX_COLLECTED_ACCOUNT, "void credits TAX_COLLECTED");
+    assert_eq!(
+        credit_account.0, TAX_COLLECTED_ACCOUNT,
+        "void credits TAX_COLLECTED"
+    );
 
     cleanup(&pool).await;
     pool.close().await;
@@ -288,7 +303,10 @@ async fn test_tax_committed_then_voided_nets_to_zero() {
     .fetch_one(&pool)
     .await
     .expect("net tax collected");
-    assert_eq!(net_dr2, net_cr2, "TAX_COLLECTED nets to zero after commit+void");
+    assert_eq!(
+        net_dr2, net_cr2,
+        "TAX_COLLECTED nets to zero after commit+void"
+    );
 
     cleanup(&pool).await;
     pool.close().await;
@@ -306,16 +324,23 @@ async fn test_tax_committed_rejects_closed_period() {
     let period_id = setup_test_period(&pool, TEST_TENANT, period_start, period_end).await;
 
     // Close the period (close_hash required by DB constraint)
-    sqlx::query("UPDATE accounting_periods SET closed_at = NOW(), close_hash = 'test_hash' WHERE id = $1")
-        .bind(period_id)
-        .execute(&pool)
-        .await
-        .expect("close period");
+    sqlx::query(
+        "UPDATE accounting_periods SET closed_at = NOW(), close_hash = 'test_hash' WHERE id = $1",
+    )
+    .bind(period_id)
+    .execute(&pool)
+    .await
+    .expect("close period");
 
     // Setup accounts
     for (code, name, acct_type, normal) in [
         (TAX_COLLECTED_ACCOUNT, "Tax Collected", "asset", "debit"),
-        (TAX_PAYABLE_ACCOUNT, "Sales Tax Payable", "liability", "credit"),
+        (
+            TAX_PAYABLE_ACCOUNT,
+            "Sales Tax Payable",
+            "liability",
+            "credit",
+        ),
     ] {
         setup_test_account(&pool, TEST_TENANT, code, name, acct_type, normal).await;
     }
@@ -330,7 +355,10 @@ async fn test_tax_committed_rejects_closed_period() {
 
     let result = process_tax_committed_posting(&pool, event_id, TEST_TENANT, "ar", &payload).await;
     assert!(
-        matches!(result, Err(gl_rs::services::journal_service::JournalError::Period(_))),
+        matches!(
+            result,
+            Err(gl_rs::services::journal_service::JournalError::Period(_))
+        ),
         "posting to closed period must return Period error, got: {:?}",
         result
     );

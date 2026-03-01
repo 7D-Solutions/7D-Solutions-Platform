@@ -15,17 +15,17 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::AppState;
 use super::auth::extract_tenant;
 use crate::config::DEFAULT_REPORTING_CURRENCY;
 use crate::contracts::period_close_v1::{
-    CloseStatus, ClosePeriodRequest, ClosePeriodResponse,
-    CloseStatusResponse, ValidateCloseRequest, ValidateCloseResponse,
+    ClosePeriodRequest, ClosePeriodResponse, CloseStatus, CloseStatusResponse,
+    ValidateCloseRequest, ValidateCloseResponse,
 };
 use crate::services::period_close_service::{
     close_period, has_blocking_errors, validate_period_can_close, PeriodCloseError,
 };
 use crate::services::period_reopen_service;
+use crate::AppState;
 
 /// Error response wrapper
 #[derive(Debug, serde::Serialize)]
@@ -101,15 +101,23 @@ pub async fn validate_close(
     })?;
 
     // Run validation in a transaction (read-only, but ensures consistency)
-    let mut tx = app_state.pool.begin().await.map_err(|e| PeriodCloseHttpError {
-        status: StatusCode::INTERNAL_SERVER_ERROR,
-        message: format!("Failed to begin transaction: {}", e),
-    })?;
+    let mut tx = app_state
+        .pool
+        .begin()
+        .await
+        .map_err(|e| PeriodCloseHttpError {
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+            message: format!("Failed to begin transaction: {}", e),
+        })?;
 
-    let validation_report =
-        validate_period_can_close(&mut tx, &tenant_id, period_id, app_state.dlq_validation_enabled)
-            .await
-            .map_err(map_error)?;
+    let validation_report = validate_period_can_close(
+        &mut tx,
+        &tenant_id,
+        period_id,
+        app_state.dlq_validation_enabled,
+    )
+    .await
+    .map_err(map_error)?;
 
     tx.commit().await.map_err(|e| PeriodCloseHttpError {
         status: StatusCode::INTERNAL_SERVER_ERROR,
@@ -231,10 +239,7 @@ pub async fn get_close_status(
     })?
     .ok_or_else(|| PeriodCloseHttpError {
         status: StatusCode::NOT_FOUND,
-        message: format!(
-            "Period {} not found for tenant {}",
-            period_id, tenant_id
-        ),
+        message: format!("Period {} not found for tenant {}", period_id, tenant_id),
     })?;
 
     // Determine close status from period fields
@@ -247,9 +252,7 @@ pub async fn get_close_status(
             requested_at: period.close_requested_at,
         }
     } else if let Some(requested_at) = period.close_requested_at {
-        CloseStatus::CloseRequested {
-            requested_at,
-        }
+        CloseStatus::CloseRequested { requested_at }
     } else {
         CloseStatus::Open
     };
@@ -310,7 +313,11 @@ pub async fn request_reopen(
     .await
     .map_err(map_error)?;
 
-    Ok((StatusCode::CREATED, Json(serde_json::to_value(result).unwrap())))
+    let json_val = serde_json::to_value(result).map_err(|e| PeriodCloseHttpError {
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+        message: format!("serialization error: {e}"),
+    })?;
+    Ok((StatusCode::CREATED, Json(json_val)))
 }
 
 /// POST /api/gl/periods/{period_id}/reopen/{request_id}/approve
@@ -335,7 +342,11 @@ pub async fn approve_reopen(
     .await
     .map_err(map_error)?;
 
-    Ok(Json(serde_json::to_value(result).unwrap()))
+    let json_val = serde_json::to_value(result).map_err(|e| PeriodCloseHttpError {
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+        message: format!("serialization error: {e}"),
+    })?;
+    Ok(Json(json_val))
 }
 
 /// POST /api/gl/periods/{period_id}/reopen/{request_id}/reject
@@ -361,7 +372,11 @@ pub async fn reject_reopen(
     .await
     .map_err(map_error)?;
 
-    Ok(Json(serde_json::to_value(result).unwrap()))
+    let json_val = serde_json::to_value(result).map_err(|e| PeriodCloseHttpError {
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+        message: format!("serialization error: {e}"),
+    })?;
+    Ok(Json(json_val))
 }
 
 /// GET /api/gl/periods/{period_id}/reopen
@@ -375,13 +390,13 @@ pub async fn list_reopen_requests(
         message: msg,
     })?;
 
-    let rows = period_reopen_service::list_reopen_requests(
-        &app_state.pool,
-        &tenant_id,
-        period_id,
-    )
-    .await
-    .map_err(map_error)?;
+    let rows = period_reopen_service::list_reopen_requests(&app_state.pool, &tenant_id, period_id)
+        .await
+        .map_err(map_error)?;
 
-    Ok(Json(serde_json::to_value(rows).unwrap()))
+    let json_val = serde_json::to_value(rows).map_err(|e| PeriodCloseHttpError {
+        status: StatusCode::INTERNAL_SERVER_ERROR,
+        message: format!("serialization error: {e}"),
+    })?;
+    Ok(Json(json_val))
 }

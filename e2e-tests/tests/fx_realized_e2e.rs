@@ -16,7 +16,7 @@ mod common;
 use anyhow::Result;
 use chrono::Utc;
 use common::{generate_test_tenant, get_gl_pool};
-use gl_rs::consumer::gl_fx_realized_consumer::{
+use gl_rs::consumers::gl_fx_realized_consumer::{
     process_fx_realized_posting, InvoiceSettledFxPayload,
 };
 use uuid::Uuid;
@@ -59,20 +59,16 @@ async fn setup_accounting_period(pool: &sqlx::PgPool, tenant_id: &str) -> Result
 
 /// Fetch the journal entry ID for a given source_event_id.
 async fn get_journal_entry_id(pool: &sqlx::PgPool, event_id: Uuid) -> Result<Option<Uuid>> {
-    let row: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM journal_entries WHERE source_event_id = $1 LIMIT 1",
-    )
-    .bind(event_id)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM journal_entries WHERE source_event_id = $1 LIMIT 1")
+            .bind(event_id)
+            .fetch_optional(pool)
+            .await?;
     Ok(row.map(|(id,)| id))
 }
 
 /// Get journal lines for a given journal entry as (account_ref, debit, credit).
-async fn get_journal_lines(
-    pool: &sqlx::PgPool,
-    entry_id: Uuid,
-) -> Result<Vec<(String, f64, f64)>> {
+async fn get_journal_lines(pool: &sqlx::PgPool, entry_id: Uuid) -> Result<Vec<(String, f64, f64)>> {
     let rows: Vec<(String, f64, f64)> = sqlx::query_as(
         r#"
         SELECT account_ref,
@@ -91,12 +87,11 @@ async fn get_journal_lines(
 
 /// Count processed_events rows for a given event_id.
 async fn count_processed_events(pool: &sqlx::PgPool, event_id: Uuid) -> Result<i64> {
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM processed_events WHERE event_id = $1",
-    )
-    .bind(event_id)
-    .fetch_one(pool)
-    .await?;
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
+            .bind(event_id)
+            .fetch_one(pool)
+            .await?;
     Ok(count)
 }
 
@@ -245,7 +240,10 @@ async fn test_fx_gain_posts_balanced_gl_entry() -> Result<()> {
         ar_debit
     );
     assert!((*ar_credit).abs() < 0.01, "AR credit should be $0.00");
-    assert!((*gain_debit).abs() < 0.01, "FX_REALIZED_GAIN debit should be $0.00");
+    assert!(
+        (*gain_debit).abs() < 0.01,
+        "FX_REALIZED_GAIN debit should be $0.00"
+    );
     assert!(
         (*gain_credit - 20.0).abs() < 0.01,
         "FX_REALIZED_GAIN credit should be $20.00, got {}",
@@ -301,7 +299,10 @@ async fn test_fx_loss_posts_balanced_gl_entry() -> Result<()> {
         "FX_REALIZED_LOSS debit should be $5.00, got {}",
         loss_debit
     );
-    assert!((*loss_credit).abs() < 0.01, "FX_REALIZED_LOSS credit should be $0.00");
+    assert!(
+        (*loss_credit).abs() < 0.01,
+        "FX_REALIZED_LOSS credit should be $0.00"
+    );
     assert!((*ar_debit).abs() < 0.01, "AR debit should be $0.00");
     assert!(
         (*ar_credit - 5.0).abs() < 0.01,
@@ -424,12 +425,11 @@ async fn test_fx_realized_journal_description() -> Result<()> {
     let result = process_fx_realized_posting(&pool, event_id, &tenant_id, "ar", &payload).await?;
     let entry_id = result.expect("should produce entry");
 
-    let description: String = sqlx::query_scalar(
-        "SELECT description FROM journal_entries WHERE id = $1",
-    )
-    .bind(entry_id)
-    .fetch_one(&pool)
-    .await?;
+    let description: String =
+        sqlx::query_scalar("SELECT description FROM journal_entries WHERE id = $1")
+            .bind(entry_id)
+            .fetch_one(&pool)
+            .await?;
 
     assert!(
         description.contains(&invoice_id),
@@ -470,7 +470,10 @@ async fn test_fx_realized_different_events_create_separate_entries() -> Result<(
         .await?
         .expect("second entry");
 
-    assert_ne!(entry_1, entry_2, "different events must create different entries");
+    assert_ne!(
+        entry_1, entry_2,
+        "different events must create different entries"
+    );
 
     println!("PASS: Different FX events create separate GL entries");
 
@@ -493,12 +496,10 @@ async fn test_fx_realized_uses_reporting_currency() -> Result<()> {
     let result = process_fx_realized_posting(&pool, event_id, &tenant_id, "ar", &payload).await?;
     let entry_id = result.expect("should produce entry");
 
-    let currency: String = sqlx::query_scalar(
-        "SELECT currency FROM journal_entries WHERE id = $1",
-    )
-    .bind(entry_id)
-    .fetch_one(&pool)
-    .await?;
+    let currency: String = sqlx::query_scalar("SELECT currency FROM journal_entries WHERE id = $1")
+        .bind(entry_id)
+        .fetch_one(&pool)
+        .await?;
 
     assert_eq!(
         currency, "USD",

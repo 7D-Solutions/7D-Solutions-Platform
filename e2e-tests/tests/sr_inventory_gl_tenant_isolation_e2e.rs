@@ -4,7 +4,7 @@ mod common;
 
 use anyhow::Result;
 use common::{generate_test_tenant, get_gl_pool};
-use gl_rs::consumer::gl_inventory_consumer::{
+use gl_rs::consumers::gl_inventory_consumer::{
     process_inventory_cogs_posting, ConsumedLayer as GlConsumedLayer,
     ItemIssuedPayload as GlItemIssuedPayload, SourceRef as GlSourceRef,
 };
@@ -214,27 +214,28 @@ async fn sr_inventory_gl_cross_tenant_isolation() -> Result<()> {
 
     let gl_payload = to_gl_payload(&issue, "SKU-ISO-001");
     process_inventory_cogs_posting(
-        &gl_pool, issue.event_id, &tenant_a, "inventory", &gl_payload,
+        &gl_pool,
+        issue.event_id,
+        &tenant_a,
+        "inventory",
+        &gl_payload,
     )
     .await
     .expect("GL posting for tenant A");
 
     // Tenant B must have zero journal entries
-    let (b_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(&tenant_b)
-    .fetch_one(&gl_pool)
-    .await?;
+    let (b_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(&tenant_b)
+            .fetch_one(&gl_pool)
+            .await?;
     assert_eq!(b_count, 0, "tenant B must not see tenant A's GL entries");
 
     // Tenant B must have zero inventory items
-    let (b_items,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM items WHERE tenant_id = $1",
-    )
-    .bind(&tenant_b)
-    .fetch_one(&inv_pool)
-    .await?;
+    let (b_items,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM items WHERE tenant_id = $1")
+        .bind(&tenant_b)
+        .fetch_one(&inv_pool)
+        .await?;
     assert_eq!(b_items, 0, "tenant B must not see tenant A's items");
 
     cleanup_inventory(&inv_pool, &tenant_a).await;

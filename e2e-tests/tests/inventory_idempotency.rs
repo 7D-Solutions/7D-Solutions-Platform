@@ -16,16 +16,15 @@ mod common;
 
 use anyhow::Result;
 use common::{generate_test_tenant, get_gl_pool};
-use gl_rs::consumer::gl_inventory_consumer::{
-    process_inventory_cogs_posting,
-    ConsumedLayer as GlConsumedLayer, ItemIssuedPayload as GlItemIssuedPayload,
-    SourceRef as GlSourceRef,
+use gl_rs::consumers::gl_inventory_consumer::{
+    process_inventory_cogs_posting, ConsumedLayer as GlConsumedLayer,
+    ItemIssuedPayload as GlItemIssuedPayload, SourceRef as GlSourceRef,
 };
 use inventory_rs::domain::{
-    issue_service::{IssueError, IssueRequest, process_issue},
+    issue_service::{process_issue, IssueError, IssueRequest},
     items::{CreateItemRequest, ItemRepo, TrackingMode},
-    receipt_service::{ReceiptRequest, process_receipt},
-    reservation_service::{ReserveRequest, process_reserve},
+    receipt_service::{process_receipt, ReceiptRequest},
+    reservation_service::{process_reserve, ReserveRequest},
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -215,37 +214,37 @@ async fn inventory_idempotency_duplicate_receipt_is_replay() {
     assert!(is_replay2, "second call must be replay");
 
     // Stored result must be identical
-    assert_eq!(r1.receipt_line_id, r2.receipt_line_id, "same receipt_line_id");
+    assert_eq!(
+        r1.receipt_line_id, r2.receipt_line_id,
+        "same receipt_line_id"
+    );
     assert_eq!(r1.layer_id, r2.layer_id, "same layer_id");
     assert_eq!(r1.event_id, r2.event_id, "same event_id");
     assert_eq!(r1.quantity, r2.quantity, "same quantity");
 
     // No duplicate rows
-    let ledger_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let ledger_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
     assert_eq!(ledger_count, 1, "no duplicate ledger rows after replay");
 
-    let layer_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inventory_layers WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let layer_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inventory_layers WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
     assert_eq!(layer_count, 1, "no duplicate FIFO layers after replay");
 
-    let outbox_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inv_outbox WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let outbox_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inv_outbox WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
     assert_eq!(outbox_count, 1, "no duplicate outbox events after replay");
 
     cleanup_inventory(&pool, &tenant_id).await;
@@ -311,16 +310,19 @@ async fn inventory_idempotency_duplicate_reserve_is_replay() {
     .fetch_one(&pool)
     .await
     .expect("quantity_reserved");
-    assert_eq!(qty_reserved, 50, "quantity_reserved must not be doubled (expected 50, got {})", qty_reserved);
+    assert_eq!(
+        qty_reserved, 50,
+        "quantity_reserved must not be doubled (expected 50, got {})",
+        qty_reserved
+    );
 
     // Only one reservation row
-    let rsv_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inventory_reservations WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let rsv_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inventory_reservations WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
     assert_eq!(rsv_count, 1, "no duplicate reservation rows");
 
     cleanup_inventory(&pool, &tenant_id).await;
@@ -400,7 +402,9 @@ async fn inventory_idempotency_duplicate_issue_is_replay() {
     assert!(!is_replay1);
     assert_eq!(i1.quantity, 25);
 
-    let (i2, is_replay2) = process_issue(&pool, &issue_req).await.expect("second issue (replay)");
+    let (i2, is_replay2) = process_issue(&pool, &issue_req)
+        .await
+        .expect("second issue (replay)");
     assert!(is_replay2, "second issue must be replay");
 
     // Same result returned
@@ -409,23 +413,24 @@ async fn inventory_idempotency_duplicate_issue_is_replay() {
     assert_eq!(i1.total_cost_minor, i2.total_cost_minor);
 
     // No duplicate ledger rows (1 for receipt + 1 for issue = 2 total)
-    let ledger_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
-    assert_eq!(ledger_count, 2, "exactly 2 ledger rows (1 receipt + 1 issue)");
+    let ledger_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
+    assert_eq!(
+        ledger_count, 2,
+        "exactly 2 ledger rows (1 receipt + 1 issue)"
+    );
 
     // No duplicate layer_consumptions
-    let consumption_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM layer_consumptions WHERE ledger_entry_id = $1",
-    )
-    .bind(i1.ledger_entry_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let consumption_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM layer_consumptions WHERE ledger_entry_id = $1")
+            .bind(i1.ledger_entry_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
     assert_eq!(consumption_count, 1, "exactly 1 layer_consumption row");
 
     // Layer remaining = 100 - 25 = 75 (not 100 - 50 = 50 if double-consumed)
@@ -436,7 +441,10 @@ async fn inventory_idempotency_duplicate_issue_is_replay() {
     .fetch_one(&pool)
     .await
     .expect("remaining");
-    assert_eq!(remaining, 75, "remaining must be 75, not 50 (no double-consume)");
+    assert_eq!(
+        remaining, 75,
+        "remaining must be 75, not 50 (no double-consume)"
+    );
 
     cleanup_inventory(&pool, &tenant_id).await;
 }
@@ -497,7 +505,9 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
         serial_codes: None,
         uom_id: None,
     };
-    let (rcpt1, _) = process_receipt(&inv_pool, &rcpt_req).await.expect("receipt");
+    let (rcpt1, _) = process_receipt(&inv_pool, &rcpt_req)
+        .await
+        .expect("receipt");
 
     // --- Step 2: Issue (first time) ---
     let issue_req = IssueRequest {
@@ -519,7 +529,10 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
         serial_codes: None,
     };
     let (issue1, _) = process_issue(&inv_pool, &issue_req).await.expect("issue");
-    assert_eq!(issue1.total_cost_minor, 30_000, "10 × $30 = $300 (30000 minor units)");
+    assert_eq!(
+        issue1.total_cost_minor, 30_000,
+        "10 × $30 = $300 (30000 minor units)"
+    );
 
     // --- Step 3: GL COGS post (first time) ---
     let gl_payload = to_gl_payload(&issue1, sku);
@@ -529,67 +542,68 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
         .await
         .expect("GL post must succeed");
 
-    let je_count1: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE source_event_id = $1",
-    )
-    .bind(gl_event_id)
-    .fetch_one(&gl_pool)
-    .await?;
+    let je_count1: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE source_event_id = $1")
+            .bind(gl_event_id)
+            .fetch_one(&gl_pool)
+            .await?;
     assert_eq!(je_count1, 1, "exactly 1 journal entry after first GL post");
 
     // --- Step 4: Replay receipt ---
-    let (rcpt2, is_replay) = process_receipt(&inv_pool, &rcpt_req).await.expect("replay receipt");
+    let (rcpt2, is_replay) = process_receipt(&inv_pool, &rcpt_req)
+        .await
+        .expect("replay receipt");
     assert!(is_replay, "second receipt must be replay");
     assert_eq!(rcpt1.receipt_line_id, rcpt2.receipt_line_id);
     assert_eq!(rcpt1.event_id, rcpt2.event_id);
 
     // No new ledger rows from replay (2 total: 1 receipt + 1 issue)
-    let ledger_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&inv_pool)
-    .await?;
+    let ledger_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&inv_pool)
+            .await?;
     assert_eq!(ledger_count, 2, "no new rows from replay receipt");
 
     // --- Step 5: Replay issue ---
-    let (issue2, is_replay) = process_issue(&inv_pool, &issue_req).await.expect("replay issue");
+    let (issue2, is_replay) = process_issue(&inv_pool, &issue_req)
+        .await
+        .expect("replay issue");
     assert!(is_replay, "second issue must be replay");
     assert_eq!(issue1.issue_line_id, issue2.issue_line_id);
     assert_eq!(issue1.event_id, issue2.event_id);
 
-    let ledger_count2: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&inv_pool)
-    .await?;
+    let ledger_count2: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&inv_pool)
+            .await?;
     assert_eq!(ledger_count2, 2, "no new rows from replay issue");
 
     // --- Step 6: Replay GL post with same event_id → DuplicateEvent ---
-    let second_gl = process_inventory_cogs_posting(
-        &gl_pool,
-        gl_event_id,
-        &tenant_id,
-        "inventory",
-        &gl_payload,
-    )
-    .await;
+    let second_gl =
+        process_inventory_cogs_posting(&gl_pool, gl_event_id, &tenant_id, "inventory", &gl_payload)
+            .await;
 
     assert!(
-        matches!(second_gl, Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))),
+        matches!(
+            second_gl,
+            Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))
+        ),
         "replay GL post must return DuplicateEvent, got: {:?}",
         second_gl,
     );
 
     // Still only one journal entry — no double post
-    let je_count2: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE source_event_id = $1",
-    )
-    .bind(gl_event_id)
-    .fetch_one(&gl_pool)
-    .await?;
-    assert_eq!(je_count2, 1, "no duplicate journal entries after replay GL post");
+    let je_count2: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE source_event_id = $1")
+            .bind(gl_event_id)
+            .fetch_one(&gl_pool)
+            .await?;
+    assert_eq!(
+        je_count2, 1,
+        "no duplicate journal entries after replay GL post"
+    );
 
     // Stock not double-consumed: remaining = 100 - 10 = 90 (not 80)
     let layer_remaining: i64 = sqlx::query_scalar(
@@ -598,7 +612,10 @@ async fn inventory_idempotency_full_pipeline_no_double_post() -> Result<()> {
     .bind(&tenant_id)
     .fetch_one(&inv_pool)
     .await?;
-    assert_eq!(layer_remaining, 90, "layer remaining = 90 (no double-consume)");
+    assert_eq!(
+        layer_remaining, 90,
+        "layer remaining = 90 (no double-consume)"
+    );
 
     cleanup_inventory(&inv_pool, &tenant_id).await;
     cleanup_gl(&gl_pool, &tenant_id).await;
@@ -667,7 +684,10 @@ async fn inventory_idempotency_conflicting_key_rejected() {
         .expect_err("conflicting key must fail");
 
     assert!(
-        matches!(err, inventory_rs::domain::receipt_service::ReceiptError::ConflictingIdempotencyKey),
+        matches!(
+            err,
+            inventory_rs::domain::receipt_service::ReceiptError::ConflictingIdempotencyKey
+        ),
         "expected ConflictingIdempotencyKey, got: {:?}",
         err
     );
@@ -682,7 +702,10 @@ async fn inventory_idempotency_conflicting_key_rejected() {
     .fetch_one(&pool)
     .await
     .expect("on-hand");
-    assert_eq!(on_hand, 100, "on-hand must remain 100 (conflicting receipt rejected)");
+    assert_eq!(
+        on_hand, 100,
+        "on-hand must remain 100 (conflicting receipt rejected)"
+    );
 
     cleanup_inventory(&pool, &tenant_id).await;
 }
@@ -766,7 +789,9 @@ async fn inventory_idempotency_issue_then_gl_no_double() -> Result<()> {
 
     // Issue twice (same idempotency_key)
     let (i1, _) = process_issue(&inv_pool, &issue_req).await.expect("issue 1");
-    let (i2, is_replay) = process_issue(&inv_pool, &issue_req).await.expect("issue 2 (replay)");
+    let (i2, is_replay) = process_issue(&inv_pool, &issue_req)
+        .await
+        .expect("issue 2 (replay)");
     assert!(is_replay);
     assert_eq!(i1.event_id, i2.event_id);
 
@@ -778,35 +803,31 @@ async fn inventory_idempotency_issue_then_gl_no_double() -> Result<()> {
         .await
         .expect("GL post 1");
 
-    let second = process_inventory_cogs_posting(
-        &gl_pool,
-        event_id,
-        &tenant_id,
-        "inventory",
-        &gl_payload,
-    )
-    .await;
+    let second =
+        process_inventory_cogs_posting(&gl_pool, event_id, &tenant_id, "inventory", &gl_payload)
+            .await;
     assert!(
-        matches!(second, Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))),
+        matches!(
+            second,
+            Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))
+        ),
         "GL post 2 must be DuplicateEvent"
     );
 
     // Exactly 1 journal entry
-    let je_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE source_event_id = $1",
-    )
-    .bind(event_id)
-    .fetch_one(&gl_pool)
-    .await?;
+    let je_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE source_event_id = $1")
+            .bind(event_id)
+            .fetch_one(&gl_pool)
+            .await?;
     assert_eq!(je_count, 1, "exactly 1 journal entry despite 2 GL posts");
 
     // Exactly 1 issue ledger row (receipt + issue = 2 total)
-    let ledger_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&inv_pool)
-    .await?;
+    let ledger_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&inv_pool)
+            .await?;
     assert_eq!(ledger_count, 2, "2 ledger rows: 1 receipt + 1 issue");
 
     // Layer remaining = 50 - 20 = 30 (not 50 - 40 = 10 if double-issued)

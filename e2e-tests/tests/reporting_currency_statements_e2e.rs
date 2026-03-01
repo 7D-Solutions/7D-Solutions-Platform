@@ -12,12 +12,11 @@
 /// with FX revaluation → verify all three reporting statements.
 ///
 /// Run with: cargo test -p e2e-tests reporting_currency_statements_e2e -- --nocapture
-
 mod common;
 
 use chrono::NaiveDate;
 use common::get_gl_pool;
-use gl_rs::consumer::gl_fx_realized_consumer::{
+use gl_rs::consumers::gl_fx_realized_consumer::{
     process_fx_realized_posting, InvoiceSettledFxPayload,
 };
 use gl_rs::services::balance_sheet_service;
@@ -87,12 +86,7 @@ async fn cleanup_tenant(pool: &PgPool, tenant_id: &str) {
 }
 
 /// Create an accounting period and return its ID.
-async fn create_period(
-    pool: &PgPool,
-    tenant_id: &str,
-    start: NaiveDate,
-    end: NaiveDate,
-) -> Uuid {
+async fn create_period(pool: &PgPool, tenant_id: &str, start: NaiveDate, end: NaiveDate) -> Uuid {
     let id = Uuid::new_v4();
     sqlx::query(
         r#"
@@ -308,10 +302,34 @@ async fn test_reporting_currency_trial_balance_after_fx_settlement_and_revaluati
     cleanup_tenant(&pool, &tenant_id).await;
 
     // Setup accounts
-    create_account(&pool, &tenant_id, "1100", "Accounts Receivable", "asset", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "1100",
+        "Accounts Receivable",
+        "asset",
+        "debit",
+    )
+    .await;
     create_account(&pool, &tenant_id, "4000", "Revenue", "revenue", "credit").await;
-    create_account(&pool, &tenant_id, "7100", "Unrealized FX Gain/Loss", "expense", "debit").await;
-    create_account(&pool, &tenant_id, "AR", "AR (FX Realized)", "asset", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "7100",
+        "Unrealized FX Gain/Loss",
+        "expense",
+        "debit",
+    )
+    .await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "AR",
+        "AR (FX Realized)",
+        "asset",
+        "debit",
+    )
+    .await;
     create_account(
         &pool,
         &tenant_id,
@@ -413,21 +431,15 @@ async fn test_reporting_currency_trial_balance_after_fx_settlement_and_revaluati
     // ========================================================================
     // Verify reporting currency trial balance
     // ========================================================================
-    let tb = trial_balance_service::get_trial_balance(
-        &pool,
-        &tenant_id,
-        period_id,
-        "USD",
-    )
-    .await
-    .expect("reporting currency trial balance should succeed");
+    let tb = trial_balance_service::get_trial_balance(&pool, &tenant_id, period_id, "USD")
+        .await
+        .expect("reporting currency trial balance should succeed");
 
     assert_eq!(tb.currency, "USD", "Trial balance should be in USD");
     assert!(
         tb.totals.is_balanced,
         "Reporting currency trial balance MUST be balanced: debits={} credits={}",
-        tb.totals.total_debits,
-        tb.totals.total_credits
+        tb.totals.total_debits, tb.totals.total_credits
     );
 
     // Should have USD rows from:
@@ -439,11 +451,18 @@ async fn test_reporting_currency_trial_balance_after_fx_settlement_and_revaluati
     );
 
     println!("\nReporting Currency Trial Balance (USD):");
-    println!("  {:>6}  {:30}  {:>10}  {:>10}  {:>10}", "Code", "Name", "Debit", "Credit", "Net");
+    println!(
+        "  {:>6}  {:30}  {:>10}  {:>10}  {:>10}",
+        "Code", "Name", "Debit", "Credit", "Net"
+    );
     for row in &tb.rows {
         println!(
             "  {:>6}  {:30}  {:>10}  {:>10}  {:>10}",
-            row.account_code, row.account_name, row.debit_total_minor, row.credit_total_minor, row.net_balance_minor
+            row.account_code,
+            row.account_name,
+            row.debit_total_minor,
+            row.credit_total_minor,
+            row.net_balance_minor
         );
     }
     println!(
@@ -454,13 +473,8 @@ async fn test_reporting_currency_trial_balance_after_fx_settlement_and_revaluati
     // ========================================================================
     // Verify reporting currency income statement
     // ========================================================================
-    let is_result = income_statement_service::get_income_statement(
-        &pool,
-        &tenant_id,
-        period_id,
-        "USD",
-    )
-    .await;
+    let is_result =
+        income_statement_service::get_income_statement(&pool, &tenant_id, period_id, "USD").await;
 
     // Income statement may or may not have revenue/expense in USD depending on what
     // accounts the FX entries touch. FX_REALIZED_GAIN is revenue, 7100 is expense.
@@ -482,13 +496,20 @@ async fn test_reporting_currency_trial_balance_after_fx_settlement_and_revaluati
             // FX_REALIZED_GAIN should show as revenue (positive)
             let has_fx_gain = is.rows.iter().any(|r| r.account_code == "FX_REALIZED_GAIN");
             if has_fx_gain {
-                let fx_gain_row = is.rows.iter().find(|r| r.account_code == "FX_REALIZED_GAIN").unwrap();
+                let fx_gain_row = is
+                    .rows
+                    .iter()
+                    .find(|r| r.account_code == "FX_REALIZED_GAIN")
+                    .unwrap();
                 assert!(
                     fx_gain_row.amount_minor > 0,
                     "FX_REALIZED_GAIN should be positive revenue, got {}",
                     fx_gain_row.amount_minor
                 );
-                println!("  FX_REALIZED_GAIN in income statement: {}", fx_gain_row.amount_minor);
+                println!(
+                    "  FX_REALIZED_GAIN in income statement: {}",
+                    fx_gain_row.amount_minor
+                );
             }
         }
         Err(e) => {
@@ -500,13 +521,8 @@ async fn test_reporting_currency_trial_balance_after_fx_settlement_and_revaluati
     // ========================================================================
     // Verify reporting currency balance sheet
     // ========================================================================
-    let bs_result = balance_sheet_service::get_balance_sheet(
-        &pool,
-        &tenant_id,
-        period_id,
-        "USD",
-    )
-    .await;
+    let bs_result =
+        balance_sheet_service::get_balance_sheet(&pool, &tenant_id, period_id, "USD").await;
 
     match bs_result {
         Ok(bs) => {
@@ -540,14 +556,9 @@ async fn test_reporting_currency_trial_balance_after_fx_settlement_and_revaluati
     // ========================================================================
     // Verify stability: querying twice returns identical amounts
     // ========================================================================
-    let tb2 = trial_balance_service::get_trial_balance(
-        &pool,
-        &tenant_id,
-        period_id,
-        "USD",
-    )
-    .await
-    .expect("second trial balance query should succeed");
+    let tb2 = trial_balance_service::get_trial_balance(&pool, &tenant_id, period_id, "USD")
+        .await
+        .expect("second trial balance query should succeed");
 
     assert_eq!(
         tb.totals.total_debits, tb2.totals.total_debits,
@@ -598,7 +609,15 @@ async fn test_reporting_trial_balance_multiple_currencies() {
     // Setup accounts
     create_account(&pool, &tenant_id, "1100", "AR", "asset", "debit").await;
     create_account(&pool, &tenant_id, "4000", "Revenue", "revenue", "credit").await;
-    create_account(&pool, &tenant_id, "7100", "Unrealized FX Gain/Loss", "expense", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "7100",
+        "Unrealized FX Gain/Loss",
+        "expense",
+        "debit",
+    )
+    .await;
 
     let period_start = NaiveDate::from_ymd_opt(2025, 6, 1).unwrap();
     let period_end = NaiveDate::from_ymd_opt(2025, 6, 30).unwrap();
@@ -653,15 +672,18 @@ async fn test_reporting_trial_balance_multiple_currencies() {
     assert!(
         tb.totals.is_balanced,
         "Multi-currency reporting trial balance MUST be balanced: debits={} credits={}",
-        tb.totals.total_debits,
-        tb.totals.total_credits
+        tb.totals.total_debits, tb.totals.total_credits
     );
 
     println!("Multi-currency reporting trial balance:");
     for row in &tb.rows {
         println!(
             "  {} {} DR={} CR={} Net={}",
-            row.account_code, row.account_name, row.debit_total_minor, row.credit_total_minor, row.net_balance_minor
+            row.account_code,
+            row.account_name,
+            row.debit_total_minor,
+            row.credit_total_minor,
+            row.net_balance_minor
         );
     }
     println!(
@@ -697,7 +719,15 @@ async fn test_reporting_statements_usd_only() {
 
     create_account(&pool, &tenant_id, "1000", "Cash", "asset", "debit").await;
     create_account(&pool, &tenant_id, "4000", "Revenue", "revenue", "credit").await;
-    create_account(&pool, &tenant_id, "7100", "Unrealized FX Gain/Loss", "expense", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "7100",
+        "Unrealized FX Gain/Loss",
+        "expense",
+        "debit",
+    )
+    .await;
 
     let period_start = NaiveDate::from_ymd_opt(2025, 7, 1).unwrap();
     let period_end = NaiveDate::from_ymd_opt(2025, 7, 31).unwrap();
@@ -739,11 +769,19 @@ async fn test_reporting_statements_usd_only() {
     );
 
     // Verify amounts
-    let cash_row = tb.rows.iter().find(|r| r.account_code == "1000").expect("Cash row");
+    let cash_row = tb
+        .rows
+        .iter()
+        .find(|r| r.account_code == "1000")
+        .expect("Cash row");
     assert_eq!(cash_row.debit_total_minor, 500_000);
     assert_eq!(cash_row.credit_total_minor, 0);
 
-    let revenue_row = tb.rows.iter().find(|r| r.account_code == "4000").expect("Revenue row");
+    let revenue_row = tb
+        .rows
+        .iter()
+        .find(|r| r.account_code == "4000")
+        .expect("Revenue row");
     assert_eq!(revenue_row.debit_total_minor, 0);
     assert_eq!(revenue_row.credit_total_minor, 500_000);
 
@@ -774,7 +812,15 @@ async fn test_reporting_amounts_reconcile_to_journal_postings() {
 
     create_account(&pool, &tenant_id, "1100", "AR", "asset", "debit").await;
     create_account(&pool, &tenant_id, "4000", "Revenue", "revenue", "credit").await;
-    create_account(&pool, &tenant_id, "7100", "Unrealized FX Gain/Loss", "expense", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "7100",
+        "Unrealized FX Gain/Loss",
+        "expense",
+        "debit",
+    )
+    .await;
 
     let period_start = NaiveDate::from_ymd_opt(2025, 8, 1).unwrap();
     let period_end = NaiveDate::from_ymd_opt(2025, 8, 31).unwrap();
@@ -828,7 +874,10 @@ async fn test_reporting_amounts_reconcile_to_journal_postings() {
     let journal_debits: i64 = journal_totals.get("total_debits");
     let journal_credits: i64 = journal_totals.get("total_credits");
 
-    println!("Journal totals (USD): debits={} credits={}", journal_debits, journal_credits);
+    println!(
+        "Journal totals (USD): debits={} credits={}",
+        journal_debits, journal_credits
+    );
     println!(
         "TB totals (USD): debits={} credits={}",
         tb.totals.total_debits, tb.totals.total_credits

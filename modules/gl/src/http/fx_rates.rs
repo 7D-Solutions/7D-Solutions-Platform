@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::auth::extract_tenant;
 use crate::services::fx_rate_service;
 use crate::AppState;
-use super::auth::extract_tenant;
 
 // ============================================================================
 // Request / Response types

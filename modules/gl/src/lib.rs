@@ -1,6 +1,6 @@
 pub mod accruals;
 pub mod config;
-pub mod consumer;
+pub mod consumers;
 pub mod contracts;
 pub mod db;
 pub mod dlq;
@@ -11,15 +11,15 @@ pub mod invariants;
 pub mod metrics;
 pub mod repos;
 pub mod revrec;
-pub mod routes;
+pub mod http;
 pub mod services;
 pub mod validation;
 
 // Re-export config types for testing
 pub use config::Config;
 
-pub use consumer::gl_posting_consumer::start_gl_posting_consumer;
-pub use consumer::gl_reversal_consumer::start_gl_reversal_consumer;
+pub use consumers::gl_posting_consumer::start_gl_posting_consumer;
+pub use consumers::gl_reversal_consumer::start_gl_reversal_consumer;
 
 /// Application state shared across HTTP handlers
 #[derive(Clone)]

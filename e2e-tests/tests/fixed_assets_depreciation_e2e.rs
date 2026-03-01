@@ -27,7 +27,7 @@ use common::wait_for_db_ready;
 use fixed_assets::domain::depreciation::{
     CreateRunRequest, DepreciationService, GenerateScheduleRequest,
 };
-use gl_rs::consumer::fixed_assets_depreciation::{
+use gl_rs::consumers::fixed_assets_depreciation::{
     process_depreciation_entry_posting, DepreciationGlEntry,
 };
 use gl_rs::services::journal_service::JournalError;
@@ -62,16 +62,14 @@ const EXPECTED_NBV: i64 = COST_MINOR - EXPECTED_TOTAL; // 960,000
 
 async fn fa_pool() -> PgPool {
     let url = std::env::var("FA_DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db"
-            .to_string()
+        "postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db".to_string()
     });
     wait_for_db_ready("fixed-assets", &url).await
 }
 
 async fn gl_pool() -> PgPool {
-    let url = std::env::var("GL_DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://gl_user:gl_pass@localhost:5438/gl_db".to_string()
-    });
+    let url = std::env::var("GL_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://gl_user:gl_pass@localhost:5438/gl_db".to_string());
     wait_for_db_ready("gl", &url).await
 }
 
@@ -313,12 +311,15 @@ async fn test_depreciation_run_gl_entry_created() {
         USEFUL_LIFE_MONTHS
     );
     assert_eq!(
-        schedules[0].depreciation_amount_minor,
-        MONTHLY_DEPR,
+        schedules[0].depreciation_amount_minor, MONTHLY_DEPR,
         "period 1 depreciation must be {} minor units",
         MONTHLY_DEPR
     );
-    println!("✓ Generated {} schedule periods, {} minor/period", schedules.len(), MONTHLY_DEPR);
+    println!(
+        "✓ Generated {} schedule periods, {} minor/period",
+        schedules.len(),
+        MONTHLY_DEPR
+    );
 
     // ── 3. Run depreciation (as_of_date = 2026-01-31) ────────────────────────
     let as_of = NaiveDate::parse_from_str(AS_OF_DATE, "%Y-%m-%d").unwrap();
@@ -363,23 +364,19 @@ async fn test_depreciation_run_gl_entry_created() {
     for entry in &gl_entries {
         process_depreciation_entry_posting(&gl, TENANT, entry)
             .await
-            .unwrap_or_else(|e| panic!(
-                "GL posting failed for entry {}: {:?}", entry.entry_id, e
-            ));
+            .unwrap_or_else(|e| panic!("GL posting failed for entry {}: {:?}", entry.entry_id, e));
     }
     println!("✓ All {} GL entries posted", gl_entries.len());
 
     // ── 6a. Verify journal entry count ────────────────────────────────────────
-    let (je_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(TENANT)
-    .fetch_one(&gl)
-    .await
-    .expect("count journal entries");
+    let (je_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(TENANT)
+            .fetch_one(&gl)
+            .await
+            .expect("count journal entries");
     assert_eq!(
-        je_count,
-        EXPECTED_PERIODS as i64,
+        je_count, EXPECTED_PERIODS as i64,
         "exactly {} journal entries (one per period)",
         EXPECTED_PERIODS
     );
@@ -420,7 +417,10 @@ async fn test_depreciation_run_gl_entry_created() {
         "total CR 1510 must equal {} minor units (balanced)",
         EXPECTED_TOTAL
     );
-    println!("✓ CR 1510 total = {} minor units — GL balanced", total_credit_1510);
+    println!(
+        "✓ CR 1510 total = {} minor units — GL balanced",
+        total_credit_1510
+    );
 
     // ── 7. Verify net book value via last posted schedule period ──────────────
     let (last_posted_nbv,): (i64,) = sqlx::query_as(
@@ -493,8 +493,13 @@ async fn test_depreciation_run_idempotent_no_duplicate_gl() {
     };
 
     // ── Run 1: posts 12 periods ───────────────────────────────────────────────
-    let run1 = DepreciationService::run(&fa, &run_req).await.expect("run 1");
-    assert_eq!(run1.periods_posted, EXPECTED_PERIODS, "run 1 must post 12 periods");
+    let run1 = DepreciationService::run(&fa, &run_req)
+        .await
+        .expect("run 1");
+    assert_eq!(
+        run1.periods_posted, EXPECTED_PERIODS,
+        "run 1 must post 12 periods"
+    );
 
     let gl_entries = read_gl_entries_from_outbox(&fa, run1.id).await;
     for entry in &gl_entries {
@@ -504,16 +509,22 @@ async fn test_depreciation_run_idempotent_no_duplicate_gl() {
     }
     println!(
         "✓ Run 1: {} periods posted, {} GL entries created",
-        run1.periods_posted, gl_entries.len()
+        run1.periods_posted,
+        gl_entries.len()
     );
 
     // ── Run 2: same as_of_date → FA guard prevents double-posting ────────────
-    let run2 = DepreciationService::run(&fa, &run_req).await.expect("run 2");
+    let run2 = DepreciationService::run(&fa, &run_req)
+        .await
+        .expect("run 2");
     assert_eq!(
         run2.periods_posted, 0,
         "second run for same period must post 0 entries (all already marked is_posted=TRUE)"
     );
-    assert_eq!(run2.total_depreciation_minor, 0, "zero depreciation in second run");
+    assert_eq!(
+        run2.total_depreciation_minor, 0,
+        "zero depreciation in second run"
+    );
     println!("✓ Run 2: 0 periods posted — FA idempotency guard working");
 
     // ── GL replay: re-processing same entry_ids → DuplicateEvent ─────────────
@@ -535,24 +546,24 @@ async fn test_depreciation_run_idempotent_no_duplicate_gl() {
         }
     }
     assert_eq!(
-        duplicate_count,
-        EXPECTED_PERIODS as usize,
+        duplicate_count, EXPECTED_PERIODS as usize,
         "all {} entries must return DuplicateEvent on replay (idempotent GL consumer)",
         EXPECTED_PERIODS
     );
-    println!("✓ All {} GL entries returned DuplicateEvent on replay", duplicate_count);
+    println!(
+        "✓ All {} GL entries returned DuplicateEvent on replay",
+        duplicate_count
+    );
 
     // ── Verify exactly 12 journal entries still — no duplicates ──────────────
-    let (je_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(TENANT)
-    .fetch_one(&gl)
-    .await
-    .expect("count journal entries after replay");
+    let (je_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(TENANT)
+            .fetch_one(&gl)
+            .await
+            .expect("count journal entries after replay");
     assert_eq!(
-        je_count,
-        EXPECTED_PERIODS as i64,
+        je_count, EXPECTED_PERIODS as i64,
         "must still have exactly {} journal entries — no duplicates on replay",
         EXPECTED_PERIODS
     );

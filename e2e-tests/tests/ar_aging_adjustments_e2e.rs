@@ -21,13 +21,14 @@ use ar_rs::credit_notes::{issue_credit_note, IssueCreditNoteRequest};
 use ar_rs::usage_billing::{bill_usage_for_invoice, BillUsageRequest};
 use ar_rs::write_offs::{write_off_invoice, WriteOffInvoiceRequest};
 use chrono::{TimeZone, Utc};
-use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool, get_subscriptions_pool};
-use gl_rs::consumer::gl_credit_note_consumer::{
+use common::{
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
+    get_subscriptions_pool,
+};
+use gl_rs::consumers::gl_credit_note_consumer::{
     process_credit_note_posting, CreditNoteIssuedPayload,
 };
-use gl_rs::consumer::gl_writeoff_consumer::{
-    process_writeoff_posting, InvoiceWrittenOffPayload,
-};
+use gl_rs::consumers::gl_writeoff_consumer::{process_writeoff_posting, InvoiceWrittenOffPayload};
 use gl_rs::services::trial_balance_service::get_trial_balance;
 use serial_test::serial;
 use sqlx::PgPool;
@@ -135,7 +136,9 @@ async fn make_credit_note(
         correlation_id: Uuid::new_v4().to_string(),
         causation_id: None,
     };
-    issue_credit_note(pool, req).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+    issue_credit_note(pool, req)
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
     Ok(())
 }
 
@@ -159,7 +162,9 @@ async fn make_write_off(
         correlation_id: Uuid::new_v4().to_string(),
         causation_id: None,
     };
-    write_off_invoice(pool, req).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+    write_off_invoice(pool, req)
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
     Ok(())
 }
 
@@ -229,7 +234,10 @@ async fn test_aging_credit_note_reduces_balance() -> Result<()> {
     assert_eq!(snapshot.total_outstanding_minor, 7000);
     assert_eq!(snapshot.invoice_count, 1);
 
-    println!("✅ Credit note reduces aging: {} minor units remaining", snapshot.days_1_30_minor);
+    println!(
+        "✅ Credit note reduces aging: {} minor units remaining",
+        snapshot.days_1_30_minor
+    );
 
     cleanup_tenant(&ar_pool, &tenant_id).await?;
     Ok(())
@@ -265,9 +273,15 @@ async fn test_aging_write_off_removes_from_aging() -> Result<()> {
         "Second invoice should still appear in current bucket"
     );
     assert_eq!(snapshot.total_outstanding_minor, 2000);
-    assert_eq!(snapshot.invoice_count, 1, "Only one open invoice should remain");
+    assert_eq!(
+        snapshot.invoice_count, 1,
+        "Only one open invoice should remain"
+    );
 
-    println!("✅ Write-off removes invoice from aging, {} minor units remaining", snapshot.total_outstanding_minor);
+    println!(
+        "✅ Write-off removes invoice from aging, {} minor units remaining",
+        snapshot.total_outstanding_minor
+    );
 
     cleanup_tenant(&ar_pool, &tenant_id).await?;
     Ok(())
@@ -298,7 +312,10 @@ async fn test_aging_partial_credit_note() -> Result<()> {
     assert_eq!(snapshot.total_outstanding_minor, 15000);
     assert_eq!(snapshot.invoice_count, 1);
 
-    println!("✅ Partial credit note: {} minor units remaining in 61-90 bucket", snapshot.days_61_90_minor);
+    println!(
+        "✅ Partial credit note: {} minor units remaining in 61-90 bucket",
+        snapshot.days_61_90_minor
+    );
 
     cleanup_tenant(&ar_pool, &tenant_id).await?;
     Ok(())
@@ -332,7 +349,10 @@ async fn test_aging_credit_note_plus_payment() -> Result<()> {
     assert_eq!(snapshot.total_outstanding_minor, 7000);
     assert_eq!(snapshot.invoice_count, 1);
 
-    println!("✅ Payment + credit note: {} minor units remaining", snapshot.days_1_30_minor);
+    println!(
+        "✅ Payment + credit note: {} minor units remaining",
+        snapshot.days_1_30_minor
+    );
 
     cleanup_tenant(&ar_pool, &tenant_id).await?;
     Ok(())
@@ -403,7 +423,10 @@ async fn test_aging_multiple_credit_notes_accumulate() -> Result<()> {
     assert_eq!(snapshot.total_outstanding_minor, 5000);
     assert_eq!(snapshot.invoice_count, 1);
 
-    println!("✅ Multiple credit notes accumulate: {} minor units remaining", snapshot.days_over_90_minor);
+    println!(
+        "✅ Multiple credit notes accumulate: {} minor units remaining",
+        snapshot.days_over_90_minor
+    );
 
     cleanup_tenant(&ar_pool, &tenant_id).await?;
     Ok(())
@@ -433,7 +456,10 @@ async fn test_aging_full_credit_note_removes_from_aging() -> Result<()> {
         snapshot.days_1_30_minor, 0,
         "Fully credited invoice must not appear in 1-30 bucket"
     );
-    assert_eq!(snapshot.current_minor, 3000, "Second invoice in current bucket");
+    assert_eq!(
+        snapshot.current_minor, 3000,
+        "Second invoice in current bucket"
+    );
     assert_eq!(snapshot.total_outstanding_minor, 3000);
     assert_eq!(snapshot.invoice_count, 1, "Only one open invoice counted");
 
@@ -471,17 +497,32 @@ async fn test_aging_mixed_adjustments() -> Result<()> {
     let snapshot = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
     // Invoice A: 10000 - 2000 credit = 8000 in current
-    assert_eq!(snapshot.current_minor, 8000, "Invoice A: 10000 - 2000 = 8000 current");
+    assert_eq!(
+        snapshot.current_minor, 8000,
+        "Invoice A: 10000 - 2000 = 8000 current"
+    );
     // Invoice B: 8000 - 3000 payment - 1000 credit = 4000 in days_1_30
-    assert_eq!(snapshot.days_1_30_minor, 4000, "Invoice B: 8000 - 3000 - 1000 = 4000 days_1_30");
+    assert_eq!(
+        snapshot.days_1_30_minor, 4000,
+        "Invoice B: 8000 - 3000 - 1000 = 4000 days_1_30"
+    );
     // Invoice C: written off, should not appear
-    assert_eq!(snapshot.days_31_60_minor, 0, "Invoice C: fully written off, no balance");
+    assert_eq!(
+        snapshot.days_31_60_minor, 0,
+        "Invoice C: fully written off, no balance"
+    );
     // Invoice D: 3000 in days_61_90
-    assert_eq!(snapshot.days_61_90_minor, 3000, "Invoice D: 3000 days_61_90");
+    assert_eq!(
+        snapshot.days_61_90_minor, 3000,
+        "Invoice D: 3000 days_61_90"
+    );
     assert_eq!(snapshot.days_over_90_minor, 0, "No invoices over 90 days");
 
     // Total = 8000 + 4000 + 3000 = 15000
-    assert_eq!(snapshot.total_outstanding_minor, 15000, "Total: 8000 + 4000 + 3000 = 15000");
+    assert_eq!(
+        snapshot.total_outstanding_minor, 15000,
+        "Total: 8000 + 4000 + 3000 = 15000"
+    );
     assert_eq!(snapshot.invoice_count, 3, "3 invoices with open balance");
 
     println!(
@@ -584,9 +625,15 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
     let gl_pool = get_gl_pool().await;
 
     // === SETUP ===
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
     setup_gl_accounts(&gl_pool, &tenant_id).await?;
@@ -600,8 +647,28 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
 
     println!("=== STEP 1: Capture usage ===");
     // Insert 2 usage records: api_calls (1000 * 10 = 10000) + storage (50 * 20 = 1000)
-    insert_usage_for_billing(&ar_pool, &tenant_id, customer_id, "api_calls", 1000.0, 10, period_start, period_end).await?;
-    insert_usage_for_billing(&ar_pool, &tenant_id, customer_id, "storage_gb", 50.0, 20, period_start, period_end).await?;
+    insert_usage_for_billing(
+        &ar_pool,
+        &tenant_id,
+        customer_id,
+        "api_calls",
+        1000.0,
+        10,
+        period_start,
+        period_end,
+    )
+    .await?;
+    insert_usage_for_billing(
+        &ar_pool,
+        &tenant_id,
+        customer_id,
+        "storage_gb",
+        50.0,
+        20,
+        period_start,
+        period_end,
+    )
+    .await?;
 
     let unbilled: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM ar_metered_usage WHERE app_id = $1 AND billed_at IS NULL",
@@ -626,9 +693,15 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
     )
     .await?;
 
-    assert_eq!(bill_result.billed_count, 2, "Both usage records should be billed");
+    assert_eq!(
+        bill_result.billed_count, 2,
+        "Both usage records should be billed"
+    );
     // api_calls: 1000 * 10 = 10000; storage: 50 * 20 = 1000; total = 11000
-    assert_eq!(bill_result.total_amount_minor, 11000, "Total should be 11000 minor units");
+    assert_eq!(
+        bill_result.total_amount_minor, 11000,
+        "Total should be 11000 minor units"
+    );
 
     // Verify line items created
     let line_count: i64 = sqlx::query_scalar(
@@ -660,7 +733,10 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
         },
     )
     .await?;
-    assert_eq!(second_bill.billed_count, 0, "No double billing on second call");
+    assert_eq!(
+        second_bill.billed_count, 0,
+        "No double billing on second call"
+    );
     println!("  ✅ 2 line items, 11000 minor, no double billing");
 
     println!("=== STEP 3: Issue credit note (3000 minor) ===");
@@ -678,9 +754,14 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
         correlation_id: uuid::Uuid::new_v4().to_string(),
         causation_id: None,
     };
-    let cn_result = issue_credit_note(&ar_pool, cn_req).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+    let cn_result = issue_credit_note(&ar_pool, cn_req)
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
     assert!(
-        matches!(cn_result, ar_rs::credit_notes::IssueCreditNoteResult::Issued { .. }),
+        matches!(
+            cn_result,
+            ar_rs::credit_notes::IssueCreditNoteResult::Issued { .. }
+        ),
         "Credit note should be issued"
     );
     println!("  ✅ Credit note issued: {} (3000 minor)", credit_note_id);
@@ -701,11 +782,10 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
         issued_at: cn_issued_at,
     };
 
-    let cn_entry_id = process_credit_note_posting(
-        &gl_pool, cn_event_id, &tenant_id, "ar", &cn_gl_payload,
-    )
-    .await
-    .map_err(|e| anyhow::anyhow!("Credit note GL posting failed: {:?}", e))?;
+    let cn_entry_id =
+        process_credit_note_posting(&gl_pool, cn_event_id, &tenant_id, "ar", &cn_gl_payload)
+            .await
+            .map_err(|e| anyhow::anyhow!("Credit note GL posting failed: {:?}", e))?;
 
     // Verify balanced: DR REV 3000, CR AR 3000
     common::assert_journal_balanced(&gl_pool, cn_entry_id)
@@ -713,12 +793,13 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
         .map_err(|e| anyhow::anyhow!(e))?;
 
     // Verify idempotency: same event_id rejects
-    let cn_dup = process_credit_note_posting(
-        &gl_pool, cn_event_id, &tenant_id, "ar", &cn_gl_payload,
-    )
-    .await;
+    let cn_dup =
+        process_credit_note_posting(&gl_pool, cn_event_id, &tenant_id, "ar", &cn_gl_payload).await;
     assert!(
-        matches!(cn_dup, Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))),
+        matches!(
+            cn_dup,
+            Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))
+        ),
         "Duplicate credit note GL posting must be rejected"
     );
     println!("  ✅ GL entry {} balanced, idempotent", cn_entry_id);
@@ -737,9 +818,14 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
         correlation_id: uuid::Uuid::new_v4().to_string(),
         causation_id: None,
     };
-    let wo_result = write_off_invoice(&ar_pool, wo_req).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+    let wo_result = write_off_invoice(&ar_pool, wo_req)
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
     assert!(
-        matches!(wo_result, ar_rs::write_offs::WriteOffInvoiceResult::WrittenOff { .. }),
+        matches!(
+            wo_result,
+            ar_rs::write_offs::WriteOffInvoiceResult::WrittenOff { .. }
+        ),
         "Invoice should be written off"
     );
     println!("  ✅ Write-off issued: {} (8000 minor)", write_off_id);
@@ -757,11 +843,10 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
         written_off_at: Utc::now(),
     };
 
-    let wo_entry_id = process_writeoff_posting(
-        &gl_pool, wo_event_id, &tenant_id, "ar", &wo_gl_payload,
-    )
-    .await
-    .map_err(|e| anyhow::anyhow!("Write-off GL posting failed: {:?}", e))?;
+    let wo_entry_id =
+        process_writeoff_posting(&gl_pool, wo_event_id, &tenant_id, "ar", &wo_gl_payload)
+            .await
+            .map_err(|e| anyhow::anyhow!("Write-off GL posting failed: {:?}", e))?;
 
     // Verify balanced: DR BAD_DEBT 8000, CR AR 8000
     common::assert_journal_balanced(&gl_pool, wo_entry_id)
@@ -782,50 +867,85 @@ async fn test_integrated_phase21_lifecycle() -> Result<()> {
 
     // Verify idempotent refresh
     let snapshot2 = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
-    assert_eq!(snapshot.total_outstanding_minor, snapshot2.total_outstanding_minor,
-        "Aging refresh must be idempotent");
+    assert_eq!(
+        snapshot.total_outstanding_minor, snapshot2.total_outstanding_minor,
+        "Aging refresh must be idempotent"
+    );
     println!("  ✅ Aging: 0 outstanding, 0 invoices, idempotent");
 
     println!("=== STEP 8: Verify GL trial balance is balanced ===");
-    let tb = get_trial_balance(&gl_pool, &tenant_id, period_id, "USD").await
+    let tb = get_trial_balance(&gl_pool, &tenant_id, period_id, "USD")
+        .await
         .map_err(|e| anyhow::anyhow!("Trial balance failed: {:?}", e))?;
 
     assert!(tb.totals.is_balanced, "GL trial balance must be balanced");
     // Credit note: DR REV 3000, CR AR 3000
     // Write-off:   DR BAD_DEBT 8000, CR AR 8000
     // Total debits: 3000 + 8000 = 11000. Total credits: 3000 + 8000 = 11000.
-    assert_eq!(tb.totals.total_debits, 11000, "Total debits should be 11000");
-    assert_eq!(tb.totals.total_credits, 11000, "Total credits should be 11000");
+    assert_eq!(
+        tb.totals.total_debits, 11000,
+        "Total debits should be 11000"
+    );
+    assert_eq!(
+        tb.totals.total_credits, 11000,
+        "Total credits should be 11000"
+    );
 
     // Verify individual account balances
     let ar_row = tb.rows.iter().find(|r| r.account_code == "AR");
     let rev_row = tb.rows.iter().find(|r| r.account_code == "REV");
     let bad_debt_row = tb.rows.iter().find(|r| r.account_code == "BAD_DEBT");
 
-    assert!(ar_row.is_some(), "AR account should appear in trial balance");
-    assert!(rev_row.is_some(), "REV account should appear in trial balance");
-    assert!(bad_debt_row.is_some(), "BAD_DEBT account should appear in trial balance");
+    assert!(
+        ar_row.is_some(),
+        "AR account should appear in trial balance"
+    );
+    assert!(
+        rev_row.is_some(),
+        "REV account should appear in trial balance"
+    );
+    assert!(
+        bad_debt_row.is_some(),
+        "BAD_DEBT account should appear in trial balance"
+    );
 
     let ar = ar_row.unwrap();
-    assert_eq!(ar.credit_total_minor, 11000, "AR credits = 3000 (CN) + 8000 (WO) = 11000");
+    assert_eq!(
+        ar.credit_total_minor, 11000,
+        "AR credits = 3000 (CN) + 8000 (WO) = 11000"
+    );
 
     let rev = rev_row.unwrap();
-    assert_eq!(rev.debit_total_minor, 3000, "REV debits = 3000 (credit note reversal)");
+    assert_eq!(
+        rev.debit_total_minor, 3000,
+        "REV debits = 3000 (credit note reversal)"
+    );
 
     let bad_debt = bad_debt_row.unwrap();
-    assert_eq!(bad_debt.debit_total_minor, 8000, "BAD_DEBT debits = 8000 (write-off)");
+    assert_eq!(
+        bad_debt.debit_total_minor, 8000,
+        "BAD_DEBT debits = 8000 (write-off)"
+    );
 
-    println!("  ✅ Trial balance: debits={}, credits={}, balanced={}",
-        tb.totals.total_debits, tb.totals.total_credits, tb.totals.is_balanced);
+    println!(
+        "  ✅ Trial balance: debits={}, credits={}, balanced={}",
+        tb.totals.total_debits, tb.totals.total_credits, tb.totals.is_balanced
+    );
 
     println!("\n🎉 INTEGRATED PHASE 21 LIFECYCLE COMPLETE");
     println!("   Usage (2 records) → Bill Run (11000) → Credit Note (3000) → Write-Off (8000)");
     println!("   Aging: 0 outstanding | GL: balanced at 11000 | No double billing | Idempotent");
 
     // === CLEANUP ===
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }
@@ -848,9 +968,15 @@ async fn test_integrated_lifecycle_replay_safe() -> Result<()> {
     for pass in 1..=2 {
         println!("=== REPLAY PASS {} ===", pass);
 
-        cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-            .await
-            .map_err(|e| anyhow::anyhow!(e))?;
+        cleanup_tenant_data(
+            &ar_pool,
+            &payments_pool,
+            &subscriptions_pool,
+            &gl_pool,
+            &tenant_id,
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!(e))?;
 
         let customer_id = make_customer(&ar_pool, &tenant_id).await?;
         setup_gl_accounts(&gl_pool, &tenant_id).await?;
@@ -863,7 +989,17 @@ async fn test_integrated_lifecycle_replay_safe() -> Result<()> {
         let invoice_id = make_invoice(&ar_pool, &tenant_id, customer_id, 0, -15).await?;
 
         // Usage: 500 * 8 = 4000
-        insert_usage_for_billing(&ar_pool, &tenant_id, customer_id, "compute_hours", 500.0, 8, period_start, period_end).await?;
+        insert_usage_for_billing(
+            &ar_pool,
+            &tenant_id,
+            customer_id,
+            "compute_hours",
+            500.0,
+            8,
+            period_start,
+            period_end,
+        )
+        .await?;
 
         // Bill
         let bill_result = bill_usage_for_invoice(
@@ -876,7 +1012,8 @@ async fn test_integrated_lifecycle_replay_safe() -> Result<()> {
                 period_end,
                 correlation_id: uuid::Uuid::new_v4().to_string(),
             },
-        ).await?;
+        )
+        .await?;
         assert_eq!(bill_result.billed_count, 1);
         assert_eq!(bill_result.total_amount_minor, 4000);
 
@@ -888,19 +1025,24 @@ async fn test_integrated_lifecycle_replay_safe() -> Result<()> {
 
         // Credit note: 1500
         let cn_id = uuid::Uuid::new_v4();
-        issue_credit_note(&ar_pool, IssueCreditNoteRequest {
-            credit_note_id: cn_id,
-            app_id: tenant_id.clone(),
-            customer_id: customer_id.to_string(),
-            invoice_id,
-            amount_minor: 1500,
-            currency: "usd".to_string(),
-            reason: "goodwill".to_string(),
-            reference_id: None,
-            issued_by: Some("replay-test".to_string()),
-            correlation_id: uuid::Uuid::new_v4().to_string(),
-            causation_id: None,
-        }).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+        issue_credit_note(
+            &ar_pool,
+            IssueCreditNoteRequest {
+                credit_note_id: cn_id,
+                app_id: tenant_id.clone(),
+                customer_id: customer_id.to_string(),
+                invoice_id,
+                amount_minor: 1500,
+                currency: "usd".to_string(),
+                reason: "goodwill".to_string(),
+                reference_id: None,
+                issued_by: Some("replay-test".to_string()),
+                correlation_id: uuid::Uuid::new_v4().to_string(),
+                causation_id: None,
+            },
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
 
         // GL for credit note
         let cn_issued_at = chrono::DateTime::parse_from_rfc3339("2026-02-17T10:00:00Z")
@@ -927,23 +1069,36 @@ async fn test_integrated_lifecycle_replay_safe() -> Result<()> {
 
         // Aging check: 4000 - 1500 = 2500 remaining in 1-30
         let aging = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
-        assert_eq!(aging.days_1_30_minor, 2500,
-            "Pass {}: aging should show 2500 after credit note", pass);
+        assert_eq!(
+            aging.days_1_30_minor, 2500,
+            "Pass {}: aging should show 2500 after credit note",
+            pass
+        );
         assert_eq!(aging.total_outstanding_minor, 2500);
 
         // GL check: balanced at 1500
-        let tb = get_trial_balance(&gl_pool, &tenant_id, period_id, "USD").await
+        let tb = get_trial_balance(&gl_pool, &tenant_id, period_id, "USD")
+            .await
             .map_err(|e| anyhow::anyhow!("Trial balance failed pass {}: {:?}", pass, e))?;
         assert!(tb.totals.is_balanced, "Pass {}: GL must be balanced", pass);
         assert_eq!(tb.totals.total_debits, 1500, "Pass {}: debits = 1500", pass);
 
-        println!("  ✅ Pass {} complete: aging=2500, GL balanced at 1500", pass);
+        println!(
+            "  ✅ Pass {} complete: aging=2500, GL balanced at 1500",
+            pass
+        );
     }
 
     // Final cleanup
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("✅ Replay safety proven: 2 passes, identical results, no stale data");
     Ok(())

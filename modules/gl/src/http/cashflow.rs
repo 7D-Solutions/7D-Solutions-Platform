@@ -17,9 +17,9 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::auth::extract_tenant;
 use crate::services::cashflow_service::{self, CashFlowResponse};
 use crate::AppState;
-use super::auth::extract_tenant;
 
 /// Query parameters for the cash flow endpoint.
 #[derive(Debug, Deserialize)]

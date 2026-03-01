@@ -16,7 +16,9 @@ mod common;
 use anyhow::Result;
 use chrono::NaiveDate;
 use common::{generate_test_tenant, get_ar_pool, get_gl_pool, get_timekeeping_pool};
-use gl_rs::consumer::timekeeping_labor_cost::{process_labor_cost_posting, LaborCostPostingPayload};
+use gl_rs::consumers::timekeeping_labor_cost::{
+    process_labor_cost_posting, LaborCostPostingPayload,
+};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -189,10 +191,7 @@ async fn get_journal_entry_id(pool: &PgPool, event_id: Uuid) -> Result<Option<Uu
 }
 
 /// Get journal lines for a given journal entry.
-async fn get_journal_lines(
-    pool: &PgPool,
-    entry_id: Uuid,
-) -> Result<Vec<(String, f64, f64)>> {
+async fn get_journal_lines(pool: &PgPool, entry_id: Uuid) -> Result<Vec<(String, f64, f64)>> {
     let rows: Vec<(String, f64, f64)> = sqlx::query_as(
         r#"
         SELECT account_ref,
@@ -211,22 +210,44 @@ async fn get_journal_lines(
 
 /// Clean up test data from TK database.
 async fn cleanup_tk(pool: &PgPool, app_id: &str) -> Result<()> {
-    sqlx::query("DELETE FROM events_outbox WHERE aggregate_type IN ('labor_cost', 'billable_time_export')")
-        .execute(pool).await.ok();
+    sqlx::query(
+        "DELETE FROM events_outbox WHERE aggregate_type IN ('labor_cost', 'billable_time_export')",
+    )
+    .execute(pool)
+    .await
+    .ok();
     sqlx::query("DELETE FROM tk_idempotency_keys WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM tk_export_runs WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM tk_approval_actions WHERE approval_id IN (SELECT id FROM tk_approval_requests WHERE app_id = $1)")
         .bind(app_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM tk_approval_requests WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM tk_timesheet_entries WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM tk_projects WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM tk_employees WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     Ok(())
 }
 
@@ -237,20 +258,35 @@ async fn cleanup_gl(pool: &PgPool, tenant_id: &str) -> Result<()> {
     sqlx::query("DELETE FROM processed_events WHERE event_id IN (SELECT source_event_id FROM journal_entries WHERE tenant_id = $1)")
         .bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     Ok(())
 }
 
 /// Clean up AR billable imports.
 async fn cleanup_ar(pool: &PgPool, app_id: &str) -> Result<()> {
     sqlx::query("DELETE FROM ar_tk_billable_imports WHERE app_id = $1")
-        .bind(app_id).execute(pool).await.ok();
+        .bind(app_id)
+        .execute(pool)
+        .await
+        .ok();
     Ok(())
 }
 
@@ -299,8 +335,8 @@ async fn test_gl_labor_cost_posting_from_approved_time() -> Result<()> {
     // Cost = 2400 min * 5000 (minor) / 60 = 200000 minor = $2000.00
     let posting_id = Uuid::new_v5(
         &Uuid::from_bytes([
-            0x7d, 0x50, 0x1a, 0xb0, 0xcc, 0x01, 0x4e, 0x2f,
-            0x8a, 0x11, 0x3c, 0xd4, 0xe5, 0xf6, 0xa7, 0xb8,
+            0x7d, 0x50, 0x1a, 0xb0, 0xcc, 0x01, 0x4e, 0x2f, 0x8a, 0x11, 0x3c, 0xd4, 0xe5, 0xf6,
+            0xa7, 0xb8,
         ]),
         format!(
             "{}:{}:{}:{}:{}",
@@ -326,10 +362,9 @@ async fn test_gl_labor_cost_posting_from_approved_time() -> Result<()> {
     };
 
     // Process the GL posting
-    let entry_id = process_labor_cost_posting(
-        &gl_pool, posting_id, &tenant_id, "timekeeping", &payload,
-    )
-    .await?;
+    let entry_id =
+        process_labor_cost_posting(&gl_pool, posting_id, &tenant_id, "timekeeping", &payload)
+            .await?;
 
     // Verify journal entry exists
     let found_id = get_journal_entry_id(&gl_pool, posting_id).await?;
@@ -402,31 +437,30 @@ async fn test_gl_labor_cost_idempotent_replay() -> Result<()> {
     };
 
     // First call: should succeed
-    let entry_id = process_labor_cost_posting(
-        &gl_pool, posting_id, &tenant_id, "timekeeping", &payload,
-    )
-    .await?;
+    let entry_id =
+        process_labor_cost_posting(&gl_pool, posting_id, &tenant_id, "timekeeping", &payload)
+            .await?;
     assert_ne!(entry_id, Uuid::nil());
 
     // Second call: should return DuplicateEvent
-    let replay = process_labor_cost_posting(
-        &gl_pool, posting_id, &tenant_id, "timekeeping", &payload,
-    )
-    .await;
+    let replay =
+        process_labor_cost_posting(&gl_pool, posting_id, &tenant_id, "timekeeping", &payload).await;
 
     assert!(
-        matches!(replay, Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))),
+        matches!(
+            replay,
+            Err(gl_rs::services::journal_service::JournalError::DuplicateEvent(_))
+        ),
         "Replay should return DuplicateEvent, got: {:?}",
         replay,
     );
 
     // Only one journal entry should exist
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*)::BIGINT FROM journal_entries WHERE source_event_id = $1",
-    )
-    .bind(posting_id)
-    .fetch_one(&gl_pool)
-    .await?;
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*)::BIGINT FROM journal_entries WHERE source_event_id = $1")
+            .bind(posting_id)
+            .fetch_one(&gl_pool)
+            .await?;
     assert_eq!(count.0, 1, "Should have exactly 1 journal entry");
 
     cleanup_gl(&gl_pool, &tenant_id).await?;
@@ -470,16 +504,18 @@ async fn test_ar_billable_time_import() -> Result<()> {
 
     // Idempotent replay
     let replay = ar_rs::integrations::timekeeping::import_billable_time(&ar_pool, &payload).await?;
-    assert!(replay.already_imported, "Second import should be idempotent");
+    assert!(
+        replay.already_imported,
+        "Second import should be idempotent"
+    );
     assert_eq!(replay.lines_imported, 0);
 
     // Verify in DB
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*)::BIGINT FROM ar_tk_billable_imports WHERE export_id = $1",
-    )
-    .bind(export_id)
-    .fetch_one(&ar_pool)
-    .await?;
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*)::BIGINT FROM ar_tk_billable_imports WHERE export_id = $1")
+            .bind(export_id)
+            .fetch_one(&ar_pool)
+            .await?;
     assert_eq!(count.0, 1, "Should have exactly 1 import record");
 
     cleanup_ar(&ar_pool, &app_id).await?;
@@ -525,8 +561,8 @@ async fn test_full_timekeeping_integration_flow() -> Result<()> {
     // --- GL Integration ---
     // Cost = 1080 min * 7500 / 60 = 135000 minor = $1350.00
     let labor_ns = Uuid::from_bytes([
-        0x7d, 0x50, 0x1a, 0xb0, 0xcc, 0x01, 0x4e, 0x2f,
-        0x8a, 0x11, 0x3c, 0xd4, 0xe5, 0xf6, 0xa7, 0xb8,
+        0x7d, 0x50, 0x1a, 0xb0, 0xcc, 0x01, 0x4e, 0x2f, 0x8a, 0x11, 0x3c, 0xd4, 0xe5, 0xf6, 0xa7,
+        0xb8,
     ]);
     let posting_id = Uuid::new_v5(
         &labor_ns,
@@ -553,10 +589,9 @@ async fn test_full_timekeeping_integration_flow() -> Result<()> {
         posting_date: "2026-02-07".to_string(),
     };
 
-    let entry_id = process_labor_cost_posting(
-        &gl_pool, posting_id, &tenant_id, "timekeeping", &gl_payload,
-    )
-    .await?;
+    let entry_id =
+        process_labor_cost_posting(&gl_pool, posting_id, &tenant_id, "timekeeping", &gl_payload)
+            .await?;
 
     // Verify GL: balanced, correct amount
     let lines = get_journal_lines(&gl_pool, entry_id).await?;
@@ -590,10 +625,8 @@ async fn test_full_timekeeping_integration_flow() -> Result<()> {
         currency: "USD".to_string(),
     };
 
-    let ar_result = ar_rs::integrations::timekeeping::import_billable_time(
-        &ar_pool, &ar_payload,
-    )
-    .await?;
+    let ar_result =
+        ar_rs::integrations::timekeeping::import_billable_time(&ar_pool, &ar_payload).await?;
     assert!(!ar_result.already_imported);
     assert_eq!(ar_result.lines_imported, 1);
 
