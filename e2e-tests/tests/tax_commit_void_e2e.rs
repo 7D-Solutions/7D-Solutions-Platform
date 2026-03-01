@@ -111,7 +111,7 @@ struct ErrorBody {
 // ============================================================================
 
 fn build_tax_router(pool: PgPool) -> axum::Router {
-    ar_rs::routes::tax::tax_router(pool)
+    ar_rs::http::tax::tax_router(pool)
 }
 
 fn ca_address() -> TaxAddress {
@@ -137,9 +137,8 @@ fn saas_line(id: &str, amount: i64) -> TaxLineItem {
 }
 
 async fn run_migrations(pool: &PgPool) {
-    let quote_cache_sql = include_str!(
-        "../../modules/ar/db/migrations/20260217000007_create_tax_quote_cache.sql"
-    );
+    let quote_cache_sql =
+        include_str!("../../modules/ar/db/migrations/20260217000007_create_tax_quote_cache.sql");
     match sqlx::raw_sql(quote_cache_sql).execute(pool).await {
         Ok(_) => {}
         Err(e) => {
@@ -150,9 +149,8 @@ async fn run_migrations(pool: &PgPool) {
         }
     }
 
-    let tax_commits_sql = include_str!(
-        "../../modules/ar/db/migrations/20260217000011_create_tax_commits.sql"
-    );
+    let tax_commits_sql =
+        include_str!("../../modules/ar/db/migrations/20260217000011_create_tax_commits.sql");
     match sqlx::raw_sql(tax_commits_sql).execute(pool).await {
         Ok(_) => {}
         Err(e) => {
@@ -164,9 +162,8 @@ async fn run_migrations(pool: &PgPool) {
     }
 
     // Ensure events_outbox table exists (needed for event emission)
-    let outbox_sql = include_str!(
-        "../../modules/ar/db/migrations/20260211000001_create_events_outbox.sql"
-    );
+    let outbox_sql =
+        include_str!("../../modules/ar/db/migrations/20260211000001_create_events_outbox.sql");
     match sqlx::raw_sql(outbox_sql).execute(pool).await {
         Ok(_) => {}
         Err(e) => {
@@ -279,7 +276,10 @@ async fn test_tax_commit_after_quote() {
     assert_eq!(status, 200, "Commit failed: {}", resp_body);
 
     let commit_resp: CommitTaxHttpResponse = serde_json::from_str(&resp_body).unwrap();
-    assert!(!commit_resp.already_committed, "First commit should not be already_committed");
+    assert!(
+        !commit_resp.already_committed,
+        "First commit should not be already_committed"
+    );
     assert!(commit_resp.provider_commit_ref.starts_with("local-commit-"));
     assert_eq!(commit_resp.total_tax_minor, 850);
     assert_eq!(commit_resp.currency, "usd");
@@ -306,7 +306,10 @@ async fn test_tax_commit_after_quote() {
     assert_eq!(db_ref, commit_resp.provider_commit_ref);
     assert_eq!(db_total, 850);
 
-    println!("PASS: DB row verified — status={}, ref={}", db_status, db_ref);
+    println!(
+        "PASS: DB row verified — status={}, ref={}",
+        db_status, db_ref
+    );
 
     cleanup(&pool, &tenant).await;
 }
@@ -340,14 +343,21 @@ async fn test_tax_commit_idempotent() {
     // Second commit — should be idempotent
     let app = build_tax_router(pool.clone());
     let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
-    assert_eq!(status, 200, "Idempotent commit should return 200: {}", resp_body);
+    assert_eq!(
+        status, 200,
+        "Idempotent commit should return 200: {}",
+        resp_body
+    );
     let resp2: CommitTaxHttpResponse = serde_json::from_str(&resp_body).unwrap();
-    assert!(resp2.already_committed, "Second commit must report already_committed");
+    assert!(
+        resp2.already_committed,
+        "Second commit must report already_committed"
+    );
     assert_eq!(resp2.total_tax_minor, resp1.total_tax_minor);
 
     // Verify only ONE commit row exists
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_tax_commits WHERE app_id = $1 AND invoice_id = $2"
+        "SELECT COUNT(*) FROM ar_tax_commits WHERE app_id = $1 AND invoice_id = $2",
     )
     .bind(&tenant)
     .bind(&invoice_id)
@@ -396,7 +406,10 @@ async fn test_tax_commit_then_void() {
     assert_eq!(status, 200, "Void failed: {}", resp_body);
 
     let void_resp: VoidTaxHttpResponse = serde_json::from_str(&resp_body).unwrap();
-    assert!(!void_resp.already_voided, "First void should not be already_voided");
+    assert!(
+        !void_resp.already_voided,
+        "First void should not be already_voided"
+    );
     assert!(void_resp.provider_commit_ref.starts_with("local-commit-"));
     assert_eq!(void_resp.total_tax_minor, 850);
 
@@ -419,7 +432,9 @@ async fn test_tax_commit_then_void() {
     let db_reason: Option<String> = row.get("void_reason");
     assert_eq!(db_status, "voided");
     assert_eq!(db_reason.as_deref(), Some("full_refund"));
-    assert!(row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("voided_at").is_some());
+    assert!(row
+        .get::<Option<chrono::DateTime<chrono::Utc>>, _>("voided_at")
+        .is_some());
 
     println!("PASS: DB row verified — status=voided, reason=full_refund");
 
@@ -464,9 +479,16 @@ async fn test_tax_void_idempotent() {
     // Second void — idempotent
     let app = build_tax_router(pool.clone());
     let (status, resp_body) = post_json(app, "/api/ar/tax/void", &void_body).await;
-    assert_eq!(status, 200, "Idempotent void should return 200: {}", resp_body);
+    assert_eq!(
+        status, 200,
+        "Idempotent void should return 200: {}",
+        resp_body
+    );
     let resp2: VoidTaxHttpResponse = serde_json::from_str(&resp_body).unwrap();
-    assert!(resp2.already_voided, "Second void must report already_voided");
+    assert!(
+        resp2.already_voided,
+        "Second void must report already_voided"
+    );
 
     println!("PASS: Idempotent void — second call returned already_voided=true");
 
@@ -491,7 +513,11 @@ async fn test_tax_void_without_commit_rejected() {
     };
     let app = build_tax_router(pool.clone());
     let (status, resp_body) = post_json(app, "/api/ar/tax/void", &void_body).await;
-    assert_eq!(status, 404, "Void without commit should return 404: {}", resp_body);
+    assert_eq!(
+        status, 404,
+        "Void without commit should return 404: {}",
+        resp_body
+    );
 
     let err: ErrorBody = serde_json::from_str(&resp_body).unwrap();
     assert!(
@@ -523,7 +549,11 @@ async fn test_tax_commit_without_quote_rejected() {
     };
     let app = build_tax_router(pool.clone());
     let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
-    assert_eq!(status, 404, "Commit without quote should return 404: {}", resp_body);
+    assert_eq!(
+        status, 404,
+        "Commit without quote should return 404: {}",
+        resp_body
+    );
 
     let err: ErrorBody = serde_json::from_str(&resp_body).unwrap();
     assert!(
@@ -561,17 +591,20 @@ async fn test_tax_events_emitted_to_outbox() {
 
     // Check tax.committed event in outbox
     let committed_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND event_type = 'tax.committed'"
+        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND event_type = 'tax.committed'",
     )
     .bind(&tenant)
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(committed_count, 1, "Exactly one tax.committed event expected");
+    assert_eq!(
+        committed_count, 1,
+        "Exactly one tax.committed event expected"
+    );
 
     // Verify committed event payload
     let committed_payload: serde_json::Value = sqlx::query_scalar(
-        "SELECT payload FROM events_outbox WHERE tenant_id = $1 AND event_type = 'tax.committed'"
+        "SELECT payload FROM events_outbox WHERE tenant_id = $1 AND event_type = 'tax.committed'",
     )
     .bind(&tenant)
     .fetch_one(&pool)
@@ -595,7 +628,7 @@ async fn test_tax_events_emitted_to_outbox() {
 
     // Check tax.voided event in outbox
     let voided_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND event_type = 'tax.voided'"
+        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND event_type = 'tax.voided'",
     )
     .bind(&tenant)
     .fetch_one(&pool)
@@ -605,7 +638,7 @@ async fn test_tax_events_emitted_to_outbox() {
 
     // Verify voided event payload
     let voided_payload: serde_json::Value = sqlx::query_scalar(
-        "SELECT payload FROM events_outbox WHERE tenant_id = $1 AND event_type = 'tax.voided'"
+        "SELECT payload FROM events_outbox WHERE tenant_id = $1 AND event_type = 'tax.voided'",
     )
     .bind(&tenant)
     .fetch_one(&pool)
@@ -632,7 +665,7 @@ async fn test_tax_commit_void_db_state_transitions() {
 
     // Step 1: No row initially
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_tax_commits WHERE app_id = $1 AND invoice_id = $2"
+        "SELECT COUNT(*) FROM ar_tax_commits WHERE app_id = $1 AND invoice_id = $2",
     )
     .bind(&tenant)
     .bind(&invoice_id)
@@ -644,7 +677,7 @@ async fn test_tax_commit_void_db_state_transitions() {
     // Step 2: Quote (still no commit row)
     quote_tax(&pool, &tenant, &invoice_id).await;
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_tax_commits WHERE app_id = $1 AND invoice_id = $2"
+        "SELECT COUNT(*) FROM ar_tax_commits WHERE app_id = $1 AND invoice_id = $2",
     )
     .bind(&tenant)
     .bind(&invoice_id)
@@ -673,8 +706,12 @@ async fn test_tax_commit_void_db_state_transitions() {
     .await
     .unwrap();
     assert_eq!(row.get::<String, _>("status"), "committed");
-    assert!(row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("committed_at").is_some());
-    assert!(row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("voided_at").is_none());
+    assert!(row
+        .get::<Option<chrono::DateTime<chrono::Utc>>, _>("committed_at")
+        .is_some());
+    assert!(row
+        .get::<Option<chrono::DateTime<chrono::Utc>>, _>("voided_at")
+        .is_none());
     assert!(row.get::<Option<String>, _>("void_reason").is_none());
 
     println!("PASS: After commit — status=committed, committed_at set, voided_at null");
@@ -699,16 +736,27 @@ async fn test_tax_commit_void_db_state_transitions() {
     .await
     .unwrap();
     assert_eq!(row.get::<String, _>("status"), "voided");
-    assert!(row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("committed_at").is_some());
-    assert!(row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("voided_at").is_some());
-    assert_eq!(row.get::<Option<String>, _>("void_reason").as_deref(), Some("write_off"));
+    assert!(row
+        .get::<Option<chrono::DateTime<chrono::Utc>>, _>("committed_at")
+        .is_some());
+    assert!(row
+        .get::<Option<chrono::DateTime<chrono::Utc>>, _>("voided_at")
+        .is_some());
+    assert_eq!(
+        row.get::<Option<String>, _>("void_reason").as_deref(),
+        Some("write_off")
+    );
 
     println!("PASS: After void — status=voided, voided_at set, void_reason=write_off");
 
     // Step 5: Cannot re-commit after void
     let app = build_tax_router(pool.clone());
     let (status, resp_body) = post_json(app, "/api/ar/tax/commit", &commit_body).await;
-    assert_eq!(status, 409, "Re-commit after void should return 409: {}", resp_body);
+    assert_eq!(
+        status, 409,
+        "Re-commit after void should return 409: {}",
+        resp_body
+    );
 
     println!("PASS: Re-commit after void rejected with 409");
 

@@ -1,229 +1,108 @@
 # 7D Solutions Platform
 
-**Enterprise-grade modular platform for building vertical business applications**
+Backend module system for building vertical business applications. Verticals (e.g. Fireproof ERP, TrashTech) compose their products from these modules and build their own frontends in separate repos.
 
-## Overview
+## Tech Stack
 
-The 7D Solutions Platform is a multi-product software factory built on a three-tier architecture that separates runtime capabilities (platform), reusable business components (modules), and composed applications (products).
+- **Language:** Rust
+- **Web framework:** Axum
+- **Database:** PostgreSQL (per-module isolation)
+- **Messaging:** NATS JetStream
+- **ORM/queries:** sqlx (compile-time checked)
+- **Testing:** `cargo test` — integrated tests against real databases, no mocks
+- **Containerization:** Docker Compose (compose files at repo root)
+- **Monitoring:** Prometheus + Grafana
 
-**Organizational Model:**
-- **Company:** 7D Solutions
-- **Repository:** 7D Solutions Platform (the platform itself)
-- **Products:** Fireproof ERP and future vertical applications built FROM the platform
-
-## Architecture
-
-### Three-Tier Model
-
-```
-┌─────────────────────────────────────────────────────┐
-│ TIER 3: PRODUCTS (Assembly Layer)                   │
-│ products/fireproof-erp/                             │
-│ - Configuration + composition ONLY                  │
-│ - NO business logic                                 │
-│ - Wires modules together                            │
-└─────────────────────────────────────────────────────┘
-                        ↓ depends on
-┌─────────────────────────────────────────────────────┐
-│ TIER 2: MODULES (Business Components)               │
-│ modules/{ar, subscriptions, payments,               │
-│          notifications, qms, inventory, audit, ...} │
-│ - Independently versioned (SemVer)                  │
-│ - No cross-module imports                           │
-│ - Contract-driven integration                       │
-│ - Product-agnostic primitives                       │
-│                                                      │
-│ Note: End-to-end capabilities (like billing) are    │
-│ composed in products from primitive modules.        │
-│ No "god modules" - keep primitives separate.        │
-└─────────────────────────────────────────────────────┘
-                        ↓ depends on
-┌─────────────────────────────────────────────────────┐
-│ TIER 1: PLATFORM (Core Runtime)                     │
-│ platform/{identity, orchestration, events, ...}     │
-│ - Identity & authentication                         │
-│ - Event bus + scheduling/dispatch (runtime only)    │
-│ - Bootstrapping & observability                     │
-│ - NO product-specific logic                         │
-│                                                      │
-│ Note: Cross-module business workflows are composed  │
-│ at the product layer using contracts/events         │
-│ (choreography), not managed by a centralized        │
-│ platform engine.                                     │
-└─────────────────────────────────────────────────────┘
-```
-
-### Directory Structure
-
-> **Note:** The structure below represents the target three-tier architecture.
-> As of the current baseline, only `platform/identity-auth` and `modules/ar`
-> are implemented. Other directories (such as `products/`, `packages/`, and `infra/`)
-> will be introduced incrementally as additional modules and products are added.
+## Project Structure
 
 ```
-7D-Solutions-Platform/
-├── platform/           # TIER 1: Core runtime capabilities
-│   ├── identity-auth/  # Auth, RBAC, multi-tenancy (current: platform/identity-auth)
-│   ├── orchestration/  # Scheduler + job dispatch (runtime only; no cross-module business workflows) (planned)
-│   ├── events/         # Event bus, message broker (planned)
-│   ├── bootstrap/      # System initialization (planned)
-│   └── observability/  # Metrics, logging, tracing (planned)
+├── platform/              # Tier 1 — shared runtime infrastructure
+│   ├── audit/             # Append-only audit trail with field-level diffs
+│   ├── control-plane/     # Tenant provisioning, platform billing orchestration
+│   ├── event-bus/         # NATS JetStream wrapper, outbox relay, DLQ
+│   ├── health/            # Readiness/liveness probe contract
+│   ├── identity-auth/     # Authentication, RBAC, JWT, password reset
+│   ├── projections/       # Cursor-based rebuild, blue-green swap
+│   ├── security/          # AuthZ middleware, rate limiting, webhook verification
+│   ├── tax-core/          # Tax jurisdiction resolution, local/zero providers
+│   └── tenant-registry/   # Multi-tenant registry, lifecycle, plan management
 │
-├── modules/            # TIER 2: Reusable business components
-│   ├── ar/             # Accounts receivable (invoicing, aging) (current: modules/ar)
-│   ├── subscriptions/  # Recurring billing, plan management (planned)
-│   ├── payments/       # Payment processing, gateway integration (planned)
-│   ├── notifications/  # Email, SMS, webhooks (planned)
-│   ├── qms/            # Quality management system (planned)
-│   ├── inventory/      # Stock tracking, warehousing (planned)
-│   ├── document-control/ # Document management (planned)
-│   └── audit/          # Audit trails, compliance (planned)
+├── modules/               # Tier 2 — business domain modules
+│   ├── ap/                # Accounts payable (bills, POs, payment runs, vendors)
+│   ├── ar/                # Accounts receivable (invoices, aging, dunning, Tilled integration)
+│   ├── consolidation/     # Multi-entity financial consolidation, eliminations
+│   ├── fixed-assets/      # Asset register, depreciation, disposals
+│   ├── gl/                # General ledger (journals, trial balance, rev-rec, FX, accruals)
+│   ├── integrations/      # External connectors, webhook routing, external refs
+│   ├── inventory/         # Stock tracking, FIFO costing, reservations, cycle counts
+│   ├── maintenance/       # Work orders, preventive maintenance plans, meters
+│   ├── notifications/     # Event-driven notifications, scheduled dispatch
+│   ├── party/             # Party master (customers, vendors, contacts, addresses)
+│   ├── payments/          # Payment processing, reconciliation, retry logic
+│   ├── pdf-editor/        # PDF template forms, annotations, submission validation
+│   ├── reporting/         # Financial statements, aging reports, KPIs, forecasting
+│   ├── shipping-receiving/# Inbound/outbound shipments, inventory integration
+│   ├── subscriptions/     # Recurring billing, lifecycle state machine
+│   ├── timekeeping/       # Time entries, approvals, billing, GL labor cost
+│   ├── treasury/          # Bank accounts, bank reconciliation, cash position
+│   └── ttp/               # Tenant technology platform (metering, billing, service agreements)
 │
-├── products/           # TIER 3: Composed applications (planned - not yet present in baseline)
-│   └── fireproof-erp/  # Manufacturing ERP product
-│       ├── config/     # Product-specific configuration
-│       └── compose/    # Module assembly definitions
-│
-├── contracts/          # Source of truth for integration
-│   ├── api/            # OpenAPI 3.x specifications
-│   ├── events/         # AsyncAPI event schemas
-│   └── schemas/        # JSON schemas, Protobuf
-│
-├── packages/           # The ONLY sanctioned shared library area (strictly controlled) (planned - not yet present in baseline)
-│   ├── types/          # MUST be contract-generated (from contracts/) or infra-neutral primitives only
-│   │                   # NO domain models, NO business enums, NO cross-module coupling
-│   └── utils/          # Infrastructure-neutral helpers ONLY if used by 2+ modules
-│                       # (never domain logic; never a dumping ground)
-│
-├── infra/              # Infrastructure as code (planned - not yet present in baseline)
-│   ├── docker/         # Compose files, Dockerfiles
-│   ├── k8s/            # Kubernetes manifests
-│   └── terraform/      # Cloud provisioning
-│
-└── tools/              # Development & CI tooling
-    ├── ci/             # GitHub Actions, build scripts
-    ├── scripts/        # Automation utilities
-    └── generators/     # Code generation templates
+├── e2e-tests/             # Cross-module end-to-end test suite
+├── tools/                 # CI scripts, compliance exports, demo seed
+├── docs/                  # Architecture standards, governance, ops runbooks
+│   ├── architecture/      # Module standard, layering rules, CI guardrails
+│   ├── governance/        # Domain ownership, mutation classes, retention
+│   └── VERSIONING.md      # Module versioning standard (SemVer, three gates)
+├── docker-compose.yml     # Full stack (infra + platform + modules)
+└── Cargo.toml             # Workspace root
 ```
-
-## Core Principles
-
-1. **Platform ≠ Product** - The platform is a reusable foundation, not a finished application
-2. **Independent Versioning** - Modules follow SemVer: `component/vX.Y.Z`
-3. **No Business Logic in Products** - Products are assembly layers only
-4. **Contract-Driven Integration** - No source imports between modules
-5. **Composed Capabilities** - End-to-end features (like billing) are assembled in products from primitive modules; no "god modules"
-6. **No Junk Folders** - Eliminate ad-hoc `utils/`, `common/`, `shared/` directories inside modules or products; shared code is allowed ONLY under `packages/` and must follow the 2+ modules rule. Shared packages must remain infrastructure-level only and must not introduce domain coupling between modules.
-7. **Strict Layering** - Within modules: domain → repos → services → routes
-8. **Reusability Test** - If a module can't be reused in a different product, it's not a proper module
-
-## Prohibited Patterns
-
-- ❌ Cross-module source imports (use contracts instead)
-- ❌ Business logic in `products/` (assembly only)
-- ❌ Product-specific logic in modules (keep generic)
-- ❌ "God modules" that combine AR + Payments + Subscriptions; keep primitives separate and compose at the product layer
-- ❌ Global utility folders (use packages/ with 2+ users rule)
-- ❌ Breaking API changes without MAJOR version bump
-- ❌ Single version for entire repository (each module independent)
 
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 20+
+- Rust (stable toolchain)
 - Docker & Docker Compose
-- pnpm 9+
+- PostgreSQL 15+ (or use Docker)
+- NATS Server (or use Docker)
 
-### Installation
+### Development
 
 ```bash
-# Install dependencies
-pnpm install
+# Start infrastructure (Postgres, NATS, monitoring)
+docker compose -f docker-compose.infrastructure.yml up -d
 
 # Build all modules
-pnpm build
+cargo build --workspace
 
-# Start platform services
-docker compose -f infra/docker/docker-compose.platform.yml up -d
+# Run tests for a specific module
+cargo test -p ar
 
-# Run specific product
-cd products/fireproof-erp
-pnpm dev
+# Run the full e2e suite
+cargo test -p e2e-tests
 ```
 
-### Development Workflow
+## Core Principles
 
-1. **Create a module:**
-   ```bash
-   tools/scripts/create-module.sh payments v1.0.0
-   ```
-
-2. **Define contracts:**
-   ```bash
-   # Create OpenAPI spec
-   contracts/api/payments-v1.yaml
-
-   # Generate types
-   pnpm generate:contracts
-   ```
-
-3. **Compose a product:**
-   ```bash
-   # Edit product composition
-   products/fireproof-erp/compose/modules.yml
-   
-   # Example: TrashTech billing = compose ar + subscriptions + payments + notifications
-
-   # Wire modules
-   products/fireproof-erp/config/module-config.yml
-   ```
+1. **No cross-module source imports** — modules integrate via NATS events and HTTP contracts
+2. **Independent versioning** — each module follows SemVer; proven modules (≥1.0.0) require version bumps
+3. **Guard → Mutation → Outbox** — all state changes follow this atomic pattern
+4. **EventEnvelope** — every event carries tenant_id, trace_id, idempotency_key, actor
+5. **Per-module databases** — no shared tables between modules
+6. **Real tests only** — integrated tests against real Postgres and NATS; no mocks, no stubs
 
 ## Documentation
 
-### Architecture Standards
-- [Monorepo Standard](docs/architecture/MONOREPO-STANDARD.md) - Repository organization rules
-- [Module Standard](docs/architecture/MODULE-STANDARD.md) - Module structure and boundaries
-- [Contract Standard](docs/architecture/CONTRACT-STANDARD.md) - API and event schema guidelines
-- [Versioning & Release Gating](docs/VERSIONING.md) - Module versioning, three gates, product manifests
-- [Layering Rules](docs/architecture/LAYERING-RULES.md) - Dependency management
-- [CI Guardrails](docs/architecture/CI-GUARDRAILS.md) - Automated enforcement
-- [ADR Template](docs/architecture/ADR-TEMPLATE.md) - Architecture decision records
-
-### Governance
-- [Domain Ownership Registry](docs/governance/DOMAIN-OWNERSHIP-REGISTRY.md) - Module authority and ownership
-- [Mutation Classes](docs/governance/MUTATION-CLASSES.md) - Event mutation classification
-- [Retention Classes](docs/governance/RETENTION-CLASSES.md) - Data lifecycle management
-
-## Technology Stack
-
-### Platform Layer
-- **Identity:** Rust-based auth service (auth-rs)
-- **Events:** NATS JetStream
-- **Observability:** Prometheus + Grafana
-- **API Gateway:** Traefik with service discovery
-
-### Module Layer
-- **Language:** TypeScript (Node.js) or Rust
-- **Framework:** Express.js / Axum
-- **Database:** PostgreSQL (per-module)
-- **Testing:** Jest / cargo test
-
-### Product Layer
-- **Frontend:** React + TypeScript
-- **Build:** Vite / Turbo
-- **Deployment:** Docker Compose / Kubernetes
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines.
+- [Versioning & Release Gating](docs/VERSIONING.md)
+- [Module Standard](docs/architecture/MODULE-STANDARD.md)
+- [Monorepo Standard](docs/architecture/MONOREPO-STANDARD.md)
+- [Layering Rules](docs/architecture/LAYERING-RULES.md)
+- [CI Guardrails](docs/architecture/CI-GUARDRAILS.md)
+- [Contract Standard](docs/architecture/CONTRACT-STANDARD.md)
+- [Domain Ownership Registry](docs/governance/DOMAIN-OWNERSHIP-REGISTRY.md)
+- [Mutation Classes](docs/governance/MUTATION-CLASSES.md)
+- [Retention Classes](docs/governance/RETENTION-CLASSES.md)
 
 ## License
 
-Proprietary - Copyright © 2026 7D Solutions
-
-## Support
-
-- **Documentation:** https://docs.7dsolutions.com
-- **Issues:** Internal issue tracker
-- **Email:** support@7dsolutions.com
+Proprietary — Copyright © 2026 7D Solutions

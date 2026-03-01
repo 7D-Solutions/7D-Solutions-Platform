@@ -19,7 +19,10 @@ static INIT: Once = Once::new();
 
 fn setup_test_env() {
     INIT.call_once(|| {
-        env::set_var("SERVICE_AUTH_SECRET", "e2e-test-secret-key-for-service-auth");
+        env::set_var(
+            "SERVICE_AUTH_SECRET",
+            "e2e-test-secret-key-for-service-auth",
+        );
         env::set_var("SERVICE_NAME", "tenantctl");
     });
 }
@@ -28,11 +31,14 @@ fn setup_test_env() {
 async fn test_generate_valid_token() {
     setup_test_env();
 
-    let token = generate_service_token("tenantctl", None)
-        .expect("Failed to generate service token");
+    let token =
+        generate_service_token("tenantctl", None).expect("Failed to generate service token");
 
     assert!(!token.is_empty());
-    assert!(token.contains('.'), "Token should contain a signature separator");
+    assert!(
+        token.contains('.'),
+        "Token should contain a signature separator"
+    );
 
     println!("✅ Generated valid service token");
 }
@@ -41,11 +47,10 @@ async fn test_generate_valid_token() {
 async fn test_verify_valid_token() {
     setup_test_env();
 
-    let token = generate_service_token("tenantctl", None)
-        .expect("Failed to generate service token");
+    let token =
+        generate_service_token("tenantctl", None).expect("Failed to generate service token");
 
-    let claims = verify_service_token(&token)
-        .expect("Failed to verify service token");
+    let claims = verify_service_token(&token).expect("Failed to verify service token");
 
     assert_eq!(claims.service_name, "tenantctl");
     assert!(claims.expires_at > claims.issued_at);
@@ -63,7 +68,10 @@ async fn test_reject_invalid_format() {
     let result = verify_service_token("invalid-token-without-signature");
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), ServiceAuthError::InvalidFormat));
+    assert!(matches!(
+        result.unwrap_err(),
+        ServiceAuthError::InvalidFormat
+    ));
 
     println!("✅ Rejected token with invalid format");
 }
@@ -72,8 +80,8 @@ async fn test_reject_invalid_format() {
 async fn test_reject_tampered_token() {
     setup_test_env();
 
-    let token = generate_service_token("tenantctl", None)
-        .expect("Failed to generate service token");
+    let token =
+        generate_service_token("tenantctl", None).expect("Failed to generate service token");
 
     // Tamper with the token by modifying the claims
     let parts: Vec<&str> = token.split('.').collect();
@@ -85,7 +93,8 @@ async fn test_reject_tampered_token() {
     let err = result.unwrap_err();
     assert!(
         matches!(err, ServiceAuthError::InvalidSignature),
-        "Expected InvalidSignature, got: {:?}", err
+        "Expected InvalidSignature, got: {:?}",
+        err
     );
 
     println!("✅ Rejected tampered token");
@@ -95,10 +104,10 @@ async fn test_reject_tampered_token() {
 async fn test_reject_expired_token() {
     setup_test_env();
 
-    use chrono::Utc;
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-    use security::ServiceAuthClaims;
+    use chrono::Utc;
     use hmac::{Hmac, Mac};
+    use security::ServiceAuthClaims;
     use sha2::Sha256;
 
     type HmacSha256 = Hmac<Sha256>;
@@ -107,8 +116,8 @@ async fn test_reject_expired_token() {
     let now = Utc::now();
     let expired_claims = ServiceAuthClaims {
         service_name: "test".to_string(),
-        issued_at: now.timestamp() - 3600,      // 1 hour ago
-        expires_at: now.timestamp() - 1800,     // 30 minutes ago (expired)
+        issued_at: now.timestamp() - 3600,  // 1 hour ago
+        expires_at: now.timestamp() - 1800, // 30 minutes ago (expired)
     };
 
     let claims_json = serde_json::to_string(&expired_claims).unwrap();
@@ -126,7 +135,10 @@ async fn test_reject_expired_token() {
     let result = verify_service_token(&expired_token);
 
     assert!(result.is_err());
-    assert!(matches!(result.unwrap_err(), ServiceAuthError::TokenExpired));
+    assert!(matches!(
+        result.unwrap_err(),
+        ServiceAuthError::TokenExpired
+    ));
 
     println!("✅ Rejected expired token");
 }
@@ -136,14 +148,17 @@ async fn test_token_with_custom_validity() {
     setup_test_env();
 
     // Generate token with 30-minute validity
-    let token = generate_service_token("ar-service", Some(30))
-        .expect("Failed to generate service token");
+    let token =
+        generate_service_token("ar-service", Some(30)).expect("Failed to generate service token");
 
-    let claims = verify_service_token(&token)
-        .expect("Failed to verify service token");
+    let claims = verify_service_token(&token).expect("Failed to verify service token");
 
     let validity_seconds = claims.expires_at - claims.issued_at;
-    assert_eq!(validity_seconds, 30 * 60, "Token should have 30-minute validity");
+    assert_eq!(
+        validity_seconds,
+        30 * 60,
+        "Token should have 30-minute validity"
+    );
 
     println!("✅ Verified token with custom validity");
     println!("   Validity: {} minutes", validity_seconds / 60);
@@ -175,21 +190,21 @@ async fn test_get_service_token_from_env() {
     // Test when SERVICE_TOKEN is not set (should generate new token)
     env::remove_var("SERVICE_TOKEN");
 
-    let token1 = security::get_service_token()
-        .expect("Failed to get service token");
+    let token1 = security::get_service_token().expect("Failed to get service token");
 
-    let claims1 = verify_service_token(&token1)
-        .expect("Failed to verify first token");
+    let claims1 = verify_service_token(&token1).expect("Failed to verify first token");
 
     assert_eq!(claims1.service_name, "tenantctl"); // From SERVICE_NAME env var
 
     // Test when SERVICE_TOKEN is set (should use existing token)
     env::set_var("SERVICE_TOKEN", &token1);
 
-    let token2 = security::get_service_token()
-        .expect("Failed to get service token from env");
+    let token2 = security::get_service_token().expect("Failed to get service token from env");
 
-    assert_eq!(token1, token2, "Should reuse existing valid token from environment");
+    assert_eq!(
+        token1, token2,
+        "Should reuse existing valid token from environment"
+    );
 
     println!("✅ get_service_token() works correctly");
 
@@ -203,8 +218,8 @@ async fn test_http_request_simulation() {
     setup_test_env();
 
     // Generate token
-    let token = generate_service_token("tenantctl", None)
-        .expect("Failed to generate service token");
+    let token =
+        generate_service_token("tenantctl", None).expect("Failed to generate service token");
 
     // Simulate server-side: extract Bearer token from header
     let auth_header = format!("Bearer {}", token);
@@ -215,8 +230,7 @@ async fn test_http_request_simulation() {
     let extracted_token = auth_header.strip_prefix(bearer_prefix).unwrap();
 
     // Verify the extracted token
-    let claims = verify_service_token(extracted_token)
-        .expect("Failed to verify extracted token");
+    let claims = verify_service_token(extracted_token).expect("Failed to verify extracted token");
 
     assert_eq!(claims.service_name, "tenantctl");
 
@@ -242,8 +256,8 @@ fn build_ar_diagnostic_router() -> Router {
     //   .route("/api/version", get(routes::health::version))
     // These routes have NO auth middleware — they are intentionally public.
     Router::new()
-        .route("/api/health", get(ar_rs::routes::health::health))
-        .route("/api/version", get(ar_rs::routes::health::version))
+        .route("/api/health", get(ar_rs::http::health::health))
+        .route("/api/version", get(ar_rs::http::health::version))
 }
 
 #[tokio::test]
@@ -257,7 +271,10 @@ async fn test_version_endpoint_without_token_succeeds() {
 
     let response = app.oneshot(request).await.unwrap();
 
-    println!("✅ /api/version without auth - Status: {}", response.status());
+    println!(
+        "✅ /api/version without auth - Status: {}",
+        response.status()
+    );
 
     assert_eq!(
         response.status().as_u16(),
@@ -279,7 +296,10 @@ async fn test_version_endpoint_with_invalid_token_still_succeeds() {
 
     let response = app.oneshot(request).await.unwrap();
 
-    println!("✅ /api/version with ignored token - Status: {}", response.status());
+    println!(
+        "✅ /api/version with ignored token - Status: {}",
+        response.status()
+    );
 
     assert_eq!(
         response.status().as_u16(),
@@ -299,7 +319,10 @@ async fn test_health_endpoint_no_auth_required() {
 
     let response = app.oneshot(request).await.unwrap();
 
-    println!("✅ /api/health without auth - Status: {}", response.status());
+    println!(
+        "✅ /api/health without auth - Status: {}",
+        response.status()
+    );
 
     assert_eq!(
         response.status().as_u16(),
@@ -320,7 +343,10 @@ async fn test_health_endpoint_with_invalid_token_still_succeeds() {
 
     let response = app.oneshot(request).await.unwrap();
 
-    println!("✅ /api/health with ignored token - Status: {}", response.status());
+    println!(
+        "✅ /api/health with ignored token - Status: {}",
+        response.status()
+    );
 
     assert_eq!(
         response.status().as_u16(),

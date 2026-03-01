@@ -91,7 +91,7 @@ struct ErrorBody {
 // ============================================================================
 
 fn build_tax_router(pool: PgPool) -> axum::Router {
-    ar_rs::routes::tax::tax_router(pool)
+    ar_rs::http::tax::tax_router(pool)
 }
 
 fn ca_address() -> TaxAddress {
@@ -139,9 +139,8 @@ fn saas_line(id: &str, amount: i64) -> TaxLineItem {
 }
 
 async fn run_tax_migration(pool: &PgPool) {
-    let migration_sql = include_str!(
-        "../../modules/ar/db/migrations/20260217000007_create_tax_quote_cache.sql"
-    );
+    let migration_sql =
+        include_str!("../../modules/ar/db/migrations/20260217000007_create_tax_quote_cache.sql");
     // Tolerate concurrent CREATE TABLE from parallel tests (pg_type duplicate key)
     match sqlx::raw_sql(migration_sql).execute(pool).await {
         Ok(_) => {}
@@ -164,10 +163,7 @@ async fn cleanup_tax_cache(pool: &PgPool, app_id: &str) {
         .ok();
 }
 
-async fn post_tax_quote(
-    app: axum::Router,
-    body: &TaxQuoteHttpRequest,
-) -> (u16, String) {
+async fn post_tax_quote(app: axum::Router, body: &TaxQuoteHttpRequest) -> (u16, String) {
     let json = serde_json::to_string(body).unwrap();
     let request = Request::builder()
         .method("POST")
@@ -184,11 +180,7 @@ async fn post_tax_quote(
     (status, String::from_utf8(bytes.to_vec()).unwrap())
 }
 
-async fn get_cached_quote(
-    app: axum::Router,
-    app_id: &str,
-    invoice_id: &str,
-) -> (u16, String) {
+async fn get_cached_quote(app: axum::Router, app_id: &str, invoice_id: &str) -> (u16, String) {
     let uri = format!(
         "/api/ar/tax/quote?app_id={}&invoice_id={}",
         app_id, invoice_id
@@ -249,7 +241,10 @@ async fn test_tax_quote_california_rate() {
     assert!(!resp.cached, "First call should not be cached");
     assert!(resp.provider_quote_ref.starts_with("local-quote-"));
 
-    println!("PASS: California tax quote = {} (8.5%)", resp.total_tax_minor);
+    println!(
+        "PASS: California tax quote = {} (8.5%)",
+        resp.total_tax_minor
+    );
 
     cleanup_tax_cache(&pool, &tenant).await;
 }
@@ -349,7 +344,10 @@ async fn test_tax_quote_cache_lookup_get() {
     assert_eq!(resp.total_tax_minor, 850);
     assert_eq!(resp.provider, "local");
 
-    println!("PASS: GET /api/ar/tax/quote returned cached quote = {}", resp.total_tax_minor);
+    println!(
+        "PASS: GET /api/ar/tax/quote returned cached quote = {}",
+        resp.total_tax_minor
+    );
 
     // GET for non-existent invoice → 404
     let app = build_tax_router(pool.clone());
@@ -406,10 +404,16 @@ async fn test_tax_quote_changed_request_new_calculation() {
     let (status, resp_body) = post_tax_quote(app, &body2).await;
     assert_eq!(status, 200);
     let resp2: TaxQuoteHttpResponse = serde_json::from_str(&resp_body).unwrap();
-    assert_eq!(resp2.total_tax_minor, 1700, "Changed amount should yield new tax");
+    assert_eq!(
+        resp2.total_tax_minor, 1700,
+        "Changed amount should yield new tax"
+    );
     assert!(!resp2.cached, "Changed request hash should be cache miss");
 
-    println!("PASS: Changed line items → new calculation ({} → {})", resp1.total_tax_minor, resp2.total_tax_minor);
+    println!(
+        "PASS: Changed line items → new calculation ({} → {})",
+        resp1.total_tax_minor, resp2.total_tax_minor
+    );
 
     // Both cache rows should exist
     let count: i64 = sqlx::query_scalar(
@@ -420,7 +424,10 @@ async fn test_tax_quote_changed_request_new_calculation() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(count, 2, "Two cache rows should exist for different request hashes");
+    assert_eq!(
+        count, 2,
+        "Two cache rows should exist for different request hashes"
+    );
 
     println!("PASS: DB has {} cache rows for the invoice", count);
 
@@ -448,7 +455,11 @@ async fn test_tax_quote_empty_lines_rejected() {
 
     let app = build_tax_router(pool.clone());
     let (status, resp_body) = post_tax_quote(app, &body).await;
-    assert_eq!(status, 400, "Empty line items should be rejected: {}", resp_body);
+    assert_eq!(
+        status, 400,
+        "Empty line items should be rejected: {}",
+        resp_body
+    );
 
     let err: ErrorBody = serde_json::from_str(&resp_body).unwrap();
     assert!(
@@ -526,8 +537,13 @@ async fn test_tax_quote_db_cache_row_correct() {
     // response_json should have the full response
     assert_eq!(db_response["total_tax_minor"], 850);
 
-    println!("PASS: DB cache row has correct app_id={}, invoice_id={}, total={}, hash={}...",
-        db_app_id, db_invoice_id, db_total, &db_hash[..8]);
+    println!(
+        "PASS: DB cache row has correct app_id={}, invoice_id={}, total={}, hash={}...",
+        db_app_id,
+        db_invoice_id,
+        db_total,
+        &db_hash[..8]
+    );
 
     cleanup_tax_cache(&pool, &tenant).await;
 }

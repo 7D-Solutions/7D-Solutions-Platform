@@ -9,7 +9,7 @@ use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 use tracing_subscriber::EnvFilter;
 
-use ar_rs::{config::Config, consumer_tasks, db, events::run_publisher_task, routes, AppState};
+use ar_rs::{config::Config, consumer_tasks, db, events::run_publisher_task, http, AppState};
 
 #[tokio::main]
 async fn main() {
@@ -97,20 +97,25 @@ async fn main() {
 
     let app = Router::new()
         .route("/healthz", get(health::healthz))
-        .route("/api/health", get(routes::health::health))
-        .route("/api/ready", get(routes::health::ready))
-        .route("/api/version", get(routes::health::version))
+        .route("/api/health", get(http::health::health))
+        .route("/api/ready", get(http::health::ready))
+        .route("/api/version", get(http::health::version))
         .route("/metrics", get(ar_rs::metrics::metrics_handler))
         .with_state(app_state.clone())
-        .merge(routes::ar_router(db.clone()))
-        .merge(routes::tax::tax_router(db.clone()))
-        .merge(routes::admin::admin_router(db))
+        .merge(http::ar_router(db.clone()))
+        .merge(http::tax::tax_router(db.clone()))
+        .merge(http::admin::admin_router(db))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
+        .layer(axum::middleware::from_fn(
+            security::tracing::tracing_context_middleware,
+        ))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(rate_limiter))
-        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
+        .layer(axum::middleware::from_fn_with_state(
+            maybe_verifier,
+            optional_claims_mw,
+        ))
         .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -164,7 +169,9 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
     let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
 
     if is_wildcard && config.env != "development" {
-        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+        tracing::warn!(
+            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
+        );
     }
 
     let layer = if is_wildcard {

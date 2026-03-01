@@ -67,7 +67,7 @@ fn assert_version_contract(json: &Value, expected_module: &str) {
 /// guaranteeing tests always cover current HEAD code without live services.
 #[tokio::test]
 async fn test_version_endpoints_library_modules() -> Result<(), Box<dyn std::error::Error>> {
-    let Json(ar_version) = ar_rs::routes::health::version().await;
+    let Json(ar_version) = ar_rs::http::health::version().await;
     assert_version_contract(&ar_version, "ar-rs");
 
     let Json(gl_version) = gl_rs::routes::health::version().await;

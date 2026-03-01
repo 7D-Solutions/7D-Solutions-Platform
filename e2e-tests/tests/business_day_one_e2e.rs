@@ -27,7 +27,7 @@
 
 mod common;
 
-use ar_rs::routes::ar_router;
+use ar_rs::http::ar_router;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -148,10 +148,7 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind ephemeral port for party server");
-    let port = listener
-        .local_addr()
-        .expect("get party server port")
-        .port();
+    let port = listener.local_addr().expect("get party server port").port();
 
     tokio::spawn(async move {
         axum::serve(listener, router)
@@ -164,10 +161,7 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
     // Safety: serial lock prevents concurrent env var mutation; env::set_var is unsafe since Rust 1.83
     #[allow(unsafe_code)]
     unsafe {
-        std::env::set_var(
-            "PARTY_MASTER_URL",
-            format!("http://127.0.0.1:{}", port),
-        );
+        std::env::set_var("PARTY_MASTER_URL", format!("http://127.0.0.1:{}", port));
     }
 
     port
@@ -198,11 +192,7 @@ async fn setup_gl_period(gl_pool: &PgPool, tenant_id: &str) {
     .expect("GL period setup failed");
 }
 
-async fn create_gl_journal_entry(
-    gl_pool: &PgPool,
-    tenant_id: &str,
-    source_event_id: Uuid,
-) -> Uuid {
+async fn create_gl_journal_entry(gl_pool: &PgPool, tenant_id: &str, source_event_id: Uuid) -> Uuid {
     sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO journal_entries (id, tenant_id, source_module, source_event_id, source_subject, posted_at, currency, description)
          VALUES ($1, $2, 'payments', $3, 'payment.succeeded', NOW(), 'USD', 'Day-one payment posting')
@@ -255,31 +245,62 @@ async fn cleanup(
     sqlx::query("DELETE FROM processed_events WHERE event_id IN (SELECT source_event_id FROM journal_entries WHERE tenant_id = $1)")
         .bind(gl_tenant_id).execute(gl_pool).await.ok();
     sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
-        .bind(gl_tenant_id).execute(gl_pool).await.ok();
+        .bind(gl_tenant_id)
+        .execute(gl_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
-        .bind(gl_tenant_id).execute(gl_pool).await.ok();
+        .bind(gl_tenant_id)
+        .execute(gl_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
-        .bind(gl_tenant_id).execute(gl_pool).await.ok();
+        .bind(gl_tenant_id)
+        .execute(gl_pool)
+        .await
+        .ok();
 
     // Payments
     sqlx::query("DELETE FROM payment_attempts WHERE app_id = $1")
-        .bind(APP_ID).execute(payments_pool).await.ok();
+        .bind(APP_ID)
+        .execute(payments_pool)
+        .await
+        .ok();
 
     // AR
     sqlx::query("DELETE FROM events_outbox WHERE tenant_id = $1")
-        .bind(APP_ID).execute(ar_pool).await.ok();
+        .bind(APP_ID)
+        .execute(ar_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1 AND ar_customer_id = $2")
-        .bind(APP_ID).bind(customer_id).execute(ar_pool).await.ok();
+        .bind(APP_ID)
+        .bind(customer_id)
+        .execute(ar_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_customers WHERE id = $1")
-        .bind(customer_id).execute(ar_pool).await.ok();
+        .bind(customer_id)
+        .execute(ar_pool)
+        .await
+        .ok();
 
     // Party
     sqlx::query("DELETE FROM party_outbox WHERE app_id = $1")
-        .bind(APP_ID).execute(party_pool).await.ok();
+        .bind(APP_ID)
+        .execute(party_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM party_companies WHERE party_id = $1")
-        .bind(party_id).execute(party_pool).await.ok();
+        .bind(party_id)
+        .execute(party_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM party_parties WHERE id = $1")
-        .bind(party_id).execute(party_pool).await.ok();
+        .bind(party_id)
+        .execute(party_pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -364,14 +385,8 @@ async fn test_business_day_one_full_chain() {
         "party_id": party_id.to_string()
     });
 
-    let (create_status, create_resp) = ar_send(
-        &ar,
-        "POST",
-        "/api/ar/invoices",
-        Some(invoice_body),
-        true,
-    )
-    .await;
+    let (create_status, create_resp) =
+        ar_send(&ar, "POST", "/api/ar/invoices", Some(invoice_body), true).await;
 
     assert_eq!(
         create_status,
@@ -388,7 +403,10 @@ async fn test_business_day_one_full_chain() {
         .as_str()
         .expect("party_id must be in create response");
     assert_eq!(resp_party_id, party_id.to_string());
-    println!("[3/7] AR invoice created: {} (party_id={})", invoice_id, resp_party_id);
+    println!(
+        "[3/7] AR invoice created: {} (party_id={})",
+        invoice_id, resp_party_id
+    );
 
     // ================================================================
     // Step 3: Assert invoice status = OPEN via GET
@@ -479,7 +497,11 @@ async fn test_business_day_one_full_chain() {
 
     // Verify balanced
     let balance_result = common::assert_journal_balanced(&gl_pool, entry_id).await;
-    assert!(balance_result.is_ok(), "GL must be balanced: {:?}", balance_result);
+    assert!(
+        balance_result.is_ok(),
+        "GL must be balanced: {:?}",
+        balance_result
+    );
 
     let (total_debits, total_credits): (i64, i64) = sqlx::query_as(
         "SELECT COALESCE(SUM(debit_minor),0)::BIGINT, COALESCE(SUM(credit_minor),0)::BIGINT

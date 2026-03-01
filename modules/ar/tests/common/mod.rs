@@ -1,7 +1,7 @@
 use axum::body::Body;
 use axum::Router;
 use http_body_util::BodyExt;
-use sqlx::{PgPool, postgres::PgPoolOptions};
+use sqlx::{postgres::PgPoolOptions, PgPool};
 use uuid::Uuid;
 
 /// Connect to the test database and run migrations.
@@ -75,8 +75,7 @@ pub fn app(pool: &PgPool) -> Router {
         version: "1".to_string(),
     };
 
-    ar_rs::routes::ar_router_permissive(pool.clone())
-        .layer(Extension(claims))
+    ar_rs::http::ar_router_permissive(pool.clone()).layer(Extension(claims))
 }
 
 /// Read response body as JSON.
@@ -111,12 +110,7 @@ pub async fn seed_customer(pool: &PgPool, app_id: &str) -> (i32, String, String)
 
 /// Create a test subscription for a customer.
 /// Returns subscription_id.
-pub async fn seed_subscription(
-    pool: &PgPool,
-    app_id: &str,
-    customer_id: i32,
-    status: &str,
-) -> i32 {
+pub async fn seed_subscription(pool: &PgPool, app_id: &str, customer_id: i32, status: &str) -> i32 {
     let plan_id = unique_plan_id();
     let tilled_sub_id = format!("sub_{}", Uuid::new_v4());
 
@@ -310,12 +304,7 @@ pub async fn cleanup_customers(pool: &PgPool, customer_ids: &[i32]) {
 
 /// Create a test dispute for a charge.
 /// Returns dispute_id.
-pub async fn seed_dispute(
-    pool: &PgPool,
-    app_id: &str,
-    charge_id: i32,
-    status: &str,
-) -> i32 {
+pub async fn seed_dispute(pool: &PgPool, app_id: &str, charge_id: i32, status: &str) -> i32 {
     let tilled_dispute_id = format!("dp_{}", Uuid::new_v4());
 
     let dispute_id: i32 = sqlx::query_scalar(

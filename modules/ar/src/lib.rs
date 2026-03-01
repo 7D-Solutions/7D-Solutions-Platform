@@ -20,7 +20,7 @@ pub mod payment_allocation;
 pub mod recon_scheduler;
 pub mod reconciliation;
 pub mod retry;
-pub mod routes;
+pub mod http;
 pub mod tax;
 pub mod tilled;
 pub mod usage_billing;

@@ -10,10 +10,7 @@ use chrono::Utc;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
 use rsa::RsaPrivateKey;
-use security::{
-    authz_middleware::ClaimsLayer,
-    JwtVerifier,
-};
+use security::{authz_middleware::ClaimsLayer, JwtVerifier};
 use serde::Serialize;
 use std::sync::Arc;
 use tower::ServiceExt;
@@ -84,21 +81,20 @@ fn build_ar_router(verifier: Arc<JwtVerifier>) -> Router {
     // AR router expects PgPool as state.
     let pool = sqlx::PgPool::connect_lazy("postgres://localhost/fake").unwrap();
 
-    ar_rs::routes::ar_router(pool)
-        .layer(ClaimsLayer::new(verifier, true))
+    ar_rs::http::ar_router(pool).layer(ClaimsLayer::new(verifier, true))
 }
 
 fn build_ap_router(verifier: Arc<JwtVerifier>) -> Router {
     let pool = sqlx::PgPool::connect_lazy("postgres://localhost/fake").unwrap();
     let metrics = Arc::new(ap::metrics::ApMetrics::new().unwrap());
-    let state = Arc::new(ap::AppState {
-        pool,
-        metrics,
-    });
+    let state = Arc::new(ap::AppState { pool, metrics });
 
     // Manually build minimal AP router for testing
     axum::Router::new()
-        .route("/api/ap/vendors", axum::routing::get(ap::http::vendors::list_vendors))
+        .route(
+            "/api/ap/vendors",
+            axum::routing::get(ap::http::vendors::list_vendors),
+        )
         .layer(ClaimsLayer::new(verifier, true))
         .with_state(state)
 }
@@ -106,14 +102,14 @@ fn build_ap_router(verifier: Arc<JwtVerifier>) -> Router {
 fn build_treasury_router(verifier: Arc<JwtVerifier>) -> Router {
     let pool = sqlx::PgPool::connect_lazy("postgres://localhost/fake").unwrap();
     let metrics = Arc::new(treasury::metrics::TreasuryMetrics::new().unwrap());
-    let state = Arc::new(treasury::AppState {
-        pool,
-        metrics,
-    });
+    let state = Arc::new(treasury::AppState { pool, metrics });
 
     // Treasury routes are merged in its main.rs, here we just need one to test isolation
     axum::Router::new()
-        .route("/api/treasury/accounts", axum::routing::get(treasury::http::accounts::list_accounts))
+        .route(
+            "/api/treasury/accounts",
+            axum::routing::get(treasury::http::accounts::list_accounts),
+        )
         .layer(ClaimsLayer::new(verifier, true))
         .with_state(state)
 }
@@ -139,7 +135,11 @@ async fn test_ar_ignores_spoofed_header() {
         .unwrap();
 
     let resp = app.oneshot(req).await.unwrap();
-    assert!(resp.status().is_success() || resp.status().is_server_error(), "Expected 2xx or 500, got: {}", resp.status());
+    assert!(
+        resp.status().is_success() || resp.status().is_server_error(),
+        "Expected 2xx or 500, got: {}",
+        resp.status()
+    );
 }
 
 #[tokio::test]
@@ -158,7 +158,11 @@ async fn test_ap_ignores_spoofed_header() {
         .unwrap();
 
     let resp = app.oneshot(req).await.unwrap();
-    assert!(resp.status().is_success() || resp.status().is_server_error(), "Expected 2xx or 500, got: {}", resp.status());
+    assert!(
+        resp.status().is_success() || resp.status().is_server_error(),
+        "Expected 2xx or 500, got: {}",
+        resp.status()
+    );
 }
 
 #[tokio::test]
@@ -177,5 +181,9 @@ async fn test_treasury_ignores_spoofed_header() {
         .unwrap();
 
     let resp = app.oneshot(req).await.unwrap();
-    assert!(resp.status().is_success() || resp.status().is_server_error(), "Expected 2xx or 500, got: {}", resp.status());
+    assert!(
+        resp.status().is_success() || resp.status().is_server_error(),
+        "Expected 2xx or 500, got: {}",
+        resp.status()
+    );
 }

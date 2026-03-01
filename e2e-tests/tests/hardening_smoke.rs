@@ -46,7 +46,10 @@ use serde_json::Value;
 /// Assert a health response has the expected shape.
 fn assert_health_contract(json: &Value, expected_service: &str) {
     let status = json["status"].as_str().unwrap_or_else(|| {
-        panic!("{}: missing 'status' field in health response", expected_service)
+        panic!(
+            "{}: missing 'status' field in health response",
+            expected_service
+        )
     });
     assert!(
         status == "healthy" || status == "ok",
@@ -60,7 +63,10 @@ fn assert_health_contract(json: &Value, expected_service: &str) {
 /// Assert a version response has the expected shape.
 fn assert_version_contract(json: &Value, expected_module: &str) {
     let module_name = json["module_name"].as_str().unwrap_or_else(|| {
-        panic!("{}: missing 'module_name' field in version response", expected_module)
+        panic!(
+            "{}: missing 'module_name' field in version response",
+            expected_module
+        )
     });
     assert_eq!(
         module_name, expected_module,
@@ -68,18 +74,18 @@ fn assert_version_contract(json: &Value, expected_module: &str) {
         expected_module
     );
 
-    let module_version = json["module_version"].as_str().unwrap_or_else(|| {
-        panic!("{}: missing 'module_version' field", expected_module)
-    });
+    let module_version = json["module_version"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{}: missing 'module_version' field", expected_module));
     assert!(
         !module_version.is_empty(),
         "{}: module_version must not be empty",
         expected_module
     );
 
-    let schema_version = json["schema_version"].as_str().unwrap_or_else(|| {
-        panic!("{}: missing 'schema_version' field", expected_module)
-    });
+    let schema_version = json["schema_version"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{}: missing 'schema_version' field", expected_module));
     assert_eq!(
         schema_version.len(),
         14,
@@ -111,7 +117,7 @@ fn assert_version_contract(json: &Value, expected_module: &str) {
 async fn smoke_all_module_health_handlers() {
     println!("\n=== In-Process Health Smoke ===\n");
 
-    let Json(v) = ar_rs::routes::health::health().await;
+    let Json(v) = ar_rs::http::health::health().await;
     assert_health_contract(&v, "ar-rs");
 
     let Json(v) = gl_rs::routes::health::health().await;
@@ -159,7 +165,7 @@ async fn smoke_all_module_health_handlers() {
 async fn smoke_all_module_version_handlers() {
     println!("\n=== In-Process Version Smoke ===\n");
 
-    let Json(v) = ar_rs::routes::health::version().await;
+    let Json(v) = ar_rs::http::health::version().await;
     assert_version_contract(&v, "ar-rs");
 
     let Json(v) = gl_rs::routes::health::version().await;
@@ -213,9 +219,7 @@ async fn smoke_live_http_services() {
         .build()
         .expect("Failed to build HTTP client");
 
-    let live_modules = vec![
-        ("subscriptions-rs", "http://localhost:8087"),
-    ];
+    let live_modules = vec![("subscriptions-rs", "http://localhost:8087")];
 
     for (module, base_url) in live_modules {
         let health_url = format!("{}/api/health", base_url);
@@ -313,7 +317,10 @@ async fn smoke_critical_db_reachability() {
                         println!("✅ {} DB reachable", name);
                     }
                     Err(e) => {
-                        println!("⚠️  {} DB connected but query failed: {} — skipping", name, e);
+                        println!(
+                            "⚠️  {} DB connected but query failed: {} — skipping",
+                            name, e
+                        );
                     }
                 }
                 let _ = pool.close().await;
