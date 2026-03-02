@@ -86,7 +86,7 @@ pub async fn create_document(
         },
     )
     .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
-    .with_actor(actor_id, claims.actor_type.as_str().to_string());
+    .with_actor(actor_id, capitalize_actor_type(claims.actor_type));
 
     let event_payload = match validate_and_serialize_envelope(&envelope) {
         Ok(p) => p,
@@ -314,7 +314,7 @@ pub async fn release_document(
         },
     )
     .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
-    .with_actor(actor_id, claims.actor_type.as_str().to_string());
+    .with_actor(actor_id, capitalize_actor_type(claims.actor_type));
 
     let event_payload = match validate_and_serialize_envelope(&envelope) {
         Ok(p) => p,
@@ -618,7 +618,7 @@ pub async fn create_revision(
         },
     )
     .with_mutation_class(Some(mutation_classes::DATA_MUTATION.to_string()))
-    .with_actor(actor_id, claims.actor_type.as_str().to_string());
+    .with_actor(actor_id, capitalize_actor_type(claims.actor_type));
 
     let event_payload = match validate_and_serialize_envelope(&envelope) {
         Ok(p) => p,
@@ -719,6 +719,15 @@ async fn store_idempotency(
     .await?;
 
     Ok(())
+}
+
+/// EventEnvelope validation expects "User"/"Service"/"System" (capitalized).
+fn capitalize_actor_type(at: security::claims::ActorType) -> String {
+    match at {
+        security::claims::ActorType::User => "User".to_string(),
+        security::claims::ActorType::Service => "Service".to_string(),
+        security::claims::ActorType::System => "System".to_string(),
+    }
 }
 
 fn is_unique_violation(e: &sqlx::Error) -> bool {
