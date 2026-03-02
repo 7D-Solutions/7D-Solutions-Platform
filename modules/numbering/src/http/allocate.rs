@@ -2,6 +2,11 @@
 //!
 //! Flow: Guard → Mutation → Outbox in a single transaction.
 //! Concurrency safety via SELECT FOR UPDATE on the sequences row.
+//!
+//! Supports two modes:
+//! - **Standard** (default): Numbers are immediately confirmed.
+//! - **Gap-free**: Numbers are reserved and must be confirmed via POST /confirm.
+//!   Expired reservations are recycled before advancing the counter.
 
 use axum::{extract::State, http::StatusCode, Extension, Json};
 use security::VerifiedClaims;
@@ -15,6 +20,10 @@ use crate::{format, outbox, policy};
 pub struct AllocateRequest {
     pub entity: String,
     pub idempotency_key: String,
+    /// Enable gap-free mode for this sequence.  Only honoured on the first
+    /// allocation that creates the sequence row; ignored for existing sequences.
+    #[serde(default)]
+    pub gap_free: Option<bool>,
 }
 
 #[derive(Debug, Serialize)]
@@ -26,6 +35,11 @@ pub struct AllocateResponse {
     pub formatted_number: Option<String>,
     pub idempotency_key: String,
     pub replay: bool,
+    /// "confirmed" for standard allocations, "reserved" for gap-free.
+    pub status: String,
+    /// Present only for gap-free reservations — ISO 8601 expiry timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -40,6 +54,7 @@ struct NumberAllocatedPayload {
     pub entity: String,
     pub number_value: i64,
     pub idempotency_key: String,
+    pub status: String,
 }
 
 /// POST /allocate
@@ -52,7 +67,6 @@ pub async fn allocate(
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<AllocateRequest>,
 ) -> Result<(StatusCode, Json<AllocateResponse>), (StatusCode, Json<ErrorResponse>)> {
-    // Extract tenant_id from JWT claims — never trust client-supplied values
     let tenant_id = match &claims {
         Some(Extension(c)) => c.tenant_id,
         None => {
@@ -66,7 +80,6 @@ pub async fn allocate(
         }
     };
 
-    // Validate inputs
     if req.entity.is_empty() || req.entity.len() > 100 {
         return Err((
             StatusCode::BAD_REQUEST,
@@ -87,9 +100,10 @@ pub async fn allocate(
         ));
     }
 
-    // Check idempotency: has this key already been used?
-    let existing = sqlx::query_as::<_, IssuedRow>(
-        "SELECT number_value FROM issued_numbers WHERE tenant_id = $1 AND idempotency_key = $2",
+    // ── Idempotency check ──────────────────────────────────────────────
+    let existing = sqlx::query_as::<_, IssuedRowFull>(
+        "SELECT number_value, status, expires_at \
+         FROM issued_numbers WHERE tenant_id = $1 AND idempotency_key = $2",
     )
     .bind(tenant_id)
     .bind(&req.idempotency_key)
@@ -97,13 +111,7 @@ pub async fn allocate(
     .await
     .map_err(|e| {
         tracing::error!("Numbering: idempotency check failed: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "database_error".to_string(),
-                message: "Failed to check idempotency key".to_string(),
-            }),
-        )
+        db_error("Failed to check idempotency key")
     })?;
 
     if let Some(row) = existing {
@@ -112,7 +120,8 @@ pub async fn allocate(
             .replays_total
             .with_label_values(&[&req.entity])
             .inc();
-        let formatted = format_if_policy(&state.pool, tenant_id, &req.entity, row.number_value).await;
+        let formatted =
+            format_if_policy(&state.pool, tenant_id, &req.entity, row.number_value).await;
         return Ok((
             StatusCode::OK,
             Json(AllocateResponse {
@@ -122,24 +131,20 @@ pub async fn allocate(
                 formatted_number: formatted,
                 idempotency_key: req.idempotency_key,
                 replay: true,
+                status: row.status,
+                expires_at: row.expires_at.map(|t| t.and_utc().to_rfc3339()),
             }),
         ));
     }
 
-    // Begin transaction: Guard → Mutation → Outbox
+    // ── Begin transaction: Guard → Mutation → Outbox ───────────────────
     let mut tx = state.pool.begin().await.map_err(|e| {
         tracing::error!("Numbering: failed to begin transaction: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "database_error".to_string(),
-                message: "Failed to begin transaction".to_string(),
-            }),
-        )
+        db_error("Failed to begin transaction")
     })?;
 
-    // Guard: lock the sequence row (or create it if first allocation)
-    let next_value = allocate_next_value(&mut tx, tenant_id, &req.entity)
+    let gap_free_requested = req.gap_free.unwrap_or(false);
+    let alloc = allocate_next_value(&mut tx, tenant_id, &req.entity, gap_free_requested)
         .await
         .map_err(|e| {
             tracing::error!("Numbering: allocation failed: {}", e);
@@ -152,34 +157,62 @@ pub async fn allocate(
             )
         })?;
 
-    // Mutation: record the issued number
-    sqlx::query(
-        "INSERT INTO issued_numbers (tenant_id, entity, number_value, idempotency_key) \
-         VALUES ($1, $2, $3, $4)",
-    )
-    .bind(tenant_id)
-    .bind(&req.entity)
-    .bind(next_value)
-    .bind(&req.idempotency_key)
-    .execute(&mut *tx)
-    .await
-    .map_err(|e| {
-        tracing::error!("Numbering: failed to insert issued number: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "database_error".to_string(),
-                message: "Failed to record issued number".to_string(),
-            }),
-        )
-    })?;
+    let (issued_status, expires_at) = if alloc.gap_free {
+        let ttl = chrono::Duration::seconds(alloc.reservation_ttl_secs as i64);
+        let exp = chrono::Utc::now().naive_utc() + ttl;
+        ("reserved".to_string(), Some(exp))
+    } else {
+        ("confirmed".to_string(), None)
+    };
 
-    // Outbox: enqueue event
+    // ── Mutation: record the issued number ─────────────────────────────
+    // If this number is a recycled reservation, update the existing row
+    // instead of inserting a new one.
+    if alloc.recycled {
+        sqlx::query(
+            "UPDATE issued_numbers \
+             SET idempotency_key = $1, status = $2, expires_at = $3 \
+             WHERE tenant_id = $4 AND entity = $5 AND number_value = $6",
+        )
+        .bind(&req.idempotency_key)
+        .bind(&issued_status)
+        .bind(expires_at)
+        .bind(tenant_id)
+        .bind(&req.entity)
+        .bind(alloc.value)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!("Numbering: failed to recycle issued number: {}", e);
+            db_error("Failed to recycle issued number")
+        })?;
+    } else {
+        sqlx::query(
+            "INSERT INTO issued_numbers \
+             (tenant_id, entity, number_value, idempotency_key, status, expires_at) \
+             VALUES ($1, $2, $3, $4, $5, $6)",
+        )
+        .bind(tenant_id)
+        .bind(&req.entity)
+        .bind(alloc.value)
+        .bind(&req.idempotency_key)
+        .bind(&issued_status)
+        .bind(expires_at)
+        .execute(&mut *tx)
+        .await
+        .map_err(|e| {
+            tracing::error!("Numbering: failed to insert issued number: {}", e);
+            db_error("Failed to record issued number")
+        })?;
+    }
+
+    // ── Outbox: enqueue event ──────────────────────────────────────────
     let event_payload = NumberAllocatedPayload {
         tenant_id: tenant_id.to_string(),
         entity: req.entity.clone(),
-        number_value: next_value,
+        number_value: alloc.value,
         idempotency_key: req.idempotency_key.clone(),
+        status: issued_status.clone(),
     };
 
     let event_id = Uuid::new_v4();
@@ -194,25 +227,13 @@ pub async fn allocate(
     .await
     .map_err(|e| {
         tracing::error!("Numbering: failed to enqueue event: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "database_error".to_string(),
-                message: "Failed to enqueue allocation event".to_string(),
-            }),
-        )
+        db_error("Failed to enqueue allocation event")
     })?;
 
-    // Commit the atomic unit
+    // ── Commit the atomic unit ─────────────────────────────────────────
     tx.commit().await.map_err(|e| {
         tracing::error!("Numbering: failed to commit transaction: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse {
-                error: "database_error".to_string(),
-                message: "Failed to commit allocation".to_string(),
-            }),
-        )
+        db_error("Failed to commit allocation")
     })?;
 
     state
@@ -221,15 +242,16 @@ pub async fn allocate(
         .with_label_values(&[&req.entity])
         .inc();
 
-    // Formatting is a pure decoration applied *after* the atomic allocation.
-    // Reading the policy here keeps the lock window minimal.
-    let formatted = format_if_policy(&state.pool, tenant_id, &req.entity, next_value).await;
+    let formatted =
+        format_if_policy(&state.pool, tenant_id, &req.entity, alloc.value).await;
 
     tracing::info!(
         tenant_id = %tenant_id,
         entity = %req.entity,
-        number = next_value,
+        number = alloc.value,
         formatted = ?formatted,
+        status = %issued_status,
+        recycled = alloc.recycled,
         "Numbering: allocated"
     );
 
@@ -238,22 +260,52 @@ pub async fn allocate(
         Json(AllocateResponse {
             tenant_id: tenant_id.to_string(),
             entity: req.entity,
-            number_value: next_value,
+            number_value: alloc.value,
             formatted_number: formatted,
             idempotency_key: req.idempotency_key,
             replay: false,
+            status: issued_status,
+            expires_at: expires_at.map(|t| t.and_utc().to_rfc3339()),
         }),
     ))
 }
 
+// ── Internal types ─────────────────────────────────────────────────────
+
 #[derive(Debug, sqlx::FromRow)]
-struct IssuedRow {
+struct IssuedRowFull {
     number_value: i64,
+    status: String,
+    expires_at: Option<chrono::NaiveDateTime>,
 }
 
 #[derive(Debug, sqlx::FromRow)]
 struct SequenceRow {
     current_value: i64,
+    gap_free: bool,
+    reservation_ttl_secs: i32,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct RecyclableRow {
+    number_value: i64,
+}
+
+struct Allocation {
+    value: i64,
+    gap_free: bool,
+    reservation_ttl_secs: i32,
+    recycled: bool,
+}
+
+fn db_error(msg: &str) -> (StatusCode, Json<ErrorResponse>) {
+    (
+        StatusCode::INTERNAL_SERVER_ERROR,
+        Json(ErrorResponse {
+            error: "database_error".to_string(),
+            message: msg.to_string(),
+        }),
+    )
 }
 
 /// Look up a formatting policy and apply it. Returns None if no policy exists.
@@ -289,30 +341,113 @@ async fn format_if_policy(
     }
 }
 
-/// Atomically allocate the next value for a tenant+entity sequence.
+/// Allocate the next value for a tenant+entity sequence.
 ///
-/// Uses INSERT ... ON CONFLICT DO UPDATE to handle the race where multiple
-/// concurrent transactions try to create the initial sequence row simultaneously.
-/// The ON CONFLICT clause serialises via the row lock that the UPSERT acquires.
+/// For **standard** sequences: uses INSERT ON CONFLICT DO UPDATE to atomically
+/// advance the counter.
+///
+/// For **gap-free** sequences: first checks for recyclable expired reservations.
+/// If one is found, reuses that number.  Otherwise advances the counter.
+///
+/// The `gap_free_requested` flag is only used when *creating* a new sequence.
+/// Existing sequences always follow their stored `gap_free` setting.
 async fn allocate_next_value(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     tenant_id: Uuid,
     entity: &str,
-) -> Result<i64, sqlx::Error> {
-    let row = sqlx::query_as::<_, SequenceRow>(
-        r#"
-        INSERT INTO sequences (tenant_id, entity, current_value)
-        VALUES ($1, $2, 1)
-        ON CONFLICT (tenant_id, entity)
-        DO UPDATE SET current_value = sequences.current_value + 1,
-                      updated_at = NOW()
-        RETURNING current_value
-        "#,
+    gap_free_requested: bool,
+) -> Result<Allocation, sqlx::Error> {
+    // Try to fetch + lock the existing sequence.
+    let existing_seq = sqlx::query_as::<_, SequenceRow>(
+        "SELECT current_value, gap_free, reservation_ttl_secs \
+         FROM sequences WHERE tenant_id = $1 AND entity = $2 FOR UPDATE",
     )
     .bind(tenant_id)
     .bind(entity)
-    .fetch_one(&mut **tx)
+    .fetch_optional(&mut **tx)
     .await?;
 
-    Ok(row.current_value)
+    match existing_seq {
+        Some(seq) => {
+            // ── Gap-free path: try to recycle an expired reservation ────
+            if seq.gap_free {
+                if let Some(recycled) = try_recycle(tx, tenant_id, entity).await? {
+                    return Ok(Allocation {
+                        value: recycled,
+                        gap_free: true,
+                        reservation_ttl_secs: seq.reservation_ttl_secs,
+                        recycled: true,
+                    });
+                }
+            }
+
+            // Advance counter
+            let row = sqlx::query_as::<_, CounterRow>(
+                "UPDATE sequences SET current_value = current_value + 1, updated_at = NOW() \
+                 WHERE tenant_id = $1 AND entity = $2 RETURNING current_value",
+            )
+            .bind(tenant_id)
+            .bind(entity)
+            .fetch_one(&mut **tx)
+            .await?;
+
+            Ok(Allocation {
+                value: row.current_value,
+                gap_free: seq.gap_free,
+                reservation_ttl_secs: seq.reservation_ttl_secs,
+                recycled: false,
+            })
+        }
+        None => {
+            // First allocation — create the sequence row.
+            let row = sqlx::query_as::<_, SequenceRow>(
+                "INSERT INTO sequences (tenant_id, entity, current_value, gap_free) \
+                 VALUES ($1, $2, 1, $3) \
+                 ON CONFLICT (tenant_id, entity) \
+                 DO UPDATE SET current_value = sequences.current_value + 1, updated_at = NOW() \
+                 RETURNING current_value, gap_free, reservation_ttl_secs",
+            )
+            .bind(tenant_id)
+            .bind(entity)
+            .bind(gap_free_requested)
+            .fetch_one(&mut **tx)
+            .await?;
+
+            Ok(Allocation {
+                value: row.current_value,
+                gap_free: row.gap_free,
+                reservation_ttl_secs: row.reservation_ttl_secs,
+                recycled: false,
+            })
+        }
+    }
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct CounterRow {
+    current_value: i64,
+}
+
+/// Find and lock the smallest expired reservation for recycling.
+///
+/// Uses `FOR UPDATE SKIP LOCKED` so concurrent recyclers never fight over
+/// the same row.
+async fn try_recycle(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    tenant_id: Uuid,
+    entity: &str,
+) -> Result<Option<i64>, sqlx::Error> {
+    let row = sqlx::query_as::<_, RecyclableRow>(
+        "SELECT number_value FROM issued_numbers \
+         WHERE tenant_id = $1 AND entity = $2 \
+           AND status = 'reserved' AND expires_at < NOW() \
+         ORDER BY number_value ASC LIMIT 1 \
+         FOR UPDATE SKIP LOCKED",
+    )
+    .bind(tenant_id)
+    .bind(entity)
+    .fetch_optional(&mut **tx)
+    .await?;
+
+    Ok(row.map(|r| r.number_value))
 }

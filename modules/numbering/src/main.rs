@@ -97,6 +97,7 @@ async fn main() {
         .merge(
             Router::new()
                 .route("/allocate", post(http::allocate::allocate))
+                .route("/confirm", post(http::confirm::confirm))
                 .route_layer(RequirePermissionsLayer::new(&[
                     permissions::NUMBERING_ALLOCATE,
                 ])),
