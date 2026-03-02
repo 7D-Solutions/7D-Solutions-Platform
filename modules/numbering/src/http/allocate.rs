@@ -132,7 +132,7 @@ pub async fn allocate(
                 idempotency_key: req.idempotency_key,
                 replay: true,
                 status: row.status,
-                expires_at: row.expires_at.map(|t| t.and_utc().to_rfc3339()),
+                expires_at: row.expires_at.map(|t| t.to_rfc3339()),
             }),
         ));
     }
@@ -159,7 +159,7 @@ pub async fn allocate(
 
     let (issued_status, expires_at) = if alloc.gap_free {
         let ttl = chrono::Duration::seconds(alloc.reservation_ttl_secs as i64);
-        let exp = chrono::Utc::now().naive_utc() + ttl;
+        let exp = chrono::Utc::now() + ttl;
         ("reserved".to_string(), Some(exp))
     } else {
         ("confirmed".to_string(), None)
@@ -265,7 +265,7 @@ pub async fn allocate(
             idempotency_key: req.idempotency_key,
             replay: false,
             status: issued_status,
-            expires_at: expires_at.map(|t| t.and_utc().to_rfc3339()),
+            expires_at: expires_at.map(|t| t.to_rfc3339()),
         }),
     ))
 }
@@ -276,7 +276,7 @@ pub async fn allocate(
 struct IssuedRowFull {
     number_value: i64,
     status: String,
-    expires_at: Option<chrono::NaiveDateTime>,
+    expires_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 #[derive(Debug, sqlx::FromRow)]

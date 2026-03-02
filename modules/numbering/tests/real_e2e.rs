@@ -785,7 +785,7 @@ async fn upsert_policy(
 struct GapFreeAllocation {
     number_value: i64,
     status: String,
-    expires_at: Option<chrono::NaiveDateTime>,
+    expires_at: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 async fn allocate_gap_free(
@@ -795,7 +795,7 @@ async fn allocate_gap_free(
     idem_key: &str,
 ) -> GapFreeAllocation {
     // Idempotency check
-    let existing: Option<(i64, String, Option<chrono::NaiveDateTime>)> = sqlx::query_as(
+    let existing: Option<(i64, String, Option<chrono::DateTime<chrono::Utc>>)> = sqlx::query_as(
         "SELECT number_value, status, expires_at \
          FROM issued_numbers WHERE tenant_id = $1 AND idempotency_key = $2",
     )
@@ -877,7 +877,7 @@ async fn allocate_gap_free(
     };
 
     let expires_at =
-        chrono::Utc::now().naive_utc() + chrono::Duration::seconds(ttl_secs as i64);
+        chrono::Utc::now() + chrono::Duration::seconds(ttl_secs as i64);
 
     if recycled {
         sqlx::query(
