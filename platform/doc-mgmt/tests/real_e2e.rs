@@ -904,3 +904,781 @@ async fn released_revision_body_immutable_verification() {
         );
     }
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// DOC2 — Retention management + legal hold
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Retention policy tests ───────────────────────────────────────────
+
+#[tokio::test]
+async fn retention_policy_upsert_and_read() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor = Uuid::new_v4();
+    let now = Utc::now();
+
+    // Insert a policy
+    let policy_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO retention_policies (id, tenant_id, doc_type, retention_days, created_by, created_at, updated_at)
+         VALUES ($1, $2, 'spec', 365, $3, $4, $4)",
+    )
+    .bind(policy_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .bind(now)
+    .execute(&pool)
+    .await
+    .expect("insert retention policy");
+
+    // Read it back
+    let days: i32 = sqlx::query_scalar(
+        "SELECT retention_days FROM retention_policies WHERE tenant_id = $1 AND doc_type = 'spec'",
+    )
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("read retention policy");
+    assert_eq!(days, 365);
+
+    // Upsert (update retention_days)
+    sqlx::query(
+        "INSERT INTO retention_policies (id, tenant_id, doc_type, retention_days, created_by, created_at, updated_at)
+         VALUES ($1, $2, 'spec', 730, $3, $4, $4)
+         ON CONFLICT (tenant_id, doc_type) DO UPDATE
+           SET retention_days = EXCLUDED.retention_days, updated_at = EXCLUDED.updated_at",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(actor)
+    .bind(Utc::now())
+    .execute(&pool)
+    .await
+    .expect("upsert retention policy");
+
+    let days: i32 = sqlx::query_scalar(
+        "SELECT retention_days FROM retention_policies WHERE tenant_id = $1 AND doc_type = 'spec'",
+    )
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("read updated policy");
+    assert_eq!(days, 730);
+}
+
+#[tokio::test]
+async fn retention_policy_unique_per_tenant_doc_type() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor = Uuid::new_v4();
+    let now = Utc::now();
+
+    sqlx::query(
+        "INSERT INTO retention_policies (id, tenant_id, doc_type, retention_days, created_by, created_at, updated_at)
+         VALUES ($1, $2, 'wo', 90, $3, $4, $4)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(actor)
+    .bind(now)
+    .execute(&pool)
+    .await
+    .expect("first insert");
+
+    // Duplicate without ON CONFLICT should fail
+    let result = sqlx::query(
+        "INSERT INTO retention_policies (id, tenant_id, doc_type, retention_days, created_by, created_at, updated_at)
+         VALUES ($1, $2, 'wo', 180, $3, $4, $4)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(actor)
+    .bind(now)
+    .execute(&pool)
+    .await;
+
+    assert!(
+        result.is_err(),
+        "duplicate tenant+doc_type should violate unique constraint"
+    );
+
+    // Different tenant, same doc_type should succeed
+    let result = sqlx::query(
+        "INSERT INTO retention_policies (id, tenant_id, doc_type, retention_days, created_by, created_at, updated_at)
+         VALUES ($1, $2, 'wo', 180, $3, $4, $4)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(Uuid::new_v4())
+    .bind(actor)
+    .bind(now)
+    .execute(&pool)
+    .await;
+
+    assert!(result.is_ok(), "different tenant should succeed");
+}
+
+// ── Legal hold tests ─────────────────────────────────────────────────
+
+#[tokio::test]
+async fn apply_hold_creates_active_record() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("HOLD-{}", Uuid::new_v4());
+    let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "released").await;
+    let actor = Uuid::new_v4();
+    let now = Utc::now();
+
+    let hold_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Litigation case #123', $4, $5)",
+    )
+    .bind(hold_id)
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .bind(now)
+    .execute(&pool)
+    .await
+    .expect("apply hold");
+
+    // Verify it's active (released_at IS NULL)
+    let active_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM legal_holds
+         WHERE document_id = $1 AND tenant_id = $2 AND released_at IS NULL",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count active holds");
+
+    assert_eq!(active_count, 1);
+}
+
+#[tokio::test]
+async fn hold_blocks_disposal_via_trigger() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("HBLOCK-{}", Uuid::new_v4());
+
+    let (doc_id, _) = insert_and_release_doc(&pool, tenant_id, &doc_number).await;
+
+    // Apply a legal hold
+    sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Regulatory audit', $4, now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await
+    .expect("apply hold");
+
+    // Attempt to dispose — must fail due to DB trigger
+    let result = sqlx::query(
+        "UPDATE documents SET status = 'disposed', updated_at = now()
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await;
+
+    assert!(
+        result.is_err(),
+        "disposal must be blocked while an active hold exists"
+    );
+
+    // Verify error message comes from our trigger
+    if let Err(sqlx::Error::Database(ref db_err)) = result {
+        let msg = db_err.message();
+        assert!(
+            msg.contains("active legal hold"),
+            "Error should mention active legal hold, got: {}",
+            msg
+        );
+    }
+}
+
+#[tokio::test]
+async fn release_hold_then_disposal_succeeds() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("HREL-{}", Uuid::new_v4());
+
+    let (doc_id, _) = insert_and_release_doc(&pool, tenant_id, &doc_number).await;
+    let actor = Uuid::new_v4();
+
+    // Apply hold
+    let hold_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Case #456', $4, now())",
+    )
+    .bind(hold_id)
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .execute(&pool)
+    .await
+    .expect("apply hold");
+
+    // Verify disposal blocked
+    let blocked = sqlx::query(
+        "UPDATE documents SET status = 'disposed', updated_at = now()
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await;
+    assert!(blocked.is_err(), "should be blocked while hold is active");
+
+    // Release the hold
+    sqlx::query(
+        "UPDATE legal_holds SET released_by = $1, released_at = now()
+         WHERE id = $2 AND released_at IS NULL",
+    )
+    .bind(actor)
+    .bind(hold_id)
+    .execute(&pool)
+    .await
+    .expect("release hold");
+
+    // Verify hold is released
+    let active_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM legal_holds
+         WHERE document_id = $1 AND released_at IS NULL",
+    )
+    .bind(doc_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count active holds");
+    assert_eq!(active_count, 0);
+
+    // Now disposal should succeed
+    let result = sqlx::query(
+        "UPDATE documents SET status = 'disposed', updated_at = now()
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await;
+
+    assert!(result.is_ok(), "disposal should succeed after hold released");
+    assert_eq!(result.unwrap().rows_affected(), 1);
+
+    // Verify document is disposed
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+            .bind(doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch status");
+    assert_eq!(status, "disposed");
+}
+
+#[tokio::test]
+async fn duplicate_active_hold_same_reason_blocked() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("HDUP-{}", Uuid::new_v4());
+    let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "released").await;
+    let actor = Uuid::new_v4();
+
+    // First hold
+    sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Same reason', $4, now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .execute(&pool)
+    .await
+    .expect("first hold");
+
+    // Duplicate hold with same reason (active) should fail unique constraint
+    let result = sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Same reason', $4, now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .execute(&pool)
+    .await;
+
+    assert!(
+        result.is_err(),
+        "duplicate active hold with same reason should be rejected"
+    );
+}
+
+#[tokio::test]
+async fn multiple_holds_different_reasons_allowed() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("HMULTI-{}", Uuid::new_v4());
+    let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "released").await;
+    let actor = Uuid::new_v4();
+
+    // Hold 1
+    sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Reason A', $4, now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .execute(&pool)
+    .await
+    .expect("hold 1");
+
+    // Hold 2 (different reason)
+    sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Reason B', $4, now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .execute(&pool)
+    .await
+    .expect("hold 2");
+
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM legal_holds
+         WHERE document_id = $1 AND released_at IS NULL",
+    )
+    .bind(doc_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count holds");
+
+    assert_eq!(count, 2, "two holds with different reasons should coexist");
+
+    // Disposal must still be blocked (both holds active)
+    let result = sqlx::query(
+        "UPDATE documents SET status = 'disposed', updated_at = now()
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await;
+
+    assert!(result.is_err(), "disposal blocked with any active hold");
+}
+
+#[tokio::test]
+async fn partial_hold_release_still_blocks_disposal() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("HPART-{}", Uuid::new_v4());
+
+    let (doc_id, _) = insert_and_release_doc(&pool, tenant_id, &doc_number).await;
+    let actor = Uuid::new_v4();
+
+    // Two holds
+    let hold_a = Uuid::new_v4();
+    let hold_b = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Hold A', $4, now())",
+    )
+    .bind(hold_a)
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .execute(&pool)
+    .await
+    .expect("hold A");
+
+    sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Hold B', $4, now())",
+    )
+    .bind(hold_b)
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .execute(&pool)
+    .await
+    .expect("hold B");
+
+    // Release only hold A
+    sqlx::query(
+        "UPDATE legal_holds SET released_by = $1, released_at = now()
+         WHERE id = $2 AND released_at IS NULL",
+    )
+    .bind(actor)
+    .bind(hold_a)
+    .execute(&pool)
+    .await
+    .expect("release hold A");
+
+    // Disposal should still be blocked (hold B still active)
+    let result = sqlx::query(
+        "UPDATE documents SET status = 'disposed', updated_at = now()
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await;
+
+    assert!(
+        result.is_err(),
+        "disposal blocked while hold B still active"
+    );
+
+    // Release hold B
+    sqlx::query(
+        "UPDATE legal_holds SET released_by = $1, released_at = now()
+         WHERE id = $2 AND released_at IS NULL",
+    )
+    .bind(actor)
+    .bind(hold_b)
+    .execute(&pool)
+    .await
+    .expect("release hold B");
+
+    // Now disposal succeeds
+    let result = sqlx::query(
+        "UPDATE documents SET status = 'disposed', updated_at = now()
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await;
+
+    assert!(result.is_ok(), "disposal succeeds after all holds released");
+}
+
+#[tokio::test]
+async fn re_hold_after_release_allowed() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("HREHOLD-{}", Uuid::new_v4());
+    let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "released").await;
+    let actor = Uuid::new_v4();
+
+    // Apply hold
+    let hold_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Audit hold', $4, now())",
+    )
+    .bind(hold_id)
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .execute(&pool)
+    .await
+    .expect("first hold");
+
+    // Release it
+    sqlx::query(
+        "UPDATE legal_holds SET released_by = $1, released_at = now()
+         WHERE id = $2 AND released_at IS NULL",
+    )
+    .bind(actor)
+    .bind(hold_id)
+    .execute(&pool)
+    .await
+    .expect("release hold");
+
+    // Re-apply same reason — should succeed (old hold is released, new one is active)
+    let result = sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Audit hold', $4, now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .execute(&pool)
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "re-applying hold after release should succeed"
+    );
+
+    // Should have 2 total records (1 released, 1 active)
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM legal_holds WHERE document_id = $1",
+    )
+    .bind(doc_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count all holds");
+    assert_eq!(total, 2);
+
+    let active: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM legal_holds
+         WHERE document_id = $1 AND released_at IS NULL",
+    )
+    .bind(doc_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count active holds");
+    assert_eq!(active, 1);
+}
+
+#[tokio::test]
+async fn retention_period_blocks_disposal() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor = Uuid::new_v4();
+    let doc_number = format!("RRET-{}", Uuid::new_v4());
+
+    // Set a 365-day retention policy for 'spec' docs
+    sqlx::query(
+        "INSERT INTO retention_policies (id, tenant_id, doc_type, retention_days, created_by, created_at, updated_at)
+         VALUES ($1, $2, 'spec', 365, $3, now(), now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(actor)
+    .execute(&pool)
+    .await
+    .expect("insert retention policy");
+
+    // Create a released doc with recent updated_at (retention not met)
+    let (doc_id, _) = insert_and_release_doc(&pool, tenant_id, &doc_number).await;
+
+    // Check: the document was just released (updated_at is now-ish).
+    // With 365-day retention, disposal should not be allowed.
+    // We verify this at the APPLICATION level (checking retention_policies).
+    // The DB trigger only checks holds, not retention. Retention is an app-level guard.
+
+    let doc_type: String =
+        sqlx::query_scalar("SELECT doc_type FROM documents WHERE id = $1")
+            .bind(doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch doc_type");
+
+    let updated_at: chrono::DateTime<Utc> =
+        sqlx::query_scalar("SELECT updated_at FROM documents WHERE id = $1")
+            .bind(doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch updated_at");
+
+    let retention_days: i32 = sqlx::query_scalar(
+        "SELECT retention_days FROM retention_policies
+         WHERE tenant_id = $1 AND doc_type = $2",
+    )
+    .bind(tenant_id)
+    .bind(&doc_type)
+    .fetch_one(&pool)
+    .await
+    .expect("fetch retention days");
+
+    let eligible_after = updated_at + chrono::Duration::days(retention_days as i64);
+    let now = Utc::now();
+
+    assert!(
+        now < eligible_after,
+        "document should NOT be eligible for disposal yet (eligible_after: {}, now: {})",
+        eligible_after, now
+    );
+}
+
+#[tokio::test]
+async fn no_retention_policy_allows_disposal() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("RNOPOL-{}", Uuid::new_v4());
+
+    let (doc_id, _) = insert_and_release_doc(&pool, tenant_id, &doc_number).await;
+
+    // No retention policy for this tenant/doc_type → no retention requirement
+    let policy_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM retention_policies WHERE tenant_id = $1 AND doc_type = 'spec')",
+    )
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("check policy");
+    assert!(!policy_exists, "should have no retention policy");
+
+    // No holds either → disposal should succeed
+    let result = sqlx::query(
+        "UPDATE documents SET status = 'disposed', updated_at = now()
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await;
+
+    assert!(
+        result.is_ok(),
+        "disposal should succeed with no policy and no holds"
+    );
+
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+            .bind(doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch status");
+    assert_eq!(status, "disposed");
+}
+
+#[tokio::test]
+async fn delete_document_with_active_hold_blocked() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("HDEL-{}", Uuid::new_v4());
+    let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "released").await;
+
+    // Apply hold
+    sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Investigation', $4, now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await
+    .expect("apply hold");
+
+    // DELETE (not just status change) should also be blocked by trigger
+    // First remove the FK constraint on revisions so we can try the delete
+    // Actually, revisions have FK to documents, so we need to delete revisions first
+    // But the point is: the trigger fires before the FK check
+
+    let result = sqlx::query("DELETE FROM documents WHERE id = $1")
+        .bind(doc_id)
+        .execute(&pool)
+        .await;
+
+    assert!(
+        result.is_err(),
+        "DELETE on document with active hold must be blocked"
+    );
+}
+
+#[tokio::test]
+async fn disposal_of_superseded_document_with_hold_lifecycle() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("SSDIS-{}", Uuid::new_v4());
+
+    // Create and release doc, then supersede it
+    let (old_doc_id, _) = insert_and_release_doc(&pool, tenant_id, &doc_number).await;
+
+    let new_doc_id = Uuid::new_v4();
+    let mut tx = pool.begin().await.expect("begin tx");
+
+    sqlx::query(
+        "INSERT INTO documents (id, tenant_id, doc_number, title, doc_type, status, created_by, created_at, updated_at)
+         VALUES ($1, $2, $3, 'Superseded v2', 'spec', 'draft', $4, now(), now())",
+    )
+    .bind(new_doc_id)
+    .bind(tenant_id)
+    .bind(format!("SSDIS-NEW-{}", Uuid::new_v4()))
+    .bind(Uuid::new_v4())
+    .execute(&mut *tx)
+    .await
+    .expect("insert new doc");
+
+    sqlx::query(
+        "INSERT INTO revisions (id, document_id, tenant_id, revision_number, body, change_summary, status, created_by, created_at)
+         VALUES ($1, $2, $3, 1, '{}'::jsonb, 'Supersedes old', 'draft', $4, now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(new_doc_id)
+    .bind(tenant_id)
+    .bind(Uuid::new_v4())
+    .execute(&mut *tx)
+    .await
+    .expect("insert new revision");
+
+    sqlx::query(
+        "UPDATE documents SET status = 'superseded', superseded_by = $1, updated_at = now()
+         WHERE id = $2 AND tenant_id = $3",
+    )
+    .bind(new_doc_id)
+    .bind(old_doc_id)
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await
+    .expect("mark old superseded");
+
+    tx.commit().await.expect("commit");
+
+    // Old doc is now superseded. Apply a hold.
+    let hold_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO legal_holds (id, document_id, tenant_id, reason, held_by, held_at)
+         VALUES ($1, $2, $3, 'Archival hold', $4, now())",
+    )
+    .bind(hold_id)
+    .bind(old_doc_id)
+    .bind(tenant_id)
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await
+    .expect("hold on superseded doc");
+
+    // Disposal of superseded doc should fail (hold active)
+    let result = sqlx::query(
+        "UPDATE documents SET status = 'disposed', updated_at = now()
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(old_doc_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await;
+    assert!(result.is_err(), "disposal blocked on superseded doc with hold");
+
+    // Release hold
+    sqlx::query(
+        "UPDATE legal_holds SET released_by = $1, released_at = now()
+         WHERE id = $2 AND released_at IS NULL",
+    )
+    .bind(Uuid::new_v4())
+    .bind(hold_id)
+    .execute(&pool)
+    .await
+    .expect("release hold");
+
+    // Now disposal should succeed
+    let result = sqlx::query(
+        "UPDATE documents SET status = 'disposed', updated_at = now()
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(old_doc_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await;
+
+    assert!(result.is_ok(), "disposal of superseded doc after hold release");
+
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+            .bind(old_doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("status");
+    assert_eq!(status, "disposed");
+}

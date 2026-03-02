@@ -85,3 +85,66 @@ pub struct SupersedeRequest {
     pub new_title: Option<String>,
     pub change_summary: Option<String>,
 }
+
+// ── Retention + legal hold models ───────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct RetentionPolicy {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub doc_type: String,
+    pub retention_days: i32,
+    pub created_by: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct LegalHold {
+    pub id: Uuid,
+    pub document_id: Uuid,
+    pub tenant_id: Uuid,
+    pub reason: String,
+    pub held_by: Uuid,
+    pub held_at: DateTime<Utc>,
+    pub released_by: Option<Uuid>,
+    pub released_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SetRetentionPolicyRequest {
+    pub doc_type: String,
+    pub retention_days: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApplyHoldRequest {
+    pub reason: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReleaseHoldRequest {
+    pub reason: String,
+}
+
+// ── Retention + hold event payloads ─────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentDisposedPayload {
+    pub document_id: Uuid,
+    pub doc_number: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegalHoldAppliedPayload {
+    pub document_id: Uuid,
+    pub hold_id: Uuid,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LegalHoldReleasedPayload {
+    pub document_id: Uuid,
+    pub hold_id: Uuid,
+    pub reason: String,
+}

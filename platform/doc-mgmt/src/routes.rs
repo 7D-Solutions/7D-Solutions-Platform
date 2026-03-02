@@ -8,6 +8,7 @@ use crate::handlers::AppState;
 
 pub fn api_router(state: Arc<AppState>) -> Router {
     Router::new()
+        // Document lifecycle
         .route("/api/documents", post(crate::handlers::create_document))
         .route("/api/documents", get(crate::handlers::list_documents))
         .route("/api/documents/{id}", get(crate::handlers::get_document))
@@ -22,6 +23,33 @@ pub fn api_router(state: Arc<AppState>) -> Router {
         .route(
             "/api/documents/{id}/revisions",
             post(crate::handlers::create_revision),
+        )
+        // Retention policies
+        .route(
+            "/api/retention-policies",
+            post(crate::retention::set_retention_policy),
+        )
+        .route(
+            "/api/retention-policies/{doc_type}",
+            get(crate::retention::get_retention_policy),
+        )
+        // Legal holds
+        .route(
+            "/api/documents/{id}/holds",
+            get(crate::retention::list_holds),
+        )
+        .route(
+            "/api/documents/{id}/holds/apply",
+            post(crate::retention::apply_hold),
+        )
+        .route(
+            "/api/documents/{id}/holds/release",
+            post(crate::retention::release_hold),
+        )
+        // Disposal
+        .route(
+            "/api/documents/{id}/dispose",
+            post(crate::retention::dispose_document),
         )
         .with_state(state)
 }

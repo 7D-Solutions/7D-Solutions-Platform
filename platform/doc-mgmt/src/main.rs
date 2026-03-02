@@ -10,6 +10,7 @@ mod db;
 mod handlers;
 mod models;
 mod outbox_relay;
+mod retention;
 mod routes;
 
 #[tokio::main]

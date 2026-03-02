@@ -16,7 +16,7 @@ pub struct AppState {
     pub db: PgPool,
 }
 
-fn extract_idem_key(headers: &HeaderMap) -> Option<String> {
+pub fn extract_idem_key(headers: &HeaderMap) -> Option<String> {
     headers
         .get("idempotency-key")
         .and_then(|v| v.to_str().ok())
@@ -959,12 +959,12 @@ pub async fn create_revision(
 // ── Idempotency helpers ──────────────────────────────────────────────
 
 #[derive(sqlx::FromRow)]
-struct CachedResponse {
-    response_body: serde_json::Value,
-    status_code: i32,
+pub struct CachedResponse {
+    pub response_body: serde_json::Value,
+    pub status_code: i32,
 }
 
-async fn check_idempotency(
+pub async fn check_idempotency(
     pool: &PgPool,
     app_id: &str,
     key: &str,
@@ -979,7 +979,7 @@ async fn check_idempotency(
     .await
 }
 
-async fn store_idempotency(
+pub async fn store_idempotency(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     app_id: &str,
     key: &str,
@@ -1002,7 +1002,7 @@ async fn store_idempotency(
 }
 
 /// EventEnvelope validation expects "User"/"Service"/"System" (capitalized).
-fn capitalize_actor_type(at: security::claims::ActorType) -> String {
+pub fn capitalize_actor_type(at: security::claims::ActorType) -> String {
     match at {
         security::claims::ActorType::User => "User".to_string(),
         security::claims::ActorType::Service => "Service".to_string(),
@@ -1010,7 +1010,7 @@ fn capitalize_actor_type(at: security::claims::ActorType) -> String {
     }
 }
 
-fn is_unique_violation(e: &sqlx::Error) -> bool {
+pub fn is_unique_violation(e: &sqlx::Error) -> bool {
     if let sqlx::Error::Database(ref db_err) = e {
         return db_err.code().as_deref() == Some("23505");
     }
