@@ -244,6 +244,167 @@ async fn test_allocate_creates_outbox_event() {
 }
 
 // ============================================================================
+// 8. Policy upsert: create and update a numbering policy
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_policy_upsert_create_and_update() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    // Insert new policy
+    let row = upsert_policy(&pool, tid, "quote", "QUO-{YYYY}-{number}", "QUO", 5).await;
+    assert_eq!(row.pattern, "QUO-{YYYY}-{number}");
+    assert_eq!(row.prefix, "QUO");
+    assert_eq!(row.padding, 5);
+    assert_eq!(row.version, 1);
+
+    // Update same policy — version should bump
+    let row2 = upsert_policy(&pool, tid, "quote", "Q-{YY}{MM}-{number}", "Q", 4).await;
+    assert_eq!(row2.pattern, "Q-{YY}{MM}-{number}");
+    assert_eq!(row2.prefix, "Q");
+    assert_eq!(row2.padding, 4);
+    assert_eq!(row2.version, 2, "Version must increment on update");
+}
+
+// ============================================================================
+// 9. Policy read: fetch an existing policy
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_policy_read() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    // No policy yet
+    let missing = numbering::policy::get_policy(&pool, tid, "invoice").await
+        .expect("query should succeed");
+    assert!(missing.is_none(), "No policy should exist yet");
+
+    // Create one
+    upsert_policy(&pool, tid, "invoice", "INV-{number}", "INV", 6).await;
+
+    // Read it back
+    let found = numbering::policy::get_policy(&pool, tid, "invoice").await
+        .expect("query should succeed")
+        .expect("policy should exist");
+    assert_eq!(found.pattern, "INV-{number}");
+    assert_eq!(found.prefix, "INV");
+    assert_eq!(found.padding, 6);
+}
+
+// ============================================================================
+// 10. Policy tenant isolation: different tenants have independent policies
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_policy_tenant_isolation() {
+    let pool = setup_db().await;
+    let t1 = unique_tenant();
+    let t2 = unique_tenant();
+
+    upsert_policy(&pool, t1, "quote", "A-{number}", "A", 3).await;
+    upsert_policy(&pool, t2, "quote", "B-{number}", "B", 5).await;
+
+    let p1 = numbering::policy::get_policy(&pool, t1, "quote").await
+        .expect("query ok").expect("policy exists");
+    let p2 = numbering::policy::get_policy(&pool, t2, "quote").await
+        .expect("query ok").expect("policy exists");
+
+    assert_eq!(p1.prefix, "A");
+    assert_eq!(p2.prefix, "B");
+}
+
+// ============================================================================
+// 11. Policy outbox event: upsert creates an outbox event
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_policy_upsert_creates_outbox_event() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    upsert_policy(&pool, tid, "receipt", "{prefix}-{number}", "REC", 4).await;
+
+    let row: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM events_outbox \
+         WHERE event_type = 'numbering.events.policy.updated' \
+         AND aggregate_id = $1",
+    )
+    .bind(format!("{}:receipt", tid))
+    .fetch_one(&pool)
+    .await
+    .expect("outbox query failed");
+
+    assert!(row.0 >= 1, "Policy upsert should create an outbox event");
+}
+
+// ============================================================================
+// 12. Formatting integration: allocate after policy returns formatted number
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_allocate_with_policy_returns_formatted() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    // Set up a policy
+    upsert_policy(&pool, tid, "wo", "WO-{number}", "WO", 5).await;
+
+    // Allocate a number
+    let num = allocate(&pool, tid, "wo", &format!("numbering:allocate:{}:fmt-1", tid)).await;
+    assert_eq!(num, 1);
+
+    // Verify formatting via the library directly
+    let policy_row = numbering::policy::get_policy(&pool, tid, "wo").await
+        .expect("query ok").expect("policy exists");
+
+    let fp = numbering::format::FormatPolicy {
+        pattern: policy_row.pattern,
+        prefix: policy_row.prefix,
+        padding: policy_row.padding as u32,
+    };
+    let today = chrono::Utc::now().date_naive();
+    let formatted = numbering::format::format_number(&fp, num, today);
+    assert_eq!(formatted, "WO-00001");
+}
+
+// ============================================================================
+// 13. Formatting does not affect allocation: changing policy doesn't affect
+//     the raw number sequence
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_policy_change_does_not_affect_allocation() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    // Allocate before any policy
+    let n1 = allocate(&pool, tid, "po", &format!("numbering:allocate:{}:pol-1", tid)).await;
+    assert_eq!(n1, 1);
+
+    // Set a policy
+    upsert_policy(&pool, tid, "po", "PO-{YYYY}-{number}", "PO", 4).await;
+
+    // Allocate again — raw number continues from where it left off
+    let n2 = allocate(&pool, tid, "po", &format!("numbering:allocate:{}:pol-2", tid)).await;
+    assert_eq!(n2, 2, "Allocation sequence must not reset when policy changes");
+
+    // Change the policy
+    upsert_policy(&pool, tid, "po", "X-{number}", "X", 6).await;
+
+    // Allocate again — raw number still continues
+    let n3 = allocate(&pool, tid, "po", &format!("numbering:allocate:{}:pol-3", tid)).await;
+    assert_eq!(n3, 3, "Allocation sequence must not reset when policy changes again");
+}
+
+// ============================================================================
 // Helper: allocate using direct SQL (same logic as the handler)
 // ============================================================================
 
@@ -319,4 +480,51 @@ async fn allocate(pool: &sqlx::PgPool, tenant_id: Uuid, entity: &str, idem_key: 
     tx.commit().await.expect("commit failed");
 
     next_value
+}
+
+// ============================================================================
+// Helper: upsert a policy using direct SQL via the policy repo
+// ============================================================================
+
+async fn upsert_policy(
+    pool: &sqlx::PgPool,
+    tenant_id: Uuid,
+    entity: &str,
+    pattern: &str,
+    prefix: &str,
+    padding: i32,
+) -> numbering::policy::PolicyRow {
+    let mut tx = pool.begin().await.expect("begin tx failed");
+
+    let row = numbering::policy::upsert_policy_tx(&mut tx, tenant_id, entity, pattern, prefix, padding)
+        .await
+        .expect("upsert_policy_tx failed");
+
+    // Also enqueue outbox event (like the handler does)
+    let event_id = Uuid::new_v4();
+    let payload = serde_json::json!({
+        "tenant_id": tenant_id.to_string(),
+        "entity": entity,
+        "pattern": pattern,
+        "prefix": prefix,
+        "padding": padding,
+        "version": row.version,
+    });
+
+    sqlx::query(
+        "INSERT INTO events_outbox (event_id, event_type, aggregate_type, aggregate_id, payload) \
+         VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(event_id)
+    .bind("numbering.events.policy.updated")
+    .bind("policy")
+    .bind(format!("{}:{}", tenant_id, entity))
+    .bind(payload)
+    .execute(&mut *tx)
+    .await
+    .expect("outbox insert failed");
+
+    tx.commit().await.expect("commit failed");
+
+    row
 }
