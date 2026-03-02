@@ -28,7 +28,7 @@ async fn ensure_test_customer(pool: &PgPool) {
     if !exists {
         sqlx::query(
             "INSERT INTO ar_customers (app_id, email, name, created_at, updated_at)
-             VALUES ('app-test', 'test@example.com', 'Test Customer', $1, $2)"
+             VALUES ('app-test', 'test@example.com', 'Test Customer', $1, $2)",
         )
         .bind(Utc::now().naive_utc())
         .bind(Utc::now().naive_utc())
@@ -41,7 +41,7 @@ async fn ensure_test_customer(pool: &PgPool) {
 /// Test helper: Get test customer ID
 async fn get_test_customer_id(pool: &PgPool) -> i32 {
     sqlx::query_scalar(
-        "SELECT id FROM ar_customers WHERE app_id = 'app-test' AND email = 'test@example.com'"
+        "SELECT id FROM ar_customers WHERE app_id = 'app-test' AND email = 'test@example.com'",
     )
     .fetch_one(pool)
     .await
@@ -97,8 +97,7 @@ fn get_pool() -> PgPool {
     let database_url = std::env::var("DATABASE_URL_AR")
         .expect("DATABASE_URL_AR must be set for integration tests");
 
-    sqlx::PgPool::connect_lazy(&database_url)
-        .expect("Failed to create database pool")
+    sqlx::PgPool::connect_lazy(&database_url).expect("Failed to create database pool")
 }
 
 // ============================================================================
@@ -143,14 +142,16 @@ async fn test_transition_attempting_to_paid() {
     assert_eq!(new_status, status::PAID);
 
     // Verify paid_at is set
-    let paid_at: Option<chrono::NaiveDateTime> = sqlx::query_scalar(
-        "SELECT paid_at FROM ar_invoices WHERE id = $1"
-    )
-    .bind(invoice_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to fetch paid_at");
-    assert!(paid_at.is_some(), "paid_at should be set when transitioning to PAID");
+    let paid_at: Option<chrono::NaiveDateTime> =
+        sqlx::query_scalar("SELECT paid_at FROM ar_invoices WHERE id = $1")
+            .bind(invoice_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to fetch paid_at");
+    assert!(
+        paid_at.is_some(),
+        "paid_at should be set when transitioning to PAID"
+    );
 
     cleanup_test_data(&pool).await;
 }
@@ -231,7 +232,11 @@ async fn test_transition_open_to_paid_rejected() {
 
     // Verify status was NOT changed
     let status = get_invoice_status(&pool, invoice_id).await;
-    assert_eq!(status, status::OPEN, "Status should remain OPEN after rejected transition");
+    assert_eq!(
+        status,
+        status::OPEN,
+        "Status should remain OPEN after rejected transition"
+    );
 
     cleanup_test_data(&pool).await;
 }
@@ -306,7 +311,10 @@ async fn test_transition_invoice_not_found() {
             "Error should indicate invoice not found"
         );
     } else {
-        panic!("Expected TransitionError::InvoiceNotFound, got: {:?}", result);
+        panic!(
+            "Expected TransitionError::InvoiceNotFound, got: {:?}",
+            result
+        );
     }
 
     cleanup_test_data(&pool).await;
@@ -335,15 +343,25 @@ async fn test_guard_has_zero_side_effects_on_rejection() {
     // 2. paid_at still NULL
     // 3. updated_at unchanged (within 1 second tolerance)
 
-    let (status, paid_at, updated_at): (String, Option<chrono::NaiveDateTime>, chrono::NaiveDateTime) =
-        sqlx::query_as("SELECT status, paid_at, updated_at FROM ar_invoices WHERE id = $1")
-            .bind(invoice_id)
-            .fetch_one(&pool)
-            .await
-            .expect("Failed to fetch invoice");
+    let (status, paid_at, updated_at): (
+        String,
+        Option<chrono::NaiveDateTime>,
+        chrono::NaiveDateTime,
+    ) = sqlx::query_as("SELECT status, paid_at, updated_at FROM ar_invoices WHERE id = $1")
+        .bind(invoice_id)
+        .fetch_one(&pool)
+        .await
+        .expect("Failed to fetch invoice");
 
-    assert_eq!(status, status::OPEN, "Status should not change on rejected transition");
-    assert!(paid_at.is_none(), "paid_at should remain NULL on rejected transition");
+    assert_eq!(
+        status,
+        status::OPEN,
+        "Status should not change on rejected transition"
+    );
+    assert!(
+        paid_at.is_none(),
+        "paid_at should remain NULL on rejected transition"
+    );
 
     // updated_at should not have changed (guard had zero side effects)
     // Allow small time delta for DB timestamp precision

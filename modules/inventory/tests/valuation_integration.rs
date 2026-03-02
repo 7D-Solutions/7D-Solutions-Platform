@@ -14,7 +14,9 @@ use chrono::Utc;
 use inventory_rs::domain::{
     items::{CreateItemRequest, ItemRepo},
     receipt_service::{process_receipt, ReceiptRequest},
-    valuation::snapshot_service::{create_valuation_snapshot, CreateSnapshotRequest, SnapshotError},
+    valuation::snapshot_service::{
+        create_valuation_snapshot, CreateSnapshotRequest, SnapshotError,
+    },
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -222,7 +224,10 @@ async fn test_idempotency_replay_returns_stored_result() {
         .await
         .expect("idempotent replay");
     assert!(is_replay_second, "second call with same key is a replay");
-    assert_eq!(first.snapshot_id, second.snapshot_id, "same snapshot_id returned");
+    assert_eq!(
+        first.snapshot_id, second.snapshot_id,
+        "same snapshot_id returned"
+    );
     assert_eq!(first.total_value_minor, second.total_value_minor);
 
     cleanup(&pool, &tenant).await;
@@ -332,7 +337,10 @@ async fn test_empty_warehouse_snapshot_has_zero_total() {
         .expect("empty snapshot");
 
     assert!(!is_replay);
-    assert_eq!(result.total_value_minor, 0, "empty warehouse has zero value");
+    assert_eq!(
+        result.total_value_minor, 0,
+        "empty warehouse has zero value"
+    );
     assert_eq!(result.line_count, 0, "no items = no lines");
     assert!(result.lines.is_empty());
 

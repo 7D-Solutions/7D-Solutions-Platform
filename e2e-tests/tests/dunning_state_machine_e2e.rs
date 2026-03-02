@@ -132,29 +132,34 @@ async fn test_dunning_init_creates_pending_state() {
     );
 
     // Verify DB state
-    let state: String =
-        sqlx::query_scalar("SELECT state FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2")
-            .bind(&tenant_id)
-            .bind(invoice_id)
-            .fetch_one(&pool)
-            .await
-            .expect("state query failed");
+    let state: String = sqlx::query_scalar(
+        "SELECT state FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2",
+    )
+    .bind(&tenant_id)
+    .bind(invoice_id)
+    .fetch_one(&pool)
+    .await
+    .expect("state query failed");
     assert_eq!(state, "pending", "initial state must be pending");
 
-    let version: i32 =
-        sqlx::query_scalar("SELECT version FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2")
-            .bind(&tenant_id)
-            .bind(invoice_id)
-            .fetch_one(&pool)
-            .await
-            .expect("version query failed");
+    let version: i32 = sqlx::query_scalar(
+        "SELECT version FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2",
+    )
+    .bind(&tenant_id)
+    .bind(invoice_id)
+    .fetch_one(&pool)
+    .await
+    .expect("version query failed");
     assert_eq!(version, 1, "initial version must be 1");
 
     // Verify outbox event was emitted
     let event_count = count_dunning_outbox_events(&pool, &dunning_id.to_string())
         .await
         .expect("event count failed");
-    assert_eq!(event_count, 1, "exactly one LIFECYCLE outbox event must be emitted");
+    assert_eq!(
+        event_count, 1,
+        "exactly one LIFECYCLE outbox event must be emitted"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await.unwrap();
 }
@@ -181,10 +186,14 @@ async fn test_dunning_init_idempotency() {
     };
 
     // First call — should succeed
-    init_dunning(&pool, req.clone()).await.expect("first init failed");
+    init_dunning(&pool, req.clone())
+        .await
+        .expect("first init failed");
 
     // Second call — same dunning_id → AlreadyExists
-    let result = init_dunning(&pool, req).await.expect("second init should not error");
+    let result = init_dunning(&pool, req)
+        .await
+        .expect("second init should not error");
     assert!(
         matches!(result, InitDunningResult::AlreadyExists { .. }),
         "expected AlreadyExists on duplicate dunning_id, got {:?}",
@@ -203,7 +212,10 @@ async fn test_dunning_init_idempotency() {
     let event_count = count_dunning_outbox_events(&pool, &dunning_id.to_string())
         .await
         .expect("event count failed");
-    assert_eq!(event_count, 1, "only one outbox event after idempotent replay");
+    assert_eq!(
+        event_count, 1,
+        "only one outbox event after idempotent replay"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await.unwrap();
 }
@@ -220,29 +232,35 @@ async fn test_dunning_transition_pending_to_warned() {
         .expect("failed to create invoice");
 
     // Initialize
-    init_dunning(&pool, InitDunningRequest {
-        dunning_id,
-        app_id: tenant_id.clone(),
-        invoice_id,
-        customer_id: format!("cust-{}", tenant_id),
-        next_attempt_at: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    init_dunning(
+        &pool,
+        InitDunningRequest {
+            dunning_id,
+            app_id: tenant_id.clone(),
+            invoice_id,
+            customer_id: format!("cust-{}", tenant_id),
+            next_attempt_at: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect("init failed");
 
     // Transition to Warned
-    let result = transition_dunning(&pool, TransitionDunningRequest {
-        app_id: tenant_id.clone(),
-        invoice_id,
-        to_state: DunningStateValue::Warned,
-        reason: "first_collection_attempt_failed".to_string(),
-        next_attempt_at: None,
-        last_error: Some("card_declined".to_string()),
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: Some(dunning_id.to_string()),
-    })
+    let result = transition_dunning(
+        &pool,
+        TransitionDunningRequest {
+            app_id: tenant_id.clone(),
+            invoice_id,
+            to_state: DunningStateValue::Warned,
+            reason: "first_collection_attempt_failed".to_string(),
+            next_attempt_at: None,
+            last_error: Some("card_declined".to_string()),
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: Some(dunning_id.to_string()),
+        },
+    )
     .await
     .expect("transition to Warned failed");
 
@@ -257,7 +275,10 @@ async fn test_dunning_transition_pending_to_warned() {
             assert_eq!(from_state, DunningStateValue::Pending);
             assert_eq!(to_state, DunningStateValue::Warned);
             assert_eq!(new_version, 2, "version must increment on transition");
-            assert_eq!(new_attempt_count, 1, "attempt_count must increment for Warned");
+            assert_eq!(
+                new_attempt_count, 1,
+                "attempt_count must increment for Warned"
+            );
         }
     }
 
@@ -288,41 +309,51 @@ async fn test_dunning_transition_pending_to_escalated_skip_warned() {
         .await
         .expect("failed to create invoice");
 
-    init_dunning(&pool, InitDunningRequest {
-        dunning_id,
-        app_id: tenant_id.clone(),
-        invoice_id,
-        customer_id: format!("cust-{}", tenant_id),
-        next_attempt_at: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    init_dunning(
+        &pool,
+        InitDunningRequest {
+            dunning_id,
+            app_id: tenant_id.clone(),
+            invoice_id,
+            customer_id: format!("cust-{}", tenant_id),
+            next_attempt_at: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect("init failed");
 
     // Skip Warned, go straight to Escalated
-    let result = transition_dunning(&pool, TransitionDunningRequest {
-        app_id: tenant_id.clone(),
-        invoice_id,
-        to_state: DunningStateValue::Escalated,
-        reason: "aggressive_escalation_policy".to_string(),
-        next_attempt_at: None,
-        last_error: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    let result = transition_dunning(
+        &pool,
+        TransitionDunningRequest {
+            app_id: tenant_id.clone(),
+            invoice_id,
+            to_state: DunningStateValue::Escalated,
+            reason: "aggressive_escalation_policy".to_string(),
+            next_attempt_at: None,
+            last_error: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect("Pending → Escalated should be valid");
 
-    assert!(matches!(result, TransitionDunningResult::Transitioned { .. }));
+    assert!(matches!(
+        result,
+        TransitionDunningResult::Transitioned { .. }
+    ));
 
-    let state: String =
-        sqlx::query_scalar("SELECT state FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2")
-            .bind(&tenant_id)
-            .bind(invoice_id)
-            .fetch_one(&pool)
-            .await
-            .expect("state query failed");
+    let state: String = sqlx::query_scalar(
+        "SELECT state FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2",
+    )
+    .bind(&tenant_id)
+    .bind(invoice_id)
+    .fetch_one(&pool)
+    .await
+    .expect("state query failed");
     assert_eq!(state, "escalated");
 
     cleanup_tenant(&pool, &tenant_id).await.unwrap();
@@ -339,40 +370,50 @@ async fn test_dunning_transition_to_resolved() {
         .await
         .expect("failed to create invoice");
 
-    init_dunning(&pool, InitDunningRequest {
-        dunning_id,
-        app_id: tenant_id.clone(),
-        invoice_id,
-        customer_id: format!("cust-{}", tenant_id),
-        next_attempt_at: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    init_dunning(
+        &pool,
+        InitDunningRequest {
+            dunning_id,
+            app_id: tenant_id.clone(),
+            invoice_id,
+            customer_id: format!("cust-{}", tenant_id),
+            next_attempt_at: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect("init failed");
 
-    let result = transition_dunning(&pool, TransitionDunningRequest {
-        app_id: tenant_id.clone(),
-        invoice_id,
-        to_state: DunningStateValue::Resolved,
-        reason: "payment_received".to_string(),
-        next_attempt_at: None,
-        last_error: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    let result = transition_dunning(
+        &pool,
+        TransitionDunningRequest {
+            app_id: tenant_id.clone(),
+            invoice_id,
+            to_state: DunningStateValue::Resolved,
+            reason: "payment_received".to_string(),
+            next_attempt_at: None,
+            last_error: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect("Pending → Resolved should be valid");
 
-    assert!(matches!(result, TransitionDunningResult::Transitioned { .. }));
+    assert!(matches!(
+        result,
+        TransitionDunningResult::Transitioned { .. }
+    ));
 
-    let state: String =
-        sqlx::query_scalar("SELECT state FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2")
-            .bind(&tenant_id)
-            .bind(invoice_id)
-            .fetch_one(&pool)
-            .await
-            .expect("state query failed");
+    let state: String = sqlx::query_scalar(
+        "SELECT state FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2",
+    )
+    .bind(&tenant_id)
+    .bind(invoice_id)
+    .fetch_one(&pool)
+    .await
+    .expect("state query failed");
     assert_eq!(state, "resolved");
 
     cleanup_tenant(&pool, &tenant_id).await.unwrap();
@@ -389,43 +430,52 @@ async fn test_dunning_terminal_state_rejects_further_transitions() {
         .await
         .expect("failed to create invoice");
 
-    init_dunning(&pool, InitDunningRequest {
-        dunning_id,
-        app_id: tenant_id.clone(),
-        invoice_id,
-        customer_id: format!("cust-{}", tenant_id),
-        next_attempt_at: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    init_dunning(
+        &pool,
+        InitDunningRequest {
+            dunning_id,
+            app_id: tenant_id.clone(),
+            invoice_id,
+            customer_id: format!("cust-{}", tenant_id),
+            next_attempt_at: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect("init failed");
 
     // Move to Resolved (terminal)
-    transition_dunning(&pool, TransitionDunningRequest {
-        app_id: tenant_id.clone(),
-        invoice_id,
-        to_state: DunningStateValue::Resolved,
-        reason: "payment_received".to_string(),
-        next_attempt_at: None,
-        last_error: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    transition_dunning(
+        &pool,
+        TransitionDunningRequest {
+            app_id: tenant_id.clone(),
+            invoice_id,
+            to_state: DunningStateValue::Resolved,
+            reason: "payment_received".to_string(),
+            next_attempt_at: None,
+            last_error: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect("transition to Resolved failed");
 
     // Attempt further transition — must fail
-    let err = transition_dunning(&pool, TransitionDunningRequest {
-        app_id: tenant_id.clone(),
-        invoice_id,
-        to_state: DunningStateValue::Warned,
-        reason: "should_not_happen".to_string(),
-        next_attempt_at: None,
-        last_error: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    let err = transition_dunning(
+        &pool,
+        TransitionDunningRequest {
+            app_id: tenant_id.clone(),
+            invoice_id,
+            to_state: DunningStateValue::Warned,
+            reason: "should_not_happen".to_string(),
+            next_attempt_at: None,
+            last_error: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect_err("expected TerminalState error");
 
@@ -449,43 +499,52 @@ async fn test_dunning_illegal_transition_rejected() {
         .await
         .expect("failed to create invoice");
 
-    init_dunning(&pool, InitDunningRequest {
-        dunning_id,
-        app_id: tenant_id.clone(),
-        invoice_id,
-        customer_id: format!("cust-{}", tenant_id),
-        next_attempt_at: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    init_dunning(
+        &pool,
+        InitDunningRequest {
+            dunning_id,
+            app_id: tenant_id.clone(),
+            invoice_id,
+            customer_id: format!("cust-{}", tenant_id),
+            next_attempt_at: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect("init failed");
 
     // Advance to Warned
-    transition_dunning(&pool, TransitionDunningRequest {
-        app_id: tenant_id.clone(),
-        invoice_id,
-        to_state: DunningStateValue::Warned,
-        reason: "first_attempt_failed".to_string(),
-        next_attempt_at: None,
-        last_error: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    transition_dunning(
+        &pool,
+        TransitionDunningRequest {
+            app_id: tenant_id.clone(),
+            invoice_id,
+            to_state: DunningStateValue::Warned,
+            reason: "first_attempt_failed".to_string(),
+            next_attempt_at: None,
+            last_error: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect("Pending → Warned failed");
 
     // Attempt illegal backwards transition Warned → Pending
-    let err = transition_dunning(&pool, TransitionDunningRequest {
-        app_id: tenant_id.clone(),
-        invoice_id,
-        to_state: DunningStateValue::Pending,
-        reason: "illegal_backwards".to_string(),
-        next_attempt_at: None,
-        last_error: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    let err = transition_dunning(
+        &pool,
+        TransitionDunningRequest {
+            app_id: tenant_id.clone(),
+            invoice_id,
+            to_state: DunningStateValue::Pending,
+            reason: "illegal_backwards".to_string(),
+            next_attempt_at: None,
+            last_error: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect_err("expected IllegalTransition error");
 
@@ -496,14 +555,18 @@ async fn test_dunning_illegal_transition_rejected() {
     );
 
     // State must not have changed
-    let state: String =
-        sqlx::query_scalar("SELECT state FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2")
-            .bind(&tenant_id)
-            .bind(invoice_id)
-            .fetch_one(&pool)
-            .await
-            .expect("state query failed");
-    assert_eq!(state, "warned", "state must remain warned after illegal transition");
+    let state: String = sqlx::query_scalar(
+        "SELECT state FROM ar_dunning_states WHERE app_id = $1 AND invoice_id = $2",
+    )
+    .bind(&tenant_id)
+    .bind(invoice_id)
+    .fetch_one(&pool)
+    .await
+    .expect("state query failed");
+    assert_eq!(
+        state, "warned",
+        "state must remain warned after illegal transition"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await.unwrap();
 }
@@ -520,15 +583,18 @@ async fn test_dunning_outbox_atomicity_and_lifecycle_class() {
         .await
         .expect("failed to create invoice");
 
-    init_dunning(&pool, InitDunningRequest {
-        dunning_id,
-        app_id: tenant_id.clone(),
-        invoice_id,
-        customer_id: format!("cust-{}", tenant_id),
-        next_attempt_at: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: Some("invoice-overdue-check".to_string()),
-    })
+    init_dunning(
+        &pool,
+        InitDunningRequest {
+            dunning_id,
+            app_id: tenant_id.clone(),
+            invoice_id,
+            customer_id: format!("cust-{}", tenant_id),
+            next_attempt_at: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: Some("invoice-overdue-check".to_string()),
+        },
+    )
     .await
     .expect("init_dunning failed");
 
@@ -579,16 +645,19 @@ async fn test_dunning_transition_unknown_invoice_not_found() {
     let pool = get_ar_pool().await;
     let tenant_id = generate_test_tenant();
 
-    let err = transition_dunning(&pool, TransitionDunningRequest {
-        app_id: tenant_id.clone(),
-        invoice_id: i32::MAX, // very unlikely to exist
-        to_state: DunningStateValue::Warned,
-        reason: "test".to_string(),
-        next_attempt_at: None,
-        last_error: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    let err = transition_dunning(
+        &pool,
+        TransitionDunningRequest {
+            app_id: tenant_id.clone(),
+            invoice_id: i32::MAX, // very unlikely to exist
+            to_state: DunningStateValue::Warned,
+            reason: "test".to_string(),
+            next_attempt_at: None,
+            last_error: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect_err("expected DunningNotFound");
 
@@ -682,68 +751,78 @@ async fn test_integrated_dunning_to_subscription_suspension() {
         .expect("failed to create subscription");
 
     // Verify subscription starts as active
-    let status: String = sqlx::query_scalar(
-        "SELECT status FROM subscriptions WHERE id = $1",
-    )
-    .bind(sub_id)
-    .fetch_one(&subs_pool)
-    .await
-    .expect("subscription query failed");
+    let status: String = sqlx::query_scalar("SELECT status FROM subscriptions WHERE id = $1")
+        .bind(sub_id)
+        .fetch_one(&subs_pool)
+        .await
+        .expect("subscription query failed");
     assert_eq!(status, "active", "subscription must start as active");
 
     // --- Step 1: Init dunning (Pending) ---
-    let result = init_dunning(&ar_pool, InitDunningRequest {
-        dunning_id,
-        app_id: tenant_id.clone(),
-        invoice_id,
-        customer_id: customer_id_str.clone(),
-        next_attempt_at: None,
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: None,
-    })
+    let result = init_dunning(
+        &ar_pool,
+        InitDunningRequest {
+            dunning_id,
+            app_id: tenant_id.clone(),
+            invoice_id,
+            customer_id: customer_id_str.clone(),
+            next_attempt_at: None,
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: None,
+        },
+    )
     .await
     .expect("init_dunning failed");
     assert!(matches!(result, InitDunningResult::Initialized { .. }));
 
     // --- Step 2: Pending → Warned ---
-    transition_dunning(&ar_pool, TransitionDunningRequest {
-        app_id: tenant_id.clone(),
-        invoice_id,
-        to_state: DunningStateValue::Warned,
-        reason: "first_collection_failed".to_string(),
-        next_attempt_at: None,
-        last_error: Some("card_declined".to_string()),
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: Some(dunning_id.to_string()),
-    })
+    transition_dunning(
+        &ar_pool,
+        TransitionDunningRequest {
+            app_id: tenant_id.clone(),
+            invoice_id,
+            to_state: DunningStateValue::Warned,
+            reason: "first_collection_failed".to_string(),
+            next_attempt_at: None,
+            last_error: Some("card_declined".to_string()),
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: Some(dunning_id.to_string()),
+        },
+    )
     .await
     .expect("Pending → Warned failed");
 
     // --- Step 3: Warned → Escalated ---
-    transition_dunning(&ar_pool, TransitionDunningRequest {
-        app_id: tenant_id.clone(),
-        invoice_id,
-        to_state: DunningStateValue::Escalated,
-        reason: "second_collection_failed".to_string(),
-        next_attempt_at: None,
-        last_error: Some("card_declined_again".to_string()),
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: Some(dunning_id.to_string()),
-    })
+    transition_dunning(
+        &ar_pool,
+        TransitionDunningRequest {
+            app_id: tenant_id.clone(),
+            invoice_id,
+            to_state: DunningStateValue::Escalated,
+            reason: "second_collection_failed".to_string(),
+            next_attempt_at: None,
+            last_error: Some("card_declined_again".to_string()),
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: Some(dunning_id.to_string()),
+        },
+    )
     .await
     .expect("Warned → Escalated failed");
 
     // --- Step 4: Escalated → Suspended ---
-    transition_dunning(&ar_pool, TransitionDunningRequest {
-        app_id: tenant_id.clone(),
-        invoice_id,
-        to_state: DunningStateValue::Suspended,
-        reason: "max_retries_exhausted".to_string(),
-        next_attempt_at: None,
-        last_error: Some("all_attempts_failed".to_string()),
-        correlation_id: Uuid::new_v4().to_string(),
-        causation_id: Some(dunning_id.to_string()),
-    })
+    transition_dunning(
+        &ar_pool,
+        TransitionDunningRequest {
+            app_id: tenant_id.clone(),
+            invoice_id,
+            to_state: DunningStateValue::Suspended,
+            reason: "max_retries_exhausted".to_string(),
+            next_attempt_at: None,
+            last_error: Some("all_attempts_failed".to_string()),
+            correlation_id: Uuid::new_v4().to_string(),
+            causation_id: Some(dunning_id.to_string()),
+        },
+    )
     .await
     .expect("Escalated → Suspended failed");
 
@@ -787,13 +866,11 @@ async fn test_integrated_dunning_to_subscription_suspension() {
     assert!(processed, "consumer must process the event successfully");
 
     // --- Step 6: Verify subscription is now suspended ---
-    let sub_status: String = sqlx::query_scalar(
-        "SELECT status FROM subscriptions WHERE id = $1",
-    )
-    .bind(sub_id)
-    .fetch_one(&subs_pool)
-    .await
-    .expect("subscription status query failed");
+    let sub_status: String = sqlx::query_scalar("SELECT status FROM subscriptions WHERE id = $1")
+        .bind(sub_id)
+        .fetch_one(&subs_pool)
+        .await
+        .expect("subscription status query failed");
     assert_eq!(
         sub_status, "suspended",
         "subscription must be suspended after dunning chain completes"

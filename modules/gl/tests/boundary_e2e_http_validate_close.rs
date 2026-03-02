@@ -134,12 +134,7 @@ async fn create_test_journal_entry(
 }
 
 /// Helper to close a period directly via SQL (for testing already-closed scenarios)
-async fn close_period_directly(
-    pool: &PgPool,
-    period_id: Uuid,
-    closed_by: &str,
-    close_hash: &str,
-) {
+async fn close_period_directly(pool: &PgPool, period_id: Uuid, closed_by: &str, close_hash: &str) {
     sqlx::query(
         r#"
         UPDATE accounting_periods
@@ -294,7 +289,10 @@ async fn test_boundary_http_validate_close_fails_on_closed_period() {
         response.json().await.expect("Failed to parse response");
 
     assert_eq!(validate_response.period_id, period_id);
-    assert!(!validate_response.can_close, "Should not allow closing an already-closed period");
+    assert!(
+        !validate_response.can_close,
+        "Should not allow closing an already-closed period"
+    );
     assert!(
         !validate_response.validation_report.issues.is_empty(),
         "Should have validation issues"

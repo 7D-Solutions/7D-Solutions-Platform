@@ -218,11 +218,7 @@ async fn provider_still_ok_even_with_all_unknown() {
     // Verifies that LocalTaxProvider never returns Err for jurisdiction issues;
     // it always returns Ok with warnings instead.
     let provider = LocalTaxProvider::new(empty_config());
-    let req = quote_req(
-        addr("XX", "YY"),
-        addr("XX", "YY"),
-        vec![line("l1", 99999)],
-    );
+    let req = quote_req(addr("XX", "YY"), addr("XX", "YY"), vec![line("l1", 99999)]);
     let result = provider.quote_tax(req).await;
     assert!(result.is_ok(), "should never error on unknown jurisdiction");
 }

@@ -140,16 +140,22 @@ async fn test_create_company_returns_201() {
     .await;
 
     assert_eq!(status, StatusCode::CREATED, "expected 201; body={}", body);
-    let party_id = body["party"]["id"].as_str()
+    let party_id = body["party"]["id"]
+        .as_str()
         .or_else(|| body["id"].as_str())
         .expect("response must contain party id");
     assert!(!party_id.is_empty(), "party_id must not be empty");
 
     // Verify the party type in response
-    let party_type = body["party"]["party_type"].as_str()
+    let party_type = body["party"]["party_type"]
+        .as_str()
         .or_else(|| body["party_type"].as_str())
         .unwrap_or("");
-    assert_eq!(party_type, "company", "party_type must be 'company'; body={}", body);
+    assert_eq!(
+        party_type, "company",
+        "party_type must be 'company'; body={}",
+        body
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -184,15 +190,21 @@ async fn test_create_individual_returns_201() {
     .await;
 
     assert_eq!(status, StatusCode::CREATED, "expected 201; body={}", body);
-    let party_id = body["party"]["id"].as_str()
+    let party_id = body["party"]["id"]
+        .as_str()
         .or_else(|| body["id"].as_str())
         .expect("response must contain party id");
     assert!(!party_id.is_empty(), "party_id must not be empty");
 
-    let party_type = body["party"]["party_type"].as_str()
+    let party_type = body["party"]["party_type"]
+        .as_str()
         .or_else(|| body["party_type"].as_str())
         .unwrap_or("");
-    assert_eq!(party_type, "individual", "party_type must be 'individual'; body={}", body);
+    assert_eq!(
+        party_type, "individual",
+        "party_type must be 'individual'; body={}",
+        body
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -223,9 +235,15 @@ async fn test_get_party_matches_created() {
         })),
     )
     .await;
-    assert_eq!(create_status, StatusCode::CREATED, "create failed; body={}", create_body);
+    assert_eq!(
+        create_status,
+        StatusCode::CREATED,
+        "create failed; body={}",
+        create_body
+    );
 
-    let party_id = create_body["party"]["id"].as_str()
+    let party_id = create_body["party"]["id"]
+        .as_str()
         .or_else(|| create_body["id"].as_str())
         .expect("party_id in create response");
 
@@ -239,17 +257,32 @@ async fn test_get_party_matches_created() {
     )
     .await;
 
-    assert_eq!(get_status, StatusCode::OK, "expected 200; body={}", get_body);
+    assert_eq!(
+        get_status,
+        StatusCode::OK,
+        "expected 200; body={}",
+        get_body
+    );
 
-    let fetched_id = get_body["party"]["id"].as_str()
+    let fetched_id = get_body["party"]["id"]
+        .as_str()
         .or_else(|| get_body["id"].as_str())
         .unwrap_or("");
-    assert_eq!(fetched_id, party_id, "fetched id must match created id; body={}", get_body);
+    assert_eq!(
+        fetched_id, party_id,
+        "fetched id must match created id; body={}",
+        get_body
+    );
 
-    let fetched_name = get_body["party"]["display_name"].as_str()
+    let fetched_name = get_body["party"]["display_name"]
+        .as_str()
         .or_else(|| get_body["display_name"].as_str())
         .unwrap_or("");
-    assert_eq!(fetched_name, "GetTest Corp", "display_name must match; body={}", get_body);
+    assert_eq!(
+        fetched_name, "GetTest Corp",
+        "display_name must match; body={}",
+        get_body
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -281,9 +314,15 @@ async fn test_update_party_display_name() {
         })),
     )
     .await;
-    assert_eq!(create_status, StatusCode::CREATED, "create failed; body={}", create_body);
+    assert_eq!(
+        create_status,
+        StatusCode::CREATED,
+        "create failed; body={}",
+        create_body
+    );
 
-    let party_id = create_body["party"]["id"].as_str()
+    let party_id = create_body["party"]["id"]
+        .as_str()
         .or_else(|| create_body["id"].as_str())
         .expect("party_id in create response");
 
@@ -298,7 +337,12 @@ async fn test_update_party_display_name() {
         })),
     )
     .await;
-    assert_eq!(update_status, StatusCode::OK, "update failed; body={}", update_body);
+    assert_eq!(
+        update_status,
+        StatusCode::OK,
+        "update failed; body={}",
+        update_body
+    );
 
     // Verify via GET
     let (get_status, get_body) = send_json(
@@ -309,9 +353,15 @@ async fn test_update_party_display_name() {
         None,
     )
     .await;
-    assert_eq!(get_status, StatusCode::OK, "get after update failed; body={}", get_body);
+    assert_eq!(
+        get_status,
+        StatusCode::OK,
+        "get after update failed; body={}",
+        get_body
+    );
 
-    let updated_name = get_body["party"]["display_name"].as_str()
+    let updated_name = get_body["party"]["display_name"]
+        .as_str()
         .or_else(|| get_body["display_name"].as_str())
         .unwrap_or("");
     assert_eq!(
@@ -349,9 +399,15 @@ async fn test_deactivate_excluded_from_list() {
         })),
     )
     .await;
-    assert_eq!(create_status, StatusCode::CREATED, "create failed; body={}", create_body);
+    assert_eq!(
+        create_status,
+        StatusCode::CREATED,
+        "create failed; body={}",
+        create_body
+    );
 
-    let party_id = create_body["party"]["id"].as_str()
+    let party_id = create_body["party"]["id"]
+        .as_str()
         .or_else(|| create_body["id"].as_str())
         .expect("party_id in create response");
 
@@ -372,25 +428,23 @@ async fn test_deactivate_excluded_from_list() {
     );
 
     // List active parties — deactivated party must be absent
-    let (list_status, list_body) = send_json(
-        &router,
-        "GET",
-        "/api/party/parties",
-        &app_id,
-        None,
-    )
-    .await;
-    assert_eq!(list_status, StatusCode::OK, "list failed; body={}", list_body);
+    let (list_status, list_body) =
+        send_json(&router, "GET", "/api/party/parties", &app_id, None).await;
+    assert_eq!(
+        list_status,
+        StatusCode::OK,
+        "list failed; body={}",
+        list_body
+    );
 
-    let parties = list_body.as_array().expect("list response must be an array");
-    let found = parties.iter().any(|p| {
-        p["id"].as_str() == Some(party_id)
-    });
+    let parties = list_body
+        .as_array()
+        .expect("list response must be an array");
+    let found = parties.iter().any(|p| p["id"].as_str() == Some(party_id));
     assert!(
         !found,
         "deactivated party must not appear in default list; party_id={}, list={}",
-        party_id,
-        list_body
+        party_id, list_body
     );
 
     cleanup(&pool, &app_id).await;
@@ -422,7 +476,12 @@ async fn test_search_by_type_returns_only_companies() {
         })),
     )
     .await;
-    assert_eq!(s1, StatusCode::CREATED, "company create failed; body={}", b1);
+    assert_eq!(
+        s1,
+        StatusCode::CREATED,
+        "company create failed; body={}",
+        b1
+    );
 
     // Create one individual (should be excluded from company filter)
     let (s2, b2) = send_json(
@@ -437,7 +496,12 @@ async fn test_search_by_type_returns_only_companies() {
         })),
     )
     .await;
-    assert_eq!(s2, StatusCode::CREATED, "individual create failed; body={}", b2);
+    assert_eq!(
+        s2,
+        StatusCode::CREATED,
+        "individual create failed; body={}",
+        b2
+    );
 
     // Search by type=company
     let (search_status, search_body) = send_json(
@@ -448,9 +512,16 @@ async fn test_search_by_type_returns_only_companies() {
         None,
     )
     .await;
-    assert_eq!(search_status, StatusCode::OK, "search failed; body={}", search_body);
+    assert_eq!(
+        search_status,
+        StatusCode::OK,
+        "search failed; body={}",
+        search_body
+    );
 
-    let results = search_body.as_array().expect("search response must be array");
+    let results = search_body
+        .as_array()
+        .expect("search response must be array");
     // All results must be company type
     for p in results.iter() {
         let pt = p["party_type"].as_str().unwrap_or("");
@@ -461,9 +532,16 @@ async fn test_search_by_type_returns_only_companies() {
         );
     }
     // Must include our created company
-    let company_id = b1["party"]["id"].as_str().or_else(|| b1["id"].as_str()).unwrap_or("");
+    let company_id = b1["party"]["id"]
+        .as_str()
+        .or_else(|| b1["id"].as_str())
+        .unwrap_or("");
     let found_company = results.iter().any(|p| p["id"].as_str() == Some(company_id));
-    assert!(found_company, "search must include created company; company_id={}", company_id);
+    assert!(
+        found_company,
+        "search must include created company; company_id={}",
+        company_id
+    );
 
     cleanup(&pool, &app_id).await;
 }
@@ -497,9 +575,15 @@ async fn test_search_by_name_fragment() {
         })),
     )
     .await;
-    assert_eq!(create_status, StatusCode::CREATED, "create failed; body={}", create_body);
+    assert_eq!(
+        create_status,
+        StatusCode::CREATED,
+        "create failed; body={}",
+        create_body
+    );
 
-    let party_id = create_body["party"]["id"].as_str()
+    let party_id = create_body["party"]["id"]
+        .as_str()
         .or_else(|| create_body["id"].as_str())
         .expect("party_id in create response");
 
@@ -516,31 +600,38 @@ async fn test_search_by_name_fragment() {
         })),
     )
     .await;
-    assert_eq!(decoy_status, StatusCode::CREATED, "decoy create failed; body={}", decoy_body);
+    assert_eq!(
+        decoy_status,
+        StatusCode::CREATED,
+        "decoy create failed; body={}",
+        decoy_body
+    );
 
     // Search by name fragment (alphanumeric only — no encoding needed)
     let search_uri = format!("/api/party/parties/search?name={}", fragment);
-    let (search_status, search_body) = send_json(
-        &router,
-        "GET",
-        &search_uri,
-        &app_id,
-        None,
-    )
-    .await;
-    assert_eq!(search_status, StatusCode::OK, "search failed; body={}", search_body);
+    let (search_status, search_body) = send_json(&router, "GET", &search_uri, &app_id, None).await;
+    assert_eq!(
+        search_status,
+        StatusCode::OK,
+        "search failed; body={}",
+        search_body
+    );
 
-    let results = search_body.as_array().expect("search response must be array");
-    assert!(!results.is_empty(), "search must return at least one result; fragment={}", fragment);
+    let results = search_body
+        .as_array()
+        .expect("search response must be array");
+    assert!(
+        !results.is_empty(),
+        "search must return at least one result; fragment={}",
+        fragment
+    );
 
     // Our party must appear in results
     let found = results.iter().any(|p| p["id"].as_str() == Some(party_id));
     assert!(
         found,
         "search must include party matching fragment '{}'; party_id={}; results={}",
-        fragment,
-        party_id,
-        search_body
+        fragment, party_id, search_body
     );
 
     // All results must contain the fragment in display_name (case-insensitive)

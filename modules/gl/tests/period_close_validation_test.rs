@@ -33,10 +33,7 @@ async fn test_validate_period_not_found() {
     assert!(has_blocking_errors(&report));
     assert_eq!(report.issues.len(), 1);
     assert_eq!(report.issues[0].code, "PERIOD_NOT_FOUND");
-    assert_eq!(
-        report.issues[0].severity,
-        ValidationSeverity::Error
-    );
+    assert_eq!(report.issues[0].severity, ValidationSeverity::Error);
 
     tx.rollback().await.unwrap();
 }
@@ -80,10 +77,7 @@ async fn test_validate_period_already_closed() {
     assert!(has_blocking_errors(&report));
     assert_eq!(report.issues.len(), 1);
     assert_eq!(report.issues[0].code, "PERIOD_ALREADY_CLOSED");
-    assert_eq!(
-        report.issues[0].severity,
-        ValidationSeverity::Error
-    );
+    assert_eq!(report.issues[0].severity, ValidationSeverity::Error);
 
     tx.rollback().await.unwrap();
 }
@@ -178,10 +172,7 @@ async fn test_validate_unbalanced_entries() {
         .iter()
         .find(|i| i.code == "UNBALANCED_ENTRIES")
         .unwrap();
-    assert_eq!(
-        unbalanced_issue.severity,
-        ValidationSeverity::Error
-    );
+    assert_eq!(unbalanced_issue.severity, ValidationSeverity::Error);
 
     tx.rollback().await.unwrap();
 }
@@ -269,7 +260,11 @@ async fn test_validate_valid_period() {
 
     // Should have NO blocking errors
     assert!(!has_blocking_errors(&report));
-    assert!(report.issues.is_empty(), "Expected no issues, got: {:?}", report.issues);
+    assert!(
+        report.issues.is_empty(),
+        "Expected no issues, got: {:?}",
+        report.issues
+    );
 
     tx.rollback().await.unwrap();
 }
@@ -364,7 +359,11 @@ async fn test_validate_dlq_disabled_with_pending_entries() {
 
     // Should pass validation - DLQ entries should be IGNORED when disabled
     assert!(!has_blocking_errors(&report));
-    assert!(report.issues.is_empty(), "Expected no issues when DLQ validation disabled, got: {:?}", report.issues);
+    assert!(
+        report.issues.is_empty(),
+        "Expected no issues when DLQ validation disabled, got: {:?}",
+        report.issues
+    );
 
     tx.rollback().await.unwrap();
 }
@@ -426,10 +425,7 @@ async fn test_validate_dlq_enabled_with_pending_entries() {
     assert!(has_blocking_errors(&report));
     assert_eq!(report.issues.len(), 1);
     assert_eq!(report.issues[0].code, "PENDING_DLQ_ENTRIES");
-    assert_eq!(
-        report.issues[0].severity,
-        ValidationSeverity::Error
-    );
+    assert_eq!(report.issues[0].severity, ValidationSeverity::Error);
 
     // Verify metadata contains correct count and subject filter
     let metadata = report.issues[0].metadata.as_ref().unwrap();
@@ -531,7 +527,10 @@ async fn test_validate_dlq_tenant_scoped() {
 
     // Should pass validation - other tenant's DLQ should NOT block us
     assert!(!has_blocking_errors(&report));
-    assert!(report.issues.is_empty(), "Other tenant's DLQ should not block validation");
+    assert!(
+        report.issues.is_empty(),
+        "Other tenant's DLQ should not block validation"
+    );
 
     tx.rollback().await.unwrap();
 }

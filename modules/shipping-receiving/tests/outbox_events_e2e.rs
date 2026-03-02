@@ -22,8 +22,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -136,12 +136,18 @@ async fn inbound_close_emits_event_with_inventory_refs() {
     // Must have inventory_refs array
     let refs = payload["inventory_refs"].as_array();
     assert!(refs.is_some(), "payload must contain inventory_refs");
-    assert!(!refs.unwrap().is_empty(), "inventory_refs must not be empty");
+    assert!(
+        !refs.unwrap().is_empty(),
+        "inventory_refs must not be empty"
+    );
 
     // Each ref has line_id and inventory_ref_id
     for r in refs.unwrap() {
         assert!(r["line_id"].is_string(), "ref must have line_id");
-        assert!(r["inventory_ref_id"].is_string(), "ref must have inventory_ref_id");
+        assert!(
+            r["inventory_ref_id"].is_string(),
+            "ref must have inventory_ref_id"
+        );
     }
 }
 
@@ -218,8 +224,7 @@ async fn status_changed_events_contain_from_and_to() {
         .await
         .expect("confirmed");
 
-    let events =
-        get_outbox_events(&pool, &ship_id_str, "shipping.shipment.status_changed").await;
+    let events = get_outbox_events(&pool, &ship_id_str, "shipping.shipment.status_changed").await;
     assert!(!events.is_empty(), "must have status_changed event");
 
     let payload = &events[0];
@@ -252,13 +257,12 @@ async fn outbox_events_have_correct_tenant_id_column() {
         .expect("confirmed");
 
     // Verify the outbox row has the correct tenant_id column
-    let row: (String,) = sqlx::query_as(
-        "SELECT tenant_id FROM sr_events_outbox WHERE aggregate_id = $1 LIMIT 1",
-    )
-    .bind(&ship_id_str)
-    .fetch_one(&pool)
-    .await
-    .expect("fetch outbox row");
+    let row: (String,) =
+        sqlx::query_as("SELECT tenant_id FROM sr_events_outbox WHERE aggregate_id = $1 LIMIT 1")
+            .bind(&ship_id_str)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch outbox row");
 
     assert_eq!(row.0, tenant_id.to_string(), "outbox tenant_id must match");
 }

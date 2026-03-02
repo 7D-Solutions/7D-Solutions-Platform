@@ -13,7 +13,7 @@
 //! 3. Close attempts on already-closed period (returns existing status)
 
 use chrono::NaiveDate;
-use gl_rs::contracts::period_close_v1::{CloseStatus, ClosePeriodRequest, ClosePeriodResponse};
+use gl_rs::contracts::period_close_v1::{ClosePeriodRequest, ClosePeriodResponse, CloseStatus};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -135,12 +135,7 @@ async fn create_test_journal_entry(
 }
 
 /// Helper to close a period directly via SQL (for testing already-closed scenarios)
-async fn close_period_directly(
-    pool: &PgPool,
-    period_id: Uuid,
-    closed_by: &str,
-    close_hash: &str,
-) {
+async fn close_period_directly(pool: &PgPool, period_id: Uuid, closed_by: &str, close_hash: &str) {
     sqlx::query(
         r#"
         UPDATE accounting_periods
@@ -338,7 +333,10 @@ async fn test_boundary_http_close_period_idempotent() {
     );
     let close_response2: ClosePeriodResponse =
         response2.json().await.expect("Failed to parse response");
-    assert!(close_response2.success, "Second close should indicate success (idempotent)");
+    assert!(
+        close_response2.success,
+        "Second close should indicate success (idempotent)"
+    );
 
     // Extract hash from second close
     let hash2 = match close_response2.close_status.unwrap() {
@@ -353,14 +351,18 @@ async fn test_boundary_http_close_period_idempotent() {
     );
 
     // Verify DB state hasn't changed
-    let db_period: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM accounting_periods WHERE id = $1 AND closed_at IS NOT NULL")
-            .bind(period_id)
-            .fetch_one(&pool)
-            .await
-            .expect("Failed to query DB");
+    let db_period: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM accounting_periods WHERE id = $1 AND closed_at IS NOT NULL",
+    )
+    .bind(period_id)
+    .fetch_one(&pool)
+    .await
+    .expect("Failed to query DB");
 
-    assert_eq!(db_period.0, 1, "Should still have exactly one closed period");
+    assert_eq!(
+        db_period.0, 1,
+        "Should still have exactly one closed period"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -437,10 +439,7 @@ async fn test_boundary_http_close_fails_on_closed_period() {
         } => {
             // Should return ORIGINAL close info, not the new request
             assert_eq!(closed_by, "admin", "Should preserve original closed_by");
-            assert_eq!(
-                close_hash, test_hash,
-                "Should preserve original close_hash"
-            );
+            assert_eq!(close_hash, test_hash, "Should preserve original close_hash");
         }
         _ => panic!("Expected CloseStatus::Closed variant"),
     }

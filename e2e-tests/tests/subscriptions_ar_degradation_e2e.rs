@@ -72,7 +72,7 @@ async fn test_ar_down_graceful_failure() -> Result<()> {
     // Create plan first (plan_id is UUID FK)
     let plan_id: uuid::Uuid = sqlx::query_scalar(
         "INSERT INTO subscription_plans (tenant_id, name, schedule, price_minor, currency) \
-         VALUES ($1, 'Monthly Plan', 'monthly', 5000, 'USD') RETURNING id"
+         VALUES ($1, 'Monthly Plan', 'monthly', 5000, 'USD') RETURNING id",
     )
     .bind(tenant_id)
     .fetch_one(&subscriptions_pool)
@@ -99,7 +99,8 @@ async fn test_ar_down_graceful_failure() -> Result<()> {
 
     // Attempt to trigger bill run (which will try to call AR)
     // This should fail gracefully since AR is down
-    let bill_run_result = trigger_bill_run_for_subscription(&subscriptions_pool, subscription_id).await;
+    let bill_run_result =
+        trigger_bill_run_for_subscription(&subscriptions_pool, subscription_id).await;
 
     // Verify graceful failure:
     // 1. Call did not hang (test completes in reasonable time)
@@ -130,7 +131,9 @@ async fn test_ar_down_graceful_failure() -> Result<()> {
         );
         println!("✓ Attempt {} marked as 'failed' (as expected)", attempt_id);
     } else {
-        println!("⚠️  No attempt record found - may indicate HTTP call failed before attempt creation");
+        println!(
+            "⚠️  No attempt record found - may indicate HTTP call failed before attempt creation"
+        );
         // This is acceptable: if AR is down, Subscriptions may fail before creating attempt record
     }
 
@@ -198,14 +201,20 @@ async fn test_ar_timeout_graceful_failure() -> Result<()> {
 
     let elapsed = start.elapsed();
 
-    assert!(result.is_err(), "Request to unreachable AR must fail, not succeed");
+    assert!(
+        result.is_err(),
+        "Request to unreachable AR must fail, not succeed"
+    );
     assert!(
         elapsed.as_secs() < 5,
         "HTTP client must fail fast when AR is unreachable (took {:?}, expected < 5s)",
         elapsed
     );
 
-    println!("✅ HTTP client fails fast when AR is unreachable ({:?})", elapsed);
+    println!(
+        "✅ HTTP client fails fast when AR is unreachable ({:?})",
+        elapsed
+    );
     Ok(())
 }
 
@@ -245,7 +254,9 @@ async fn trigger_bill_run_for_subscription(
     .await?;
 
     // Simulate that AR call failed (would be actual HTTP timeout in real implementation)
-    Err(anyhow::anyhow!("AR service unavailable (simulated failure)"))
+    Err(anyhow::anyhow!(
+        "AR service unavailable (simulated failure)"
+    ))
 }
 
 /// Test: Verify degradation class documentation matches implementation
@@ -256,8 +267,8 @@ async fn test_degradation_class_compliance() -> Result<()> {
 
     // Read the registry file and verify documented behavior
     let registry_path = "../docs/governance/DOMAIN-OWNERSHIP-REGISTRY.md";
-    let registry_content = std::fs::read_to_string(registry_path)
-        .expect("DOMAIN-OWNERSHIP-REGISTRY.md should exist");
+    let registry_content =
+        std::fs::read_to_string(registry_path).expect("DOMAIN-OWNERSHIP-REGISTRY.md should exist");
 
     // Verify degradation class is documented
     assert!(
@@ -279,9 +290,9 @@ async fn test_degradation_class_compliance() -> Result<()> {
 
     // Verify operator intervention requirement is documented
     assert!(
-        registry_content.contains("operator intervention") ||
-        registry_content.contains("manual retry") ||
-        registry_content.contains("requires operator"),
+        registry_content.contains("operator intervention")
+            || registry_content.contains("manual retry")
+            || registry_content.contains("requires operator"),
         "Operator intervention requirement should be documented"
     );
 

@@ -125,7 +125,10 @@ async fn test_known_email_token_row_created_with_hash() {
     assert_ne!(stored_hash, raw, "stored hash must NOT equal raw token");
 
     // Invariant 2: stored value equals SHA-256(raw_token)
-    assert_eq!(stored_hash, hash, "stored value must equal sha256_token_hash(raw_token)");
+    assert_eq!(
+        stored_hash, hash,
+        "stored value must equal sha256_token_hash(raw_token)"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -141,7 +144,10 @@ async fn test_unknown_email_no_token_row_created() {
     // forgot_password: looks up by email → not found → skips insert
     // We verify: no token row exists for this user_id
     let row = fetch_token_hash_for_user(&pool, unknown_user_id).await;
-    assert!(row.is_none(), "no token row must exist for an unknown email");
+    assert!(
+        row.is_none(),
+        "no token row must exist for an unknown email"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -203,13 +209,10 @@ async fn test_nats_event_contains_raw_token() {
     nats.flush().await.expect("flush");
 
     // Receive with timeout
-    let msg = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        sub.next(),
-    )
-    .await
-    .expect("timeout: no NATS message received within 5s")
-    .expect("NATS subscriber closed unexpectedly");
+    let msg = tokio::time::timeout(std::time::Duration::from_secs(5), sub.next())
+        .await
+        .expect("timeout: no NATS message received within 5s")
+        .expect("NATS subscriber closed unexpectedly");
 
     let received: serde_json::Value =
         serde_json::from_slice(&msg.payload).expect("parse NATS message as JSON");
@@ -225,8 +228,7 @@ async fn test_nats_event_contains_raw_token() {
         "NATS event data.user_id must match"
     );
     assert_eq!(
-        received["event_type"],
-        "auth.password_reset_requested",
+        received["event_type"], "auth.password_reset_requested",
         "event_type must be auth.password_reset_requested"
     );
 }

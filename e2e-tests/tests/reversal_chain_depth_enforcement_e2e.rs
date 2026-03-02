@@ -14,7 +14,10 @@
 mod common;
 
 use anyhow::Result;
-use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_payments_pool, get_subscriptions_pool, get_gl_pool};
+use common::{
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
+    get_subscriptions_pool,
+};
 use gl_rs::invariants::{assert_max_reversal_chain_depth, InvariantViolation};
 use serial_test::serial;
 use uuid::Uuid;
@@ -30,9 +33,15 @@ async fn test_valid_single_level_reversal() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("\n🔍 Testing valid single-level reversal (depth = 1)\n");
 
@@ -71,7 +80,10 @@ async fn test_valid_single_level_reversal() -> Result<()> {
     .execute(&gl_pool)
     .await?;
 
-    println!("✓ Created reversal entry: {} (reverses {})", reversal_entry_id, original_entry_id);
+    println!(
+        "✓ Created reversal entry: {} (reverses {})",
+        reversal_entry_id, original_entry_id
+    );
 
     // Step 3: Assert invariant passes (depth = 1 is valid)
     let result = assert_max_reversal_chain_depth(&gl_pool, &tenant_id).await;
@@ -84,9 +96,15 @@ async fn test_valid_single_level_reversal() -> Result<()> {
     println!("✅ Invariant check passed: single-level reversal is valid\n");
 
     // Cleanup
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }
@@ -102,9 +120,15 @@ async fn test_invalid_double_reversal_rejected() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("\n🔍 Testing invalid double reversal (depth = 2) rejection\n");
 
@@ -143,7 +167,10 @@ async fn test_invalid_double_reversal_rejected() -> Result<()> {
     .execute(&gl_pool)
     .await?;
 
-    println!("✓ Created first reversal: {} (reverses {})", first_reversal_id, original_entry_id);
+    println!(
+        "✓ Created first reversal: {} (reverses {})",
+        first_reversal_id, original_entry_id
+    );
 
     // Step 3: Create second reversal (depth = 2) - INVALID (reverses a reversal)
     let second_reversal_id = Uuid::new_v4();
@@ -162,7 +189,10 @@ async fn test_invalid_double_reversal_rejected() -> Result<()> {
     .execute(&gl_pool)
     .await?;
 
-    println!("✓ Created second reversal: {} (reverses {} - INVALID!)", second_reversal_id, first_reversal_id);
+    println!(
+        "✓ Created second reversal: {} (reverses {} - INVALID!)",
+        second_reversal_id, first_reversal_id
+    );
 
     // Step 4: Assert invariant FAILS (depth = 2 is invalid)
     let result = assert_max_reversal_chain_depth(&gl_pool, &tenant_id).await;
@@ -180,7 +210,10 @@ async fn test_invalid_double_reversal_rejected() -> Result<()> {
         }) => {
             println!("✅ Invariant correctly rejected double reversal:");
             println!("   Reversal entry: {}", reversal_entry_id);
-            println!("   Original entry: {} (which reverses {})", depth1_entry_id, original_reverses_id);
+            println!(
+                "   Original entry: {} (which reverses {})",
+                depth1_entry_id, original_reverses_id
+            );
             assert_eq!(reversal_entry_id, second_reversal_id);
             assert_eq!(depth1_entry_id, first_reversal_id);
             assert_eq!(original_reverses_id, original_entry_id);
@@ -192,9 +225,15 @@ async fn test_invalid_double_reversal_rejected() -> Result<()> {
     println!("✅ Test passed: double reversal correctly rejected\n");
 
     // Cleanup
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }
@@ -210,9 +249,15 @@ async fn test_multiple_independent_reversals_allowed() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("\n🔍 Testing multiple independent reversals (no chaining)\n");
 
@@ -275,9 +320,15 @@ async fn test_multiple_independent_reversals_allowed() -> Result<()> {
     println!("✅ Invariant check passed: multiple independent reversals are valid\n");
 
     // Cleanup
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }

@@ -8,7 +8,6 @@
 ///   - GET /api/ttp/plans (plan catalog)
 ///
 /// All tests run against a real Postgres database. No mocks.
-
 use axum::http::StatusCode;
 use axum_test::TestServer;
 use serde_json::Value;
@@ -29,7 +28,9 @@ async fn test_pool() -> PgPool {
         "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
             .to_string()
     });
-    PgPool::connect(&url).await.expect("connect to tenant-registry DB")
+    PgPool::connect(&url)
+        .await
+        .expect("connect to tenant-registry DB")
 }
 
 fn build_test_server(pool: PgPool) -> TestServer {
@@ -125,7 +126,9 @@ async fn tenant_list_includes_seeded_tenant() {
 
     let body: Value = resp.json();
     let tenants = body["tenants"].as_array().unwrap();
-    let found = tenants.iter().any(|t| t["id"].as_str() == Some(&tenant_id.to_string()));
+    let found = tenants
+        .iter()
+        .any(|t| t["id"].as_str() == Some(&tenant_id.to_string()));
     assert!(found, "seeded tenant should appear in list");
 
     let entry = tenants
@@ -151,16 +154,28 @@ async fn tenant_list_filters_by_status() {
     resp.assert_status(StatusCode::OK);
     let body: Value = resp.json();
     let tenants = body["tenants"].as_array().unwrap();
-    let found = tenants.iter().any(|t| t["id"].as_str() == Some(&tenant_id.to_string()));
-    assert!(found, "active tenant should appear when filtering by active");
+    let found = tenants
+        .iter()
+        .any(|t| t["id"].as_str() == Some(&tenant_id.to_string()));
+    assert!(
+        found,
+        "active tenant should appear when filtering by active"
+    );
 
     // Filter by suspended — should NOT include our active tenant
-    let resp = server.get("/api/tenants?status=suspended&page_size=100").await;
+    let resp = server
+        .get("/api/tenants?status=suspended&page_size=100")
+        .await;
     resp.assert_status(StatusCode::OK);
     let body: Value = resp.json();
     let tenants = body["tenants"].as_array().unwrap();
-    let found = tenants.iter().any(|t| t["id"].as_str() == Some(&tenant_id.to_string()));
-    assert!(!found, "active tenant should not appear when filtering by suspended");
+    let found = tenants
+        .iter()
+        .any(|t| t["id"].as_str() == Some(&tenant_id.to_string()));
+    assert!(
+        !found,
+        "active tenant should not appear when filtering by suspended"
+    );
 
     cleanup(&pool, tenant_id).await;
 }
@@ -181,11 +196,15 @@ async fn tenant_list_filters_by_plan() {
     let body: Value = resp.json();
     let tenants = body["tenants"].as_array().unwrap();
     assert!(
-        tenants.iter().all(|t| t["plan"].as_str() == Some(&unique_plan)),
+        tenants
+            .iter()
+            .all(|t| t["plan"].as_str() == Some(&unique_plan)),
         "all returned tenants should match the plan filter"
     );
     assert!(
-        tenants.iter().any(|t| t["id"].as_str() == Some(&tenant_id.to_string())),
+        tenants
+            .iter()
+            .any(|t| t["id"].as_str() == Some(&tenant_id.to_string())),
         "our tenant should be in the filtered results"
     );
 
@@ -200,8 +219,7 @@ async fn tenant_list_filters_by_plan() {
 async fn tenant_detail_returns_full_dto() {
     let pool = test_pool().await;
     let app_id = format!("app-det-{}", &Uuid::new_v4().to_string()[..8]);
-    let tenant_id =
-        seed_tenant_full(&pool, "detail-corp", "annual", &app_id, Some(25)).await;
+    let tenant_id = seed_tenant_full(&pool, "detail-corp", "annual", &app_id, Some(25)).await;
     let server = build_test_server(pool.clone());
 
     let resp = server.get(&format!("/api/tenants/{tenant_id}")).await;
@@ -231,7 +249,10 @@ async fn tenant_detail_returns_null_seat_limit_without_entitlements() {
     resp.assert_status(StatusCode::OK);
 
     let body: Value = resp.json();
-    assert!(body["seat_limit"].is_null(), "seat_limit should be null without entitlements");
+    assert!(
+        body["seat_limit"].is_null(),
+        "seat_limit should be null without entitlements"
+    );
 
     cleanup(&pool, tenant_id).await;
 }
@@ -294,11 +315,17 @@ async fn plans_catalog_returns_seeded_plans() {
     let plans = body["plans"].as_array().expect("plans should be an array");
 
     // Seeded plans: starter, professional, enterprise (id field maps to plan_code)
-    let plan_ids: Vec<&str> = plans
-        .iter()
-        .filter_map(|p| p["id"].as_str())
-        .collect();
-    assert!(plan_ids.contains(&"starter"), "starter plan should be present");
-    assert!(plan_ids.contains(&"professional"), "professional plan should be present");
-    assert!(plan_ids.contains(&"enterprise"), "enterprise plan should be present");
+    let plan_ids: Vec<&str> = plans.iter().filter_map(|p| p["id"].as_str()).collect();
+    assert!(
+        plan_ids.contains(&"starter"),
+        "starter plan should be present"
+    );
+    assert!(
+        plan_ids.contains(&"professional"),
+        "professional plan should be present"
+    );
+    assert!(
+        plan_ids.contains(&"enterprise"),
+        "enterprise plan should be present"
+    );
 }

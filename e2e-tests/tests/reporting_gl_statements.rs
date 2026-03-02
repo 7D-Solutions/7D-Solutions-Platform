@@ -9,15 +9,14 @@
 /// 3. Replay/backfill produces identical caches
 ///
 /// Run with: cargo test -p e2e-tests -- reporting_gl --nocapture
-
 mod common;
 
 use chrono::NaiveDate;
 use common::get_reporting_pool;
+use event_bus::BusMessage;
 use reporting::domain::statements::{balance_sheet, pl};
 use reporting::ingest::gl::TrialBalanceHandler;
 use reporting::ingest::IngestConsumer;
-use event_bus::BusMessage;
 use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -114,11 +113,7 @@ async fn ingest_postings(
 }
 
 /// Query trial balance totals (sum of debits/credits) for reconciliation.
-async fn trial_balance_totals(
-    pool: &PgPool,
-    tenant_id: &str,
-    currency: &str,
-) -> (i64, i64) {
+async fn trial_balance_totals(pool: &PgPool, tenant_id: &str, currency: &str) -> (i64, i64) {
     sqlx::query_as::<_, (i64, i64)>(
         r#"
         SELECT COALESCE(SUM(debit_minor), 0)::BIGINT,
@@ -156,26 +151,36 @@ async fn test_reporting_gl_full_pipeline() {
     // Entry 4: Expense — DR Rent(6000) 1000.00, CR Cash(1000) 1000.00
     // Entry 5: Liability — DR Cash(1000) 10000.00, CR Loan(2000) 10000.00
     let postings: Vec<(&str, &str, &str, Vec<(&str, f64, f64)>)> = vec![
-        ("evt-pipe-001", "2026-03-15", "USD", vec![
-            ("1100", 5000.00, 0.0),
-            ("4000", 0.0, 5000.00),
-        ]),
-        ("evt-pipe-002", "2026-03-16", "USD", vec![
-            ("1000", 5000.00, 0.0),
-            ("1100", 0.0, 5000.00),
-        ]),
-        ("evt-pipe-003", "2026-03-17", "USD", vec![
-            ("5000", 2000.00, 0.0),
-            ("1200", 0.0, 2000.00),
-        ]),
-        ("evt-pipe-004", "2026-03-20", "USD", vec![
-            ("6000", 1000.00, 0.0),
-            ("1000", 0.0, 1000.00),
-        ]),
-        ("evt-pipe-005", "2026-03-01", "USD", vec![
-            ("1000", 10000.00, 0.0),
-            ("2000", 0.0, 10000.00),
-        ]),
+        (
+            "evt-pipe-001",
+            "2026-03-15",
+            "USD",
+            vec![("1100", 5000.00, 0.0), ("4000", 0.0, 5000.00)],
+        ),
+        (
+            "evt-pipe-002",
+            "2026-03-16",
+            "USD",
+            vec![("1000", 5000.00, 0.0), ("1100", 0.0, 5000.00)],
+        ),
+        (
+            "evt-pipe-003",
+            "2026-03-17",
+            "USD",
+            vec![("5000", 2000.00, 0.0), ("1200", 0.0, 2000.00)],
+        ),
+        (
+            "evt-pipe-004",
+            "2026-03-20",
+            "USD",
+            vec![("6000", 1000.00, 0.0), ("1000", 0.0, 1000.00)],
+        ),
+        (
+            "evt-pipe-005",
+            "2026-03-01",
+            "USD",
+            vec![("1000", 10000.00, 0.0), ("2000", 0.0, 10000.00)],
+        ),
     ];
 
     ingest_postings(&pool, &tenant_id, "e2e-pipe", &postings).await;
@@ -188,7 +193,10 @@ async fn test_reporting_gl_full_pipeline() {
         total_debit, total_credit
     );
     assert!(total_debit > 0, "must have non-zero postings");
-    println!("Trial balance reconciles: debits = credits = {}", total_debit);
+    println!(
+        "Trial balance reconciles: debits = credits = {}",
+        total_debit
+    );
 
     // --- P&L statement ---
     let from = NaiveDate::from_ymd_opt(2026, 3, 1).unwrap();
@@ -197,25 +205,65 @@ async fn test_reporting_gl_full_pipeline() {
         .await
         .expect("P&L computation failed");
 
-    let rev_section = pl_stmt.sections.iter().find(|s| s.section == "revenue").unwrap();
-    let rev_usd = rev_section.total_by_currency.get("USD").copied().unwrap_or(0);
+    let rev_section = pl_stmt
+        .sections
+        .iter()
+        .find(|s| s.section == "revenue")
+        .unwrap();
+    let rev_usd = rev_section
+        .total_by_currency
+        .get("USD")
+        .copied()
+        .unwrap_or(0);
     // Revenue 4000: credit 500000, debit 0 → amount = 500000
-    assert_eq!(rev_usd, 500000, "Revenue should be $5,000.00 (500000 minor)");
+    assert_eq!(
+        rev_usd, 500000,
+        "Revenue should be $5,000.00 (500000 minor)"
+    );
 
-    let cogs_section = pl_stmt.sections.iter().find(|s| s.section == "cogs").unwrap();
-    let cogs_usd = cogs_section.total_by_currency.get("USD").copied().unwrap_or(0);
+    let cogs_section = pl_stmt
+        .sections
+        .iter()
+        .find(|s| s.section == "cogs")
+        .unwrap();
+    let cogs_usd = cogs_section
+        .total_by_currency
+        .get("USD")
+        .copied()
+        .unwrap_or(0);
     // COGS 5000: debit 200000, credit 0 → amount = 200000
     assert_eq!(cogs_usd, 200000, "COGS should be $2,000.00 (200000 minor)");
 
-    let exp_section = pl_stmt.sections.iter().find(|s| s.section == "expenses").unwrap();
-    let exp_usd = exp_section.total_by_currency.get("USD").copied().unwrap_or(0);
+    let exp_section = pl_stmt
+        .sections
+        .iter()
+        .find(|s| s.section == "expenses")
+        .unwrap();
+    let exp_usd = exp_section
+        .total_by_currency
+        .get("USD")
+        .copied()
+        .unwrap_or(0);
     // Expenses 6000: debit 100000, credit 0 → amount = 100000
-    assert_eq!(exp_usd, 100000, "Expenses should be $1,000.00 (100000 minor)");
+    assert_eq!(
+        exp_usd, 100000,
+        "Expenses should be $1,000.00 (100000 minor)"
+    );
 
     // Net income = revenue - cogs - expenses = 500000 - 200000 - 100000 = 200000
-    let net_income = pl_stmt.net_income_by_currency.get("USD").copied().unwrap_or(0);
-    assert_eq!(net_income, 200000, "Net income should be $2,000.00 (200000 minor)");
-    println!("P&L: revenue={}, cogs={}, expenses={}, net_income={}", rev_usd, cogs_usd, exp_usd, net_income);
+    let net_income = pl_stmt
+        .net_income_by_currency
+        .get("USD")
+        .copied()
+        .unwrap_or(0);
+    assert_eq!(
+        net_income, 200000,
+        "Net income should be $2,000.00 (200000 minor)"
+    );
+    println!(
+        "P&L: revenue={}, cogs={}, expenses={}, net_income={}",
+        rev_usd, cogs_usd, exp_usd, net_income
+    );
 
     // --- Balance Sheet ---
     let as_of = NaiveDate::from_ymd_opt(2026, 3, 31).unwrap();
@@ -232,11 +280,22 @@ async fn test_reporting_gl_full_pipeline() {
     // Total = 1400000 + 0 + (-200000) = 1200000
     assert_eq!(assets_usd, 1200000, "Total assets should be $12,000.00");
 
-    let liabilities = bs.sections.iter().find(|s| s.section == "liabilities").unwrap();
-    let liabilities_usd = liabilities.total_by_currency.get("USD").copied().unwrap_or(0);
+    let liabilities = bs
+        .sections
+        .iter()
+        .find(|s| s.section == "liabilities")
+        .unwrap();
+    let liabilities_usd = liabilities
+        .total_by_currency
+        .get("USD")
+        .copied()
+        .unwrap_or(0);
     // Liabilities:
     //   2000 Loan: DR 0, CR 10000 → credit-normal: credit-debit = 1000000
-    assert_eq!(liabilities_usd, 1000000, "Total liabilities should be $10,000.00");
+    assert_eq!(
+        liabilities_usd, 1000000,
+        "Total liabilities should be $10,000.00"
+    );
 
     println!(
         "Balance Sheet: assets={}, liabilities={}",
@@ -261,18 +320,24 @@ async fn test_reporting_gl_replay_produces_identical_cache() {
     cleanup_tenant(&pool, &tenant_id).await;
 
     let postings: Vec<(&str, &str, &str, Vec<(&str, f64, f64)>)> = vec![
-        ("evt-replay-001", "2026-04-01", "USD", vec![
-            ("1100", 3000.00, 0.0),
-            ("4000", 0.0, 3000.00),
-        ]),
-        ("evt-replay-002", "2026-04-05", "USD", vec![
-            ("5000", 1500.00, 0.0),
-            ("1200", 0.0, 1500.00),
-        ]),
-        ("evt-replay-003", "2026-04-10", "EUR", vec![
-            ("1000", 2000.00, 0.0),
-            ("2000", 0.0, 2000.00),
-        ]),
+        (
+            "evt-replay-001",
+            "2026-04-01",
+            "USD",
+            vec![("1100", 3000.00, 0.0), ("4000", 0.0, 3000.00)],
+        ),
+        (
+            "evt-replay-002",
+            "2026-04-05",
+            "USD",
+            vec![("5000", 1500.00, 0.0), ("1200", 0.0, 1500.00)],
+        ),
+        (
+            "evt-replay-003",
+            "2026-04-10",
+            "EUR",
+            vec![("1000", 2000.00, 0.0), ("2000", 0.0, 2000.00)],
+        ),
     ];
 
     // First ingestion
@@ -291,7 +356,10 @@ async fn test_reporting_gl_replay_produces_identical_cache() {
     .fetch_all(&pool)
     .await
     .expect("snapshot query failed");
-    assert!(!snapshot_before.is_empty(), "cache must have rows after first ingestion");
+    assert!(
+        !snapshot_before.is_empty(),
+        "cache must have rows after first ingestion"
+    );
 
     // Wipe checkpoints to simulate a backfill from scratch, then wipe cache
     sqlx::query("DELETE FROM rpt_ingestion_checkpoints WHERE tenant_id = $1")
@@ -342,9 +410,15 @@ async fn test_reporting_gl_replay_produces_identical_cache() {
     let (td, tc) = trial_balance_totals(&pool, &tenant_id, "USD").await;
     assert_eq!(td, tc, "USD trial balance must reconcile after replay");
     let (td_eur, tc_eur) = trial_balance_totals(&pool, &tenant_id, "EUR").await;
-    assert_eq!(td_eur, tc_eur, "EUR trial balance must reconcile after replay");
+    assert_eq!(
+        td_eur, tc_eur,
+        "EUR trial balance must reconcile after replay"
+    );
 
-    println!("PASS: Replay/backfill produces identical cache ({} rows)", snapshot_after.len());
+    println!(
+        "PASS: Replay/backfill produces identical cache ({} rows)",
+        snapshot_after.len()
+    );
     cleanup_tenant(&pool, &tenant_id).await;
 }
 
@@ -361,18 +435,24 @@ async fn test_reporting_gl_multicurrency_pl() {
     cleanup_tenant(&pool, &tenant_id).await;
 
     let postings: Vec<(&str, &str, &str, Vec<(&str, f64, f64)>)> = vec![
-        ("evt-mcur-001", "2026-05-15", "USD", vec![
-            ("1100", 8000.00, 0.0),
-            ("4000", 0.0, 8000.00),
-        ]),
-        ("evt-mcur-002", "2026-05-15", "EUR", vec![
-            ("1100", 6000.00, 0.0),
-            ("4000", 0.0, 6000.00),
-        ]),
-        ("evt-mcur-003", "2026-05-20", "USD", vec![
-            ("5000", 3000.00, 0.0),
-            ("1200", 0.0, 3000.00),
-        ]),
+        (
+            "evt-mcur-001",
+            "2026-05-15",
+            "USD",
+            vec![("1100", 8000.00, 0.0), ("4000", 0.0, 8000.00)],
+        ),
+        (
+            "evt-mcur-002",
+            "2026-05-15",
+            "EUR",
+            vec![("1100", 6000.00, 0.0), ("4000", 0.0, 6000.00)],
+        ),
+        (
+            "evt-mcur-003",
+            "2026-05-20",
+            "USD",
+            vec![("5000", 3000.00, 0.0), ("1200", 0.0, 3000.00)],
+        ),
     ];
 
     ingest_postings(&pool, &tenant_id, "e2e-mcur", &postings).await;
@@ -383,17 +463,36 @@ async fn test_reporting_gl_multicurrency_pl() {
         .await
         .expect("P&L failed");
 
-    let rev = stmt.sections.iter().find(|s| s.section == "revenue").unwrap();
-    assert_eq!(rev.total_by_currency.get("USD").copied().unwrap_or(0), 800000);
-    assert_eq!(rev.total_by_currency.get("EUR").copied().unwrap_or(0), 600000);
+    let rev = stmt
+        .sections
+        .iter()
+        .find(|s| s.section == "revenue")
+        .unwrap();
+    assert_eq!(
+        rev.total_by_currency.get("USD").copied().unwrap_or(0),
+        800000
+    );
+    assert_eq!(
+        rev.total_by_currency.get("EUR").copied().unwrap_or(0),
+        600000
+    );
 
     let cogs = stmt.sections.iter().find(|s| s.section == "cogs").unwrap();
-    assert_eq!(cogs.total_by_currency.get("USD").copied().unwrap_or(0), 300000);
+    assert_eq!(
+        cogs.total_by_currency.get("USD").copied().unwrap_or(0),
+        300000
+    );
     assert_eq!(cogs.total_by_currency.get("EUR").copied().unwrap_or(0), 0);
 
     // Net income: USD = 800000 - 300000 = 500000, EUR = 600000
-    assert_eq!(stmt.net_income_by_currency.get("USD").copied().unwrap_or(0), 500000);
-    assert_eq!(stmt.net_income_by_currency.get("EUR").copied().unwrap_or(0), 600000);
+    assert_eq!(
+        stmt.net_income_by_currency.get("USD").copied().unwrap_or(0),
+        500000
+    );
+    assert_eq!(
+        stmt.net_income_by_currency.get("EUR").copied().unwrap_or(0),
+        600000
+    );
 
     println!("PASS: Multi-currency P&L isolation verified");
     cleanup_tenant(&pool, &tenant_id).await;
@@ -411,14 +510,18 @@ async fn test_reporting_gl_deterministic_queries() {
     cleanup_tenant(&pool, &tenant_id).await;
 
     let postings: Vec<(&str, &str, &str, Vec<(&str, f64, f64)>)> = vec![
-        ("evt-det-001", "2026-06-10", "USD", vec![
-            ("1000", 7500.00, 0.0),
-            ("4000", 0.0, 7500.00),
-        ]),
-        ("evt-det-002", "2026-06-15", "USD", vec![
-            ("6000", 2500.00, 0.0),
-            ("1000", 0.0, 2500.00),
-        ]),
+        (
+            "evt-det-001",
+            "2026-06-10",
+            "USD",
+            vec![("1000", 7500.00, 0.0), ("4000", 0.0, 7500.00)],
+        ),
+        (
+            "evt-det-002",
+            "2026-06-15",
+            "USD",
+            vec![("6000", 2500.00, 0.0), ("1000", 0.0, 2500.00)],
+        ),
     ];
 
     ingest_postings(&pool, &tenant_id, "e2e-det", &postings).await;
@@ -431,8 +534,12 @@ async fn test_reporting_gl_deterministic_queries() {
     let pl1 = pl::compute_pl(&pool, &tenant_id, from, to).await.unwrap();
     let pl2 = pl::compute_pl(&pool, &tenant_id, from, to).await.unwrap();
 
-    let bs1 = balance_sheet::compute_balance_sheet(&pool, &tenant_id, as_of).await.unwrap();
-    let bs2 = balance_sheet::compute_balance_sheet(&pool, &tenant_id, as_of).await.unwrap();
+    let bs1 = balance_sheet::compute_balance_sheet(&pool, &tenant_id, as_of)
+        .await
+        .unwrap();
+    let bs2 = balance_sheet::compute_balance_sheet(&pool, &tenant_id, as_of)
+        .await
+        .unwrap();
 
     // P&L must be identical
     assert_eq!(pl1.net_income_by_currency, pl2.net_income_by_currency);

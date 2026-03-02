@@ -175,23 +175,44 @@ async fn cleanup(
     sqlx::query("DELETE FROM processed_events WHERE event_id IN (SELECT source_event_id FROM journal_entries WHERE tenant_id = $1)")
         .bind(gl_tenant_id).execute(gl_pool).await.ok();
     sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
-        .bind(gl_tenant_id).execute(gl_pool).await.ok();
+        .bind(gl_tenant_id)
+        .execute(gl_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
-        .bind(gl_tenant_id).execute(gl_pool).await.ok();
+        .bind(gl_tenant_id)
+        .execute(gl_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
-        .bind(gl_tenant_id).execute(gl_pool).await.ok();
+        .bind(gl_tenant_id)
+        .execute(gl_pool)
+        .await
+        .ok();
 
     // Payments
     sqlx::query("DELETE FROM payment_attempts WHERE app_id = $1")
-        .bind(app_id).execute(payments_pool).await.ok();
+        .bind(app_id)
+        .execute(payments_pool)
+        .await
+        .ok();
 
     // AR (reverse FK order)
     sqlx::query("DELETE FROM events_outbox WHERE tenant_id = $1")
-        .bind(app_id).execute(ar_pool).await.ok();
+        .bind(app_id)
+        .execute(ar_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
-        .bind(app_id).execute(ar_pool).await.ok();
+        .bind(app_id)
+        .execute(ar_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_customers WHERE app_id = $1")
-        .bind(app_id).execute(ar_pool).await.ok();
+        .bind(app_id)
+        .execute(ar_pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -259,7 +280,9 @@ async fn test_invoice_gl_posting_account_codes() {
     assert_eq!(lines[1], ("REV".to_string(), 0, amount));
 
     // Verify balanced
-    assert!(common::assert_journal_balanced(&gl_pool, entry_id).await.is_ok());
+    assert!(common::assert_journal_balanced(&gl_pool, entry_id)
+        .await
+        .is_ok());
 
     cleanup(&ar_pool, &payments_pool, &gl_pool, app_id, &gl_tenant_id).await;
 }
@@ -331,7 +354,9 @@ async fn test_payment_gl_posting_account_codes() {
     assert_eq!(lines[0], ("CASH".to_string(), amount, 0));
     assert_eq!(lines[1], ("AR".to_string(), 0, amount));
 
-    assert!(common::assert_journal_balanced(&gl_pool, entry_id).await.is_ok());
+    assert!(common::assert_journal_balanced(&gl_pool, entry_id)
+        .await
+        .is_ok());
 
     cleanup(&ar_pool, &payments_pool, &gl_pool, app_id, &gl_tenant_id).await;
 }
@@ -363,9 +388,15 @@ async fn test_full_chain_two_gl_entries() {
         format!("invoice.created:{}", invoice_id).as_bytes(),
     );
     let entry1 = create_gl_journal_entry(
-        &gl_pool, &gl_tenant_id, "ar", inv_event_id,
-        "invoice.created", "USD", "Invoice created",
-    ).await;
+        &gl_pool,
+        &gl_tenant_id,
+        "ar",
+        inv_event_id,
+        "invoice.created",
+        "USD",
+        "Invoice created",
+    )
+    .await;
     create_gl_line(&gl_pool, entry1, 1, "AR", amount, 0).await;
     create_gl_line(&gl_pool, entry1, 2, "REV", 0, amount).await;
 
@@ -380,27 +411,36 @@ async fn test_full_chain_two_gl_entries() {
         format!("payment.succeeded:{}", payment_id).as_bytes(),
     );
     let entry2 = create_gl_journal_entry(
-        &gl_pool, &gl_tenant_id, "payments", pay_event_id,
-        "payment.succeeded", "USD", "Payment received",
-    ).await;
+        &gl_pool,
+        &gl_tenant_id,
+        "payments",
+        pay_event_id,
+        "payment.succeeded",
+        "USD",
+        "Payment received",
+    )
+    .await;
     create_gl_line(&gl_pool, entry2, 1, "CASH", amount, 0).await;
     create_gl_line(&gl_pool, entry2, 2, "AR", 0, amount).await;
 
     // Verify: two distinct entries
     assert_ne!(entry1, entry2, "entries must be distinct");
 
-    let entry_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(&gl_tenant_id)
-    .fetch_one(&gl_pool)
-    .await
-    .expect("count entries");
+    let entry_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(&gl_tenant_id)
+            .fetch_one(&gl_pool)
+            .await
+            .expect("count entries");
     assert_eq!(entry_count, 2, "must have exactly 2 journal entries");
 
     // Both balanced
-    assert!(common::assert_journal_balanced(&gl_pool, entry1).await.is_ok());
-    assert!(common::assert_journal_balanced(&gl_pool, entry2).await.is_ok());
+    assert!(common::assert_journal_balanced(&gl_pool, entry1)
+        .await
+        .is_ok());
+    assert!(common::assert_journal_balanced(&gl_pool, entry2)
+        .await
+        .is_ok());
 
     // Net AR impact: entry1 debits AR +amount, entry2 credits AR -amount → net zero
     let ar_balance: (i64, i64) = sqlx::query_as(
@@ -414,7 +454,10 @@ async fn test_full_chain_two_gl_entries() {
     .await
     .expect("AR balance query");
 
-    assert_eq!(ar_balance.0, ar_balance.1, "AR account must net to zero after full cycle");
+    assert_eq!(
+        ar_balance.0, ar_balance.1,
+        "AR account must net to zero after full cycle"
+    );
 
     cleanup(&ar_pool, &payments_pool, &gl_pool, app_id, &gl_tenant_id).await;
 }
@@ -446,15 +489,25 @@ async fn test_gl_entry_metadata() {
     );
 
     let entry_id = create_gl_journal_entry(
-        &gl_pool, &gl_tenant_id, "ar", inv_event_id,
-        "invoice.created", "USD", "Metadata test",
-    ).await;
+        &gl_pool,
+        &gl_tenant_id,
+        "ar",
+        inv_event_id,
+        "invoice.created",
+        "USD",
+        "Metadata test",
+    )
+    .await;
     create_gl_line(&gl_pool, entry_id, 1, "AR", amount, 0).await;
     create_gl_line(&gl_pool, entry_id, 2, "REV", 0, amount).await;
 
     // Query entry metadata
     let (db_tenant, db_module, db_subject, db_currency, db_event_id): (
-        String, String, String, String, Uuid,
+        String,
+        String,
+        String,
+        String,
+        Uuid,
     ) = sqlx::query_as(
         "SELECT tenant_id, source_module, source_subject, currency, source_event_id
          FROM journal_entries WHERE id = $1",
@@ -480,8 +533,14 @@ async fn test_gl_entry_metadata() {
     .await
     .expect("fetch totals");
 
-    assert_eq!(total_debits, amount, "total debits must match invoice amount");
-    assert_eq!(total_credits, amount, "total credits must match invoice amount");
+    assert_eq!(
+        total_debits, amount,
+        "total debits must match invoice amount"
+    );
+    assert_eq!(
+        total_credits, amount,
+        "total credits must match invoice amount"
+    );
 
     cleanup(&ar_pool, &payments_pool, &gl_pool, app_id, &gl_tenant_id).await;
 }
@@ -513,9 +572,15 @@ async fn test_duplicate_gl_posting_rejected() {
 
     // First posting succeeds
     let entry_id = create_gl_journal_entry(
-        &gl_pool, &gl_tenant_id, "ar", event_id,
-        "invoice.created", "USD", "First posting",
-    ).await;
+        &gl_pool,
+        &gl_tenant_id,
+        "ar",
+        event_id,
+        "invoice.created",
+        "USD",
+        "First posting",
+    )
+    .await;
     create_gl_line(&gl_pool, entry_id, 1, "AR", 30000, 0).await;
     create_gl_line(&gl_pool, entry_id, 2, "REV", 0, 30000).await;
 
@@ -531,7 +596,10 @@ async fn test_duplicate_gl_posting_rejected() {
     .fetch_one(&gl_pool)
     .await;
 
-    assert!(dup_result.is_err(), "duplicate source_event_id must be rejected");
+    assert!(
+        dup_result.is_err(),
+        "duplicate source_event_id must be rejected"
+    );
 
     // Verify exactly one entry
     let count: i64 = sqlx::query_scalar(

@@ -55,12 +55,7 @@ async fn test_http_validate_close_success() {
     let url = format!("{}/api/gl/periods/{}/validate-close", BASE_URL, period_id);
     let body = json!({ "tenant_id": tenant_id });
 
-    let response = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .unwrap();
+    let response = client.post(&url).json(&body).send().await.unwrap();
 
     // Should return 200 OK
     assert_eq!(response.status(), StatusCode::OK);
@@ -72,7 +67,10 @@ async fn test_http_validate_close_success() {
     assert_eq!(json["period_id"], period_id.to_string());
     assert_eq!(json["tenant_id"], tenant_id);
     assert_eq!(json["can_close"], true);
-    assert!(json["validation_report"]["issues"].as_array().unwrap().is_empty());
+    assert!(json["validation_report"]["issues"]
+        .as_array()
+        .unwrap()
+        .is_empty());
     assert!(json["validated_at"].is_string());
 }
 
@@ -108,12 +106,7 @@ async fn test_http_validate_close_already_closed() {
     let url = format!("{}/api/gl/periods/{}/validate-close", BASE_URL, period_id);
     let body = json!({ "tenant_id": tenant_id });
 
-    let response = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .unwrap();
+    let response = client.post(&url).json(&body).send().await.unwrap();
 
     // Should return 200 OK (validation always succeeds, but can_close=false)
     assert_eq!(response.status(), StatusCode::OK);
@@ -123,7 +116,10 @@ async fn test_http_validate_close_already_closed() {
 
     // Verify response
     assert_eq!(json["can_close"], false);
-    assert!(!json["validation_report"]["issues"].as_array().unwrap().is_empty());
+    assert!(!json["validation_report"]["issues"]
+        .as_array()
+        .unwrap()
+        .is_empty());
 
     // Verify has PERIOD_ALREADY_CLOSED error
     let issues = json["validation_report"]["issues"].as_array().unwrap();
@@ -164,12 +160,7 @@ async fn test_http_close_period_success() {
         "close_reason": "HTTP E2E test close"
     });
 
-    let response = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .unwrap();
+    let response = client.post(&url).json(&body).send().await.unwrap();
 
     // Should return 200 OK
     assert_eq!(response.status(), StatusCode::OK);
@@ -229,12 +220,7 @@ async fn test_http_close_period_idempotent() {
     });
 
     // First close
-    let response1 = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .unwrap();
+    let response1 = client.post(&url).json(&body).send().await.unwrap();
 
     assert_eq!(response1.status(), StatusCode::OK);
     let json1: serde_json::Value = response1.json().await.unwrap();
@@ -249,12 +235,7 @@ async fn test_http_close_period_idempotent() {
         "close_reason": "Second close"
     });
 
-    let response2 = client
-        .post(&url)
-        .json(&body2)
-        .send()
-        .await
-        .unwrap();
+    let response2 = client.post(&url).json(&body2).send().await.unwrap();
 
     assert_eq!(response2.status(), StatusCode::OK);
     let json2: serde_json::Value = response2.json().await.unwrap();
@@ -326,12 +307,7 @@ async fn test_http_close_period_validation_failure() {
         "closed_by": "admin"
     });
 
-    let response = client
-        .post(&url)
-        .json(&body)
-        .send()
-        .await
-        .unwrap();
+    let response = client.post(&url).json(&body).send().await.unwrap();
 
     // Should return 200 OK (but success=false)
     assert_eq!(response.status(), StatusCode::OK);

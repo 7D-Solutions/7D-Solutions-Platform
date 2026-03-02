@@ -1,6 +1,5 @@
 /// Integration tests for tenant CRUD, plan/bundle assignment,
 /// app_id mapping, entitlements, and atomic activation.
-
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -13,7 +12,9 @@ async fn test_pool() -> PgPool {
         "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
             .to_string()
     });
-    PgPool::connect(&url).await.expect("connect to tenant-registry DB")
+    PgPool::connect(&url)
+        .await
+        .expect("connect to tenant-registry DB")
 }
 
 async fn insert_tenant(pool: &PgPool, status: &str) -> Uuid {
@@ -65,13 +66,25 @@ async fn get_status(pool: &PgPool, tenant_id: Uuid) -> String {
 
 async fn cleanup(pool: &PgPool, tenant_id: Uuid) {
     sqlx::query("DELETE FROM cp_entitlements WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM cp_tenant_bundle WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM provisioning_outbox WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -82,8 +95,13 @@ async fn cleanup(pool: &PgPool, tenant_id: Uuid) {
 async fn create_and_read_tenant() {
     let pool = test_pool().await;
     let tid = insert_tenant_full(
-        &pool, "active", Some("acme"), Some("starter"), Some("app_acme1"),
-    ).await;
+        &pool,
+        "active",
+        Some("acme"),
+        Some("starter"),
+        Some("app_acme1"),
+    )
+    .await;
 
     let row = sqlx::query_as::<_, (String, String, Option<String>, Option<String>, Option<String>)>(
         "SELECT status, environment, product_code, plan_code, app_id FROM tenants WHERE tenant_id = $1",
@@ -105,9 +123,7 @@ async fn create_and_read_tenant() {
 #[tokio::test]
 async fn update_tenant_product_and_plan() {
     let pool = test_pool().await;
-    let tid = insert_tenant_full(
-        &pool, "active", Some("old-product"), Some("basic"), None,
-    ).await;
+    let tid = insert_tenant_full(&pool, "active", Some("old-product"), Some("basic"), None).await;
 
     sqlx::query(
         "UPDATE tenants SET product_code = $1, plan_code = $2, updated_at = NOW() WHERE tenant_id = $3",
@@ -267,9 +283,15 @@ async fn bundle_assignment_and_transition() {
     assert_eq!(status, "in_transition");
 
     sqlx::query("DELETE FROM cp_tenant_bundle WHERE tenant_id = $1")
-        .bind(tid).execute(&pool).await.ok();
+        .bind(tid)
+        .execute(&pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM cp_bundles WHERE bundle_id = $1")
-        .bind(bundle_id).execute(&pool).await.ok();
+        .bind(bundle_id)
+        .execute(&pool)
+        .await
+        .ok();
     cleanup(&pool, tid).await;
 }
 
@@ -349,7 +371,9 @@ async fn entitlements_returned_for_tenant() {
     .await
     .expect("insert entitlements");
 
-    let result = get_tenant_entitlements(&pool, tid).await.expect("get entitlements");
+    let result = get_tenant_entitlements(&pool, tid)
+        .await
+        .expect("get entitlements");
     assert!(result.is_some());
     let ent = result.unwrap();
     assert_eq!(ent.plan_code, "enterprise");
@@ -365,7 +389,9 @@ async fn entitlements_none_when_no_row() {
     let pool = test_pool().await;
     let tid = insert_tenant(&pool, "active").await;
 
-    let result = get_tenant_entitlements(&pool, tid).await.expect("get entitlements");
+    let result = get_tenant_entitlements(&pool, tid)
+        .await
+        .expect("get entitlements");
     assert!(result.is_none());
 
     cleanup(&pool, tid).await;
@@ -382,7 +408,9 @@ async fn tenant_status_row_returned() {
     let pool = test_pool().await;
     let tid = insert_tenant(&pool, "trial").await;
 
-    let result = get_tenant_status_row(&pool, tid).await.expect("get status row");
+    let result = get_tenant_status_row(&pool, tid)
+        .await
+        .expect("get status row");
     assert!(result.is_some());
     assert_eq!(result.unwrap().status, "trial");
 
@@ -426,7 +454,9 @@ async fn activate_tenant_atomic_transitions_to_active() {
 
     let tid = insert_tenant(&pool, "provisioning").await;
 
-    activate_tenant_atomic(&pool, tid).await.expect("activate tenant");
+    activate_tenant_atomic(&pool, tid)
+        .await
+        .expect("activate tenant");
 
     assert_eq!(get_status(&pool, tid).await, "active");
 
@@ -450,7 +480,10 @@ async fn activate_tenant_atomic_fails_if_not_provisioning() {
     let tid = insert_tenant(&pool, "active").await;
 
     let result = activate_tenant_atomic(&pool, tid).await;
-    assert!(result.is_err(), "should fail when not in provisioning state");
+    assert!(
+        result.is_err(),
+        "should fail when not in provisioning state"
+    );
 
     cleanup(&pool, tid).await;
 }

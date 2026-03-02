@@ -40,8 +40,7 @@ fn get_ar_base_url() -> String {
 }
 
 fn get_tenant_registry_url() -> String {
-    std::env::var("TENANT_REGISTRY_URL")
-        .unwrap_or_else(|_| "http://localhost:8092".to_string())
+    std::env::var("TENANT_REGISTRY_URL").unwrap_or_else(|_| "http://localhost:8092".to_string())
 }
 
 async fn get_ttp_pool() -> PgPool {
@@ -191,13 +190,11 @@ async fn cleanup(
     .await
     .ok();
 
-    sqlx::query(
-        "DELETE FROM ar_customers WHERE app_id = 'test-app' AND external_customer_id = $1",
-    )
-    .bind(&party_id_str)
-    .execute(ar_pool)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM ar_customers WHERE app_id = 'test-app' AND external_customer_id = $1")
+        .bind(&party_id_str)
+        .execute(ar_pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -262,15 +259,17 @@ async fn test_ttp_billing_monthly_one_time() {
     // -----------------------------------------------------------------------
     // Assert 1: billing run completed with exactly one invoiced item
     // -----------------------------------------------------------------------
-    let run_status: String = sqlx::query_scalar(
-        "SELECT status FROM ttp_billing_runs WHERE run_id = $1",
-    )
-    .bind(run_id)
-    .fetch_one(&ttp_pool)
-    .await
-    .expect("query ttp_billing_runs status");
+    let run_status: String =
+        sqlx::query_scalar("SELECT status FROM ttp_billing_runs WHERE run_id = $1")
+            .bind(run_id)
+            .fetch_one(&ttp_pool)
+            .await
+            .expect("query ttp_billing_runs status");
 
-    assert_eq!(run_status, "completed", "billing run must be in completed state");
+    assert_eq!(
+        run_status, "completed",
+        "billing run must be in completed state"
+    );
 
     let invoiced_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM ttp_billing_run_items WHERE run_id = $1 AND status = 'invoiced'",
@@ -341,7 +340,10 @@ async fn test_ttp_billing_monthly_one_time() {
     .await
     .unwrap_or_else(|e| panic!("second billing run failed: {:?}", e));
 
-    assert!(summary2.was_noop, "second run for same period must be a no-op");
+    assert!(
+        summary2.was_noop,
+        "second run for same period must be a no-op"
+    );
     assert_eq!(
         summary2.run_id, run_id,
         "run_id must be stable across idempotent reruns"

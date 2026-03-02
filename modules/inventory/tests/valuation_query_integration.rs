@@ -31,8 +31,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -102,12 +102,7 @@ async fn do_receipt(
     .expect("receipt");
 }
 
-async fn do_snapshot(
-    pool: &sqlx::PgPool,
-    tenant_id: &str,
-    warehouse_id: Uuid,
-    key: &str,
-) -> Uuid {
+async fn do_snapshot(pool: &sqlx::PgPool, tenant_id: &str, warehouse_id: Uuid, key: &str) -> Uuid {
     let req = CreateSnapshotRequest {
         tenant_id: tenant_id.to_string(),
         warehouse_id,
@@ -241,7 +236,10 @@ async fn test_get_snapshot_tenant_isolation() {
         .await
         .expect("query succeeded");
 
-    assert!(result.is_none(), "tenant B must not see tenant A's snapshot");
+    assert!(
+        result.is_none(),
+        "tenant B must not see tenant A's snapshot"
+    );
 }
 
 /// get_snapshot_lines returns lines ordered by item_id for a snapshot with items.

@@ -29,7 +29,11 @@
 
 mod common;
 
-use audit::{actor::Actor, schema::{MutationClass, WriteAuditRequest}, writer::AuditWriter};
+use audit::{
+    actor::Actor,
+    schema::{MutationClass, WriteAuditRequest},
+    writer::AuditWriter,
+};
 use axum::{body::Body, http::Request, routing::post, Router};
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
@@ -38,8 +42,7 @@ use rsa::RsaPrivateKey;
 use security::{
     authz_middleware::{ClaimsLayer, RequirePermissionsLayer},
     claims::ActorType,
-    permissions,
-    JwtVerifier,
+    permissions, JwtVerifier,
 };
 use serde::Serialize;
 use std::sync::Arc;
@@ -129,7 +132,10 @@ async fn service_jwt_actor_type_is_service() {
     let keys = make_test_keys();
     let token = sign_jwt(&keys, "service", None, vec![permissions::AR_MUTATE], None);
 
-    let claims = keys.verifier.verify(&token).expect("Token verification failed");
+    let claims = keys
+        .verifier
+        .verify(&token)
+        .expect("Token verification failed");
 
     assert_eq!(
         claims.actor_type,
@@ -145,7 +151,10 @@ async fn user_jwt_actor_type_is_user() {
     let keys = make_test_keys();
     let token = sign_jwt(&keys, "user", None, vec![permissions::AR_MUTATE], None);
 
-    let claims = keys.verifier.verify(&token).expect("Token verification failed");
+    let claims = keys
+        .verifier
+        .verify(&token)
+        .expect("Token verification failed");
 
     assert_eq!(
         claims.actor_type,
@@ -161,7 +170,10 @@ async fn system_jwt_actor_type_is_system() {
     let keys = make_test_keys();
     let token = sign_jwt(&keys, "system", None, vec![], None);
 
-    let claims = keys.verifier.verify(&token).expect("Token verification failed");
+    let claims = keys
+        .verifier
+        .verify(&token)
+        .expect("Token verification failed");
 
     assert_eq!(
         claims.actor_type,
@@ -186,7 +198,10 @@ async fn service_jwt_app_id_preserved() {
         Some(app_id),
     );
 
-    let claims = keys.verifier.verify(&token).expect("Token verification failed");
+    let claims = keys
+        .verifier
+        .verify(&token)
+        .expect("Token verification failed");
 
     assert_eq!(
         claims.actor_type,
@@ -348,7 +363,11 @@ async fn service_jwt_superset_perms_succeeds_ar() {
         &keys,
         "service",
         None,
-        vec![permissions::AR_MUTATE, permissions::GL_POST, permissions::AP_MUTATE],
+        vec![
+            permissions::AR_MUTATE,
+            permissions::GL_POST,
+            permissions::AP_MUTATE,
+        ],
         None,
     );
     let app = make_guarded_router(permissions::AR_MUTATE, keys.verifier);
@@ -617,7 +636,11 @@ async fn service_auth_invariants_hold() {
         )
         .await
         .unwrap();
-    assert_eq!(resp1.status().as_u16(), 200, "Invariant 1: service+perm → 200");
+    assert_eq!(
+        resp1.status().as_u16(),
+        200,
+        "Invariant 1: service+perm → 200"
+    );
 
     // Invariant 2: service JWT without perm → 403
     let svc_noperm = sign_jwt(&keys, "service", None, vec![], None);
@@ -633,14 +656,26 @@ async fn service_auth_invariants_hold() {
         )
         .await
         .unwrap();
-    assert_eq!(resp2.status().as_u16(), 403, "Invariant 2: service+no-perm → 403");
+    assert_eq!(
+        resp2.status().as_u16(),
+        403,
+        "Invariant 2: service+no-perm → 403"
+    );
 
     // Invariant 3: actor_type is immutable (no type coercion from JWT)
     let svc_claims = keys.verifier.verify(&svc_token).unwrap();
     let usr_token = sign_jwt(&keys, "user", None, vec![permissions::AR_MUTATE], None);
     let usr_claims = keys.verifier.verify(&usr_token).unwrap();
-    assert_eq!(svc_claims.actor_type, ActorType::Service, "Invariant 3a: service token → Service");
-    assert_eq!(usr_claims.actor_type, ActorType::User, "Invariant 3b: user token → User");
+    assert_eq!(
+        svc_claims.actor_type,
+        ActorType::Service,
+        "Invariant 3a: service token → Service"
+    );
+    assert_eq!(
+        usr_claims.actor_type,
+        ActorType::User,
+        "Invariant 3b: user token → User"
+    );
     assert_ne!(
         svc_claims.actor_type, usr_claims.actor_type,
         "Invariant 3c: types must differ — no coercion"

@@ -294,12 +294,11 @@ async fn test_payment_workflow() {
     );
 
     // Verify charge remains authorized (not advanced on failure)
-    let charge_status: String =
-        sqlx::query_scalar("SELECT status FROM ar_charges WHERE id = $1")
-            .bind(charge_id)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let charge_status: String = sqlx::query_scalar("SELECT status FROM ar_charges WHERE id = $1")
+        .bind(charge_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(charge_status, "authorized");
 
     // Step 4: Simulate capture success via direct DB update for refund test

@@ -8,7 +8,6 @@
 /// 5. No revaluation when no foreign-currency balances exist
 ///
 /// Run with: cargo test -p e2e-tests fx_revaluation_e2e -- --nocapture
-
 mod common;
 
 use chrono::NaiveDate;
@@ -78,12 +77,7 @@ async fn cleanup_tenant(pool: &PgPool, tenant_id: &str) {
 }
 
 /// Create an accounting period and return its ID.
-async fn create_period(
-    pool: &PgPool,
-    tenant_id: &str,
-    start: NaiveDate,
-    end: NaiveDate,
-) -> Uuid {
+async fn create_period(pool: &PgPool, tenant_id: &str, start: NaiveDate, end: NaiveDate) -> Uuid {
     let id = Uuid::new_v4();
     sqlx::query(
         r#"
@@ -288,9 +282,25 @@ async fn test_fx_revaluation_at_period_close() {
     cleanup_tenant(&pool, &tenant_id).await;
 
     // Setup accounts
-    create_account(&pool, &tenant_id, "1100", "Accounts Receivable", "asset", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "1100",
+        "Accounts Receivable",
+        "asset",
+        "debit",
+    )
+    .await;
     create_account(&pool, &tenant_id, "4000", "Revenue", "revenue", "credit").await;
-    create_account(&pool, &tenant_id, "7100", "Unrealized FX Gain/Loss", "expense", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "7100",
+        "Unrealized FX Gain/Loss",
+        "expense",
+        "debit",
+    )
+    .await;
 
     // Create period: January 2025
     let period_start = NaiveDate::from_ymd_opt(2025, 1, 1).unwrap();
@@ -330,7 +340,10 @@ async fn test_fx_revaluation_at_period_close() {
     .expect("close_period should succeed");
 
     assert!(result.success, "Period close should succeed");
-    println!("Period closed successfully with hash: {:?}", result.close_status);
+    println!(
+        "Period closed successfully with hash: {:?}",
+        result.close_status
+    );
 
     // Verify revaluation journal entry was created
     let reval_entry = sqlx::query(
@@ -351,7 +364,10 @@ async fn test_fx_revaluation_at_period_close() {
     let currency: String = reval_entry.get("currency");
     let description: String = reval_entry.get("description");
 
-    assert_eq!(currency, "USD", "Revaluation should be in reporting currency");
+    assert_eq!(
+        currency, "USD",
+        "Revaluation should be in reporting currency"
+    );
     assert_eq!(description, "Unrealized FX revaluation at period close");
     println!("Revaluation entry ID: {}", reval_entry_id);
 
@@ -380,7 +396,11 @@ async fn test_fx_revaluation_at_period_close() {
         "Revaluation entry must be balanced: debits={} credits={}",
         total_debits, total_credits
     );
-    assert!(line_count >= 2, "Should have at least 2 lines, got {}", line_count);
+    assert!(
+        line_count >= 2,
+        "Should have at least 2 lines, got {}",
+        line_count
+    );
     println!(
         "Revaluation balanced: debits={} credits={} lines={}",
         total_debits, total_credits, line_count
@@ -392,7 +412,10 @@ async fn test_fx_revaluation_at_period_close() {
     //   4000 EUR: net_balance=-100000, opening=-100000*1.08=-108000, closing=-100000*1.10=-110000
     //     adjustment = -2000 (loss) → DR 7100 2000, CR 4000 2000
     // Total: DR (1100: 2000 + 7100: 2000) = 4000, CR (7100: 2000 + 4000: 2000) = 4000
-    assert_eq!(total_debits, 4000, "Expected total debits of 4000 minor units");
+    assert_eq!(
+        total_debits, 4000,
+        "Expected total debits of 4000 minor units"
+    );
 
     // Verify individual lines
     let lines: Vec<_> = sqlx::query(
@@ -438,7 +461,15 @@ async fn test_fx_revaluation_idempotent() {
     // Setup
     create_account(&pool, &tenant_id, "1100", "AR", "asset", "debit").await;
     create_account(&pool, &tenant_id, "4000", "Revenue", "revenue", "credit").await;
-    create_account(&pool, &tenant_id, "7100", "FX Gain/Loss", "expense", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "7100",
+        "FX Gain/Loss",
+        "expense",
+        "debit",
+    )
+    .await;
 
     let period_start = NaiveDate::from_ymd_opt(2025, 2, 1).unwrap();
     let period_end = NaiveDate::from_ymd_opt(2025, 2, 28).unwrap();
@@ -474,7 +505,10 @@ async fn test_fx_revaluation_idempotent() {
     .await
     .expect("count reval entries");
 
-    assert_eq!(count_after_first, 1, "Should have exactly 1 revaluation entry");
+    assert_eq!(
+        count_after_first, 1,
+        "Should have exactly 1 revaluation entry"
+    );
 
     // Second close (idempotent)
     let result2 = close_period(&pool, &tenant_id, period_id, "user2", None, false, "USD")
@@ -510,7 +544,15 @@ async fn test_fx_revaluation_skips_when_no_foreign_balances() {
     // Setup USD-only accounts and entry
     create_account(&pool, &tenant_id, "1000", "Cash", "asset", "debit").await;
     create_account(&pool, &tenant_id, "4000", "Revenue", "revenue", "credit").await;
-    create_account(&pool, &tenant_id, "7100", "FX Gain/Loss", "expense", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "7100",
+        "FX Gain/Loss",
+        "expense",
+        "debit",
+    )
+    .await;
 
     let period_start = NaiveDate::from_ymd_opt(2025, 3, 1).unwrap();
     let period_end = NaiveDate::from_ymd_opt(2025, 3, 31).unwrap();
@@ -559,7 +601,15 @@ async fn test_fx_revaluation_correct_adjustment_amounts() {
 
     create_account(&pool, &tenant_id, "1100", "AR", "asset", "debit").await;
     create_account(&pool, &tenant_id, "4000", "Revenue", "revenue", "credit").await;
-    create_account(&pool, &tenant_id, "7100", "FX Gain/Loss", "expense", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "7100",
+        "FX Gain/Loss",
+        "expense",
+        "debit",
+    )
+    .await;
 
     let period_start = NaiveDate::from_ymd_opt(2025, 4, 1).unwrap();
     let period_end = NaiveDate::from_ymd_opt(2025, 4, 30).unwrap();
@@ -616,8 +666,14 @@ async fn test_fx_revaluation_correct_adjustment_amounts() {
     let total_debits: i64 = lines.iter().map(|r| r.get::<i64, _>("debit_minor")).sum();
     let total_credits: i64 = lines.iter().map(|r| r.get::<i64, _>("credit_minor")).sum();
 
-    assert_eq!(total_debits, 4000, "Total debits should be 4000 (2000 per account)");
-    assert_eq!(total_credits, 4000, "Total credits should be 4000 (2000 per account)");
+    assert_eq!(
+        total_debits, 4000,
+        "Total debits should be 4000 (2000 per account)"
+    );
+    assert_eq!(
+        total_credits, 4000,
+        "Total credits should be 4000 (2000 per account)"
+    );
     assert_eq!(total_debits, total_credits, "Entry must be balanced");
 
     // Verify 1100 got a debit (gain increases asset value)
@@ -634,7 +690,10 @@ async fn test_fx_revaluation_correct_adjustment_amounts() {
         .filter(|r| r.get::<String, _>("account_ref") == "4000")
         .map(|r| r.get::<i64, _>("credit_minor"))
         .sum();
-    assert_eq!(rev_credit, 2000, "4000 should have credit of 2000 (FX loss)");
+    assert_eq!(
+        rev_credit, 2000,
+        "4000 should have credit of 2000 (FX loss)"
+    );
 
     println!("PASS: Correct FX revaluation amounts: GBP +2000 / -2000");
 }
@@ -649,7 +708,15 @@ async fn test_fx_revaluation_included_in_close_hash() {
 
     create_account(&pool, &tenant_id, "1100", "AR", "asset", "debit").await;
     create_account(&pool, &tenant_id, "4000", "Revenue", "revenue", "credit").await;
-    create_account(&pool, &tenant_id, "7100", "FX Gain/Loss", "expense", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "7100",
+        "FX Gain/Loss",
+        "expense",
+        "debit",
+    )
+    .await;
 
     let period_start = NaiveDate::from_ymd_opt(2025, 5, 1).unwrap();
     let period_end = NaiveDate::from_ymd_opt(2025, 5, 31).unwrap();
@@ -697,15 +764,18 @@ async fn test_fx_revaluation_included_in_close_hash() {
     );
 
     // Verify the close hash is a valid SHA-256 hex string
-    let close_hash: String = sqlx::query_scalar(
-        "SELECT close_hash FROM accounting_periods WHERE id = $1",
-    )
-    .bind(period_id)
-    .fetch_one(&pool)
-    .await
-    .expect("fetch close hash");
+    let close_hash: String =
+        sqlx::query_scalar("SELECT close_hash FROM accounting_periods WHERE id = $1")
+            .bind(period_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch close hash");
 
-    assert_eq!(close_hash.len(), 64, "Close hash should be SHA-256 (64 hex chars)");
+    assert_eq!(
+        close_hash.len(),
+        64,
+        "Close hash should be SHA-256 (64 hex chars)"
+    );
     println!("Close hash includes revaluation: {}", close_hash);
 
     println!("PASS: Revaluation included in close snapshot hash");

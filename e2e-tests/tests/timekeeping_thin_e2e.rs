@@ -27,9 +27,7 @@ use timekeeping::domain::{
         service as approval_svc,
     },
     entries::{
-        models::{
-            CorrectEntryRequest, CreateEntryRequest, EntryError, EntryType,
-        },
+        models::{CorrectEntryRequest, CreateEntryRequest, EntryError, EntryType},
         service as entry_svc,
     },
 };
@@ -87,7 +85,10 @@ fn unique_app_id(label: &str) -> String {
 
 /// Create an employee directly in the DB, returning its UUID.
 async fn create_employee(pool: &PgPool, app_id: &str) -> Result<Uuid> {
-    let code = format!("EMP-{}", Uuid::new_v4().simple().to_string()[..8].to_uppercase());
+    let code = format!(
+        "EMP-{}",
+        Uuid::new_v4().simple().to_string()[..8].to_uppercase()
+    );
     let id: (Uuid,) = sqlx::query_as(
         r#"INSERT INTO tk_employees
             (app_id, employee_code, first_name, last_name,
@@ -104,7 +105,10 @@ async fn create_employee(pool: &PgPool, app_id: &str) -> Result<Uuid> {
 
 /// Create a project directly in the DB, returning its UUID.
 async fn create_project(pool: &PgPool, app_id: &str) -> Result<Uuid> {
-    let code = format!("PROJ-{}", Uuid::new_v4().simple().to_string()[..8].to_uppercase());
+    let code = format!(
+        "PROJ-{}",
+        Uuid::new_v4().simple().to_string()[..8].to_uppercase()
+    );
     let id: (Uuid,) = sqlx::query_as(
         r#"INSERT INTO tk_projects (app_id, project_code, name, billable)
         VALUES ($1, $2, 'Test Project', TRUE)
@@ -175,10 +179,8 @@ async fn test_timekeeping_entry_approval_flow() -> Result<()> {
     }
 
     // --- Verify list_entries returns all 3 ---
-    let entries = entry_svc::list_entries(
-        &pool, &app_id, employee_id, period_start(), period_end(),
-    )
-    .await?;
+    let entries =
+        entry_svc::list_entries(&pool, &app_id, employee_id, period_start(), period_end()).await?;
     assert_eq!(entries.len(), 3, "Should have 3 current entries");
     let total_minutes: i32 = entries.iter().map(|e| e.minutes).sum();
     assert_eq!(total_minutes, 1440, "3 × 480 = 1440 minutes");
@@ -284,10 +286,8 @@ async fn test_timekeeping_entry_correction() -> Result<()> {
     assert!(history[1].is_current, "v2 should be current");
 
     // list_entries should only return the corrected version
-    let entries = entry_svc::list_entries(
-        &pool, &app_id, employee_id, fixed_date(1), fixed_date(7),
-    )
-    .await?;
+    let entries =
+        entry_svc::list_entries(&pool, &app_id, employee_id, fixed_date(1), fixed_date(7)).await?;
     assert_eq!(entries.len(), 1);
     assert_eq!(entries[0].minutes, 360);
 

@@ -24,10 +24,13 @@
 mod common;
 
 use anyhow::Result;
-use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_payments_pool, get_subscriptions_pool, get_gl_pool};
+use common::{
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
+    get_subscriptions_pool,
+};
 use event_bus::EventEnvelope;
-use serial_test::serial;
 use serde::{Deserialize, Serialize};
+use serial_test::serial;
 use sqlx::PgPool;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,9 +51,15 @@ async fn test_invalid_envelope_empty_tenant_id_rejected() -> Result<()> {
     let gl_pool = get_gl_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     // Step 1: Create envelope with EMPTY tenant_id (invalid)
     let mut envelope = EventEnvelope::new(
@@ -66,12 +75,8 @@ async fn test_invalid_envelope_empty_tenant_id_rejected() -> Result<()> {
     envelope.tenant_id = "".to_string();
 
     // Step 2: Attempt to enqueue event - should fail validation
-    let result = subscriptions_rs::outbox::enqueue_event(
-        &subscriptions_pool,
-        "test.event",
-        &envelope,
-    )
-    .await;
+    let result =
+        subscriptions_rs::outbox::enqueue_event(&subscriptions_pool, "test.event", &envelope).await;
 
     // Step 3: Assert that enqueue failed
     assert!(
@@ -88,7 +93,7 @@ async fn test_invalid_envelope_empty_tenant_id_rejected() -> Result<()> {
 
     // Step 4: Assert that NO outbox row was created
     let outbox_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 OR tenant_id = ''"
+        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 OR tenant_id = ''",
     )
     .bind(&tenant_id)
     .fetch_one(&subscriptions_pool)
@@ -101,9 +106,15 @@ async fn test_invalid_envelope_empty_tenant_id_rejected() -> Result<()> {
     );
 
     // Clean up
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("✅ Invalid envelope (empty tenant_id) correctly rejected at boundary");
     println!("✅ No outbox row created for invalid envelope");
@@ -124,9 +135,15 @@ async fn test_invalid_envelope_empty_trace_id_rejected() -> Result<()> {
     let gl_pool = get_gl_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     // Step 1: Create envelope with empty trace_id (optional field, but if present cannot be empty)
     let mut envelope = EventEnvelope::new(
@@ -142,12 +159,8 @@ async fn test_invalid_envelope_empty_trace_id_rejected() -> Result<()> {
     envelope.trace_id = Some("".to_string());
 
     // Step 2: Attempt to enqueue event - should fail validation
-    let result = subscriptions_rs::outbox::enqueue_event(
-        &subscriptions_pool,
-        "test.event",
-        &envelope,
-    )
-    .await;
+    let result =
+        subscriptions_rs::outbox::enqueue_event(&subscriptions_pool, "test.event", &envelope).await;
 
     // Step 3: Assert that enqueue failed
     assert!(
@@ -163,12 +176,11 @@ async fn test_invalid_envelope_empty_trace_id_rejected() -> Result<()> {
     );
 
     // Step 4: Assert that NO outbox row was created
-    let outbox_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1"
-    )
-    .bind(&tenant_id)
-    .fetch_one(&subscriptions_pool)
-    .await?;
+    let outbox_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&subscriptions_pool)
+            .await?;
 
     assert_eq!(
         outbox_count, 0,
@@ -177,9 +189,15 @@ async fn test_invalid_envelope_empty_trace_id_rejected() -> Result<()> {
     );
 
     // Clean up
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("✅ Invalid envelope (empty trace_id) correctly rejected at boundary");
     println!("✅ No outbox row created for invalid envelope");
@@ -200,9 +218,15 @@ async fn test_valid_envelope_accepted() -> Result<()> {
     let gl_pool = get_gl_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     // Step 1: Create VALID envelope (mutation_class is required since Phase 16)
     let envelope = EventEnvelope::new(
@@ -218,12 +242,9 @@ async fn test_valid_envelope_accepted() -> Result<()> {
     .with_mutation_class(Some("DATA_MUTATION".to_string()));
 
     // Step 2: Enqueue event - should succeed
-    let result = subscriptions_rs::outbox::enqueue_event(
-        &subscriptions_pool,
-        "test.event.valid",
-        &envelope,
-    )
-    .await;
+    let result =
+        subscriptions_rs::outbox::enqueue_event(&subscriptions_pool, "test.event.valid", &envelope)
+            .await;
 
     assert!(
         result.is_ok(),
@@ -246,9 +267,15 @@ async fn test_valid_envelope_accepted() -> Result<()> {
     );
 
     // Clean up
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("✅ Valid envelope correctly accepted at boundary");
     println!("✅ Outbox row created for valid envelope");

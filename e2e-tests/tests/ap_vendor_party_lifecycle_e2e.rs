@@ -165,10 +165,7 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind ephemeral port for party server");
-    let port = listener
-        .local_addr()
-        .expect("get party server port")
-        .port();
+    let port = listener.local_addr().expect("get party server port").port();
 
     tokio::spawn(async move {
         axum::serve(listener, router)
@@ -223,7 +220,11 @@ async fn cleanup_party(pool: &PgPool, party_id: Uuid) {
 
 fn make_company_req(run_id: Uuid, suffix: &str) -> CreateCompanyRequest {
     CreateCompanyRequest {
-        display_name: format!("Lifecycle Vendor Corp{} {}", suffix, &run_id.to_string()[..8]),
+        display_name: format!(
+            "Lifecycle Vendor Corp{} {}",
+            suffix,
+            &run_id.to_string()[..8]
+        ),
         legal_name: format!(
             "Lifecycle Vendor Corporation{} {}",
             suffix,
@@ -421,7 +422,11 @@ async fn test_ap_vendor_party_lifecycle_full() {
     )
     .await;
 
-    assert_eq!(get2_status, StatusCode::OK, "GET after update must return 200");
+    assert_eq!(
+        get2_status,
+        StatusCode::OK,
+        "GET after update must return 200"
+    );
     assert_eq!(
         get2_resp["party_id"]
             .as_str()
@@ -474,13 +479,12 @@ async fn test_ap_vendor_party_lifecycle_full() {
 
     // ── Step 6: Verify party record is still active ───────────────────────
     // Deactivating an AP vendor must NOT cascade to the Party Master record.
-    let party_status: String = sqlx::query_scalar(
-        "SELECT status::TEXT FROM party_parties WHERE id = $1",
-    )
-    .bind(party_id)
-    .fetch_one(&party_pool)
-    .await
-    .expect("party_parties query failed");
+    let party_status: String =
+        sqlx::query_scalar("SELECT status::TEXT FROM party_parties WHERE id = $1")
+            .bind(party_id)
+            .fetch_one(&party_pool)
+            .await
+            .expect("party_parties query failed");
 
     assert_eq!(
         party_status, "active",
@@ -493,13 +497,12 @@ async fn test_ap_vendor_party_lifecycle_full() {
     );
 
     // Also verify the second party (the one currently linked to the vendor) is active
-    let party2_status: String = sqlx::query_scalar(
-        "SELECT status::TEXT FROM party_parties WHERE id = $1",
-    )
-    .bind(party2_id)
-    .fetch_one(&party_pool)
-    .await
-    .expect("party2_parties query failed");
+    let party2_status: String =
+        sqlx::query_scalar("SELECT status::TEXT FROM party_parties WHERE id = $1")
+            .bind(party2_id)
+            .fetch_one(&party_pool)
+            .await
+            .expect("party2_parties query failed");
 
     assert_eq!(
         party2_status, "active",
@@ -509,14 +512,13 @@ async fn test_ap_vendor_party_lifecycle_full() {
 
     // ── Step 7: Verify vendor findable by party_id in DB ─────────────────
     let vendor_uuid = Uuid::parse_str(&vendor_id).expect("vendor_id must be a UUID");
-    let linked_vendors: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT vendor_id FROM vendors WHERE tenant_id = $1 AND party_id = $2",
-    )
-    .bind(LIFECYCLE_TENANT_ID)
-    .bind(party2_id)
-    .fetch_all(&ap_pool)
-    .await
-    .expect("party-based vendor DB lookup failed");
+    let linked_vendors: Vec<Uuid> =
+        sqlx::query_scalar("SELECT vendor_id FROM vendors WHERE tenant_id = $1 AND party_id = $2")
+            .bind(LIFECYCLE_TENANT_ID)
+            .bind(party2_id)
+            .fetch_all(&ap_pool)
+            .await
+            .expect("party-based vendor DB lookup failed");
 
     assert!(
         linked_vendors.contains(&vendor_uuid),
@@ -689,7 +691,10 @@ async fn test_deactivated_vendor_excluded_from_default_list() {
         party_status, "active",
         "Party must remain active after vendor deactivation"
     );
-    println!("✅ Party {} still active after vendor deactivation", party_id);
+    println!(
+        "✅ Party {} still active after vendor deactivation",
+        party_id
+    );
 
     // Cleanup
     cleanup_ap_vendors(&ap_pool).await;

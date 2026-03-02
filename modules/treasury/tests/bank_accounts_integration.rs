@@ -237,10 +237,9 @@ async fn test_deactivate_nonexistent_returns_not_found() {
     let pool = setup_db().await;
     let app = unique_app();
 
-    let err =
-        acct_svc::deactivate_account(&pool, &app, Uuid::new_v4(), "system", "c1".to_string())
-            .await
-            .unwrap_err();
+    let err = acct_svc::deactivate_account(&pool, &app, Uuid::new_v4(), "system", "c1".to_string())
+        .await
+        .unwrap_err();
 
     assert!(
         matches!(err, AccountError::NotFound(_)),
@@ -260,16 +259,18 @@ async fn test_tenant_isolation() {
     let app_a = unique_app();
     let app_b = unique_app();
 
-    let acct =
-        acct_svc::create_bank_account(&pool, &app_a, &sample_bank(), None, "c1".to_string())
-            .await
-            .expect("create failed");
+    let acct = acct_svc::create_bank_account(&pool, &app_a, &sample_bank(), None, "c1".to_string())
+        .await
+        .expect("create failed");
 
     // app_b cannot see app_a's account by ID
     let result = acct_svc::get_account(&pool, &app_b, acct.id)
         .await
         .expect("get failed");
-    assert!(result.is_none(), "account should not be visible to other tenant");
+    assert!(
+        result.is_none(),
+        "account should not be visible to other tenant"
+    );
 
     // app_b's list is empty
     let list = acct_svc::list_accounts(&pool, &app_b, true)

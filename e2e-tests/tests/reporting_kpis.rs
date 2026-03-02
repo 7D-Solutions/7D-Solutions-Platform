@@ -11,14 +11,15 @@
 ///   5. Re-call to verify determinism
 ///
 /// Run with: cargo test -p e2e-tests -- reporting_kpis --nocapture
-
 mod common;
 
 use chrono::Utc;
 use common::get_reporting_pool;
 use event_bus::BusMessage;
 use reporting::domain::kpis::compute_kpis;
-use reporting::ingest::ap::{ApBillCreatedHandler, ApPaymentExecutedHandler, SUBJECT_BILL_CREATED, SUBJECT_PAYMENT_EXECUTED};
+use reporting::ingest::ap::{
+    ApBillCreatedHandler, ApPaymentExecutedHandler, SUBJECT_BILL_CREATED, SUBJECT_PAYMENT_EXECUTED,
+};
 use reporting::ingest::ar::{ArAgingHandler, SUBJECT_AR_AGING_UPDATED};
 use reporting::ingest::inventory::{InventoryValueHandler, SUBJECT_VALUATION_SNAPSHOT};
 use reporting::ingest::IngestConsumer;
@@ -54,7 +55,13 @@ async fn cleanup_tenant(pool: &PgPool, tenant_id: &str) {
     }
 }
 
-fn make_ar_aging_envelope(tenant_id: &str, event_id: &str, currency: &str, current: i64, b30: i64) -> Vec<u8> {
+fn make_ar_aging_envelope(
+    tenant_id: &str,
+    event_id: &str,
+    currency: &str,
+    current: i64,
+    b30: i64,
+) -> Vec<u8> {
     let total = current + b30;
     serde_json::to_vec(&serde_json::json!({
         "event_id": event_id,
@@ -76,7 +83,13 @@ fn make_ar_aging_envelope(tenant_id: &str, event_id: &str, currency: &str, curre
     .unwrap()
 }
 
-fn make_ap_bill_envelope(tenant_id: &str, event_id: &str, vendor_id: &str, total: i64, currency: &str) -> Vec<u8> {
+fn make_ap_bill_envelope(
+    tenant_id: &str,
+    event_id: &str,
+    vendor_id: &str,
+    total: i64,
+    currency: &str,
+) -> Vec<u8> {
     let due = Utc::now() + chrono::Duration::days(15);
     serde_json::to_vec(&serde_json::json!({
         "event_id": event_id,
@@ -91,7 +104,13 @@ fn make_ap_bill_envelope(tenant_id: &str, event_id: &str, vendor_id: &str, total
     .unwrap()
 }
 
-fn make_ap_payment_envelope(tenant_id: &str, event_id: &str, vendor_id: &str, amount: i64, currency: &str) -> Vec<u8> {
+fn make_ap_payment_envelope(
+    tenant_id: &str,
+    event_id: &str,
+    vendor_id: &str,
+    amount: i64,
+    currency: &str,
+) -> Vec<u8> {
     serde_json::to_vec(&serde_json::json!({
         "event_id": event_id,
         "tenant_id": tenant_id,
@@ -104,7 +123,13 @@ fn make_ap_payment_envelope(tenant_id: &str, event_id: &str, vendor_id: &str, am
     .unwrap()
 }
 
-fn make_inventory_envelope(tenant_id: &str, event_id: &str, as_of: &str, currency: &str, value: i64) -> Vec<u8> {
+fn make_inventory_envelope(
+    tenant_id: &str,
+    event_id: &str,
+    as_of: &str,
+    currency: &str,
+    value: i64,
+) -> Vec<u8> {
     serde_json::to_vec(&serde_json::json!({
         "event_id": event_id,
         "tenant_id": tenant_id,
@@ -137,7 +162,13 @@ async fn test_kpi_snapshot_reconciles_to_ingested_data() {
     )
     .process_message(&BusMessage::new(
         SUBJECT_AR_AGING_UPDATED.to_string(),
-        make_ar_aging_envelope(&tenant_id, &Uuid::new_v4().to_string(), "USD", 1500000, 500000),
+        make_ar_aging_envelope(
+            &tenant_id,
+            &Uuid::new_v4().to_string(),
+            "USD",
+            1500000,
+            500000,
+        ),
     ))
     .await
     .expect("AR ingest");
@@ -150,7 +181,13 @@ async fn test_kpi_snapshot_reconciles_to_ingested_data() {
     )
     .process_message(&BusMessage::new(
         SUBJECT_BILL_CREATED.to_string(),
-        make_ap_bill_envelope(&tenant_id, &Uuid::new_v4().to_string(), &vendor_id, 1200000, "USD"),
+        make_ap_bill_envelope(
+            &tenant_id,
+            &Uuid::new_v4().to_string(),
+            &vendor_id,
+            1200000,
+            "USD",
+        ),
     ))
     .await
     .expect("AP bill ingest");
@@ -162,7 +199,13 @@ async fn test_kpi_snapshot_reconciles_to_ingested_data() {
     )
     .process_message(&BusMessage::new(
         SUBJECT_PAYMENT_EXECUTED.to_string(),
-        make_ap_payment_envelope(&tenant_id, &Uuid::new_v4().to_string(), &vendor_id, 200000, "USD"),
+        make_ap_payment_envelope(
+            &tenant_id,
+            &Uuid::new_v4().to_string(),
+            &vendor_id,
+            200000,
+            "USD",
+        ),
     ))
     .await
     .expect("AP payment ingest");
@@ -175,13 +218,21 @@ async fn test_kpi_snapshot_reconciles_to_ingested_data() {
     )
     .process_message(&BusMessage::new(
         SUBJECT_VALUATION_SNAPSHOT.to_string(),
-        make_inventory_envelope(&tenant_id, &Uuid::new_v4().to_string(), &today_str, "USD", 500000),
+        make_inventory_envelope(
+            &tenant_id,
+            &Uuid::new_v4().to_string(),
+            &today_str,
+            "USD",
+            500000,
+        ),
     ))
     .await
     .expect("inventory ingest");
 
     // ── Query KPI snapshot ────────────────────────────────────────────────────
-    let kpis = compute_kpis(&pool, &tenant_id, today).await.expect("compute_kpis");
+    let kpis = compute_kpis(&pool, &tenant_id, today)
+        .await
+        .expect("compute_kpis");
 
     // AR: $20,000
     let ar_usd = kpis.ar_total_outstanding.get("USD").copied().unwrap_or(0);
@@ -229,7 +280,13 @@ async fn test_kpi_snapshot_is_deterministic() {
     )
     .process_message(&BusMessage::new(
         SUBJECT_AR_AGING_UPDATED.to_string(),
-        make_ar_aging_envelope(&tenant_id, &Uuid::new_v4().to_string(), "USD", 800000, 200000),
+        make_ar_aging_envelope(
+            &tenant_id,
+            &Uuid::new_v4().to_string(),
+            "USD",
+            800000,
+            200000,
+        ),
     ))
     .await
     .expect("AR ingest");
@@ -241,7 +298,13 @@ async fn test_kpi_snapshot_is_deterministic() {
     )
     .process_message(&BusMessage::new(
         SUBJECT_VALUATION_SNAPSHOT.to_string(),
-        make_inventory_envelope(&tenant_id, &Uuid::new_v4().to_string(), &today_str, "USD", 300000),
+        make_inventory_envelope(
+            &tenant_id,
+            &Uuid::new_v4().to_string(),
+            &today_str,
+            "USD",
+            300000,
+        ),
     ))
     .await
     .expect("inventory ingest");
@@ -250,11 +313,23 @@ async fn test_kpi_snapshot_is_deterministic() {
     let kpis1 = compute_kpis(&pool, &tenant_id, today).await.expect("kpis1");
     let kpis2 = compute_kpis(&pool, &tenant_id, today).await.expect("kpis2");
 
-    assert_eq!(kpis1.ar_total_outstanding, kpis2.ar_total_outstanding, "AR not deterministic");
-    assert_eq!(kpis1.ap_total_outstanding, kpis2.ap_total_outstanding, "AP not deterministic");
-    assert_eq!(kpis1.inventory_value, kpis2.inventory_value, "inventory not deterministic");
+    assert_eq!(
+        kpis1.ar_total_outstanding, kpis2.ar_total_outstanding,
+        "AR not deterministic"
+    );
+    assert_eq!(
+        kpis1.ap_total_outstanding, kpis2.ap_total_outstanding,
+        "AP not deterministic"
+    );
+    assert_eq!(
+        kpis1.inventory_value, kpis2.inventory_value,
+        "inventory not deterministic"
+    );
     assert_eq!(kpis1.mrr, kpis2.mrr, "MRR not deterministic");
-    assert_eq!(kpis1.cash_collected_ytd, kpis2.cash_collected_ytd, "cash not deterministic");
+    assert_eq!(
+        kpis1.cash_collected_ytd, kpis2.cash_collected_ytd,
+        "cash not deterministic"
+    );
 
     println!("PASS: KPI snapshot is deterministic across calls");
     cleanup_tenant(&pool, &tenant_id).await;
@@ -273,7 +348,10 @@ async fn test_kpi_multi_currency_isolation() {
     let handler = Arc::new(ArAgingHandler);
 
     // Ingest USD and EUR AR aging
-    for (i, (cur, cur_minor, b30)) in [("USD", 600000_i64, 200000_i64), ("EUR", 300000, 100000)].iter().enumerate() {
+    for (i, (cur, cur_minor, b30)) in [("USD", 600000_i64, 200000_i64), ("EUR", 300000, 100000)]
+        .iter()
+        .enumerate()
+    {
         let total = cur_minor + b30;
         let msg_bytes = serde_json::to_vec(&serde_json::json!({
             "event_id": format!("evt-kpi-mc-{}-{}", i, &tenant_id[..8]),
@@ -298,7 +376,10 @@ async fn test_kpi_multi_currency_isolation() {
             pool.clone(),
             handler.clone(),
         )
-        .process_message(&BusMessage::new(SUBJECT_AR_AGING_UPDATED.to_string(), msg_bytes))
+        .process_message(&BusMessage::new(
+            SUBJECT_AR_AGING_UPDATED.to_string(),
+            msg_bytes,
+        ))
         .await
         .expect("AR multi-cur ingest");
     }
@@ -312,7 +393,13 @@ async fn test_kpi_multi_currency_isolation() {
         )
         .process_message(&BusMessage::new(
             SUBJECT_VALUATION_SNAPSHOT.to_string(),
-            make_inventory_envelope(&tenant_id, &format!("evt-kpi-mc-inv-{}-{}", cur, &tenant_id[..8]), &today_str, cur, val),
+            make_inventory_envelope(
+                &tenant_id,
+                &format!("evt-kpi-mc-inv-{}-{}", cur, &tenant_id[..8]),
+                &today_str,
+                cur,
+                val,
+            ),
         ))
         .await
         .expect("inventory multi-cur ingest");
@@ -320,10 +407,26 @@ async fn test_kpi_multi_currency_isolation() {
 
     let kpis = compute_kpis(&pool, &tenant_id, today).await.expect("kpis");
 
-    assert_eq!(kpis.ar_total_outstanding.get("USD").copied().unwrap_or(0), 800000, "USD AR");
-    assert_eq!(kpis.ar_total_outstanding.get("EUR").copied().unwrap_or(0), 400000, "EUR AR");
-    assert_eq!(kpis.inventory_value.get("USD").copied().unwrap_or(0), 400000, "USD inventory");
-    assert_eq!(kpis.inventory_value.get("EUR").copied().unwrap_or(0), 250000, "EUR inventory");
+    assert_eq!(
+        kpis.ar_total_outstanding.get("USD").copied().unwrap_or(0),
+        800000,
+        "USD AR"
+    );
+    assert_eq!(
+        kpis.ar_total_outstanding.get("EUR").copied().unwrap_or(0),
+        400000,
+        "EUR AR"
+    );
+    assert_eq!(
+        kpis.inventory_value.get("USD").copied().unwrap_or(0),
+        400000,
+        "USD inventory"
+    );
+    assert_eq!(
+        kpis.inventory_value.get("EUR").copied().unwrap_or(0),
+        250000,
+        "EUR inventory"
+    );
 
     println!("PASS: Multi-currency KPI isolation verified");
     cleanup_tenant(&pool, &tenant_id).await;

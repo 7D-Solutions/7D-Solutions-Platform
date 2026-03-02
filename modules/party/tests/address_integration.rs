@@ -62,7 +62,9 @@ async fn make_party(pool: &sqlx::PgPool, app: &str, name: &str) -> Uuid {
         country: None,
         metadata: None,
     };
-    let view = create_company(pool, app, &req, corr()).await.expect("make_party failed");
+    let view = create_company(pool, app, &req, corr())
+        .await
+        .expect("make_party failed");
     view.party.id
 }
 
@@ -133,7 +135,9 @@ async fn test_create_address_empty_line1() {
     let mut req = billing_address_req();
     req.line1 = "  ".to_string();
 
-    let err = create_address(&pool, &app, party_id, &req).await.unwrap_err();
+    let err = create_address(&pool, &app, party_id, &req)
+        .await
+        .unwrap_err();
     assert!(
         matches!(err, PartyError::Validation(_)),
         "expected Validation, got: {:?}",
@@ -155,7 +159,9 @@ async fn test_create_address_invalid_type() {
     let mut req = billing_address_req();
     req.address_type = Some("warehouse".to_string()); // not in enum
 
-    let err = create_address(&pool, &app, party_id, &req).await.unwrap_err();
+    let err = create_address(&pool, &app, party_id, &req)
+        .await
+        .unwrap_err();
     assert!(
         matches!(err, PartyError::Validation(_)),
         "expected Validation, got: {:?}",
@@ -194,8 +200,12 @@ async fn test_list_addresses() {
     let app = unique_app();
     let party_id = make_party(&pool, &app, "List Addresses Corp").await;
 
-    create_address(&pool, &app, party_id, &billing_address_req()).await.unwrap();
-    create_address(&pool, &app, party_id, &shipping_address_req()).await.unwrap();
+    create_address(&pool, &app, party_id, &billing_address_req())
+        .await
+        .unwrap();
+    create_address(&pool, &app, party_id, &shipping_address_req())
+        .await
+        .unwrap();
 
     let addrs = list_addresses(&pool, &app, party_id).await.unwrap();
     assert_eq!(addrs.len(), 2);
@@ -216,7 +226,10 @@ async fn test_get_address() {
         .await
         .unwrap();
 
-    let fetched = get_address(&pool, &app, created.id).await.unwrap().expect("address not found");
+    let fetched = get_address(&pool, &app, created.id)
+        .await
+        .unwrap()
+        .expect("address not found");
 
     assert_eq!(fetched.id, created.id);
     assert_eq!(fetched.line1, "123 Main St");
@@ -253,7 +266,9 @@ async fn test_update_address() {
     let app = unique_app();
     let party_id = make_party(&pool, &app, "Update Address Corp").await;
 
-    let created = create_address(&pool, &app, party_id, &billing_address_req()).await.unwrap();
+    let created = create_address(&pool, &app, party_id, &billing_address_req())
+        .await
+        .unwrap();
 
     let updated = update_address(
         &pool,
@@ -310,7 +325,11 @@ async fn test_update_address_not_found() {
     .await
     .unwrap_err();
 
-    assert!(matches!(err, PartyError::NotFound(_)), "expected NotFound, got: {:?}", err);
+    assert!(
+        matches!(err, PartyError::NotFound(_)),
+        "expected NotFound, got: {:?}",
+        err
+    );
 }
 
 // ============================================================================
@@ -324,7 +343,9 @@ async fn test_delete_address() {
     let app = unique_app();
     let party_id = make_party(&pool, &app, "Delete Address Corp").await;
 
-    let addr = create_address(&pool, &app, party_id, &billing_address_req()).await.unwrap();
+    let addr = create_address(&pool, &app, party_id, &billing_address_req())
+        .await
+        .unwrap();
 
     delete_address(&pool, &app, addr.id).await.unwrap();
 
@@ -342,8 +363,14 @@ async fn test_delete_address_not_found() {
     let pool = setup_db().await;
     let app = unique_app();
 
-    let err = delete_address(&pool, &app, Uuid::new_v4()).await.unwrap_err();
-    assert!(matches!(err, PartyError::NotFound(_)), "expected NotFound, got: {:?}", err);
+    let err = delete_address(&pool, &app, Uuid::new_v4())
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, PartyError::NotFound(_)),
+        "expected NotFound, got: {:?}",
+        err
+    );
 }
 
 // ============================================================================
@@ -369,7 +396,10 @@ async fn test_only_one_primary_address() {
 
     // First address should now be non-primary
     let first_refreshed = get_address(&pool, &app, first.id).await.unwrap().unwrap();
-    assert!(!first_refreshed.is_primary, "original primary should be cleared");
+    assert!(
+        !first_refreshed.is_primary,
+        "original primary should be cleared"
+    );
 }
 
 // ============================================================================
@@ -384,7 +414,9 @@ async fn test_address_tenant_isolation() {
     let app_b = unique_app();
 
     let party_id = make_party(&pool, &app_a, "Isolation Address Corp").await;
-    let addr = create_address(&pool, &app_a, party_id, &billing_address_req()).await.unwrap();
+    let addr = create_address(&pool, &app_a, party_id, &billing_address_req())
+        .await
+        .unwrap();
 
     // App B cannot read App A's address
     let result = get_address(&pool, &app_b, addr.id).await.unwrap();

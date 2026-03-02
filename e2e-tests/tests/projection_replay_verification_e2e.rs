@@ -81,11 +81,7 @@ async fn ensure_projection_cursors(pool: &PgPool) {
 ///
 /// Creates `entry_count` balanced journal entries, each with deterministic
 /// event_id, amounts, and account references. Returns the event_ids used.
-async fn setup_gl_test_data(
-    pool: &PgPool,
-    tenant_id: &str,
-    entry_count: usize,
-) -> Vec<Uuid> {
+async fn setup_gl_test_data(pool: &PgPool, tenant_id: &str, entry_count: usize) -> Vec<Uuid> {
     // Clean up any existing test data for this tenant
     cleanup_gl_tenant(pool, tenant_id).await;
 
@@ -223,13 +219,11 @@ async fn rebuild_gl_balances(
     let period_id: Uuid = match period_id_override {
         Some(id) => id,
         None => {
-            sqlx::query_scalar(
-                "SELECT id FROM accounting_periods WHERE tenant_id = $1 LIMIT 1",
-            )
-            .bind(tenant_id)
-            .fetch_one(pool)
-            .await
-            .expect("Failed to find accounting period")
+            sqlx::query_scalar("SELECT id FROM accounting_periods WHERE tenant_id = $1 LIMIT 1")
+                .bind(tenant_id)
+                .fetch_one(pool)
+                .await
+                .expect("Failed to find accounting period")
         }
     };
 
@@ -314,15 +308,30 @@ async fn cleanup_gl_tenant(pool: &PgPool, tenant_id: &str) {
     sqlx::query("DELETE FROM processed_events WHERE event_id IN (SELECT source_event_id FROM journal_entries WHERE tenant_id = $1)")
         .bind(tenant_id).execute(pool).await.ok();
     sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM period_summary_snapshots WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -339,13 +348,12 @@ async fn test_gl_consumer_idempotent_processed_events() {
     let event_ids = setup_gl_test_data(&pool, &tenant_id, 5).await;
 
     // Verify all events are in processed_events
-    let processed_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM processed_events WHERE event_id = ANY($1)",
-    )
-    .bind(&event_ids)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count processed events");
+    let processed_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM processed_events WHERE event_id = ANY($1)")
+            .bind(&event_ids)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to count processed events");
 
     assert_eq!(
         processed_count, 5,
@@ -353,13 +361,12 @@ async fn test_gl_consumer_idempotent_processed_events() {
     );
 
     // Verify journal entries exist
-    let entry_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count journal entries");
+    let entry_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to count journal entries");
 
     assert_eq!(entry_count, 5, "Should have 5 journal entries");
 
@@ -374,13 +381,12 @@ async fn test_gl_consumer_idempotent_processed_events() {
 
     // Should either fail with unique violation or ON CONFLICT DO NOTHING
     // The actual GL code uses ON CONFLICT DO NOTHING — verify the table has that constraint
-    let still_one: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM processed_events WHERE event_id = $1",
-    )
-    .bind(event_ids[0])
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to check duplicate");
+    let still_one: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
+            .bind(event_ids[0])
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to check duplicate");
 
     assert_eq!(
         still_one, 1,
@@ -388,13 +394,12 @@ async fn test_gl_consumer_idempotent_processed_events() {
     );
 
     // Verify journal entry balance (debits == credits for each entry)
-    let entries: Vec<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM journal_entries WHERE tenant_id = $1 ORDER BY description",
-    )
-    .bind(&tenant_id)
-    .fetch_all(&pool)
-    .await
-    .expect("Failed to list entries");
+    let entries: Vec<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM journal_entries WHERE tenant_id = $1 ORDER BY description")
+            .bind(&tenant_id)
+            .fetch_all(&pool)
+            .await
+            .expect("Failed to list entries");
 
     for (entry_id,) in &entries {
         let row = sqlx::query(
@@ -528,14 +533,12 @@ async fn test_projection_cursor_tracks_replay_position() {
     let projection_name = "gl_account_balances";
 
     // Clean up any prior cursor for this projection/tenant
-    sqlx::query(
-        "DELETE FROM projection_cursors WHERE projection_name = $1 AND tenant_id = $2",
-    )
-    .bind(projection_name)
-    .bind(&tenant_id)
-    .execute(&projections_pool)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM projection_cursors WHERE projection_name = $1 AND tenant_id = $2")
+        .bind(projection_name)
+        .bind(&tenant_id)
+        .execute(&projections_pool)
+        .await
+        .ok();
 
     println!("\n=== Projection Cursor Tracking Test ===");
 
@@ -568,10 +571,7 @@ async fn test_projection_cursor_tracks_replay_position() {
         cursor.projection_name, projection_name,
         "Cursor projection name must match"
     );
-    assert_eq!(
-        cursor.tenant_id, tenant_id,
-        "Cursor tenant_id must match"
-    );
+    assert_eq!(cursor.tenant_id, tenant_id, "Cursor tenant_id must match");
     assert_eq!(
         cursor.last_event_id, expected_last_event,
         "Cursor should point to last event"
@@ -598,34 +598,28 @@ async fn test_projection_cursor_tracks_replay_position() {
 
     // Verify a new event is NOT marked as processed
     let new_event = Uuid::from_u128(99999);
-    let is_new = ProjectionCursor::is_processed(
-        &projections_pool,
-        projection_name,
-        &tenant_id,
-        new_event,
-    )
-    .await
-    .expect("Failed to check is_processed for new event");
+    let is_new =
+        ProjectionCursor::is_processed(&projections_pool, projection_name, &tenant_id, new_event)
+            .await
+            .expect("Failed to check is_processed for new event");
 
-    assert!(
-        !is_new,
-        "New event should not be marked as processed"
+    assert!(!is_new, "New event should not be marked as processed");
+
+    println!(
+        "✅ Cursor position: {} (last event: {})",
+        cursor.events_processed, cursor.last_event_id
     );
-
-    println!("✅ Cursor position: {} (last event: {})", cursor.events_processed, cursor.last_event_id);
     println!("✅ Idempotency check: last event detected as processed");
     println!("✅ New event check: correctly identified as unprocessed");
     println!("\n✅ Projection Cursor Tracking: VERIFIED\n");
 
     // Cleanup
-    sqlx::query(
-        "DELETE FROM projection_cursors WHERE projection_name = $1 AND tenant_id = $2",
-    )
-    .bind(projection_name)
-    .bind(&tenant_id)
-    .execute(&projections_pool)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM projection_cursors WHERE projection_name = $1 AND tenant_id = $2")
+        .bind(projection_name)
+        .bind(&tenant_id)
+        .execute(&projections_pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -726,13 +720,12 @@ async fn test_gl_processed_events_transactional_dedup() {
     println!("\n=== GL Transactional Dedup Verification ===");
 
     // Verify that journal_entries and processed_events are 1:1
-    let entries: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to count entries");
+    let entries: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to count entries");
 
     let processed: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM processed_events pe
@@ -774,7 +767,10 @@ async fn test_gl_processed_events_transactional_dedup() {
 
     println!("✅ Journal entries: {}", entries);
     println!("✅ Processed events: {} (1:1 with entries)", processed);
-    println!("✅ Orphan processed_events: {} (transactional integrity)", orphans);
+    println!(
+        "✅ Orphan processed_events: {} (transactional integrity)",
+        orphans
+    );
     println!("\n✅ GL Transactional Dedup: VERIFIED\n");
 
     // Cleanup

@@ -228,12 +228,8 @@ async fn test_boundary_http_period_summary_from_snapshot() {
 
     // Insert precomputed snapshot
     insert_period_summary_snapshot(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-        15,  // journal_count
-        30,  // line_count
+        &pool, tenant_id, period_id, "USD", 15,     // journal_count
+        30,     // line_count
         500000, // total_debits_minor ($5000)
         500000, // total_credits_minor ($5000)
     )
@@ -266,13 +262,28 @@ async fn test_boundary_http_period_summary_from_snapshot() {
     assert_eq!(summary.tenant_id, tenant_id);
     assert_eq!(summary.period_id, period_id);
     assert_eq!(summary.currency, "USD");
-    assert_eq!(summary.journal_count, 15, "Should match snapshot journal_count");
+    assert_eq!(
+        summary.journal_count, 15,
+        "Should match snapshot journal_count"
+    );
     assert_eq!(summary.line_count, 30, "Should match snapshot line_count");
-    assert_eq!(summary.total_debits_minor, 500000, "Should match snapshot debits");
-    assert_eq!(summary.total_credits_minor, 500000, "Should match snapshot credits");
+    assert_eq!(
+        summary.total_debits_minor, 500000,
+        "Should match snapshot debits"
+    );
+    assert_eq!(
+        summary.total_credits_minor, 500000,
+        "Should match snapshot credits"
+    );
     assert!(summary.is_balanced, "Should be balanced");
-    assert_eq!(summary.data_source, "snapshot", "Should indicate snapshot source");
-    assert!(summary.snapshot_created_at.is_some(), "Should have snapshot timestamp");
+    assert_eq!(
+        summary.data_source, "snapshot",
+        "Should indicate snapshot source"
+    );
+    assert!(
+        summary.snapshot_created_at.is_some(),
+        "Should have snapshot timestamp"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -330,7 +341,9 @@ async fn test_boundary_http_period_summary_computed_from_balances() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response = reqwest::get(&url).await.expect("Failed to make HTTP request");
+    let response = reqwest::get(&url)
+        .await
+        .expect("Failed to make HTTP request");
 
     // Assert: 200 OK
     assert_eq!(response.status(), 200);
@@ -342,13 +355,31 @@ async fn test_boundary_http_period_summary_computed_from_balances() {
     assert_eq!(summary.tenant_id, tenant_id);
     assert_eq!(summary.period_id, period_id);
     assert_eq!(summary.currency, "USD");
-    assert_eq!(summary.journal_count, 0, "Computed from balances cannot know journal_count");
-    assert_eq!(summary.line_count, 0, "Computed from balances cannot know line_count");
-    assert_eq!(summary.total_debits_minor, 300000, "Should sum from balances");
-    assert_eq!(summary.total_credits_minor, 300000, "Should sum from balances");
+    assert_eq!(
+        summary.journal_count, 0,
+        "Computed from balances cannot know journal_count"
+    );
+    assert_eq!(
+        summary.line_count, 0,
+        "Computed from balances cannot know line_count"
+    );
+    assert_eq!(
+        summary.total_debits_minor, 300000,
+        "Should sum from balances"
+    );
+    assert_eq!(
+        summary.total_credits_minor, 300000,
+        "Should sum from balances"
+    );
     assert!(summary.is_balanced, "Should be balanced");
-    assert_eq!(summary.data_source, "computed", "Should indicate computed source");
-    assert!(summary.snapshot_created_at.is_none(), "Should have no snapshot timestamp");
+    assert_eq!(
+        summary.data_source, "computed",
+        "Should indicate computed source"
+    );
+    assert!(
+        summary.snapshot_created_at.is_none(),
+        "Should have no snapshot timestamp"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -376,7 +407,8 @@ async fn test_boundary_http_period_summary_currency_filter() {
     .await;
 
     // Insert snapshots for multiple currencies
-    insert_period_summary_snapshot(&pool, tenant_id, period_id, "USD", 10, 20, 100000, 100000).await;
+    insert_period_summary_snapshot(&pool, tenant_id, period_id, "USD", 10, 20, 100000, 100000)
+        .await;
     insert_period_summary_snapshot(&pool, tenant_id, period_id, "EUR", 5, 10, 50000, 50000).await;
     insert_period_summary_snapshot(&pool, tenant_id, period_id, "GBP", 3, 6, 30000, 30000).await;
 
@@ -386,12 +418,18 @@ async fn test_boundary_http_period_summary_currency_filter() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response_usd = reqwest::get(&url_usd).await.expect("Failed to fetch USD summary");
+    let response_usd = reqwest::get(&url_usd)
+        .await
+        .expect("Failed to fetch USD summary");
     assert_eq!(response_usd.status(), 200);
 
-    let summary_usd: PeriodSummaryResponse = response_usd.json().await.expect("Failed to parse JSON");
+    let summary_usd: PeriodSummaryResponse =
+        response_usd.json().await.expect("Failed to parse JSON");
     assert_eq!(summary_usd.currency, "USD");
-    assert_eq!(summary_usd.journal_count, 10, "Should have USD journal count");
+    assert_eq!(
+        summary_usd.journal_count, 10,
+        "Should have USD journal count"
+    );
     assert_eq!(summary_usd.total_debits_minor, 100000);
 
     // Test 2: Filter by EUR
@@ -400,12 +438,18 @@ async fn test_boundary_http_period_summary_currency_filter() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response_eur = reqwest::get(&url_eur).await.expect("Failed to fetch EUR summary");
+    let response_eur = reqwest::get(&url_eur)
+        .await
+        .expect("Failed to fetch EUR summary");
     assert_eq!(response_eur.status(), 200);
 
-    let summary_eur: PeriodSummaryResponse = response_eur.json().await.expect("Failed to parse JSON");
+    let summary_eur: PeriodSummaryResponse =
+        response_eur.json().await.expect("Failed to parse JSON");
     assert_eq!(summary_eur.currency, "EUR");
-    assert_eq!(summary_eur.journal_count, 5, "Should have EUR journal count");
+    assert_eq!(
+        summary_eur.journal_count, 5,
+        "Should have EUR journal count"
+    );
     assert_eq!(summary_eur.total_debits_minor, 50000);
 
     // Test 3: No currency filter (should aggregate all)
@@ -414,22 +458,37 @@ async fn test_boundary_http_period_summary_currency_filter() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response_all = reqwest::get(&url_all).await.expect("Failed to fetch all currencies");
+    let response_all = reqwest::get(&url_all)
+        .await
+        .expect("Failed to fetch all currencies");
     let status = response_all.status();
 
     // Debug: print error if not 200
     if status != 200 {
-        let error_body = response_all.text().await.unwrap_or_else(|_| "Could not read body".to_string());
+        let error_body = response_all
+            .text()
+            .await
+            .unwrap_or_else(|_| "Could not read body".to_string());
         eprintln!("ERROR Response (status {}): {}", status, error_body);
         panic!("Expected 200, got {}", status);
     }
 
     assert_eq!(status, 200);
 
-    let summary_all: PeriodSummaryResponse = response_all.json().await.expect("Failed to parse JSON");
-    assert_eq!(summary_all.currency, "MULTI", "Should indicate multi-currency");
-    assert_eq!(summary_all.journal_count, 18, "Should sum all journal counts (10+5+3)");
-    assert_eq!(summary_all.total_debits_minor, 180000, "Should sum all debits");
+    let summary_all: PeriodSummaryResponse =
+        response_all.json().await.expect("Failed to parse JSON");
+    assert_eq!(
+        summary_all.currency, "MULTI",
+        "Should indicate multi-currency"
+    );
+    assert_eq!(
+        summary_all.journal_count, 18,
+        "Should sum all journal counts (10+5+3)"
+    );
+    assert_eq!(
+        summary_all.total_debits_minor, 180000,
+        "Should sum all debits"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -448,7 +507,9 @@ async fn test_boundary_http_period_summary_error_handling() {
         gl_service_url, fake_period_id
     );
 
-    let response = reqwest::get(&url_missing_tenant).await.expect("Failed to make request");
+    let response = reqwest::get(&url_missing_tenant)
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response.status(),
         400,
@@ -461,7 +522,9 @@ async fn test_boundary_http_period_summary_error_handling() {
         gl_service_url
     );
 
-    let response_invalid = reqwest::get(&url_invalid_uuid).await.expect("Failed to make request");
+    let response_invalid = reqwest::get(&url_invalid_uuid)
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response_invalid.status(),
         400,
@@ -475,7 +538,9 @@ async fn test_boundary_http_period_summary_error_handling() {
         gl_service_url, nonexistent_period_id
     );
 
-    let response_not_found = reqwest::get(&url_not_found).await.expect("Failed to make request");
+    let response_not_found = reqwest::get(&url_not_found)
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response_not_found.status(),
         404,
@@ -489,7 +554,9 @@ async fn test_boundary_http_period_summary_error_handling() {
         gl_service_url, period_id
     );
 
-    let response_bad_currency = reqwest::get(&url_invalid_currency).await.expect("Failed to make request");
+    let response_bad_currency = reqwest::get(&url_invalid_currency)
+        .await
+        .expect("Failed to make request");
     // Note: This might be 400 or 404 depending on whether period exists
     // We're testing that invalid currency is handled gracefully
     assert!(
@@ -536,7 +603,9 @@ async fn test_boundary_http_period_summary_performance_guard() {
     );
 
     let start = std::time::Instant::now();
-    let response = reqwest::get(&url).await.expect("Failed to fetch period summary");
+    let response = reqwest::get(&url)
+        .await
+        .expect("Failed to fetch period summary");
     let elapsed = start.elapsed();
 
     assert_eq!(response.status(), 200);
@@ -577,7 +646,8 @@ async fn test_boundary_http_period_summary_json_dto_structure() {
     .await;
 
     // Insert snapshot
-    insert_period_summary_snapshot(&pool, tenant_id, period_id, "USD", 10, 20, 200000, 200000).await;
+    insert_period_summary_snapshot(&pool, tenant_id, period_id, "USD", 10, 20, 200000, 200000)
+        .await;
 
     // Make request
     let url = format!(
@@ -592,16 +662,46 @@ async fn test_boundary_http_period_summary_json_dto_structure() {
     let json_value: serde_json::Value = response.json().await.expect("Failed to parse JSON");
 
     // Assert: All expected fields present
-    assert!(json_value.get("tenant_id").is_some(), "Missing tenant_id field");
-    assert!(json_value.get("period_id").is_some(), "Missing period_id field");
-    assert!(json_value.get("currency").is_some(), "Missing currency field");
-    assert!(json_value.get("journal_count").is_some(), "Missing journal_count field");
-    assert!(json_value.get("line_count").is_some(), "Missing line_count field");
-    assert!(json_value.get("total_debits_minor").is_some(), "Missing total_debits_minor field");
-    assert!(json_value.get("total_credits_minor").is_some(), "Missing total_credits_minor field");
-    assert!(json_value.get("is_balanced").is_some(), "Missing is_balanced field");
-    assert!(json_value.get("data_source").is_some(), "Missing data_source field");
-    assert!(json_value.get("snapshot_created_at").is_some(), "Missing snapshot_created_at field");
+    assert!(
+        json_value.get("tenant_id").is_some(),
+        "Missing tenant_id field"
+    );
+    assert!(
+        json_value.get("period_id").is_some(),
+        "Missing period_id field"
+    );
+    assert!(
+        json_value.get("currency").is_some(),
+        "Missing currency field"
+    );
+    assert!(
+        json_value.get("journal_count").is_some(),
+        "Missing journal_count field"
+    );
+    assert!(
+        json_value.get("line_count").is_some(),
+        "Missing line_count field"
+    );
+    assert!(
+        json_value.get("total_debits_minor").is_some(),
+        "Missing total_debits_minor field"
+    );
+    assert!(
+        json_value.get("total_credits_minor").is_some(),
+        "Missing total_credits_minor field"
+    );
+    assert!(
+        json_value.get("is_balanced").is_some(),
+        "Missing is_balanced field"
+    );
+    assert!(
+        json_value.get("data_source").is_some(),
+        "Missing data_source field"
+    );
+    assert!(
+        json_value.get("snapshot_created_at").is_some(),
+        "Missing snapshot_created_at field"
+    );
 
     // Assert: Correct field types
     assert!(json_value["tenant_id"].is_string());

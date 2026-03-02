@@ -111,10 +111,7 @@ async fn create_in_progress_wo(pool: &sqlx::PgPool, tid: &str, asset_id: Uuid) -
 ///
 /// Returns the full EventEnvelope JSON stored in the outbox. The domain
 /// payload lives under the "payload" key of the envelope.
-async fn fetch_completed_event_envelope(
-    pool: &sqlx::PgPool,
-    wo_id: Uuid,
-) -> serde_json::Value {
+async fn fetch_completed_event_envelope(pool: &sqlx::PgPool, wo_id: Uuid) -> serde_json::Value {
     let row: (serde_json::Value,) = sqlx::query_as(
         r#"SELECT payload FROM events_outbox
            WHERE aggregate_id = $1

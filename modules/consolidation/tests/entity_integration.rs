@@ -174,7 +174,11 @@ async fn test_entity_invalid_ownership_bp() {
     let err = service::create_entity(&pool, &tid, group.id, &req_zero)
         .await
         .unwrap_err();
-    assert!(matches!(err, ConfigError::Validation(_)), "bp=0 should fail: {:?}", err);
+    assert!(
+        matches!(err, ConfigError::Validation(_)),
+        "bp=0 should fail: {:?}",
+        err
+    );
 
     // Over 100% bp
     let req_over = CreateEntityRequest {
@@ -187,7 +191,11 @@ async fn test_entity_invalid_ownership_bp() {
     let err = service::create_entity(&pool, &tid, group.id, &req_over)
         .await
         .unwrap_err();
-    assert!(matches!(err, ConfigError::Validation(_)), "bp>10000 should fail: {:?}", err);
+    assert!(
+        matches!(err, ConfigError::Validation(_)),
+        "bp>10000 should fail: {:?}",
+        err
+    );
 }
 
 // ============================================================================
@@ -215,7 +223,11 @@ async fn test_entity_invalid_consolidation_method() {
     let err = service::create_entity(&pool, &tid, group.id, &req)
         .await
         .unwrap_err();
-    assert!(matches!(err, ConfigError::Validation(_)), "invalid method should fail: {:?}", err);
+    assert!(
+        matches!(err, ConfigError::Validation(_)),
+        "invalid method should fail: {:?}",
+        err
+    );
 }
 
 // ============================================================================
@@ -322,7 +334,9 @@ async fn test_delete_entity() {
         .await
         .unwrap();
 
-    service::delete_entity(&pool, &tid, entity.id).await.unwrap();
+    service::delete_entity(&pool, &tid, entity.id)
+        .await
+        .unwrap();
 
     let remaining = service::list_entities(&pool, &tid, group.id, true)
         .await

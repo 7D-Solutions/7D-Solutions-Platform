@@ -1,9 +1,10 @@
 mod common;
 
-#[allow(deprecated)] // enqueue_event is deprecated; tests retained for outbox format validation
+#[allow(deprecated)]
+// enqueue_event is deprecated; tests retained for outbox format validation
 use ar_rs::events::{
-    enqueue_event, is_event_processed, mark_event_processed, process_event_idempotent,
-    envelope::create_ar_envelope,
+    enqueue_event, envelope::create_ar_envelope, is_event_processed, mark_event_processed,
+    process_event_idempotent,
 };
 use event_bus::{EventBus, InMemoryBus};
 use serde::{Deserialize, Serialize};
@@ -138,35 +139,25 @@ async fn test_idempotent_consumer_duplicate_detection() {
     let mut call_count = 0;
 
     // First call - should process
-    let processed = process_event_idempotent(
-        &pool,
-        event_id,
-        "ar.test.duplicate",
-        "ar-rs",
-        || async {
+    let processed =
+        process_event_idempotent(&pool, event_id, "ar.test.duplicate", "ar-rs", || async {
             call_count += 1;
             Ok::<(), Box<dyn std::error::Error>>(())
-        },
-    )
-    .await
-    .expect("Should process event");
+        })
+        .await
+        .expect("Should process event");
 
     assert!(processed, "First call should process the event");
     assert_eq!(call_count, 1, "Handler should be called once");
 
     // Second call - should detect duplicate and skip
-    let processed = process_event_idempotent(
-        &pool,
-        event_id,
-        "ar.test.duplicate",
-        "ar-rs",
-        || async {
+    let processed =
+        process_event_idempotent(&pool, event_id, "ar.test.duplicate", "ar-rs", || async {
             call_count += 1;
             Ok::<(), Box<dyn std::error::Error>>(())
-        },
-    )
-    .await
-    .expect("Should detect duplicate");
+        })
+        .await
+        .expect("Should detect duplicate");
 
     assert!(!processed, "Second call should detect duplicate");
     assert_eq!(call_count, 1, "Handler should not be called again");
@@ -324,9 +315,15 @@ async fn test_batch_event_enqueue() {
 
         event_ids.push(envelope.event_id);
 
-        enqueue_event(&pool, &format!("ar.batch.event.{}", i), "batch", &format!("batch-{}", i), &envelope)
-            .await
-            .expect("Should enqueue event");
+        enqueue_event(
+            &pool,
+            &format!("ar.batch.event.{}", i),
+            "batch",
+            &format!("batch-{}", i),
+            &envelope,
+        )
+        .await
+        .expect("Should enqueue event");
     }
 
     // Verify all events are in outbox

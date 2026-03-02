@@ -22,9 +22,7 @@ use control_plane::state::AppState;
 use serial_test::serial;
 use sqlx::PgPool;
 use std::sync::Arc;
-use tenant_registry::{
-    ModuleUrl, ReadinessStatus, TenantSummary, SummaryState,
-};
+use tenant_registry::{ModuleUrl, ReadinessStatus, SummaryState, TenantSummary};
 use tower::ServiceExt;
 use uuid::Uuid;
 
@@ -164,7 +162,10 @@ async fn test_summary_stable_shape_with_unreachable_modules() {
     let module_names: Vec<&str> = result.modules.iter().map(|m| m.module.as_str()).collect();
     assert!(module_names.contains(&"ar"), "Missing ar module");
     assert!(module_names.contains(&"gl"), "Missing gl module");
-    assert!(module_names.contains(&"payments"), "Missing payments module");
+    assert!(
+        module_names.contains(&"payments"),
+        "Missing payments module"
+    );
     assert!(
         module_names.contains(&"subscriptions"),
         "Missing subscriptions module"
@@ -203,7 +204,10 @@ async fn test_summary_stable_shape_with_unreachable_modules() {
 
     // Serializes to valid JSON
     let json = serde_json::to_string(&result).expect("TenantSummary must serialize to JSON");
-    assert!(json.contains("overall_ready"), "JSON missing overall_ready field");
+    assert!(
+        json.contains("overall_ready"),
+        "JSON missing overall_ready field"
+    );
     assert!(json.contains("modules"), "JSON missing modules field");
 
     cleanup_tenant(&pool, tenant_id).await;
@@ -240,9 +244,18 @@ async fn test_summary_json_field_names() {
 
     // Verify module fields
     let module = &json["modules"][0];
-    assert!(module.get("module").is_some(), "Module missing 'module' field");
-    assert!(module.get("status").is_some(), "Module missing 'status' field");
-    assert!(module.get("latency_ms").is_some(), "Module missing 'latency_ms' field");
+    assert!(
+        module.get("module").is_some(),
+        "Module missing 'module' field"
+    );
+    assert!(
+        module.get("status").is_some(),
+        "Module missing 'status' field"
+    );
+    assert!(
+        module.get("latency_ms").is_some(),
+        "Module missing 'latency_ms' field"
+    );
 }
 
 // ============================================================================

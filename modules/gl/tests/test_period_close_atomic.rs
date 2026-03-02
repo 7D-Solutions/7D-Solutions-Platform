@@ -100,9 +100,17 @@ async fn test_close_period_idempotent() {
     .await;
 
     // First close
-    let result1 = close_period(&pool, tenant_id, period_id, "user1", Some("First close"), false, "USD")
-        .await
-        .unwrap();
+    let result1 = close_period(
+        &pool,
+        tenant_id,
+        period_id,
+        "user1",
+        Some("First close"),
+        false,
+        "USD",
+    )
+    .await
+    .unwrap();
 
     assert!(result1.success);
 
@@ -113,9 +121,17 @@ async fn test_close_period_idempotent() {
     };
 
     // Second close (idempotent call)
-    let result2 = close_period(&pool, tenant_id, period_id, "user2", Some("Second close"), false, "USD")
-        .await
-        .unwrap();
+    let result2 = close_period(
+        &pool,
+        tenant_id,
+        period_id,
+        "user2",
+        Some("Second close"),
+        false,
+        "USD",
+    )
+    .await
+    .unwrap();
 
     assert!(result2.success);
 
@@ -229,9 +245,17 @@ async fn test_close_period_not_found() {
     let fake_period_id = Uuid::new_v4();
 
     // Try to close non-existent period
-    let result = close_period(&pool, tenant_id, fake_period_id, "admin", None, false, "USD")
-        .await
-        .unwrap();
+    let result = close_period(
+        &pool,
+        tenant_id,
+        fake_period_id,
+        "admin",
+        None,
+        false,
+        "USD",
+    )
+    .await
+    .unwrap();
 
     // Should fail
     assert!(!result.success);
@@ -340,9 +364,17 @@ async fn test_close_period_with_balanced_entries() {
     .unwrap();
 
     // Close the period
-    let result = close_period(&pool, tenant_id, period_id, "system", Some("EOD close"), false, "USD")
-        .await
-        .unwrap();
+    let result = close_period(
+        &pool,
+        tenant_id,
+        period_id,
+        "system",
+        Some("EOD close"),
+        false,
+        "USD",
+    )
+    .await
+    .unwrap();
 
     // Should succeed
     assert!(result.success);
@@ -386,13 +418,12 @@ async fn test_close_period_with_balanced_entries() {
     assert_eq!(snapshot.total_credits_minor, 100000);
 
     // Verify period has close_hash
-    let close_hash = sqlx::query_scalar::<_, String>(
-        "SELECT close_hash FROM accounting_periods WHERE id = $1",
-    )
-    .bind(period_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let close_hash =
+        sqlx::query_scalar::<_, String>("SELECT close_hash FROM accounting_periods WHERE id = $1")
+            .bind(period_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
 
     assert_eq!(close_hash.len(), 64); // SHA-256 hex
 }
@@ -428,21 +459,45 @@ async fn test_close_period_concurrency() {
     let tenant3 = tenant_id.to_string();
 
     let handle1 = tokio::spawn(async move {
-        close_period(&pool1, &tenant1, period_id, "user1", Some("Close 1"), false, "USD")
-            .await
-            .unwrap()
+        close_period(
+            &pool1,
+            &tenant1,
+            period_id,
+            "user1",
+            Some("Close 1"),
+            false,
+            "USD",
+        )
+        .await
+        .unwrap()
     });
 
     let handle2 = tokio::spawn(async move {
-        close_period(&pool2, &tenant2, period_id, "user2", Some("Close 2"), false, "USD")
-            .await
-            .unwrap()
+        close_period(
+            &pool2,
+            &tenant2,
+            period_id,
+            "user2",
+            Some("Close 2"),
+            false,
+            "USD",
+        )
+        .await
+        .unwrap()
     });
 
     let handle3 = tokio::spawn(async move {
-        close_period(&pool3, &tenant3, period_id, "user3", Some("Close 3"), false, "USD")
-            .await
-            .unwrap()
+        close_period(
+            &pool3,
+            &tenant3,
+            period_id,
+            "user3",
+            Some("Close 3"),
+            false,
+            "USD",
+        )
+        .await
+        .unwrap()
     });
 
     // Wait for all to complete

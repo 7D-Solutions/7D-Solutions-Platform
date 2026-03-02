@@ -97,8 +97,8 @@ async fn trigger_billing_cycle(
     execution_date: NaiveDate,
 ) -> Result<Option<i32>> {
     use subscriptions_rs::{
-        acquire_cycle_lock, calculate_cycle_boundaries, generate_cycle_key,
-        mark_attempt_succeeded, record_cycle_attempt, CycleGatingError,
+        acquire_cycle_lock, calculate_cycle_boundaries, generate_cycle_key, mark_attempt_succeeded,
+        record_cycle_attempt, CycleGatingError,
     };
 
     // Status guard: only active subscriptions are billed (mirrors bill run query)
@@ -182,9 +182,15 @@ async fn do_cleanup(
     subscriptions_pool: &PgPool,
     gl_pool: &PgPool,
 ) {
-    cleanup_tenant_data(ar_pool, payments_pool, subscriptions_pool, gl_pool, tenant_id)
-        .await
-        .expect("cleanup failed");
+    cleanup_tenant_data(
+        ar_pool,
+        payments_pool,
+        subscriptions_pool,
+        gl_pool,
+        tenant_id,
+    )
+    .await
+    .expect("cleanup failed");
 }
 
 // ============================================================================
@@ -201,18 +207,35 @@ async fn test_subscriptions_lifecycle_full() -> Result<()> {
     let payments_pool = get_payments_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    do_cleanup(&tenant_id, &ar_pool, &payments_pool, &subscriptions_pool, &gl_pool).await;
+    do_cleanup(
+        &tenant_id,
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+    )
+    .await;
 
     let ar_customer_id = common::create_ar_customer(&ar_pool, &tenant_id).await;
     let billing_date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
 
-    let (_plan_id, subscription_id) =
-        create_plan_and_subscription(&subscriptions_pool, &tenant_id, ar_customer_id, billing_date)
-            .await?;
+    let (_plan_id, subscription_id) = create_plan_and_subscription(
+        &subscriptions_pool,
+        &tenant_id,
+        ar_customer_id,
+        billing_date,
+    )
+    .await?;
 
     // 1. Initial state: ACTIVE, zero cycle attempts
-    assert_eq!(get_status(&subscriptions_pool, subscription_id).await?, "active");
-    assert_eq!(count_cycle_attempts(&subscriptions_pool, subscription_id).await?, 0);
+    assert_eq!(
+        get_status(&subscriptions_pool, subscription_id).await?,
+        "active"
+    );
+    assert_eq!(
+        count_cycle_attempts(&subscriptions_pool, subscription_id).await?,
+        0
+    );
 
     // 2. Billing cycle trigger → invoice must be created in AR
     let invoice_id = trigger_billing_cycle(
@@ -224,21 +247,32 @@ async fn test_subscriptions_lifecycle_full() -> Result<()> {
     )
     .await?;
     assert!(invoice_id.is_some(), "billing cycle must create an invoice");
-    assert_eq!(count_cycle_attempts(&subscriptions_pool, subscription_id).await?, 1);
+    assert_eq!(
+        count_cycle_attempts(&subscriptions_pool, subscription_id).await?,
+        1
+    );
 
-    let invoice_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1")
-        .bind(&tenant_id)
-        .fetch_one(&ar_pool)
-        .await?;
+    let invoice_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&ar_pool)
+            .await?;
     assert_eq!(invoice_count, 1, "exactly one AR invoice after billing");
 
     // 3. Transition to PAST_DUE (payment failure) → outbox event emitted
     let outbox_before = count_outbox_events(&subscriptions_pool, &tenant_id).await?;
-    subscriptions_rs::transition_to_past_due(subscription_id, "payment_failed", &subscriptions_pool)
-        .await
-        .map_err(|e| anyhow::anyhow!("transition_to_past_due: {:?}", e))?;
+    subscriptions_rs::transition_to_past_due(
+        subscription_id,
+        "payment_failed",
+        &subscriptions_pool,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("transition_to_past_due: {:?}", e))?;
 
-    assert_eq!(get_status(&subscriptions_pool, subscription_id).await?, "past_due");
+    assert_eq!(
+        get_status(&subscriptions_pool, subscription_id).await?,
+        "past_due"
+    );
     let outbox_after_past_due = count_outbox_events(&subscriptions_pool, &tenant_id).await?;
     assert!(
         outbox_after_past_due > outbox_before,
@@ -248,15 +282,14 @@ async fn test_subscriptions_lifecycle_full() -> Result<()> {
     );
 
     // 4. Transition to SUSPENDED (cancellation) → outbox event emitted
-    subscriptions_rs::transition_to_suspended(
-        subscription_id,
-        "cancelled",
-        &subscriptions_pool,
-    )
-    .await
-    .map_err(|e| anyhow::anyhow!("transition_to_suspended: {:?}", e))?;
+    subscriptions_rs::transition_to_suspended(subscription_id, "cancelled", &subscriptions_pool)
+        .await
+        .map_err(|e| anyhow::anyhow!("transition_to_suspended: {:?}", e))?;
 
-    assert_eq!(get_status(&subscriptions_pool, subscription_id).await?, "suspended");
+    assert_eq!(
+        get_status(&subscriptions_pool, subscription_id).await?,
+        "suspended"
+    );
     let outbox_after_suspended = count_outbox_events(&subscriptions_pool, &tenant_id).await?;
     assert!(
         outbox_after_suspended > outbox_after_past_due,
@@ -285,7 +318,14 @@ async fn test_subscriptions_lifecycle_full() -> Result<()> {
             .await?;
     assert_eq!(final_invoice_count, 1, "no new invoice after cancellation");
 
-    do_cleanup(&tenant_id, &ar_pool, &payments_pool, &subscriptions_pool, &gl_pool).await;
+    do_cleanup(
+        &tenant_id,
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+    )
+    .await;
     Ok(())
 }
 
@@ -299,14 +339,25 @@ async fn test_billing_cycle_idempotency() -> Result<()> {
     let payments_pool = get_payments_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    do_cleanup(&tenant_id, &ar_pool, &payments_pool, &subscriptions_pool, &gl_pool).await;
+    do_cleanup(
+        &tenant_id,
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+    )
+    .await;
 
     let ar_customer_id = common::create_ar_customer(&ar_pool, &tenant_id).await;
     let billing_date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
 
-    let (_plan_id, subscription_id) =
-        create_plan_and_subscription(&subscriptions_pool, &tenant_id, ar_customer_id, billing_date)
-            .await?;
+    let (_plan_id, subscription_id) = create_plan_and_subscription(
+        &subscriptions_pool,
+        &tenant_id,
+        ar_customer_id,
+        billing_date,
+    )
+    .await?;
 
     // First billing — must succeed
     let first = trigger_billing_cycle(
@@ -328,17 +379,34 @@ async fn test_billing_cycle_idempotency() -> Result<()> {
         billing_date,
     )
     .await?;
-    assert!(second.is_none(), "duplicate cycle must be blocked by idempotency gate");
+    assert!(
+        second.is_none(),
+        "duplicate cycle must be blocked by idempotency gate"
+    );
 
-    assert_eq!(count_cycle_attempts(&subscriptions_pool, subscription_id).await?, 1);
+    assert_eq!(
+        count_cycle_attempts(&subscriptions_pool, subscription_id).await?,
+        1
+    );
 
-    let invoice_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1")
-        .bind(&tenant_id)
-        .fetch_one(&ar_pool)
-        .await?;
-    assert_eq!(invoice_count, 1, "exactly one invoice despite two billing attempts");
+    let invoice_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&ar_pool)
+            .await?;
+    assert_eq!(
+        invoice_count, 1,
+        "exactly one invoice despite two billing attempts"
+    );
 
-    do_cleanup(&tenant_id, &ar_pool, &payments_pool, &subscriptions_pool, &gl_pool).await;
+    do_cleanup(
+        &tenant_id,
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+    )
+    .await;
     Ok(())
 }
 
@@ -352,23 +420,44 @@ async fn test_status_change_events_emitted() -> Result<()> {
     let payments_pool = get_payments_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    do_cleanup(&tenant_id, &ar_pool, &payments_pool, &subscriptions_pool, &gl_pool).await;
+    do_cleanup(
+        &tenant_id,
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+    )
+    .await;
 
     let ar_customer_id = common::create_ar_customer(&ar_pool, &tenant_id).await;
     let billing_date = NaiveDate::from_ymd_opt(2026, 3, 1).unwrap();
 
-    let (_plan_id, subscription_id) =
-        create_plan_and_subscription(&subscriptions_pool, &tenant_id, ar_customer_id, billing_date)
-            .await?;
+    let (_plan_id, subscription_id) = create_plan_and_subscription(
+        &subscriptions_pool,
+        &tenant_id,
+        ar_customer_id,
+        billing_date,
+    )
+    .await?;
 
-    assert_eq!(count_outbox_events(&subscriptions_pool, &tenant_id).await?, 0);
+    assert_eq!(
+        count_outbox_events(&subscriptions_pool, &tenant_id).await?,
+        0
+    );
 
     // active → past_due: one event
-    subscriptions_rs::transition_to_past_due(subscription_id, "payment_failed", &subscriptions_pool)
-        .await
-        .map_err(|e| anyhow::anyhow!("{:?}", e))?;
+    subscriptions_rs::transition_to_past_due(
+        subscription_id,
+        "payment_failed",
+        &subscriptions_pool,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("{:?}", e))?;
 
-    assert_eq!(count_outbox_events(&subscriptions_pool, &tenant_id).await?, 1);
+    assert_eq!(
+        count_outbox_events(&subscriptions_pool, &tenant_id).await?,
+        1
+    );
 
     // past_due → suspended: second event
     subscriptions_rs::transition_to_suspended(
@@ -379,7 +468,10 @@ async fn test_status_change_events_emitted() -> Result<()> {
     .await
     .map_err(|e| anyhow::anyhow!("{:?}", e))?;
 
-    assert_eq!(count_outbox_events(&subscriptions_pool, &tenant_id).await?, 2);
+    assert_eq!(
+        count_outbox_events(&subscriptions_pool, &tenant_id).await?,
+        2
+    );
 
     // Both events must have the correct type
     let event_types: Vec<String> = sqlx::query_scalar(
@@ -397,6 +489,13 @@ async fn test_status_change_events_emitted() -> Result<()> {
         event_types
     );
 
-    do_cleanup(&tenant_id, &ar_pool, &payments_pool, &subscriptions_pool, &gl_pool).await;
+    do_cleanup(
+        &tenant_id,
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+    )
+    .await;
     Ok(())
 }

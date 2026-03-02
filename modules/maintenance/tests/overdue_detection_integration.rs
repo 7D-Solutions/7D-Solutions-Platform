@@ -193,9 +193,7 @@ async fn test_non_overdue_statuses_skipped() {
             wo_type: "corrective".into(),
             priority: None,
             assigned_to: None,
-            scheduled_date: Some(
-                (Utc::now() - Duration::days(10)).date_naive(),
-            ),
+            scheduled_date: Some((Utc::now() - Duration::days(10)).date_naive()),
             checklist: None,
             notes: None,
         },

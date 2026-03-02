@@ -100,14 +100,12 @@ async fn seed_cache_row(
 
 /// Delete all cache rows for a group + as_of (simulates clean re-run).
 async fn clear_cache(pool: &sqlx::PgPool, group_id: Uuid, as_of: NaiveDate) {
-    sqlx::query(
-        "DELETE FROM csl_trial_balance_cache WHERE group_id = $1 AND as_of = $2",
-    )
-    .bind(group_id)
-    .bind(as_of)
-    .execute(pool)
-    .await
-    .unwrap();
+    sqlx::query("DELETE FROM csl_trial_balance_cache WHERE group_id = $1 AND as_of = $2")
+        .bind(group_id)
+        .bind(as_of)
+        .execute(pool)
+        .await
+        .unwrap();
 }
 
 // ============================================================================
@@ -125,7 +123,10 @@ async fn test_cache_seed_and_retrieve() {
         .await
         .unwrap();
 
-    seed_cache_row(&pool, group.id, as_of, "1000", "Cash", "USD", 100_000, 0, "hash-v1").await;
+    seed_cache_row(
+        &pool, group.id, as_of, "1000", "Cash", "USD", 100_000, 0, "hash-v1",
+    )
+    .await;
 
     let rows = compute::get_cached_tb(&pool, group.id, as_of)
         .await
@@ -157,18 +158,36 @@ async fn test_cache_idempotent_rerun() {
         .unwrap();
 
     // First run — hash-v1
-    seed_cache_row(&pool, group.id, as_of, "1000", "Cash", "USD", 100_000, 0, "hash-v1").await;
-    let rows = compute::get_cached_tb(&pool, group.id, as_of).await.unwrap().unwrap();
+    seed_cache_row(
+        &pool, group.id, as_of, "1000", "Cash", "USD", 100_000, 0, "hash-v1",
+    )
+    .await;
+    let rows = compute::get_cached_tb(&pool, group.id, as_of)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(rows[0].input_hash, "hash-v1");
 
     // Second run — delete-then-insert with hash-v2 (idempotent pipeline)
     clear_cache(&pool, group.id, as_of).await;
-    seed_cache_row(&pool, group.id, as_of, "1000", "Cash", "USD", 120_000, 0, "hash-v2").await;
+    seed_cache_row(
+        &pool, group.id, as_of, "1000", "Cash", "USD", 120_000, 0, "hash-v2",
+    )
+    .await;
 
-    let rows = compute::get_cached_tb(&pool, group.id, as_of).await.unwrap().unwrap();
+    let rows = compute::get_cached_tb(&pool, group.id, as_of)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(rows.len(), 1, "re-run must not duplicate rows");
-    assert_eq!(rows[0].input_hash, "hash-v2", "second run must replace first");
-    assert_eq!(rows[0].debit_minor, 120_000, "second run values must be current");
+    assert_eq!(
+        rows[0].input_hash, "hash-v2",
+        "second run must replace first"
+    );
+    assert_eq!(
+        rows[0].debit_minor, 120_000,
+        "second run values must be current"
+    );
 }
 
 // ============================================================================
@@ -204,13 +223,25 @@ async fn test_consolidated_pl_from_cache() {
         .unwrap();
 
     // Revenue (4xxx, credit-normal): credit_minor - debit_minor
-    seed_cache_row(&pool, group.id, as_of, "4000", "Revenue", "USD", 0, 500_000, "hash-pl").await;
+    seed_cache_row(
+        &pool, group.id, as_of, "4000", "Revenue", "USD", 0, 500_000, "hash-pl",
+    )
+    .await;
     // COGS (5xxx, debit-normal): debit_minor - credit_minor
-    seed_cache_row(&pool, group.id, as_of, "5000", "COGS", "USD", 200_000, 0, "hash-pl").await;
+    seed_cache_row(
+        &pool, group.id, as_of, "5000", "COGS", "USD", 200_000, 0, "hash-pl",
+    )
+    .await;
     // Expenses (6xxx, debit-normal): debit_minor - credit_minor
-    seed_cache_row(&pool, group.id, as_of, "6000", "Salaries", "USD", 100_000, 0, "hash-pl").await;
+    seed_cache_row(
+        &pool, group.id, as_of, "6000", "Salaries", "USD", 100_000, 0, "hash-pl",
+    )
+    .await;
     // Balance-sheet account (1xxx) — should be excluded from P&L
-    seed_cache_row(&pool, group.id, as_of, "1000", "Cash", "USD", 300_000, 0, "hash-pl").await;
+    seed_cache_row(
+        &pool, group.id, as_of, "1000", "Cash", "USD", 300_000, 0, "hash-pl",
+    )
+    .await;
 
     let pl = pl::compute_consolidated_pl(&pool, group.id, as_of)
         .await
@@ -231,7 +262,11 @@ async fn test_consolidated_pl_from_cache() {
     assert_eq!(cogs.accounts[0].amount_minor, 200_000); // debit - credit
 
     // Expenses section
-    let exp = pl.sections.iter().find(|s| s.section == "expenses").unwrap();
+    let exp = pl
+        .sections
+        .iter()
+        .find(|s| s.section == "expenses")
+        .unwrap();
     assert_eq!(exp.accounts.len(), 1);
     assert_eq!(exp.accounts[0].amount_minor, 100_000);
 
@@ -256,14 +291,37 @@ async fn test_consolidated_bs_from_cache() {
         .unwrap();
 
     // Assets (1xxx, debit-normal)
-    seed_cache_row(&pool, group.id, as_of, "1000", "Cash", "USD", 300_000, 0, "hash-bs").await;
-    seed_cache_row(&pool, group.id, as_of, "1200", "AR", "USD", 150_000, 0, "hash-bs").await;
+    seed_cache_row(
+        &pool, group.id, as_of, "1000", "Cash", "USD", 300_000, 0, "hash-bs",
+    )
+    .await;
+    seed_cache_row(
+        &pool, group.id, as_of, "1200", "AR", "USD", 150_000, 0, "hash-bs",
+    )
+    .await;
     // Liabilities (2xxx, credit-normal)
-    seed_cache_row(&pool, group.id, as_of, "2000", "AP", "USD", 0, 100_000, "hash-bs").await;
+    seed_cache_row(
+        &pool, group.id, as_of, "2000", "AP", "USD", 0, 100_000, "hash-bs",
+    )
+    .await;
     // Equity (3xxx, credit-normal)
-    seed_cache_row(&pool, group.id, as_of, "3000", "Retained Earnings", "USD", 0, 350_000, "hash-bs").await;
+    seed_cache_row(
+        &pool,
+        group.id,
+        as_of,
+        "3000",
+        "Retained Earnings",
+        "USD",
+        0,
+        350_000,
+        "hash-bs",
+    )
+    .await;
     // P&L account (4xxx) — excluded from BS
-    seed_cache_row(&pool, group.id, as_of, "4000", "Revenue", "USD", 0, 500_000, "hash-bs").await;
+    seed_cache_row(
+        &pool, group.id, as_of, "4000", "Revenue", "USD", 0, 500_000, "hash-bs",
+    )
+    .await;
 
     let bs = bs::compute_consolidated_bs(&pool, group.id, as_of)
         .await
@@ -278,7 +336,11 @@ async fn test_consolidated_bs_from_cache() {
     assert_eq!(total_assets, 450_000); // 300k + 150k
 
     // Liabilities
-    let liab = bs.sections.iter().find(|s| s.section == "liabilities").unwrap();
+    let liab = bs
+        .sections
+        .iter()
+        .find(|s| s.section == "liabilities")
+        .unwrap();
     assert_eq!(liab.accounts.len(), 1);
     assert_eq!(liab.accounts[0].amount_minor, 100_000);
 
@@ -308,7 +370,10 @@ async fn test_run_tenant_isolation_separate_groups() {
         .unwrap();
 
     // Only seed group_a's cache
-    seed_cache_row(&pool, group_a.id, as_of, "1000", "Cash", "USD", 100_000, 0, "hash-a").await;
+    seed_cache_row(
+        &pool, group_a.id, as_of, "1000", "Cash", "USD", 100_000, 0, "hash-a",
+    )
+    .await;
 
     // group_a has cache
     let rows_a = compute::get_cached_tb(&pool, group_a.id, as_of)

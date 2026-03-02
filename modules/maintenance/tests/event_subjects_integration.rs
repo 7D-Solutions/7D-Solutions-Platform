@@ -124,10 +124,7 @@ async fn test_wo_created_subject_and_envelope() {
     assert!(payload["tenant_id"].is_string(), "tenant_id missing");
     assert_eq!(payload["tenant_id"].as_str().unwrap(), tid);
     assert!(payload["occurred_at"].is_string(), "occurred_at missing");
-    assert_eq!(
-        payload["source_module"].as_str().unwrap(),
-        "maintenance"
-    );
+    assert_eq!(payload["source_module"].as_str().unwrap(), "maintenance");
     assert!(payload["event_type"].is_string(), "event_type missing");
     assert_eq!(
         payload["event_type"].as_str().unwrap(),

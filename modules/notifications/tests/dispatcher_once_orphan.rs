@@ -4,7 +4,6 @@
 /// ago (older than the 5-minute orphan threshold).  dispatch_once resets it to
 /// 'pending'.  Because deliver_at is set 1 hour in the future, the row is NOT
 /// re-claimed in the same cycle, leaving it as 'pending'.
-
 use std::sync::Arc;
 
 use chrono::Utc;

@@ -24,8 +24,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -86,7 +86,9 @@ async fn receipt_creates_ledger_layer_outbox_atomically() {
 
     // Create item
     let item_req = create_item_req(&tenant_id, "SKU-RCV-001");
-    let item = ItemRepo::create(&pool, &item_req).await.expect("create item");
+    let item = ItemRepo::create(&pool, &item_req)
+        .await
+        .expect("create item");
 
     let idem_key = format!("idem-{}", Uuid::new_v4());
     let req = receipt_req(&tenant_id, item.id, &idem_key);
@@ -134,23 +136,53 @@ async fn receipt_creates_ledger_layer_outbox_atomically() {
     assert_eq!(outbox_count, 1, "exactly one outbox event");
 
     // Verify FIFO layer quantity_remaining = quantity_received
-    let layer_qty: i64 = sqlx::query_scalar(
-        "SELECT quantity_remaining FROM inventory_layers WHERE id = $1",
-    )
-    .bind(result.layer_id)
-    .fetch_one(&pool)
-    .await
-    .expect("layer qty query");
-    assert_eq!(layer_qty, 50, "FIFO layer qty_remaining should equal received");
+    let layer_qty: i64 =
+        sqlx::query_scalar("SELECT quantity_remaining FROM inventory_layers WHERE id = $1")
+            .bind(result.layer_id)
+            .fetch_one(&pool)
+            .await
+            .expect("layer qty query");
+    assert_eq!(
+        layer_qty, 50,
+        "FIFO layer qty_remaining should equal received"
+    );
 
     // Cleanup
-    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -164,40 +196,73 @@ async fn receipt_idempotency_replay_returns_stored_result() {
     let tenant_id = format!("test-{}", Uuid::new_v4());
 
     let item_req = create_item_req(&tenant_id, "SKU-IDEM-001");
-    let item = ItemRepo::create(&pool, &item_req).await.expect("create item");
+    let item = ItemRepo::create(&pool, &item_req)
+        .await
+        .expect("create item");
 
     let idem_key = format!("idem-{}", Uuid::new_v4());
     let req = receipt_req(&tenant_id, item.id, &idem_key);
 
     // First call
-    let (result1, is_replay1) = process_receipt(&pool, &req, None).await.expect("first call");
+    let (result1, is_replay1) = process_receipt(&pool, &req, None)
+        .await
+        .expect("first call");
     assert!(!is_replay1);
 
     // Second call with same key and same body
-    let (result2, is_replay2) = process_receipt(&pool, &req, None).await.expect("second call");
+    let (result2, is_replay2) = process_receipt(&pool, &req, None)
+        .await
+        .expect("second call");
     assert!(is_replay2, "second call must be a replay");
     assert_eq!(result1.receipt_line_id, result2.receipt_line_id);
     assert_eq!(result1.layer_id, result2.layer_id);
     assert_eq!(result1.event_id, result2.event_id);
 
     // No extra rows: still exactly one of each
-    let ledger_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("ledger count");
+    let ledger_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("ledger count");
     assert_eq!(ledger_count, 1, "no duplicate ledger rows on replay");
 
     // Cleanup
-    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -211,7 +276,9 @@ async fn receipt_guard_rejects_inactive_item() {
     let tenant_id = format!("test-{}", Uuid::new_v4());
 
     let item_req = create_item_req(&tenant_id, "SKU-INACTIVE-001");
-    let item = ItemRepo::create(&pool, &item_req).await.expect("create item");
+    let item = ItemRepo::create(&pool, &item_req)
+        .await
+        .expect("create item");
 
     // Deactivate the item
     ItemRepo::deactivate(&pool, item.id, &tenant_id)
@@ -219,15 +286,22 @@ async fn receipt_guard_rejects_inactive_item() {
         .expect("deactivate item");
 
     let req = receipt_req(&tenant_id, item.id, &format!("idem-{}", Uuid::new_v4()));
-    let err = process_receipt(&pool, &req, None).await.expect_err("must fail for inactive item");
+    let err = process_receipt(&pool, &req, None)
+        .await
+        .expect_err("must fail for inactive item");
 
     assert!(
         matches!(err, ReceiptError::Guard(_)),
-        "expected Guard error, got: {:?}", err
+        "expected Guard error, got: {:?}",
+        err
     );
 
     // Cleanup
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -245,7 +319,9 @@ async fn receipt_guard_rejects_zero_quantity() {
         ..receipt_req(&tenant_id, Uuid::new_v4(), "irrelevant")
     };
 
-    let err = process_receipt(&pool, &req, None).await.expect_err("zero qty must fail");
+    let err = process_receipt(&pool, &req, None)
+        .await
+        .expect_err("zero qty must fail");
     assert!(matches!(err, ReceiptError::Guard(_)), "{:?}", err);
 }
 
@@ -264,7 +340,9 @@ async fn receipt_guard_rejects_zero_cost() {
         ..receipt_req(&tenant_id, Uuid::new_v4(), "irrelevant")
     };
 
-    let err = process_receipt(&pool, &req, None).await.expect_err("zero cost must fail");
+    let err = process_receipt(&pool, &req, None)
+        .await
+        .expect_err("zero cost must fail");
     assert!(matches!(err, ReceiptError::Guard(_)), "{:?}", err);
 }
 
@@ -290,7 +368,9 @@ async fn receipt_lot_tracked_creates_lot_and_associates_layer() {
         uom: None,
         tracking_mode: TrackingMode::Lot,
     };
-    let item = ItemRepo::create(&pool, &item_req).await.expect("create lot item");
+    let item = ItemRepo::create(&pool, &item_req)
+        .await
+        .expect("create lot item");
 
     let lot_code = "LOT-2026-001";
     let idem_key = format!("idem-{}", Uuid::new_v4());
@@ -299,42 +379,80 @@ async fn receipt_lot_tracked_creates_lot_and_associates_layer() {
         ..receipt_req(&tenant_id, item.id, &idem_key)
     };
 
-    let (result, is_replay) = process_receipt(&pool, &req, None).await.expect("lot receipt must succeed");
+    let (result, is_replay) = process_receipt(&pool, &req, None)
+        .await
+        .expect("lot receipt must succeed");
     assert!(!is_replay);
 
     // lot_id must be set on the result
-    let lot_id = result.lot_id.expect("lot_id must be set for lot-tracked receipt");
+    let lot_id = result
+        .lot_id
+        .expect("lot_id must be set for lot-tracked receipt");
 
     // Verify lot row exists
-    let lot_code_db: String = sqlx::query_scalar(
-        "SELECT lot_code FROM inventory_lots WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(lot_id)
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("lot row must exist");
+    let lot_code_db: String =
+        sqlx::query_scalar("SELECT lot_code FROM inventory_lots WHERE id = $1 AND tenant_id = $2")
+            .bind(lot_id)
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("lot row must exist");
     assert_eq!(lot_code_db, lot_code);
 
     // Verify FIFO layer has lot_id set
-    let layer_lot_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT lot_id FROM inventory_layers WHERE id = $1",
-    )
-    .bind(result.layer_id)
-    .fetch_one(&pool)
-    .await
-    .expect("layer query");
-    assert_eq!(layer_lot_id, Some(lot_id), "layer.lot_id must match the upserted lot");
+    let layer_lot_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT lot_id FROM inventory_layers WHERE id = $1")
+            .bind(result.layer_id)
+            .fetch_one(&pool)
+            .await
+            .expect("layer query");
+    assert_eq!(
+        layer_lot_id,
+        Some(lot_id),
+        "layer.lot_id must match the upserted lot"
+    );
 
     // Cleanup (serial instances first, then layers, lots, ledger, items)
-    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inventory_lots WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_lots WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -358,19 +476,28 @@ async fn receipt_lot_tracked_rejects_missing_lot_code() {
         uom: None,
         tracking_mode: TrackingMode::Lot,
     };
-    let item = ItemRepo::create(&pool, &item_req).await.expect("create lot item");
+    let item = ItemRepo::create(&pool, &item_req)
+        .await
+        .expect("create lot item");
 
     // No lot_code provided
     let req = receipt_req(&tenant_id, item.id, &format!("idem-{}", Uuid::new_v4()));
-    let err = process_receipt(&pool, &req, None).await.expect_err("must fail without lot_code");
+    let err = process_receipt(&pool, &req, None)
+        .await
+        .expect_err("must fail without lot_code");
 
     assert!(
         matches!(err, ReceiptError::LotCodeRequired),
-        "expected LotCodeRequired, got: {:?}", err
+        "expected LotCodeRequired, got: {:?}",
+        err
     );
 
     // Cleanup
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -395,7 +522,9 @@ async fn receipt_serial_tracked_creates_serial_instances() {
         uom: None,
         tracking_mode: TrackingMode::Serial,
     };
-    let item = ItemRepo::create(&pool, &item_req).await.expect("create serial item");
+    let item = ItemRepo::create(&pool, &item_req)
+        .await
+        .expect("create serial item");
 
     let quantity: i64 = 3;
     let serial_codes: Vec<String> = (0..quantity)
@@ -432,14 +561,46 @@ async fn receipt_serial_tracked_creates_serial_instances() {
     }
 
     // Cleanup (serial instances before layers due to FK)
-    sqlx::query("DELETE FROM inventory_serial_instances WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM inventory_serial_instances WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -463,20 +624,35 @@ async fn receipt_serial_tracked_rejects_count_mismatch() {
         uom: None,
         tracking_mode: TrackingMode::Serial,
     };
-    let item = ItemRepo::create(&pool, &item_req).await.expect("create serial item");
+    let item = ItemRepo::create(&pool, &item_req)
+        .await
+        .expect("create serial item");
 
     // quantity=50 but only 2 serial codes
     let req = ReceiptRequest {
         serial_codes: Some(vec!["SN-A".to_string(), "SN-B".to_string()]),
         ..receipt_req(&tenant_id, item.id, &format!("idem-{}", Uuid::new_v4()))
     };
-    let err = process_receipt(&pool, &req, None).await.expect_err("count mismatch must fail");
+    let err = process_receipt(&pool, &req, None)
+        .await
+        .expect_err("count mismatch must fail");
 
     assert!(
-        matches!(err, ReceiptError::SerialCountMismatch { expected: 50, got: 2 }),
-        "expected SerialCountMismatch, got: {:?}", err
+        matches!(
+            err,
+            ReceiptError::SerialCountMismatch {
+                expected: 50,
+                got: 2
+            }
+        ),
+        "expected SerialCountMismatch, got: {:?}",
+        err
     );
 
     // Cleanup
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(&tenant_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(&tenant_id)
+        .execute(&pool)
+        .await
+        .ok();
 }

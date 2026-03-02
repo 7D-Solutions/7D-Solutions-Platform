@@ -14,7 +14,9 @@
 //! 8. Verify trial balance filtering works correctly
 
 use chrono::{NaiveDate, Utc};
-use gl_rs::contracts::gl_posting_request_v1::{Dimensions, JournalLine, GlPostingRequestV1, SourceDocType};
+use gl_rs::contracts::gl_posting_request_v1::{
+    Dimensions, GlPostingRequestV1, JournalLine, SourceDocType,
+};
 use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::repos::balance_repo;
@@ -111,11 +113,12 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
         .expect("Failed to cleanup journal lines");
 
     // Get event IDs for this tenant before deleting journal entries
-    let event_ids: Vec<uuid::Uuid> = sqlx::query_scalar("SELECT source_event_id FROM journal_entries WHERE tenant_id = $1")
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await
-        .expect("Failed to fetch event IDs");
+    let event_ids: Vec<uuid::Uuid> =
+        sqlx::query_scalar("SELECT source_event_id FROM journal_entries WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_all(pool)
+            .await
+            .expect("Failed to fetch event IDs");
 
     sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
         .bind(tenant_id)
@@ -254,26 +257,31 @@ async fn test_e2e_posting_updates_balances_and_trial_balance_usd() {
 
     // Step 3: Verify trial balance reflects correct USD totals
     let trial_balance = trial_balance_service::get_trial_balance(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",  // Changed from Some("USD") - currency is now required
+        &pool, tenant_id, period_id,
+        "USD", // Changed from Some("USD") - currency is now required
     )
     .await
     .expect("Failed to get trial balance");
 
     assert_eq!(trial_balance.tenant_id, tenant_id);
     assert_eq!(trial_balance.period_id, period_id);
-    assert_eq!(trial_balance.currency, "USD");  // Changed from Some("USD".to_string())
+    assert_eq!(trial_balance.currency, "USD"); // Changed from Some("USD".to_string())
     assert_eq!(trial_balance.rows.len(), 2, "Should have 2 accounts");
 
     // Verify totals are balanced
     assert_eq!(trial_balance.totals.total_debits, 259900);
     assert_eq!(trial_balance.totals.total_credits, 259900);
-    assert!(trial_balance.totals.is_balanced, "Trial balance should be balanced");
+    assert!(
+        trial_balance.totals.is_balanced,
+        "Trial balance should be balanced"
+    );
 
     // Verify individual account rows
-    let ar_row = trial_balance.rows.iter().find(|r| r.account_code == "1100").expect("AR account should be in trial balance");
+    let ar_row = trial_balance
+        .rows
+        .iter()
+        .find(|r| r.account_code == "1100")
+        .expect("AR account should be in trial balance");
     assert_eq!(ar_row.account_name, "Accounts Receivable");
     assert_eq!(ar_row.account_type, "asset");
     assert_eq!(ar_row.normal_balance, "debit");
@@ -282,7 +290,11 @@ async fn test_e2e_posting_updates_balances_and_trial_balance_usd() {
     assert_eq!(ar_row.credit_total_minor, 0);
     assert_eq!(ar_row.net_balance_minor, 259900);
 
-    let revenue_row = trial_balance.rows.iter().find(|r| r.account_code == "4000").expect("Revenue account should be in trial balance");
+    let revenue_row = trial_balance
+        .rows
+        .iter()
+        .find(|r| r.account_code == "4000")
+        .expect("Revenue account should be in trial balance");
     assert_eq!(revenue_row.account_name, "Revenue");
     assert_eq!(revenue_row.account_type, "revenue");
     assert_eq!(revenue_row.normal_balance, "credit");
@@ -434,16 +446,17 @@ async fn test_e2e_multi_currency_isolation_and_filtering() {
 
     // Step 4: Verify trial balance filtering by currency (USD only)
     let trial_balance_usd = trial_balance_service::get_trial_balance(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",  // Changed from Some("USD")
+        &pool, tenant_id, period_id, "USD", // Changed from Some("USD")
     )
     .await
     .expect("Failed to get USD trial balance");
 
-    assert_eq!(trial_balance_usd.currency, "USD");  // Changed from Some("USD".to_string())
-    assert_eq!(trial_balance_usd.rows.len(), 2, "Should have 2 USD accounts");
+    assert_eq!(trial_balance_usd.currency, "USD"); // Changed from Some("USD".to_string())
+    assert_eq!(
+        trial_balance_usd.rows.len(),
+        2,
+        "Should have 2 USD accounts"
+    );
     assert_eq!(trial_balance_usd.totals.total_debits, 100000);
     assert_eq!(trial_balance_usd.totals.total_credits, 100000);
     assert!(trial_balance_usd.totals.is_balanced);
@@ -455,16 +468,17 @@ async fn test_e2e_multi_currency_isolation_and_filtering() {
 
     // Step 5: Verify trial balance filtering by currency (EUR only)
     let trial_balance_eur = trial_balance_service::get_trial_balance(
-        &pool,
-        tenant_id,
-        period_id,
-        "EUR",  // Changed from Some("EUR")
+        &pool, tenant_id, period_id, "EUR", // Changed from Some("EUR")
     )
     .await
     .expect("Failed to get EUR trial balance");
 
-    assert_eq!(trial_balance_eur.currency, "EUR");  // Changed from Some("EUR".to_string())
-    assert_eq!(trial_balance_eur.rows.len(), 2, "Should have 2 EUR accounts");
+    assert_eq!(trial_balance_eur.currency, "EUR"); // Changed from Some("EUR".to_string())
+    assert_eq!(
+        trial_balance_eur.rows.len(),
+        2,
+        "Should have 2 EUR accounts"
+    );
     assert_eq!(trial_balance_eur.totals.total_debits, 50000);
     assert_eq!(trial_balance_eur.totals.total_credits, 50000);
     assert!(trial_balance_eur.totals.is_balanced);

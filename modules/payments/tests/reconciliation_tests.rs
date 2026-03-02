@@ -18,8 +18,7 @@ use uuid::Uuid;
 async fn setup_test_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
 
-    let database_url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for tests");
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -80,13 +79,17 @@ async fn test_reconcile_unknown_to_succeeded() {
     );
 
     // Verify database state
-    let status: String = sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
-        .bind(attempt_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Failed to fetch status");
+    let status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to fetch status");
 
-    assert_eq!(status, "succeeded", "Status should be SUCCEEDED after reconciliation");
+    assert_eq!(
+        status, "succeeded",
+        "Status should be SUCCEEDED after reconciliation"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM payment_attempts WHERE app_id = $1")
@@ -140,11 +143,12 @@ async fn test_reconcile_unknown_to_failed_retry() {
     );
 
     // Verify database state
-    let status: String = sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
-        .bind(attempt_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Failed to fetch status");
+    let status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to fetch status");
 
     assert_eq!(
         status, "failed_retry",
@@ -203,11 +207,12 @@ async fn test_reconcile_unknown_to_failed_final() {
     );
 
     // Verify database state
-    let status: String = sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
-        .bind(attempt_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Failed to fetch status");
+    let status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to fetch status");
 
     assert_eq!(
         status, "failed_final",
@@ -338,11 +343,12 @@ async fn test_reconcile_already_resolved() {
     );
 
     // Verify database state unchanged
-    let status: String = sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
-        .bind(attempt_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Failed to fetch status");
+    let status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to fetch status");
 
     assert_eq!(status, "succeeded", "Status should remain SUCCEEDED");
 
@@ -387,9 +393,8 @@ async fn test_concurrent_reconciliation_safety() {
     let mut handles = vec![];
     for _ in 0..10 {
         let pool_clone = pool.clone();
-        let handle = tokio::spawn(async move {
-            reconcile_unknown_attempt(&pool_clone, attempt_id).await
-        });
+        let handle =
+            tokio::spawn(async move { reconcile_unknown_attempt(&pool_clone, attempt_id).await });
         handles.push(handle);
     }
 
@@ -412,8 +417,10 @@ async fn test_concurrent_reconciliation_safety() {
     let error_count = results.iter().filter(|r| r.is_err()).count();
 
     // Print results for debugging
-    println!("Resolved: {}, Already resolved: {}, Errors: {}",
-             resolved_count, already_resolved_count, error_count);
+    println!(
+        "Resolved: {}, Already resolved: {}, Errors: {}",
+        resolved_count, already_resolved_count, error_count
+    );
 
     if error_count > 0 {
         for (i, result) in results.iter().enumerate() {
@@ -432,17 +439,15 @@ async fn test_concurrent_reconciliation_safety() {
     );
 
     // All calls should either resolve or return already_resolved (no fatal errors)
-    assert!(
-        error_count < 10,
-        "Not all concurrent calls should fail"
-    );
+    assert!(error_count < 10, "Not all concurrent calls should fail");
 
     // Verify final database state
-    let status: String = sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
-        .bind(attempt_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Failed to fetch status");
+    let status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to fetch status");
 
     assert_eq!(status, "succeeded", "Final status should be SUCCEEDED");
 
@@ -497,11 +502,12 @@ async fn test_psp_still_unknown() {
     );
 
     // Verify database state - status should remain UNKNOWN
-    let status: String = sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
-        .bind(attempt_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Failed to fetch status");
+    let status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to fetch status");
 
     assert_eq!(
         status, "unknown",

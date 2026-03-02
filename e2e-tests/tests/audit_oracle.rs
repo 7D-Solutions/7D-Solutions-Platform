@@ -121,16 +121,10 @@ async fn oracle_for_module(
         );
         match backfill_missing_audit_records(audit_pool, &initial.gaps, module_name).await {
             Ok(written) => {
-                eprintln!(
-                    "  [FIX] {} — wrote {} audit records",
-                    module_name, written
-                );
+                eprintln!("  [FIX] {} — wrote {} audit records", module_name, written);
             }
             Err(e) => {
-                eprintln!(
-                    "  [ERR] {} — backfill failed: {}",
-                    module_name, e
-                );
+                eprintln!("  [ERR] {} — backfill failed: {}", module_name, e);
             }
         }
     }
@@ -146,10 +140,7 @@ async fn oracle_for_module(
     check_module_audit_completeness(audit_pool, &events, module_name)
         .await
         .unwrap_or_else(|e| {
-            eprintln!(
-                "  [ERR] {} — re-verify failed: {}",
-                module_name, e
-            );
+            eprintln!("  [ERR] {} — re-verify failed: {}", module_name, e);
             ModuleAuditResult {
                 module: module_name.to_string(),
                 ..Default::default()
@@ -192,9 +183,8 @@ async fn audit_oracle_all_modules() {
     .await;
     let ap_pool = try_pool(
         "AP",
-        &std::env::var("AP_DATABASE_URL").unwrap_or_else(|_| {
-            "postgresql://ap_user:ap_pass@localhost:5443/ap_db".to_string()
-        }),
+        &std::env::var("AP_DATABASE_URL")
+            .unwrap_or_else(|_| "postgresql://ap_user:ap_pass@localhost:5443/ap_db".to_string()),
     )
     .await;
     let inv_pool = try_pool("Inventory", &inventory_db_url()).await;
@@ -312,7 +302,12 @@ async fn audit_oracle_all_modules() {
     // Report per-module details for failures
     for result in &all_results {
         if !result.is_clean() {
-            eprintln!("\n  FAIL: {} — {} gaps, {} dupes", result.module, result.gaps.len(), result.duplicates.len());
+            eprintln!(
+                "\n  FAIL: {} — {} gaps, {} dupes",
+                result.module,
+                result.gaps.len(),
+                result.duplicates.len()
+            );
             for gap in result.gaps.iter().take(5) {
                 eprintln!("    gap: {} ({})", gap.event_type, gap.event_id);
             }
@@ -334,7 +329,10 @@ async fn audit_oracle_all_modules() {
         total_dupes
     );
 
-    eprintln!("\n=== Oracle PASSED: {} events, 0 gaps, 0 dupes ===\n", total_events);
+    eprintln!(
+        "\n=== Oracle PASSED: {} events, 0 gaps, 0 dupes ===\n",
+        total_events
+    );
 }
 
 /// Verify no duplicate audit records exist for any causation_id.

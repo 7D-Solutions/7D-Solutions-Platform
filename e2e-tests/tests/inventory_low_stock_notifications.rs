@@ -16,10 +16,10 @@ mod common;
 use anyhow::Result;
 use common::generate_test_tenant;
 use inventory_rs::domain::{
-    adjust_service::{AdjustRequest, process_adjustment},
-    issue_service::{IssueRequest, process_issue},
+    adjust_service::{process_adjustment, AdjustRequest},
+    issue_service::{process_issue, IssueRequest},
     items::{CreateItemRequest, ItemRepo, TrackingMode},
-    receipt_service::{ReceiptRequest, process_receipt},
+    receipt_service::{process_receipt, ReceiptRequest},
     reorder::models::{CreateReorderPolicyRequest, ReorderPolicyRepo},
 };
 use notifications_rs::{
@@ -544,9 +544,7 @@ async fn low_stock_rearm_after_recovery() {
         .await
         .expect("handle second notification");
 
-    let notif_count = count_notif_outbox(&notif_pool, &tenant_id)
-        .await
-        .unwrap();
+    let notif_count = count_notif_outbox(&notif_pool, &tenant_id).await.unwrap();
     assert_eq!(
         notif_count, 1,
         "After second crossing, notifications outbox should have 1 alert (got {notif_count})"

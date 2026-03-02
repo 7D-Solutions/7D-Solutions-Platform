@@ -150,7 +150,11 @@ async fn test_schedule_idempotent() {
         .await
         .unwrap();
 
-    assert_eq!(first.len(), second.len(), "no duplicate rows on second call");
+    assert_eq!(
+        first.len(),
+        second.len(),
+        "no duplicate rows on second call"
+    );
     for (a, b) in first.iter().zip(second.iter()) {
         assert_eq!(a.id, b.id, "same row ids — no new inserts");
     }
@@ -227,7 +231,10 @@ async fn test_depreciation_run_idempotent() {
     DepreciationService::run(&pool, &run_req).await.unwrap();
     let run2 = DepreciationService::run(&pool, &run_req).await.unwrap();
 
-    assert_eq!(run2.periods_posted, 0, "second run is idempotent — 0 new periods");
+    assert_eq!(
+        run2.periods_posted, 0,
+        "second run is idempotent — 0 new periods"
+    );
     assert_eq!(run2.total_depreciation_minor, 0);
 }
 
@@ -338,7 +345,10 @@ async fn test_depreciation_tenant_isolation() {
     )
     .await
     .unwrap();
-    assert_eq!(run_b.periods_posted, 0, "tenant B run must not post tenant A's periods");
+    assert_eq!(
+        run_b.periods_posted, 0,
+        "tenant B run must not post tenant A's periods"
+    );
 
     // Run for tenant A — should post all 12 periods
     let run_a = DepreciationService::run(

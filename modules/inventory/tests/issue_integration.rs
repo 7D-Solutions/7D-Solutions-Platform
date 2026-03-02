@@ -14,8 +14,8 @@
 //! 8. source_ref carried in outbox event payload
 
 use inventory_rs::domain::{
-    items::{CreateItemRequest, ItemRepo, TrackingMode},
     issue_service::{process_issue, IssueError, IssueRequest},
+    items::{CreateItemRequest, ItemRepo, TrackingMode},
     receipt_service::{process_receipt, ReceiptRequest},
 };
 use serial_test::serial;
@@ -28,8 +28,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -113,14 +113,42 @@ fn make_issue_req(
 }
 
 async fn cleanup_tenant(pool: &sqlx::PgPool, tenant_id: &str) {
-    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM layer_consumptions WHERE layer_id IN (SELECT id FROM inventory_layers WHERE tenant_id = $1)").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -141,14 +169,27 @@ async fn issue_creates_ledger_consumptions_onhand_outbox_atomically() {
 
     process_receipt(
         &pool,
-        &make_receipt_req(&tenant_id, item.id, warehouse_id, 50, 1000, &format!("rcv-{}", Uuid::new_v4())),
+        &make_receipt_req(
+            &tenant_id,
+            item.id,
+            warehouse_id,
+            50,
+            1000,
+            &format!("rcv-{}", Uuid::new_v4()),
+        ),
         None,
     )
     .await
     .expect("receipt");
 
     // Issue 10 units.
-    let issue_req = make_issue_req(&tenant_id, item.id, warehouse_id, 10, &format!("iss-{}", Uuid::new_v4()));
+    let issue_req = make_issue_req(
+        &tenant_id,
+        item.id,
+        warehouse_id,
+        10,
+        &format!("iss-{}", Uuid::new_v4()),
+    );
     let (result, is_replay) = process_issue(&pool, &issue_req, None).await.expect("issue");
 
     assert!(!is_replay, "first call must not be replay");
@@ -171,14 +212,16 @@ async fn issue_creates_ledger_consumptions_onhand_outbox_atomically() {
     assert_eq!(quantity, -10, "ledger quantity must be negative for issues");
 
     // Verify layer_consumptions.
-    let consumption_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM layer_consumptions WHERE ledger_entry_id = $1",
-    )
-    .bind(result.ledger_entry_id)
-    .fetch_one(&pool)
-    .await
-    .expect("consumption count");
-    assert_eq!(consumption_count, 1, "one consumption record per consumed layer");
+    let consumption_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM layer_consumptions WHERE ledger_entry_id = $1")
+            .bind(result.ledger_entry_id)
+            .fetch_one(&pool)
+            .await
+            .expect("consumption count");
+    assert_eq!(
+        consumption_count, 1,
+        "one consumption record per consumed layer"
+    );
 
     // Verify FIFO layer quantity_remaining = 50 - 10 = 40.
     let layer_remaining: i64 = sqlx::query_scalar(
@@ -237,7 +280,14 @@ async fn issue_consumes_fifo_layers_oldest_first() {
     // Layer 1: 5 units @ $10 (received first).
     process_receipt(
         &pool,
-        &make_receipt_req(&tenant_id, item.id, warehouse_id, 5, 1000, &format!("rcv1-{}", Uuid::new_v4())),
+        &make_receipt_req(
+            &tenant_id,
+            item.id,
+            warehouse_id,
+            5,
+            1000,
+            &format!("rcv1-{}", Uuid::new_v4()),
+        ),
         None,
     )
     .await
@@ -246,15 +296,30 @@ async fn issue_consumes_fifo_layers_oldest_first() {
     // Layer 2: 10 units @ $20 (received second).
     process_receipt(
         &pool,
-        &make_receipt_req(&tenant_id, item.id, warehouse_id, 10, 2000, &format!("rcv2-{}", Uuid::new_v4())),
+        &make_receipt_req(
+            &tenant_id,
+            item.id,
+            warehouse_id,
+            10,
+            2000,
+            &format!("rcv2-{}", Uuid::new_v4()),
+        ),
         None,
     )
     .await
     .expect("receipt layer 2");
 
     // Issue 8 units: should consume all 5 from layer 1, then 3 from layer 2.
-    let issue_req = make_issue_req(&tenant_id, item.id, warehouse_id, 8, &format!("iss-{}", Uuid::new_v4()));
-    let (result, _) = process_issue(&pool, &issue_req, None).await.expect("issue 8 units");
+    let issue_req = make_issue_req(
+        &tenant_id,
+        item.id,
+        warehouse_id,
+        8,
+        &format!("iss-{}", Uuid::new_v4()),
+    );
+    let (result, _) = process_issue(&pool, &issue_req, None)
+        .await
+        .expect("issue 8 units");
 
     assert_eq!(result.quantity, 8);
     assert_eq!(result.consumed_layers.len(), 2, "two layers consumed");
@@ -272,8 +337,15 @@ async fn issue_consumes_fifo_layers_oldest_first() {
     // Total cost = $50 + $60 = $110
     assert_eq!(result.total_cost_minor, 11_000);
 
-    let sum: i64 = result.consumed_layers.iter().map(|c| c.extended_cost_minor).sum();
-    assert_eq!(result.total_cost_minor, sum, "total_cost_minor must equal sum of extended costs");
+    let sum: i64 = result
+        .consumed_layers
+        .iter()
+        .map(|c| c.extended_cost_minor)
+        .sum();
+    assert_eq!(
+        result.total_cost_minor, sum,
+        "total_cost_minor must equal sum of extended costs"
+    );
 
     // Layer 1 should now be exhausted (quantity_remaining = 0).
     let remaining_count: i64 = sqlx::query_scalar(
@@ -285,7 +357,10 @@ async fn issue_consumes_fifo_layers_oldest_first() {
     .fetch_one(&pool)
     .await
     .expect("remaining layers count");
-    assert_eq!(remaining_count, 1, "only layer 2 should have remaining stock");
+    assert_eq!(
+        remaining_count, 1,
+        "only layer 2 should have remaining stock"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await;
 }
@@ -307,7 +382,14 @@ async fn issue_idempotency_replay_returns_stored_result() {
 
     process_receipt(
         &pool,
-        &make_receipt_req(&tenant_id, item.id, warehouse_id, 100, 500, &format!("rcv-{}", Uuid::new_v4())),
+        &make_receipt_req(
+            &tenant_id,
+            item.id,
+            warehouse_id,
+            100,
+            500,
+            &format!("rcv-{}", Uuid::new_v4()),
+        ),
         None,
     )
     .await
@@ -321,7 +403,9 @@ async fn issue_idempotency_replay_returns_stored_result() {
     assert!(!is_replay1);
 
     // Second call — same key, same body.
-    let (r2, is_replay2) = process_issue(&pool, &req, None).await.expect("second issue");
+    let (r2, is_replay2) = process_issue(&pool, &req, None)
+        .await
+        .expect("second issue");
     assert!(is_replay2, "second call must be a replay");
 
     assert_eq!(r1.issue_line_id, r2.issue_line_id);
@@ -347,7 +431,10 @@ async fn issue_idempotency_replay_returns_stored_result() {
     .fetch_one(&pool)
     .await
     .expect("layer remaining");
-    assert_eq!(remaining, 90, "quantity_remaining must not be doubly decremented");
+    assert_eq!(
+        remaining, 90,
+        "quantity_remaining must not be doubly decremented"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await;
 }
@@ -370,19 +457,41 @@ async fn issue_guard_rejects_insufficient_quantity() {
     // Receive only 5 units.
     process_receipt(
         &pool,
-        &make_receipt_req(&tenant_id, item.id, warehouse_id, 5, 1000, &format!("rcv-{}", Uuid::new_v4())),
+        &make_receipt_req(
+            &tenant_id,
+            item.id,
+            warehouse_id,
+            5,
+            1000,
+            &format!("rcv-{}", Uuid::new_v4()),
+        ),
         None,
     )
     .await
     .expect("receipt");
 
     // Attempt to issue 10 — exceeds available.
-    let req = make_issue_req(&tenant_id, item.id, warehouse_id, 10, &format!("iss-{}", Uuid::new_v4()));
-    let err = process_issue(&pool, &req, None).await.expect_err("must fail: insufficient stock");
+    let req = make_issue_req(
+        &tenant_id,
+        item.id,
+        warehouse_id,
+        10,
+        &format!("iss-{}", Uuid::new_v4()),
+    );
+    let err = process_issue(&pool, &req, None)
+        .await
+        .expect_err("must fail: insufficient stock");
 
     assert!(
-        matches!(err, IssueError::InsufficientQuantity { requested: 10, available: 5 }),
-        "expected InsufficientQuantity, got: {:?}", err
+        matches!(
+            err,
+            IssueError::InsufficientQuantity {
+                requested: 10,
+                available: 5
+            }
+        ),
+        "expected InsufficientQuantity, got: {:?}",
+        err
     );
 
     cleanup_tenant(&pool, &tenant_id).await;
@@ -407,12 +516,21 @@ async fn issue_guard_rejects_inactive_item() {
         .await
         .expect("deactivate");
 
-    let req = make_issue_req(&tenant_id, item.id, warehouse_id, 1, &format!("iss-{}", Uuid::new_v4()));
-    let err = process_issue(&pool, &req, None).await.expect_err("inactive item must be rejected");
+    let req = make_issue_req(
+        &tenant_id,
+        item.id,
+        warehouse_id,
+        1,
+        &format!("iss-{}", Uuid::new_v4()),
+    );
+    let err = process_issue(&pool, &req, None)
+        .await
+        .expect_err("inactive item must be rejected");
 
     assert!(
         matches!(err, IssueError::Guard(_)),
-        "expected Guard error, got: {:?}", err
+        "expected Guard error, got: {:?}",
+        err
     );
 
     cleanup_tenant(&pool, &tenant_id).await;
@@ -429,10 +547,18 @@ async fn issue_guard_rejects_zero_quantity() {
 
     let req = IssueRequest {
         quantity: 0,
-        ..make_issue_req(&tenant_id, Uuid::new_v4(), Uuid::new_v4(), 1, &format!("iss-{}", Uuid::new_v4()))
+        ..make_issue_req(
+            &tenant_id,
+            Uuid::new_v4(),
+            Uuid::new_v4(),
+            1,
+            &format!("iss-{}", Uuid::new_v4()),
+        )
     };
 
-    let err = process_issue(&pool, &req, None).await.expect_err("zero qty must fail");
+    let err = process_issue(&pool, &req, None)
+        .await
+        .expect_err("zero qty must fail");
     assert!(matches!(err, IssueError::Guard(_)), "{:?}", err);
 }
 
@@ -453,7 +579,14 @@ async fn issue_outbox_event_contains_consumed_layers_and_source_ref() {
 
     process_receipt(
         &pool,
-        &make_receipt_req(&tenant_id, item.id, warehouse_id, 20, 1500, &format!("rcv-{}", Uuid::new_v4())),
+        &make_receipt_req(
+            &tenant_id,
+            item.id,
+            warehouse_id,
+            20,
+            1500,
+            &format!("rcv-{}", Uuid::new_v4()),
+        ),
         None,
     )
     .await
@@ -464,29 +597,40 @@ async fn issue_outbox_event_contains_consumed_layers_and_source_ref() {
         source_type: "work_order".to_string(),
         source_id: "WO-42".to_string(),
         source_line_id: Some("WO-42-L1".to_string()),
-        ..make_issue_req(&tenant_id, item.id, warehouse_id, 5, &format!("iss-{}", Uuid::new_v4()))
+        ..make_issue_req(
+            &tenant_id,
+            item.id,
+            warehouse_id,
+            5,
+            &format!("iss-{}", Uuid::new_v4()),
+        )
     };
 
     let (result, _) = process_issue(&pool, &req, None).await.expect("issue");
 
     // Read outbox payload and verify structure.
-    let payload_json: serde_json::Value = sqlx::query_scalar(
-        "SELECT payload FROM inv_outbox WHERE event_id = $1",
-    )
-    .bind(result.event_id)
-    .fetch_one(&pool)
-    .await
-    .expect("outbox payload");
+    let payload_json: serde_json::Value =
+        sqlx::query_scalar("SELECT payload FROM inv_outbox WHERE event_id = $1")
+            .bind(result.event_id)
+            .fetch_one(&pool)
+            .await
+            .expect("outbox payload");
 
     // consumed_layers must be present and non-empty
     let consumed_layers = payload_json["payload"]["consumed_layers"]
         .as_array()
         .expect("consumed_layers must be an array");
-    assert!(!consumed_layers.is_empty(), "consumed_layers must be non-empty");
+    assert!(
+        !consumed_layers.is_empty(),
+        "consumed_layers must be non-empty"
+    );
 
     // extended_cost_minor present in each layer
     for layer in consumed_layers {
-        assert!(layer.get("extended_cost_minor").is_some(), "each layer needs extended_cost_minor");
+        assert!(
+            layer.get("extended_cost_minor").is_some(),
+            "each layer needs extended_cost_minor"
+        );
         assert!(layer.get("layer_id").is_some());
     }
 
@@ -503,7 +647,9 @@ async fn issue_outbox_event_contains_consumed_layers_and_source_ref() {
         .map(|l| l["extended_cost_minor"].as_i64().unwrap_or(0))
         .sum();
     assert_eq!(
-        payload_json["payload"]["total_cost_minor"].as_i64().unwrap(),
+        payload_json["payload"]["total_cost_minor"]
+            .as_i64()
+            .unwrap(),
         total,
         "total_cost_minor must equal sum of extended_cost_minor"
     );

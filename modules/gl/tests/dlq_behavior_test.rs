@@ -13,8 +13,8 @@ use event_bus::{EventBus, EventEnvelope, InMemoryBus};
 use gl_rs::contracts::{GlPostingRequestV1, JournalLine, SourceDocType};
 use gl_rs::db::init_pool;
 use gl_rs::start_gl_posting_consumer;
-use serial_test::serial;
 use serde_json::json;
+use serial_test::serial;
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
@@ -227,7 +227,7 @@ async fn test_dlq_captures_unbalanced_entry() {
             lines: vec![
                 JournalLine {
                     account_ref: "1100".to_string(),
-                    debit: 100.0,   // $100 debit
+                    debit: 100.0, // $100 debit
                     credit: 0.0,
                     memo: Some("AR".to_string()),
                     dimensions: None,
@@ -235,7 +235,7 @@ async fn test_dlq_captures_unbalanced_entry() {
                 JournalLine {
                     account_ref: "4000".to_string(),
                     debit: 0.0,
-                    credit: 50.0,   // $50 credit (UNBALANCED!)
+                    credit: 50.0, // $50 credit (UNBALANCED!)
                     memo: Some("Revenue".to_string()),
                     dimensions: None,
                 },
@@ -275,10 +275,7 @@ async fn test_dlq_captures_unbalanced_entry() {
     .await
     .expect("Failed to query DLQ");
 
-    assert!(
-        failed_event.is_some(),
-        "Unbalanced entry should be in DLQ"
-    );
+    assert!(failed_event.is_some(), "Unbalanced entry should be in DLQ");
 
     let (dlq_error, dlq_retry_count) = failed_event.unwrap();
 

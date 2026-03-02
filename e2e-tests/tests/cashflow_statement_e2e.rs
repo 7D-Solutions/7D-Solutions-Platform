@@ -7,7 +7,6 @@
 /// 4. Is deterministic across repeated queries
 ///
 /// Run with: cargo test -p e2e-tests cashflow_statement_e2e -- --nocapture
-
 mod common;
 
 use chrono::NaiveDate;
@@ -83,12 +82,7 @@ async fn cleanup_tenant(pool: &PgPool, tenant_id: &str) {
 }
 
 /// Create an accounting period and return its ID.
-async fn create_period(
-    pool: &PgPool,
-    tenant_id: &str,
-    start: NaiveDate,
-    end: NaiveDate,
-) -> Uuid {
+async fn create_period(pool: &PgPool, tenant_id: &str, start: NaiveDate, end: NaiveDate) -> Uuid {
     let id = Uuid::new_v4();
     sqlx::query(
         r#"
@@ -134,12 +128,7 @@ async fn create_account(
 }
 
 /// Classify an account for cash flow reporting.
-async fn classify_account(
-    pool: &PgPool,
-    tenant_id: &str,
-    account_code: &str,
-    category: &str,
-) {
+async fn classify_account(pool: &PgPool, tenant_id: &str, account_code: &str, category: &str) {
     sqlx::query(
         r#"
         INSERT INTO cashflow_classifications (id, tenant_id, account_code, category, created_at)
@@ -294,7 +283,15 @@ async fn test_cashflow_all_three_categories() {
     create_account(&pool, &tenant_id, "1000", "Cash", "asset", "debit").await;
     create_account(&pool, &tenant_id, "4000", "Revenue", "revenue", "credit").await;
     create_account(&pool, &tenant_id, "1500", "Equipment", "asset", "debit").await;
-    create_account(&pool, &tenant_id, "2100", "Loan Payable", "liability", "credit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "2100",
+        "Loan Payable",
+        "liability",
+        "credit",
+    )
+    .await;
 
     // Classify accounts for cash flow
     classify_account(&pool, &tenant_id, "1000", "operating").await; // Cash — operating
@@ -351,15 +348,10 @@ async fn test_cashflow_all_three_categories() {
     .await;
 
     // Query cash flow
-    let result = cashflow_service::get_cash_flow(
-        &pool,
-        &tenant_id,
-        period_id,
-        "USD",
-        &["1000".to_string()],
-    )
-    .await
-    .expect("get_cash_flow should succeed");
+    let result =
+        cashflow_service::get_cash_flow(&pool, &tenant_id, period_id, "USD", &["1000".to_string()])
+            .await
+            .expect("get_cash_flow should succeed");
 
     println!("\nCash Flow Statement:");
     for row in &result.rows {
@@ -471,7 +463,15 @@ async fn test_cashflow_reconciliation_to_cash_account() {
     // Create accounts
     create_account(&pool, &tenant_id, "1000", "Cash", "asset", "debit").await;
     create_account(&pool, &tenant_id, "4000", "Revenue", "revenue", "credit").await;
-    create_account(&pool, &tenant_id, "5000", "Rent Expense", "expense", "debit").await;
+    create_account(
+        &pool,
+        &tenant_id,
+        "5000",
+        "Rent Expense",
+        "expense",
+        "debit",
+    )
+    .await;
 
     // Classify ONLY the cash account for cash flow (indirect method approximation)
     // This means only journal lines that hit the cash account are included.
@@ -513,15 +513,10 @@ async fn test_cashflow_reconciliation_to_cash_account() {
     .await;
 
     // Query cash flow with cash account for reconciliation
-    let result = cashflow_service::get_cash_flow(
-        &pool,
-        &tenant_id,
-        period_id,
-        "USD",
-        &["1000".to_string()],
-    )
-    .await
-    .expect("get_cash_flow should succeed");
+    let result =
+        cashflow_service::get_cash_flow(&pool, &tenant_id, period_id, "USD", &["1000".to_string()])
+            .await
+            .expect("get_cash_flow should succeed");
 
     println!("\nCash Flow (reconciliation test):");
     for row in &result.rows {
@@ -531,7 +526,10 @@ async fn test_cashflow_reconciliation_to_cash_account() {
         );
     }
     println!("Net cash flow: {}", result.net_cash_flow);
-    println!("Cash account net change: {}", result.cash_account_net_change);
+    println!(
+        "Cash account net change: {}",
+        result.cash_account_net_change
+    );
     println!("Reconciles: {}", result.reconciles);
 
     // Cash account (1000) journal lines:
@@ -543,7 +541,10 @@ async fn test_cashflow_reconciliation_to_cash_account() {
         .iter()
         .find(|c| c.category == "operating")
         .unwrap();
-    assert_eq!(operating.total_minor, 700000, "Operating = Cash net DR - CR");
+    assert_eq!(
+        operating.total_minor, 700000,
+        "Operating = Cash net DR - CR"
+    );
 
     // Cash account_balances net = DR(1M) - CR(300K) = 700K
     assert_eq!(result.cash_account_net_change, 700000);
@@ -592,28 +593,22 @@ async fn test_cashflow_deterministic_across_queries() {
     .await;
 
     // Query twice
-    let result1 = cashflow_service::get_cash_flow(
-        &pool,
-        &tenant_id,
-        period_id,
-        "USD",
-        &["1000".to_string()],
-    )
-    .await
-    .expect("first query");
+    let result1 =
+        cashflow_service::get_cash_flow(&pool, &tenant_id, period_id, "USD", &["1000".to_string()])
+            .await
+            .expect("first query");
 
-    let result2 = cashflow_service::get_cash_flow(
-        &pool,
-        &tenant_id,
-        period_id,
-        "USD",
-        &["1000".to_string()],
-    )
-    .await
-    .expect("second query");
+    let result2 =
+        cashflow_service::get_cash_flow(&pool, &tenant_id, period_id, "USD", &["1000".to_string()])
+            .await
+            .expect("second query");
 
     // Compare
-    assert_eq!(result1.rows.len(), result2.rows.len(), "Same number of rows");
+    assert_eq!(
+        result1.rows.len(),
+        result2.rows.len(),
+        "Same number of rows"
+    );
     for (r1, r2) in result1.rows.iter().zip(result2.rows.iter()) {
         assert_eq!(r1.account_code, r2.account_code);
         assert_eq!(r1.amount_minor, r2.amount_minor);
@@ -650,15 +645,10 @@ async fn test_cashflow_empty_period() {
     )
     .await;
 
-    let result = cashflow_service::get_cash_flow(
-        &pool,
-        &tenant_id,
-        period_id,
-        "USD",
-        &["1000".to_string()],
-    )
-    .await
-    .expect("get_cash_flow on empty period");
+    let result =
+        cashflow_service::get_cash_flow(&pool, &tenant_id, period_id, "USD", &["1000".to_string()])
+            .await
+            .expect("get_cash_flow on empty period");
 
     assert!(result.rows.is_empty(), "No rows for empty period");
     assert_eq!(result.net_cash_flow, 0, "Net cash flow is zero");

@@ -3,7 +3,6 @@
 ///
 /// Requires DATABASE_URL pointing at a running TTP Postgres instance.
 /// Run with: cargo test -p ttp-rs --test billing_run_integration -- --ignored
-
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -162,13 +161,19 @@ async fn collect_parties_agreement_only() {
 
     assert_eq!(parties.len(), 2, "two parties with agreements");
 
-    let pa = parties.iter().find(|p| p.party_id == party_a).expect("party_a");
+    let pa = parties
+        .iter()
+        .find(|p| p.party_id == party_a)
+        .expect("party_a");
     assert_eq!(pa.total_amount_minor, 9900);
     assert_eq!(pa.currency, "usd");
     assert!(pa.charge_ids.is_empty());
     assert!(pa.trace_hash.is_none());
 
-    let pb = parties.iter().find(|p| p.party_id == party_b).expect("party_b");
+    let pb = parties
+        .iter()
+        .find(|p| p.party_id == party_b)
+        .expect("party_b");
     assert_eq!(pb.total_amount_minor, 29900);
 
     cleanup(&pool, tenant_id).await;
@@ -302,13 +307,11 @@ async fn collect_parties_suspended_agreement_excluded() {
     seed_agreement(&pool, tenant_id, party_id, "starter", 9900).await;
 
     // Suspend the agreement
-    sqlx::query(
-        "UPDATE ttp_service_agreements SET status = 'suspended' WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .execute(&pool)
-    .await
-    .expect("suspend agreement");
+    sqlx::query("UPDATE ttp_service_agreements SET status = 'suspended' WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(&pool)
+        .await
+        .expect("suspend agreement");
 
     let run_id = create_run(&pool, tenant_id, "2026-02").await;
     let parties = collect_parties_to_bill(&pool, tenant_id, run_id)

@@ -24,8 +24,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -75,13 +75,41 @@ fn make_receipt(tenant_id: &str, item_id: Uuid, warehouse_id: Uuid, qty: i64) ->
 }
 
 async fn cleanup(pool: &sqlx::PgPool, tenant_id: &str) {
-    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM layer_consumptions WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM layer_consumptions WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -130,12 +158,18 @@ async fn history_ordered_after_receipts() {
 
     assert_eq!(movements.len(), 2, "must have exactly 2 movements");
     // Ordered by posted_at ASC, id ASC — first receipt was inserted first.
-    assert!(movements[0].ledger_id < movements[1].ledger_id, "must be in ledger-id order");
+    assert!(
+        movements[0].ledger_id < movements[1].ledger_id,
+        "must be in ledger-id order"
+    );
     assert_eq!(movements[0].entry_type, "received");
     assert_eq!(movements[0].quantity, 100);
     assert_eq!(movements[1].quantity, 50);
     // source_ref fields present
-    assert_eq!(movements[0].reference_type.as_deref(), Some("purchase_order"));
+    assert_eq!(
+        movements[0].reference_type.as_deref(),
+        Some("purchase_order")
+    );
 
     cleanup(&pool, &tenant_id).await;
 }
@@ -166,13 +200,17 @@ async fn history_location_filter() {
 
     // Receipt without location (NULL location_id).
     let r_no_loc = make_receipt(&tenant_id, item.id, warehouse_id, 200);
-    process_receipt(&pool, &r_no_loc, None).await.expect("receipt no-loc");
+    process_receipt(&pool, &r_no_loc, None)
+        .await
+        .expect("receipt no-loc");
 
     // Receipt with location — patch the ledger row directly after insert (simulating
     // a location-aware receipt).  We call the receipt service then update location_id
     // since the integration-test ReceiptRequest doesn't carry location_id yet.
     let r_loc = make_receipt(&tenant_id, item.id, warehouse_id, 75);
-    process_receipt(&pool, &r_loc, None).await.expect("receipt with-loc");
+    process_receipt(&pool, &r_loc, None)
+        .await
+        .expect("receipt with-loc");
 
     // Patch most recent ledger row for this tenant to have location_id.
     sqlx::query(
@@ -196,7 +234,11 @@ async fn history_location_filter() {
     assert_eq!(loc_movements[0].location_id, Some(location_id));
 
     cleanup(&pool, &tenant_id).await;
-    sqlx::query("DELETE FROM locations WHERE id = $1").bind(location_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM locations WHERE id = $1")
+        .bind(location_id)
+        .execute(&pool)
+        .await
+        .ok();
 }
 
 #[tokio::test]

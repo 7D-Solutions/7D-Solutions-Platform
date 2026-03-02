@@ -25,12 +25,12 @@
 
 mod common;
 
+use ap::domain::vendors::{service as vendor_service, CreateVendorRequest};
 use audit::{
     actor::Actor,
     schema::{MutationClass, WriteAuditRequest},
     writer::AuditWriter,
 };
-use ap::domain::vendors::{service as vendor_service, CreateVendorRequest};
 use party_rs::domain::party::{service as party_service, CreateCompanyRequest};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -138,14 +138,10 @@ async fn test_party_create_link_ar_ap_audit() {
         metadata: None,
     };
 
-    let party_view = party_service::create_company(
-        &party_pool,
-        APP_ID,
-        &company_req,
-        run_id.to_string(),
-    )
-    .await
-    .expect("create_company failed");
+    let party_view =
+        party_service::create_company(&party_pool, APP_ID, &company_req, run_id.to_string())
+            .await
+            .expect("create_company failed");
 
     let party_id = party_view.party.id;
     assert_eq!(party_view.party.party_type, "company");
@@ -192,14 +188,9 @@ async fn test_party_create_link_ar_ap_audit() {
         party_id: Some(party_id),
     };
 
-    let vendor = vendor_service::create_vendor(
-        &ap_pool,
-        APP_ID,
-        &vendor_req,
-        run_id.to_string(),
-    )
-    .await
-    .expect("AP create_vendor failed");
+    let vendor = vendor_service::create_vendor(&ap_pool, APP_ID, &vendor_req, run_id.to_string())
+        .await
+        .expect("AP create_vendor failed");
 
     assert_eq!(
         vendor.party_id,
@@ -271,7 +262,10 @@ async fn test_party_create_link_ar_ap_audit() {
         .await
         .expect("audit query for Party failed");
     assert_eq!(party_events.len(), 1, "expected 1 Party audit entry");
-    assert_eq!(party_events[0].actor_id, actor_id, "actor_id mismatch on Party entry");
+    assert_eq!(
+        party_events[0].actor_id, actor_id,
+        "actor_id mismatch on Party entry"
+    );
     assert_eq!(party_events[0].actor_type, "User");
     assert_eq!(party_events[0].action, "CreateParty");
 
@@ -280,7 +274,10 @@ async fn test_party_create_link_ar_ap_audit() {
         .await
         .expect("audit query for Customer failed");
     assert_eq!(customer_events.len(), 1, "expected 1 Customer audit entry");
-    assert_eq!(customer_events[0].actor_id, actor_id, "actor_id mismatch on Customer entry");
+    assert_eq!(
+        customer_events[0].actor_id, actor_id,
+        "actor_id mismatch on Customer entry"
+    );
     assert_eq!(customer_events[0].action, "CreateCustomer");
 
     let vendor_events = writer
@@ -288,7 +285,10 @@ async fn test_party_create_link_ar_ap_audit() {
         .await
         .expect("audit query for Vendor failed");
     assert_eq!(vendor_events.len(), 1, "expected 1 Vendor audit entry");
-    assert_eq!(vendor_events[0].actor_id, actor_id, "actor_id mismatch on Vendor entry");
+    assert_eq!(
+        vendor_events[0].actor_id, actor_id,
+        "actor_id mismatch on Vendor entry"
+    );
     assert_eq!(vendor_events[0].action, "CreateVendor");
 
     // ── Cleanup ────────────────────────────────────────────────────────────
@@ -333,14 +333,9 @@ async fn test_party_link_is_deterministic_on_rerun() {
         metadata: None,
     };
 
-    let party_view = party_service::create_company(
-        &party_pool,
-        APP_ID,
-        &req,
-        run_id.to_string(),
-    )
-    .await
-    .expect("create_company failed on determinism check");
+    let party_view = party_service::create_company(&party_pool, APP_ID, &req, run_id.to_string())
+        .await
+        .expect("create_company failed on determinism check");
 
     let party_id = party_view.party.id;
 

@@ -244,8 +244,18 @@ async fn test_boundary_http_gl_detail_returns_paginated_entries() {
         "Sale #1",
         "ar",
         vec![
-            ("1100".to_string(), 100000, 0, Some("Invoice INV-001".to_string())),
-            ("4000".to_string(), 0, 100000, Some("Revenue from sale".to_string())),
+            (
+                "1100".to_string(),
+                100000,
+                0,
+                Some("Invoice INV-001".to_string()),
+            ),
+            (
+                "4000".to_string(),
+                0,
+                100000,
+                Some("Revenue from sale".to_string()),
+            ),
         ],
     )
     .await;
@@ -258,8 +268,18 @@ async fn test_boundary_http_gl_detail_returns_paginated_entries() {
         "Sale #2",
         "ar",
         vec![
-            ("1100".to_string(), 150000, 0, Some("Invoice INV-002".to_string())),
-            ("4000".to_string(), 0, 150000, Some("Revenue from sale".to_string())),
+            (
+                "1100".to_string(),
+                150000,
+                0,
+                Some("Invoice INV-002".to_string()),
+            ),
+            (
+                "4000".to_string(),
+                0,
+                150000,
+                Some("Revenue from sale".to_string()),
+            ),
         ],
     )
     .await;
@@ -289,8 +309,14 @@ async fn test_boundary_http_gl_detail_returns_paginated_entries() {
 
     // Assert: Correct tenant_id and period in response
     assert_eq!(gl_detail.tenant_id, tenant_id);
-    assert!(!gl_detail.period_start.is_empty(), "period_start should be populated");
-    assert!(!gl_detail.period_end.is_empty(), "period_end should be populated");
+    assert!(
+        !gl_detail.period_start.is_empty(),
+        "period_start should be populated"
+    );
+    assert!(
+        !gl_detail.period_end.is_empty(),
+        "period_end should be populated"
+    );
 
     // Assert: Entries present
     assert_eq!(gl_detail.entries.len(), 2, "Should have 2 journal entries");
@@ -299,12 +325,18 @@ async fn test_boundary_http_gl_detail_returns_paginated_entries() {
     assert_eq!(gl_detail.pagination.limit, 10);
     assert_eq!(gl_detail.pagination.offset, 0);
     assert_eq!(gl_detail.pagination.total_count, 2);
-    assert!(!gl_detail.pagination.has_more, "Should not have more entries");
+    assert!(
+        !gl_detail.pagination.has_more,
+        "Should not have more entries"
+    );
 
     // Assert: First entry structure
     let first_entry = &gl_detail.entries[0];
     assert!(!first_entry.id.is_empty(), "Entry ID should be populated");
-    assert!(!first_entry.posted_at.is_empty(), "posted_at should be populated");
+    assert!(
+        !first_entry.posted_at.is_empty(),
+        "posted_at should be populated"
+    );
     assert_eq!(first_entry.currency, "USD");
     assert_eq!(first_entry.source_module, "ar");
     assert_eq!(first_entry.lines.len(), 2, "Entry should have 2 lines");
@@ -394,7 +426,11 @@ async fn test_boundary_http_gl_detail_filters_by_account_code() {
         .expect("Failed to parse JSON response");
 
     // Assert: Should return entries that touch account 1100
-    assert_eq!(gl_detail.entries.len(), 1, "Should have 1 entry touching account 1100");
+    assert_eq!(
+        gl_detail.entries.len(),
+        1,
+        "Should have 1 entry touching account 1100"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -431,7 +467,10 @@ async fn test_boundary_http_gl_detail_handles_not_found_period() {
         .await
         .expect("Failed to parse error response");
 
-    assert!(error_json.get("error").is_some(), "Error response should have 'error' field");
+    assert!(
+        error_json.get("error").is_some(),
+        "Error response should have 'error' field"
+    );
 }
 
 #[tokio::test]

@@ -170,7 +170,10 @@ async fn test_find_active_by_code_not_found() {
     // Try to find a non-existent account
     let result = account_repo::find_active_by_code(&pool, "tenant-888", "8888").await;
 
-    assert!(result.is_err(), "Should return error for non-existent account");
+    assert!(
+        result.is_err(),
+        "Should return error for non-existent account"
+    );
     match result {
         Err(AccountError::NotFound { tenant_id, code }) => {
             assert_eq!(tenant_id, "tenant-888");
@@ -260,7 +263,10 @@ async fn test_transaction_variants() {
 
     // Test assert_active_tx
     let assert_result = account_repo::assert_active_tx(&mut tx, "tenant-006", "1000").await;
-    assert!(assert_result.is_ok(), "Assert should succeed in transaction");
+    assert!(
+        assert_result.is_ok(),
+        "Assert should succeed in transaction"
+    );
 
     tx.commit().await.expect("Failed to commit transaction");
 

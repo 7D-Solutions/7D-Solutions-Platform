@@ -30,7 +30,9 @@ async fn test_submit_rejects_missing_required_fields() {
     .await
     .unwrap();
 
-    let err = SubmissionRepo::submit(&pool, sub.id, &tid).await.unwrap_err();
+    let err = SubmissionRepo::submit(&pool, sub.id, &tid)
+        .await
+        .unwrap_err();
     match err {
         SubmissionError::Validation(msg) => {
             assert!(msg.contains("'company_name' is required"));
@@ -75,7 +77,9 @@ async fn test_submit_rejects_invalid_number_range() {
     .await
     .unwrap();
 
-    let err = SubmissionRepo::submit(&pool, sub.id, &tid).await.unwrap_err();
+    let err = SubmissionRepo::submit(&pool, sub.id, &tid)
+        .await
+        .unwrap_err();
     match err {
         SubmissionError::Validation(msg) => {
             assert!(msg.contains("'mileage' must be >= 0"));
@@ -109,7 +113,9 @@ async fn test_submit_rejects_invalid_dropdown_value() {
     .await
     .unwrap();
 
-    let err = SubmissionRepo::submit(&pool, sub.id, &tid).await.unwrap_err();
+    let err = SubmissionRepo::submit(&pool, sub.id, &tid)
+        .await
+        .unwrap_err();
     match err {
         SubmissionError::Validation(msg) => {
             assert!(msg.contains("'vehicle_type' must be one of: truck, van, car"));
@@ -143,7 +149,9 @@ async fn test_submit_rejects_invalid_date() {
     .await
     .unwrap();
 
-    let err = SubmissionRepo::submit(&pool, sub.id, &tid).await.unwrap_err();
+    let err = SubmissionRepo::submit(&pool, sub.id, &tid)
+        .await
+        .unwrap_err();
     match err {
         SubmissionError::Validation(msg) => {
             assert!(msg.contains("'inspection_date' must be a valid date"));
@@ -177,7 +185,9 @@ async fn test_checkbox_must_be_boolean() {
     .await
     .unwrap();
 
-    let err = SubmissionRepo::submit(&pool, sub.id, &tid).await.unwrap_err();
+    let err = SubmissionRepo::submit(&pool, sub.id, &tid)
+        .await
+        .unwrap_err();
     match err {
         SubmissionError::Validation(msg) => {
             assert!(msg.contains("'passed' must be a boolean"));
@@ -211,7 +221,9 @@ async fn test_submit_rejects_number_over_max() {
     .await
     .unwrap();
 
-    let err = SubmissionRepo::submit(&pool, sub.id, &tid).await.unwrap_err();
+    let err = SubmissionRepo::submit(&pool, sub.id, &tid)
+        .await
+        .unwrap_err();
     match err {
         SubmissionError::Validation(msg) => {
             assert!(msg.contains("'mileage' must be <= 999999"));

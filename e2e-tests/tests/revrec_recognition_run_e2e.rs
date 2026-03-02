@@ -183,11 +183,9 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
     .await;
 
     // Also clean outbox for recognition runs
-    let _ = sqlx::query(
-        "DELETE FROM events_outbox WHERE event_type = 'revrec.recognition_posted'",
-    )
-    .execute(pool)
-    .await;
+    let _ = sqlx::query("DELETE FROM events_outbox WHERE event_type = 'revrec.recognition_posted'")
+        .execute(pool)
+        .await;
 
     // Schedule lines
     let _ = sqlx::query(
@@ -265,20 +263,35 @@ async fn test_single_period_recognition_posts_balanced_journal() {
 
     let (contract_id, _obligation_id, contract_payload) = ratable_contract(&tenant_id);
     let obligation = &contract_payload.performance_obligations[0];
-    let schedule_id =
-        setup_contract_and_schedule(&gl_pool, contract_id, obligation, &contract_payload, &tenant_id)
-            .await;
+    let schedule_id = setup_contract_and_schedule(
+        &gl_pool,
+        contract_id,
+        obligation,
+        &contract_payload,
+        &tenant_id,
+    )
+    .await;
 
     // Run recognition for January 2026
     let result = run_recognition(&gl_pool, &tenant_id, "2026-01", "2026-01-31")
         .await
         .expect("Recognition run failed");
 
-    assert_eq!(result.lines_recognized, 1, "Should recognize exactly 1 line");
+    assert_eq!(
+        result.lines_recognized, 1,
+        "Should recognize exactly 1 line"
+    );
     assert_eq!(result.lines_skipped, 0);
-    assert_eq!(result.total_recognized_minor, 10000_00, "Should recognize $10,000");
+    assert_eq!(
+        result.total_recognized_minor, 10000_00,
+        "Should recognize $10,000"
+    );
     assert_eq!(result.postings.len(), 1);
-    println!("✅ Single period recognized: {} lines, ${}", result.lines_recognized, result.total_recognized_minor as f64 / 100.0);
+    println!(
+        "✅ Single period recognized: {} lines, ${}",
+        result.lines_recognized,
+        result.total_recognized_minor as f64 / 100.0
+    );
 
     // Verify journal is balanced
     let posting = &result.postings[0];
@@ -299,7 +312,10 @@ async fn test_single_period_recognition_posts_balanced_journal() {
     assert_eq!(total_debits, 10000_00);
     assert_eq!(total_credits, 10000_00);
     assert_eq!(total_debits, total_credits, "Journal must be balanced");
-    println!("✅ Journal balanced: debits={} credits={}", total_debits, total_credits);
+    println!(
+        "✅ Journal balanced: debits={} credits={}",
+        total_debits, total_credits
+    );
 
     // Verify schedule line marked as recognized
     let lines = revrec_repo::get_schedule_lines(&gl_pool, schedule_id)
@@ -307,13 +323,19 @@ async fn test_single_period_recognition_posts_balanced_journal() {
         .expect("get_schedule_lines failed");
 
     let jan_line = lines.iter().find(|l| l.period == "2026-01").unwrap();
-    assert!(jan_line.recognized, "January line must be marked recognized");
+    assert!(
+        jan_line.recognized,
+        "January line must be marked recognized"
+    );
     assert!(jan_line.recognized_at.is_some());
     println!("✅ Schedule line marked recognized");
 
     // Verify unrecognized lines still exist
     let unrecognized_count = lines.iter().filter(|l| !l.recognized).count();
-    assert_eq!(unrecognized_count, 11, "11 months should remain unrecognized");
+    assert_eq!(
+        unrecognized_count, 11,
+        "11 months should remain unrecognized"
+    );
     println!("✅ {} lines remain unrecognized", unrecognized_count);
 
     cleanup_test_data(&gl_pool, &tenant_id).await;
@@ -331,22 +353,37 @@ async fn test_recognition_idempotent_on_rerun() {
 
     let (contract_id, _obligation_id, contract_payload) = ratable_contract(&tenant_id);
     let obligation = &contract_payload.performance_obligations[0];
-    setup_contract_and_schedule(&gl_pool, contract_id, obligation, &contract_payload, &tenant_id)
-        .await;
+    setup_contract_and_schedule(
+        &gl_pool,
+        contract_id,
+        obligation,
+        &contract_payload,
+        &tenant_id,
+    )
+    .await;
 
     // First run
     let result1 = run_recognition(&gl_pool, &tenant_id, "2026-01", "2026-01-31")
         .await
         .expect("First recognition run failed");
     assert_eq!(result1.lines_recognized, 1);
-    println!("✅ First run: {} lines recognized", result1.lines_recognized);
+    println!(
+        "✅ First run: {} lines recognized",
+        result1.lines_recognized
+    );
 
     // Second run — same period, should skip
     let result2 = run_recognition(&gl_pool, &tenant_id, "2026-01", "2026-01-31")
         .await
         .expect("Second recognition run failed");
-    assert_eq!(result2.lines_recognized, 0, "Second run must recognize 0 lines");
-    assert_eq!(result2.lines_skipped, 0, "No due lines should be found (already recognized)");
+    assert_eq!(
+        result2.lines_recognized, 0,
+        "Second run must recognize 0 lines"
+    );
+    assert_eq!(
+        result2.lines_skipped, 0,
+        "No due lines should be found (already recognized)"
+    );
     assert_eq!(result2.total_recognized_minor, 0);
     println!("✅ Second run: 0 lines recognized (idempotent)");
 
@@ -376,9 +413,14 @@ async fn test_multi_period_recognition_sequential() {
 
     let (contract_id, _obligation_id, contract_payload) = ratable_contract(&tenant_id);
     let obligation = &contract_payload.performance_obligations[0];
-    let schedule_id =
-        setup_contract_and_schedule(&gl_pool, contract_id, obligation, &contract_payload, &tenant_id)
-            .await;
+    let schedule_id = setup_contract_and_schedule(
+        &gl_pool,
+        contract_id,
+        obligation,
+        &contract_payload,
+        &tenant_id,
+    )
+    .await;
 
     // Recognize January
     let jan = run_recognition(&gl_pool, &tenant_id, "2026-01", "2026-01-31")
@@ -433,7 +475,10 @@ async fn test_multi_period_recognition_sequential() {
     .fetch_one(&gl_pool)
     .await
     .unwrap();
-    assert_eq!(cumulative, 30000_00, "Cumulative should be $30,000 after 3 months");
+    assert_eq!(
+        cumulative, 30000_00,
+        "Cumulative should be $30,000 after 3 months"
+    );
     println!("✅ Cumulative recognized: ${}", cumulative as f64 / 100.0);
 
     cleanup_test_data(&gl_pool, &tenant_id).await;
@@ -451,8 +496,14 @@ async fn test_all_journals_balanced() {
 
     let (contract_id, _obligation_id, contract_payload) = ratable_contract(&tenant_id);
     let obligation = &contract_payload.performance_obligations[0];
-    setup_contract_and_schedule(&gl_pool, contract_id, obligation, &contract_payload, &tenant_id)
-        .await;
+    setup_contract_and_schedule(
+        &gl_pool,
+        contract_id,
+        obligation,
+        &contract_payload,
+        &tenant_id,
+    )
+    .await;
 
     // Recognize all 12 months
     for month in 1..=12 {
@@ -469,7 +520,11 @@ async fn test_all_journals_balanced() {
         let result = run_recognition(&gl_pool, &tenant_id, &period, &posting_date)
             .await
             .unwrap();
-        assert_eq!(result.lines_recognized, 1, "Month {} should recognize 1 line", month);
+        assert_eq!(
+            result.lines_recognized, 1,
+            "Month {} should recognize 1 line",
+            month
+        );
     }
 
     // Check every journal is balanced
@@ -507,8 +562,14 @@ async fn test_all_journals_balanced() {
     .fetch_one(&gl_pool)
     .await
     .unwrap();
-    assert_eq!(total_debits, 120000_00, "Total debits must equal contract total");
-    println!("✅ Total recognized: ${} (full contract)", total_debits as f64 / 100.0);
+    assert_eq!(
+        total_debits, 120000_00,
+        "Total debits must equal contract total"
+    );
+    println!(
+        "✅ Total recognized: ${} (full contract)",
+        total_debits as f64 / 100.0
+    );
 
     // Verify no more lines to recognize
     let remaining = run_recognition(&gl_pool, &tenant_id, "2026-01", "2026-01-31")
@@ -532,8 +593,14 @@ async fn test_recognition_emits_outbox_events() {
 
     let (contract_id, _obligation_id, contract_payload) = ratable_contract(&tenant_id);
     let obligation = &contract_payload.performance_obligations[0];
-    setup_contract_and_schedule(&gl_pool, contract_id, obligation, &contract_payload, &tenant_id)
-        .await;
+    setup_contract_and_schedule(
+        &gl_pool,
+        contract_id,
+        obligation,
+        &contract_payload,
+        &tenant_id,
+    )
+    .await;
 
     // Recognize January
     let result = run_recognition(&gl_pool, &tenant_id, "2026-01", "2026-01-31")
@@ -549,8 +616,14 @@ async fn test_recognition_emits_outbox_events() {
     .fetch_one(&gl_pool)
     .await
     .expect("Outbox query failed");
-    assert!(outbox_count >= 1, "At least 1 recognition_posted event in outbox");
-    println!("✅ Outbox contains {} {} events", outbox_count, EVENT_TYPE_RECOGNITION_POSTED);
+    assert!(
+        outbox_count >= 1,
+        "At least 1 recognition_posted event in outbox"
+    );
+    println!(
+        "✅ Outbox contains {} {} events",
+        outbox_count, EVENT_TYPE_RECOGNITION_POSTED
+    );
 
     // Verify outbox payload contains expected fields
     let outbox_payload: serde_json::Value = sqlx::query_scalar(
@@ -561,16 +634,32 @@ async fn test_recognition_emits_outbox_events() {
     .await
     .expect("Outbox payload query failed");
 
-    assert!(outbox_payload.get("run_id").is_some(), "Payload must have run_id");
-    assert!(outbox_payload.get("contract_id").is_some(), "Payload must have contract_id");
-    assert!(outbox_payload.get("schedule_id").is_some(), "Payload must have schedule_id");
-    assert!(outbox_payload.get("period").is_some(), "Payload must have period");
+    assert!(
+        outbox_payload.get("run_id").is_some(),
+        "Payload must have run_id"
+    );
+    assert!(
+        outbox_payload.get("contract_id").is_some(),
+        "Payload must have contract_id"
+    );
+    assert!(
+        outbox_payload.get("schedule_id").is_some(),
+        "Payload must have schedule_id"
+    );
+    assert!(
+        outbox_payload.get("period").is_some(),
+        "Payload must have period"
+    );
     assert_eq!(
         outbox_payload.get("period").unwrap().as_str().unwrap(),
         "2026-01"
     );
     assert_eq!(
-        outbox_payload.get("amount_recognized_minor").unwrap().as_i64().unwrap(),
+        outbox_payload
+            .get("amount_recognized_minor")
+            .unwrap()
+            .as_i64()
+            .unwrap(),
         10000_00
     );
     println!("✅ Outbox payload has correct structure");
@@ -590,9 +679,14 @@ async fn test_point_in_time_recognition() {
 
     let (contract_id, _obligation_id, contract_payload) = point_in_time_contract(&tenant_id);
     let obligation = &contract_payload.performance_obligations[0];
-    let schedule_id =
-        setup_contract_and_schedule(&gl_pool, contract_id, obligation, &contract_payload, &tenant_id)
-            .await;
+    let schedule_id = setup_contract_and_schedule(
+        &gl_pool,
+        contract_id,
+        obligation,
+        &contract_payload,
+        &tenant_id,
+    )
+    .await;
 
     // Run recognition for March (the satisfaction period)
     let result = run_recognition(&gl_pool, &tenant_id, "2026-03", "2026-03-31")
@@ -622,8 +716,13 @@ async fn test_point_in_time_recognition() {
     println!("✅ Journal balanced: $24,000 DR deferred / CR revenue");
 
     // Verify all schedule lines are now recognized
-    let lines = revrec_repo::get_schedule_lines(&gl_pool, schedule_id).await.unwrap();
-    assert!(lines.iter().all(|l| l.recognized), "All lines must be recognized");
+    let lines = revrec_repo::get_schedule_lines(&gl_pool, schedule_id)
+        .await
+        .unwrap();
+    assert!(
+        lines.iter().all(|l| l.recognized),
+        "All lines must be recognized"
+    );
     println!("✅ All schedule lines recognized");
 
     // Trying another period should find nothing
@@ -685,7 +784,10 @@ async fn test_only_latest_version_recognized() {
         .unwrap();
 
     // Verify v2 exists
-    let v2 = revrec_repo::get_schedule(&gl_pool, schedule_id_v2).await.unwrap().unwrap();
+    let v2 = revrec_repo::get_schedule(&gl_pool, schedule_id_v2)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(v2.version, 2, "Should be version 2");
     println!("✅ V1 and V2 schedules created");
 
@@ -694,7 +796,10 @@ async fn test_only_latest_version_recognized() {
         .await
         .unwrap();
 
-    assert_eq!(result.lines_recognized, 1, "Should recognize only 1 line (from v2)");
+    assert_eq!(
+        result.lines_recognized, 1,
+        "Should recognize only 1 line (from v2)"
+    );
     assert_eq!(
         result.postings[0].schedule_id, schedule_id_v2,
         "Posting must be from v2 schedule"
@@ -702,7 +807,9 @@ async fn test_only_latest_version_recognized() {
     println!("✅ Recognition came from v2 schedule: {}", schedule_id_v2);
 
     // Verify v1 lines are NOT recognized
-    let v1_lines = revrec_repo::get_schedule_lines(&gl_pool, schedule_id_v1).await.unwrap();
+    let v1_lines = revrec_repo::get_schedule_lines(&gl_pool, schedule_id_v1)
+        .await
+        .unwrap();
     assert!(
         v1_lines.iter().all(|l| !l.recognized),
         "V1 lines must NOT be recognized (superseded)"

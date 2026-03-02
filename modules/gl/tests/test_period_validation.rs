@@ -65,7 +65,10 @@ async fn test_validate_period_not_found() {
 
     let error = &report.issues[0];
     assert_eq!(error.code, "PERIOD_NOT_FOUND");
-    assert_eq!(error.severity, gl_rs::contracts::period_close_v1::ValidationSeverity::Error);
+    assert_eq!(
+        error.severity,
+        gl_rs::contracts::period_close_v1::ValidationSeverity::Error
+    );
 }
 
 /// Test validation fails when period is already closed
@@ -88,7 +91,7 @@ async fn test_validate_period_already_closed() {
 
     // Close the period manually
     sqlx::query(
-        "UPDATE accounting_periods SET closed_at = NOW(), close_hash = 'test_hash' WHERE id = $1"
+        "UPDATE accounting_periods SET closed_at = NOW(), close_hash = 'test_hash' WHERE id = $1",
     )
     .bind(period_id)
     .execute(&pool)
@@ -108,7 +111,10 @@ async fn test_validate_period_already_closed() {
 
     let error = &report.issues[0];
     assert_eq!(error.code, "PERIOD_ALREADY_CLOSED");
-    assert_eq!(error.severity, gl_rs::contracts::period_close_v1::ValidationSeverity::Error);
+    assert_eq!(
+        error.severity,
+        gl_rs::contracts::period_close_v1::ValidationSeverity::Error
+    );
     assert!(error.metadata.is_some());
 }
 
@@ -176,7 +182,10 @@ async fn test_validate_unbalanced_entries() {
 
     let error = &report.issues[0];
     assert_eq!(error.code, "UNBALANCED_ENTRIES");
-    assert_eq!(error.severity, gl_rs::contracts::period_close_v1::ValidationSeverity::Error);
+    assert_eq!(
+        error.severity,
+        gl_rs::contracts::period_close_v1::ValidationSeverity::Error
+    );
     assert!(error.message.contains("unbalanced"));
     assert!(error.metadata.is_some());
 }
@@ -301,7 +310,7 @@ async fn test_validate_multiple_errors() {
 
     // Close the period
     sqlx::query(
-        "UPDATE accounting_periods SET closed_at = NOW(), close_hash = 'test_hash' WHERE id = $1"
+        "UPDATE accounting_periods SET closed_at = NOW(), close_hash = 'test_hash' WHERE id = $1",
     )
     .bind(period_id)
     .execute(&pool)

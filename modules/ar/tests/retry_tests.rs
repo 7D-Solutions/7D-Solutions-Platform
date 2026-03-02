@@ -9,7 +9,10 @@
 
 use ar_rs::finalization::finalize_invoice;
 use ar_rs::lifecycle::status;
-use ar_rs::retry::{calculate_retry_windows, determine_current_window, get_invoices_for_retry, is_eligible_for_retry, windows};
+use ar_rs::retry::{
+    calculate_retry_windows, determine_current_window, get_invoices_for_retry,
+    is_eligible_for_retry, windows,
+};
 use chrono::{NaiveDate, Utc};
 use dotenvy;
 use serial_test::serial;
@@ -28,7 +31,7 @@ async fn ensure_test_customer(pool: &PgPool) {
     if !exists {
         sqlx::query(
             "INSERT INTO ar_customers (app_id, email, name, created_at, updated_at)
-             VALUES ('app-test', 'test@example.com', 'Test Customer', $1, $2)"
+             VALUES ('app-test', 'test@example.com', 'Test Customer', $1, $2)",
         )
         .bind(Utc::now().naive_utc())
         .bind(Utc::now().naive_utc())
@@ -41,7 +44,7 @@ async fn ensure_test_customer(pool: &PgPool) {
 /// Test helper: Get test customer ID
 async fn get_test_customer_id(pool: &PgPool) -> i32 {
     sqlx::query_scalar(
-        "SELECT id FROM ar_customers WHERE app_id = 'app-test' AND email = 'test@example.com'"
+        "SELECT id FROM ar_customers WHERE app_id = 'app-test' AND email = 'test@example.com'",
     )
     .fetch_one(pool)
     .await
@@ -93,8 +96,7 @@ fn get_pool() -> PgPool {
     let database_url = std::env::var("DATABASE_URL_AR")
         .expect("DATABASE_URL_AR must be set for integration tests");
 
-    sqlx::PgPool::connect_lazy(&database_url)
-        .expect("Failed to create database pool")
+    sqlx::PgPool::connect_lazy(&database_url).expect("Failed to create database pool")
 }
 
 // ============================================================================
@@ -274,7 +276,10 @@ async fn test_get_invoices_for_retry_single_invoice() {
         .expect("Should succeed");
 
     assert_eq!(invoices.len(), 1, "Should return one invoice");
-    assert_eq!(invoices[0].0, invoice_id, "Should return correct invoice ID");
+    assert_eq!(
+        invoices[0].0, invoice_id,
+        "Should return correct invoice ID"
+    );
     assert_eq!(invoices[0].1, 0, "Should be in attempt 0 window");
 
     cleanup_test_data(&pool).await;
@@ -321,18 +326,10 @@ async fn test_get_invoices_for_retry_multiple_windows() {
     let invoice_1 = create_test_invoice_with_due_date(&pool, today).await;
 
     // Create invoice 2: due 3 days ago (window 1)
-    let invoice_2 = create_test_invoice_with_due_date(
-        &pool,
-        today - chrono::Days::new(3),
-    )
-    .await;
+    let invoice_2 = create_test_invoice_with_due_date(&pool, today - chrono::Days::new(3)).await;
 
     // Create invoice 3: due 7 days ago (window 2)
-    let invoice_3 = create_test_invoice_with_due_date(
-        &pool,
-        today - chrono::Days::new(7),
-    )
-    .await;
+    let invoice_3 = create_test_invoice_with_due_date(&pool, today - chrono::Days::new(7)).await;
 
     // Get invoices for retry
     let invoices = get_invoices_for_retry(&pool, "app-test")

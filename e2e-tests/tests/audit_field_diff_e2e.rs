@@ -5,7 +5,6 @@
 /// 2. Diffs are deterministic (stable ordering across runs)
 /// 3. Audit entries include actor + trace/correlation metadata
 /// 4. Field changes are correctly recorded in audit events
-
 mod common;
 
 use audit::{
@@ -213,11 +212,7 @@ async fn test_field_diff_deterministic_ordering() {
 
         assert_eq!(diff.changed_field_count(), 4);
 
-        let field_names: Vec<String> = diff
-            .field_changes
-            .iter()
-            .map(|c| c.field.clone())
-            .collect();
+        let field_names: Vec<String> = diff.field_changes.iter().map(|c| c.field.clone()).collect();
 
         // Should be alphabetically ordered
         assert_eq!(

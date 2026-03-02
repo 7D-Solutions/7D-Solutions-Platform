@@ -2,7 +2,9 @@
 
 #![allow(dead_code)]
 
-use pdf_editor_rs::domain::forms::{CreateFieldRequest, CreateTemplateRequest, FieldRepo, TemplateRepo};
+use pdf_editor_rs::domain::forms::{
+    CreateFieldRequest, CreateTemplateRequest, FieldRepo, TemplateRepo,
+};
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
@@ -42,22 +44,52 @@ pub async fn create_test_template_with_fields(pool: &sqlx::PgPool, tid: &str) ->
     .unwrap();
 
     let fields = vec![
-        ("company_name", "Company Name", "text", serde_json::json!({"required": true})),
-        ("mileage", "Current Mileage", "number", serde_json::json!({"required": true, "min": 0, "max": 999999})),
-        ("inspection_date", "Inspection Date", "date", serde_json::json!({"required": true})),
-        ("vehicle_type", "Vehicle Type", "dropdown", serde_json::json!({"required": true, "options": ["truck", "van", "car"]})),
-        ("passed", "Passed Inspection", "checkbox", serde_json::json!({"required": true})),
+        (
+            "company_name",
+            "Company Name",
+            "text",
+            serde_json::json!({"required": true}),
+        ),
+        (
+            "mileage",
+            "Current Mileage",
+            "number",
+            serde_json::json!({"required": true, "min": 0, "max": 999999}),
+        ),
+        (
+            "inspection_date",
+            "Inspection Date",
+            "date",
+            serde_json::json!({"required": true}),
+        ),
+        (
+            "vehicle_type",
+            "Vehicle Type",
+            "dropdown",
+            serde_json::json!({"required": true, "options": ["truck", "van", "car"]}),
+        ),
+        (
+            "passed",
+            "Passed Inspection",
+            "checkbox",
+            serde_json::json!({"required": true}),
+        ),
         ("notes", "Additional Notes", "text", serde_json::json!({})),
     ];
 
     for (key, label, ft, rules) in fields {
-        FieldRepo::create(pool, tmpl.id, tid, &CreateFieldRequest {
-            field_key: key.into(),
-            field_label: label.into(),
-            field_type: ft.into(),
-            validation_rules: Some(rules),
-            pdf_position: None,
-        })
+        FieldRepo::create(
+            pool,
+            tmpl.id,
+            tid,
+            &CreateFieldRequest {
+                field_key: key.into(),
+                field_label: label.into(),
+                field_type: ft.into(),
+                validation_rules: Some(rules),
+                pdf_position: None,
+            },
+        )
         .await
         .unwrap();
     }

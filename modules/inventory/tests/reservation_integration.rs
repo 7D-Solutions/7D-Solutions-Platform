@@ -30,8 +30,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -61,7 +61,12 @@ fn make_item_req(tenant_id: &str, sku: &str) -> CreateItemRequest {
     }
 }
 
-fn make_reserve_req(tenant_id: &str, item_id: Uuid, warehouse_id: Uuid, qty: i64) -> ReserveRequest {
+fn make_reserve_req(
+    tenant_id: &str,
+    item_id: Uuid,
+    warehouse_id: Uuid,
+    qty: i64,
+) -> ReserveRequest {
     ReserveRequest {
         tenant_id: tenant_id.to_string(),
         item_id,
@@ -77,14 +82,46 @@ fn make_reserve_req(tenant_id: &str, item_id: Uuid, warehouse_id: Uuid, qty: i64
 }
 
 async fn cleanup_tenant(pool: &sqlx::PgPool, tenant_id: &str) {
-    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_reservations WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_reservations WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -103,7 +140,9 @@ async fn reserve_creates_reservation_projection_outbox_atomically() {
         .expect("create item");
 
     let req = make_reserve_req(&tenant_id, item.id, warehouse_id, 25);
-    let (result, is_replay) = process_reserve(&pool, &req).await.expect("reserve must succeed");
+    let (result, is_replay) = process_reserve(&pool, &req)
+        .await
+        .expect("reserve must succeed");
 
     assert!(!is_replay, "first call must not be replay");
     assert_eq!(result.quantity, 25);
@@ -119,7 +158,10 @@ async fn reserve_creates_reservation_projection_outbox_atomically() {
     .expect("reservation row must exist");
 
     assert_eq!(status, "active");
-    assert!(reverses_id.is_none(), "primary reserve row must have NULL reverses_reservation_id");
+    assert!(
+        reverses_id.is_none(),
+        "primary reserve row must have NULL reverses_reservation_id"
+    );
 
     // On-hand projection updated: quantity_reserved = 25.
     let qty_reserved: i64 = sqlx::query_scalar(
@@ -135,13 +177,12 @@ async fn reserve_creates_reservation_projection_outbox_atomically() {
     assert_eq!(qty_reserved, 25);
 
     // Outbox event exists with correct type.
-    let event_type: String = sqlx::query_scalar(
-        "SELECT event_type FROM inv_outbox WHERE event_id = $1",
-    )
-    .bind(result.event_id)
-    .fetch_one(&pool)
-    .await
-    .expect("outbox event must exist");
+    let event_type: String =
+        sqlx::query_scalar("SELECT event_type FROM inv_outbox WHERE event_id = $1")
+            .bind(result.event_id)
+            .fetch_one(&pool)
+            .await
+            .expect("outbox event must exist");
 
     assert_eq!(event_type, "inventory.item_reserved");
 
@@ -211,16 +252,18 @@ async fn release_creates_compensating_row_and_decrements_projection() {
     .await
     .expect("on-hand row must exist");
 
-    assert_eq!(qty_reserved, 0, "quantity_reserved should be 0 after release");
+    assert_eq!(
+        qty_reserved, 0,
+        "quantity_reserved should be 0 after release"
+    );
 
     // Outbox event for release.
-    let event_type: String = sqlx::query_scalar(
-        "SELECT event_type FROM inv_outbox WHERE event_id = $1",
-    )
-    .bind(release_result.event_id)
-    .fetch_one(&pool)
-    .await
-    .expect("outbox event must exist");
+    let event_type: String =
+        sqlx::query_scalar("SELECT event_type FROM inv_outbox WHERE event_id = $1")
+            .bind(release_result.event_id)
+            .fetch_one(&pool)
+            .await
+            .expect("outbox event must exist");
 
     assert_eq!(event_type, "inventory.reservation_released");
 
@@ -255,13 +298,12 @@ async fn reserve_idempotency_replay_returns_stored_result() {
     assert_eq!(r1.quantity, r2.quantity);
 
     // No duplicate reservation rows.
-    let row_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inventory_reservations WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let row_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inventory_reservations WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
     assert_eq!(row_count, 1, "no duplicate reservation rows on replay");
 
     // quantity_reserved not doubled.
@@ -273,7 +315,10 @@ async fn reserve_idempotency_replay_returns_stored_result() {
     .fetch_one(&pool)
     .await
     .expect("on-hand row");
-    assert_eq!(qty_reserved, 10, "quantity_reserved must not be doubled on replay");
+    assert_eq!(
+        qty_reserved, 10,
+        "quantity_reserved must not be doubled on replay"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await;
 }
@@ -304,8 +349,12 @@ async fn release_idempotency_replay_returns_stored_result() {
         causation_id: None,
     };
 
-    let (r1, _) = process_release(&pool, &release_req).await.expect("first release");
-    let (r2, is_replay) = process_release(&pool, &release_req).await.expect("second release");
+    let (r1, _) = process_release(&pool, &release_req)
+        .await
+        .expect("first release");
+    let (r2, is_replay) = process_release(&pool, &release_req)
+        .await
+        .expect("second release");
 
     assert!(is_replay, "second release must be a replay");
     assert_eq!(r1.release_id, r2.release_id);
@@ -319,7 +368,10 @@ async fn release_idempotency_replay_returns_stored_result() {
     .fetch_one(&pool)
     .await
     .expect("count");
-    assert_eq!(compensating_count, 1, "no duplicate compensating rows on replay");
+    assert_eq!(
+        compensating_count, 1,
+        "no duplicate compensating rows on replay"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await;
 }
@@ -349,7 +401,8 @@ async fn reserve_guard_rejects_inactive_item() {
 
     assert!(
         matches!(err, ReservationError::Guard(_)),
-        "expected Guard error, got: {:?}", err
+        "expected Guard error, got: {:?}",
+        err
     );
 
     cleanup_tenant(&pool, &tenant_id).await;
@@ -381,7 +434,9 @@ async fn release_guard_rejects_double_release() {
         correlation_id: None,
         causation_id: None,
     };
-    process_release(&pool, &release_req1).await.expect("first release must succeed");
+    process_release(&pool, &release_req1)
+        .await
+        .expect("first release must succeed");
 
     // Second release with DIFFERENT idempotency key — must be rejected.
     let release_req2 = ReleaseRequest {
@@ -394,7 +449,8 @@ async fn release_guard_rejects_double_release() {
 
     assert!(
         matches!(err, ReservationError::AlreadyReleased),
-        "expected AlreadyReleased, got: {:?}", err
+        "expected AlreadyReleased, got: {:?}",
+        err
     );
 
     cleanup_tenant(&pool, &tenant_id).await;
@@ -424,7 +480,8 @@ async fn release_guard_rejects_unknown_reservation() {
 
     assert!(
         matches!(err, ReservationError::ReservationNotFound),
-        "expected ReservationNotFound, got: {:?}", err
+        "expected ReservationNotFound, got: {:?}",
+        err
     );
 }
 

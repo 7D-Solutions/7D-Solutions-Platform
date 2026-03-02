@@ -277,9 +277,15 @@ async fn test_timekeeping_billing_rate_to_ar_invoice() -> Result<()> {
     let mut entry_ids = Vec::new();
     for day in 1u32..=3 {
         let date = NaiveDate::from_ymd_opt(2026, 3, day).unwrap();
-        let eid =
-            insert_billable_entry(&tk_pool, app_id, employee_id, project_id, billing_rate_id, date)
-                .await?;
+        let eid = insert_billable_entry(
+            &tk_pool,
+            app_id,
+            employee_id,
+            project_id,
+            billing_rate_id,
+            date,
+        )
+        .await?;
         entry_ids.push(eid);
     }
     assert_eq!(entry_ids.len(), 3);
@@ -362,8 +368,7 @@ async fn test_timekeeping_billing_rate_to_ar_invoice() -> Result<()> {
 
     assert_eq!(inv_id, ar_invoice_id);
     assert_eq!(
-        inv_amount,
-        EXPECTED_AMOUNT_CENTS as i32,
+        inv_amount, EXPECTED_AMOUNT_CENTS as i32,
         "Invoice amount_cents must be 45000"
     );
     assert_eq!(inv_status, "open");
@@ -437,12 +442,11 @@ async fn test_timekeeping_billing_rate_to_ar_invoice() -> Result<()> {
     );
 
     // Verify no duplicate AR invoice was created
-    let invoice_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*)::BIGINT FROM ar_invoices WHERE ar_customer_id = $1",
-    )
-    .bind(ar_customer_id)
-    .fetch_one(&ar_pool)
-    .await?;
+    let invoice_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*)::BIGINT FROM ar_invoices WHERE ar_customer_id = $1")
+            .bind(ar_customer_id)
+            .fetch_one(&ar_pool)
+            .await?;
 
     assert_eq!(
         invoice_count.0, 1,

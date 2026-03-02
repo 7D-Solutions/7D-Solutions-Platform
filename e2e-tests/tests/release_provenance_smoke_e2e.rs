@@ -58,7 +58,14 @@ fn create_test_artifacts() -> Result<(PathBuf, HashMap<String, String>)> {
     let temp_dir = std::env::temp_dir().join(format!("release-test-{}", uuid::Uuid::new_v4()));
     fs::create_dir_all(&temp_dir)?;
 
-    let binaries = vec!["ar-rs", "payments-rs", "subscriptions-rs", "gl-rs", "notifications-rs", "identity-auth"];
+    let binaries = vec![
+        "ar-rs",
+        "payments-rs",
+        "subscriptions-rs",
+        "gl-rs",
+        "notifications-rs",
+        "identity-auth",
+    ];
     let mut checksums = HashMap::new();
 
     for binary in binaries {
@@ -125,13 +132,22 @@ fn test_checksum_validation() -> Result<()> {
         let file_checksum = parts[0];
         let file_name = parts[1];
 
-        assert_eq!(file_name, binary, "Filename in checksum file must match binary name");
-        assert_eq!(file_checksum, expected_checksum, "Checksum in file must match computed checksum");
+        assert_eq!(
+            file_name, binary,
+            "Filename in checksum file must match binary name"
+        );
+        assert_eq!(
+            file_checksum, expected_checksum,
+            "Checksum in file must match computed checksum"
+        );
 
         // Verify actual binary checksum matches
         let binary_path = temp_dir.join(binary);
         let actual_checksum = compute_sha256(&binary_path)?;
-        assert_eq!(actual_checksum, *expected_checksum, "Binary checksum must match checksum file");
+        assert_eq!(
+            actual_checksum, *expected_checksum,
+            "Binary checksum must match checksum file"
+        );
     }
 
     // Cleanup
@@ -170,12 +186,18 @@ fn test_manifest_structure() -> Result<()> {
     // Verify required fields
     assert!(!parsed.version.is_empty(), "Manifest must have version");
     assert!(!parsed.git_sha.is_empty(), "Manifest must have git_sha");
-    assert!(!parsed.build_time.is_empty(), "Manifest must have build_time");
+    assert!(
+        !parsed.build_time.is_empty(),
+        "Manifest must have build_time"
+    );
 
     // Verify artifacts structure
     assert_eq!(parsed.artifacts.len(), 2, "Manifest must contain artifacts");
     for artifact in &parsed.artifacts {
-        assert!(!artifact.binary.is_empty(), "Artifact must have binary name");
+        assert!(
+            !artifact.binary.is_empty(),
+            "Artifact must have binary name"
+        );
         assert!(!artifact.checksum.is_empty(), "Artifact must have checksum");
     }
 
@@ -243,10 +265,18 @@ fn test_expected_binaries_present() -> Result<()> {
 
         // Verify checksum file exists
         let checksum_path = temp_dir.join(format!("{}.sha256", binary));
-        assert!(checksum_path.exists(), "Checksum file for {} must exist", binary);
+        assert!(
+            checksum_path.exists(),
+            "Checksum file for {} must exist",
+            binary
+        );
 
         // Verify checksum is recorded
-        assert!(checksums.contains_key(binary), "Checksum for {} must be recorded", binary);
+        assert!(
+            checksums.contains_key(binary),
+            "Checksum for {} must be recorded",
+            binary
+        );
     }
 
     // Cleanup

@@ -131,9 +131,15 @@ async fn test_external_ref_list_by_entity() {
     let r2 = make_req("customer", "cust-1", "quickbooks", "QB-222");
     let r3 = make_req("customer", "cust-2", "stripe", "cus_999");
 
-    create_external_ref(&pool, &tid, &r1, corr()).await.expect("create r1");
-    create_external_ref(&pool, &tid, &r2, corr()).await.expect("create r2");
-    create_external_ref(&pool, &tid, &r3, corr()).await.expect("create r3");
+    create_external_ref(&pool, &tid, &r1, corr())
+        .await
+        .expect("create r1");
+    create_external_ref(&pool, &tid, &r2, corr())
+        .await
+        .expect("create r2");
+    create_external_ref(&pool, &tid, &r3, corr())
+        .await
+        .expect("create r3");
 
     let refs = list_by_entity(&pool, &tid, "customer", "cust-1")
         .await
@@ -253,7 +259,10 @@ async fn test_external_ref_update_not_found() {
     let pool = setup_db().await;
     let tid = unique_tenant();
 
-    let upd_req = UpdateExternalRefRequest { label: Some("Ghost".to_string()), metadata: None };
+    let upd_req = UpdateExternalRefRequest {
+        label: Some("Ghost".to_string()),
+        metadata: None,
+    };
 
     let err = update_external_ref(&pool, &tid, i64::MAX, &upd_req, corr()).await;
     assert!(err.is_err(), "update on non-existent ref should fail");
@@ -290,10 +299,16 @@ async fn test_external_ref_tenant_isolation() {
     let not_found_ext = get_by_external(&pool, &tid_b, "stripe", "in_iso_999")
         .await
         .expect("tenant-b get_by_external should not DB-error");
-    assert!(not_found_ext.is_none(), "tenant B must not find tenant A's external ref");
+    assert!(
+        not_found_ext.is_none(),
+        "tenant B must not find tenant A's external ref"
+    );
 
     // Tenant B cannot update it
-    let upd_req = UpdateExternalRefRequest { label: Some("Hacked".to_string()), metadata: None };
+    let upd_req = UpdateExternalRefRequest {
+        label: Some("Hacked".to_string()),
+        metadata: None,
+    };
     let err = update_external_ref(&pool, &tid_b, created.id, &upd_req, corr()).await;
     assert!(err.is_err(), "tenant B must not update tenant A's ref");
 

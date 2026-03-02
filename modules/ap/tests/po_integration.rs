@@ -18,9 +18,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://ap_user:ap_pass@localhost:5443/ap_db".to_string()
-    });
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://ap_user:ap_pass@localhost:5443/ap_db".to_string());
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -138,7 +137,9 @@ async fn test_approve_po() {
         &pool,
         &tid,
         result.po.po_id,
-        &ApprovePoRequest { approved_by: "manager-1".to_string() },
+        &ApprovePoRequest {
+            approved_by: "manager-1".to_string(),
+        },
         corr(),
     )
     .await
@@ -173,7 +174,9 @@ async fn test_approve_po_idempotent() {
     .await
     .unwrap();
 
-    let req = ApprovePoRequest { approved_by: "manager-1".to_string() };
+    let req = ApprovePoRequest {
+        approved_by: "manager-1".to_string(),
+    };
     let first = approve_po(&pool, &tid, result.po.po_id, &req, corr())
         .await
         .unwrap();

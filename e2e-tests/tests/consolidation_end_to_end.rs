@@ -222,9 +222,20 @@ async fn test_consolidated_statements_two_entity_with_eliminations() {
     //   6000 Expenses: Entity A $3,000 DR + Entity B $1,000 DR = $4,000
 
     // Assets
-    insert_tb_row(&pool, group_id, as_of, "1000", "Cash", "USD", 2_300_000, 0, hash).await;
     insert_tb_row(
-        &pool, group_id, as_of, "1100", "Accounts Receivable", "USD", 500_000, 0, hash,
+        &pool, group_id, as_of, "1000", "Cash", "USD", 2_300_000, 0, hash,
+    )
+    .await;
+    insert_tb_row(
+        &pool,
+        group_id,
+        as_of,
+        "1100",
+        "Accounts Receivable",
+        "USD",
+        500_000,
+        0,
+        hash,
     )
     .await;
     // IC Receivable: fully eliminated (DR 1M, CR 1M from elimination → net 0)
@@ -243,7 +254,15 @@ async fn test_consolidated_statements_two_entity_with_eliminations() {
 
     // Liabilities
     insert_tb_row(
-        &pool, group_id, as_of, "2000", "Accounts Payable", "USD", 0, 300_000, hash,
+        &pool,
+        group_id,
+        as_of,
+        "2000",
+        "Accounts Payable",
+        "USD",
+        0,
+        300_000,
+        hash,
     )
     .await;
     // IC Payable: fully eliminated (DR 1M from elimination, CR 1M → net 0)
@@ -262,7 +281,15 @@ async fn test_consolidated_statements_two_entity_with_eliminations() {
 
     // Equity
     insert_tb_row(
-        &pool, group_id, as_of, "3000", "Retained Earnings", "USD", 0, 1_500_000, hash,
+        &pool,
+        group_id,
+        as_of,
+        "3000",
+        "Retained Earnings",
+        "USD",
+        0,
+        1_500_000,
+        hash,
     )
     .await;
 
@@ -273,7 +300,10 @@ async fn test_consolidated_statements_two_entity_with_eliminations() {
     .await;
 
     // COGS
-    insert_tb_row(&pool, group_id, as_of, "5000", "COGS", "USD", 400_000, 0, hash).await;
+    insert_tb_row(
+        &pool, group_id, as_of, "5000", "COGS", "USD", 400_000, 0, hash,
+    )
+    .await;
 
     // Expenses
     insert_tb_row(
@@ -359,10 +389,7 @@ async fn test_consolidated_statements_two_entity_with_eliminations() {
         .iter()
         .find(|a| a.account_code == "1200")
         .unwrap();
-    assert_eq!(
-        ic_recv.amount_minor, 0,
-        "IC Receivable eliminated to zero"
-    );
+    assert_eq!(ic_recv.amount_minor, 0, "IC Receivable eliminated to zero");
 
     let liabilities = bs_stmt
         .sections
@@ -430,8 +457,14 @@ async fn test_consolidated_statements_deterministic() {
     let as_of = "2026-02-28";
     let hash = "det-hash-001";
 
-    insert_tb_row(&pool, group_id, as_of, "1000", "Cash", "USD", 500_000, 0, hash).await;
-    insert_tb_row(&pool, group_id, as_of, "2000", "AP", "USD", 0, 200_000, hash).await;
+    insert_tb_row(
+        &pool, group_id, as_of, "1000", "Cash", "USD", 500_000, 0, hash,
+    )
+    .await;
+    insert_tb_row(
+        &pool, group_id, as_of, "2000", "AP", "USD", 0, 200_000, hash,
+    )
+    .await;
     insert_tb_row(
         &pool, group_id, as_of, "3000", "Equity", "USD", 0, 300_000, hash,
     )
@@ -440,7 +473,10 @@ async fn test_consolidated_statements_deterministic() {
         &pool, group_id, as_of, "4000", "Revenue", "USD", 0, 800_000, hash,
     )
     .await;
-    insert_tb_row(&pool, group_id, as_of, "6000", "Rent", "USD", 150_000, 0, hash).await;
+    insert_tb_row(
+        &pool, group_id, as_of, "6000", "Rent", "USD", 150_000, 0, hash,
+    )
+    .await;
 
     let date = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
 
@@ -513,14 +549,22 @@ async fn test_consolidated_statements_empty_group() {
         "no income for empty group"
     );
     for s in &pl_stmt.sections {
-        assert!(s.accounts.is_empty(), "no accounts in section {}", s.section);
+        assert!(
+            s.accounts.is_empty(),
+            "no accounts in section {}",
+            s.section
+        );
     }
 
     let bs_stmt = bs::compute_consolidated_bs(&pool, group_id, date)
         .await
         .expect("empty BS should not error");
     for s in &bs_stmt.sections {
-        assert!(s.accounts.is_empty(), "no accounts in section {}", s.section);
+        assert!(
+            s.accounts.is_empty(),
+            "no accounts in section {}",
+            s.section
+        );
     }
 
     println!("PASS: Empty group returns empty statements");

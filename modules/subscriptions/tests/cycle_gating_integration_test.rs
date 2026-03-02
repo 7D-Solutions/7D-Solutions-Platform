@@ -122,13 +122,12 @@ async fn test_record_cycle_attempt() {
     tx.commit().await.expect("Failed to commit transaction");
 
     // Verify attempt was recorded
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM subscription_invoice_attempts WHERE id = $1",
-    )
-    .bind(attempt_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to query attempts");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM subscription_invoice_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to query attempts");
 
     assert_eq!(count, 1);
 
@@ -208,10 +207,9 @@ async fn test_cycle_attempt_exists() {
 
     // Initially no attempt exists
     let mut tx1 = pool.begin().await.expect("Failed to begin transaction");
-    let exists_before =
-        cycle_attempt_exists(&mut tx1, tenant_id, subscription_id, cycle_key)
-            .await
-            .expect("Failed to check if attempt exists");
+    let exists_before = cycle_attempt_exists(&mut tx1, tenant_id, subscription_id, cycle_key)
+        .await
+        .expect("Failed to check if attempt exists");
     tx1.rollback()
         .await
         .expect("Failed to rollback transaction");
@@ -235,10 +233,9 @@ async fn test_cycle_attempt_exists() {
 
     // Now attempt exists
     let mut tx3 = pool.begin().await.expect("Failed to begin transaction");
-    let exists_after =
-        cycle_attempt_exists(&mut tx3, tenant_id, subscription_id, cycle_key)
-            .await
-            .expect("Failed to check if attempt exists");
+    let exists_after = cycle_attempt_exists(&mut tx3, tenant_id, subscription_id, cycle_key)
+        .await
+        .expect("Failed to check if attempt exists");
     tx3.rollback()
         .await
         .expect("Failed to rollback transaction");
@@ -330,9 +327,14 @@ async fn test_mark_attempt_failed() {
 
     // Mark as failed
     let mut tx2 = pool.begin().await.expect("Failed to begin transaction");
-    mark_attempt_failed(&mut tx2, attempt_id, "AR_API_ERROR", "Failed to create invoice")
-        .await
-        .expect("Failed to mark failed");
+    mark_attempt_failed(
+        &mut tx2,
+        attempt_id,
+        "AR_API_ERROR",
+        "Failed to create invoice",
+    )
+    .await
+    .expect("Failed to mark failed");
     tx2.commit().await.expect("Failed to commit transaction");
 
     // Verify status
@@ -348,7 +350,10 @@ async fn test_mark_attempt_failed() {
 
     assert_eq!(status, "failed_final");
     assert_eq!(failure_code, Some("AR_API_ERROR".to_string()));
-    assert_eq!(failure_message, Some("Failed to create invoice".to_string()));
+    assert_eq!(
+        failure_message,
+        Some("Failed to create invoice".to_string())
+    );
 
     // Clean up
     sqlx::query("DELETE FROM subscriptions WHERE id = $1")

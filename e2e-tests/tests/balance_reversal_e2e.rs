@@ -5,7 +5,6 @@
 /// 2. Replaying the same reversal event doesn't double-apply (idempotency)
 ///
 /// Run with: cargo test --test balance_reversal_e2e -- --test-threads=1
-
 mod common;
 
 use chrono::NaiveDate;

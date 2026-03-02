@@ -2,7 +2,6 @@
 ///
 /// Requires DATABASE_URL pointing at a running TTP Postgres instance.
 /// Run with: cargo test -p ttp-rs --test service_agreement_integration -- --ignored
-
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::Extension;
@@ -110,10 +109,7 @@ async fn seed_agreement(
 }
 
 /// Helper: send a GET to service-agreements and parse the response body.
-async fn get_agreements(
-    app: axum::Router,
-    query: &str,
-) -> (StatusCode, Option<serde_json::Value>) {
+async fn get_agreements(app: axum::Router, query: &str) -> (StatusCode, Option<serde_json::Value>) {
     let uri = if query.is_empty() {
         "/api/ttp/service-agreements".to_string()
     } else {
@@ -136,8 +132,7 @@ async fn get_agreements(
         .await
         .unwrap();
     if status == StatusCode::OK {
-        let parsed: serde_json::Value =
-            serde_json::from_slice(&body).expect("parse response");
+        let parsed: serde_json::Value = serde_json::from_slice(&body).expect("parse response");
         (status, Some(parsed))
     } else {
         (status, None)
@@ -166,7 +161,10 @@ async fn list_active_agreements_default_filter() {
     assert_eq!(status, StatusCode::OK);
     let body = body.expect("response body");
     assert_eq!(body["tenant_id"], tenant_id.to_string());
-    assert_eq!(body["count"], 1, "only active agreements returned by default");
+    assert_eq!(
+        body["count"], 1,
+        "only active agreements returned by default"
+    );
     assert_eq!(body["items"][0]["plan_code"], "starter");
     assert_eq!(body["items"][0]["amount_minor"], 9900);
 

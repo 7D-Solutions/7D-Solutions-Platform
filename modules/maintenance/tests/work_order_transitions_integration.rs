@@ -79,12 +79,7 @@ fn base_create_req(tid: &str, asset_id: Uuid) -> CreateWorkOrderRequest {
 }
 
 /// Helper: transition a WO to a given status (no guard fields).
-async fn transition_simple(
-    pool: &sqlx::PgPool,
-    wo_id: Uuid,
-    tid: &str,
-    status: &str,
-) {
+async fn transition_simple(pool: &sqlx::PgPool, wo_id: Uuid, tid: &str, status: &str) {
     WorkOrderRepo::transition(
         pool,
         wo_id,
@@ -190,13 +185,12 @@ async fn test_full_transition_chain() {
     assert!(wo.closed_at.is_some());
 
     // Verify outbox: created + 4 transitions = 5 events
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(wo.id.to_string())
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events_outbox WHERE aggregate_id = $1")
+            .bind(wo.id.to_string())
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(count.0, 5);
 }
 

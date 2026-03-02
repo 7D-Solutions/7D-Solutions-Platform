@@ -2,7 +2,6 @@
 ///
 /// Inserts a pending row with deliver_at in the past, calls dispatch_once,
 /// and asserts the row is marked sent with last_attempt_at set.
-
 use std::sync::Arc;
 
 use chrono::Utc;
@@ -52,7 +51,9 @@ async fn test_dispatch_once_due_send() {
 
     // Dispatch with LoggingSender — should succeed immediately.
     let sender = Arc::new(LoggingSender);
-    let result = dispatch_once(&pool, sender).await.expect("dispatch_once failed");
+    let result = dispatch_once(&pool, sender)
+        .await
+        .expect("dispatch_once failed");
 
     assert!(
         result.sent_count >= 1,
@@ -61,15 +62,18 @@ async fn test_dispatch_once_due_send() {
     );
 
     // Verify our specific row by ID.
-    let row: NotifRow = sqlx::query_as(
-        "SELECT status, last_attempt_at FROM scheduled_notifications WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_one(&pool)
-    .await
-    .expect("row not found");
+    let row: NotifRow =
+        sqlx::query_as("SELECT status, last_attempt_at FROM scheduled_notifications WHERE id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .expect("row not found");
 
-    assert_eq!(row.status, "sent", "expected status=sent, got {}", row.status);
+    assert_eq!(
+        row.status, "sent",
+        "expected status=sent, got {}",
+        row.status
+    );
     assert!(
         row.last_attempt_at.is_some(),
         "last_attempt_at should be set after successful dispatch"

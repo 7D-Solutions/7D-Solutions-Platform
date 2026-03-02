@@ -4,7 +4,6 @@
 /// 1. Can be written to (INSERT)
 /// 2. Rejects UPDATE operations
 /// 3. Rejects DELETE operations
-
 mod common;
 
 use audit::{
@@ -111,7 +110,9 @@ async fn test_audit_update_rejected() {
 
     let error_msg = result.unwrap_err().to_string();
     assert!(
-        error_msg.contains("Audit log is append-only") || error_msg.contains("UPDATE") || error_msg.contains("forbidden"),
+        error_msg.contains("Audit log is append-only")
+            || error_msg.contains("UPDATE")
+            || error_msg.contains("forbidden"),
         "Error should indicate append-only violation. Got: {}",
         error_msg
     );
@@ -154,7 +155,9 @@ async fn test_audit_delete_rejected() {
 
     let error_msg = result.unwrap_err().to_string();
     assert!(
-        error_msg.contains("Audit log is append-only") || error_msg.contains("DELETE") || error_msg.contains("forbidden"),
+        error_msg.contains("Audit log is append-only")
+            || error_msg.contains("DELETE")
+            || error_msg.contains("forbidden"),
         "Error should indicate append-only violation. Got: {}",
         error_msg
     );
@@ -198,7 +201,9 @@ async fn test_audit_correlation_query() {
     assert_eq!(events[0].action, "Step1");
     assert_eq!(events[1].action, "Step2");
     assert_eq!(events[2].action, "Step3");
-    assert!(events.iter().all(|e| e.correlation_id == Some(correlation_id)));
+    assert!(events
+        .iter()
+        .all(|e| e.correlation_id == Some(correlation_id)));
 }
 
 #[tokio::test]

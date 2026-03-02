@@ -203,59 +203,47 @@ async fn test_compliance_export_determinism() {
     let export2_dir = temp_dir.join(format!("compliance-export-2-{}", Uuid::new_v4()));
 
     // Run first export
-    export_compliance_data(
-        &tenant_id,
-        export1_dir.to_str().unwrap(),
-        "json",
-    )
-    .await
-    .expect("First export failed");
+    export_compliance_data(&tenant_id, export1_dir.to_str().unwrap(), "json")
+        .await
+        .expect("First export failed");
 
     // Run second export
-    export_compliance_data(
-        &tenant_id,
-        export2_dir.to_str().unwrap(),
-        "json",
-    )
-    .await
-    .expect("Second export failed");
+    export_compliance_data(&tenant_id, export2_dir.to_str().unwrap(), "json")
+        .await
+        .expect("Second export failed");
 
     // Read manifests
     let manifest1_path = export1_dir.join("manifest.json");
     let manifest2_path = export2_dir.join("manifest.json");
 
-    let manifest1_content = fs::read_to_string(&manifest1_path)
-        .expect("Failed to read first manifest");
-    let manifest2_content = fs::read_to_string(&manifest2_path)
-        .expect("Failed to read second manifest");
+    let manifest1_content =
+        fs::read_to_string(&manifest1_path).expect("Failed to read first manifest");
+    let manifest2_content =
+        fs::read_to_string(&manifest2_path).expect("Failed to read second manifest");
 
-    let manifest1: Value = serde_json::from_str(&manifest1_content)
-        .expect("Failed to parse first manifest");
-    let manifest2: Value = serde_json::from_str(&manifest2_content)
-        .expect("Failed to parse second manifest");
+    let manifest1: Value =
+        serde_json::from_str(&manifest1_content).expect("Failed to parse first manifest");
+    let manifest2: Value =
+        serde_json::from_str(&manifest2_content).expect("Failed to parse second manifest");
 
     // Assert: Checksums are identical (determinism)
     assert_eq!(
-        manifest1["audit_events_checksum"],
-        manifest2["audit_events_checksum"],
+        manifest1["audit_events_checksum"], manifest2["audit_events_checksum"],
         "Audit events checksums don't match - export is not deterministic"
     );
 
     assert_eq!(
-        manifest1["ar_invoices_checksum"],
-        manifest2["ar_invoices_checksum"],
+        manifest1["ar_invoices_checksum"], manifest2["ar_invoices_checksum"],
         "AR invoices checksums don't match - export is not deterministic"
     );
 
     assert_eq!(
-        manifest1["payment_attempts_checksum"],
-        manifest2["payment_attempts_checksum"],
+        manifest1["payment_attempts_checksum"], manifest2["payment_attempts_checksum"],
         "Payment attempts checksums don't match - export is not deterministic"
     );
 
     assert_eq!(
-        manifest1["journal_entries_checksum"],
-        manifest2["journal_entries_checksum"],
+        manifest1["journal_entries_checksum"], manifest2["journal_entries_checksum"],
         "Journal entries checksums don't match - export is not deterministic"
     );
 
@@ -305,13 +293,17 @@ async fn test_compliance_export_tenant_isolation() {
     std::env::set_var("GL_DATABASE_URL", &gl_url);
     std::env::set_var("PLATFORM_AUDIT_DATABASE_URL", &audit_url);
 
-    let ar_pool = PgPool::connect(&ar_url).await
+    let ar_pool = PgPool::connect(&ar_url)
+        .await
         .expect("Failed to connect to AR database");
-    let payments_pool = PgPool::connect(&payments_url).await
+    let payments_pool = PgPool::connect(&payments_url)
+        .await
         .expect("Failed to connect to payments database");
-    let gl_pool = PgPool::connect(&gl_url).await
+    let gl_pool = PgPool::connect(&gl_url)
+        .await
         .expect("Failed to connect to GL database");
-    let audit_pool = PgPool::connect(&audit_url).await
+    let audit_pool = PgPool::connect(&audit_url)
+        .await
         .expect("Failed to connect to audit database");
 
     let tenant1_id = format!("test-tenant-1-{}", Uuid::new_v4());
@@ -322,32 +314,29 @@ async fn test_compliance_export_tenant_isolation() {
     cleanup_test_data(&ar_pool, &payments_pool, &gl_pool, &audit_pool, &tenant2_id).await;
 
     // Setup data for both tenants
-    setup_test_data(&ar_pool, &payments_pool, &gl_pool, &audit_pool, &tenant1_id).await
+    setup_test_data(&ar_pool, &payments_pool, &gl_pool, &audit_pool, &tenant1_id)
+        .await
         .expect("Failed to setup tenant1 data");
-    setup_test_data(&ar_pool, &payments_pool, &gl_pool, &audit_pool, &tenant2_id).await
+    setup_test_data(&ar_pool, &payments_pool, &gl_pool, &audit_pool, &tenant2_id)
+        .await
         .expect("Failed to setup tenant2 data");
 
     // Export tenant1 data
     let temp_dir = std::env::temp_dir();
     let export_dir = temp_dir.join(format!("compliance-export-isolation-{}", Uuid::new_v4()));
 
-    export_compliance_data(
-        &tenant1_id,
-        export_dir.to_str().unwrap(),
-        "json",
-    )
-    .await
-    .expect("Export failed");
+    export_compliance_data(&tenant1_id, export_dir.to_str().unwrap(), "json")
+        .await
+        .expect("Export failed");
 
     // Read exported data and verify tenant isolation
     let ar_invoices_path = export_dir.join("ar_invoices.jsonl");
-    let ar_invoices_content = fs::read_to_string(&ar_invoices_path)
-        .expect("Failed to read AR invoices");
+    let ar_invoices_content =
+        fs::read_to_string(&ar_invoices_path).expect("Failed to read AR invoices");
 
     // Parse each line and check app_id
     for line in ar_invoices_content.lines() {
-        let invoice: Value = serde_json::from_str(line)
-            .expect("Failed to parse invoice");
+        let invoice: Value = serde_json::from_str(line).expect("Failed to parse invoice");
         assert_eq!(
             invoice["app_id"].as_str().unwrap(),
             tenant1_id,

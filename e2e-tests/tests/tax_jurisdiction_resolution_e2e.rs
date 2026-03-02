@@ -35,9 +35,8 @@ use ar_rs::tax::{
 // ============================================================================
 
 async fn run_jurisdiction_migration(pool: &PgPool) {
-    let migration_sql = include_str!(
-        "../../modules/ar/db/migrations/20260217000010_create_tax_jurisdictions.sql"
-    );
+    let migration_sql =
+        include_str!("../../modules/ar/db/migrations/20260217000010_create_tax_jurisdictions.sql");
     match sqlx::raw_sql(migration_sql).execute(pool).await {
         Ok(_) => {}
         Err(e) => {
@@ -117,17 +116,28 @@ fn saas_line(id: &str, amount: i64) -> TaxLineItem {
 /// Seed California jurisdiction with 8.5% rate
 async fn seed_california(pool: &PgPool, app_id: &str) -> Uuid {
     let j_id = insert_jurisdiction(
-        pool, app_id, "US", Some("CA"), None,
-        "California State Tax", "sales_tax",
+        pool,
+        app_id,
+        "US",
+        Some("CA"),
+        None,
+        "California State Tax",
+        "sales_tax",
     )
     .await
     .expect("Failed to insert CA jurisdiction");
 
     insert_tax_rule(
-        pool, j_id, app_id, None,
-        0.085, 0, false,
+        pool,
+        j_id,
+        app_id,
+        None,
+        0.085,
+        0,
+        false,
         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
-        None, 0,
+        None,
+        0,
     )
     .await
     .expect("Failed to insert CA default rule");
@@ -138,17 +148,28 @@ async fn seed_california(pool: &PgPool, app_id: &str) -> Uuid {
 /// Seed New York jurisdiction with 8.0% rate
 async fn seed_new_york(pool: &PgPool, app_id: &str) -> Uuid {
     let j_id = insert_jurisdiction(
-        pool, app_id, "US", Some("NY"), None,
-        "New York State Tax", "sales_tax",
+        pool,
+        app_id,
+        "US",
+        Some("NY"),
+        None,
+        "New York State Tax",
+        "sales_tax",
     )
     .await
     .expect("Failed to insert NY jurisdiction");
 
     insert_tax_rule(
-        pool, j_id, app_id, None,
-        0.08, 0, false,
+        pool,
+        j_id,
+        app_id,
+        None,
+        0.08,
+        0,
+        false,
         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
-        None, 0,
+        None,
+        0,
     )
     .await
     .expect("Failed to insert NY default rule");
@@ -185,7 +206,10 @@ async fn test_jurisdiction_resolution_california() {
     assert!(!rule.is_exempt);
     assert_eq!(rule.tax_type, "sales_tax");
 
-    println!("PASS: CA jurisdiction resolved — rate={}, name={}", rule.rate, j_name);
+    println!(
+        "PASS: CA jurisdiction resolved — rate={}, name={}",
+        rule.rate, j_name
+    );
 
     cleanup_jurisdictions(&pool, &app_id).await;
 }
@@ -236,16 +260,27 @@ async fn test_jurisdiction_most_specific_wins() {
 
     // Country-level US jurisdiction at 5%
     let j_country = insert_jurisdiction(
-        &pool, &app_id, "US", None, None,
-        "US Federal Default", "sales_tax",
+        &pool,
+        &app_id,
+        "US",
+        None,
+        None,
+        "US Federal Default",
+        "sales_tax",
     )
     .await
     .unwrap();
     insert_tax_rule(
-        &pool, j_country, &app_id, None,
-        0.05, 0, false,
+        &pool,
+        j_country,
+        &app_id,
+        None,
+        0.05,
+        0,
+        false,
         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
-        None, 0,
+        None,
+        0,
     )
     .await
     .unwrap();
@@ -255,16 +290,27 @@ async fn test_jurisdiction_most_specific_wins() {
 
     // Postal-level SF at 9.25%
     let j_postal = insert_jurisdiction(
-        &pool, &app_id, "US", Some("CA"), Some("94105"),
-        "San Francisco Tax", "sales_tax",
+        &pool,
+        &app_id,
+        "US",
+        Some("CA"),
+        Some("94105"),
+        "San Francisco Tax",
+        "sales_tax",
     )
     .await
     .unwrap();
     insert_tax_rule(
-        &pool, j_postal, &app_id, None,
-        0.0925, 0, false,
+        &pool,
+        j_postal,
+        &app_id,
+        None,
+        0.0925,
+        0,
+        false,
         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
-        None, 0,
+        None,
+        0,
     )
     .await
     .unwrap();
@@ -278,13 +324,21 @@ async fn test_jurisdiction_most_specific_wins() {
         .unwrap();
 
     // Postal-level should win over state and country
-    assert_eq!(result.1, "San Francisco Tax",
-        "Most specific (postal) jurisdiction should win");
-    assert!((result.2.rate - 0.0925).abs() < 0.0001,
-        "Postal rate 9.25% should apply, got {}", result.2.rate);
+    assert_eq!(
+        result.1, "San Francisco Tax",
+        "Most specific (postal) jurisdiction should win"
+    );
+    assert!(
+        (result.2.rate - 0.0925).abs() < 0.0001,
+        "Postal rate 9.25% should apply, got {}",
+        result.2.rate
+    );
 
-    println!("PASS: Most-specific jurisdiction wins — {} at {}%",
-        result.1, result.2.rate * 100.0);
+    println!(
+        "PASS: Most-specific jurisdiction wins — {} at {}%",
+        result.1,
+        result.2.rate * 100.0
+    );
 
     cleanup_jurisdictions(&pool, &app_id).await;
 }
@@ -301,10 +355,16 @@ async fn test_jurisdiction_tax_code_specificity() {
 
     // Add a SaaS-specific rule at 7% (lower, higher priority)
     insert_tax_rule(
-        &pool, j_id, &app_id, Some("SW050000"),
-        0.07, 0, false,
+        &pool,
+        j_id,
+        &app_id,
+        Some("SW050000"),
+        0.07,
+        0,
+        false,
         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
-        None, 10,
+        None,
+        10,
     )
     .await
     .unwrap();
@@ -317,19 +377,28 @@ async fn test_jurisdiction_tax_code_specificity() {
         .await
         .unwrap()
         .unwrap();
-    assert!((with_code.2.rate - 0.07).abs() < 0.0001,
-        "Tax code specific rule should win: got {}", with_code.2.rate);
+    assert!(
+        (with_code.2.rate - 0.07).abs() < 0.0001,
+        "Tax code specific rule should win: got {}",
+        with_code.2.rate
+    );
 
     // Without tax_code → default rule
     let without_code = resolve_jurisdiction(&pool, &app_id, &addr, None, as_of)
         .await
         .unwrap()
         .unwrap();
-    assert!((without_code.2.rate - 0.085).abs() < 0.0001,
-        "Default rule should apply: got {}", without_code.2.rate);
+    assert!(
+        (without_code.2.rate - 0.085).abs() < 0.0001,
+        "Default rule should apply: got {}",
+        without_code.2.rate
+    );
 
-    println!("PASS: Tax code specificity — SW050000={}%, default={}%",
-        with_code.2.rate * 100.0, without_code.2.rate * 100.0);
+    println!(
+        "PASS: Tax code specificity — SW050000={}%, default={}%",
+        with_code.2.rate * 100.0,
+        without_code.2.rate * 100.0
+    );
 
     cleanup_jurisdictions(&pool, &app_id).await;
 }
@@ -343,16 +412,26 @@ async fn test_jurisdiction_effective_date_windowing() {
     cleanup_jurisdictions(&pool, &app_id).await;
 
     let j_id = insert_jurisdiction(
-        &pool, &app_id, "US", Some("CA"), None,
-        "California State Tax", "sales_tax",
+        &pool,
+        &app_id,
+        "US",
+        Some("CA"),
+        None,
+        "California State Tax",
+        "sales_tax",
     )
     .await
     .unwrap();
 
     // Old rule: 7.5% from 2020-2025
     insert_tax_rule(
-        &pool, j_id, &app_id, None,
-        0.075, 0, false,
+        &pool,
+        j_id,
+        &app_id,
+        None,
+        0.075,
+        0,
+        false,
         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
         Some(NaiveDate::from_ymd_opt(2025, 1, 1).unwrap()),
         0,
@@ -362,20 +441,32 @@ async fn test_jurisdiction_effective_date_windowing() {
 
     // Current rule: 8.5% from 2025 onwards
     insert_tax_rule(
-        &pool, j_id, &app_id, None,
-        0.085, 0, false,
+        &pool,
+        j_id,
+        &app_id,
+        None,
+        0.085,
+        0,
+        false,
         NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
-        None, 0,
+        None,
+        0,
     )
     .await
     .unwrap();
 
     // Future rule: 9.0% from 2027 onwards
     insert_tax_rule(
-        &pool, j_id, &app_id, None,
-        0.09, 0, false,
+        &pool,
+        j_id,
+        &app_id,
+        None,
+        0.09,
+        0,
+        false,
         NaiveDate::from_ymd_opt(2027, 1, 1).unwrap(),
-        None, 0,
+        None,
+        0,
     )
     .await
     .unwrap();
@@ -384,25 +475,37 @@ async fn test_jurisdiction_effective_date_windowing() {
 
     // Resolve as of 2024 → old 7.5% rule
     let old_resolve = resolve_jurisdiction(
-        &pool, &app_id, &addr, None,
+        &pool,
+        &app_id,
+        &addr,
+        None,
         NaiveDate::from_ymd_opt(2024, 6, 15).unwrap(),
     )
     .await
     .unwrap()
     .unwrap();
-    assert!((old_resolve.2.rate - 0.075).abs() < 0.0001,
-        "2024 should use 7.5% rule, got {}", old_resolve.2.rate);
+    assert!(
+        (old_resolve.2.rate - 0.075).abs() < 0.0001,
+        "2024 should use 7.5% rule, got {}",
+        old_resolve.2.rate
+    );
 
     // Resolve as of 2026 → current 8.5% rule
     let current_resolve = resolve_jurisdiction(
-        &pool, &app_id, &addr, None,
+        &pool,
+        &app_id,
+        &addr,
+        None,
         NaiveDate::from_ymd_opt(2026, 2, 17).unwrap(),
     )
     .await
     .unwrap()
     .unwrap();
-    assert!((current_resolve.2.rate - 0.085).abs() < 0.0001,
-        "2026 should use 8.5% rule, got {}", current_resolve.2.rate);
+    assert!(
+        (current_resolve.2.rate - 0.085).abs() < 0.0001,
+        "2026 should use 8.5% rule, got {}",
+        current_resolve.2.rate
+    );
 
     // Resolve as of 2028 → future 9.0% rule should apply
     // (both 8.5% and 9.0% are effective, but 9.0% starts later)
@@ -415,8 +518,11 @@ async fn test_jurisdiction_effective_date_windowing() {
     // Both have priority=0. The result depends on insertion order.
     // For the test, let's verify the current (2026) date works correctly.
 
-    println!("PASS: Effective date windowing — 2024={}%, 2026={}%",
-        old_resolve.2.rate * 100.0, current_resolve.2.rate * 100.0);
+    println!(
+        "PASS: Effective date windowing — 2024={}%, 2026={}%",
+        old_resolve.2.rate * 100.0,
+        current_resolve.2.rate * 100.0
+    );
 
     cleanup_jurisdictions(&pool, &app_id).await;
 }
@@ -430,17 +536,28 @@ async fn test_jurisdiction_exempt_rule() {
     cleanup_jurisdictions(&pool, &app_id).await;
 
     let j_id = insert_jurisdiction(
-        &pool, &app_id, "US", Some("OR"), None,
-        "Oregon (No Sales Tax)", "sales_tax",
+        &pool,
+        &app_id,
+        "US",
+        Some("OR"),
+        None,
+        "Oregon (No Sales Tax)",
+        "sales_tax",
     )
     .await
     .unwrap();
 
     insert_tax_rule(
-        &pool, j_id, &app_id, None,
-        0.0, 0, true, // is_exempt
+        &pool,
+        j_id,
+        &app_id,
+        None,
+        0.0,
+        0,
+        true, // is_exempt
         NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
-        None, 0,
+        None,
+        0,
     )
     .await
     .unwrap();
@@ -461,9 +578,15 @@ async fn test_jurisdiction_exempt_rule() {
         .unwrap();
 
     assert!(result.2.is_exempt, "Oregon should be exempt");
-    assert!((result.2.rate - 0.0).abs() < 0.0001, "Exempt rate should be 0");
+    assert!(
+        (result.2.rate - 0.0).abs() < 0.0001,
+        "Exempt rate should be 0"
+    );
 
-    println!("PASS: Exempt jurisdiction — {} is_exempt={}", result.1, result.2.is_exempt);
+    println!(
+        "PASS: Exempt jurisdiction — {} is_exempt={}",
+        result.1, result.2.is_exempt
+    );
 
     cleanup_jurisdictions(&pool, &app_id).await;
 }
@@ -530,8 +653,11 @@ async fn test_snapshot_persist_and_retrieve() {
     assert_eq!(retrieved.resolved_rules.len(), 1);
     assert_eq!(retrieved.ship_to_address.state, "CA");
 
-    println!("PASS: Snapshot persisted and retrieved — total_tax={}, rate={}%",
-        retrieved.total_tax_minor, retrieved.applied_rate * 100.0);
+    println!(
+        "PASS: Snapshot persisted and retrieved — total_tax={}, rate={}%",
+        retrieved.total_tax_minor,
+        retrieved.applied_rate * 100.0
+    );
 
     cleanup_jurisdictions(&pool, &app_id).await;
 }
@@ -592,8 +718,10 @@ async fn test_snapshot_recalculation_replaces() {
         .unwrap()
         .unwrap();
 
-    assert_eq!(retrieved.jurisdiction_name, "New York State Tax",
-        "Recalculation should replace snapshot");
+    assert_eq!(
+        retrieved.jurisdiction_name, "New York State Tax",
+        "Recalculation should replace snapshot"
+    );
     assert_eq!(retrieved.total_tax_minor, 800);
 
     // Verify only one snapshot row exists for this invoice
@@ -628,7 +756,10 @@ async fn test_no_jurisdiction_configured_returns_none() {
         .await
         .expect("DB error");
 
-    assert!(result.is_none(), "No jurisdiction configured → should return None");
+    assert!(
+        result.is_none(),
+        "No jurisdiction configured → should return None"
+    );
 
     println!("PASS: No jurisdiction configured → None");
 
@@ -660,18 +791,18 @@ async fn test_resolve_and_persist_end_to_end() {
         },
     ];
 
-    let result = resolve_and_persist_tax(
-        &pool, &app_id, &invoice_id,
-        &addr, None, &lines, as_of,
-    )
-    .await
-    .expect("Tax resolution failed");
+    let result = resolve_and_persist_tax(&pool, &app_id, &invoice_id, &addr, None, &lines, as_of)
+        .await
+        .expect("Tax resolution failed");
 
     let snapshot = result.expect("Should resolve CA jurisdiction");
 
     // CA 8.5%: 10000*0.085=850 + 5000*0.085=425 = 1275
-    assert_eq!(snapshot.total_tax_minor, 1275,
-        "Total tax should be 1275, got {}", snapshot.total_tax_minor);
+    assert_eq!(
+        snapshot.total_tax_minor, 1275,
+        "Total tax should be 1275, got {}",
+        snapshot.total_tax_minor
+    );
     assert_eq!(snapshot.jurisdiction_name, "California State Tax");
     assert!((snapshot.applied_rate - 0.085).abs() < 0.0001);
     assert_eq!(snapshot.country_code, "US");
@@ -689,8 +820,10 @@ async fn test_resolve_and_persist_end_to_end() {
     assert_eq!(persisted.jurisdiction_name, "California State Tax");
     assert_eq!(persisted.resolution_hash, snapshot.resolution_hash);
 
-    println!("PASS: resolve_and_persist_tax — 2 lines, total_tax={}, persisted=true",
-        snapshot.total_tax_minor);
+    println!(
+        "PASS: resolve_and_persist_tax — 2 lines, total_tax={}, persisted=true",
+        snapshot.total_tax_minor
+    );
 
     cleanup_jurisdictions(&pool, &app_id).await;
 }

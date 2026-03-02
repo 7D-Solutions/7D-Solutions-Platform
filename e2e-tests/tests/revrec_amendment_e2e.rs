@@ -279,16 +279,24 @@ async fn test_amendment_creates_new_schedule_version() {
     let (contract_id, obligation_id, contract_payload) = ratable_contract(&tenant_id);
     let obligation = &contract_payload.performance_obligations[0];
 
-    let original_schedule_id =
-        setup_contract_with_schedule(&pool, contract_id, obligation, &contract_payload, &tenant_id)
-            .await;
+    let original_schedule_id = setup_contract_with_schedule(
+        &pool,
+        contract_id,
+        obligation,
+        &contract_payload,
+        &tenant_id,
+    )
+    .await;
 
     // Verify original schedule is version 1
     let original_schedule = revrec_repo::get_schedule(&pool, original_schedule_id)
         .await
         .expect("get_schedule failed")
         .expect("Original schedule must exist");
-    assert_eq!(original_schedule.version, 1, "Original schedule must be version 1");
+    assert_eq!(
+        original_schedule.version, 1,
+        "Original schedule must be version 1"
+    );
     assert_eq!(original_schedule.total_to_recognize_minor, 120_000_00);
 
     // Record the amendment
@@ -347,7 +355,10 @@ async fn test_amendment_creates_new_schedule_version() {
     let original = revrec_repo::get_schedule(&pool, original_schedule_id)
         .await
         .expect("get_schedule failed");
-    assert!(original.is_some(), "Original schedule v1 must still exist after amendment");
+    assert!(
+        original.is_some(),
+        "Original schedule v1 must still exist after amendment"
+    );
 
     let new_sched = revrec_repo::get_schedule(&pool, new_schedule_id)
         .await
@@ -391,15 +402,24 @@ async fn test_recognition_uses_latest_schedule_version() {
     let obligation = &contract_payload.performance_obligations[0];
 
     // Create original contract + schedule (v1: $10,000/month Jan-Dec)
-    setup_contract_with_schedule(&pool, contract_id, obligation, &contract_payload, &tenant_id)
-        .await;
+    setup_contract_with_schedule(
+        &pool,
+        contract_id,
+        obligation,
+        &contract_payload,
+        &tenant_id,
+    )
+    .await;
 
     // Recognize January from v1 schedule
     let result = run_recognition(&pool, &tenant_id, "2026-01", "2026-01-31")
         .await
         .expect("Recognition for Jan failed");
     assert_eq!(result.lines_recognized, 1);
-    assert_eq!(result.total_recognized_minor, 10_000_00, "Jan: $10,000 from v1");
+    assert_eq!(
+        result.total_recognized_minor, 10_000_00,
+        "Jan: $10,000 from v1"
+    );
 
     // Amend contract effective July: $90,000 for remaining 6 months = $15,000/month
     let modification_id = Uuid::new_v4();
@@ -437,16 +457,24 @@ async fn test_recognition_uses_latest_schedule_version() {
     )
     .expect("Schedule generation failed");
 
-    revrec_repo::create_schedule_with_supersession(&pool, Uuid::new_v4(), &new_schedule_payload, None)
-        .await
-        .expect("create_schedule_with_supersession failed");
+    revrec_repo::create_schedule_with_supersession(
+        &pool,
+        Uuid::new_v4(),
+        &new_schedule_payload,
+        None,
+    )
+    .await
+    .expect("create_schedule_with_supersession failed");
 
     // ACCEPTANCE CRITERION 2: Recognition for July uses the v2 schedule ($15,000)
     let result_jul = run_recognition(&pool, &tenant_id, "2026-07", "2026-07-31")
         .await
         .expect("Recognition for Jul failed");
 
-    assert_eq!(result_jul.lines_recognized, 1, "Should recognize exactly 1 line in Jul");
+    assert_eq!(
+        result_jul.lines_recognized, 1,
+        "Should recognize exactly 1 line in Jul"
+    );
     assert_eq!(
         result_jul.total_recognized_minor, 15_000_00,
         "Jul recognition should use v2 schedule: $15,000"
@@ -459,8 +487,14 @@ async fn test_recognition_uses_latest_schedule_version() {
     let result_jul2 = run_recognition(&pool, &tenant_id, "2026-07", "2026-07-31")
         .await
         .expect("Second recognition for Jul failed");
-    assert_eq!(result_jul2.lines_recognized, 0, "Should not re-recognize Jul line");
-    assert_eq!(result_jul2.lines_skipped, 0, "No due lines returned for already-recognized period");
+    assert_eq!(
+        result_jul2.lines_recognized, 0,
+        "Should not re-recognize Jul line"
+    );
+    assert_eq!(
+        result_jul2.lines_skipped, 0,
+        "No due lines returned for already-recognized period"
+    );
     assert_eq!(result_jul2.total_recognized_minor, 0);
 }
 
@@ -553,9 +587,14 @@ async fn test_amended_schedule_supersedes_event_id_populated() {
     let (contract_id, obligation_id, contract_payload) = ratable_contract(&tenant_id);
     let obligation = &contract_payload.performance_obligations[0];
 
-    let original_schedule_id =
-        setup_contract_with_schedule(&pool, contract_id, obligation, &contract_payload, &tenant_id)
-            .await;
+    let original_schedule_id = setup_contract_with_schedule(
+        &pool,
+        contract_id,
+        obligation,
+        &contract_payload,
+        &tenant_id,
+    )
+    .await;
 
     // Capture the original schedule_created event_id
     let original_schedule_event_id: Uuid = sqlx::query_scalar(
@@ -709,24 +748,35 @@ async fn test_second_amendment_creates_v3() {
     let (contract_id, obligation_id, contract_payload) = ratable_contract(&tenant_id);
     let obligation = &contract_payload.performance_obligations[0];
 
-    let original_schedule_id =
-        setup_contract_with_schedule(&pool, contract_id, obligation, &contract_payload, &tenant_id)
-            .await;
+    let original_schedule_id = setup_contract_with_schedule(
+        &pool,
+        contract_id,
+        obligation,
+        &contract_payload,
+        &tenant_id,
+    )
+    .await;
 
     // First amendment: v2 schedule (Jul-Dec, $90,000)
     let mod1_id = Uuid::new_v4();
     revrec_repo::create_amendment(
         &pool,
         Uuid::new_v4(),
-        &price_change_amendment(mod1_id, contract_id, &tenant_id, obligation_id, 120_000_00, 90_000_00),
+        &price_change_amendment(
+            mod1_id,
+            contract_id,
+            &tenant_id,
+            obligation_id,
+            120_000_00,
+            90_000_00,
+        ),
     )
     .await
     .expect("First amendment failed");
 
-    let v1_supersedes =
-        revrec_repo::find_schedule_outbox_event_id(&pool, original_schedule_id)
-            .await
-            .expect("find failed");
+    let v1_supersedes = revrec_repo::find_schedule_outbox_event_id(&pool, original_schedule_id)
+        .await
+        .expect("find failed");
 
     let v2_schedule_id = Uuid::new_v4();
     let v2_payload = generate_schedule(
@@ -747,9 +797,14 @@ async fn test_second_amendment_creates_v3() {
     )
     .expect("v2 schedule gen failed");
 
-    revrec_repo::create_schedule_with_supersession(&pool, Uuid::new_v4(), &v2_payload, v1_supersedes)
-        .await
-        .expect("v2 create failed");
+    revrec_repo::create_schedule_with_supersession(
+        &pool,
+        Uuid::new_v4(),
+        &v2_payload,
+        v1_supersedes,
+    )
+    .await
+    .expect("v2 create failed");
 
     let v2_row = revrec_repo::get_schedule(&pool, v2_schedule_id)
         .await
@@ -762,15 +817,21 @@ async fn test_second_amendment_creates_v3() {
     revrec_repo::create_amendment(
         &pool,
         Uuid::new_v4(),
-        &price_change_amendment(mod2_id, contract_id, &tenant_id, obligation_id, 90_000_00, 45_000_00),
+        &price_change_amendment(
+            mod2_id,
+            contract_id,
+            &tenant_id,
+            obligation_id,
+            90_000_00,
+            45_000_00,
+        ),
     )
     .await
     .expect("Second amendment failed");
 
-    let v2_supersedes =
-        revrec_repo::find_schedule_outbox_event_id(&pool, v2_schedule_id)
-            .await
-            .expect("find v2 event failed");
+    let v2_supersedes = revrec_repo::find_schedule_outbox_event_id(&pool, v2_schedule_id)
+        .await
+        .expect("find v2 event failed");
 
     let v3_schedule_id = Uuid::new_v4();
     let v3_payload = generate_schedule(
@@ -791,9 +852,14 @@ async fn test_second_amendment_creates_v3() {
     )
     .expect("v3 schedule gen failed");
 
-    revrec_repo::create_schedule_with_supersession(&pool, Uuid::new_v4(), &v3_payload, v2_supersedes)
-        .await
-        .expect("v3 create failed");
+    revrec_repo::create_schedule_with_supersession(
+        &pool,
+        Uuid::new_v4(),
+        &v3_payload,
+        v2_supersedes,
+    )
+    .await
+    .expect("v3 create failed");
 
     let v3_row = revrec_repo::get_schedule(&pool, v3_schedule_id)
         .await
@@ -806,9 +872,27 @@ async fn test_second_amendment_creates_v3() {
     assert_eq!(v3_row.last_period, "2026-12");
 
     // All three versions must exist
-    assert!(revrec_repo::get_schedule(&pool, original_schedule_id).await.unwrap().is_some(), "v1 must exist");
-    assert!(revrec_repo::get_schedule(&pool, v2_schedule_id).await.unwrap().is_some(), "v2 must exist");
-    assert!(revrec_repo::get_schedule(&pool, v3_schedule_id).await.unwrap().is_some(), "v3 must exist");
+    assert!(
+        revrec_repo::get_schedule(&pool, original_schedule_id)
+            .await
+            .unwrap()
+            .is_some(),
+        "v1 must exist"
+    );
+    assert!(
+        revrec_repo::get_schedule(&pool, v2_schedule_id)
+            .await
+            .unwrap()
+            .is_some(),
+        "v2 must exist"
+    );
+    assert!(
+        revrec_repo::get_schedule(&pool, v3_schedule_id)
+            .await
+            .unwrap()
+            .is_some(),
+        "v3 must exist"
+    );
 
     // Recognition uses v3 (latest) for Oct 2026
     let result = run_recognition(&pool, &tenant_id, "2026-10", "2026-10-31")
@@ -854,9 +938,14 @@ async fn test_phase24a_integrated_lifecycle() {
     let (contract_id, obligation_id, contract_payload) = ratable_contract(&tenant_id);
     let obligation = &contract_payload.performance_obligations[0];
 
-    let original_schedule_id =
-        setup_contract_with_schedule(&pool, contract_id, obligation, &contract_payload, &tenant_id)
-            .await;
+    let original_schedule_id = setup_contract_with_schedule(
+        &pool,
+        contract_id,
+        obligation,
+        &contract_payload,
+        &tenant_id,
+    )
+    .await;
 
     let v1 = revrec_repo::get_schedule(&pool, original_schedule_id)
         .await
@@ -864,9 +953,14 @@ async fn test_phase24a_integrated_lifecycle() {
         .unwrap();
     assert_eq!(v1.version, 1);
     assert_eq!(v1.total_to_recognize_minor, 120_000_00);
-    let v1_lines = revrec_repo::get_schedule_lines(&pool, original_schedule_id).await.unwrap();
+    let v1_lines = revrec_repo::get_schedule_lines(&pool, original_schedule_id)
+        .await
+        .unwrap();
     assert_eq!(v1_lines.len(), 12, "v1 must have 12 monthly lines");
-    println!("✅ Step 1: Contract created, v1 schedule ({} lines at $10K)", v1_lines.len());
+    println!(
+        "✅ Step 1: Contract created, v1 schedule ({} lines at $10K)",
+        v1_lines.len()
+    );
 
     // ── Step 2: Recognize Jan 2026 ($10K from v1) ────────────────────────────
     let jan = run_recognition(&pool, &tenant_id, "2026-01", "2026-01-31")
@@ -874,7 +968,10 @@ async fn test_phase24a_integrated_lifecycle() {
         .expect("Jan recognition failed");
     assert_eq!(jan.lines_recognized, 1, "Jan: 1 line");
     assert_eq!(jan.total_recognized_minor, 10_000_00, "Jan: $10K");
-    println!("✅ Step 2: Jan recognized ${}", jan.total_recognized_minor as f64 / 100.0);
+    println!(
+        "✅ Step 2: Jan recognized ${}",
+        jan.total_recognized_minor as f64 / 100.0
+    );
 
     // ── Step 3: Recognize Feb 2026 ($10K from v1) ────────────────────────────
     let feb = run_recognition(&pool, &tenant_id, "2026-02", "2026-02-28")
@@ -882,7 +979,10 @@ async fn test_phase24a_integrated_lifecycle() {
         .expect("Feb recognition failed");
     assert_eq!(feb.lines_recognized, 1, "Feb: 1 line");
     assert_eq!(feb.total_recognized_minor, 10_000_00, "Feb: $10K");
-    println!("✅ Step 3: Feb recognized ${}", feb.total_recognized_minor as f64 / 100.0);
+    println!(
+        "✅ Step 3: Feb recognized ${}",
+        feb.total_recognized_minor as f64 / 100.0
+    );
 
     // Verify 2 journals exist and are balanced
     let journal_count: i64 = sqlx::query_scalar(
@@ -921,7 +1021,10 @@ async fn test_phase24a_integrated_lifecycle() {
     revrec_repo::create_amendment(&pool, Uuid::new_v4(), &amendment_payload)
         .await
         .expect("Amendment recording failed");
-    println!("✅ Step 4: Amendment recorded (modification_id={})", modification_id);
+    println!(
+        "✅ Step 4: Amendment recorded (modification_id={})",
+        modification_id
+    );
 
     // ── Step 5: Build v2 schedule (Mar-Dec, $9K/month) ───────────────────────
     let amended_obligation = PerformanceObligation {
@@ -945,9 +1048,10 @@ async fn test_phase24a_integrated_lifecycle() {
     )
     .expect("v2 schedule generation failed");
 
-    let supersedes_event_id = revrec_repo::find_schedule_outbox_event_id(&pool, original_schedule_id)
-        .await
-        .expect("find_schedule_outbox_event_id failed");
+    let supersedes_event_id =
+        revrec_repo::find_schedule_outbox_event_id(&pool, original_schedule_id)
+            .await
+            .expect("find_schedule_outbox_event_id failed");
 
     revrec_repo::create_schedule_with_supersession(
         &pool,
@@ -968,31 +1072,59 @@ async fn test_phase24a_integrated_lifecycle() {
     assert_eq!(v2.last_period, "2026-12");
     assert_eq!(v2.previous_schedule_id, Some(original_schedule_id));
 
-    let v2_lines = revrec_repo::get_schedule_lines(&pool, new_schedule_id).await.unwrap();
-    assert_eq!(v2_lines.len(), 10, "v2 must have 10 monthly lines (Mar-Dec)");
-    assert_eq!(v2_lines[0].amount_to_recognize_minor, 9_000_00, "First line must be $9K");
+    let v2_lines = revrec_repo::get_schedule_lines(&pool, new_schedule_id)
+        .await
+        .unwrap();
+    assert_eq!(
+        v2_lines.len(),
+        10,
+        "v2 must have 10 monthly lines (Mar-Dec)"
+    );
+    assert_eq!(
+        v2_lines[0].amount_to_recognize_minor, 9_000_00,
+        "First line must be $9K"
+    );
     let v2_line_sum: i64 = v2_lines.iter().map(|l| l.amount_to_recognize_minor).sum();
     assert_eq!(v2_line_sum, 90_000_00, "v2 lines must sum to $90K");
-    println!("✅ Step 5: v2 schedule created ({} lines, ${}K each)", v2_lines.len(), v2_lines[0].amount_to_recognize_minor as f64 / 10000.0);
+    println!(
+        "✅ Step 5: v2 schedule created ({} lines, ${}K each)",
+        v2_lines.len(),
+        v2_lines[0].amount_to_recognize_minor as f64 / 10000.0
+    );
 
     // ── Step 6: Recognize Mar 2026 — must use v2 ($9K), not v1 ($10K) ────────
     let mar = run_recognition(&pool, &tenant_id, "2026-03", "2026-03-31")
         .await
         .expect("Mar recognition failed");
     assert_eq!(mar.lines_recognized, 1, "Mar: exactly 1 line from v2");
-    assert_eq!(mar.total_recognized_minor, 9_000_00, "Mar must be $9K from v2");
-    assert_eq!(mar.postings[0].schedule_id, new_schedule_id, "Mar posting must come from v2");
-    println!("✅ Step 6: Mar recognized ${} from v2 schedule", mar.total_recognized_minor as f64 / 100.0);
+    assert_eq!(
+        mar.total_recognized_minor, 9_000_00,
+        "Mar must be $9K from v2"
+    );
+    assert_eq!(
+        mar.postings[0].schedule_id, new_schedule_id,
+        "Mar posting must come from v2"
+    );
+    println!(
+        "✅ Step 6: Mar recognized ${} from v2 schedule",
+        mar.total_recognized_minor as f64 / 100.0
+    );
 
     // ── Step 7: Replay — all periods idempotent ───────────────────────────────
-    let jan_replay = run_recognition(&pool, &tenant_id, "2026-01", "2026-01-31").await.unwrap();
+    let jan_replay = run_recognition(&pool, &tenant_id, "2026-01", "2026-01-31")
+        .await
+        .unwrap();
     assert_eq!(jan_replay.lines_recognized, 0, "Jan replay: 0 new lines");
     assert_eq!(jan_replay.lines_skipped, 0, "Jan replay: no due lines");
 
-    let feb_replay = run_recognition(&pool, &tenant_id, "2026-02", "2026-02-28").await.unwrap();
+    let feb_replay = run_recognition(&pool, &tenant_id, "2026-02", "2026-02-28")
+        .await
+        .unwrap();
     assert_eq!(feb_replay.lines_recognized, 0, "Feb replay: 0 new lines");
 
-    let mar_replay = run_recognition(&pool, &tenant_id, "2026-03", "2026-03-31").await.unwrap();
+    let mar_replay = run_recognition(&pool, &tenant_id, "2026-03", "2026-03-31")
+        .await
+        .unwrap();
     assert_eq!(mar_replay.lines_recognized, 0, "Mar replay: 0 new lines");
     println!("✅ Step 7: Replay confirmed — no double-recognition across Jan/Feb/Mar");
 
@@ -1015,7 +1147,10 @@ async fn test_phase24a_integrated_lifecycle() {
     for row in &rows {
         let debits: i64 = row.try_get("total_debits").unwrap();
         let credits: i64 = row.try_get("total_credits").unwrap();
-        assert_eq!(debits, credits, "Every journal must be balanced (debits == credits)");
+        assert_eq!(
+            debits, credits,
+            "Every journal must be balanced (debits == credits)"
+        );
         assert!(debits > 0, "Every journal must have non-zero debits");
     }
     println!("✅ Step 8: All 3 journals balanced");
@@ -1034,7 +1169,10 @@ async fn test_phase24a_integrated_lifecycle() {
         total_debits, 29_000_00,
         "Total recognized must be $29K ($10K Jan + $10K Feb + $9K Mar)"
     );
-    println!("✅ Step 8: Total recognized = ${} ($10K + $10K + $9K)", total_debits as f64 / 100.0);
+    println!(
+        "✅ Step 8: Total recognized = ${} ($10K + $10K + $9K)",
+        total_debits as f64 / 100.0
+    );
 
     // ── Step 9: Verify v1 lines for Mar-Dec are NOT recognized ───────────────
     let v1_recognized_after_mar: i64 = sqlx::query_scalar(

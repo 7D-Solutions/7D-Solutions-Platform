@@ -6,8 +6,7 @@
 mod submission_helpers;
 
 use pdf_editor_rs::domain::submissions::{
-    AutosaveRequest, CreateSubmissionRequest, ListSubmissionsQuery, SubmissionError,
-    SubmissionRepo,
+    AutosaveRequest, CreateSubmissionRequest, ListSubmissionsQuery, SubmissionError, SubmissionRepo,
 };
 use serial_test::serial;
 use submission_helpers::{
@@ -152,7 +151,9 @@ async fn test_cannot_submit_twice() {
     .unwrap();
 
     SubmissionRepo::submit(&pool, sub.id, &tid).await.unwrap();
-    let err = SubmissionRepo::submit(&pool, sub.id, &tid).await.unwrap_err();
+    let err = SubmissionRepo::submit(&pool, sub.id, &tid)
+        .await
+        .unwrap_err();
     assert!(matches!(err, SubmissionError::AlreadySubmitted));
 }
 

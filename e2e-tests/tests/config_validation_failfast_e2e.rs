@@ -431,10 +431,7 @@ fn test_ar_config_valid_nats_config() -> Result<()> {
     let config = result.unwrap();
     assert_eq!(config.database_url, "postgresql://localhost/test");
     assert_eq!(config.bus_type, ar_rs::config::BusType::Nats);
-    assert_eq!(
-        config.nats_url,
-        Some("nats://localhost:4222".to_string())
-    );
+    assert_eq!(config.nats_url, Some("nats://localhost:4222".to_string()));
 
     println!("✓ AR config accepts valid NATS configuration");
     Ok(())

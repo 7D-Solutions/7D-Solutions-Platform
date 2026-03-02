@@ -13,7 +13,6 @@
 /// - Two tenants used throughout to verify isolation
 ///
 /// Run with: cargo test -p e2e-tests -- reporting_aging --nocapture
-
 mod common;
 
 use chrono::Utc;
@@ -147,10 +146,22 @@ async fn test_ar_aging_cache_reconciles_to_ingested_totals() {
     // Ingest one AR aging snapshot: $10,000 current, $5,000 1-30 days
     let msg = BusMessage::new(
         SUBJECT_AR_AGING_UPDATED.to_string(),
-        make_ar_aging_envelope(&tenant_id, &Uuid::new_v4().to_string(), "USD", 1000000, 500000, 0, 0, 0),
+        make_ar_aging_envelope(
+            &tenant_id,
+            &Uuid::new_v4().to_string(),
+            "USD",
+            1000000,
+            500000,
+            0,
+            0,
+            0,
+        ),
     );
     let consumer = IngestConsumer::new(consumer_name.clone(), pool.clone(), handler);
-    let processed = consumer.process_message(&msg).await.expect("AR aging ingest failed");
+    let processed = consumer
+        .process_message(&msg)
+        .await
+        .expect("AR aging ingest failed");
     assert!(processed, "AR aging event must be processed");
 
     // Query the reporting cache for today
@@ -159,13 +170,22 @@ async fn test_ar_aging_cache_reconciles_to_ingested_totals() {
         .await
         .expect("AR aging query failed");
 
-    assert!(!summary.is_empty(), "AR aging cache must have rows after ingest");
-    let usd = summary.iter().find(|s| s.currency == "USD").expect("USD bucket");
+    assert!(
+        !summary.is_empty(),
+        "AR aging cache must have rows after ingest"
+    );
+    let usd = summary
+        .iter()
+        .find(|s| s.currency == "USD")
+        .expect("USD bucket");
     assert_eq!(usd.current_minor, 1000000, "current bucket mismatch");
     assert_eq!(usd.bucket_1_30_minor, 500000, "1-30 bucket mismatch");
     assert_eq!(usd.total_minor, 1500000, "total_minor mismatch");
 
-    println!("PASS: AR aging cache reconciles — total={}", usd.total_minor);
+    println!(
+        "PASS: AR aging cache reconciles — total={}",
+        usd.total_minor
+    );
     cleanup_tenant(&pool, &tenant_id).await;
 }
 
@@ -185,7 +205,11 @@ async fn test_ap_aging_cache_reconciles_to_ingested_bills_and_payments() {
 
     // Bill 1: $8,000 USD due in 5 days → current bucket
     let bill1_id = Uuid::new_v4().to_string();
-    let c1 = IngestConsumer::new(format!("e2e-ap-bill1-{}", &tenant_id[..8]), pool.clone(), bill_handler.clone());
+    let c1 = IngestConsumer::new(
+        format!("e2e-ap-bill1-{}", &tenant_id[..8]),
+        pool.clone(),
+        bill_handler.clone(),
+    );
     c1.process_message(&BusMessage::new(
         SUBJECT_BILL_CREATED.to_string(),
         make_ap_bill_envelope(&tenant_id, &bill1_id, &vendor_id, 800000, "USD", 5),
@@ -195,7 +219,11 @@ async fn test_ap_aging_cache_reconciles_to_ingested_bills_and_payments() {
 
     // Bill 2: $3,000 USD due in 10 days → current bucket
     let bill2_id = Uuid::new_v4().to_string();
-    let c2 = IngestConsumer::new(format!("e2e-ap-bill2-{}", &tenant_id[..8]), pool.clone(), bill_handler.clone());
+    let c2 = IngestConsumer::new(
+        format!("e2e-ap-bill2-{}", &tenant_id[..8]),
+        pool.clone(),
+        bill_handler.clone(),
+    );
     c2.process_message(&BusMessage::new(
         SUBJECT_BILL_CREATED.to_string(),
         make_ap_bill_envelope(&tenant_id, &bill2_id, &vendor_id, 300000, "USD", 10),
@@ -205,7 +233,11 @@ async fn test_ap_aging_cache_reconciles_to_ingested_bills_and_payments() {
 
     // Partial payment: $4,000
     let pay_id = Uuid::new_v4().to_string();
-    let c3 = IngestConsumer::new(format!("e2e-ap-pay-{}", &tenant_id[..8]), pool.clone(), pay_handler);
+    let c3 = IngestConsumer::new(
+        format!("e2e-ap-pay-{}", &tenant_id[..8]),
+        pool.clone(),
+        pay_handler,
+    );
     c3.process_message(&BusMessage::new(
         SUBJECT_PAYMENT_EXECUTED.to_string(),
         make_ap_payment_envelope(&tenant_id, &pay_id, &vendor_id, 400000, "USD"),
@@ -219,13 +251,26 @@ async fn test_ap_aging_cache_reconciles_to_ingested_bills_and_payments() {
         .await
         .expect("AP aging query failed");
 
-    assert!(!report.vendors.is_empty(), "AP aging cache must have vendor rows");
+    assert!(
+        !report.vendors.is_empty(),
+        "AP aging cache must have vendor rows"
+    );
 
-    let summary = report.summary_by_currency.iter().find(|s| s.currency == "USD").expect("USD summary");
+    let summary = report
+        .summary_by_currency
+        .iter()
+        .find(|s| s.currency == "USD")
+        .expect("USD summary");
     // 800000 + 300000 - 400000 = 700000 remaining
-    assert_eq!(summary.total_minor, 700000, "AP aging total after partial payment");
+    assert_eq!(
+        summary.total_minor, 700000,
+        "AP aging total after partial payment"
+    );
 
-    println!("PASS: AP aging cache reconciles — total={}", summary.total_minor);
+    println!(
+        "PASS: AP aging cache reconciles — total={}",
+        summary.total_minor
+    );
     cleanup_tenant(&pool, &tenant_id).await;
 }
 
@@ -251,7 +296,16 @@ async fn test_reporting_aging_no_cross_tenant_contamination() {
     );
     ca.process_message(&BusMessage::new(
         SUBJECT_AR_AGING_UPDATED.to_string(),
-        make_ar_aging_envelope(&tenant_a, &Uuid::new_v4().to_string(), "USD", 5000000, 0, 0, 0, 0),
+        make_ar_aging_envelope(
+            &tenant_a,
+            &Uuid::new_v4().to_string(),
+            "USD",
+            5000000,
+            0,
+            0,
+            0,
+            0,
+        ),
     ))
     .await
     .expect("tenant A ingest failed");
@@ -264,7 +318,16 @@ async fn test_reporting_aging_no_cross_tenant_contamination() {
     );
     cb.process_message(&BusMessage::new(
         SUBJECT_AR_AGING_UPDATED.to_string(),
-        make_ar_aging_envelope(&tenant_b, &Uuid::new_v4().to_string(), "USD", 2000000, 0, 0, 0, 0),
+        make_ar_aging_envelope(
+            &tenant_b,
+            &Uuid::new_v4().to_string(),
+            "USD",
+            2000000,
+            0,
+            0,
+            0,
+            0,
+        ),
     ))
     .await
     .expect("tenant B ingest failed");
@@ -278,12 +341,21 @@ async fn test_reporting_aging_no_cross_tenant_contamination() {
         .await
         .expect("tenant B query failed");
 
-    let a_usd = summary_a.iter().find(|s| s.currency == "USD").expect("tenant A USD");
-    let b_usd = summary_b.iter().find(|s| s.currency == "USD").expect("tenant B USD");
+    let a_usd = summary_a
+        .iter()
+        .find(|s| s.currency == "USD")
+        .expect("tenant A USD");
+    let b_usd = summary_b
+        .iter()
+        .find(|s| s.currency == "USD")
+        .expect("tenant B USD");
 
     assert_eq!(a_usd.current_minor, 5000000, "tenant A current mismatch");
     assert_eq!(b_usd.current_minor, 2000000, "tenant B current mismatch");
-    assert_ne!(a_usd.current_minor, b_usd.current_minor, "tenants must not share data");
+    assert_ne!(
+        a_usd.current_minor, b_usd.current_minor,
+        "tenants must not share data"
+    );
 
     println!(
         "PASS: Cross-tenant isolation — tenant_a={}, tenant_b={}",
@@ -315,7 +387,14 @@ async fn test_ap_aging_no_cross_tenant_contamination() {
     )
     .process_message(&BusMessage::new(
         SUBJECT_BILL_CREATED.to_string(),
-        make_ap_bill_envelope(&tenant_a, &Uuid::new_v4().to_string(), vendor, 1200000, "USD", 7),
+        make_ap_bill_envelope(
+            &tenant_a,
+            &Uuid::new_v4().to_string(),
+            vendor,
+            1200000,
+            "USD",
+            7,
+        ),
     ))
     .await
     .expect("tenant A AP bill failed");
@@ -328,22 +407,46 @@ async fn test_ap_aging_no_cross_tenant_contamination() {
     )
     .process_message(&BusMessage::new(
         SUBJECT_BILL_CREATED.to_string(),
-        make_ap_bill_envelope(&tenant_b, &Uuid::new_v4().to_string(), vendor, 500000, "USD", 7),
+        make_ap_bill_envelope(
+            &tenant_b,
+            &Uuid::new_v4().to_string(),
+            vendor,
+            500000,
+            "USD",
+            7,
+        ),
     ))
     .await
     .expect("tenant B AP bill failed");
 
     let today = Utc::now().date_naive();
-    let report_a = ap_aging::query_ap_aging(&pool, &tenant_a, today).await.expect("A query");
-    let report_b = ap_aging::query_ap_aging(&pool, &tenant_b, today).await.expect("B query");
+    let report_a = ap_aging::query_ap_aging(&pool, &tenant_a, today)
+        .await
+        .expect("A query");
+    let report_b = ap_aging::query_ap_aging(&pool, &tenant_b, today)
+        .await
+        .expect("B query");
 
-    let a_total = report_a.summary_by_currency.iter().find(|s| s.currency == "USD").map(|s| s.total_minor).unwrap_or(0);
-    let b_total = report_b.summary_by_currency.iter().find(|s| s.currency == "USD").map(|s| s.total_minor).unwrap_or(0);
+    let a_total = report_a
+        .summary_by_currency
+        .iter()
+        .find(|s| s.currency == "USD")
+        .map(|s| s.total_minor)
+        .unwrap_or(0);
+    let b_total = report_b
+        .summary_by_currency
+        .iter()
+        .find(|s| s.currency == "USD")
+        .map(|s| s.total_minor)
+        .unwrap_or(0);
 
     assert_eq!(a_total, 1200000, "tenant A AP total mismatch");
     assert_eq!(b_total, 500000, "tenant B AP total mismatch");
 
-    println!("PASS: AP cross-tenant isolation — A={}, B={}", a_total, b_total);
+    println!(
+        "PASS: AP cross-tenant isolation — A={}, B={}",
+        a_total, b_total
+    );
     cleanup_tenant(&pool, &tenant_a).await;
     cleanup_tenant(&pool, &tenant_b).await;
 }

@@ -5,7 +5,6 @@
 /// 2. Replaying the same event doesn't double-apply balances (idempotency)
 ///
 /// Run with: cargo test --test balance_posting_e2e -- --test-threads=1
-
 mod common;
 
 use chrono::NaiveDate;
@@ -306,9 +305,15 @@ async fn test_balances_posting_once() {
         .iter()
         .find(|b| b.account_code == "1100")
         .expect("AR balance not found");
-    assert_eq!(ar_balance.debit_total_minor, 10000, "AR debit should be 10000 (minor units)");
+    assert_eq!(
+        ar_balance.debit_total_minor, 10000,
+        "AR debit should be 10000 (minor units)"
+    );
     assert_eq!(ar_balance.credit_total_minor, 0, "AR credit should be 0");
-    assert_eq!(ar_balance.net_balance_minor, 10000, "AR net balance should be 10000");
+    assert_eq!(
+        ar_balance.net_balance_minor, 10000,
+        "AR net balance should be 10000"
+    );
     assert_eq!(ar_balance.currency, "USD");
 
     // Verify Revenue balance (4000) - should have credit of $100
@@ -316,9 +321,18 @@ async fn test_balances_posting_once() {
         .iter()
         .find(|b| b.account_code == "4000")
         .expect("Revenue balance not found");
-    assert_eq!(revenue_balance.debit_total_minor, 0, "Revenue debit should be 0");
-    assert_eq!(revenue_balance.credit_total_minor, 10000, "Revenue credit should be 10000 (minor units)");
-    assert_eq!(revenue_balance.net_balance_minor, -10000, "Revenue net balance should be -10000");
+    assert_eq!(
+        revenue_balance.debit_total_minor, 0,
+        "Revenue debit should be 0"
+    );
+    assert_eq!(
+        revenue_balance.credit_total_minor, 10000,
+        "Revenue credit should be 10000 (minor units)"
+    );
+    assert_eq!(
+        revenue_balance.net_balance_minor, -10000,
+        "Revenue net balance should be -10000"
+    );
     assert_eq!(revenue_balance.currency, "USD");
 
     println!("✓ Account balances created correctly");

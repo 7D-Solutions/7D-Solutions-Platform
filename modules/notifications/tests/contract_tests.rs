@@ -2,7 +2,6 @@
 ///
 /// These tests validate that the notifications module's event schemas
 /// are correct and that golden examples conform to those schemas.
-
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
@@ -17,16 +16,15 @@ fn contracts_dir() -> PathBuf {
 }
 
 fn load_json_file(path: &PathBuf) -> Value {
-    let contents = fs::read_to_string(path)
-        .unwrap_or_else(|_| panic!("Failed to read file: {:?}", path));
-    serde_json::from_str(&contents)
-        .unwrap_or_else(|_| panic!("Failed to parse JSON: {:?}", path))
+    let contents =
+        fs::read_to_string(path).unwrap_or_else(|_| panic!("Failed to read file: {:?}", path));
+    serde_json::from_str(&contents).unwrap_or_else(|_| panic!("Failed to parse JSON: {:?}", path))
 }
 
 #[test]
 fn test_delivery_succeeded_example_has_valid_envelope() {
-    let example_path = contracts_dir()
-        .join("events/examples/notifications-delivery-succeeded.v1.example.json");
+    let example_path =
+        contracts_dir().join("events/examples/notifications-delivery-succeeded.v1.example.json");
 
     let example: Value = load_json_file(&example_path);
 
@@ -34,8 +32,14 @@ fn test_delivery_succeeded_example_has_valid_envelope() {
     assert!(example.get("event_id").is_some(), "Missing event_id");
     assert!(example.get("occurred_at").is_some(), "Missing occurred_at");
     assert!(example.get("tenant_id").is_some(), "Missing tenant_id");
-    assert!(example.get("source_module").is_some(), "Missing source_module");
-    assert!(example.get("source_version").is_some(), "Missing source_version");
+    assert!(
+        example.get("source_module").is_some(),
+        "Missing source_module"
+    );
+    assert!(
+        example.get("source_version").is_some(),
+        "Missing source_version"
+    );
     assert!(example.get("payload").is_some(), "Missing payload");
 
     // Validate source_module is correct
@@ -47,7 +51,10 @@ fn test_delivery_succeeded_example_has_valid_envelope() {
 
     // Validate payload has required fields
     let payload = example.get("payload").unwrap();
-    assert!(payload.get("notification_id").is_some(), "Missing notification_id");
+    assert!(
+        payload.get("notification_id").is_some(),
+        "Missing notification_id"
+    );
     assert!(payload.get("channel").is_some(), "Missing channel");
     assert!(payload.get("status").is_some(), "Missing status");
 
@@ -61,8 +68,8 @@ fn test_delivery_succeeded_example_has_valid_envelope() {
 
 #[test]
 fn test_delivery_failed_example_has_valid_envelope() {
-    let example_path = contracts_dir()
-        .join("events/examples/notifications-delivery-failed.v1.example.json");
+    let example_path =
+        contracts_dir().join("events/examples/notifications-delivery-failed.v1.example.json");
 
     let example: Value = load_json_file(&example_path);
 
@@ -77,8 +84,14 @@ fn test_delivery_failed_example_has_valid_envelope() {
 
     // Validate failure fields
     let payload = example.get("payload").unwrap();
-    assert!(payload.get("failure_code").is_some(), "Missing failure_code");
-    assert!(payload.get("failure_message").is_some(), "Missing failure_message");
+    assert!(
+        payload.get("failure_code").is_some(),
+        "Missing failure_code"
+    );
+    assert!(
+        payload.get("failure_message").is_some(),
+        "Missing failure_message"
+    );
     assert!(payload.get("status").is_some(), "Missing status");
 
     // Validate status is failed
@@ -91,8 +104,8 @@ fn test_delivery_failed_example_has_valid_envelope() {
 
 #[test]
 fn test_delivery_succeeded_has_valid_channels() {
-    let example_path = contracts_dir()
-        .join("events/examples/notifications-delivery-succeeded.v1.example.json");
+    let example_path =
+        contracts_dir().join("events/examples/notifications-delivery-succeeded.v1.example.json");
 
     let example: Value = load_json_file(&example_path);
     let payload = example.get("payload").unwrap();
@@ -109,8 +122,8 @@ fn test_delivery_succeeded_has_valid_channels() {
 
 #[test]
 fn test_delivery_failed_has_valid_channels() {
-    let example_path = contracts_dir()
-        .join("events/examples/notifications-delivery-failed.v1.example.json");
+    let example_path =
+        contracts_dir().join("events/examples/notifications-delivery-failed.v1.example.json");
 
     let example: Value = load_json_file(&example_path);
     let payload = example.get("payload").unwrap();
@@ -135,12 +148,15 @@ fn test_all_notification_examples_have_unique_event_ids() {
     let mut event_ids = Vec::new();
 
     for example_name in examples {
-        let example_path = contracts_dir()
-            .join("events/examples")
-            .join(example_name);
+        let example_path = contracts_dir().join("events/examples").join(example_name);
 
         let example: Value = load_json_file(&example_path);
-        let event_id = example.get("event_id").unwrap().as_str().unwrap().to_string();
+        let event_id = example
+            .get("event_id")
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .to_string();
 
         assert!(
             !event_ids.contains(&event_id),

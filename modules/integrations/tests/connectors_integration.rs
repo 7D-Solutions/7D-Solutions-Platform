@@ -117,7 +117,11 @@ async fn test_connector_register_duplicate_name() {
     assert!(err.is_err(), "duplicate name should fail");
     match err.unwrap_err() {
         ConnectorError::InvalidConfig(msg) => {
-            assert!(msg.contains("already exists"), "expected 'already exists' in: {}", msg);
+            assert!(
+                msg.contains("already exists"),
+                "expected 'already exists' in: {}",
+                msg
+            );
         }
         other => panic!("expected InvalidConfig for duplicate, got: {:?}", other),
     }
@@ -213,7 +217,9 @@ async fn test_connector_run_test_action_echo() {
         .expect("register failed");
 
     let idem_key = "test-key-abc-123";
-    let action_req = RunTestActionRequest { idempotency_key: idem_key.to_string() };
+    let action_req = RunTestActionRequest {
+        idempotency_key: idem_key.to_string(),
+    };
 
     let result = run_test_action(&pool, &tid, created.id, &action_req)
         .await
@@ -225,8 +231,16 @@ async fn test_connector_run_test_action_echo() {
 
     // Echo connector output contains the prefix and idempotency key
     let msg = result.output["message"].as_str().unwrap_or("");
-    assert!(msg.contains("hello"), "output should contain prefix: {}", msg);
-    assert!(msg.contains(idem_key), "output should contain idempotency key: {}", msg);
+    assert!(
+        msg.contains("hello"),
+        "output should contain prefix: {}",
+        msg
+    );
+    assert!(
+        msg.contains(idem_key),
+        "output should contain idempotency key: {}",
+        msg
+    );
 }
 
 // ============================================================================
@@ -253,13 +267,19 @@ async fn test_connector_run_test_action_disabled() {
     .await
     .expect("failed to deactivate connector");
 
-    let action_req = RunTestActionRequest { idempotency_key: "key-xyz".to_string() };
+    let action_req = RunTestActionRequest {
+        idempotency_key: "key-xyz".to_string(),
+    };
     let err = run_test_action(&pool, &tid, created.id, &action_req).await;
 
     assert!(err.is_err(), "disabled connector must reject test action");
     match err.unwrap_err() {
         ConnectorError::InvalidConfig(msg) => {
-            assert!(msg.contains("disabled"), "expected 'disabled' in error: {}", msg);
+            assert!(
+                msg.contains("disabled"),
+                "expected 'disabled' in error: {}",
+                msg
+            );
         }
         other => panic!("expected InvalidConfig (disabled), got: {:?}", other),
     }
@@ -285,7 +305,10 @@ async fn test_connector_tenant_isolation() {
     let not_found = get_connector_config(&pool, &tid_b, created.id)
         .await
         .expect("tenant-b get should not DB-error");
-    assert!(not_found.is_none(), "tenant B must not see tenant A's connector");
+    assert!(
+        not_found.is_none(),
+        "tenant B must not see tenant A's connector"
+    );
 
     // Tenant B's list is empty
     let b_list = list_connector_configs(&pool, &tid_b, false)
@@ -297,11 +320,19 @@ async fn test_connector_tenant_isolation() {
     );
 
     // Tenant B cannot trigger test action on tenant A's connector
-    let action_req = RunTestActionRequest { idempotency_key: "iso-key".to_string() };
+    let action_req = RunTestActionRequest {
+        idempotency_key: "iso-key".to_string(),
+    };
     let err = run_test_action(&pool, &tid_b, created.id, &action_req).await;
-    assert!(err.is_err(), "tenant B must not trigger tenant A's connector");
+    assert!(
+        err.is_err(),
+        "tenant B must not trigger tenant A's connector"
+    );
     match err.unwrap_err() {
         ConnectorError::NotFound(_) => {}
-        other => panic!("expected NotFound for cross-tenant trigger, got: {:?}", other),
+        other => panic!(
+            "expected NotFound for cross-tenant trigger, got: {:?}",
+            other
+        ),
     }
 }

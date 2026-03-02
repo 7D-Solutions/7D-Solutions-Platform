@@ -16,7 +16,12 @@ fn check_spec_version(spec: &serde_json::Value, expected_major: u64, spec_name: 
         .and_then(|i| i.get("version"))
         .and_then(|v| v.as_str())
         .unwrap_or("0.0.0");
-    let major: u64 = version.split('.').next().unwrap_or("0").parse().unwrap_or(0);
+    let major: u64 = version
+        .split('.')
+        .next()
+        .unwrap_or("0")
+        .parse()
+        .unwrap_or(0);
     assert!(
         major >= expected_major,
         "{spec_name}: spec version {version} is below expected major {expected_major}"
@@ -29,8 +34,7 @@ fn test_payments_openapi_spec_valid() {
     // payments-v1.0.0.yaml is the 1.0.0-proven spec (bead bd-1b1x)
     let spec_path = contracts_dir().join("payments/payments-v1.0.0.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse payments OpenAPI spec");
+    let spec = validate_openapi_spec(&spec_path).expect("Failed to parse payments OpenAPI spec");
 
     println!("✓ Payments OpenAPI spec is valid YAML");
     check_spec_version(&spec, 1, "payments-v1.0.0.yaml");
@@ -53,8 +57,8 @@ fn test_payments_openapi_spec_valid() {
 fn test_notifications_openapi_spec_valid() {
     let spec_path = contracts_dir().join("notifications/notifications-v0.1.0.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse notifications OpenAPI spec");
+    let spec =
+        validate_openapi_spec(&spec_path).expect("Failed to parse notifications OpenAPI spec");
 
     println!("✓ Notifications OpenAPI spec is valid YAML");
 
@@ -75,16 +79,13 @@ fn test_notifications_openapi_spec_valid() {
 fn test_subscriptions_openapi_spec_valid() {
     let spec_path = contracts_dir().join("subscriptions/subscriptions-v1.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse subscriptions OpenAPI spec");
+    let spec =
+        validate_openapi_spec(&spec_path).expect("Failed to parse subscriptions OpenAPI spec");
 
     println!("✓ Subscriptions OpenAPI spec is valid YAML");
 
     // Check required paths
-    let required_paths = vec![
-        "/api/subscriptions",
-        "/api/bill-runs/execute",
-    ];
+    let required_paths = vec!["/api/subscriptions", "/api/bill-runs/execute"];
 
     check_required_paths(&spec, &required_paths, "subscriptions-v1.yaml")
         .expect("Subscriptions spec missing required paths");
@@ -96,8 +97,7 @@ fn test_subscriptions_openapi_spec_valid() {
 fn test_ar_openapi_spec_valid() {
     let spec_path = contracts_dir().join("ar/ar-v1.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse AR OpenAPI spec");
+    let spec = validate_openapi_spec(&spec_path).expect("Failed to parse AR OpenAPI spec");
 
     println!("✓ AR OpenAPI spec is valid YAML");
     check_spec_version(&spec, 1, "ar-v1.yaml");
@@ -124,19 +124,13 @@ fn test_ar_openapi_spec_valid() {
 fn test_auth_openapi_spec_valid() {
     let spec_path = contracts_dir().join("auth/auth-v1.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse Auth OpenAPI spec");
+    let spec = validate_openapi_spec(&spec_path).expect("Failed to parse Auth OpenAPI spec");
 
     println!("✓ Auth OpenAPI spec is valid YAML");
     check_spec_version(&spec, 1, "auth-v1.yaml");
 
     // Auth module endpoints — login, healthz (1.1.0+), readiness
-    let required_paths = vec![
-        "/health/live",
-        "/api/auth/login",
-        "/healthz",
-        "/api/ready",
-    ];
+    let required_paths = vec!["/health/live", "/api/auth/login", "/healthz", "/api/ready"];
 
     check_required_paths(&spec, &required_paths, "auth-v1.yaml")
         .expect("Auth spec missing required paths");
@@ -148,8 +142,7 @@ fn test_auth_openapi_spec_valid() {
 fn test_ttp_openapi_spec_valid() {
     let spec_path = contracts_dir().join("ttp/ttp-v1.0.0.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse TTP OpenAPI spec");
+    let spec = validate_openapi_spec(&spec_path).expect("Failed to parse TTP OpenAPI spec");
 
     println!("✓ TTP OpenAPI spec is valid YAML");
     check_spec_version(&spec, 1, "ttp-v1.0.0.yaml");
@@ -177,8 +170,8 @@ fn test_ttp_openapi_spec_valid() {
 fn test_control_plane_openapi_spec_valid() {
     let spec_path = contracts_dir().join("control-plane/control-plane-v1.0.0.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse control-plane OpenAPI spec");
+    let spec =
+        validate_openapi_spec(&spec_path).expect("Failed to parse control-plane OpenAPI spec");
 
     println!("✓ Control-plane OpenAPI spec is valid YAML");
     check_spec_version(&spec, 1, "control-plane-v1.0.0.yaml");
@@ -210,8 +203,8 @@ fn test_control_plane_openapi_spec_valid() {
 fn test_tenant_registry_openapi_spec_valid() {
     let spec_path = contracts_dir().join("tenant-registry/tenant-registry-v1.0.2.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse tenant-registry OpenAPI spec");
+    let spec =
+        validate_openapi_spec(&spec_path).expect("Failed to parse tenant-registry OpenAPI spec");
 
     println!("✓ Tenant-registry OpenAPI spec is valid YAML");
     check_spec_version(&spec, 1, "tenant-registry-v1.0.2.yaml");
@@ -237,8 +230,7 @@ fn test_tenant_registry_openapi_spec_valid() {
 fn test_inventory_openapi_spec_valid() {
     let spec_path = contracts_dir().join("inventory/inventory-v0.1.0.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse inventory OpenAPI spec");
+    let spec = validate_openapi_spec(&spec_path).expect("Failed to parse inventory OpenAPI spec");
 
     println!("✓ Inventory OpenAPI spec is valid YAML");
 
@@ -274,8 +266,7 @@ fn test_inventory_openapi_spec_valid() {
 fn test_party_openapi_spec_valid() {
     let spec_path = contracts_dir().join("party/party-v0.1.0.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse party OpenAPI spec");
+    let spec = validate_openapi_spec(&spec_path).expect("Failed to parse party OpenAPI spec");
 
     println!("✓ Party OpenAPI spec is valid YAML");
 
@@ -307,8 +298,8 @@ fn test_party_openapi_spec_valid() {
 fn test_integrations_hub_openapi_spec_valid() {
     let spec_path = contracts_dir().join("integrations-hub/integrations-hub-v0.1.0.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse integrations-hub OpenAPI spec");
+    let spec =
+        validate_openapi_spec(&spec_path).expect("Failed to parse integrations-hub OpenAPI spec");
 
     println!("✓ Integrations-hub OpenAPI spec is valid YAML");
 
@@ -339,8 +330,7 @@ fn test_integrations_hub_openapi_spec_valid() {
 fn test_pdf_editor_openapi_spec_valid() {
     let spec_path = contracts_dir().join("pdf-editor/pdf-editor-v0.1.0.yaml");
 
-    let spec = validate_openapi_spec(&spec_path)
-        .expect("Failed to parse pdf-editor OpenAPI spec");
+    let spec = validate_openapi_spec(&spec_path).expect("Failed to parse pdf-editor OpenAPI spec");
 
     println!("✓ PDF Editor OpenAPI spec is valid YAML");
 

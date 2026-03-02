@@ -38,13 +38,12 @@ fn test_case_insensitive_header_tilled_signature() {
     let mut headers = HashMap::new();
     headers.insert("Tilled-Signature".to_string(), sig_header);
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        body,
-        &[secret],
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
+    assert!(
+        result.is_ok(),
+        "Tilled-Signature (mixed case) must be accepted: {:?}",
+        result
     );
-    assert!(result.is_ok(), "Tilled-Signature (mixed case) must be accepted: {:?}", result);
 }
 
 /// Empty body must still verify correctly when signature matches.
@@ -58,13 +57,12 @@ fn test_empty_body_valid_signature() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), sig_header);
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        body,
-        &[secret],
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
+    assert!(
+        result.is_ok(),
+        "Empty body with valid signature must pass: {:?}",
+        result
     );
-    assert!(result.is_ok(), "Empty body with valid signature must pass: {:?}", result);
 }
 
 /// Secret rotation: webhook signed with OLD secret accepted when both secrets provided.
@@ -85,7 +83,11 @@ fn test_secret_rotation_old_secret_accepted() {
         body,
         &[new_secret, old_secret],
     );
-    assert!(result.is_ok(), "Old secret must be accepted during rotation: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "Old secret must be accepted during rotation: {:?}",
+        result
+    );
 }
 
 /// Secret rotation: webhook signed with NEW secret accepted when both secrets provided.
@@ -106,7 +108,11 @@ fn test_secret_rotation_new_secret_accepted() {
         body,
         &[new_secret, old_secret],
     );
-    assert!(result.is_ok(), "New secret must be accepted during rotation: {:?}", result);
+    assert!(
+        result.is_ok(),
+        "New secret must be accepted during rotation: {:?}",
+        result
+    );
 }
 
 /// Secret rotation: unknown secret rejected when neither configured secret matches.
@@ -134,27 +140,20 @@ fn test_secret_rotation_unknown_rejected() {
 /// Internal webhooks always pass regardless of headers or body.
 #[test]
 fn test_internal_always_passes() {
-    let result = validate_webhook_signature(
-        WebhookSource::Internal,
-        &HashMap::new(),
-        b"anything",
-        &[],
-    );
+    let result =
+        validate_webhook_signature(WebhookSource::Internal, &HashMap::new(), b"anything", &[]);
     assert!(result.is_ok(), "Internal webhook must always pass");
 }
 
 /// Stripe source must return UnsupportedSource.
 #[test]
 fn test_stripe_unsupported() {
-    let result = validate_webhook_signature(
-        WebhookSource::Stripe,
-        &HashMap::new(),
-        b"{}",
-        &[],
-    );
+    let result = validate_webhook_signature(WebhookSource::Stripe, &HashMap::new(), b"{}", &[]);
     assert_eq!(
         result.unwrap_err(),
-        SignatureError::UnsupportedSource { source: "stripe".to_string() }
+        SignatureError::UnsupportedSource {
+            source: "stripe".to_string()
+        }
     );
 }
 
@@ -171,13 +170,12 @@ fn test_timestamp_at_boundary_accepted() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), sig_header);
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        body,
-        &[secret],
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
+    assert!(
+        result.is_ok(),
+        "Timestamp 299s old must be accepted: {:?}",
+        result
     );
-    assert!(result.is_ok(), "Timestamp 299s old must be accepted: {:?}", result);
 }
 
 /// Timestamp just outside boundary (301s) must be rejected.
@@ -191,12 +189,7 @@ fn test_timestamp_just_outside_boundary_rejected() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), sig_header);
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        body,
-        &[secret],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { ref reason }) if reason.contains("replay")),
         "Timestamp 301s old must be rejected as replay"
@@ -214,12 +207,7 @@ fn test_future_timestamp_just_outside_boundary_rejected() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), sig_header);
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        body,
-        &[secret],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
         "Future timestamp 301s ahead must be rejected"
@@ -235,12 +223,7 @@ fn test_non_numeric_timestamp_rejected() {
         "t=notanumber,v1=deadbeef".to_string(),
     );
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        b"{}",
-        &["secret"],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, b"{}", &["secret"]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { ref reason }) if reason.contains("timestamp")),
         "Non-numeric timestamp must be rejected"
@@ -255,12 +238,7 @@ fn test_header_missing_v1_rejected() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), "t=1234567890".to_string());
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        b"{}",
-        &["secret"],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, b"{}", &["secret"]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
         "Header missing v1= must be rejected"
@@ -273,12 +251,7 @@ fn test_header_missing_timestamp_rejected() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), "v1=deadbeef".to_string());
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        b"{}",
-        &["secret"],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, b"{}", &["secret"]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
         "Header missing t= must be rejected"
@@ -291,12 +264,7 @@ fn test_empty_header_value_rejected() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), "".to_string());
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        b"{}",
-        &["secret"],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, b"{}", &["secret"]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
         "Empty header must be rejected"
@@ -317,13 +285,12 @@ fn test_header_with_extra_components_accepted() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), sig_header);
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        body,
-        &[secret],
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
+    assert!(
+        result.is_ok(),
+        "Extra header components must not break parsing: {:?}",
+        result
     );
-    assert!(result.is_ok(), "Extra header components must not break parsing: {:?}", result);
 }
 
 /// Header with t= and v1= but v1 is empty must be rejected.
@@ -335,12 +302,7 @@ fn test_empty_v1_value_rejected() {
         format!("t={},v1=", now_ts()),
     );
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        b"{}",
-        &["secret"],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, b"{}", &["secret"]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
         "Empty v1 value must be rejected"

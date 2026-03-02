@@ -8,7 +8,10 @@
 mod common;
 
 use anyhow::Result;
-use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_payments_pool, get_subscriptions_pool, get_gl_pool};
+use common::{
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
+    get_subscriptions_pool,
+};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -32,12 +35,10 @@ async fn create_test_customer(pool: &PgPool, tenant_id: &str) -> Result<i32> {
 
 /// Count rows in ar_metered_usage for a given tenant
 async fn count_usage_rows(pool: &PgPool, tenant_id: &str) -> Result<i64> {
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_metered_usage WHERE app_id = $1"
-    )
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_metered_usage WHERE app_id = $1")
+        .bind(tenant_id)
+        .fetch_one(pool)
+        .await?;
     Ok(count)
 }
 
@@ -64,7 +65,7 @@ async fn get_usage_by_idempotency_key(
 ) -> Result<Option<(i32, Uuid, String)>> {
     // Returns (id, usage_uuid, metric_name)
     let row = sqlx::query_as::<_, (i32, Uuid, String)>(
-        "SELECT id, usage_uuid, metric_name FROM ar_metered_usage WHERE idempotency_key = $1"
+        "SELECT id, usage_uuid, metric_name FROM ar_metered_usage WHERE idempotency_key = $1",
     )
     .bind(idempotency_key)
     .fetch_optional(pool)
@@ -140,7 +141,14 @@ async fn insert_usage_with_outbox(
         payload,
     );
 
-    enqueue_event_tx(&mut tx, EVENT_TYPE_USAGE_CAPTURED, "usage", &row_id.to_string(), &envelope).await?;
+    enqueue_event_tx(
+        &mut tx,
+        EVENT_TYPE_USAGE_CAPTURED,
+        "usage",
+        &row_id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
     Ok(row_id)
@@ -159,9 +167,15 @@ async fn test_usage_capture_atomicity() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let customer_id = create_test_customer(&ar_pool, &tenant_id).await?;
     let idempotency_key = Uuid::new_v4();
@@ -193,16 +207,23 @@ async fn test_usage_capture_atomicity() -> Result<()> {
 
     // Verify outbox event was enqueued atomically
     let outbox_count = count_usage_outbox_events(&ar_pool, row_id).await?;
-    assert_eq!(outbox_count, 1,
+    assert_eq!(
+        outbox_count, 1,
         "❌ ATOMICITY VIOLATION: usage row inserted but {} outbox events (expected 1)",
         outbox_count
     );
 
     println!("✅ Atomicity verified: usage row + outbox event committed together");
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }
@@ -222,9 +243,15 @@ async fn test_usage_capture_idempotency() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let customer_id = create_test_customer(&ar_pool, &tenant_id).await?;
     let idempotency_key = Uuid::new_v4();
@@ -232,9 +259,18 @@ async fn test_usage_capture_idempotency() -> Result<()> {
 
     // First capture
     let first_row_id = insert_usage_with_outbox(
-        &ar_pool, &tenant_id, customer_id, idempotency_key,
-        "gb_storage", 100.5, "GB", 5, now, now,
-    ).await?;
+        &ar_pool,
+        &tenant_id,
+        customer_id,
+        idempotency_key,
+        "gb_storage",
+        100.5,
+        "GB",
+        5,
+        now,
+        now,
+    )
+    .await?;
 
     let (first_id, first_uuid, _) = get_usage_by_idempotency_key(&ar_pool, idempotency_key)
         .await?
@@ -243,14 +279,26 @@ async fn test_usage_capture_idempotency() -> Result<()> {
     assert_eq!(first_id, first_row_id);
 
     let outbox_after_first = count_usage_outbox_events(&ar_pool, first_row_id).await?;
-    assert_eq!(outbox_after_first, 1, "Outbox must have 1 event after first capture");
+    assert_eq!(
+        outbox_after_first, 1,
+        "Outbox must have 1 event after first capture"
+    );
 
     // Second capture with same idempotency_key — must be rejected by DB UNIQUE constraint
     // (duplicate idempotency_key should fail at INSERT level, proving the guard works)
     let duplicate_result = insert_usage_with_outbox(
-        &ar_pool, &tenant_id, customer_id, idempotency_key,
-        "gb_storage", 100.5, "GB", 5, now, now,
-    ).await;
+        &ar_pool,
+        &tenant_id,
+        customer_id,
+        idempotency_key,
+        "gb_storage",
+        100.5,
+        "GB",
+        5,
+        now,
+        now,
+    )
+    .await;
 
     // The second insert MUST fail (unique constraint violation)
     assert!(
@@ -262,10 +310,14 @@ async fn test_usage_capture_idempotency() -> Result<()> {
 
     // Row count and outbox count must be unchanged
     let usage_count = count_usage_rows(&ar_pool, &tenant_id).await?;
-    assert_eq!(usage_count, 1, "Must have exactly 1 usage row (no double-count)");
+    assert_eq!(
+        usage_count, 1,
+        "Must have exactly 1 usage row (no double-count)"
+    );
 
     let outbox_after_dup = count_usage_outbox_events(&ar_pool, first_row_id).await?;
-    assert_eq!(outbox_after_dup, 1,
+    assert_eq!(
+        outbox_after_dup, 1,
         "Outbox count must remain 1 after duplicate attempt (idempotency)"
     );
 
@@ -278,9 +330,15 @@ async fn test_usage_capture_idempotency() -> Result<()> {
 
     println!("✅ Idempotency proven: 1 row, 1 outbox event, original unchanged");
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }
@@ -298,22 +356,41 @@ async fn test_usage_capture_event_envelope_integrity() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let customer_id = create_test_customer(&ar_pool, &tenant_id).await?;
     let idempotency_key = Uuid::new_v4();
     let now = chrono::Utc::now().naive_utc();
 
     let row_id = insert_usage_with_outbox(
-        &ar_pool, &tenant_id, customer_id, idempotency_key,
-        "api_calls", 250.0, "calls", 10, now, now,
-    ).await?;
+        &ar_pool,
+        &tenant_id,
+        customer_id,
+        idempotency_key,
+        "api_calls",
+        250.0,
+        "calls",
+        10,
+        now,
+        now,
+    )
+    .await?;
 
     // Fetch the outbox event envelope metadata
     let (event_type, mutation_class, schema_version, source_module, tenant_id_col): (
-        String, Option<String>, Option<String>, Option<String>, Option<String>
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        Option<String>,
     ) = sqlx::query_as(
         r#"
         SELECT event_type, mutation_class, schema_version, source_module, tenant_id
@@ -350,9 +427,15 @@ async fn test_usage_capture_event_envelope_integrity() -> Result<()> {
 
     println!("✅ Event envelope integrity verified: event_type={}, mutation_class=DATA_MUTATION, schema_version=1.0.0, source_module=ar", event_type);
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }

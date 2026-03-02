@@ -132,7 +132,9 @@ async fn test_webhook_ingest_accepted_and_routed() {
 
     assert_eq!(status, StatusCode::OK, "expected 200; body={}", body);
     assert_eq!(body["status"], "accepted", "body={}", body);
-    let ingest_id = body["ingest_id"].as_i64().expect("ingest_id must be integer");
+    let ingest_id = body["ingest_id"]
+        .as_i64()
+        .expect("ingest_id must be integer");
     assert!(ingest_id > 0, "ingest_id must be positive");
 
     // ── DB: verify ingest row exists and is marked processed ─────────────
@@ -163,7 +165,10 @@ async fn test_webhook_ingest_accepted_and_routed() {
     .fetch_one(&pool)
     .await
     .expect("outbox query failed");
-    assert_eq!(received_count.0, 1, "webhook.received must appear exactly once");
+    assert_eq!(
+        received_count.0, 1,
+        "webhook.received must appear exactly once"
+    );
 
     // ── Outbox: webhook.routed must exist (internal passthrough) ─────────
     let routed_count: (i64,) = sqlx::query_as(
@@ -241,12 +246,19 @@ async fn test_webhook_replay_does_not_double_route() {
     .await
     .expect("outbox count");
     let first_outbox_count = outbox_after_first.0;
-    assert!(first_outbox_count >= 1, "at least webhook.received expected");
+    assert!(
+        first_outbox_count >= 1,
+        "at least webhook.received expected"
+    );
 
     // ── Replay identical delivery ─────────────────────────────────────────
     let (s2, b2) = send(&idem_key).await;
     assert_eq!(s2, StatusCode::OK, "replay: {}", b2);
-    assert_eq!(b2["status"], "duplicate", "replay must be flagged as duplicate; body={}", b2);
+    assert_eq!(
+        b2["status"], "duplicate",
+        "replay must be flagged as duplicate; body={}",
+        b2
+    );
     let replay_ingest_id = b2["ingest_id"].as_i64().expect("replay ingest_id");
     assert_eq!(
         ingest_id, replay_ingest_id,
@@ -263,7 +275,10 @@ async fn test_webhook_replay_does_not_double_route() {
     .fetch_one(&pool)
     .await
     .expect("row count");
-    assert_eq!(row_count.0, 1, "must have exactly one ingest row after replay");
+    assert_eq!(
+        row_count.0, 1,
+        "must have exactly one ingest row after replay"
+    );
 
     // ── Outbox: count unchanged after replay ──────────────────────────────
     let outbox_after_replay: (i64,) = sqlx::query_as(

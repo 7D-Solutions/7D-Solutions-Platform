@@ -6,7 +6,6 @@
 /// 3. Updates cursors transactionally with read-model writes
 /// 4. Returns correct apply status (true = applied, false = already processed)
 /// 5. Supports deterministic rebuild capability
-
 mod common;
 
 use chrono::Utc;
@@ -72,7 +71,10 @@ async fn test_cursor_load_nonexistent() {
         .expect("Failed to load cursor");
 
     // Should return None for nonexistent cursor
-    assert!(cursor.is_none(), "Cursor should not exist for new projection");
+    assert!(
+        cursor.is_none(),
+        "Cursor should not exist for new projection"
+    );
 }
 
 #[tokio::test]
@@ -87,9 +89,15 @@ async fn test_cursor_save_and_load() {
     let event_occurred_at = Utc::now();
 
     // Save a cursor
-    ProjectionCursor::save(&pool, projection_name, tenant_id, event_id, event_occurred_at)
-        .await
-        .expect("Failed to save cursor");
+    ProjectionCursor::save(
+        &pool,
+        projection_name,
+        tenant_id,
+        event_id,
+        event_occurred_at,
+    )
+    .await
+    .expect("Failed to save cursor");
 
     // Load it back
     let cursor = ProjectionCursor::load(&pool, projection_name, tenant_id)
@@ -192,12 +200,14 @@ async fn test_is_processed_returns_false_for_different_event() {
         .expect("Failed to save cursor");
 
     // Check if a different event is processed
-    let is_processed =
-        ProjectionCursor::is_processed(&pool, projection_name, tenant_id, event2_id)
-            .await
-            .expect("Failed to check is_processed");
+    let is_processed = ProjectionCursor::is_processed(&pool, projection_name, tenant_id, event2_id)
+        .await
+        .expect("Failed to check is_processed");
 
-    assert!(!is_processed, "Different event should not be marked as processed");
+    assert!(
+        !is_processed,
+        "Different event should not be marked as processed"
+    );
 }
 
 #[tokio::test]
@@ -213,13 +223,15 @@ async fn test_try_apply_event_applies_new_event() {
     let event_id = Uuid::new_v4();
 
     // Insert initial customer balance
-    sqlx::query("INSERT INTO test_customer_balances (customer_id, tenant_id, balance) VALUES ($1, $2, $3)")
-        .bind(customer_id)
-        .bind(tenant_id)
-        .bind(0_i64)
-        .execute(&pool)
-        .await
-        .expect("Failed to insert customer");
+    sqlx::query(
+        "INSERT INTO test_customer_balances (customer_id, tenant_id, balance) VALUES ($1, $2, $3)",
+    )
+    .bind(customer_id)
+    .bind(tenant_id)
+    .bind(0_i64)
+    .execute(&pool)
+    .await
+    .expect("Failed to insert customer");
 
     // Start a transaction
     let mut tx = pool.begin().await.expect("Failed to begin transaction");
@@ -287,13 +299,15 @@ async fn test_try_apply_event_skips_duplicate() {
     let event_id = Uuid::new_v4();
 
     // Insert initial customer balance
-    sqlx::query("INSERT INTO test_customer_balances (customer_id, tenant_id, balance) VALUES ($1, $2, $3)")
-        .bind(customer_id)
-        .bind(tenant_id)
-        .bind(0_i64)
-        .execute(&pool)
-        .await
-        .expect("Failed to insert customer");
+    sqlx::query(
+        "INSERT INTO test_customer_balances (customer_id, tenant_id, balance) VALUES ($1, $2, $3)",
+    )
+    .bind(customer_id)
+    .bind(tenant_id)
+    .bind(0_i64)
+    .execute(&pool)
+    .await
+    .expect("Failed to insert customer");
 
     // First apply
     let mut tx1 = pool.begin().await.expect("Failed to begin transaction");
@@ -380,13 +394,15 @@ async fn test_try_apply_event_transactional_rollback() {
     let event_id = Uuid::new_v4();
 
     // Insert initial customer balance
-    sqlx::query("INSERT INTO test_customer_balances (customer_id, tenant_id, balance) VALUES ($1, $2, $3)")
-        .bind(customer_id)
-        .bind(tenant_id)
-        .bind(0_i64)
-        .execute(&pool)
-        .await
-        .expect("Failed to insert customer");
+    sqlx::query(
+        "INSERT INTO test_customer_balances (customer_id, tenant_id, balance) VALUES ($1, $2, $3)",
+    )
+    .bind(customer_id)
+    .bind(tenant_id)
+    .bind(0_i64)
+    .execute(&pool)
+    .await
+    .expect("Failed to insert customer");
 
     // Start a transaction
     let mut tx = pool.begin().await.expect("Failed to begin transaction");

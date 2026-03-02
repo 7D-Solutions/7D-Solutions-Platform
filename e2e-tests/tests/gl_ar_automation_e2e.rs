@@ -389,7 +389,11 @@ async fn test_ar_invoice_gl_posting_idempotency() -> Result<()> {
         None,
     )
     .await;
-    assert!(first.is_ok(), "first GL posting must succeed: {:?}", first.err());
+    assert!(
+        first.is_ok(),
+        "first GL posting must succeed: {:?}",
+        first.err()
+    );
 
     // Second posting with same event_id — must return DuplicateEvent
     let second = journal_service::process_gl_posting_request(
@@ -405,7 +409,10 @@ async fn test_ar_invoice_gl_posting_idempotency() -> Result<()> {
 
     match second {
         Err(JournalError::DuplicateEvent(id)) => {
-            assert_eq!(id, event_id, "DuplicateEvent must report the duplicated event_id");
+            assert_eq!(
+                id, event_id,
+                "DuplicateEvent must report the duplicated event_id"
+            );
         }
         other => panic!(
             "Expected DuplicateEvent on duplicate event_id, got: {:?}",
@@ -421,7 +428,10 @@ async fn test_ar_invoice_gl_posting_idempotency() -> Result<()> {
     .bind(event_id)
     .fetch_one(&gl_pool)
     .await?;
-    assert_eq!(entry_count, 1, "exactly one journal entry despite two posting attempts");
+    assert_eq!(
+        entry_count, 1,
+        "exactly one journal entry despite two posting attempts"
+    );
 
     // Exactly one processed_events row
     let proc_count: i64 =
@@ -429,7 +439,10 @@ async fn test_ar_invoice_gl_posting_idempotency() -> Result<()> {
             .bind(event_id)
             .fetch_one(&gl_pool)
             .await?;
-    assert_eq!(proc_count, 1, "exactly one processed_events row (idempotency gate)");
+    assert_eq!(
+        proc_count, 1,
+        "exactly one processed_events row (idempotency gate)"
+    );
 
     cleanup_gl(&gl_pool, &tenant_id).await?;
     cleanup_ar(&ar_pool, &tenant_id).await;
@@ -489,7 +502,10 @@ async fn test_ar_invoice_gl_entry_metadata() -> Result<()> {
 
     assert_eq!(db_tenant, tenant_id, "tenant_id must match the test tenant");
     assert_eq!(db_module, "ar", "source_module must be 'ar'");
-    assert_eq!(db_event_id, event_id, "source_event_id must match the event Uuid");
+    assert_eq!(
+        db_event_id, event_id,
+        "source_event_id must match the event Uuid"
+    );
     assert_eq!(
         db_subject, "gl.events.posting.requested",
         "source_subject must be the NATS subject"
@@ -572,7 +588,10 @@ async fn test_two_ar_invoices_produce_two_gl_entries() -> Result<()> {
     .await
     .map_err(|e| anyhow::anyhow!("Invoice 2 GL posting failed: {:?}", e))?;
 
-    assert_ne!(entry1, entry2, "two invoices must produce two distinct journal entries");
+    assert_ne!(
+        entry1, entry2,
+        "two invoices must produce two distinct journal entries"
+    );
 
     // Verify: exactly 2 journal entries for this tenant
     let entry_count: i64 =

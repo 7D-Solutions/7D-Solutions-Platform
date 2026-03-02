@@ -22,11 +22,7 @@
 
 mod common;
 
-use ap::{
-    http,
-    metrics::ApMetrics,
-    AppState,
-};
+use ap::{http, metrics::ApMetrics, AppState};
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -175,10 +171,7 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind ephemeral port for party server");
-    let port = listener
-        .local_addr()
-        .expect("get party server port")
-        .port();
+    let port = listener.local_addr().expect("get party server port").port();
 
     tokio::spawn(async move {
         axum::serve(listener, router)
@@ -191,10 +184,7 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
     // Safety: serial lock prevents concurrent env var mutation; env::set_var is unsafe since Rust 1.83
     #[allow(unsafe_code)]
     unsafe {
-        std::env::set_var(
-            "PARTY_MASTER_URL",
-            format!("http://127.0.0.1:{}", port),
-        );
+        std::env::set_var("PARTY_MASTER_URL", format!("http://127.0.0.1:{}", port));
     }
 
     port
@@ -375,14 +365,13 @@ async fn test_ap_vendor_party_link_valid_party_id() {
 
     // ── Step 4: Verify party_id persisted in DB ───────────────────────────
     let vendor_uuid = Uuid::parse_str(&vendor_id).expect("vendor_id must be a UUID");
-    let db_party_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT party_id FROM vendors WHERE vendor_id = $1 AND tenant_id = $2",
-    )
-    .bind(vendor_uuid)
-    .bind(AP_TENANT_ID)
-    .fetch_one(&ap_pool)
-    .await
-    .expect("DB query for party_id failed");
+    let db_party_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT party_id FROM vendors WHERE vendor_id = $1 AND tenant_id = $2")
+            .bind(vendor_uuid)
+            .bind(AP_TENANT_ID)
+            .fetch_one(&ap_pool)
+            .await
+            .expect("DB query for party_id failed");
 
     assert_eq!(
         db_party_id,
@@ -417,10 +406,14 @@ async fn test_ap_vendor_party_link_valid_party_id() {
         metadata: None,
     };
 
-    let party2_view =
-        party_service::create_company(&party_pool, AP_TENANT_ID, &party2_req, Uuid::new_v4().to_string())
-            .await
-            .expect("create second party failed");
+    let party2_view = party_service::create_company(
+        &party_pool,
+        AP_TENANT_ID,
+        &party2_req,
+        Uuid::new_v4().to_string(),
+    )
+    .await
+    .expect("create second party failed");
     let party2_id = party2_view.party.id;
 
     let update_body = json!({
@@ -466,7 +459,11 @@ async fn test_ap_vendor_party_link_valid_party_id() {
     )
     .await;
 
-    assert_eq!(get2_status, StatusCode::OK, "GET after update must return 200");
+    assert_eq!(
+        get2_status,
+        StatusCode::OK,
+        "GET after update must return 200"
+    );
     let get2_party_id = get2_resp["party_id"]
         .as_str()
         .expect("party_id must be in GET response after update");
@@ -478,14 +475,13 @@ async fn test_ap_vendor_party_link_valid_party_id() {
     println!("GET after update confirmed: party_id={}", get2_party_id);
 
     // ── Step 6: Query DB to verify party-based lookup ────────────────────
-    let linked_vendors: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT vendor_id FROM vendors WHERE tenant_id = $1 AND party_id = $2",
-    )
-    .bind(AP_TENANT_ID)
-    .bind(party2_id)
-    .fetch_all(&ap_pool)
-    .await
-    .expect("party-based vendor lookup failed");
+    let linked_vendors: Vec<Uuid> =
+        sqlx::query_scalar("SELECT vendor_id FROM vendors WHERE tenant_id = $1 AND party_id = $2")
+            .bind(AP_TENANT_ID)
+            .bind(party2_id)
+            .fetch_all(&ap_pool)
+            .await
+            .expect("party-based vendor lookup failed");
 
     assert!(
         linked_vendors.contains(&vendor_uuid),
@@ -553,10 +549,7 @@ async fn test_ap_vendor_party_link_invalid_party_id_behavior() {
     )
     .await;
 
-    println!(
-        "Invalid party_id behavior: HTTP {} — body={}",
-        status, body
-    );
+    println!("Invalid party_id behavior: HTTP {} — body={}", status, body);
 
     // AP vendors do not validate party_id — the UUID is stored as-is.
     // Current behavior: 201 Created (no Party Master lookup occurs).
@@ -671,14 +664,13 @@ async fn test_ap_vendor_without_party_id() {
 
     // Verify in DB
     let vendor_uuid = Uuid::parse_str(vendor_id).expect("vendor_id must be a UUID");
-    let db_party_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT party_id FROM vendors WHERE vendor_id = $1 AND tenant_id = $2",
-    )
-    .bind(vendor_uuid)
-    .bind(AP_TENANT_ID)
-    .fetch_one(&ap_pool)
-    .await
-    .expect("DB query failed");
+    let db_party_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT party_id FROM vendors WHERE vendor_id = $1 AND tenant_id = $2")
+            .bind(vendor_uuid)
+            .bind(AP_TENANT_ID)
+            .fetch_one(&ap_pool)
+            .await
+            .expect("DB query failed");
 
     assert!(
         db_party_id.is_none(),

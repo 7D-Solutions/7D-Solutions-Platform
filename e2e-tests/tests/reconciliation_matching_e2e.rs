@@ -14,11 +14,11 @@
 
 mod common;
 
-use ar_rs::reconciliation::{run_reconciliation, RunReconOutcome, RunReconRequest};
 use ar_rs::recon_scheduler::{
-    claim_and_execute_scheduled_run, create_scheduled_run,
-    CreateScheduledRunOutcome, CreateScheduledRunRequest, ScheduledRunExecutionOutcome,
+    claim_and_execute_scheduled_run, create_scheduled_run, CreateScheduledRunOutcome,
+    CreateScheduledRunRequest, ScheduledRunExecutionOutcome,
 };
+use ar_rs::reconciliation::{run_reconciliation, RunReconOutcome, RunReconRequest};
 use chrono::{NaiveDateTime, Utc};
 use common::{generate_test_tenant, get_ar_pool};
 use uuid::Uuid;
@@ -134,7 +134,8 @@ async fn create_charge(
 
 /// Run the migration to create reconciliation tables.
 async fn run_recon_migration(pool: &sqlx::PgPool) {
-    let sql = include_str!("../../modules/ar/db/migrations/20260217000006_create_recon_matching.sql");
+    let sql =
+        include_str!("../../modules/ar/db/migrations/20260217000006_create_recon_matching.sql");
     sqlx::raw_sql(sql)
         .execute(pool)
         .await
@@ -227,13 +228,12 @@ async fn test_recon_exact_match() {
     }
 
     // Verify match record in DB
-    let match_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_recon_matches WHERE recon_run_id = $1",
-    )
-    .bind(run_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count query failed");
+    let match_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_recon_matches WHERE recon_run_id = $1")
+            .bind(run_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count query failed");
     assert_eq!(match_count, 1);
 
     // Verify match confidence
@@ -244,16 +244,18 @@ async fn test_recon_exact_match() {
     .fetch_one(&pool)
     .await
     .expect("confidence query failed");
-    assert!((confidence - 1.0).abs() < f64::EPSILON, "exact match confidence must be 1.0");
+    assert!(
+        (confidence - 1.0).abs() < f64::EPSILON,
+        "exact match confidence must be 1.0"
+    );
 
     // Verify match method
-    let method: String = sqlx::query_scalar(
-        "SELECT match_method FROM ar_recon_matches WHERE recon_run_id = $1",
-    )
-    .bind(run_id)
-    .fetch_one(&pool)
-    .await
-    .expect("method query failed");
+    let method: String =
+        sqlx::query_scalar("SELECT match_method FROM ar_recon_matches WHERE recon_run_id = $1")
+            .bind(run_id)
+            .fetch_one(&pool)
+            .await
+            .expect("method query failed");
     assert_eq!(method, "exact");
 
     // Verify outbox events
@@ -364,7 +366,10 @@ async fn test_recon_unmatched_payment_exception() {
     match result {
         RunReconOutcome::Executed(r) => {
             assert_eq!(r.match_count, 0);
-            assert_eq!(r.exception_count, 1, "expected 1 exception for unmatched payment");
+            assert_eq!(
+                r.exception_count, 1,
+                "expected 1 exception for unmatched payment"
+            );
         }
         RunReconOutcome::AlreadyExists(_) => panic!("expected Executed"),
     }
@@ -421,7 +426,10 @@ async fn test_recon_ambiguous_match_exception() {
 
     match result {
         RunReconOutcome::Executed(r) => {
-            assert_eq!(r.match_count, 0, "ambiguous match must not be auto-resolved");
+            assert_eq!(
+                r.match_count, 0,
+                "ambiguous match must not be auto-resolved"
+            );
             assert_eq!(r.exception_count, 1, "expected ambiguous_match exception");
         }
         RunReconOutcome::AlreadyExists(_) => panic!("expected Executed"),
@@ -478,13 +486,12 @@ async fn test_recon_idempotency() {
     }
 
     // Only one run row and one match row
-    let run_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_recon_runs WHERE recon_run_id = $1",
-    )
-    .bind(run_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count failed");
+    let run_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_recon_runs WHERE recon_run_id = $1")
+            .bind(run_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count failed");
     assert_eq!(run_count, 1);
 
     cleanup_tenant(&pool, &tenant_id).await;
@@ -542,8 +549,14 @@ async fn test_recon_determinism_across_runs() {
 
     // Run 1 matched everything; run 2 sees nothing to match
     assert_eq!(r1.match_count, 1);
-    assert_eq!(r2.payment_count, 0, "already-matched payments must be excluded from run 2");
-    assert_eq!(r2.invoice_count, 0, "already-matched invoices must be excluded from run 2");
+    assert_eq!(
+        r2.payment_count, 0,
+        "already-matched payments must be excluded from run 2"
+    );
+    assert_eq!(
+        r2.invoice_count, 0,
+        "already-matched invoices must be excluded from run 2"
+    );
     assert_eq!(r2.match_count, 0);
 
     // Verify first run match details
@@ -585,23 +598,21 @@ async fn test_recon_outbox_atomicity() {
     .expect("recon run failed");
 
     // Verify atomicity: run row exists
-    let run_exists: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_recon_runs WHERE recon_run_id = $1",
-    )
-    .bind(run_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let run_exists: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_recon_runs WHERE recon_run_id = $1")
+            .bind(run_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(run_exists, 1);
 
     // Match row exists
-    let match_exists: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_recon_matches WHERE recon_run_id = $1",
-    )
-    .bind(run_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let match_exists: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_recon_matches WHERE recon_run_id = $1")
+            .bind(run_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(match_exists, 1);
 
     // Outbox events exist (run_started + match_applied = 2)
@@ -612,7 +623,10 @@ async fn test_recon_outbox_atomicity() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(outbox_count, 2, "run_started + match_applied = 2 outbox events");
+    assert_eq!(
+        outbox_count, 2,
+        "run_started + match_applied = 2 outbox events"
+    );
 
     // Verify DATA_MUTATION class on all outbox events
     let mutation_classes: Vec<String> = sqlx::query_scalar(
@@ -623,7 +637,10 @@ async fn test_recon_outbox_atomicity() {
     .await
     .unwrap();
     for mc in &mutation_classes {
-        assert_eq!(mc, "DATA_MUTATION", "recon events must carry DATA_MUTATION class");
+        assert_eq!(
+            mc, "DATA_MUTATION",
+            "recon events must carry DATA_MUTATION class"
+        );
     }
 
     cleanup_tenant(&pool, &tenant_id).await;
@@ -672,7 +689,10 @@ async fn test_recon_already_matched_excluded() {
 
     match result {
         RunReconOutcome::Executed(r) => {
-            assert_eq!(r.payment_count, 1, "only the new payment should be in scope");
+            assert_eq!(
+                r.payment_count, 1,
+                "only the new payment should be in scope"
+            );
             assert_eq!(r.invoice_count, 0, "first invoice already matched");
             assert_eq!(r.match_count, 0, "no matching invoice for $99.99 payment");
             assert_eq!(r.exception_count, 1, "unmatched payment exception");
@@ -716,7 +736,10 @@ async fn test_recon_customer_isolation() {
     match result {
         RunReconOutcome::Executed(r) => {
             assert_eq!(r.match_count, 1, "only customer A's payment should match");
-            assert_eq!(r.exception_count, 1, "customer B's payment has no matching invoice");
+            assert_eq!(
+                r.exception_count, 1,
+                "customer B's payment has no matching invoice"
+            );
         }
         _ => panic!("expected Executed"),
     }
@@ -774,10 +797,13 @@ async fn run_scheduled_run_migrations(pool: &sqlx::PgPool) {
         .await
         .expect("failed to acquire migration advisory lock");
 
-    let recon_sql = include_str!("../../modules/ar/db/migrations/20260217000006_create_recon_matching.sql");
+    let recon_sql =
+        include_str!("../../modules/ar/db/migrations/20260217000006_create_recon_matching.sql");
     let _ = sqlx::raw_sql(recon_sql).execute(pool).await;
 
-    let sched_sql = include_str!("../../modules/ar/db/migrations/20260217000009_create_recon_scheduled_runs.sql");
+    let sched_sql = include_str!(
+        "../../modules/ar/db/migrations/20260217000009_create_recon_scheduled_runs.sql"
+    );
     let _ = sqlx::raw_sql(sched_sql).execute(pool).await;
 
     sqlx::query("SELECT pg_advisory_unlock($1)")
@@ -859,19 +885,19 @@ async fn test_integrated_scheduled_recon_produces_stable_results() {
     // --- Step 2: Worker claims and executes the run ---
     let worker_id = Uuid::new_v4().to_string();
     let correlation_id = Uuid::new_v4().to_string();
-    let exec_result = claim_and_execute_scheduled_run(
-        &pool,
-        &worker_id,
-        &correlation_id,
-        Some(&tenant_id),
-    )
-    .await
-    .expect("claim_and_execute_scheduled_run failed");
+    let exec_result =
+        claim_and_execute_scheduled_run(&pool, &worker_id, &correlation_id, Some(&tenant_id))
+            .await
+            .expect("claim_and_execute_scheduled_run failed");
 
     match exec_result {
         ScheduledRunExecutionOutcome::Completed(r) => {
             assert_eq!(r.match_count.unwrap_or(0), 1, "customer A's exact match");
-            assert_eq!(r.exception_count.unwrap_or(0), 1, "customer B's unmatched payment");
+            assert_eq!(
+                r.exception_count.unwrap_or(0),
+                1,
+                "customer B's unmatched payment"
+            );
             assert_eq!(r.status, "completed");
         }
         ScheduledRunExecutionOutcome::NothingToClaim => {
@@ -883,23 +909,24 @@ async fn test_integrated_scheduled_recon_produces_stable_results() {
     }
 
     // --- Step 3: Verify matches and exceptions in DB ---
-    let match_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_recon_matches WHERE app_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("match count query failed");
+    let match_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_recon_matches WHERE app_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("match count query failed");
     assert_eq!(match_count, 1, "exactly one match from scheduled run");
 
-    let exception_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_recon_exceptions WHERE app_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("exception count query failed");
-    assert_eq!(exception_count, 1, "exactly one exception from scheduled run");
+    let exception_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_recon_exceptions WHERE app_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("exception count query failed");
+    assert_eq!(
+        exception_count, 1,
+        "exactly one exception from scheduled run"
+    );
 
     // --- Step 4: Second scheduled run → 0 new matches (stability) ---
     let (window_start2, window_end2) = make_window(4);
@@ -918,18 +945,18 @@ async fn test_integrated_scheduled_recon_produces_stable_results() {
 
     let worker_id2 = Uuid::new_v4().to_string();
     let correlation_id2 = Uuid::new_v4().to_string();
-    let exec_result2 = claim_and_execute_scheduled_run(
-        &pool,
-        &worker_id2,
-        &correlation_id2,
-        Some(&tenant_id),
-    )
-    .await
-    .expect("second claim_and_execute failed");
+    let exec_result2 =
+        claim_and_execute_scheduled_run(&pool, &worker_id2, &correlation_id2, Some(&tenant_id))
+            .await
+            .expect("second claim_and_execute failed");
 
     match exec_result2 {
         ScheduledRunExecutionOutcome::Completed(r) => {
-            assert_eq!(r.match_count.unwrap_or(0), 0, "already-matched items excluded from second run");
+            assert_eq!(
+                r.match_count.unwrap_or(0),
+                0,
+                "already-matched items excluded from second run"
+            );
         }
         ScheduledRunExecutionOutcome::NothingToClaim => {
             panic!("expected Completed, got NothingToClaim");

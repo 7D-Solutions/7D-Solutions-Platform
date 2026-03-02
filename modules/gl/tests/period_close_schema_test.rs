@@ -12,7 +12,6 @@
 /// Testing constraint violations in Rust causes pool exhaustion issues.
 ///
 /// Uses test-threads=1 (serial execution) and singleton DB pool.
-
 mod common;
 
 use common::get_test_pool;
@@ -42,7 +41,10 @@ async fn test_close_fields_nullable() {
     .fetch_one(&pool)
     .await;
 
-    assert!(result.is_ok(), "Should insert period with NULL close fields");
+    assert!(
+        result.is_ok(),
+        "Should insert period with NULL close fields"
+    );
 
     // Verify all close fields are NULL
     let period_id: Uuid = result.unwrap().get("id");
@@ -58,8 +60,12 @@ async fn test_close_fields_nullable() {
     .await
     .unwrap();
 
-    assert!(row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("close_requested_at").is_none());
-    assert!(row.get::<Option<chrono::DateTime<chrono::Utc>>, _>("closed_at").is_none());
+    assert!(row
+        .get::<Option<chrono::DateTime<chrono::Utc>>, _>("close_requested_at")
+        .is_none());
+    assert!(row
+        .get::<Option<chrono::DateTime<chrono::Utc>>, _>("closed_at")
+        .is_none());
     assert!(row.get::<Option<String>, _>("closed_by").is_none());
     assert!(row.get::<Option<String>, _>("close_reason").is_none());
     assert!(row.get::<Option<String>, _>("close_hash").is_none());

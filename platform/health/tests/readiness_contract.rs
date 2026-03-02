@@ -69,10 +69,17 @@ async fn healthz_returns_200() {
 #[tokio::test]
 async fn healthz_body_matches_contract() {
     let (_, json) = get_json(liveness_route(), "/healthz").await;
-    assert_eq!(json["status"], "alive", "liveness body must be {{\"status\":\"alive\"}}");
+    assert_eq!(
+        json["status"], "alive",
+        "liveness body must be {{\"status\":\"alive\"}}"
+    );
     // Contract says the body is exactly {"status":"alive"} — no extra fields.
     let obj = json.as_object().unwrap();
-    assert_eq!(obj.len(), 1, "liveness response must have exactly one field");
+    assert_eq!(
+        obj.len(),
+        1,
+        "liveness response must have exactly one field"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -127,8 +134,7 @@ async fn ready_all_up_timestamp_is_iso8601() {
     let (_, json) = get_json(ready_route_all_up(), "/api/ready").await;
     let ts = json["timestamp"].as_str().unwrap();
     // chrono can parse it back — confirms ISO 8601 / RFC 3339
-    chrono::DateTime::parse_from_rfc3339(ts)
-        .expect("timestamp must be valid RFC 3339 / ISO 8601");
+    chrono::DateTime::parse_from_rfc3339(ts).expect("timestamp must be valid RFC 3339 / ISO 8601");
 }
 
 // ---------------------------------------------------------------------------

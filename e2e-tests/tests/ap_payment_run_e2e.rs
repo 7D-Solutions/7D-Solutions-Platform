@@ -26,8 +26,8 @@ mod common;
 use ap::{
     domain::{
         bills::{
-            approve::approve_bill, service::create_bill, ApproveBillRequest,
-            CreateBillLineRequest, CreateBillRequest,
+            approve::approve_bill, service::create_bill, ApproveBillRequest, CreateBillLineRequest,
+            CreateBillRequest,
         },
         payment_runs::{
             builder::create_payment_run, execute::execute_payment_run, CreatePaymentRunRequest,
@@ -99,7 +99,10 @@ fn make_ap_router(pool: PgPool) -> Router {
         .with_state(state.clone());
 
     Router::new()
-        .route("/api/ap/vendors/{vendor_id}", get(http::vendors::get_vendor))
+        .route(
+            "/api/ap/vendors/{vendor_id}",
+            get(http::vendors::get_vendor),
+        )
         .with_state(state)
         .merge(ap_mutations)
 }
@@ -501,7 +504,10 @@ async fn test_ap_payment_run_full_lifecycle_with_party_id() {
     .fetch_one(&ap_pool)
     .await
     .expect("fetch event count");
-    assert_eq!(event_count, 1, "ap.payment_executed event must be in outbox");
+    assert_eq!(
+        event_count, 1,
+        "ap.payment_executed event must be in outbox"
+    );
 
     // ── Step 8: Verify party_id round-trips on vendor GET ────────────────────
     let (get_status, get_resp) = ap_send(
@@ -532,14 +538,13 @@ async fn test_ap_payment_run_full_lifecycle_with_party_id() {
     println!("party_id round-trip verified: {}", get_party_id);
 
     // Verify party_id also in DB
-    let db_party_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT party_id FROM vendors WHERE vendor_id = $1 AND tenant_id = $2",
-    )
-    .bind(vendor_id)
-    .bind(TENANT_ID)
-    .fetch_one(&ap_pool)
-    .await
-    .expect("DB query for party_id");
+    let db_party_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT party_id FROM vendors WHERE vendor_id = $1 AND tenant_id = $2")
+            .bind(vendor_id)
+            .bind(TENANT_ID)
+            .fetch_one(&ap_pool)
+            .await
+            .expect("DB query for party_id");
     assert_eq!(
         db_party_id,
         Some(party_id),
@@ -677,14 +682,13 @@ async fn test_bill_vendor_party_id_queryable() {
             .expect("fetch bill vendor_id");
     assert_eq!(bill_vendor_id, vendor_id);
 
-    let db_party_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT party_id FROM vendors WHERE vendor_id = $1 AND tenant_id = $2",
-    )
-    .bind(bill_vendor_id)
-    .bind(TENANT_ID)
-    .fetch_one(&ap_pool)
-    .await
-    .expect("fetch vendor party_id");
+    let db_party_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT party_id FROM vendors WHERE vendor_id = $1 AND tenant_id = $2")
+            .bind(bill_vendor_id)
+            .bind(TENANT_ID)
+            .fetch_one(&ap_pool)
+            .await
+            .expect("fetch vendor party_id");
 
     assert_eq!(
         db_party_id,

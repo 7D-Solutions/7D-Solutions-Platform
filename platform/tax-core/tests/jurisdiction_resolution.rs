@@ -351,14 +351,7 @@ fn specific_tax_code_overrides_generic_rule() {
     let cfg = multi_jurisdiction_config();
     let ca = addr("US", "CA");
     // EXEMPT_FOOD has a specific exempt rule; the generic sales_tax should be dropped
-    let result = resolve_jurisdiction(
-        &ca,
-        &ca,
-        &[],
-        Some("EXEMPT_FOOD"),
-        date(2026, 2, 1),
-        &cfg,
-    );
+    let result = resolve_jurisdiction(&ca, &ca, &[], Some("EXEMPT_FOOD"), date(2026, 2, 1), &cfg);
     match result {
         JurisdictionResult::Resolved { rules, .. } => {
             assert_eq!(rules.len(), 1, "specific rule should override generic");
@@ -374,14 +367,7 @@ fn unmatched_tax_code_falls_back_to_generic() {
     let cfg = multi_jurisdiction_config();
     let ca = addr("US", "CA");
     // "ELECTRONICS" has no specific rule — should get the generic sales_tax
-    let result = resolve_jurisdiction(
-        &ca,
-        &ca,
-        &[],
-        Some("ELECTRONICS"),
-        date(2026, 2, 1),
-        &cfg,
-    );
+    let result = resolve_jurisdiction(&ca, &ca, &[], Some("ELECTRONICS"), date(2026, 2, 1), &cfg);
     match result {
         JurisdictionResult::Resolved { rules, .. } => {
             assert_eq!(rules.len(), 1);
@@ -400,7 +386,9 @@ fn germany_food_tax_code_gets_reduced_rate() {
     match result {
         JurisdictionResult::Resolved { rules, .. } => {
             // Specific FOOD rule should override generic vat rule for vat_reduced type
-            assert!(rules.iter().any(|r| r.tax_type == "vat_reduced" && r.rate == 0.07));
+            assert!(rules
+                .iter()
+                .any(|r| r.tax_type == "vat_reduced" && r.rate == 0.07));
             // vat generic has tax_codes=None, vat_reduced has tax_codes=Some(["FOOD"])
             // They are different tax_types so specificity override only applies per type.
             // Generic vat still applies since its tax_type differs from vat_reduced.

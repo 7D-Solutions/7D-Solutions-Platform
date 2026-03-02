@@ -17,7 +17,10 @@ mod common;
 use anyhow::Result;
 use ar_rs::aging::refresh_aging;
 use ar_rs::payment_allocation::{allocate_payment_fifo, AllocatePaymentRequest};
-use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool, get_subscriptions_pool};
+use common::{
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
+    get_subscriptions_pool,
+};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -111,9 +114,15 @@ async fn cleanup_tenant(
     gl_pool: &PgPool,
     tenant_id: &str,
 ) -> Result<()> {
-    cleanup_tenant_data(ar_pool, payments_pool, subscriptions_pool, gl_pool, tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        ar_pool,
+        payments_pool,
+        subscriptions_pool,
+        gl_pool,
+        tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }
 
@@ -139,7 +148,9 @@ async fn make_credit_note(
         correlation_id: Uuid::new_v4().to_string(),
         causation_id: None,
     };
-    issue_credit_note(pool, req).await.map_err(|e| anyhow::anyhow!("{}", e))?;
+    issue_credit_note(pool, req)
+        .await
+        .map_err(|e| anyhow::anyhow!("{}", e))?;
     Ok(())
 }
 
@@ -157,7 +168,14 @@ async fn test_aging_partial_allocation_single_invoice() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
 
@@ -179,20 +197,35 @@ async fn test_aging_partial_allocation_single_invoice() -> Result<()> {
     .await
     .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-    assert_eq!(result.allocated_amount_cents, 4000, "4000 should be allocated");
+    assert_eq!(
+        result.allocated_amount_cents, 4000,
+        "4000 should be allocated"
+    );
     assert_eq!(result.unallocated_amount_cents, 0, "No remainder");
 
     let snapshot = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
     // Open balance = 10000 - 4000 allocation = 6000
-    assert_eq!(snapshot.days_1_30_minor, 6000,
-        "Partial allocation should reduce 1-30 bucket: 10000 - 4000 = 6000");
+    assert_eq!(
+        snapshot.days_1_30_minor, 6000,
+        "Partial allocation should reduce 1-30 bucket: 10000 - 4000 = 6000"
+    );
     assert_eq!(snapshot.total_outstanding_minor, 6000);
     assert_eq!(snapshot.invoice_count, 1);
 
-    println!("✅ Partial allocation reduces aging: {} minor units remaining", snapshot.days_1_30_minor);
+    println!(
+        "✅ Partial allocation reduces aging: {} minor units remaining",
+        snapshot.days_1_30_minor
+    );
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
     Ok(())
 }
 
@@ -207,7 +240,14 @@ async fn test_aging_multi_invoice_partial_payment_fifo() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
 
@@ -227,12 +267,19 @@ async fn test_aging_multi_invoice_partial_payment_fifo() -> Result<()> {
     assert_eq!(baseline.days_61_90_minor, 8000, "Baseline: 8000 in 61-90");
     assert_eq!(baseline.days_31_60_minor, 6000, "Baseline: 6000 in 31-60");
     assert_eq!(baseline.days_1_30_minor, 3000, "Baseline: 3000 in 1-30");
-    assert_eq!(baseline.total_outstanding_minor, 22000, "Baseline total: 22000");
+    assert_eq!(
+        baseline.total_outstanding_minor, 22000,
+        "Baseline total: 22000"
+    );
 
-    println!("  Baseline: 90+={}, 61-90={}, 31-60={}, 1-30={}, total={}",
-        baseline.days_over_90_minor, baseline.days_61_90_minor,
-        baseline.days_31_60_minor, baseline.days_1_30_minor,
-        baseline.total_outstanding_minor);
+    println!(
+        "  Baseline: 90+={}, 61-90={}, 31-60={}, 1-30={}, total={}",
+        baseline.days_over_90_minor,
+        baseline.days_61_90_minor,
+        baseline.days_31_60_minor,
+        baseline.days_1_30_minor,
+        baseline.total_outstanding_minor
+    );
 
     // Allocate 9000 via FIFO: should cover Invoice A (5000) fully + Invoice B (4000 partial)
     let result = allocate_payment_fifo(
@@ -249,36 +296,66 @@ async fn test_aging_multi_invoice_partial_payment_fifo() -> Result<()> {
     .await
     .map_err(|e| anyhow::anyhow!("{}", e))?;
 
-    assert_eq!(result.allocated_amount_cents, 9000, "Full 9000 should be allocated");
+    assert_eq!(
+        result.allocated_amount_cents, 9000,
+        "Full 9000 should be allocated"
+    );
     assert_eq!(result.unallocated_amount_cents, 0);
-    assert_eq!(result.allocations.len(), 2, "Should allocate to 2 invoices (A fully, B partially)");
+    assert_eq!(
+        result.allocations.len(),
+        2,
+        "Should allocate to 2 invoices (A fully, B partially)"
+    );
 
     let snapshot = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
     // Invoice A: 5000 - 5000 = 0 (fully allocated, removed from aging)
-    assert_eq!(snapshot.days_over_90_minor, 0,
-        "Invoice A fully allocated: 5000 - 5000 = 0 in 90+ bucket");
+    assert_eq!(
+        snapshot.days_over_90_minor, 0,
+        "Invoice A fully allocated: 5000 - 5000 = 0 in 90+ bucket"
+    );
     // Invoice B: 8000 - 4000 = 4000 remaining
-    assert_eq!(snapshot.days_61_90_minor, 4000,
-        "Invoice B partially allocated: 8000 - 4000 = 4000 in 61-90 bucket");
+    assert_eq!(
+        snapshot.days_61_90_minor, 4000,
+        "Invoice B partially allocated: 8000 - 4000 = 4000 in 61-90 bucket"
+    );
     // Invoice C: unchanged at 6000
-    assert_eq!(snapshot.days_31_60_minor, 6000,
-        "Invoice C unchanged: 6000 in 31-60 bucket");
+    assert_eq!(
+        snapshot.days_31_60_minor, 6000,
+        "Invoice C unchanged: 6000 in 31-60 bucket"
+    );
     // Invoice D: unchanged at 3000
-    assert_eq!(snapshot.days_1_30_minor, 3000,
-        "Invoice D unchanged: 3000 in 1-30 bucket");
+    assert_eq!(
+        snapshot.days_1_30_minor, 3000,
+        "Invoice D unchanged: 3000 in 1-30 bucket"
+    );
     // Total: 0 + 4000 + 6000 + 3000 = 13000
-    assert_eq!(snapshot.total_outstanding_minor, 13000,
-        "Total after allocation: 22000 - 9000 = 13000");
-    assert_eq!(snapshot.invoice_count, 3,
-        "3 invoices with open balance (Invoice A fully covered)");
+    assert_eq!(
+        snapshot.total_outstanding_minor, 13000,
+        "Total after allocation: 22000 - 9000 = 13000"
+    );
+    assert_eq!(
+        snapshot.invoice_count, 3,
+        "3 invoices with open balance (Invoice A fully covered)"
+    );
 
-    println!("✅ Multi-invoice FIFO allocation: 90+={}, 61-90={}, 31-60={}, 1-30={}, total={}",
-        snapshot.days_over_90_minor, snapshot.days_61_90_minor,
-        snapshot.days_31_60_minor, snapshot.days_1_30_minor,
-        snapshot.total_outstanding_minor);
+    println!(
+        "✅ Multi-invoice FIFO allocation: 90+={}, 61-90={}, 31-60={}, 1-30={}, total={}",
+        snapshot.days_over_90_minor,
+        snapshot.days_61_90_minor,
+        snapshot.days_31_60_minor,
+        snapshot.days_1_30_minor,
+        snapshot.total_outstanding_minor
+    );
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
     Ok(())
 }
 
@@ -292,7 +369,14 @@ async fn test_aging_full_allocation_removes_from_aging() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
 
@@ -318,16 +402,30 @@ async fn test_aging_full_allocation_removes_from_aging() -> Result<()> {
 
     let snapshot = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
-    assert_eq!(snapshot.days_31_60_minor, 0,
-        "Fully allocated invoice must not appear in 31-60 bucket");
-    assert_eq!(snapshot.current_minor, 2000,
-        "Second invoice should still appear in current bucket");
+    assert_eq!(
+        snapshot.days_31_60_minor, 0,
+        "Fully allocated invoice must not appear in 31-60 bucket"
+    );
+    assert_eq!(
+        snapshot.current_minor, 2000,
+        "Second invoice should still appear in current bucket"
+    );
     assert_eq!(snapshot.total_outstanding_minor, 2000);
     assert_eq!(snapshot.invoice_count, 1, "Only 1 open invoice remaining");
 
-    println!("✅ Full allocation removes invoice from aging, {} outstanding", snapshot.total_outstanding_minor);
+    println!(
+        "✅ Full allocation removes invoice from aging, {} outstanding",
+        snapshot.total_outstanding_minor
+    );
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
     Ok(())
 }
 
@@ -341,7 +439,14 @@ async fn test_aging_allocation_plus_credit_note_plus_charge() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
 
@@ -372,14 +477,26 @@ async fn test_aging_allocation_plus_credit_note_plus_charge() -> Result<()> {
     let snapshot = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
     // Open balance = 20000 - 3000 (charge) - 5000 (allocation) - 2000 (credit) = 10000
-    assert_eq!(snapshot.days_1_30_minor, 10000,
-        "Combined: 20000 - 3000 charge - 5000 alloc - 2000 credit = 10000");
+    assert_eq!(
+        snapshot.days_1_30_minor, 10000,
+        "Combined: 20000 - 3000 charge - 5000 alloc - 2000 credit = 10000"
+    );
     assert_eq!(snapshot.total_outstanding_minor, 10000);
     assert_eq!(snapshot.invoice_count, 1);
 
-    println!("✅ Charge + allocation + credit note combined: {} remaining", snapshot.days_1_30_minor);
+    println!(
+        "✅ Charge + allocation + credit note combined: {} remaining",
+        snapshot.days_1_30_minor
+    );
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
     Ok(())
 }
 
@@ -393,7 +510,14 @@ async fn test_aging_allocation_idempotent_refresh() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
 
@@ -420,14 +544,25 @@ async fn test_aging_allocation_idempotent_refresh() -> Result<()> {
 
     assert_eq!(snap1.id, snap2.id, "Repeated refresh must upsert same row");
     assert_eq!(snap1.days_61_90_minor, 9000, "15000 - 6000 = 9000");
-    assert_eq!(snap1.total_outstanding_minor, snap2.total_outstanding_minor,
-        "Totals must match across refreshes");
-    assert_eq!(snap1.days_61_90_minor, snap2.days_61_90_minor,
-        "Bucket amounts must match across refreshes");
+    assert_eq!(
+        snap1.total_outstanding_minor, snap2.total_outstanding_minor,
+        "Totals must match across refreshes"
+    );
+    assert_eq!(
+        snap1.days_61_90_minor, snap2.days_61_90_minor,
+        "Bucket amounts must match across refreshes"
+    );
 
     println!("✅ Idempotent: same row, same totals after repeated refresh");
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
     Ok(())
 }
 
@@ -446,7 +581,14 @@ async fn test_aging_multi_bucket_reconciliation() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
 
@@ -464,11 +606,19 @@ async fn test_aging_multi_bucket_reconciliation() -> Result<()> {
 
     // Total: 2000 + 4000 + 3000 + 5000 + 6000 = 20000
     let baseline = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
-    assert_eq!(baseline.total_outstanding_minor, 20000, "Baseline total: 20000");
-    println!("  Baseline: over_90={}, 61-90={}, 31-60={}, 1-30={}, current={}, total={}",
-        baseline.days_over_90_minor, baseline.days_61_90_minor,
-        baseline.days_31_60_minor, baseline.days_1_30_minor,
-        baseline.current_minor, baseline.total_outstanding_minor);
+    assert_eq!(
+        baseline.total_outstanding_minor, 20000,
+        "Baseline total: 20000"
+    );
+    println!(
+        "  Baseline: over_90={}, 61-90={}, 31-60={}, 1-30={}, current={}, total={}",
+        baseline.days_over_90_minor,
+        baseline.days_61_90_minor,
+        baseline.days_31_60_minor,
+        baseline.days_1_30_minor,
+        baseline.current_minor,
+        baseline.total_outstanding_minor
+    );
 
     // Allocate 7500 via FIFO:
     // E: 2000 fully allocated (0 remaining)   → over_90 = 0
@@ -496,22 +646,30 @@ async fn test_aging_multi_bucket_reconciliation() -> Result<()> {
     let snapshot = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
     // Verify each bucket reconciles
-    assert_eq!(snapshot.days_over_90_minor, 0,
-        "Invoice E fully allocated: 2000 - 2000 = 0");
-    assert_eq!(snapshot.days_61_90_minor, 0,
-        "Invoice D fully allocated: 4000 - 4000 = 0");
-    assert_eq!(snapshot.days_31_60_minor, 1500,
-        "Invoice C partially allocated: 3000 - 1500 = 1500");
-    assert_eq!(snapshot.days_1_30_minor, 5000,
-        "Invoice B untouched: 5000");
-    assert_eq!(snapshot.current_minor, 6000,
-        "Invoice A untouched: 6000");
+    assert_eq!(
+        snapshot.days_over_90_minor, 0,
+        "Invoice E fully allocated: 2000 - 2000 = 0"
+    );
+    assert_eq!(
+        snapshot.days_61_90_minor, 0,
+        "Invoice D fully allocated: 4000 - 4000 = 0"
+    );
+    assert_eq!(
+        snapshot.days_31_60_minor, 1500,
+        "Invoice C partially allocated: 3000 - 1500 = 1500"
+    );
+    assert_eq!(snapshot.days_1_30_minor, 5000, "Invoice B untouched: 5000");
+    assert_eq!(snapshot.current_minor, 6000, "Invoice A untouched: 6000");
 
     // Total: 0 + 0 + 1500 + 5000 + 6000 = 12500
-    assert_eq!(snapshot.total_outstanding_minor, 12500,
-        "Total after allocation: 20000 - 7500 = 12500");
-    assert_eq!(snapshot.invoice_count, 3,
-        "3 invoices with open balance (E and D fully covered)");
+    assert_eq!(
+        snapshot.total_outstanding_minor, 12500,
+        "Total after allocation: 20000 - 7500 = 12500"
+    );
+    assert_eq!(
+        snapshot.invoice_count, 3,
+        "3 invoices with open balance (E and D fully covered)"
+    );
 
     // Verify reconciliation: total = sum of all buckets
     let bucket_sum = snapshot.current_minor
@@ -519,16 +677,33 @@ async fn test_aging_multi_bucket_reconciliation() -> Result<()> {
         + snapshot.days_31_60_minor
         + snapshot.days_61_90_minor
         + snapshot.days_over_90_minor;
-    assert_eq!(bucket_sum, snapshot.total_outstanding_minor,
-        "Bucket sum must equal total outstanding (reconciliation check)");
+    assert_eq!(
+        bucket_sum, snapshot.total_outstanding_minor,
+        "Bucket sum must equal total outstanding (reconciliation check)"
+    );
 
     println!("✅ Multi-bucket reconciliation after FIFO allocation:");
-    println!("   over_90={}, 61-90={}, 31-60={}, 1-30={}, current={}, total={}",
-        snapshot.days_over_90_minor, snapshot.days_61_90_minor,
-        snapshot.days_31_60_minor, snapshot.days_1_30_minor,
-        snapshot.current_minor, snapshot.total_outstanding_minor);
-    println!("   Bucket sum ({}) = total ({}): ✓", bucket_sum, snapshot.total_outstanding_minor);
+    println!(
+        "   over_90={}, 61-90={}, 31-60={}, 1-30={}, current={}, total={}",
+        snapshot.days_over_90_minor,
+        snapshot.days_61_90_minor,
+        snapshot.days_31_60_minor,
+        snapshot.days_1_30_minor,
+        snapshot.current_minor,
+        snapshot.total_outstanding_minor
+    );
+    println!(
+        "   Bucket sum ({}) = total ({}): ✓",
+        bucket_sum, snapshot.total_outstanding_minor
+    );
 
-    cleanup_tenant(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id).await?;
+    cleanup_tenant(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await?;
     Ok(())
 }

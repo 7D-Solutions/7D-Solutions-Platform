@@ -136,34 +136,31 @@ fn make_payment_failed_msg(
 // ============================================================================
 
 async fn count_outbox(pool: &sqlx::PgPool, tenant_id: &str, subject: &str) -> i64 {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND subject = $2",
-    )
-    .bind(tenant_id)
-    .bind(subject)
-    .fetch_one(pool)
-    .await
-    .unwrap_or((0,));
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND subject = $2")
+            .bind(tenant_id)
+            .bind(subject)
+            .fetch_one(pool)
+            .await
+            .unwrap_or((0,));
     row.0
 }
 
 async fn count_processed(pool: &sqlx::PgPool, event_id: Uuid) -> i64 {
-    let row: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
-            .bind(event_id)
-            .fetch_one(pool)
-            .await
-            .unwrap_or((0,));
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
+        .bind(event_id)
+        .fetch_one(pool)
+        .await
+        .unwrap_or((0,));
     row.0
 }
 
 async fn count_dlq(pool: &sqlx::PgPool, tenant_id: &str) -> i64 {
-    let row: (i64,) =
-        sqlx::query_as("SELECT COUNT(*) FROM failed_events WHERE tenant_id = $1")
-            .bind(tenant_id)
-            .fetch_one(pool)
-            .await
-            .unwrap_or((0,));
+    let row: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM failed_events WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_one(pool)
+        .await
+        .unwrap_or((0,));
     row.0
 }
 

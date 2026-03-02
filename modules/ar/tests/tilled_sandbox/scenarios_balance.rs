@@ -62,10 +62,16 @@ mod tests {
                 txn.id, txn.source_type, txn.amount, txn.status, txn.source_id, txn.payout_id
             );
             assert!(!txn.id.is_empty(), "balance transaction must have an ID");
-            assert!(!txn.status.is_empty(), "balance transaction must have a status");
+            assert!(
+                !txn.status.is_empty(),
+                "balance transaction must have a status"
+            );
         }
 
-        eprintln!("[scenario-b1] PASS — {} balance transactions found", resp.total.unwrap_or(0));
+        eprintln!(
+            "[scenario-b1] PASS — {} balance transactions found",
+            resp.total.unwrap_or(0)
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -241,7 +247,10 @@ mod tests {
             }
         };
 
-        eprintln!("[scenario-b4] found payout_id={} in balance transactions", payout_id);
+        eprintln!(
+            "[scenario-b4] found payout_id={} in balance transactions",
+            payout_id
+        );
 
         let fetched = retry
             .execute(|| client.get_payout(&payout_id))

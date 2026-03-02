@@ -18,12 +18,12 @@
 //! ```
 
 use chrono::Utc;
+use projections::cursor::ProjectionCursor;
+use projections::metrics::ProjectionMetrics;
 use projections::{
     compute_versioned_digest, create_shadow_cursor_table, create_shadow_table, drop_shadow_table,
     save_shadow_cursor, swap_cursor_tables_atomic, swap_tables_atomic,
 };
-use projections::cursor::ProjectionCursor;
-use projections::metrics::ProjectionMetrics;
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -45,7 +45,10 @@ const PROJECTION_NAME: &str = "scale_tenant_billing_summary";
 async fn get_projections_pool() -> PgPool {
     let url = std::env::var("PROJECTIONS_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
-        .unwrap_or_else(|_| "postgresql://projections_user:projections_pass@localhost:5439/projections_db".to_string());
+        .unwrap_or_else(|_| {
+            "postgresql://projections_user:projections_pass@localhost:5439/projections_db"
+                .to_string()
+        });
     PgPool::connect(&url)
         .await
         .expect("Failed to connect to projections database")
@@ -54,33 +57,48 @@ async fn get_projections_pool() -> PgPool {
 async fn get_ar_pool() -> PgPool {
     let url = std::env::var("AR_DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://ar_user:ar_pass@localhost:5434/ar_db".to_string());
-    PgPool::connect(&url).await.expect("Failed to connect to AR database")
+    PgPool::connect(&url)
+        .await
+        .expect("Failed to connect to AR database")
 }
 
 async fn get_payments_pool() -> PgPool {
-    let url = std::env::var("PAYMENTS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string());
-    PgPool::connect(&url).await.expect("Failed to connect to Payments database")
+    let url = std::env::var("PAYMENTS_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string()
+    });
+    PgPool::connect(&url)
+        .await
+        .expect("Failed to connect to Payments database")
 }
 
 async fn get_subscriptions_pool() -> PgPool {
-    let url = std::env::var("SUBSCRIPTIONS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db".to_string());
-    PgPool::connect(&url).await.expect("Failed to connect to Subscriptions database")
+    let url = std::env::var("SUBSCRIPTIONS_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db"
+            .to_string()
+    });
+    PgPool::connect(&url)
+        .await
+        .expect("Failed to connect to Subscriptions database")
 }
 
 async fn get_gl_pool() -> PgPool {
     let url = std::env::var("GL_DATABASE_URL")
         .unwrap_or_else(|_| "postgresql://gl_user:gl_pass@localhost:5438/gl_db".to_string());
-    PgPool::connect(&url).await.expect("Failed to connect to GL database")
+    PgPool::connect(&url)
+        .await
+        .expect("Failed to connect to GL database")
 }
 
 async fn get_audit_pool() -> PgPool {
     let url = std::env::var("AUDIT_DATABASE_URL")
         .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
         .or_else(|_| std::env::var("DATABASE_URL"))
-        .unwrap_or_else(|_| "postgresql://audit_user:audit_pass@localhost:5440/audit_db".to_string());
-    PgPool::connect(&url).await.expect("Failed to connect to audit database")
+        .unwrap_or_else(|_| {
+            "postgresql://audit_user:audit_pass@localhost:5440/audit_db".to_string()
+        });
+    PgPool::connect(&url)
+        .await
+        .expect("Failed to connect to audit database")
 }
 
 // ============================================================================
@@ -147,19 +165,13 @@ async fn create_scale_summary_shadow(pool: &PgPool) {
 fn deterministic_cycle_ts(cycle: usize) -> chrono::DateTime<Utc> {
     use chrono::TimeZone;
     // Base: 2026-01-01T00:00:00Z, advance 30 days per cycle
-    Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0)
-        .unwrap()
-        + chrono::Duration::days(30 * cycle as i64)
+    Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap() + chrono::Duration::days(30 * cycle as i64)
 }
 
 /// Process all 6 cycles for a single tenant into the shadow table
 ///
 /// Uses deterministic timestamps to guarantee digest stability across rebuilds.
-async fn process_tenant_cycles_into_shadow(
-    pool: &PgPool,
-    tenant_id: &str,
-    tenant_index: usize,
-) {
+async fn process_tenant_cycles_into_shadow(pool: &PgPool, tenant_id: &str, tenant_index: usize) {
     let shadow_table = format!("{}_shadow", BASE_TABLE);
 
     for cycle in 0..EVENTS_PER_TENANT {
@@ -187,11 +199,21 @@ async fn process_tenant_cycles_into_shadow(
         .bind(ts)
         .execute(pool)
         .await
-        .unwrap_or_else(|e| panic!("Failed to process cycle {} for tenant {}: {}", cycle, tenant_id, e));
+        .unwrap_or_else(|e| {
+            panic!(
+                "Failed to process cycle {} for tenant {}: {}",
+                cycle, tenant_id, e
+            )
+        });
 
         save_shadow_cursor(pool, PROJECTION_NAME, tenant_id, event_id, ts)
             .await
-            .unwrap_or_else(|e| panic!("Failed to save shadow cursor for tenant {}: {}", tenant_id, e));
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Failed to save shadow cursor for tenant {}: {}",
+                    tenant_id, e
+                )
+            });
     }
 }
 
@@ -253,7 +275,10 @@ async fn test_100_tenants_projection_digest_stability() {
 
     println!("\n=== Scale Test: 100-Tenant Projection Digest Stability ===");
     println!("Tenants: {}", TENANT_COUNT);
-    println!("Events/tenant: {} (compressed billing cycles)", EVENTS_PER_TENANT);
+    println!(
+        "Events/tenant: {} (compressed billing cycles)",
+        EVENTS_PER_TENANT
+    );
     println!("Total events: {}", TENANT_COUNT * EVENTS_PER_TENANT);
 
     // Run 1
@@ -305,10 +330,7 @@ async fn test_100_tenants_projection_digest_stability() {
             .fetch_one(&pool)
             .await
             .expect("Failed to count cursors");
-    println!(
-        "Cursor count: {} (expected {})",
-        cursor_count, TENANT_COUNT
-    );
+    println!("Cursor count: {} (expected {})", cursor_count, TENANT_COUNT);
     assert_eq!(
         cursor_count as usize, TENANT_COUNT,
         "Should have exactly {} cursors (one per tenant)",
@@ -364,7 +386,10 @@ async fn test_100_tenants_projection_lag_within_slo_bounds() {
         metrics.record_cursor_state(&cursor);
     }
 
-    println!("Cursors saved and metrics recorded for {} tenants", TENANT_COUNT);
+    println!(
+        "Cursors saved and metrics recorded for {} tenants",
+        TENANT_COUNT
+    );
 
     // Gather metrics and validate lag bounds
     let families = metrics.registry().gather();
@@ -390,11 +415,17 @@ async fn test_100_tenants_projection_lag_within_slo_bounds() {
         max_lag = max_lag.max(lag);
         if lag > PROJECTION_LAG_BOUND_MS {
             violations += 1;
-            println!("  ⚠️  SLO violation: lag={}ms (bound={}ms)", lag, PROJECTION_LAG_BOUND_MS);
+            println!(
+                "  ⚠️  SLO violation: lag={}ms (bound={}ms)",
+                lag, PROJECTION_LAG_BOUND_MS
+            );
         }
     }
 
-    println!("Max lag observed: {:.1}ms (SLO: {}ms)", max_lag, PROJECTION_LAG_BOUND_MS);
+    println!(
+        "Max lag observed: {:.1}ms (SLO: {}ms)",
+        max_lag, PROJECTION_LAG_BOUND_MS
+    );
     assert_eq!(
         violations, 0,
         "{} tenants exceeded lag SLO of {}ms (max observed: {:.1}ms)",
@@ -421,15 +452,16 @@ async fn test_100_tenants_projection_lag_within_slo_bounds() {
         age_violations, 0,
         "No tenant should have last_applied_age > 5s (fresh cursors)"
     );
-    println!("✅ All {} tenants have fresh last_applied_age", TENANT_COUNT);
+    println!(
+        "✅ All {} tenants have fresh last_applied_age",
+        TENANT_COUNT
+    );
 
     // Cleanup
-    sqlx::query(
-        "DELETE FROM projection_cursors WHERE projection_name = 'scale_lag_test'"
-    )
-    .execute(&pool)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM projection_cursors WHERE projection_name = 'scale_lag_test'")
+        .execute(&pool)
+        .await
+        .ok();
 
     println!("\n✅ 100-Tenant Projection Lag SLO Test: ALL PASSED\n");
 }
@@ -495,7 +527,10 @@ async fn test_100_tenants_oracle_correctness() {
         TENANT_COUNT
     );
 
-    println!("✅ Oracle: no false positives across {} tenants", TENANT_COUNT);
+    println!(
+        "✅ Oracle: no false positives across {} tenants",
+        TENANT_COUNT
+    );
     println!("\n✅ 100-Tenant Oracle Correctness: ALL PASSED\n");
 }
 
@@ -530,12 +565,15 @@ async fn test_scale_100_tenants_truth_at_scale() {
     let digest1 = rebuild_scale_projection(&proj_pool).await;
     println!("  Pass 1 digest: {}", digest1);
 
-    let live_rows: i64 =
-        sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", BASE_TABLE))
-            .fetch_one(&proj_pool)
-            .await
-            .expect("Failed to count rows");
-    assert_eq!(live_rows as usize, TENANT_COUNT, "Expected {} rows in live table", TENANT_COUNT);
+    let live_rows: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", BASE_TABLE))
+        .fetch_one(&proj_pool)
+        .await
+        .expect("Failed to count rows");
+    assert_eq!(
+        live_rows as usize, TENANT_COUNT,
+        "Expected {} rows in live table",
+        TENANT_COUNT
+    );
 
     let digest2 = rebuild_scale_projection(&proj_pool).await;
     println!("  Pass 2 digest: {}", digest2);
@@ -547,7 +585,10 @@ async fn test_scale_100_tenants_truth_at_scale() {
     println!("  ✅ Gate 1 PASSED: Digest stable across 2 rebuilds");
 
     // ── Gate 2: Projection Lag SLO ───────────────────────────────────────────
-    println!("\n[Gate 2] Projection lag within SLO (< {}ms)...", PROJECTION_LAG_BOUND_MS);
+    println!(
+        "\n[Gate 2] Projection lag within SLO (< {}ms)...",
+        PROJECTION_LAG_BOUND_MS
+    );
 
     let tenant_ids = generate_tenant_ids();
     let metrics = ProjectionMetrics::new().expect("Failed to create metrics");
@@ -631,8 +672,12 @@ async fn test_scale_100_tenants_truth_at_scale() {
     // ── Summary ──────────────────────────────────────────────────────────────
     println!("\n╔══════════════════════════════════════════════════════════╗");
     println!("║  ✅ TRUTH AT SCALE: ALL 3 GATES PASSED                   ║");
-    println!("║  {} tenants × {} cycles = {} total events processed       ║",
-        TENANT_COUNT, EVENTS_PER_TENANT, TENANT_COUNT * EVENTS_PER_TENANT);
+    println!(
+        "║  {} tenants × {} cycles = {} total events processed       ║",
+        TENANT_COUNT,
+        EVENTS_PER_TENANT,
+        TENANT_COUNT * EVENTS_PER_TENANT
+    );
     println!("║                                                          ║");
     println!("║  Gate 1: Projection digest stability    ✅               ║");
     println!("║  Gate 2: Projection lag within SLO      ✅               ║");
@@ -648,10 +693,8 @@ async fn test_scale_100_tenants_truth_at_scale() {
         .execute(&proj_pool)
         .await
         .ok();
-    sqlx::query(
-        "DELETE FROM projection_cursors WHERE projection_name IN ('scale_gate2_lag')"
-    )
-    .execute(&proj_pool)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM projection_cursors WHERE projection_name IN ('scale_gate2_lag')")
+        .execute(&proj_pool)
+        .await
+        .ok();
 }

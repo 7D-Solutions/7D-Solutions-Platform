@@ -40,10 +40,13 @@ async fn run_migrations(pool: &sqlx::PgPool) {
         .await
         .expect("failed to acquire migration advisory lock");
 
-    let recon_sql = include_str!("../../modules/ar/db/migrations/20260217000006_create_recon_matching.sql");
+    let recon_sql =
+        include_str!("../../modules/ar/db/migrations/20260217000006_create_recon_matching.sql");
     let _ = sqlx::raw_sql(recon_sql).execute(pool).await;
 
-    let sched_sql = include_str!("../../modules/ar/db/migrations/20260217000009_create_recon_scheduled_runs.sql");
+    let sched_sql = include_str!(
+        "../../modules/ar/db/migrations/20260217000009_create_recon_scheduled_runs.sql"
+    );
     let _ = sqlx::raw_sql(sched_sql).execute(pool).await;
 
     sqlx::query("SELECT pg_advisory_unlock($1)")
@@ -327,7 +330,11 @@ async fn test_claim_and_execute_completes() {
         ScheduledRunExecutionOutcome::Completed(r) => {
             assert_eq!(r.status, "completed");
             assert!(r.recon_run_id.is_some(), "should have a recon_run_id");
-            assert_eq!(r.match_count, Some(1), "one payment should match one invoice");
+            assert_eq!(
+                r.match_count,
+                Some(1),
+                "one payment should match one invoice"
+            );
             assert_eq!(r.exception_count, Some(0));
         }
         other => panic!("expected Completed, got {:?}", other),
@@ -507,7 +514,9 @@ async fn test_more_workers_than_runs() {
     assert!(
         completed + nothing + errors == 4,
         "all 4 workers should return: completed={}, nothing={}, errors={}",
-        completed, nothing, errors
+        completed,
+        nothing,
+        errors
     );
 
     cleanup_tenant(&pool, &tenant_id).await;
@@ -536,25 +545,18 @@ async fn test_completed_runs_not_reclaimed() {
     .expect("schedule failed");
 
     // Execute first claim (completes it)
-    let outcome1 = claim_and_execute_scheduled_run(
-        &pool,
-        "worker-1",
-        "corr-1",
-        Some(&tenant_id),
-    )
-    .await
-    .expect("first claim failed");
-    assert!(matches!(outcome1, ScheduledRunExecutionOutcome::Completed(_)));
+    let outcome1 = claim_and_execute_scheduled_run(&pool, "worker-1", "corr-1", Some(&tenant_id))
+        .await
+        .expect("first claim failed");
+    assert!(matches!(
+        outcome1,
+        ScheduledRunExecutionOutcome::Completed(_)
+    ));
 
     // Second claim should get NothingToClaim (run is completed)
-    let outcome2 = claim_and_execute_scheduled_run(
-        &pool,
-        "worker-2",
-        "corr-2",
-        Some(&tenant_id),
-    )
-    .await
-    .expect("second claim failed");
+    let outcome2 = claim_and_execute_scheduled_run(&pool, "worker-2", "corr-2", Some(&tenant_id))
+        .await
+        .expect("second claim failed");
 
     assert!(
         matches!(outcome2, ScheduledRunExecutionOutcome::NothingToClaim),
@@ -616,7 +618,11 @@ async fn test_run_lifecycle_with_counts() {
     match outcome {
         ScheduledRunExecutionOutcome::Completed(r) => {
             assert_eq!(r.match_count, Some(1), "one payment matches one invoice");
-            assert_eq!(r.exception_count, Some(1), "one unmatched payment exception");
+            assert_eq!(
+                r.exception_count,
+                Some(1),
+                "one unmatched payment exception"
+            );
             assert!(r.recon_run_id.is_some());
         }
         other => panic!("expected Completed, got {:?}", other),
@@ -681,21 +687,18 @@ async fn test_batch_poll_multiple_runs() {
     }
 
     // Poll batch
-    let outcomes = poll_scheduled_runs(
-        &pool,
-        10,
-        "batch-worker",
-        "corr-batch",
-        Some(&tenant_id),
-    )
-    .await;
+    let outcomes =
+        poll_scheduled_runs(&pool, 10, "batch-worker", "corr-batch", Some(&tenant_id)).await;
 
     let completed_count = outcomes
         .iter()
         .filter(|o| matches!(o, ScheduledRunExecutionOutcome::Completed(_)))
         .count();
 
-    assert_eq!(completed_count, 3, "batch should process all 3 pending runs");
+    assert_eq!(
+        completed_count, 3,
+        "batch should process all 3 pending runs"
+    );
 
     // Verify all completed in DB
     let db_completed: i64 = sqlx::query_scalar(
@@ -737,14 +740,9 @@ async fn test_outbox_events_emitted() {
     .await
     .expect("schedule failed");
 
-    claim_and_execute_scheduled_run(
-        &pool,
-        "worker-outbox",
-        "corr-outbox",
-        Some(&tenant_id),
-    )
-    .await
-    .expect("claim failed");
+    claim_and_execute_scheduled_run(&pool, "worker-outbox", "corr-outbox", Some(&tenant_id))
+        .await
+        .expect("claim failed");
 
     // Verify outbox has run_started event
     let run_events: i64 = sqlx::query_scalar(
@@ -754,7 +752,10 @@ async fn test_outbox_events_emitted() {
     .fetch_one(&pool)
     .await
     .expect("event count failed");
-    assert!(run_events >= 1, "at least one run_started event should exist");
+    assert!(
+        run_events >= 1,
+        "at least one run_started event should exist"
+    );
 
     // Verify outbox has match_applied event
     let match_events: i64 = sqlx::query_scalar(
@@ -764,7 +765,10 @@ async fn test_outbox_events_emitted() {
     .fetch_one(&pool)
     .await
     .expect("event count failed");
-    assert!(match_events >= 1, "at least one match_applied event should exist");
+    assert!(
+        match_events >= 1,
+        "at least one match_applied event should exist"
+    );
 
     // Verify causation_id chain — match events should have causation from the scheduled run
     let causation_ids: Vec<Option<String>> = sqlx::query_scalar(
@@ -821,25 +825,25 @@ async fn test_tenant_isolation() {
     .expect("schedule B failed");
 
     // Claim for tenant A only
-    let outcome = claim_and_execute_scheduled_run(
-        &pool,
-        "worker-a",
-        "corr-a",
-        Some(&tenant_a),
-    )
-    .await
-    .expect("claim A failed");
-    assert!(matches!(outcome, ScheduledRunExecutionOutcome::Completed(_)));
+    let outcome = claim_and_execute_scheduled_run(&pool, "worker-a", "corr-a", Some(&tenant_a))
+        .await
+        .expect("claim A failed");
+    assert!(matches!(
+        outcome,
+        ScheduledRunExecutionOutcome::Completed(_)
+    ));
 
     // Tenant B still has a pending run
-    let b_status: String = sqlx::query_scalar(
-        "SELECT status FROM ar_recon_scheduled_runs WHERE app_id = $1",
-    )
-    .bind(&tenant_b)
-    .fetch_one(&pool)
-    .await
-    .expect("status B query failed");
-    assert_eq!(b_status, "pending", "tenant B's run should still be pending");
+    let b_status: String =
+        sqlx::query_scalar("SELECT status FROM ar_recon_scheduled_runs WHERE app_id = $1")
+            .bind(&tenant_b)
+            .fetch_one(&pool)
+            .await
+            .expect("status B query failed");
+    assert_eq!(
+        b_status, "pending",
+        "tenant B's run should still be pending"
+    );
 
     cleanup_tenant(&pool, &tenant_a).await;
     cleanup_tenant(&pool, &tenant_b).await;

@@ -6,8 +6,8 @@ mod helpers;
 
 use axum::{body::Body, http::Request};
 use helpers::{
-    body_json, build_test_app, seed_ap_aging, seed_ar_aging, seed_cashflow,
-    seed_kpi_cache, seed_trial_balance, setup_db, unique_tenant,
+    body_json, build_test_app, seed_ap_aging, seed_ar_aging, seed_cashflow, seed_kpi_cache,
+    seed_trial_balance, setup_db, unique_tenant,
 };
 use serial_test::serial;
 use tower::ServiceExt;
@@ -29,9 +29,7 @@ async fn kpis_with_ar_data_returns_outstanding() {
     let resp = app
         .oneshot(
             Request::builder()
-                .uri(format!(
-                    "/api/reporting/kpis?as_of=2026-01-31"
-                ))
+                .uri(format!("/api/reporting/kpis?as_of=2026-01-31"))
                 .header("x-tenant-id", tid_str.clone())
                 .body(Body::empty())
                 .unwrap(),
@@ -107,7 +105,15 @@ async fn kpis_with_inventory_value_from_kpi_cache() {
     let tid_str = tid.to_string();
     let app = build_test_app(pool.clone());
 
-    seed_kpi_cache(&pool, &tid_str, "2026-01-31", "inventory_value", "USD", 999_000).await;
+    seed_kpi_cache(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "inventory_value",
+        "USD",
+        999_000,
+    )
+    .await;
 
     let resp = app
         .oneshot(
@@ -134,8 +140,28 @@ async fn kpis_burn_ytd_from_expense_accounts() {
     let app = build_test_app(pool.clone());
 
     // Expense accounts 5xxx-6xxx
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "5000", "Wages", "USD", 60_000, 0).await;
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "6000", "Rent", "USD", 40_000, 0).await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "5000",
+        "Wages",
+        "USD",
+        60_000,
+        0,
+    )
+    .await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "6000",
+        "Rent",
+        "USD",
+        40_000,
+        0,
+    )
+    .await;
 
     let resp = app
         .oneshot(

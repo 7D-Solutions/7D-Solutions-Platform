@@ -15,8 +15,8 @@
 
 use chrono::Utc;
 use inventory_rs::domain::{
-    items::{CreateItemRequest, ItemRepo, TrackingMode},
     issue_service::{process_issue, IssueRequest},
+    items::{CreateItemRequest, ItemRepo, TrackingMode},
     receipt_service::{process_receipt, ReceiptRequest},
     valuation::snapshot_service::{
         create_valuation_snapshot, CreateSnapshotRequest, SnapshotError,
@@ -32,8 +32,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -117,11 +117,7 @@ fn issue_req(
     }
 }
 
-fn snapshot_req(
-    tenant_id: &str,
-    warehouse_id: Uuid,
-    key: &str,
-) -> CreateSnapshotRequest {
+fn snapshot_req(tenant_id: &str, warehouse_id: Uuid, key: &str) -> CreateSnapshotRequest {
     CreateSnapshotRequest {
         tenant_id: tenant_id.to_string(),
         warehouse_id,
@@ -172,9 +168,13 @@ async fn test_snapshot_single_item_correct_value() {
         .expect("create item");
 
     // Receive 20 units @ $10.00 each
-    process_receipt(&pool, &receipt_req(&tenant, item.id, warehouse_id, 20, 1000, "r1"), None)
-        .await
-        .expect("receipt");
+    process_receipt(
+        &pool,
+        &receipt_req(&tenant, item.id, warehouse_id, 20, 1000, "r1"),
+        None,
+    )
+    .await
+    .expect("receipt");
 
     let req = snapshot_req(&tenant, warehouse_id, "snap-single-001");
     let (result, is_replay) = create_valuation_snapshot(&pool, &req)
@@ -207,14 +207,22 @@ async fn test_snapshot_multiple_items_totals() {
         .expect("create item b");
 
     // Item A: 10 units @ $5.00 = $50
-    process_receipt(&pool, &receipt_req(&tenant, item_a.id, warehouse_id, 10, 500, "r-ma1"), None)
-        .await
-        .expect("receipt a");
+    process_receipt(
+        &pool,
+        &receipt_req(&tenant, item_a.id, warehouse_id, 10, 500, "r-ma1"),
+        None,
+    )
+    .await
+    .expect("receipt a");
 
     // Item B: 4 units @ $25.00 = $100
-    process_receipt(&pool, &receipt_req(&tenant, item_b.id, warehouse_id, 4, 2500, "r-mb1"), None)
-        .await
-        .expect("receipt b");
+    process_receipt(
+        &pool,
+        &receipt_req(&tenant, item_b.id, warehouse_id, 4, 2500, "r-mb1"),
+        None,
+    )
+    .await
+    .expect("receipt b");
 
     let req = snapshot_req(&tenant, warehouse_id, "snap-multi-001");
     let (result, _) = create_valuation_snapshot(&pool, &req)
@@ -241,14 +249,22 @@ async fn test_snapshot_reflects_consumption() {
         .expect("create item");
 
     // Receive 50 units @ $2.00 = $100 total
-    process_receipt(&pool, &receipt_req(&tenant, item.id, warehouse_id, 50, 200, "r-c1"), None)
-        .await
-        .expect("receipt");
+    process_receipt(
+        &pool,
+        &receipt_req(&tenant, item.id, warehouse_id, 50, 200, "r-c1"),
+        None,
+    )
+    .await
+    .expect("receipt");
 
     // Issue 30 units (consume 30 layers)
-    process_issue(&pool, &issue_req(&tenant, item.id, warehouse_id, 30, "i-c1"), None)
-        .await
-        .expect("issue");
+    process_issue(
+        &pool,
+        &issue_req(&tenant, item.id, warehouse_id, 30, "i-c1"),
+        None,
+    )
+    .await
+    .expect("issue");
 
     // as_of = now → should see 20 units remaining
     let req = snapshot_req(&tenant, warehouse_id, "snap-consume-001");
@@ -350,13 +366,12 @@ async fn test_snapshot_outbox_event_emitted() {
         .await
         .expect("create snapshot");
 
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT event_type FROM inv_outbox WHERE aggregate_id = $1",
-    )
-    .bind(result.snapshot_id.to_string())
-    .fetch_optional(&pool)
-    .await
-    .expect("query outbox");
+    let row: Option<(String,)> =
+        sqlx::query_as("SELECT event_type FROM inv_outbox WHERE aggregate_id = $1")
+            .bind(result.snapshot_id.to_string())
+            .fetch_optional(&pool)
+            .await
+            .expect("query outbox");
 
     let (event_type,) = row.expect("outbox event should be present");
     assert_eq!(event_type, "inventory.valuation_snapshot_created");

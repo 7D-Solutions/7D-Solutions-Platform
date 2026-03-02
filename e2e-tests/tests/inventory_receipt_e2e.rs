@@ -77,11 +77,31 @@ fn test_receipt_req(tenant_id: &str, item_id: Uuid) -> ReceiptRequest {
 }
 
 async fn cleanup_tenant(pool: &sqlx::PgPool, tenant_id: &str) {
-    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -127,16 +147,18 @@ async fn inventory_receipt_creates_ledger_layer_outbox() {
     .await
     .expect("FIFO layer must exist");
     assert_eq!(qty_recv, 100);
-    assert_eq!(qty_rem, 100, "remaining should equal received on fresh layer");
+    assert_eq!(
+        qty_rem, 100,
+        "remaining should equal received on fresh layer"
+    );
 
     // Outbox event must carry correct event_type
-    let event_type: String = sqlx::query_scalar(
-        "SELECT event_type FROM inv_outbox WHERE event_id = $1",
-    )
-    .bind(result.event_id)
-    .fetch_one(&pool)
-    .await
-    .expect("outbox event must exist");
+    let event_type: String =
+        sqlx::query_scalar("SELECT event_type FROM inv_outbox WHERE event_id = $1")
+            .bind(result.event_id)
+            .fetch_one(&pool)
+            .await
+            .expect("outbox event must exist");
     assert_eq!(event_type, "inventory.item_received");
 
     cleanup_tenant(&pool, &tenant_id).await;
@@ -207,7 +229,8 @@ async fn inventory_receipt_guard_inactive_item() {
 
     assert!(
         matches!(err, ReceiptError::Guard(_)),
-        "expected Guard error, got {:?}", err
+        "expected Guard error, got {:?}",
+        err
     );
 
     cleanup_tenant(&pool, &tenant_id).await;

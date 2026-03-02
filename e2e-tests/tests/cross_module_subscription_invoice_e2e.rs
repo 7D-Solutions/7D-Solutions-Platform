@@ -21,9 +21,7 @@ mod oracle;
 
 use anyhow::Result;
 use chrono::NaiveDate;
-use common::{
-    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_subscriptions_pool,
-};
+use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_subscriptions_pool};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -42,7 +40,7 @@ async fn create_subscription_plan(
         "INSERT INTO subscription_plans
          (id, tenant_id, name, description, schedule, price_minor, currency, created_at, updated_at)
          VALUES ($1, $2, $3, $4, 'monthly', 2999, 'USD', NOW(), NOW())
-         ON CONFLICT (id) DO NOTHING"
+         ON CONFLICT (id) DO NOTHING",
     )
     .bind(plan_id)
     .bind(tenant_id)
@@ -108,11 +106,7 @@ async fn create_ar_customer(
 }
 
 /// Cleanup test data for subscription and AR tables
-async fn cleanup_test_data(
-    subscriptions_pool: &PgPool,
-    ar_pool: &PgPool,
-    tenant_id: &str,
-) {
+async fn cleanup_test_data(subscriptions_pool: &PgPool, ar_pool: &PgPool, tenant_id: &str) {
     // Delete in correct order due to foreign key constraints
 
     // Subscriptions cleanup
@@ -159,8 +153,8 @@ async fn trigger_bill_run(
 ) -> Result<Option<i32>> {
     // Import cycle gating functions
     use subscriptions_rs::cycle_gating::{
-        acquire_cycle_lock, calculate_cycle_boundaries, generate_cycle_key,
-        mark_attempt_succeeded, record_cycle_attempt,
+        acquire_cycle_lock, calculate_cycle_boundaries, generate_cycle_key, mark_attempt_succeeded,
+        record_cycle_attempt,
     };
 
     let cycle_key = generate_cycle_key(execution_date);
@@ -194,7 +188,7 @@ async fn trigger_bill_run(
 
     // Get subscription details
     let subscription: (String, i64, String) = sqlx::query_as(
-        "SELECT ar_customer_id, price_minor, currency FROM subscriptions WHERE id = $1"
+        "SELECT ar_customer_id, price_minor, currency FROM subscriptions WHERE id = $1",
     )
     .bind(subscription_id)
     .fetch_one(&mut *tx)
@@ -304,7 +298,7 @@ async fn test_exactly_one_invoice_per_cycle() {
     // Assert: Only one attempt record exists
     let attempt_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM subscription_invoice_attempts
-         WHERE tenant_id = $1 AND subscription_id = $2"
+         WHERE tenant_id = $1 AND subscription_id = $2",
     )
     .bind(&tenant_id)
     .bind(subscription_id)
@@ -318,13 +312,12 @@ async fn test_exactly_one_invoice_per_cycle() {
     );
 
     // Assert: Only one invoice exists in AR
-    let invoice_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1"
-    )
-    .bind(&tenant_id)
-    .fetch_one(&ar_pool)
-    .await
-    .expect("Failed to count invoices");
+    let invoice_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&ar_pool)
+            .await
+            .expect("Failed to count invoices");
 
     assert_eq!(
         invoice_count, 1,
@@ -394,7 +387,7 @@ async fn test_replay_safety_same_cycle_multiple_attempts() {
     // Assert: Still only 1 attempt and 1 invoice
     let attempt_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM subscription_invoice_attempts
-         WHERE tenant_id = $1 AND subscription_id = $2"
+         WHERE tenant_id = $1 AND subscription_id = $2",
     )
     .bind(&tenant_id)
     .bind(subscription_id)
@@ -407,13 +400,12 @@ async fn test_replay_safety_same_cycle_multiple_attempts() {
         "Replay safety: should still have exactly 1 attempt"
     );
 
-    let invoice_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1"
-    )
-    .bind(&tenant_id)
-    .fetch_one(&ar_pool)
-    .await
-    .expect("Failed to count invoices");
+    let invoice_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&ar_pool)
+            .await
+            .expect("Failed to count invoices");
 
     assert_eq!(
         invoice_count, 1,
@@ -500,7 +492,7 @@ async fn test_concurrency_safety_parallel_bill_runs() {
     // Assert: Database has exactly 1 attempt and 1 invoice
     let attempt_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM subscription_invoice_attempts
-         WHERE tenant_id = $1 AND subscription_id = $2"
+         WHERE tenant_id = $1 AND subscription_id = $2",
     )
     .bind(&tenant_id)
     .bind(subscription_id)
@@ -513,13 +505,12 @@ async fn test_concurrency_safety_parallel_bill_runs() {
         "Concurrency safety: should have exactly 1 attempt record"
     );
 
-    let invoice_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1"
-    )
-    .bind(&tenant_id)
-    .fetch_one(&ar_pool)
-    .await
-    .expect("Failed to count invoices");
+    let invoice_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&ar_pool)
+            .await
+            .expect("Failed to count invoices");
 
     assert_eq!(
         invoice_count, 1,
@@ -591,7 +582,7 @@ async fn test_different_cycles_create_separate_invoices() {
     // Assert: 2 attempts (one per cycle)
     let attempt_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM subscription_invoice_attempts
-         WHERE tenant_id = $1 AND subscription_id = $2"
+         WHERE tenant_id = $1 AND subscription_id = $2",
     )
     .bind(&tenant_id)
     .bind(subscription_id)
@@ -599,19 +590,15 @@ async fn test_different_cycles_create_separate_invoices() {
     .await
     .expect("Failed to count attempts");
 
-    assert_eq!(
-        attempt_count, 2,
-        "Should have 2 attempts (one per cycle)"
-    );
+    assert_eq!(attempt_count, 2, "Should have 2 attempts (one per cycle)");
 
     // Assert: 2 invoices
-    let invoice_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1"
-    )
-    .bind(&tenant_id)
-    .fetch_one(&ar_pool)
-    .await
-    .expect("Failed to count invoices");
+    let invoice_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&ar_pool)
+            .await
+            .expect("Failed to count invoices");
 
     assert_eq!(invoice_count, 2, "Should have 2 invoices (one per cycle)");
 
@@ -619,7 +606,7 @@ async fn test_different_cycles_create_separate_invoices() {
     let cycle_keys: Vec<String> = sqlx::query_scalar(
         "SELECT cycle_key FROM subscription_invoice_attempts
          WHERE tenant_id = $1 AND subscription_id = $2
-         ORDER BY cycle_key"
+         ORDER BY cycle_key",
     )
     .bind(&tenant_id)
     .bind(subscription_id)

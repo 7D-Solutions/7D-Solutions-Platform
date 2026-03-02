@@ -9,7 +9,10 @@ mod common;
 
 use anyhow::Result;
 use ar_rs::aging::refresh_aging;
-use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_payments_pool, get_subscriptions_pool, get_gl_pool};
+use common::{
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
+    get_subscriptions_pool,
+};
 use serial_test::serial;
 use sqlx::PgPool;
 
@@ -78,9 +81,15 @@ async fn test_aging_four_buckets_correct_placement() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
 
@@ -96,33 +105,51 @@ async fn test_aging_four_buckets_correct_placement() -> Result<()> {
     let snapshot = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
     // Each invoice lands in the right bucket
-    assert_eq!(snapshot.current_minor, 0,
-        "No current (not-yet-due) invoices expected");
-    assert_eq!(snapshot.days_1_30_minor, 10_000,
-        "Invoice A (10 days overdue) must be in 0-30 bucket");
-    assert_eq!(snapshot.days_31_60_minor, 20_000,
-        "Invoice B (45 days overdue) must be in 31-60 bucket");
-    assert_eq!(snapshot.days_61_90_minor, 30_000,
-        "Invoice C (75 days overdue) must be in 61-90 bucket");
-    assert_eq!(snapshot.days_over_90_minor, 40_000,
-        "Invoice D (100 days overdue) must be in 90+ bucket");
+    assert_eq!(
+        snapshot.current_minor, 0,
+        "No current (not-yet-due) invoices expected"
+    );
+    assert_eq!(
+        snapshot.days_1_30_minor, 10_000,
+        "Invoice A (10 days overdue) must be in 0-30 bucket"
+    );
+    assert_eq!(
+        snapshot.days_31_60_minor, 20_000,
+        "Invoice B (45 days overdue) must be in 31-60 bucket"
+    );
+    assert_eq!(
+        snapshot.days_61_90_minor, 30_000,
+        "Invoice C (75 days overdue) must be in 61-90 bucket"
+    );
+    assert_eq!(
+        snapshot.days_over_90_minor, 40_000,
+        "Invoice D (100 days overdue) must be in 90+ bucket"
+    );
 
     // Grand total equals the sum of all buckets (mutually exclusive + exhaustive)
     let expected_total = 10_000 + 20_000 + 30_000 + 40_000;
-    assert_eq!(snapshot.total_outstanding_minor, expected_total,
-        "Total outstanding must equal sum of all bucket amounts");
+    assert_eq!(
+        snapshot.total_outstanding_minor, expected_total,
+        "Total outstanding must equal sum of all bucket amounts"
+    );
 
     let bucket_sum = snapshot.current_minor
         + snapshot.days_1_30_minor
         + snapshot.days_31_60_minor
         + snapshot.days_61_90_minor
         + snapshot.days_over_90_minor;
-    assert_eq!(bucket_sum, snapshot.total_outstanding_minor,
-        "Bucket amounts must sum to total_outstanding (no double-counting, no gaps)");
+    assert_eq!(
+        bucket_sum, snapshot.total_outstanding_minor,
+        "Bucket amounts must sum to total_outstanding (no double-counting, no gaps)"
+    );
 
-    assert_eq!(snapshot.invoice_count, 4, "All four invoices must be counted");
+    assert_eq!(
+        snapshot.invoice_count, 4,
+        "All four invoices must be counted"
+    );
 
-    println!("✅ All four buckets correct: 0-30={}, 31-60={}, 61-90={}, 90+={}; total={}",
+    println!(
+        "✅ All four buckets correct: 0-30={}, 31-60={}, 61-90={}, 90+={}; total={}",
         snapshot.days_1_30_minor,
         snapshot.days_31_60_minor,
         snapshot.days_61_90_minor,
@@ -130,9 +157,15 @@ async fn test_aging_four_buckets_correct_placement() -> Result<()> {
         snapshot.total_outstanding_minor,
     );
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }
 
@@ -153,12 +186,24 @@ async fn test_aging_tenant_isolation() -> Result<()> {
     let gl_pool = get_gl_pool().await;
 
     // Clean both tenants upfront
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_a)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_b)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_a,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_b,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     // Tenant A: one overdue invoice (50 days)
     let customer_a = make_customer(&ar_pool, &tenant_a).await?;
@@ -173,38 +218,66 @@ async fn test_aging_tenant_isolation() -> Result<()> {
     let snapshot_b = refresh_aging(&ar_pool, &tenant_b, customer_b).await?;
 
     // Tenant A: 50 days → days_31_60 bucket
-    assert_eq!(snapshot_a.days_31_60_minor, 99_000,
-        "Tenant A: 50-day overdue invoice must appear in 31-60 bucket");
-    assert_eq!(snapshot_a.days_1_30_minor, 0,
-        "Tenant A: must not contain tenant B's 20-day invoice");
-    assert_eq!(snapshot_a.total_outstanding_minor, 99_000,
-        "Tenant A total must only include its own invoice");
+    assert_eq!(
+        snapshot_a.days_31_60_minor, 99_000,
+        "Tenant A: 50-day overdue invoice must appear in 31-60 bucket"
+    );
+    assert_eq!(
+        snapshot_a.days_1_30_minor, 0,
+        "Tenant A: must not contain tenant B's 20-day invoice"
+    );
+    assert_eq!(
+        snapshot_a.total_outstanding_minor, 99_000,
+        "Tenant A total must only include its own invoice"
+    );
 
     // Tenant B: 20 days → days_1_30 bucket
-    assert_eq!(snapshot_b.days_1_30_minor, 55_000,
-        "Tenant B: 20-day overdue invoice must appear in 0-30 bucket");
-    assert_eq!(snapshot_b.days_31_60_minor, 0,
-        "Tenant B: must not contain tenant A's 50-day invoice");
-    assert_eq!(snapshot_b.total_outstanding_minor, 55_000,
-        "Tenant B total must only include its own invoice");
+    assert_eq!(
+        snapshot_b.days_1_30_minor, 55_000,
+        "Tenant B: 20-day overdue invoice must appear in 0-30 bucket"
+    );
+    assert_eq!(
+        snapshot_b.days_31_60_minor, 0,
+        "Tenant B: must not contain tenant A's 50-day invoice"
+    );
+    assert_eq!(
+        snapshot_b.total_outstanding_minor, 55_000,
+        "Tenant B total must only include its own invoice"
+    );
 
     // Double-check: Snapshot app_id must match the queried tenant
-    assert_eq!(snapshot_a.app_id, tenant_a,
-        "Snapshot app_id must match the queried tenant");
-    assert_eq!(snapshot_b.app_id, tenant_b,
-        "Snapshot app_id must match the queried tenant");
+    assert_eq!(
+        snapshot_a.app_id, tenant_a,
+        "Snapshot app_id must match the queried tenant"
+    );
+    assert_eq!(
+        snapshot_b.app_id, tenant_b,
+        "Snapshot app_id must match the queried tenant"
+    );
 
-    println!("✅ Tenant isolation confirmed: tenant_a total={}, tenant_b total={}",
-        snapshot_a.total_outstanding_minor,
-        snapshot_b.total_outstanding_minor,
+    println!(
+        "✅ Tenant isolation confirmed: tenant_a total={}, tenant_b total={}",
+        snapshot_a.total_outstanding_minor, snapshot_b.total_outstanding_minor,
     );
 
     // Cleanup both tenants
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_a)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_b)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_a,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_b,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }

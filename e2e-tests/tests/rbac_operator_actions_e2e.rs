@@ -7,7 +7,7 @@
 //! 4. Unauthorized attempts are rejected with appropriate errors
 //! 5. Authorization attempts are logged (audited)
 
-use security::{RbacPolicy, Role, Operation};
+use security::{Operation, RbacPolicy, Role};
 
 // ============================================================================
 // Tests
@@ -16,13 +16,34 @@ use security::{RbacPolicy, Role, Operation};
 #[test]
 fn test_admin_full_access() {
     // Admin should have access to all operations
-    assert!(RbacPolicy::has_permission(Role::Admin, Operation::TenantSuspend));
-    assert!(RbacPolicy::has_permission(Role::Admin, Operation::TenantDeprovision));
-    assert!(RbacPolicy::has_permission(Role::Admin, Operation::ProjectionRebuild));
-    assert!(RbacPolicy::has_permission(Role::Admin, Operation::ProjectionVerify));
-    assert!(RbacPolicy::has_permission(Role::Admin, Operation::ProjectionStatus));
-    assert!(RbacPolicy::has_permission(Role::Admin, Operation::ProjectionList));
-    assert!(RbacPolicy::has_permission(Role::Admin, Operation::FleetMigrate));
+    assert!(RbacPolicy::has_permission(
+        Role::Admin,
+        Operation::TenantSuspend
+    ));
+    assert!(RbacPolicy::has_permission(
+        Role::Admin,
+        Operation::TenantDeprovision
+    ));
+    assert!(RbacPolicy::has_permission(
+        Role::Admin,
+        Operation::ProjectionRebuild
+    ));
+    assert!(RbacPolicy::has_permission(
+        Role::Admin,
+        Operation::ProjectionVerify
+    ));
+    assert!(RbacPolicy::has_permission(
+        Role::Admin,
+        Operation::ProjectionStatus
+    ));
+    assert!(RbacPolicy::has_permission(
+        Role::Admin,
+        Operation::ProjectionList
+    ));
+    assert!(RbacPolicy::has_permission(
+        Role::Admin,
+        Operation::FleetMigrate
+    ));
 
     println!("✓ Admin has full access to all operations");
 }
@@ -30,19 +51,40 @@ fn test_admin_full_access() {
 #[test]
 fn test_operator_limited_access() {
     // Operator can suspend tenants
-    assert!(RbacPolicy::has_permission(Role::Operator, Operation::TenantSuspend));
+    assert!(RbacPolicy::has_permission(
+        Role::Operator,
+        Operation::TenantSuspend
+    ));
 
     // Operator CANNOT deprovision tenants (destructive)
-    assert!(!RbacPolicy::has_permission(Role::Operator, Operation::TenantDeprovision));
+    assert!(!RbacPolicy::has_permission(
+        Role::Operator,
+        Operation::TenantDeprovision
+    ));
 
     // Operator can rebuild, verify, and check status of projections
-    assert!(RbacPolicy::has_permission(Role::Operator, Operation::ProjectionRebuild));
-    assert!(RbacPolicy::has_permission(Role::Operator, Operation::ProjectionVerify));
-    assert!(RbacPolicy::has_permission(Role::Operator, Operation::ProjectionStatus));
-    assert!(RbacPolicy::has_permission(Role::Operator, Operation::ProjectionList));
+    assert!(RbacPolicy::has_permission(
+        Role::Operator,
+        Operation::ProjectionRebuild
+    ));
+    assert!(RbacPolicy::has_permission(
+        Role::Operator,
+        Operation::ProjectionVerify
+    ));
+    assert!(RbacPolicy::has_permission(
+        Role::Operator,
+        Operation::ProjectionStatus
+    ));
+    assert!(RbacPolicy::has_permission(
+        Role::Operator,
+        Operation::ProjectionList
+    ));
 
     // Operator CANNOT perform fleet migrations
-    assert!(!RbacPolicy::has_permission(Role::Operator, Operation::FleetMigrate));
+    assert!(!RbacPolicy::has_permission(
+        Role::Operator,
+        Operation::FleetMigrate
+    ));
 
     println!("✓ Operator has limited access (suspend, projection ops, but not deprovision or fleet migrate)");
 }
@@ -50,15 +92,36 @@ fn test_operator_limited_access() {
 #[test]
 fn test_auditor_read_only() {
     // Auditor can verify and check status (read-only)
-    assert!(RbacPolicy::has_permission(Role::Auditor, Operation::ProjectionVerify));
-    assert!(RbacPolicy::has_permission(Role::Auditor, Operation::ProjectionStatus));
-    assert!(RbacPolicy::has_permission(Role::Auditor, Operation::ProjectionList));
+    assert!(RbacPolicy::has_permission(
+        Role::Auditor,
+        Operation::ProjectionVerify
+    ));
+    assert!(RbacPolicy::has_permission(
+        Role::Auditor,
+        Operation::ProjectionStatus
+    ));
+    assert!(RbacPolicy::has_permission(
+        Role::Auditor,
+        Operation::ProjectionList
+    ));
 
     // Auditor CANNOT perform any write operations
-    assert!(!RbacPolicy::has_permission(Role::Auditor, Operation::TenantSuspend));
-    assert!(!RbacPolicy::has_permission(Role::Auditor, Operation::TenantDeprovision));
-    assert!(!RbacPolicy::has_permission(Role::Auditor, Operation::ProjectionRebuild));
-    assert!(!RbacPolicy::has_permission(Role::Auditor, Operation::FleetMigrate));
+    assert!(!RbacPolicy::has_permission(
+        Role::Auditor,
+        Operation::TenantSuspend
+    ));
+    assert!(!RbacPolicy::has_permission(
+        Role::Auditor,
+        Operation::TenantDeprovision
+    ));
+    assert!(!RbacPolicy::has_permission(
+        Role::Auditor,
+        Operation::ProjectionRebuild
+    ));
+    assert!(!RbacPolicy::has_permission(
+        Role::Auditor,
+        Operation::FleetMigrate
+    ));
 
     println!("✓ Auditor has read-only access (verify, status, list only)");
 }
@@ -87,7 +150,10 @@ fn test_authorize_failure_logs_denial() {
         "tenant-123",
     );
 
-    assert!(result.is_err(), "Auditor should NOT be authorized for suspend");
+    assert!(
+        result.is_err(),
+        "Auditor should NOT be authorized for suspend"
+    );
 
     match result {
         Err(e) => {
@@ -95,7 +161,10 @@ fn test_authorize_failure_logs_denial() {
             assert!(error_msg.contains("Insufficient permissions"));
             assert!(error_msg.contains("auditor-user"));
             assert!(error_msg.contains("tenant-123"));
-            println!("✓ Authorization denial is logged with actor and resource: {}", error_msg);
+            println!(
+                "✓ Authorization denial is logged with actor and resource: {}",
+                error_msg
+            );
         }
         Ok(_) => panic!("Expected authorization failure"),
     }
@@ -111,7 +180,10 @@ fn test_operator_cannot_deprovision() {
         "tenant-456",
     );
 
-    assert!(result.is_err(), "Operator should NOT be authorized for deprovision");
+    assert!(
+        result.is_err(),
+        "Operator should NOT be authorized for deprovision"
+    );
     println!("✓ Operator denied for destructive operation (deprovision)");
 }
 
@@ -153,7 +225,10 @@ fn test_auditor_cannot_rebuild() {
         "projection:invoices",
     );
 
-    assert!(result.is_err(), "Auditor should NOT be authorized for rebuild");
+    assert!(
+        result.is_err(),
+        "Auditor should NOT be authorized for rebuild"
+    );
     println!("✓ Auditor denied for write operation (rebuild)");
 }
 
@@ -167,7 +242,10 @@ fn test_operator_cannot_fleet_migrate() {
         "100 tenants",
     );
 
-    assert!(result.is_err(), "Operator should NOT be authorized for fleet migrate");
+    assert!(
+        result.is_err(),
+        "Operator should NOT be authorized for fleet migrate"
+    );
     println!("✓ Operator denied for high-risk operation (fleet migrate)");
 }
 
@@ -181,7 +259,10 @@ fn test_admin_can_fleet_migrate() {
         "100 tenants",
     );
 
-    assert!(result.is_ok(), "Admin should be authorized for fleet migrate");
+    assert!(
+        result.is_ok(),
+        "Admin should be authorized for fleet migrate"
+    );
     println!("✓ Admin allowed for high-risk operation (fleet migrate)");
 }
 
@@ -236,10 +317,7 @@ fn test_comprehensive_permission_matrix() {
         Operation::ProjectionList,
     ];
 
-    let operator_denied = vec![
-        Operation::TenantDeprovision,
-        Operation::FleetMigrate,
-    ];
+    let operator_denied = vec![Operation::TenantDeprovision, Operation::FleetMigrate];
 
     for op in &operator_allowed {
         assert!(

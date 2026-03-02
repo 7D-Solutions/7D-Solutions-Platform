@@ -5,7 +5,6 @@
 /// 2. Service actors use deterministic IDs
 /// 3. User actors preserve user identity
 /// 4. System actors use well-known identity
-
 mod common;
 
 use audit::{

@@ -337,40 +337,19 @@ async fn test_find_trial_balance_all_currencies() {
     let mut tx = pool.begin().await.expect("Failed to start transaction");
 
     balance_repo::tx_upsert_rollup(
-        &mut tx,
-        tenant_id,
-        period_id,
-        "1000",
-        "USD",
-        50000,
-        0,
-        entry_id,
+        &mut tx, tenant_id, period_id, "1000", "USD", 50000, 0, entry_id,
     )
     .await
     .expect("Failed to upsert balance");
 
     balance_repo::tx_upsert_rollup(
-        &mut tx,
-        tenant_id,
-        period_id,
-        "2000",
-        "USD",
-        0,
-        30000,
-        entry_id,
+        &mut tx, tenant_id, period_id, "2000", "USD", 0, 30000, entry_id,
     )
     .await
     .expect("Failed to upsert balance");
 
     balance_repo::tx_upsert_rollup(
-        &mut tx,
-        tenant_id,
-        period_id,
-        "1000",
-        "EUR",
-        20000,
-        0,
-        entry_id,
+        &mut tx, tenant_id, period_id, "1000", "EUR", 20000, 0, entry_id,
     )
     .await
     .expect("Failed to upsert balance");
@@ -418,27 +397,13 @@ async fn test_find_trial_balance_single_currency() {
     let mut tx = pool.begin().await.expect("Failed to start transaction");
 
     balance_repo::tx_upsert_rollup(
-        &mut tx,
-        tenant_id,
-        period_id,
-        "1000",
-        "USD",
-        100000,
-        0,
-        entry_id,
+        &mut tx, tenant_id, period_id, "1000", "USD", 100000, 0, entry_id,
     )
     .await
     .expect("Failed to upsert balance");
 
     balance_repo::tx_upsert_rollup(
-        &mut tx,
-        tenant_id,
-        period_id,
-        "2000",
-        "EUR",
-        50000,
-        0,
-        entry_id,
+        &mut tx, tenant_id, period_id, "2000", "EUR", 50000, 0, entry_id,
     )
     .await
     .expect("Failed to upsert balance");
@@ -522,9 +487,10 @@ async fn test_find_balance_history() {
     tx2.commit().await.expect("Failed to commit");
 
     // Query balance history
-    let history = balance_repo::find_balance_history(&pool, tenant_id, account_code, Some(currency))
-        .await
-        .expect("Failed to find balance history");
+    let history =
+        balance_repo::find_balance_history(&pool, tenant_id, account_code, Some(currency))
+            .await
+            .expect("Failed to find balance history");
 
     assert_eq!(history.len(), 2, "Should have 2 periods");
 

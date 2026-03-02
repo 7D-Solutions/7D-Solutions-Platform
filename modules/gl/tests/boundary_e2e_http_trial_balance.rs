@@ -240,9 +240,15 @@ async fn test_boundary_http_trial_balance_returns_correct_json() {
         .find(|r| r.account_code == "1100")
         .expect("AR account (1100) should be in trial balance");
 
-    assert_eq!(ar_row.debit_total_minor, 250000, "AR debit should be 250000 minor units ($2500)");
+    assert_eq!(
+        ar_row.debit_total_minor, 250000,
+        "AR debit should be 250000 minor units ($2500)"
+    );
     assert_eq!(ar_row.credit_total_minor, 0, "AR credit should be 0");
-    assert_eq!(ar_row.net_balance_minor, 250000, "AR net balance should be 250000");
+    assert_eq!(
+        ar_row.net_balance_minor, 250000,
+        "AR net balance should be 250000"
+    );
 
     let revenue_row = trial_balance
         .rows
@@ -250,14 +256,32 @@ async fn test_boundary_http_trial_balance_returns_correct_json() {
         .find(|r| r.account_code == "4000")
         .expect("Revenue account (4000) should be in trial balance");
 
-    assert_eq!(revenue_row.debit_total_minor, 0, "Revenue debit should be 0");
-    assert_eq!(revenue_row.credit_total_minor, 250000, "Revenue credit should be 250000 minor units");
-    assert_eq!(revenue_row.net_balance_minor, -250000, "Revenue net should be -250000 (credit positive)");
+    assert_eq!(
+        revenue_row.debit_total_minor, 0,
+        "Revenue debit should be 0"
+    );
+    assert_eq!(
+        revenue_row.credit_total_minor, 250000,
+        "Revenue credit should be 250000 minor units"
+    );
+    assert_eq!(
+        revenue_row.net_balance_minor, -250000,
+        "Revenue net should be -250000 (credit positive)"
+    );
 
     // Assert: Totals balance (in minor units)
-    assert_eq!(trial_balance.totals.total_debits, 250000, "Total debits should be 250000 minor units");
-    assert_eq!(trial_balance.totals.total_credits, 250000, "Total credits should be 250000 minor units");
-    assert!(trial_balance.totals.is_balanced, "Trial balance should be balanced");
+    assert_eq!(
+        trial_balance.totals.total_debits, 250000,
+        "Total debits should be 250000 minor units"
+    );
+    assert_eq!(
+        trial_balance.totals.total_credits, 250000,
+        "Total credits should be 250000 minor units"
+    );
+    assert!(
+        trial_balance.totals.is_balanced,
+        "Trial balance should be balanced"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -325,19 +349,37 @@ async fn test_boundary_http_trial_balance_currency_filter() {
         gl_service_url, tenant_id, period_id
     );
 
-    let response_usd = reqwest::get(&url_usd).await.expect("Failed to fetch USD trial balance");
+    let response_usd = reqwest::get(&url_usd)
+        .await
+        .expect("Failed to fetch USD trial balance");
     assert_eq!(response_usd.status(), 200);
 
     let tb_usd: TrialBalanceResponse = response_usd.json().await.expect("Failed to parse JSON");
-    assert_eq!(tb_usd.rows.len(), 2, "Should have 2 USD accounts (Cash + Revenue)");
+    assert_eq!(
+        tb_usd.rows.len(),
+        2,
+        "Should have 2 USD accounts (Cash + Revenue)"
+    );
 
     // Verify all rows are USD currency
-    assert!(tb_usd.rows.iter().all(|r| r.currency == "USD"), "All rows should be USD");
+    assert!(
+        tb_usd.rows.iter().all(|r| r.currency == "USD"),
+        "All rows should be USD"
+    );
 
     // Verify totals are balanced
-    assert_eq!(tb_usd.totals.total_debits, 100000, "USD debits should be 100000 minor units");
-    assert_eq!(tb_usd.totals.total_credits, 100000, "USD credits should be 100000 minor units");
-    assert!(tb_usd.totals.is_balanced, "USD trial balance should be balanced");
+    assert_eq!(
+        tb_usd.totals.total_debits, 100000,
+        "USD debits should be 100000 minor units"
+    );
+    assert_eq!(
+        tb_usd.totals.total_credits, 100000,
+        "USD credits should be 100000 minor units"
+    );
+    assert!(
+        tb_usd.totals.is_balanced,
+        "USD trial balance should be balanced"
+    );
 
     // NOTE: Phase 14 - Multi-currency aggregation removed (currency is now required)
     // Test 2 (no currency filter) removed as currency parameter is now required
@@ -356,7 +398,9 @@ async fn test_boundary_http_trial_balance_error_handling() {
     // Test: Missing required query parameter (should return 400)
     let url_missing_params = format!("{}/api/gl/trial-balance", gl_service_url);
 
-    let response = reqwest::get(&url_missing_params).await.expect("Failed to make request");
+    let response = reqwest::get(&url_missing_params)
+        .await
+        .expect("Failed to make request");
 
     // Axum returns 400 for missing query parameters
     assert_eq!(
@@ -371,7 +415,9 @@ async fn test_boundary_http_trial_balance_error_handling() {
         gl_service_url
     );
 
-    let response_invalid = reqwest::get(&url_invalid_uuid).await.expect("Failed to make request");
+    let response_invalid = reqwest::get(&url_invalid_uuid)
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response_invalid.status(),
         400,
@@ -439,7 +485,9 @@ async fn test_boundary_http_trial_balance_performance_guard() {
     );
 
     let start = std::time::Instant::now();
-    let response = reqwest::get(&url).await.expect("Failed to fetch trial balance");
+    let response = reqwest::get(&url)
+        .await
+        .expect("Failed to fetch trial balance");
     let elapsed = start.elapsed();
 
     assert_eq!(response.status(), 200);

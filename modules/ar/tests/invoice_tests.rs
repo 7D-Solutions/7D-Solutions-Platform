@@ -53,7 +53,7 @@ async fn test_create_invoice_success() {
     // Verify invoice was created in database
     let invoice_id = json["id"].as_i64().unwrap() as i32;
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_invoices WHERE id = $1 AND ar_customer_id = $2"
+        "SELECT COUNT(*) FROM ar_invoices WHERE id = $1 AND ar_customer_id = $2",
     )
     .bind(invoice_id)
     .bind(customer_id)
@@ -93,9 +93,9 @@ async fn test_create_invoice_missing_customer() {
 
     // Should return error for non-existent customer
     assert!(
-        response.status() == StatusCode::NOT_FOUND ||
-        response.status() == StatusCode::BAD_REQUEST ||
-        response.status() == StatusCode::UNPROCESSABLE_ENTITY,
+        response.status() == StatusCode::NOT_FOUND
+            || response.status() == StatusCode::BAD_REQUEST
+            || response.status() == StatusCode::UNPROCESSABLE_ENTITY,
         "Should return error for non-existent customer, got {}",
         response.status()
     );
@@ -263,7 +263,9 @@ async fn test_finalize_invoice_success() {
                 .method("POST")
                 .uri(&format!("/api/ar/invoices/{}/finalize", invoice_id))
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&serde_json::json!({})).unwrap()))
+                .body(Body::from(
+                    serde_json::to_vec(&serde_json::json!({})).unwrap(),
+                ))
                 .unwrap(),
         )
         .await
@@ -276,13 +278,11 @@ async fn test_finalize_invoice_success() {
     assert_eq!(json["status"], "open");
 
     // Verify status changed in database
-    let status: String = sqlx::query_scalar(
-        "SELECT status FROM ar_invoices WHERE id = $1"
-    )
-    .bind(invoice_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let status: String = sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
+        .bind(invoice_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(status, "open");
 
     // Cleanup
@@ -311,7 +311,9 @@ async fn test_finalize_invoice_already_finalized() {
                 .method("POST")
                 .uri(&format!("/api/ar/invoices/{}/finalize", invoice_id))
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&serde_json::json!({})).unwrap()))
+                .body(Body::from(
+                    serde_json::to_vec(&serde_json::json!({})).unwrap(),
+                ))
                 .unwrap(),
         )
         .await
@@ -319,8 +321,7 @@ async fn test_finalize_invoice_already_finalized() {
 
     // Should return error since invoice is already finalized (open)
     assert!(
-        response.status() == StatusCode::BAD_REQUEST ||
-        response.status() == StatusCode::CONFLICT,
+        response.status() == StatusCode::BAD_REQUEST || response.status() == StatusCode::CONFLICT,
         "Should return error for already finalized invoice, got {}",
         response.status()
     );
@@ -357,7 +358,9 @@ async fn test_finalize_invoice_emits_event() {
                 .method("POST")
                 .uri(&format!("/api/ar/invoices/{}/finalize", invoice_id))
                 .header("content-type", "application/json")
-                .body(Body::from(serde_json::to_vec(&serde_json::json!({})).unwrap()))
+                .body(Body::from(
+                    serde_json::to_vec(&serde_json::json!({})).unwrap(),
+                ))
                 .unwrap(),
         )
         .await

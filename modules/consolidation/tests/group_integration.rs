@@ -129,7 +129,11 @@ async fn test_create_group_blank_name_rejected() {
     };
 
     let err = service::create_group(&pool, &tid, &req).await.unwrap_err();
-    assert!(matches!(err, ConfigError::Validation(_)), "expected Validation, got: {:?}", err);
+    assert!(
+        matches!(err, ConfigError::Validation(_)),
+        "expected Validation, got: {:?}",
+        err
+    );
 }
 
 // ============================================================================
@@ -150,7 +154,11 @@ async fn test_create_group_invalid_currency_rejected() {
     };
 
     let err = service::create_group(&pool, &tid, &req).await.unwrap_err();
-    assert!(matches!(err, ConfigError::Validation(_)), "expected Validation, got: {:?}", err);
+    assert!(
+        matches!(err, ConfigError::Validation(_)),
+        "expected Validation, got: {:?}",
+        err
+    );
 }
 
 // ============================================================================
@@ -281,7 +289,9 @@ async fn test_tenant_isolation_groups() {
         .unwrap();
 
     // Tenant B cannot read tenant A's group
-    let err = service::get_group(&pool, &tid_b, group.id).await.unwrap_err();
+    let err = service::get_group(&pool, &tid_b, group.id)
+        .await
+        .unwrap_err();
     assert!(matches!(err, ConfigError::GroupNotFound(_)));
 
     // Tenant B's list is empty
@@ -289,6 +299,8 @@ async fn test_tenant_isolation_groups() {
     assert!(list.is_empty());
 
     // Tenant B cannot delete tenant A's group
-    let err = service::delete_group(&pool, &tid_b, group.id).await.unwrap_err();
+    let err = service::delete_group(&pool, &tid_b, group.id)
+        .await
+        .unwrap_err();
     assert!(matches!(err, ConfigError::GroupNotFound(_)));
 }

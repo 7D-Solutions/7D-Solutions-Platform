@@ -10,10 +10,10 @@
 //! 7. List locations by warehouse
 
 use inventory_rs::domain::{
-    issue_service::{IssueRequest, IssueResult, process_issue},
+    issue_service::{process_issue, IssueRequest, IssueResult},
     items::{CreateItemRequest, ItemRepo, TrackingMode},
     locations::{CreateLocationRequest, LocationError, LocationRepo, UpdateLocationRequest},
-    receipt_service::{ReceiptRequest, ReceiptResult, process_receipt},
+    receipt_service::{process_receipt, ReceiptRequest, ReceiptResult},
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -25,8 +25,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -128,39 +128,35 @@ async fn get_on_hand(
     location_id: Option<Uuid>,
 ) -> Option<OnHandRow> {
     match location_id {
-        None => {
-            sqlx::query_as::<_, OnHandRow>(
-                r#"
+        None => sqlx::query_as::<_, OnHandRow>(
+            r#"
                 SELECT quantity_on_hand, available_status_on_hand, location_id
                 FROM item_on_hand
                 WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
                   AND location_id IS NULL
                 "#,
-            )
-            .bind(tenant_id)
-            .bind(item_id)
-            .bind(warehouse_id)
-            .fetch_optional(pool)
-            .await
-            .unwrap()
-        }
-        Some(loc_id) => {
-            sqlx::query_as::<_, OnHandRow>(
-                r#"
+        )
+        .bind(tenant_id)
+        .bind(item_id)
+        .bind(warehouse_id)
+        .fetch_optional(pool)
+        .await
+        .unwrap(),
+        Some(loc_id) => sqlx::query_as::<_, OnHandRow>(
+            r#"
                 SELECT quantity_on_hand, available_status_on_hand, location_id
                 FROM item_on_hand
                 WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3
                   AND location_id = $4
                 "#,
-            )
-            .bind(tenant_id)
-            .bind(item_id)
-            .bind(warehouse_id)
-            .bind(loc_id)
-            .fetch_optional(pool)
-            .await
-            .unwrap()
-        }
+        )
+        .bind(tenant_id)
+        .bind(item_id)
+        .bind(warehouse_id)
+        .bind(loc_id)
+        .fetch_optional(pool)
+        .await
+        .unwrap(),
     }
 }
 
@@ -351,7 +347,13 @@ async fn test_receipt_with_location_creates_location_on_hand_row() {
     .unwrap();
 
     // Receipt into location
-    let req = receipt_req(&tenant_id, item.id, warehouse_id, Some(loc.id), "idem-loc-rcpt-1");
+    let req = receipt_req(
+        &tenant_id,
+        item.id,
+        warehouse_id,
+        Some(loc.id),
+        "idem-loc-rcpt-1",
+    );
     let (result, is_replay) = process_receipt(&pool, &req, None).await.unwrap();
     assert!(!is_replay);
     assert_eq!(result.location_id, Some(loc.id));
@@ -366,16 +368,18 @@ async fn test_receipt_with_location_creates_location_on_hand_row() {
 
     // Verify NO null-location row was created
     let null_row = get_on_hand(&pool, &tenant_id, item.id, warehouse_id, None).await;
-    assert!(null_row.is_none(), "null-location row should not exist when location is specified");
+    assert!(
+        null_row.is_none(),
+        "null-location row should not exist when location is specified"
+    );
 
     // Check ledger row has location_id
-    let ledger_loc: Option<Uuid> = sqlx::query_scalar(
-        "SELECT location_id FROM inventory_ledger WHERE source_event_id = $1",
-    )
-    .bind(result.event_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let ledger_loc: Option<Uuid> =
+        sqlx::query_scalar("SELECT location_id FROM inventory_ledger WHERE source_event_id = $1")
+            .bind(result.event_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(ledger_loc, Some(loc.id));
 }
 
@@ -504,7 +508,13 @@ async fn test_issue_with_location_deducts_from_location_on_hand() {
     // Receive 50 into location
     process_receipt(
         &pool,
-        &receipt_req(&tenant_id, item.id, warehouse_id, Some(loc.id), "idem-issue-rcpt"),
+        &receipt_req(
+            &tenant_id,
+            item.id,
+            warehouse_id,
+            Some(loc.id),
+            "idem-issue-rcpt",
+        ),
         None,
     )
     .await
@@ -560,7 +570,13 @@ async fn test_issue_from_location_rejects_insufficient_stock() {
     .unwrap();
 
     // Only 10 in location
-    let mut rcpt = receipt_req(&tenant_id, item.id, warehouse_id, Some(loc.id), "idem-insuf-rcpt");
+    let mut rcpt = receipt_req(
+        &tenant_id,
+        item.id,
+        warehouse_id,
+        Some(loc.id),
+        "idem-insuf-rcpt",
+    );
     rcpt.quantity = 10;
     process_receipt(&pool, &rcpt, None).await.unwrap();
 
@@ -612,7 +628,14 @@ async fn test_null_location_issue_backward_compat() {
     .unwrap();
 
     // Issue with no location
-    let issue = issue_req(&tenant_id, item.id, warehouse_id, None, 20, "idem-back-issue");
+    let issue = issue_req(
+        &tenant_id,
+        item.id,
+        warehouse_id,
+        None,
+        20,
+        "idem-back-issue",
+    );
     let (result, _) = process_issue(&pool, &issue, None).await.unwrap();
     assert_eq!(result.location_id, None);
     assert_eq!(result.quantity, 20);

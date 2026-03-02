@@ -22,9 +22,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://ap_user:ap_pass@localhost:5443/ap_db".to_string()
-    });
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://ap_user:ap_pass@localhost:5443/ap_db".to_string());
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)

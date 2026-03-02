@@ -6,7 +6,7 @@
 //! 3. System remains healthy under rate limiting
 //! 4. One tenant's overload doesn't affect other tenants (isolation)
 
-use security::ratelimit::{RateLimiter, RateLimitConfig};
+use security::ratelimit::{RateLimitConfig, RateLimiter};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -18,8 +18,8 @@ use std::time::Duration;
 async fn test_rate_limit_tenant_isolation() {
     // Create rate limiter with low quotas for testing
     let limiter = RateLimiter::with_configs(
-        RateLimitConfig::new(5, Duration::from_secs(60)),  // 5 normal requests/min
-        RateLimitConfig::new(2, Duration::from_secs(60)),  // 2 fallback requests/min
+        RateLimitConfig::new(5, Duration::from_secs(60)), // 5 normal requests/min
+        RateLimitConfig::new(2, Duration::from_secs(60)), // 2 fallback requests/min
     );
 
     // Tenant 1 exhausts their quota
@@ -30,7 +30,10 @@ async fn test_rate_limit_tenant_isolation() {
 
     // Tenant 1's 6th request should be rate limited
     let result = limiter.check_limit("tenant-1", "/api/invoices");
-    assert!(result.is_err(), "Tenant 1 should be rate limited after 5 requests");
+    assert!(
+        result.is_err(),
+        "Tenant 1 should be rate limited after 5 requests"
+    );
 
     // Tenant 2 should still have full quota (isolation)
     for i in 0..5 {
@@ -49,8 +52,8 @@ async fn test_rate_limit_tenant_isolation() {
 async fn test_fallback_has_tighter_limits() {
     // Create rate limiter
     let limiter = RateLimiter::with_configs(
-        RateLimitConfig::new(100, Duration::from_secs(60)),  // 100 normal requests/min
-        RateLimitConfig::new(10, Duration::from_secs(60)),   // 10 fallback requests/min (10x tighter)
+        RateLimitConfig::new(100, Duration::from_secs(60)), // 100 normal requests/min
+        RateLimitConfig::new(10, Duration::from_secs(60)), // 10 fallback requests/min (10x tighter)
     );
 
     // Check initial quotas
@@ -58,17 +61,16 @@ async fn test_fallback_has_tighter_limits() {
     let fallback_quota = limiter.remaining_fallback_quota("tenant-1", "/api/invoices");
 
     assert_eq!(normal_quota, 100, "Normal quota should be 100");
-    assert_eq!(fallback_quota, 10, "Fallback quota should be 10 (10x tighter)");
+    assert_eq!(
+        fallback_quota, 10,
+        "Fallback quota should be 10 (10x tighter)"
+    );
 
     // Exhaust normal quota (would take 100 requests)
     // Instead, just exhaust fallback quota (10 requests)
     for i in 0..10 {
         let result = limiter.check_fallback_limit("tenant-1", "/api/invoices");
-        assert!(
-            result.is_ok(),
-            "Fallback request {} should succeed",
-            i + 1
-        );
+        assert!(result.is_ok(), "Fallback request {} should succeed", i + 1);
     }
 
     // 11th fallback request should be rate limited
@@ -92,8 +94,8 @@ async fn test_fallback_has_tighter_limits() {
 async fn test_rate_limit_engages_under_load() {
     // Create rate limiter with very low quota for testing
     let limiter = RateLimiter::with_configs(
-        RateLimitConfig::new(3, Duration::from_secs(60)),  // Only 3 requests/min
-        RateLimitConfig::new(1, Duration::from_secs(60)),  // Only 1 fallback/min
+        RateLimitConfig::new(3, Duration::from_secs(60)), // Only 3 requests/min
+        RateLimitConfig::new(1, Duration::from_secs(60)), // Only 1 fallback/min
     );
 
     let tenant_id = "tenant-load-test";
@@ -114,8 +116,10 @@ async fn test_rate_limit_engages_under_load() {
     assert_eq!(success_count, 3, "Should allow exactly 3 requests");
     assert_eq!(rate_limited_count, 7, "Should rate limit 7 requests");
 
-    println!("✓ Rate limit engaged: {}/{} requests allowed, {}/{} rate limited",
-        success_count, 10, rate_limited_count, 10);
+    println!(
+        "✓ Rate limit engaged: {}/{} requests allowed, {}/{} rate limited",
+        success_count, 10, rate_limited_count, 10
+    );
 }
 
 #[tokio::test]
@@ -143,7 +147,10 @@ async fn test_system_remains_healthy_under_rate_limiting() {
 
     // System should still be responsive
     let quota = limiter.remaining_quota(tenant_id, "/api/invoices");
-    assert_eq!(quota, 0, "Quota should be exhausted but system still responsive");
+    assert_eq!(
+        quota, 0,
+        "Quota should be exhausted but system still responsive"
+    );
 
     // Different tenant should still work
     let result = limiter.check_limit("different-tenant", "/api/invoices");
@@ -156,8 +163,8 @@ async fn test_system_remains_healthy_under_rate_limiting() {
 async fn test_quota_refills_over_time() {
     // Create limiter with fast refill for testing
     let limiter = RateLimiter::with_configs(
-        RateLimitConfig::new(2, Duration::from_millis(200)),  // 2 per 200ms = 10/sec
-        RateLimitConfig::new(1, Duration::from_millis(200)),  // 1 per 200ms = 5/sec
+        RateLimitConfig::new(2, Duration::from_millis(200)), // 2 per 200ms = 10/sec
+        RateLimitConfig::new(1, Duration::from_millis(200)), // 1 per 200ms = 5/sec
     );
 
     let tenant_id = "tenant-refill-test";
@@ -166,7 +173,10 @@ async fn test_quota_refills_over_time() {
     // Exhaust quota (2 requests)
     assert!(limiter.check_limit(tenant_id, path).is_ok());
     assert!(limiter.check_limit(tenant_id, path).is_ok());
-    assert!(limiter.check_limit(tenant_id, path).is_err(), "Should be rate limited");
+    assert!(
+        limiter.check_limit(tenant_id, path).is_err(),
+        "Should be rate limited"
+    );
 
     // Wait for token refill
     tokio::time::sleep(Duration::from_millis(250)).await;

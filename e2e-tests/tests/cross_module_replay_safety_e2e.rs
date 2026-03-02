@@ -20,15 +20,12 @@ use uuid::Uuid;
 // Test Helpers
 // ============================================================================
 
-async fn setup_subscription(
-    subscriptions_pool: &PgPool,
-    tenant_id: &str,
-) -> Uuid {
+async fn setup_subscription(subscriptions_pool: &PgPool, tenant_id: &str) -> Uuid {
     // Create a subscription plan first (plan_id is UUID FK)
     let plan_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO subscription_plans (tenant_id, name, schedule, price_minor, currency)
          VALUES ($1, 'Test Plan', 'monthly', 1000, 'USD')
-         RETURNING id"
+         RETURNING id",
     )
     .bind(tenant_id)
     .fetch_one(subscriptions_pool)
@@ -82,12 +79,7 @@ async fn create_subscription_invoice_attempt(
     }
 }
 
-async fn setup_invoice(
-    ar_pool: &PgPool,
-    app_id: &str,
-    customer_id: i32,
-    status: &str,
-) -> i32 {
+async fn setup_invoice(ar_pool: &PgPool, app_id: &str, customer_id: i32, status: &str) -> i32 {
     sqlx::query_scalar::<_, i32>(
         "INSERT INTO ar_invoices (app_id, ar_customer_id, status, amount_cents, currency, due_at, tilled_invoice_id, updated_at)
          VALUES ($1, $2, $3, 10000, 'USD', '2026-02-28', $4, NOW())
@@ -113,7 +105,7 @@ async fn create_payment_attempt(
     sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO payment_attempts (app_id, payment_id, invoice_id, attempt_no, status)
          VALUES ($1, $2, $3::text, $4, $5::payment_attempt_status)
-         RETURNING id"
+         RETURNING id",
     )
     .bind(app_id)
     .bind(payment_id)
@@ -187,7 +179,7 @@ async fn test_subscription_cycle_replay_deduplication() {
     // Assert: Exactly one attempt exists for this cycle
     let attempt_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM subscription_invoice_attempts
-         WHERE tenant_id = $1 AND subscription_id = $2 AND cycle_key = $3"
+         WHERE tenant_id = $1 AND subscription_id = $2 AND cycle_key = $3",
     )
     .bind(tenant_id)
     .bind(subscription_id)
@@ -214,12 +206,20 @@ async fn test_subscription_cycle_replay_deduplication() {
         app_id: tenant_id,
         tenant_id,
     };
-    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+    oracle::assert_cross_module_invariants(&ctx)
+        .await
+        .expect("Oracle invariants should pass");
 
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, tenant_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        tenant_id,
+    )
+    .await
+    .ok();
 }
 
 // ============================================================================
@@ -249,7 +249,10 @@ async fn test_payment_attempt_replay_deduplication() {
     )
     .await;
 
-    assert!(attempt1_result.is_ok(), "First payment attempt should succeed");
+    assert!(
+        attempt1_result.is_ok(),
+        "First payment attempt should succeed"
+    );
 
     // Execute: Replay payment attempt (same payment_id, attempt_no) - should fail
     let replay_result = create_payment_attempt(
@@ -270,7 +273,7 @@ async fn test_payment_attempt_replay_deduplication() {
     // Assert: Exactly one attempt exists
     let attempt_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM payment_attempts
-         WHERE app_id = $1 AND payment_id = $2 AND attempt_no = $3"
+         WHERE app_id = $1 AND payment_id = $2 AND attempt_no = $3",
     )
     .bind(app_id)
     .bind(payment_id)
@@ -285,9 +288,15 @@ async fn test_payment_attempt_replay_deduplication() {
     );
 
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &common::get_subscriptions_pool().await,
+        &common::get_gl_pool().await,
+        app_id,
+    )
+    .await
+    .ok();
 }
 
 // ============================================================================
@@ -319,7 +328,7 @@ async fn test_gl_posting_replay_deduplication() {
     // Assert: Exactly one journal entry exists for this event
     let entry_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM journal_entries
-         WHERE tenant_id = $1 AND source_event_id = $2"
+         WHERE tenant_id = $1 AND source_event_id = $2",
     )
     .bind(tenant_id)
     .bind(source_event_id)
@@ -333,9 +342,15 @@ async fn test_gl_posting_replay_deduplication() {
     );
 
     // Cleanup
-    common::cleanup_tenant_data(&common::get_ar_pool().await, &common::get_payments_pool().await, &common::get_subscriptions_pool().await, &gl_pool, tenant_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &common::get_ar_pool().await,
+        &common::get_payments_pool().await,
+        &common::get_subscriptions_pool().await,
+        &gl_pool,
+        tenant_id,
+    )
+    .await
+    .ok();
 }
 
 // ============================================================================
@@ -367,7 +382,10 @@ async fn test_full_flow_replay_produces_identical_results() {
         "succeeded",
     )
     .await;
-    assert!(sub_attempt1.is_ok(), "Subscription attempt 1 should succeed");
+    assert!(
+        sub_attempt1.is_ok(),
+        "Subscription attempt 1 should succeed"
+    );
 
     // Create invoice (simulating invoice generation from subscription event)
     let full_flow_customer_id = common::create_ar_customer(&ar_pool, tenant_id).await;
@@ -428,7 +446,7 @@ async fn test_full_flow_replay_produces_identical_results() {
     // **Assert: Exactly one of each record created**
     let sub_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM subscription_invoice_attempts
-         WHERE tenant_id = $1 AND subscription_id = $2 AND cycle_key = $3"
+         WHERE tenant_id = $1 AND subscription_id = $2 AND cycle_key = $3",
     )
     .bind(tenant_id)
     .bind(subscription_id)
@@ -439,7 +457,7 @@ async fn test_full_flow_replay_produces_identical_results() {
 
     let payment_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM payment_attempts
-         WHERE app_id = $1 AND payment_id = $2"
+         WHERE app_id = $1 AND payment_id = $2",
     )
     .bind(tenant_id)
     .bind(payment_id)
@@ -449,7 +467,7 @@ async fn test_full_flow_replay_produces_identical_results() {
 
     let gl_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM journal_entries
-         WHERE tenant_id = $1 AND source_event_id = $2"
+         WHERE tenant_id = $1 AND source_event_id = $2",
     )
     .bind(tenant_id)
     .bind(gl_event_id)
@@ -462,9 +480,15 @@ async fn test_full_flow_replay_produces_identical_results() {
     assert_eq!(gl_count, 1, "Should have exactly 1 GL journal entry");
 
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, tenant_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        tenant_id,
+    )
+    .await
+    .ok();
 }
 
 // ============================================================================
@@ -518,7 +542,7 @@ async fn test_multiple_replays_remain_deterministic() {
     // Assert: Still exactly 1 attempt
     let final_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM payment_attempts
-         WHERE app_id = $1 AND payment_id = $2 AND attempt_no = $3"
+         WHERE app_id = $1 AND payment_id = $2 AND attempt_no = $3",
     )
     .bind(app_id)
     .bind(payment_id)
@@ -533,7 +557,13 @@ async fn test_multiple_replays_remain_deterministic() {
     );
 
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &common::get_subscriptions_pool().await, &common::get_gl_pool().await, app_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &common::get_subscriptions_pool().await,
+        &common::get_gl_pool().await,
+        app_id,
+    )
+    .await
+    .ok();
 }

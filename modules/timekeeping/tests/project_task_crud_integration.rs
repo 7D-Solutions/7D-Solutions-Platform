@@ -267,9 +267,7 @@ async fn test_update_and_deactivate_task() {
     assert_eq!(updated.name, "Renamed Task");
 
     // Deactivate
-    let deactivated = TaskRepo::deactivate(&pool, task.id, &app_id)
-        .await
-        .unwrap();
+    let deactivated = TaskRepo::deactivate(&pool, task.id, &app_id).await.unwrap();
     assert!(!deactivated.active);
 
     let active_tasks = TaskRepo::list_for_project(&pool, proj.id, &app_id, true)

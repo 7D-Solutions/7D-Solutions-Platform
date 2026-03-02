@@ -10,7 +10,6 @@
 ///
 /// These tests use an in-process Axum router connected to the real
 /// tenant-registry database (localhost:5441). No Docker needed.
-
 mod common;
 
 use axum::{
@@ -43,10 +42,7 @@ async fn ensure_control_plane_tables(pool: &PgPool) {
     );
 
     // Tables may already exist; the migration uses IF NOT EXISTS so it's safe.
-    sqlx::raw_sql(migration_sql)
-        .execute(pool)
-        .await
-        .ok(); // Ignore errors (e.g. tables already exist from a clean state)
+    sqlx::raw_sql(migration_sql).execute(pool).await.ok(); // Ignore errors (e.g. tables already exist from a clean state)
 }
 
 /// Helper: build in-process provisioning router
@@ -77,21 +73,17 @@ async fn post_create_tenant(router: &axum::Router, body: Value) -> (StatusCode, 
 
 /// Cleanup: remove test rows from provisioning_requests, provisioning_outbox, tenants
 async fn cleanup(pool: &PgPool, tenant_id: Uuid) {
-    sqlx::query(
-        "DELETE FROM provisioning_outbox WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .execute(pool)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM provisioning_outbox WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 
-    sqlx::query(
-        "DELETE FROM provisioning_requests WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .execute(pool)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM provisioning_requests WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 
     sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")
         .bind(tenant_id)
@@ -121,21 +113,28 @@ async fn test_create_tenant_returns_pending_status() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::ACCEPTED, "Expected 202 Accepted, got: {}\nbody: {}", status, body);
+    assert_eq!(
+        status,
+        StatusCode::ACCEPTED,
+        "Expected 202 Accepted, got: {}\nbody: {}",
+        status,
+        body
+    );
     assert_eq!(body["status"], "pending", "Tenant status should be pending");
     assert_eq!(body["idempotency_key"], idempotency_key);
-    assert!(body["tenant_id"].is_string(), "tenant_id should be a UUID string");
+    assert!(
+        body["tenant_id"].is_string(),
+        "tenant_id should be a UUID string"
+    );
 
     let tenant_id: Uuid = body["tenant_id"].as_str().unwrap().parse().unwrap();
 
     // Verify DB: tenant row exists with status=pending
-    let db_status: String = sqlx::query_scalar(
-        "SELECT status FROM tenants WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Tenant should exist in DB");
+    let db_status: String = sqlx::query_scalar("SELECT status FROM tenants WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_one(&pool)
+        .await
+        .expect("Tenant should exist in DB");
 
     assert_eq!(db_status, "pending", "DB status should be pending");
 
@@ -220,7 +219,11 @@ async fn test_idempotency_replay_returns_200() {
 
     // Second request with same key: 200 OK (idempotency replay)
     let (status2, body2) = post_create_tenant(&router, body.clone()).await;
-    assert_eq!(status2, StatusCode::OK, "Duplicate idempotency key should return 200 OK");
+    assert_eq!(
+        status2,
+        StatusCode::OK,
+        "Duplicate idempotency key should return 200 OK"
+    );
     assert_eq!(
         body2["tenant_id"].as_str().unwrap(),
         body1["tenant_id"].as_str().unwrap(),
@@ -229,22 +232,19 @@ async fn test_idempotency_replay_returns_200() {
     assert_eq!(body2["idempotency_key"], idempotency_key);
 
     // Only ONE tenant row and ONE outbox event should exist
-    let tenant_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM tenants WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let tenant_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM tenants WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(tenant_count, 1, "Only one tenant row should exist");
 
-    let outbox_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM provisioning_outbox WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let outbox_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM provisioning_outbox WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(outbox_count, 1, "Only one outbox event should exist");
 
     cleanup(&pool, tenant_id).await;

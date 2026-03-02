@@ -20,7 +20,7 @@ async fn setup_test_tenant(registry_pool: &PgPool, tenant_id: Uuid, status: &str
         r#"
         INSERT INTO tenants (tenant_id, status, environment, module_schema_versions)
         VALUES ($1, $2, 'development', '{}'::jsonb)
-        "#
+        "#,
     )
     .bind(tenant_id)
     .bind(status)
@@ -30,13 +30,11 @@ async fn setup_test_tenant(registry_pool: &PgPool, tenant_id: Uuid, status: &str
 }
 
 async fn get_tenant_status(registry_pool: &PgPool, tenant_id: Uuid) -> Option<String> {
-    sqlx::query_scalar::<_, String>(
-        "SELECT status FROM tenants WHERE tenant_id = $1"
-    )
-    .bind(tenant_id)
-    .fetch_optional(registry_pool)
-    .await
-    .expect("Failed to fetch tenant status")
+    sqlx::query_scalar::<_, String>("SELECT status FROM tenants WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_optional(registry_pool)
+        .await
+        .expect("Failed to fetch tenant status")
 }
 
 async fn get_audit_count(audit_pool: &PgPool, tenant_id: Uuid, action: &str) -> i64 {
@@ -47,7 +45,7 @@ async fn get_audit_count(audit_pool: &PgPool, tenant_id: Uuid, action: &str) -> 
         WHERE entity_type = 'tenant'
           AND entity_id = $1
           AND action = $2
-        "#
+        "#,
     )
     .bind(tenant_id.to_string())
     .bind(action)
@@ -109,7 +107,7 @@ async fn test_suspend_active_tenant_succeeds() {
         UPDATE tenants
         SET status = 'suspended', updated_at = CURRENT_TIMESTAMP
         WHERE tenant_id = $1
-        "#
+        "#,
     )
     .bind(tenant_id)
     .execute(&registry_pool)
@@ -127,7 +125,7 @@ async fn test_suspend_active_tenant_succeeds() {
         ) VALUES (
             $1, $2, $3, $4::mutation_class, $5, $6, $7, $8, $9
         )
-        "#
+        "#,
     )
     .bind(Uuid::nil())
     .bind("system")
@@ -188,7 +186,7 @@ async fn test_deprovision_active_tenant_succeeds() {
             deleted_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE tenant_id = $1
-        "#
+        "#,
     )
     .bind(tenant_id)
     .execute(&registry_pool)
@@ -206,7 +204,7 @@ async fn test_deprovision_active_tenant_succeeds() {
         ) VALUES (
             $1, $2, $3, $4::mutation_class, $5, $6, $7, $8, $9
         )
-        "#
+        "#,
     )
     .bind(Uuid::nil())
     .bind("system")
@@ -267,7 +265,7 @@ async fn test_deprovision_suspended_tenant_succeeds() {
             deleted_at = CURRENT_TIMESTAMP,
             updated_at = CURRENT_TIMESTAMP
         WHERE tenant_id = $1
-        "#
+        "#,
     )
     .bind(tenant_id)
     .execute(&registry_pool)
@@ -285,7 +283,7 @@ async fn test_deprovision_suspended_tenant_succeeds() {
         ) VALUES (
             $1, $2, $3, $4::mutation_class, $5, $6, $7, $8, $9
         )
-        "#
+        "#,
     )
     .bind(Uuid::nil())
     .bind("system")
@@ -355,7 +353,7 @@ async fn test_lifecycle_registry_reflects_status_accurately() {
         UPDATE tenants
         SET status = 'deleted', deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
         WHERE tenant_id = $1
-        "#
+        "#,
     )
     .bind(tenant_id)
     .execute(&registry_pool)

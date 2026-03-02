@@ -194,7 +194,10 @@ async fn test_category_tenant_isolation() {
 
     // Tenant B has no categories
     let b_cats = CategoryRepo::list(&pool, &tid_b).await.unwrap();
-    assert!(b_cats.is_empty(), "tenant B should not see tenant A's categories");
+    assert!(
+        b_cats.is_empty(),
+        "tenant B should not see tenant A's categories"
+    );
 
     // Tenant B cannot find tenant A's category by id
     let found = CategoryRepo::find_by_id(&pool, cat_a.id, &tid_b)

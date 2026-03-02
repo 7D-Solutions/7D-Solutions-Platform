@@ -106,7 +106,11 @@ fn diff_field_ordering_is_deterministic() {
     // Run multiple times to verify ordering stability
     for _ in 0..10 {
         let diff = Diff::new(Some(before.clone()), Some(after.clone()));
-        let names: Vec<&str> = diff.field_changes.iter().map(|c| c.field.as_str()).collect();
+        let names: Vec<&str> = diff
+            .field_changes
+            .iter()
+            .map(|c| c.field.as_str())
+            .collect();
         assert_eq!(names, vec!["apple", "mango", "zebra"]);
     }
 }

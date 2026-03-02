@@ -54,7 +54,13 @@ fn sha256_token_hash(raw: &str) -> String {
 }
 
 /// Seed a credential row (placeholder password hash — not argon2, just a string for test isolation)
-async fn insert_credential(pool: &sqlx::PgPool, tenant_id: Uuid, user_id: Uuid, email: &str, password_hash: &str) {
+async fn insert_credential(
+    pool: &sqlx::PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    email: &str,
+    password_hash: &str,
+) {
     sqlx::query(
         r#"INSERT INTO credentials (tenant_id, user_id, email, password_hash)
            VALUES ($1, $2, $3, $4)"#,
@@ -89,7 +95,12 @@ async fn insert_reset_token(
 }
 
 /// Seed a session_leases row
-async fn insert_session_lease(pool: &sqlx::PgPool, tenant_id: Uuid, user_id: Uuid, refresh_token_id: Uuid) {
+async fn insert_session_lease(
+    pool: &sqlx::PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    refresh_token_id: Uuid,
+) {
     sqlx::query(
         r#"INSERT INTO session_leases (tenant_id, user_id, session_id)
            VALUES ($1, $2, $3)"#,
@@ -148,14 +159,12 @@ async fn simulate_reset_password(
     };
 
     // Update password
-    sqlx::query(
-        "UPDATE credentials SET password_hash = $1, updated_at = NOW() WHERE user_id = $2",
-    )
-    .bind(new_password_hash)
-    .bind(user_id)
-    .execute(pool)
-    .await
-    .expect("update password");
+    sqlx::query("UPDATE credentials SET password_hash = $1, updated_at = NOW() WHERE user_id = $2")
+        .bind(new_password_hash)
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .expect("update password");
 
     // Hard-delete session_leases
     sqlx::query("DELETE FROM session_leases WHERE user_id = $1")
@@ -179,33 +188,27 @@ async fn simulate_reset_password(
         .expect("fetch credential")
         .map(|r| r.get::<String, _>("password_hash"));
 
-    let sl_count: i64 = sqlx::query(
-        "SELECT COUNT(*) FROM session_leases WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(pool)
-    .await
-    .expect("count session leases")
-    .get::<i64, _>(0);
+    let sl_count: i64 = sqlx::query("SELECT COUNT(*) FROM session_leases WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+        .expect("count session leases")
+        .get::<i64, _>(0);
 
-    let rt_count: i64 = sqlx::query(
-        "SELECT COUNT(*) FROM refresh_tokens WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(pool)
-    .await
-    .expect("count refresh tokens")
-    .get::<i64, _>(0);
+    let rt_count: i64 = sqlx::query("SELECT COUNT(*) FROM refresh_tokens WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(pool)
+        .await
+        .expect("count refresh tokens")
+        .get::<i64, _>(0);
 
-    let token_used = sqlx::query(
-        "SELECT used_at FROM password_reset_tokens WHERE token_hash = $1",
-    )
-    .bind(&token_hash)
-    .fetch_one(pool)
-    .await
-    .expect("fetch token row")
-    .get::<Option<chrono::DateTime<Utc>>, _>("used_at")
-    .is_some();
+    let token_used = sqlx::query("SELECT used_at FROM password_reset_tokens WHERE token_hash = $1")
+        .bind(&token_hash)
+        .fetch_one(pool)
+        .await
+        .expect("fetch token row")
+        .get::<Option<chrono::DateTime<Utc>>, _>("used_at")
+        .is_some();
 
     (ph_row, sl_count, rt_count, token_used)
 }
@@ -242,7 +245,10 @@ async fn test_valid_token_resets_password_and_revokes_sessions() {
         "password_hash must be updated to the new hash"
     );
     // Invariant: token marked used (used_at set)
-    assert!(token_used, "token must have used_at set after successful claim");
+    assert!(
+        token_used,
+        "token must have used_at set after successful claim"
+    );
     // Invariant: session_leases hard-deleted
     assert_eq!(sl_count, 0, "all session_leases for user must be deleted");
     // Invariant: refresh_tokens hard-deleted
@@ -275,30 +281,30 @@ async fn test_invalid_token_no_changes() {
     assert_eq!(ph_after, None, "claim must fail for bogus token");
 
     // Verify original DB state unchanged by checking directly
-    let actual_hash: String = sqlx::query(
-        "SELECT password_hash FROM credentials WHERE user_id = $1 LIMIT 1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .expect("fetch credential")
-    .get("password_hash");
+    let actual_hash: String =
+        sqlx::query("SELECT password_hash FROM credentials WHERE user_id = $1 LIMIT 1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch credential")
+            .get("password_hash");
 
     assert_eq!(
         actual_hash, original_hash,
         "password_hash must be unchanged after bogus token attempt"
     );
 
-    let sl: i64 = sqlx::query(
-        "SELECT COUNT(*) FROM session_leases WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count leases")
-    .get::<i64, _>(0);
+    let sl: i64 = sqlx::query("SELECT COUNT(*) FROM session_leases WHERE user_id = $1")
+        .bind(user_id)
+        .fetch_one(&pool)
+        .await
+        .expect("count leases")
+        .get::<i64, _>(0);
 
-    assert_eq!(sl, 1, "session_leases must be untouched after invalid token");
+    assert_eq!(
+        sl, 1,
+        "session_leases must be untouched after invalid token"
+    );
     let _ = sl_count; // suppress unused warning from early return
     let _ = rt_count;
 }
@@ -329,16 +335,18 @@ async fn test_expired_token_no_changes() {
     assert_eq!(ph_after, None, "claim must fail for expired token");
     assert!(!token_used, "expired token must not be marked used");
 
-    let actual_hash: String = sqlx::query(
-        "SELECT password_hash FROM credentials WHERE user_id = $1 LIMIT 1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .expect("fetch credential")
-    .get("password_hash");
+    let actual_hash: String =
+        sqlx::query("SELECT password_hash FROM credentials WHERE user_id = $1 LIMIT 1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch credential")
+            .get("password_hash");
 
-    assert_eq!(actual_hash, original_hash, "password must be unchanged for expired token");
+    assert_eq!(
+        actual_hash, original_hash,
+        "password must be unchanged for expired token"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -360,27 +368,27 @@ async fn test_token_single_use_second_call_rejected() {
     insert_reset_token(&pool, user_id, &hash, expires_at).await;
 
     // First call succeeds
-    let (ph_first, _, _, token_used) =
-        simulate_reset_password(&pool, &raw, "first-new-hash").await;
+    let (ph_first, _, _, token_used) = simulate_reset_password(&pool, &raw, "first-new-hash").await;
     assert_eq!(ph_first.as_deref(), Some("first-new-hash"));
     assert!(token_used, "token must be marked used after first claim");
 
     // Second call with same token must fail
-    let (ph_second, _, _, _) =
-        simulate_reset_password(&pool, &raw, "second-new-hash").await;
+    let (ph_second, _, _, _) = simulate_reset_password(&pool, &raw, "second-new-hash").await;
     assert_eq!(ph_second, None, "second claim with same token must fail");
 
     // Password stays at first-new-hash, not changed by second call
-    let actual_hash: String = sqlx::query(
-        "SELECT password_hash FROM credentials WHERE user_id = $1 LIMIT 1",
-    )
-    .bind(user_id)
-    .fetch_one(&pool)
-    .await
-    .expect("fetch credential")
-    .get("password_hash");
+    let actual_hash: String =
+        sqlx::query("SELECT password_hash FROM credentials WHERE user_id = $1 LIMIT 1")
+            .bind(user_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch credential")
+            .get("password_hash");
 
-    assert_eq!(actual_hash, "first-new-hash", "password must not be changed by second (rejected) call");
+    assert_eq!(
+        actual_hash, "first-new-hash",
+        "password must not be changed by second (rejected) call"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -432,20 +440,16 @@ async fn test_nats_completion_event_published() {
     .expect("publish event");
     nats.flush().await.expect("flush");
 
-    let msg = tokio::time::timeout(
-        std::time::Duration::from_secs(5),
-        sub.next(),
-    )
-    .await
-    .expect("timeout: no NATS message received within 5s")
-    .expect("NATS subscriber closed unexpectedly");
+    let msg = tokio::time::timeout(std::time::Duration::from_secs(5), sub.next())
+        .await
+        .expect("timeout: no NATS message received within 5s")
+        .expect("NATS subscriber closed unexpectedly");
 
     let received: serde_json::Value =
         serde_json::from_slice(&msg.payload).expect("parse NATS message as JSON");
 
     assert_eq!(
-        received["event_type"],
-        "auth.events.password_reset_completed",
+        received["event_type"], "auth.events.password_reset_completed",
         "event_type must be auth.events.password_reset_completed"
     );
     assert_eq!(

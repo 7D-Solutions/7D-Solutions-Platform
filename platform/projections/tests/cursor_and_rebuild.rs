@@ -3,7 +3,6 @@
 /// Covers: (1) cursor save/load/resume, (2) idempotent try_apply_event,
 /// (3) shadow table create/swap, (4) shadow cursor tracking during rebuild.
 /// All tests run against a real PostgreSQL database — no mocks.
-
 use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -154,14 +153,9 @@ async fn try_apply_event_applies_new_event() {
 
     let mut conn = pool.acquire().await.expect("acquire conn");
 
-    let applied = try_apply_event(
-        &mut conn,
-        &proj,
-        tenant,
-        event_id,
-        Utc::now(),
-        |_tx| Box::pin(async move { Ok(()) }),
-    )
+    let applied = try_apply_event(&mut conn, &proj, tenant, event_id, Utc::now(), |_tx| {
+        Box::pin(async move { Ok(()) })
+    })
     .await
     .expect("try_apply_event");
 
@@ -186,26 +180,16 @@ async fn try_apply_event_skips_duplicate() {
     let event_id = Uuid::new_v4();
 
     let mut conn = pool.acquire().await.expect("acquire");
-    try_apply_event(
-        &mut conn,
-        &proj,
-        tenant,
-        event_id,
-        Utc::now(),
-        |_tx| Box::pin(async move { Ok(()) }),
-    )
+    try_apply_event(&mut conn, &proj, tenant, event_id, Utc::now(), |_tx| {
+        Box::pin(async move { Ok(()) })
+    })
     .await
     .expect("first apply");
 
     let mut conn2 = pool.acquire().await.expect("acquire");
-    let applied = try_apply_event(
-        &mut conn2,
-        &proj,
-        tenant,
-        event_id,
-        Utc::now(),
-        |_tx| Box::pin(async move { Ok(()) }),
-    )
+    let applied = try_apply_event(&mut conn2, &proj, tenant, event_id, Utc::now(), |_tx| {
+        Box::pin(async move { Ok(()) })
+    })
     .await
     .expect("second apply");
 
@@ -231,14 +215,9 @@ async fn try_apply_event_sequence_tracks_position() {
     for i in 0..5 {
         let eid = Uuid::new_v4();
         let mut conn = pool.acquire().await.expect("acquire");
-        let applied = try_apply_event(
-            &mut conn,
-            &proj,
-            tenant,
-            eid,
-            Utc::now(),
-            |_tx| Box::pin(async move { Ok(()) }),
-        )
+        let applied = try_apply_event(&mut conn, &proj, tenant, eid, Utc::now(), |_tx| {
+            Box::pin(async move { Ok(()) })
+        })
         .await
         .expect("apply");
         assert!(applied, "event {} must be applied", i);
@@ -282,11 +261,14 @@ async fn shadow_table_create_and_swap() {
     .await
     .expect("create live table");
 
-    sqlx::query(&format!("INSERT INTO {} (id, amount) VALUES ($1, 100)", base))
-        .bind(Uuid::new_v4())
-        .execute(&pool)
-        .await
-        .expect("insert live data");
+    sqlx::query(&format!(
+        "INSERT INTO {} (id, amount) VALUES ($1, 100)",
+        base
+    ))
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await
+    .expect("insert live data");
 
     // Create shadow table
     let ddl = format!(
@@ -311,11 +293,10 @@ async fn shadow_table_create_and_swap() {
     swap_tables_atomic(&pool, &base).await.expect("swap");
 
     // Live table should now have shadow data (999)
-    let amount: i64 =
-        sqlx::query_scalar(&format!("SELECT amount FROM {} LIMIT 1", base))
-            .fetch_one(&pool)
-            .await
-            .expect("read swapped");
+    let amount: i64 = sqlx::query_scalar(&format!("SELECT amount FROM {} LIMIT 1", base))
+        .fetch_one(&pool)
+        .await
+        .expect("read swapped");
     assert_eq!(amount, 999, "after swap, live should have shadow data");
 
     // Cleanup

@@ -386,9 +386,7 @@ async fn test_get_allocation_tenant_isolation() {
     .unwrap();
 
     // App B cannot fetch app A's allocation
-    let err = get_allocation(&pool, alloc_a.id, &app_b)
-        .await
-        .unwrap_err();
+    let err = get_allocation(&pool, alloc_a.id, &app_b).await.unwrap_err();
     assert!(
         matches!(err, AllocationError::NotFound),
         "App B must not see app A's allocation"

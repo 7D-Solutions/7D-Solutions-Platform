@@ -3,7 +3,6 @@
 /// Covers: (1) tenant create/read/update, (2) app_id generation and lookup,
 /// (3) plan assignment and entitlements, (4) bundle assignment.
 /// All tests run against a real PostgreSQL database — no mocks.
-
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use sqlx::PgPool;
@@ -11,9 +10,8 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 use tenant_registry::{
-    get_tenant_app_id, get_tenant_entitlements, get_tenant_status_row,
-    tenant_list_router, tenant_detail_router, plans_router,
-    derive_name,
+    derive_name, get_tenant_app_id, get_tenant_entitlements, get_tenant_status_row, plans_router,
+    tenant_detail_router, tenant_list_router,
 };
 
 async fn test_pool() -> PgPool {
@@ -21,7 +19,9 @@ async fn test_pool() -> PgPool {
         "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
             .to_string()
     });
-    PgPool::connect(&url).await.expect("connect to tenant-registry DB")
+    PgPool::connect(&url)
+        .await
+        .expect("connect to tenant-registry DB")
 }
 
 async fn insert_tenant_full(
@@ -49,11 +49,20 @@ async fn insert_tenant_full(
 
 async fn cleanup(pool: &PgPool, tenant_id: Uuid) {
     sqlx::query("DELETE FROM cp_entitlements WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM cp_tenant_bundle WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -63,7 +72,14 @@ async fn cleanup(pool: &PgPool, tenant_id: Uuid) {
 #[tokio::test]
 async fn create_and_read_tenant_via_api() {
     let pool = test_pool().await;
-    let tid = insert_tenant_full(&pool, "active", Some("acme-corp"), Some("starter"), Some("app_acme")).await;
+    let tid = insert_tenant_full(
+        &pool,
+        "active",
+        Some("acme-corp"),
+        Some("starter"),
+        Some("app_acme"),
+    )
+    .await;
 
     // Read via detail endpoint
     let app = tenant_detail_router(pool.clone());
@@ -75,7 +91,9 @@ async fn create_and_read_tenant_via_api() {
     let resp = app.oneshot(req).await.expect("call detail endpoint");
     assert_eq!(resp.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["id"], tid.to_string());
@@ -102,11 +120,15 @@ async fn tenant_appears_in_list_endpoint() {
     let resp = app.oneshot(req).await.expect("call list endpoint");
     assert_eq!(resp.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     let tenants = json["tenants"].as_array().unwrap();
-    let found = tenants.iter().any(|t| t["id"].as_str() == Some(&tid.to_string()));
+    let found = tenants
+        .iter()
+        .any(|t| t["id"].as_str() == Some(&tid.to_string()));
     assert!(found, "tenant must appear in list");
 
     cleanup(&pool, tid).await;
@@ -116,7 +138,8 @@ async fn tenant_appears_in_list_endpoint() {
 async fn list_filters_by_status() {
     let pool = test_pool().await;
     let tid_active = insert_tenant_full(&pool, "active", Some("filter-active"), None, None).await;
-    let tid_suspended = insert_tenant_full(&pool, "suspended", Some("filter-susp"), None, None).await;
+    let tid_suspended =
+        insert_tenant_full(&pool, "suspended", Some("filter-susp"), None, None).await;
 
     let app = tenant_list_router(pool.clone());
     let req = Request::builder()
@@ -125,7 +148,9 @@ async fn list_filters_by_status() {
         .unwrap();
 
     let resp = app.oneshot(req).await.expect("call list endpoint");
-    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     let tenants = json["tenants"].as_array().unwrap();
@@ -144,7 +169,8 @@ async fn list_filters_by_status() {
 #[tokio::test]
 async fn update_tenant_plan_code() {
     let pool = test_pool().await;
-    let tid = insert_tenant_full(&pool, "active", Some("upgrade-test"), Some("starter"), None).await;
+    let tid =
+        insert_tenant_full(&pool, "active", Some("upgrade-test"), Some("starter"), None).await;
 
     // Update plan_code
     sqlx::query("UPDATE tenants SET plan_code = $1, updated_at = NOW() WHERE tenant_id = $2")
@@ -162,7 +188,9 @@ async fn update_tenant_plan_code() {
         .unwrap();
 
     let resp = app.oneshot(req).await.unwrap();
-    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["plan"], "professional");
 
@@ -207,7 +235,9 @@ async fn app_id_null_returns_none() {
     let pool = test_pool().await;
     let tid = insert_tenant_full(&pool, "active", None, None, None).await;
 
-    let result = get_tenant_app_id(&pool, tid).await.expect("lookup null app_id");
+    let result = get_tenant_app_id(&pool, tid)
+        .await
+        .expect("lookup null app_id");
     assert!(result.is_none(), "NULL app_id should return None");
 
     cleanup(&pool, tid).await;
@@ -217,7 +247,10 @@ async fn app_id_null_returns_none() {
 async fn app_id_nonexistent_tenant_returns_err() {
     let pool = test_pool().await;
     let result = get_tenant_app_id(&pool, Uuid::new_v4()).await;
-    assert!(result.is_err(), "nonexistent tenant should return RowNotFound");
+    assert!(
+        result.is_err(),
+        "nonexistent tenant should return RowNotFound"
+    );
 }
 
 #[tokio::test]
@@ -257,7 +290,9 @@ async fn get_status_row_returns_correct_status() {
 #[tokio::test]
 async fn get_status_row_returns_none_for_missing() {
     let pool = test_pool().await;
-    let result = get_tenant_status_row(&pool, Uuid::new_v4()).await.expect("get status");
+    let result = get_tenant_status_row(&pool, Uuid::new_v4())
+        .await
+        .expect("get status");
     assert!(result.is_none());
 }
 
@@ -280,7 +315,9 @@ async fn entitlements_found_for_tenant_with_row() {
             updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
         )"#,
     )
-    .execute(&pool).await.expect("ensure cp_entitlements");
+    .execute(&pool)
+    .await
+    .expect("ensure cp_entitlements");
 
     sqlx::query("INSERT INTO cp_entitlements (tenant_id, plan_code, concurrent_user_limit) VALUES ($1, 'professional', 50)")
         .bind(tid)
@@ -288,7 +325,9 @@ async fn entitlements_found_for_tenant_with_row() {
         .await
         .expect("insert entitlements");
 
-    let result = get_tenant_entitlements(&pool, tid).await.expect("get entitlements");
+    let result = get_tenant_entitlements(&pool, tid)
+        .await
+        .expect("get entitlements");
     assert!(result.is_some());
     let ent = result.unwrap();
     assert_eq!(ent.plan_code, "professional");
@@ -302,7 +341,9 @@ async fn entitlements_none_when_no_row() {
     let pool = test_pool().await;
     let tid = insert_tenant_full(&pool, "active", None, None, None).await;
 
-    let result = get_tenant_entitlements(&pool, tid).await.expect("get entitlements");
+    let result = get_tenant_entitlements(&pool, tid)
+        .await
+        .expect("get entitlements");
     assert!(result.is_none());
 
     cleanup(&pool, tid).await;
@@ -332,7 +373,9 @@ async fn plans_endpoint_returns_seeded_plans() {
     let resp = app.oneshot(req).await.expect("call plans endpoint");
     assert_eq!(resp.status(), StatusCode::OK);
 
-    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+    let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     let ids: Vec<&str> = json["plans"]
@@ -343,7 +386,10 @@ async fn plans_endpoint_returns_seeded_plans() {
         .collect();
 
     assert!(ids.contains(&"starter"), "starter plan must exist");
-    assert!(ids.contains(&"professional"), "professional plan must exist");
+    assert!(
+        ids.contains(&"professional"),
+        "professional plan must exist"
+    );
     assert!(ids.contains(&"enterprise"), "enterprise plan must exist");
 }
 
@@ -366,7 +412,9 @@ async fn bundle_assignment_persists() {
             updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )"#,
     )
-    .execute(&pool).await.expect("ensure cp_bundles");
+    .execute(&pool)
+    .await
+    .expect("ensure cp_bundles");
 
     sqlx::query(
         r#"CREATE TABLE IF NOT EXISTS cp_tenant_bundle (
@@ -377,7 +425,9 @@ async fn bundle_assignment_persists() {
             PRIMARY KEY (tenant_id, bundle_id)
         )"#,
     )
-    .execute(&pool).await.expect("ensure cp_tenant_bundle");
+    .execute(&pool)
+    .await
+    .expect("ensure cp_tenant_bundle");
 
     let tid = insert_tenant_full(&pool, "active", Some("bundle-test"), Some("starter"), None).await;
 
@@ -412,7 +462,15 @@ async fn bundle_assignment_persists() {
     assert_eq!(assigned_status, "active");
 
     // Cleanup
-    sqlx::query("DELETE FROM cp_tenant_bundle WHERE tenant_id = $1").bind(tid).execute(&pool).await.ok();
-    sqlx::query("DELETE FROM cp_bundles WHERE bundle_id = $1").bind(bundle_id).execute(&pool).await.ok();
+    sqlx::query("DELETE FROM cp_tenant_bundle WHERE tenant_id = $1")
+        .bind(tid)
+        .execute(&pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM cp_bundles WHERE bundle_id = $1")
+        .bind(bundle_id)
+        .execute(&pool)
+        .await
+        .ok();
     cleanup(&pool, tid).await;
 }

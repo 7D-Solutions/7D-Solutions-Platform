@@ -115,7 +115,10 @@ async fn handler_recovers_on_retry_no_dlq() {
     // Verify nothing on DLQ
     let _ = msg; // consumed
     let timeout = tokio::time::timeout(Duration::from_millis(100), dlq_stream.next()).await;
-    assert!(timeout.is_err(), "DLQ should be empty when handler succeeds");
+    assert!(
+        timeout.is_err(),
+        "DLQ should be empty when handler succeeds"
+    );
 }
 
 /// Multiple events: some fail permanently (→ DLQ), some succeed.
@@ -220,7 +223,11 @@ async fn retry_exhaustion_takes_expected_attempts() {
     assert!(result.is_err());
 
     let timestamps = attempts.lock().unwrap();
-    assert_eq!(timestamps.len(), 5, "should attempt exactly max_attempts times");
+    assert_eq!(
+        timestamps.len(),
+        5,
+        "should attempt exactly max_attempts times"
+    );
 
     // Verify there are delays between attempts (backoff is working)
     for i in 1..timestamps.len() {

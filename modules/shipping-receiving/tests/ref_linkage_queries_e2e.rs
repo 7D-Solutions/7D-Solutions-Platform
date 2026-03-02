@@ -166,13 +166,11 @@ async fn find_shipments_by_source_ref_returns_matching_shipments() {
 
     // Create another shipment with a different ref — should not appear
     let ship2 = insert_shipment(&pool, tenant_id, "outbound").await;
-    insert_line_with_source_ref(&pool, tenant_id, ship2, "transfer_request", Uuid::new_v4())
-        .await;
+    insert_line_with_source_ref(&pool, tenant_id, ship2, "transfer_request", Uuid::new_v4()).await;
 
-    let results =
-        ShipmentRepository::find_by_source_ref(&pool, tenant_id, "sales_order", so_id)
-            .await
-            .expect("query by source_ref");
+    let results = ShipmentRepository::find_by_source_ref(&pool, tenant_id, "sales_order", so_id)
+        .await
+        .expect("query by source_ref");
 
     let ids: Vec<Uuid> = results.iter().map(|s| s.id).collect();
     assert_eq!(ids.len(), 1, "exactly one shipment must match");
@@ -205,10 +203,9 @@ async fn ref_queries_are_tenant_isolated() {
         "tenant B must not see tenant A's PO shipments"
     );
 
-    let src_results =
-        ShipmentRepository::find_by_source_ref(&pool, tenant_b, "sales_order", so_id)
-            .await
-            .expect("tenant B source_ref query");
+    let src_results = ShipmentRepository::find_by_source_ref(&pool, tenant_b, "sales_order", so_id)
+        .await
+        .expect("tenant B source_ref query");
     assert!(
         src_results.is_empty(),
         "tenant B must not see tenant A's source_ref shipments"
@@ -221,25 +218,19 @@ async fn empty_results_for_nonexistent_refs() {
     let pool = setup_db().await;
     let tenant_id = Uuid::new_v4();
 
-    let po_results =
-        ShipmentRepository::find_shipments_by_po(&pool, tenant_id, Uuid::new_v4())
-            .await
-            .expect("nonexistent po_id");
+    let po_results = ShipmentRepository::find_shipments_by_po(&pool, tenant_id, Uuid::new_v4())
+        .await
+        .expect("nonexistent po_id");
     assert!(po_results.is_empty());
 
-    let line_results =
-        ShipmentRepository::find_lines_by_po_line(&pool, tenant_id, Uuid::new_v4())
-            .await
-            .expect("nonexistent po_line_id");
+    let line_results = ShipmentRepository::find_lines_by_po_line(&pool, tenant_id, Uuid::new_v4())
+        .await
+        .expect("nonexistent po_line_id");
     assert!(line_results.is_empty());
 
-    let src_results = ShipmentRepository::find_by_source_ref(
-        &pool,
-        tenant_id,
-        "sales_order",
-        Uuid::new_v4(),
-    )
-    .await
-    .expect("nonexistent source_ref");
+    let src_results =
+        ShipmentRepository::find_by_source_ref(&pool, tenant_id, "sales_order", Uuid::new_v4())
+            .await
+            .expect("nonexistent source_ref");
     assert!(src_results.is_empty());
 }

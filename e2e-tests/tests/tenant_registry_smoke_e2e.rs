@@ -5,7 +5,6 @@
 /// 2. Tracks provisioning steps with verification results
 /// 3. Enforces deterministic provisioning sequence
 /// 4. Supports multi-tenant isolation
-
 mod common;
 
 use chrono::Utc;
@@ -67,13 +66,12 @@ async fn test_tenant_record_insert_and_query() {
     .expect("Failed to insert tenant");
 
     // Query it back
-    let (queried_id, status, environment): (Uuid, String, String) = sqlx::query_as(
-        "SELECT tenant_id, status, environment FROM tenants WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to query tenant");
+    let (queried_id, status, environment): (Uuid, String, String) =
+        sqlx::query_as("SELECT tenant_id, status, environment FROM tenants WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to query tenant");
 
     assert_eq!(queried_id, tenant_id);
     assert_eq!(status, "provisioning");
@@ -109,13 +107,12 @@ async fn test_module_schema_versions_storage() {
     .expect("Failed to insert tenant");
 
     // Query and verify module_schema_versions
-    let queried_versions: serde_json::Value = sqlx::query_scalar(
-        "SELECT module_schema_versions FROM tenants WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to query tenant");
+    let queried_versions: serde_json::Value =
+        sqlx::query_scalar("SELECT module_schema_versions FROM tenants WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to query tenant");
 
     let queried_map: HashMap<String, String> =
         serde_json::from_value(queried_versions).expect("Failed to deserialize versions");
@@ -260,10 +257,7 @@ async fn test_provisioning_step_verification_result() {
     .expect("Failed to query verification result");
 
     // Verify structure
-    assert_eq!(
-        queried_result["checks_passed"].as_array().unwrap().len(),
-        2
-    );
+    assert_eq!(queried_result["checks_passed"].as_array().unwrap().len(), 2);
     assert_eq!(queried_result["checks_failed"].as_array().unwrap().len(), 0);
     assert_eq!(queried_result["details"]["ar_db_size"], "10MB");
 }
@@ -277,29 +271,30 @@ async fn test_tenant_status_constraint() {
     let tenant_id = Uuid::new_v4();
 
     // Valid status should succeed
-    let result = sqlx::query(
-        "INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)",
-    )
-    .bind(tenant_id)
-    .bind("active")
-    .bind("production")
-    .execute(&pool)
-    .await;
+    let result =
+        sqlx::query("INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)")
+            .bind(tenant_id)
+            .bind("active")
+            .bind("production")
+            .execute(&pool)
+            .await;
 
     assert!(result.is_ok(), "Valid status should insert successfully");
 
     // Invalid status should fail
     let invalid_tenant_id = Uuid::new_v4();
-    let result = sqlx::query(
-        "INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)",
-    )
-    .bind(invalid_tenant_id)
-    .bind("invalid_status")
-    .bind("production")
-    .execute(&pool)
-    .await;
+    let result =
+        sqlx::query("INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)")
+            .bind(invalid_tenant_id)
+            .bind("invalid_status")
+            .bind("production")
+            .execute(&pool)
+            .await;
 
-    assert!(result.is_err(), "Invalid status should fail constraint check");
+    assert!(
+        result.is_err(),
+        "Invalid status should fail constraint check"
+    );
 }
 
 #[tokio::test]
@@ -311,14 +306,13 @@ async fn test_environment_constraint() {
     let tenant_id = Uuid::new_v4();
 
     // Valid environment should succeed
-    let result = sqlx::query(
-        "INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)",
-    )
-    .bind(tenant_id)
-    .bind("active")
-    .bind("staging")
-    .execute(&pool)
-    .await;
+    let result =
+        sqlx::query("INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)")
+            .bind(tenant_id)
+            .bind("active")
+            .bind("staging")
+            .execute(&pool)
+            .await;
 
     assert!(
         result.is_ok(),
@@ -327,14 +321,13 @@ async fn test_environment_constraint() {
 
     // Invalid environment should fail
     let invalid_tenant_id = Uuid::new_v4();
-    let result = sqlx::query(
-        "INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)",
-    )
-    .bind(invalid_tenant_id)
-    .bind("active")
-    .bind("invalid_env")
-    .execute(&pool)
-    .await;
+    let result =
+        sqlx::query("INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)")
+            .bind(invalid_tenant_id)
+            .bind("active")
+            .bind("invalid_env")
+            .execute(&pool)
+            .await;
 
     assert!(
         result.is_err(),
@@ -379,25 +372,21 @@ async fn test_multi_tenant_isolation() {
     let tenant2_id = Uuid::new_v4();
 
     // Create two tenants
-    sqlx::query(
-        "INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)",
-    )
-    .bind(tenant1_id)
-    .bind("active")
-    .bind("development")
-    .execute(&pool)
-    .await
-    .expect("Failed to insert tenant 1");
+    sqlx::query("INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)")
+        .bind(tenant1_id)
+        .bind("active")
+        .bind("development")
+        .execute(&pool)
+        .await
+        .expect("Failed to insert tenant 1");
 
-    sqlx::query(
-        "INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)",
-    )
-    .bind(tenant2_id)
-    .bind("provisioning")
-    .bind("production")
-    .execute(&pool)
-    .await
-    .expect("Failed to insert tenant 2");
+    sqlx::query("INSERT INTO tenants (tenant_id, status, environment) VALUES ($1, $2, $3)")
+        .bind(tenant2_id)
+        .bind("provisioning")
+        .bind("production")
+        .execute(&pool)
+        .await
+        .expect("Failed to insert tenant 2");
 
     // Add steps for each tenant
     sqlx::query(

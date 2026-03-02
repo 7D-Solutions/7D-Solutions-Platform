@@ -131,7 +131,9 @@ async fn spawn_status_server(pool: PgPool) -> String {
     let port = listener.local_addr().unwrap().port();
 
     tokio::spawn(async move {
-        axum::serve(listener, app).await.expect("status server error");
+        axum::serve(listener, app)
+            .await
+            .expect("status server error");
     });
 
     // Give the server a moment to start
@@ -153,18 +155,10 @@ struct StatusJson {
 /// This is what identity-auth does on every login (on cache miss).
 async fn fetch_gate(client: &reqwest::Client, base_url: &str, tenant_id: Uuid) -> TenantGate {
     let url = format!("{}/api/tenants/{}/status", base_url, tenant_id);
-    let resp = client
-        .get(&url)
-        .send()
-        .await
-        .expect("fetch tenant status");
+    let resp = client.get(&url).send().await.expect("fetch tenant status");
 
     if !resp.status().is_success() {
-        panic!(
-            "GET {} returned {}",
-            url,
-            resp.status()
-        );
+        panic!("GET {} returned {}", url, resp.status());
     }
 
     let body: StatusJson = resp.json().await.expect("parse status JSON");
@@ -190,14 +184,12 @@ async fn seed_tenant(pool: &PgPool, tenant_id: Uuid, status: &str) {
 
 /// Update tenant status in-place (simulates suspend/reactivate admin operation).
 async fn set_status(pool: &PgPool, tenant_id: Uuid, status: &str) {
-    sqlx::query(
-        "UPDATE tenants SET status = $1, updated_at = NOW() WHERE tenant_id = $2",
-    )
-    .bind(status)
-    .bind(tenant_id)
-    .execute(pool)
-    .await
-    .expect("update tenant status");
+    sqlx::query("UPDATE tenants SET status = $1, updated_at = NOW() WHERE tenant_id = $2")
+        .bind(status)
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .expect("update tenant status");
 }
 
 /// Clean up test tenant.
@@ -307,13 +299,28 @@ async fn test_gate_from_status_policy() {
     );
 
     // Suspended and deleted → Deny
-    assert!(matches!(gate_from_status("suspended"), TenantGate::Deny { .. }));
-    assert!(matches!(gate_from_status("deleted"), TenantGate::Deny { .. }));
+    assert!(matches!(
+        gate_from_status("suspended"),
+        TenantGate::Deny { .. }
+    ));
+    assert!(matches!(
+        gate_from_status("deleted"),
+        TenantGate::Deny { .. }
+    ));
 
     // Unknown values → Deny (fail-closed)
-    assert!(matches!(gate_from_status("unknown"), TenantGate::Deny { .. }));
-    assert!(matches!(gate_from_status("pending"), TenantGate::Deny { .. }));
-    assert!(matches!(gate_from_status("failed"), TenantGate::Deny { .. }));
+    assert!(matches!(
+        gate_from_status("unknown"),
+        TenantGate::Deny { .. }
+    ));
+    assert!(matches!(
+        gate_from_status("pending"),
+        TenantGate::Deny { .. }
+    ));
+    assert!(matches!(
+        gate_from_status("failed"),
+        TenantGate::Deny { .. }
+    ));
 
     println!("Gate policy mapping: ALL PASSED ✓");
 }

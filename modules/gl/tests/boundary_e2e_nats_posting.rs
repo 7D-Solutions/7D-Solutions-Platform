@@ -33,7 +33,8 @@ use uuid::Uuid;
 
 /// Setup NATS event bus (requires NATS running on localhost:4222)
 async fn setup_nats_bus() -> Arc<dyn EventBus> {
-    let nats_url = std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
+    let nats_url =
+        std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
 
     let nats_client = async_nats::connect(&nats_url)
         .await
@@ -109,13 +110,12 @@ async fn wait_for_event_processing(pool: &PgPool, event_id: Uuid, max_wait_secs:
     let start = std::time::Instant::now();
 
     while start.elapsed().as_secs() < max_wait_secs {
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM processed_events WHERE event_id = $1)",
-        )
-        .bind(event_id)
-        .fetch_one(pool)
-        .await
-        .unwrap_or(false);
+        let exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM processed_events WHERE event_id = $1)")
+                .bind(event_id)
+                .fetch_one(pool)
+                .await
+                .unwrap_or(false);
 
         if exists {
             return true;
@@ -254,8 +254,7 @@ async fn test_boundary_nats_posting_creates_journal_and_balances() {
     .with_source_version("1.0.0".to_string());
 
     // Serialize envelope to JSON bytes
-    let payload =
-        serde_json::to_vec(&envelope).expect("Failed to serialize event envelope");
+    let payload = serde_json::to_vec(&envelope).expect("Failed to serialize event envelope");
 
     // ✅ BOUNDARY TEST: Publish to REAL NATS subject (not calling service directly!)
     bus.publish("gl.events.posting.requested", payload)
@@ -313,7 +312,10 @@ async fn test_boundary_nats_posting_creates_journal_and_balances() {
         .expect("Failed to query revenue balance")
         .expect("Revenue balance should exist");
 
-    assert_eq!(balance_revenue.debit_total_minor, 0, "Revenue debit should be 0");
+    assert_eq!(
+        balance_revenue.debit_total_minor, 0,
+        "Revenue debit should be 0"
+    );
     assert_eq!(
         balance_revenue.credit_total_minor, 150000,
         "Revenue credit balance should be $1500.00"
@@ -415,11 +417,10 @@ async fn test_boundary_nats_posting_replay_safety() {
     assert!(processed1, "First event should be processed");
 
     // Check balances after first publish
-    let balance_ar_first =
-        balance_repo::find_by_grain(&pool, tenant_id, period_id, "1100", "USD")
-            .await
-            .expect("Failed to query AR balance")
-            .expect("AR balance should exist after first publish");
+    let balance_ar_first = balance_repo::find_by_grain(&pool, tenant_id, period_id, "1100", "USD")
+        .await
+        .expect("Failed to query AR balance")
+        .expect("AR balance should exist after first publish");
 
     assert_eq!(
         balance_ar_first.debit_total_minor, 100000,

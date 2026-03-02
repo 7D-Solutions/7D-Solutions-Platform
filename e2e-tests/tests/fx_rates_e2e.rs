@@ -8,7 +8,6 @@
 /// 5. Rate queries are deterministic for time-versioned snapshots
 ///
 /// Run with: cargo test -p e2e-tests fx_rates_e2e -- --nocapture
-
 mod common;
 
 use chrono::{Duration, Utc};
@@ -218,7 +217,10 @@ async fn test_create_fx_rate_and_query_latest() {
         "As-of query between t1 and t2 should return rate 1"
     );
     assert!((historical.rate - 1.085).abs() < 0.001);
-    println!("Historical as-of query returned correct rate: {}", historical.rate);
+    println!(
+        "Historical as-of query returned correct rate: {}",
+        historical.rate
+    );
 
     // ── Step 6: GET latest for non-existent pair → 404 ─────────────────────
     let resp = client

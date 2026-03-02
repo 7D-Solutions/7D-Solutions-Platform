@@ -19,9 +19,8 @@ use uuid::Uuid;
 
 pub async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("REPORTING_DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://ap_user:ap_pass@localhost:5443/reporting_test".to_string()
-    });
+    let url = std::env::var("REPORTING_DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://ap_user:ap_pass@localhost:5443/reporting_test".to_string());
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -85,7 +84,10 @@ pub fn build_test_app(pool: sqlx::PgPool) -> Router {
     });
 
     Router::new()
-        .route("/api/reporting/pl", get(reporting::http::statements::get_pl))
+        .route(
+            "/api/reporting/pl",
+            get(reporting::http::statements::get_pl),
+        )
         .route(
             "/api/reporting/balance-sheet",
             get(reporting::http::statements::get_balance_sheet),
@@ -102,10 +104,7 @@ pub fn build_test_app(pool: sqlx::PgPool) -> Router {
             "/api/reporting/ap-aging",
             get(reporting::http::aging::get_ap_aging),
         )
-        .route(
-            "/api/reporting/kpis",
-            get(reporting::http::kpis::get_kpis),
-        )
+        .route("/api/reporting/kpis", get(reporting::http::kpis::get_kpis))
         .route(
             "/api/reporting/forecast",
             get(reporting::http::forecast::get_forecast),
@@ -161,12 +160,7 @@ pub async fn seed_trial_balance(
     .expect("seed trial balance");
 }
 
-pub async fn seed_ar_aging(
-    pool: &sqlx::PgPool,
-    tenant_id: &str,
-    as_of: &str,
-    customer_id: &str,
-) {
+pub async fn seed_ar_aging(pool: &sqlx::PgPool, tenant_id: &str, as_of: &str, customer_id: &str) {
     sqlx::query(
         r#"INSERT INTO rpt_ar_aging_cache
             (tenant_id, as_of, customer_id, currency, current_minor,
@@ -183,12 +177,7 @@ pub async fn seed_ar_aging(
     .expect("seed ar aging");
 }
 
-pub async fn seed_ap_aging(
-    pool: &sqlx::PgPool,
-    tenant_id: &str,
-    as_of: &str,
-    vendor_id: &str,
-) {
+pub async fn seed_ap_aging(pool: &sqlx::PgPool, tenant_id: &str, as_of: &str, vendor_id: &str) {
     sqlx::query(
         r#"INSERT INTO rpt_ap_aging_cache
             (tenant_id, as_of, vendor_id, currency, current_minor,

@@ -2,18 +2,19 @@
 ///
 /// Covers: state machine transitions (provisioning → trial → active → suspended → deleted),
 /// invalid transitions, provisioning state machine, and updated_at tracking.
-
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use tenant_registry::{TenantStatus, is_valid_state_transition};
+use tenant_registry::{is_valid_state_transition, TenantStatus};
 
 async fn test_pool() -> PgPool {
     let url = std::env::var("TENANT_REGISTRY_DATABASE_URL").unwrap_or_else(|_| {
         "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
             .to_string()
     });
-    PgPool::connect(&url).await.expect("connect to tenant-registry DB")
+    PgPool::connect(&url)
+        .await
+        .expect("connect to tenant-registry DB")
 }
 
 /// Insert a tenant with the given status string.
@@ -53,7 +54,10 @@ async fn update_status(pool: &PgPool, tenant_id: Uuid, new_status: &str) -> u64 
 
 async fn cleanup(pool: &PgPool, tenant_id: Uuid) {
     sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -66,27 +70,42 @@ async fn full_lifecycle_provisioning_to_deleted() {
     let tid = insert_tenant(&pool, "provisioning").await;
 
     // provisioning → trial
-    assert!(is_valid_state_transition(TenantStatus::Provisioning, TenantStatus::Trial));
+    assert!(is_valid_state_transition(
+        TenantStatus::Provisioning,
+        TenantStatus::Trial
+    ));
     update_status(&pool, tid, "trial").await;
     assert_eq!(get_status(&pool, tid).await, "trial");
 
     // trial → active
-    assert!(is_valid_state_transition(TenantStatus::Trial, TenantStatus::Active));
+    assert!(is_valid_state_transition(
+        TenantStatus::Trial,
+        TenantStatus::Active
+    ));
     update_status(&pool, tid, "active").await;
     assert_eq!(get_status(&pool, tid).await, "active");
 
     // active → suspended
-    assert!(is_valid_state_transition(TenantStatus::Active, TenantStatus::Suspended));
+    assert!(is_valid_state_transition(
+        TenantStatus::Active,
+        TenantStatus::Suspended
+    ));
     update_status(&pool, tid, "suspended").await;
     assert_eq!(get_status(&pool, tid).await, "suspended");
 
     // suspended → active (reactivation)
-    assert!(is_valid_state_transition(TenantStatus::Suspended, TenantStatus::Active));
+    assert!(is_valid_state_transition(
+        TenantStatus::Suspended,
+        TenantStatus::Active
+    ));
     update_status(&pool, tid, "active").await;
     assert_eq!(get_status(&pool, tid).await, "active");
 
     // active → deleted
-    assert!(is_valid_state_transition(TenantStatus::Active, TenantStatus::Deleted));
+    assert!(is_valid_state_transition(
+        TenantStatus::Active,
+        TenantStatus::Deleted
+    ));
     update_status(&pool, tid, "deleted").await;
     assert_eq!(get_status(&pool, tid).await, "deleted");
 
@@ -102,7 +121,10 @@ async fn provisioning_directly_to_active() {
     let pool = test_pool().await;
     let tid = insert_tenant(&pool, "provisioning").await;
 
-    assert!(is_valid_state_transition(TenantStatus::Provisioning, TenantStatus::Active));
+    assert!(is_valid_state_transition(
+        TenantStatus::Provisioning,
+        TenantStatus::Active
+    ));
     update_status(&pool, tid, "active").await;
     assert_eq!(get_status(&pool, tid).await, "active");
 
@@ -119,12 +141,18 @@ async fn active_to_past_due_and_recovery() {
     let tid = insert_tenant(&pool, "active").await;
 
     // active → past_due
-    assert!(is_valid_state_transition(TenantStatus::Active, TenantStatus::PastDue));
+    assert!(is_valid_state_transition(
+        TenantStatus::Active,
+        TenantStatus::PastDue
+    ));
     update_status(&pool, tid, "past_due").await;
     assert_eq!(get_status(&pool, tid).await, "past_due");
 
     // past_due → active (payment received)
-    assert!(is_valid_state_transition(TenantStatus::PastDue, TenantStatus::Active));
+    assert!(is_valid_state_transition(
+        TenantStatus::PastDue,
+        TenantStatus::Active
+    ));
     update_status(&pool, tid, "active").await;
     assert_eq!(get_status(&pool, tid).await, "active");
 
@@ -136,7 +164,10 @@ async fn past_due_to_suspended() {
     let pool = test_pool().await;
     let tid = insert_tenant(&pool, "past_due").await;
 
-    assert!(is_valid_state_transition(TenantStatus::PastDue, TenantStatus::Suspended));
+    assert!(is_valid_state_transition(
+        TenantStatus::PastDue,
+        TenantStatus::Suspended
+    ));
     update_status(&pool, tid, "suspended").await;
     assert_eq!(get_status(&pool, tid).await, "suspended");
 
@@ -148,7 +179,10 @@ async fn trial_to_past_due() {
     let pool = test_pool().await;
     let tid = insert_tenant(&pool, "trial").await;
 
-    assert!(is_valid_state_transition(TenantStatus::Trial, TenantStatus::PastDue));
+    assert!(is_valid_state_transition(
+        TenantStatus::Trial,
+        TenantStatus::PastDue
+    ));
     update_status(&pool, tid, "past_due").await;
     assert_eq!(get_status(&pool, tid).await, "past_due");
 
@@ -161,32 +195,74 @@ async fn trial_to_past_due() {
 
 #[tokio::test]
 async fn deleted_is_terminal() {
-    assert!(!is_valid_state_transition(TenantStatus::Deleted, TenantStatus::Active));
-    assert!(!is_valid_state_transition(TenantStatus::Deleted, TenantStatus::Provisioning));
-    assert!(!is_valid_state_transition(TenantStatus::Deleted, TenantStatus::Suspended));
-    assert!(!is_valid_state_transition(TenantStatus::Deleted, TenantStatus::Trial));
-    assert!(!is_valid_state_transition(TenantStatus::Deleted, TenantStatus::PastDue));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Deleted,
+        TenantStatus::Active
+    ));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Deleted,
+        TenantStatus::Provisioning
+    ));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Deleted,
+        TenantStatus::Suspended
+    ));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Deleted,
+        TenantStatus::Trial
+    ));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Deleted,
+        TenantStatus::PastDue
+    ));
 }
 
 #[tokio::test]
 async fn self_transitions_rejected() {
-    assert!(!is_valid_state_transition(TenantStatus::Active, TenantStatus::Active));
-    assert!(!is_valid_state_transition(TenantStatus::Provisioning, TenantStatus::Provisioning));
-    assert!(!is_valid_state_transition(TenantStatus::Suspended, TenantStatus::Suspended));
-    assert!(!is_valid_state_transition(TenantStatus::Trial, TenantStatus::Trial));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Active,
+        TenantStatus::Active
+    ));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Provisioning,
+        TenantStatus::Provisioning
+    ));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Suspended,
+        TenantStatus::Suspended
+    ));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Trial,
+        TenantStatus::Trial
+    ));
 }
 
 #[tokio::test]
 async fn provisioning_cannot_skip_to_suspended() {
-    assert!(!is_valid_state_transition(TenantStatus::Provisioning, TenantStatus::Suspended));
-    assert!(!is_valid_state_transition(TenantStatus::Provisioning, TenantStatus::PastDue));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Provisioning,
+        TenantStatus::Suspended
+    ));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Provisioning,
+        TenantStatus::PastDue
+    ));
 }
 
 #[tokio::test]
 async fn suspended_cannot_go_to_trial() {
-    assert!(!is_valid_state_transition(TenantStatus::Suspended, TenantStatus::Trial));
-    assert!(!is_valid_state_transition(TenantStatus::Suspended, TenantStatus::PastDue));
-    assert!(!is_valid_state_transition(TenantStatus::Suspended, TenantStatus::Provisioning));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Suspended,
+        TenantStatus::Trial
+    ));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Suspended,
+        TenantStatus::PastDue
+    ));
+    assert!(!is_valid_state_transition(
+        TenantStatus::Suspended,
+        TenantStatus::Provisioning
+    ));
 }
 
 // ============================================================================
@@ -228,15 +304,33 @@ async fn status_update_changes_updated_at() {
 
 #[tokio::test]
 async fn provisioning_state_transitions() {
-    use tenant_registry::{ProvisioningState, is_valid_provisioning_transition};
+    use tenant_registry::{is_valid_provisioning_transition, ProvisioningState};
 
     // Valid
-    assert!(is_valid_provisioning_transition(ProvisioningState::Pending, ProvisioningState::Provisioning));
-    assert!(is_valid_provisioning_transition(ProvisioningState::Provisioning, ProvisioningState::Active));
-    assert!(is_valid_provisioning_transition(ProvisioningState::Provisioning, ProvisioningState::Failed));
+    assert!(is_valid_provisioning_transition(
+        ProvisioningState::Pending,
+        ProvisioningState::Provisioning
+    ));
+    assert!(is_valid_provisioning_transition(
+        ProvisioningState::Provisioning,
+        ProvisioningState::Active
+    ));
+    assert!(is_valid_provisioning_transition(
+        ProvisioningState::Provisioning,
+        ProvisioningState::Failed
+    ));
 
     // Invalid
-    assert!(!is_valid_provisioning_transition(ProvisioningState::Pending, ProvisioningState::Active));
-    assert!(!is_valid_provisioning_transition(ProvisioningState::Active, ProvisioningState::Pending));
-    assert!(!is_valid_provisioning_transition(ProvisioningState::Failed, ProvisioningState::Active));
+    assert!(!is_valid_provisioning_transition(
+        ProvisioningState::Pending,
+        ProvisioningState::Active
+    ));
+    assert!(!is_valid_provisioning_transition(
+        ProvisioningState::Active,
+        ProvisioningState::Pending
+    ));
+    assert!(!is_valid_provisioning_transition(
+        ProvisioningState::Failed,
+        ProvisioningState::Active
+    ));
 }

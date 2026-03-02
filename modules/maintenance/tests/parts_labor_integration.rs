@@ -13,8 +13,8 @@
 
 use maintenance_rs::domain::assets::{AssetRepo, CreateAssetRequest};
 use maintenance_rs::domain::work_orders::{
-    AddLaborRequest, AddPartRequest, CreateWorkOrderRequest, TransitionRequest,
-    WoLaborError, WoLaborRepo, WoPartError, WoPartsRepo, WorkOrderRepo,
+    AddLaborRequest, AddPartRequest, CreateWorkOrderRequest, TransitionRequest, WoLaborError,
+    WoLaborRepo, WoPartError, WoPartsRepo, WorkOrderRepo,
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;

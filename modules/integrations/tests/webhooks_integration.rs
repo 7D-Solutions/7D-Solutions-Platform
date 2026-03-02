@@ -22,9 +22,7 @@
 //! 18.  Tenant isolation — different app_ids cannot see each other's ingests
 
 use hmac::{Hmac, Mac};
-use integrations_rs::domain::webhooks::{
-    IngestWebhookRequest, WebhookError, WebhookService,
-};
+use integrations_rs::domain::webhooks::{IngestWebhookRequest, WebhookError, WebhookService};
 use serial_test::serial;
 use sha2::Sha256;
 use sqlx::postgres::PgPoolOptions;
@@ -113,13 +111,12 @@ async fn test_webhook_ingest_internal_happy_path() {
     assert!(result.ingest_id > 0);
 
     // Verify the row exists
-    let row: Option<(String, Option<String>)> = sqlx::query_as(
-        "SELECT system, event_type FROM integrations_webhook_ingest WHERE id = $1",
-    )
-    .bind(result.ingest_id)
-    .fetch_optional(&pool)
-    .await
-    .expect("query failed");
+    let row: Option<(String, Option<String>)> =
+        sqlx::query_as("SELECT system, event_type FROM integrations_webhook_ingest WHERE id = $1")
+            .bind(result.ingest_id)
+            .fetch_optional(&pool)
+            .await
+            .expect("query failed");
 
     let (system, event_type) = row.expect("row should exist");
     assert_eq!(system, "internal");
@@ -274,7 +271,10 @@ async fn test_webhook_outbox_routed_event() {
     .expect("outbox query failed");
 
     let types: Vec<&str> = events.iter().map(|(t,)| t.as_str()).collect();
-    assert!(types.contains(&"webhook.received"), "missing webhook.received");
+    assert!(
+        types.contains(&"webhook.received"),
+        "missing webhook.received"
+    );
     assert!(types.contains(&"webhook.routed"), "missing webhook.routed");
 
     cleanup(&pool, &app).await;
@@ -305,7 +305,10 @@ async fn test_webhook_unknown_event_not_routed() {
     .expect("outbox query failed");
 
     let types: Vec<&str> = events.iter().map(|(t,)| t.as_str()).collect();
-    assert!(types.contains(&"webhook.received"), "missing webhook.received");
+    assert!(
+        types.contains(&"webhook.received"),
+        "missing webhook.received"
+    );
     assert!(
         !types.contains(&"webhook.routed"),
         "webhook.routed should NOT be emitted for unmapped events"
@@ -409,8 +412,7 @@ async fn test_webhook_stripe_bad_signature() {
         "stripe-signature".to_string(),
         format!(
             "t={},v1={}",
-            now,
-            "deadbeef00000000000000000000000000000000000000000000000000000000"
+            now, "deadbeef00000000000000000000000000000000000000000000000000000000"
         ),
     );
 
@@ -530,10 +532,7 @@ async fn test_webhook_github_valid_signature() {
     let sig = hmac_sha256_hex(secret, body);
 
     let mut headers = HashMap::new();
-    headers.insert(
-        "x-hub-signature-256".to_string(),
-        format!("sha256={}", sig),
-    );
+    headers.insert("x-hub-signature-256".to_string(), format!("sha256={}", sig));
 
     let req = IngestWebhookRequest {
         app_id: app.clone(),
@@ -568,8 +567,7 @@ async fn test_webhook_github_bad_signature() {
     let mut headers = HashMap::new();
     headers.insert(
         "x-hub-signature-256".to_string(),
-        "sha256=0000000000000000000000000000000000000000000000000000000000000000"
-            .to_string(),
+        "sha256=0000000000000000000000000000000000000000000000000000000000000000".to_string(),
     );
 
     let req = IngestWebhookRequest {
@@ -666,7 +664,10 @@ async fn test_webhook_processed_at_set() {
     .await
     .expect("query failed");
 
-    assert!(processed.0, "processed_at should be set after successful ingest");
+    assert!(
+        processed.0,
+        "processed_at should be set after successful ingest"
+    );
 
     cleanup(&pool, &app).await;
 }
@@ -691,47 +692,40 @@ async fn test_webhook_tenant_isolation() {
     let result_b = svc.ingest(req_b, b"{}").await.expect("ingest B failed");
 
     // App A's ingest is not visible under App B's app_id
-    let cross_check: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM integrations_webhook_ingest WHERE id = $1 AND app_id = $2",
-    )
-    .bind(result_a.ingest_id)
-    .bind(&app_b)
-    .fetch_optional(&pool)
-    .await
-    .expect("cross-tenant query failed");
+    let cross_check: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM integrations_webhook_ingest WHERE id = $1 AND app_id = $2")
+            .bind(result_a.ingest_id)
+            .bind(&app_b)
+            .fetch_optional(&pool)
+            .await
+            .expect("cross-tenant query failed");
     assert!(cross_check.is_none(), "App B must not see App A's ingest");
 
     // App B's ingest is not visible under App A's app_id
-    let cross_check_b: Option<(i64,)> = sqlx::query_as(
-        "SELECT id FROM integrations_webhook_ingest WHERE id = $1 AND app_id = $2",
-    )
-    .bind(result_b.ingest_id)
-    .bind(&app_a)
-    .fetch_optional(&pool)
-    .await
-    .expect("cross-tenant query failed");
-    assert!(
-        cross_check_b.is_none(),
-        "App A must not see App B's ingest"
-    );
+    let cross_check_b: Option<(i64,)> =
+        sqlx::query_as("SELECT id FROM integrations_webhook_ingest WHERE id = $1 AND app_id = $2")
+            .bind(result_b.ingest_id)
+            .bind(&app_a)
+            .fetch_optional(&pool)
+            .await
+            .expect("cross-tenant query failed");
+    assert!(cross_check_b.is_none(), "App A must not see App B's ingest");
 
     // Outbox events are also scoped
-    let a_outbox: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1",
-    )
-    .bind(&app_a)
-    .fetch_one(&pool)
-    .await
-    .expect("outbox count failed");
+    let a_outbox: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1")
+            .bind(&app_a)
+            .fetch_one(&pool)
+            .await
+            .expect("outbox count failed");
     assert!(a_outbox.0 > 0, "App A should have outbox events");
 
-    let b_outbox: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1",
-    )
-    .bind(&app_b)
-    .fetch_one(&pool)
-    .await
-    .expect("outbox count failed");
+    let b_outbox: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM integrations_outbox WHERE app_id = $1")
+            .bind(&app_b)
+            .fetch_one(&pool)
+            .await
+            .expect("outbox count failed");
     assert!(b_outbox.0 > 0, "App B should have outbox events");
 
     cleanup(&pool, &app_a).await;

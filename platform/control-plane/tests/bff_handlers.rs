@@ -9,7 +9,6 @@
 ///   - GET  /api/ready (readiness probe)
 ///
 /// All tests run against a real Postgres database. No mocks.
-
 use axum::http::StatusCode;
 use axum_test::TestServer;
 use serde_json::{json, Value};
@@ -30,7 +29,9 @@ async fn test_pool() -> PgPool {
         "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
             .to_string()
     });
-    PgPool::connect(&url).await.expect("connect to tenant-registry DB")
+    PgPool::connect(&url)
+        .await
+        .expect("connect to tenant-registry DB")
 }
 
 fn build_test_server(pool: PgPool) -> TestServer {

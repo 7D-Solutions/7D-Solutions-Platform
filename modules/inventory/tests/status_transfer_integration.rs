@@ -26,11 +26,10 @@ use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
 
-
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -112,7 +111,10 @@ async fn read_buckets(
     warehouse_id: Uuid,
 ) -> std::collections::HashMap<String, i64> {
     #[derive(sqlx::FromRow)]
-    struct Row { status: String, quantity_on_hand: i64 }
+    struct Row {
+        status: String,
+        quantity_on_hand: i64,
+    }
 
     let rows = sqlx::query_as::<_, Row>(
         "SELECT status::TEXT AS status, quantity_on_hand \
@@ -126,7 +128,9 @@ async fn read_buckets(
     .await
     .expect("read_buckets failed");
 
-    rows.into_iter().map(|r| (r.status, r.quantity_on_hand)).collect()
+    rows.into_iter()
+        .map(|r| (r.status, r.quantity_on_hand))
+        .collect()
 }
 
 async fn read_available_on_hand(
@@ -148,7 +152,6 @@ async fn read_available_on_hand(
     .expect("read_available_on_hand failed")
 }
 
-
 #[tokio::test]
 #[serial]
 async fn test_transfer_available_to_quarantine() {
@@ -167,7 +170,15 @@ async fn test_transfer_available_to_quarantine() {
     // Transfer 30 from available to quarantine
     let (result, is_replay) = process_status_transfer(
         &pool,
-        &transfer_req(&tenant, item.id, wh, InvItemStatus::Available, InvItemStatus::Quarantine, 30, "tx-1"),
+        &transfer_req(
+            &tenant,
+            item.id,
+            wh,
+            InvItemStatus::Available,
+            InvItemStatus::Quarantine,
+            30,
+            "tx-1",
+        ),
     )
     .await
     .expect("transfer");
@@ -209,7 +220,6 @@ async fn test_transfer_available_to_quarantine() {
     assert_eq!(ledger_count, 1);
 }
 
-
 #[tokio::test]
 #[serial]
 async fn test_transfer_idempotency() {
@@ -224,13 +234,25 @@ async fn test_transfer_idempotency() {
         .await
         .expect("receipt");
 
-    let req = transfer_req(&tenant, item.id, wh, InvItemStatus::Available, InvItemStatus::Quarantine, 20, "tx-idem");
+    let req = transfer_req(
+        &tenant,
+        item.id,
+        wh,
+        InvItemStatus::Available,
+        InvItemStatus::Quarantine,
+        20,
+        "tx-idem",
+    );
 
-    let (r1, replay1) = process_status_transfer(&pool, &req).await.expect("transfer 1");
+    let (r1, replay1) = process_status_transfer(&pool, &req)
+        .await
+        .expect("transfer 1");
     assert!(!replay1);
 
     // Second call — same idempotency key
-    let (r2, replay2) = process_status_transfer(&pool, &req).await.expect("transfer 2");
+    let (r2, replay2) = process_status_transfer(&pool, &req)
+        .await
+        .expect("transfer 2");
     assert!(replay2);
     assert_eq!(r1.transfer_id, r2.transfer_id);
     assert_eq!(r1.event_id, r2.event_id);
@@ -240,7 +262,6 @@ async fn test_transfer_idempotency() {
     assert_eq!(buckets["available"], 80); // only decremented once
     assert_eq!(buckets["quarantine"], 20);
 }
-
 
 #[tokio::test]
 #[serial]
@@ -260,7 +281,15 @@ async fn test_transfer_insufficient_available() {
     // Try to transfer 20 (more than available)
     let err = process_status_transfer(
         &pool,
-        &transfer_req(&tenant, item.id, wh, InvItemStatus::Available, InvItemStatus::Quarantine, 20, "tx-insuf"),
+        &transfer_req(
+            &tenant,
+            item.id,
+            wh,
+            InvItemStatus::Available,
+            InvItemStatus::Quarantine,
+            20,
+            "tx-insuf",
+        ),
     )
     .await
     .expect_err("should fail");
@@ -277,7 +306,6 @@ async fn test_transfer_insufficient_available() {
     assert!(!buckets.contains_key("quarantine"));
 }
 
-
 #[tokio::test]
 #[serial]
 async fn test_transfer_same_status_rejected() {
@@ -290,7 +318,15 @@ async fn test_transfer_same_status_rejected() {
 
     let err = process_status_transfer(
         &pool,
-        &transfer_req(&tenant, item.id, wh, InvItemStatus::Available, InvItemStatus::Available, 5, "tx-same"),
+        &transfer_req(
+            &tenant,
+            item.id,
+            wh,
+            InvItemStatus::Available,
+            InvItemStatus::Available,
+            5,
+            "tx-same",
+        ),
     )
     .await
     .expect_err("should fail");
@@ -302,7 +338,6 @@ async fn test_transfer_same_status_rejected() {
     );
 }
 
-
 #[tokio::test]
 #[serial]
 async fn test_transfer_zero_quantity_rejected() {
@@ -313,7 +348,15 @@ async fn test_transfer_zero_quantity_rejected() {
         .await
         .expect("create item");
 
-    let mut req = transfer_req(&tenant, item.id, wh, InvItemStatus::Available, InvItemStatus::Quarantine, 0, "tx-zero");
+    let mut req = transfer_req(
+        &tenant,
+        item.id,
+        wh,
+        InvItemStatus::Available,
+        InvItemStatus::Quarantine,
+        0,
+        "tx-zero",
+    );
     req.quantity = 0;
 
     let err = process_status_transfer(&pool, &req)
@@ -326,7 +369,6 @@ async fn test_transfer_zero_quantity_rejected() {
         err
     );
 }
-
 
 #[tokio::test]
 #[serial]
@@ -347,7 +389,15 @@ async fn test_transfer_inactive_item_rejected() {
 
     let err = process_status_transfer(
         &pool,
-        &transfer_req(&tenant, item.id, wh, InvItemStatus::Available, InvItemStatus::Quarantine, 5, "tx-inactive"),
+        &transfer_req(
+            &tenant,
+            item.id,
+            wh,
+            InvItemStatus::Available,
+            InvItemStatus::Quarantine,
+            5,
+            "tx-inactive",
+        ),
     )
     .await
     .expect_err("should fail");
@@ -358,7 +408,6 @@ async fn test_transfer_inactive_item_rejected() {
         err
     );
 }
-
 
 #[tokio::test]
 #[serial]
@@ -377,7 +426,15 @@ async fn test_transfer_quarantine_to_damaged() {
     // First move some to quarantine
     process_status_transfer(
         &pool,
-        &transfer_req(&tenant, item.id, wh, InvItemStatus::Available, InvItemStatus::Quarantine, 40, "tx-7a"),
+        &transfer_req(
+            &tenant,
+            item.id,
+            wh,
+            InvItemStatus::Available,
+            InvItemStatus::Quarantine,
+            40,
+            "tx-7a",
+        ),
     )
     .await
     .expect("av->qr");
@@ -385,7 +442,15 @@ async fn test_transfer_quarantine_to_damaged() {
     // Now move some from quarantine to damaged
     let (result, is_replay) = process_status_transfer(
         &pool,
-        &transfer_req(&tenant, item.id, wh, InvItemStatus::Quarantine, InvItemStatus::Damaged, 15, "tx-7b"),
+        &transfer_req(
+            &tenant,
+            item.id,
+            wh,
+            InvItemStatus::Quarantine,
+            InvItemStatus::Damaged,
+            15,
+            "tx-7b",
+        ),
     )
     .await
     .expect("qr->dm");
@@ -399,11 +464,13 @@ async fn test_transfer_quarantine_to_damaged() {
 
     // available_status_on_hand should only reflect the available bucket
     let avail_oh = read_available_on_hand(&pool, &tenant, item.id, wh).await;
-    assert_eq!(avail_oh, 60, "available_status_on_hand must match available bucket");
+    assert_eq!(
+        avail_oh, 60,
+        "available_status_on_hand must match available bucket"
+    );
 
     let _ = result;
 }
-
 
 #[tokio::test]
 #[serial]
@@ -422,7 +489,15 @@ async fn test_transfer_quarantine_back_to_available() {
     // Move 50 to quarantine
     process_status_transfer(
         &pool,
-        &transfer_req(&tenant, item.id, wh, InvItemStatus::Available, InvItemStatus::Quarantine, 50, "tx-8a"),
+        &transfer_req(
+            &tenant,
+            item.id,
+            wh,
+            InvItemStatus::Available,
+            InvItemStatus::Quarantine,
+            50,
+            "tx-8a",
+        ),
     )
     .await
     .expect("av->qr");
@@ -433,7 +508,15 @@ async fn test_transfer_quarantine_back_to_available() {
     // Move 20 back from quarantine to available
     process_status_transfer(
         &pool,
-        &transfer_req(&tenant, item.id, wh, InvItemStatus::Quarantine, InvItemStatus::Available, 20, "tx-8b"),
+        &transfer_req(
+            &tenant,
+            item.id,
+            wh,
+            InvItemStatus::Quarantine,
+            InvItemStatus::Available,
+            20,
+            "tx-8b",
+        ),
     )
     .await
     .expect("qr->av");
@@ -443,9 +526,11 @@ async fn test_transfer_quarantine_back_to_available() {
     assert_eq!(buckets["quarantine"], 30);
 
     let avail_oh = read_available_on_hand(&pool, &tenant, item.id, wh).await;
-    assert_eq!(avail_oh, 70, "available_status_on_hand must increment when moving TO available");
+    assert_eq!(
+        avail_oh, 70,
+        "available_status_on_hand must increment when moving TO available"
+    );
 }
-
 
 #[tokio::test]
 #[serial]
@@ -464,7 +549,15 @@ async fn test_transfer_idempotency_conflict() {
     // First transfer with key "conflict-key"
     process_status_transfer(
         &pool,
-        &transfer_req(&tenant, item.id, wh, InvItemStatus::Available, InvItemStatus::Quarantine, 10, "conflict-key"),
+        &transfer_req(
+            &tenant,
+            item.id,
+            wh,
+            InvItemStatus::Available,
+            InvItemStatus::Quarantine,
+            10,
+            "conflict-key",
+        ),
     )
     .await
     .expect("first transfer");
@@ -472,7 +565,15 @@ async fn test_transfer_idempotency_conflict() {
     // Second transfer with same key but different quantity (body differs)
     let err = process_status_transfer(
         &pool,
-        &transfer_req(&tenant, item.id, wh, InvItemStatus::Available, InvItemStatus::Quarantine, 99, "conflict-key"),
+        &transfer_req(
+            &tenant,
+            item.id,
+            wh,
+            InvItemStatus::Available,
+            InvItemStatus::Quarantine,
+            99,
+            "conflict-key",
+        ),
     )
     .await
     .expect_err("should conflict");

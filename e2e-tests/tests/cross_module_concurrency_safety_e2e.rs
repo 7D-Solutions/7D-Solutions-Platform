@@ -134,7 +134,8 @@ async fn test_parallel_subscription_cycle_attempts() {
 
     // Setup: create plan + subscription (FK dependency for subscription_id)
     let plan_id = create_plan_for_test(&subscriptions_pool, tenant_id).await;
-    let subscription_id = create_subscription_for_test(&subscriptions_pool, tenant_id, plan_id).await;
+    let subscription_id =
+        create_subscription_for_test(&subscriptions_pool, tenant_id, plan_id).await;
 
     let pool = Arc::new(subscriptions_pool);
 
@@ -254,8 +255,7 @@ async fn test_parallel_payment_attempts() {
 
     // Invariant: UNIQUE constraint must reject every concurrent attempt
     assert_eq!(
-        concurrent_successes,
-        0,
+        concurrent_successes, 0,
         "All concurrent inserts must fail — UNIQUE (app_id, payment_id, attempt_no) enforced"
     );
 
@@ -293,9 +293,15 @@ async fn test_parallel_payment_attempts() {
         .await
         .expect("Oracle invariants should pass");
 
-    common::cleanup_tenant_data(&ar_pool, pool.as_ref(), &subscriptions_pool, &gl_pool, app_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &ar_pool,
+        pool.as_ref(),
+        &subscriptions_pool,
+        &gl_pool,
+        app_id,
+    )
+    .await
+    .ok();
 }
 
 // ============================================================================
@@ -337,8 +343,7 @@ async fn test_parallel_gl_postings() {
 
     // Invariant: UNIQUE constraint must reject every concurrent attempt
     assert_eq!(
-        concurrent_successes,
-        0,
+        concurrent_successes, 0,
         "All concurrent GL inserts must fail — UNIQUE source_event_id enforced"
     );
 
@@ -408,7 +413,8 @@ async fn test_mixed_concurrent_operations() {
 
     // Setup subscription FK dependency
     let plan_id = create_plan_for_test(&subscriptions_pool, tenant_id).await;
-    let subscription_id = create_subscription_for_test(&subscriptions_pool, tenant_id, plan_id).await;
+    let subscription_id =
+        create_subscription_for_test(&subscriptions_pool, tenant_id, plan_id).await;
 
     let sub_pool = Arc::new(subscriptions_pool);
     let pay_pool = Arc::new(payments_pool);
@@ -460,8 +466,7 @@ async fn test_mixed_concurrent_operations() {
 
     // Invariant: all 30 concurrent inserts must fail (pre-existing rows hold UNIQUE keys)
     assert_eq!(
-        total_concurrent_successes,
-        0,
+        total_concurrent_successes, 0,
         "All 30 concurrent inserts must fail — UNIQUE constraints enforced across all modules"
     );
 
@@ -496,8 +501,14 @@ async fn test_mixed_concurrent_operations() {
     .await
     .unwrap();
 
-    assert_eq!(sub_count, 1, "Exactly 1 subscription attempt — uniqueness enforced");
-    assert_eq!(pay_count, 1, "Exactly 1 payment attempt — uniqueness enforced");
+    assert_eq!(
+        sub_count, 1,
+        "Exactly 1 subscription attempt — uniqueness enforced"
+    );
+    assert_eq!(
+        pay_count, 1,
+        "Exactly 1 payment attempt — uniqueness enforced"
+    );
     assert_eq!(gl_count, 1, "Exactly 1 GL entry — uniqueness enforced");
 
     // Oracle: assert all module invariants hold
@@ -565,8 +576,7 @@ async fn test_high_concurrency_stress() {
 
     // Invariant: UNIQUE constraint must reject all 100 concurrent attempts
     assert_eq!(
-        concurrent_successes,
-        0,
+        concurrent_successes, 0,
         "All 100 concurrent inserts must fail — UNIQUE constraint holds under high concurrency"
     );
 
@@ -603,7 +613,13 @@ async fn test_high_concurrency_stress() {
         .await
         .expect("Oracle invariants should pass");
 
-    common::cleanup_tenant_data(&ar_pool, pool.as_ref(), &subscriptions_pool, &gl_pool, app_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &ar_pool,
+        pool.as_ref(),
+        &subscriptions_pool,
+        &gl_pool,
+        app_id,
+    )
+    .await
+    .ok();
 }

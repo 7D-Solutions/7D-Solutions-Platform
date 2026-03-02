@@ -244,13 +244,29 @@ async fn test_boundary_http_balance_sheet_returns_correct_json() {
     assert_eq!(balance_sheet.currency, "USD");
 
     // Assert: Rows present and correct totals
-    assert_eq!(balance_sheet.rows.len(), 3, "Should have 3 account rows (assets + liabilities + equity)");
+    assert_eq!(
+        balance_sheet.rows.len(),
+        3,
+        "Should have 3 account rows (assets + liabilities + equity)"
+    );
 
     // Assert: Accounting equation (Assets = Liabilities + Equity)
-    assert_eq!(balance_sheet.totals.total_assets, 100000, "Assets should be $1000 (100000 minor units)");
-    assert_eq!(balance_sheet.totals.total_liabilities, 40000, "Liabilities should be $400 (40000 minor units)");
-    assert_eq!(balance_sheet.totals.total_equity, 60000, "Equity should be $600 (60000 minor units)");
-    assert!(balance_sheet.totals.is_balanced, "Balance sheet should satisfy accounting equation (A = L + E)");
+    assert_eq!(
+        balance_sheet.totals.total_assets, 100000,
+        "Assets should be $1000 (100000 minor units)"
+    );
+    assert_eq!(
+        balance_sheet.totals.total_liabilities, 40000,
+        "Liabilities should be $400 (40000 minor units)"
+    );
+    assert_eq!(
+        balance_sheet.totals.total_equity, 60000,
+        "Equity should be $600 (60000 minor units)"
+    );
+    assert!(
+        balance_sheet.totals.is_balanced,
+        "Balance sheet should satisfy accounting equation (A = L + E)"
+    );
 
     // Verify equation: 100000 = 40000 + 60000
     assert_eq!(
@@ -272,7 +288,9 @@ async fn test_boundary_http_balance_sheet_error_handling() {
     // Test: Missing required query parameter (should return 400)
     let url_missing_params = format!("{}/api/gl/balance-sheet", gl_service_url);
 
-    let response = reqwest::get(&url_missing_params).await.expect("Failed to make request");
+    let response = reqwest::get(&url_missing_params)
+        .await
+        .expect("Failed to make request");
 
     // Axum returns 400 for missing query parameters
     assert_eq!(
@@ -287,7 +305,9 @@ async fn test_boundary_http_balance_sheet_error_handling() {
         gl_service_url
     );
 
-    let response_invalid = reqwest::get(&url_invalid_uuid).await.expect("Failed to make request");
+    let response_invalid = reqwest::get(&url_invalid_uuid)
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response_invalid.status(),
         400,
@@ -345,7 +365,9 @@ async fn test_boundary_http_balance_sheet_schema_validation() {
         gl_service_url, tenant_id, period_id
     );
 
-    let response = reqwest::get(&url).await.expect("Failed to fetch balance sheet");
+    let response = reqwest::get(&url)
+        .await
+        .expect("Failed to fetch balance sheet");
     assert_eq!(response.status(), 200);
 
     // Parse as generic JSON to validate structure

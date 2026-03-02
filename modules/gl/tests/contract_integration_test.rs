@@ -107,10 +107,14 @@ fn test_deserialize_valid_event_envelope_from_example() {
     println!("✅ Successfully deserialized and validated EventEnvelope<GlPostingRequestV1>");
     println!("   Event ID: {}", envelope.event_id);
     println!("   Tenant: {}", envelope.tenant_id);
-    println!("   Source: {}@{}", envelope.source_module, envelope.source_version);
+    println!(
+        "   Source: {}@{}",
+        envelope.source_module, envelope.source_version
+    );
     println!("   Posting Date: {}", payload.posting_date);
     println!("   Description: {}", payload.description);
-    println!("   Lines: {} (balanced: {} debit, {} credit)",
+    println!(
+        "   Lines: {} (balanced: {} debit, {} credit)",
         payload.lines.len(),
         payload.lines.iter().map(|l| l.debit).sum::<f64>(),
         payload.lines.iter().map(|l| l.credit).sum::<f64>()
@@ -197,7 +201,10 @@ fn test_reject_invalid_currency() {
     );
 
     println!("✅ Correctly rejected invalid currency (lowercase 'usd'):");
-    println!("   Validation Error: {:?}", validation_result.err().unwrap());
+    println!(
+        "   Validation Error: {:?}",
+        validation_result.err().unwrap()
+    );
 }
 
 #[test]
@@ -241,7 +248,10 @@ fn test_reject_unbalanced_entry() {
     );
 
     println!("✅ Correctly rejected unbalanced entry (100 debit vs 50 credit):");
-    println!("   Validation Error: {:?}", validation_result.err().unwrap());
+    println!(
+        "   Validation Error: {:?}",
+        validation_result.err().unwrap()
+    );
 }
 
 #[test]
@@ -285,5 +295,8 @@ fn test_reject_empty_account_ref() {
     );
 
     println!("✅ Correctly rejected empty account_ref:");
-    println!("   Validation Error: {:?}", validation_result.err().unwrap());
+    println!(
+        "   Validation Error: {:?}",
+        validation_result.err().unwrap()
+    );
 }

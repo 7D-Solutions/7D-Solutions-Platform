@@ -20,7 +20,7 @@ use common::wait_for_db_ready;
 use fixed_assets::domain::depreciation::{
     CreateRunRequest, DepreciationService, GenerateScheduleRequest,
 };
-use fixed_assets::domain::disposals::{DisposeAssetRequest, DisposalService, DisposalType};
+use fixed_assets::domain::disposals::{DisposalService, DisposalType, DisposeAssetRequest};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -269,20 +269,23 @@ async fn test_fixed_assets_disposal_idempotent() {
         created_by: None,
     };
 
-    let d1 = DisposalService::dispose(&pool, &req).await.expect("first dispose");
-    let d2 = DisposalService::dispose(&pool, &req).await.expect("second dispose");
+    let d1 = DisposalService::dispose(&pool, &req)
+        .await
+        .expect("first dispose");
+    let d2 = DisposalService::dispose(&pool, &req)
+        .await
+        .expect("second dispose");
 
     assert_eq!(d1.id, d2.id, "idempotent — same disposal ID");
     assert_eq!(d1.gain_loss_minor, d2.gain_loss_minor);
 
-    let (count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM fa_disposals WHERE asset_id = $1 AND tenant_id = $2",
-    )
-    .bind(asset_id)
-    .bind(TEST_TENANT)
-    .fetch_one(&pool)
-    .await
-    .expect("disposal count");
+    let (count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM fa_disposals WHERE asset_id = $1 AND tenant_id = $2")
+            .bind(asset_id)
+            .bind(TEST_TENANT)
+            .fetch_one(&pool)
+            .await
+            .expect("disposal count");
     assert_eq!(count, 1, "only one disposal record");
 
     println!("PASS: Disposal idempotency verified");
@@ -322,12 +325,11 @@ async fn test_fixed_assets_impairment_flow() {
     assert_eq!(disposal.disposal_type, "impairment");
     assert_eq!(disposal.gain_loss_minor, -120000, "loss = -NBV");
 
-    let (status,): (String,) =
-        sqlx::query_as("SELECT status FROM fa_assets WHERE id = $1")
-            .bind(asset_id)
-            .fetch_one(&pool)
-            .await
-            .expect("check status");
+    let (status,): (String,) = sqlx::query_as("SELECT status FROM fa_assets WHERE id = $1")
+        .bind(asset_id)
+        .fetch_one(&pool)
+        .await
+        .expect("check status");
     assert_eq!(status, "impaired");
 
     println!("PASS: Impairment flow verified");
@@ -402,7 +404,10 @@ async fn test_fixed_assets_disposal_deterministic() {
     .await
     .unwrap();
 
-    assert_eq!(d1.net_book_value_at_disposal_minor, d2.net_book_value_at_disposal_minor);
+    assert_eq!(
+        d1.net_book_value_at_disposal_minor,
+        d2.net_book_value_at_disposal_minor
+    );
     assert_eq!(d1.proceeds_minor, d2.proceeds_minor);
     assert_eq!(d1.gain_loss_minor, d2.gain_loss_minor);
     assert_eq!(d1.gain_loss_minor, 10000, "gain = 100000 - 90000");

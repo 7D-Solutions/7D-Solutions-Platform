@@ -14,9 +14,7 @@
 //! 8. Full scope on empty location: task created, zero lines
 
 use inventory_rs::domain::{
-    cycle_count::task_service::{
-        create_cycle_count_task, CreateTaskRequest, TaskError, TaskScope,
-    },
+    cycle_count::task_service::{create_cycle_count_task, CreateTaskRequest, TaskError, TaskScope},
     items::{CreateItemRequest, ItemRepo, TrackingMode},
     locations::{CreateLocationRequest, LocationRepo},
     receipt_service::{process_receipt, ReceiptRequest},
@@ -31,8 +29,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -223,7 +221,14 @@ async fn test_partial_unknown_item_gets_zero_expected() {
     // Only the known item has stock
     process_receipt(
         &pool,
-        &receipt_req_at(&tenant, known_item.id, warehouse_id, loc.id, 10, "cc-unk-rcpt"),
+        &receipt_req_at(
+            &tenant,
+            known_item.id,
+            warehouse_id,
+            loc.id,
+            10,
+            "cc-unk-rcpt",
+        ),
         None,
     )
     .await

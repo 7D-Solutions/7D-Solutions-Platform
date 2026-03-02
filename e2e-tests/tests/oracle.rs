@@ -47,10 +47,16 @@ impl std::fmt::Display for OracleError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OracleError::ArInvariantViolation(e) => write!(f, "AR Invariant Violation: {}", e),
-            OracleError::PaymentsInvariantViolation(e) => write!(f, "Payments Invariant Violation: {}", e),
-            OracleError::SubscriptionsInvariantViolation(e) => write!(f, "Subscriptions Invariant Violation: {}", e),
+            OracleError::PaymentsInvariantViolation(e) => {
+                write!(f, "Payments Invariant Violation: {}", e)
+            }
+            OracleError::SubscriptionsInvariantViolation(e) => {
+                write!(f, "Subscriptions Invariant Violation: {}", e)
+            }
             OracleError::GlInvariantViolation(e) => write!(f, "GL Invariant Violation: {}", e),
-            OracleError::AuditInvariantViolation(e) => write!(f, "Audit Invariant Violation: {}", e),
+            OracleError::AuditInvariantViolation(e) => {
+                write!(f, "Audit Invariant Violation: {}", e)
+            }
         }
     }
 }
@@ -110,7 +116,7 @@ async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleEr
             SELECT 1 FROM information_schema.tables
             WHERE table_name = 'audit_events'
         )
-        "#
+        "#,
     )
     .fetch_one(ctx.audit_pool)
     .await
@@ -121,12 +127,11 @@ async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleEr
         return Ok(());
     }
 
-    let total_audit_records: i64 = sqlx::query_scalar(
-        r#"SELECT COUNT(*)::bigint FROM audit_events"#
-    )
-    .fetch_one(ctx.audit_pool)
-    .await
-    .unwrap_or(0);
+    let total_audit_records: i64 =
+        sqlx::query_scalar(r#"SELECT COUNT(*)::bigint FROM audit_events"#)
+            .fetch_one(ctx.audit_pool)
+            .await
+            .unwrap_or(0);
 
     if total_audit_records == 0 {
         // No audit records yet - audit not yet integrated
@@ -156,12 +161,17 @@ async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleEr
             SELECT COUNT(*)::bigint
             FROM audit_events
             WHERE causation_id = $1
-            "#
+            "#,
         )
         .bind(event_id)
         .fetch_one(ctx.audit_pool)
         .await
-        .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query audit for AR event {}: {}", event_id, e)))?;
+        .map_err(|e| {
+            OracleError::AuditInvariantViolation(format!(
+                "Failed to query audit for AR event {}: {}",
+                event_id, e
+            ))
+        })?;
 
         if audit_count == 0 {
             return Err(OracleError::AuditInvariantViolation(format!(
@@ -201,12 +211,17 @@ async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleEr
             SELECT COUNT(*)::bigint
             FROM audit_events
             WHERE causation_id = $1
-            "#
+            "#,
         )
         .bind(event_id)
         .fetch_one(ctx.audit_pool)
         .await
-        .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query audit for Payment event {}: {}", event_id, e)))?;
+        .map_err(|e| {
+            OracleError::AuditInvariantViolation(format!(
+                "Failed to query audit for Payment event {}: {}",
+                event_id, e
+            ))
+        })?;
 
         if audit_count == 0 {
             return Err(OracleError::AuditInvariantViolation(format!(
@@ -230,7 +245,7 @@ async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleEr
         FROM events_outbox
         WHERE event_type LIKE '%Created' OR event_type LIKE '%Posted' OR event_type LIKE '%Reversed'
         ORDER BY created_at
-        "#
+        "#,
     )
     .fetch_all(ctx.gl_pool)
     .await
@@ -246,12 +261,17 @@ async fn assert_audit_completeness(ctx: &TestContext<'_>) -> Result<(), OracleEr
             SELECT COUNT(*)::bigint
             FROM audit_events
             WHERE causation_id = $1
-            "#
+            "#,
         )
         .bind(event_id)
         .fetch_one(ctx.audit_pool)
         .await
-        .map_err(|e| OracleError::AuditInvariantViolation(format!("Failed to query audit for GL event {}: {}", event_id, e)))?;
+        .map_err(|e| {
+            OracleError::AuditInvariantViolation(format!(
+                "Failed to query audit for GL event {}: {}",
+                event_id, e
+            ))
+        })?;
 
         if audit_count == 0 {
             return Err(OracleError::AuditInvariantViolation(format!(
@@ -291,7 +311,8 @@ pub async fn assert_cross_module_invariants(ctx: &TestContext<'_>) -> Result<(),
     // Call all 4 module invariants from bd-35x
     ar_rs::invariants::assert_all_invariants(ctx.ar_pool, ctx.app_id).await?;
     payments_rs::invariants::assert_all_invariants(ctx.payments_pool, ctx.app_id).await?;
-    subscriptions_rs::invariants::assert_all_invariants(ctx.subscriptions_pool, ctx.tenant_id).await?;
+    subscriptions_rs::invariants::assert_all_invariants(ctx.subscriptions_pool, ctx.tenant_id)
+        .await?;
     gl_rs::invariants::assert_all_invariants(ctx.gl_pool, ctx.tenant_id).await?;
 
     // Check audit completeness for all mutations
@@ -317,7 +338,7 @@ mod tests {
                 invoice_id: 123,
                 attempt_no: 0,
                 count: 2,
-            }
+            },
         );
 
         let display = format!("{}", ar_error);

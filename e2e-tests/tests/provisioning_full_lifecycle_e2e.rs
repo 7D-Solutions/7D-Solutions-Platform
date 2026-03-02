@@ -9,7 +9,7 @@
 mod common;
 
 use common::{
-    get_ar_pool, get_gl_pool, get_subscriptions_pool, get_tenant_registry_pool, get_auth_pool,
+    get_ar_pool, get_auth_pool, get_gl_pool, get_subscriptions_pool, get_tenant_registry_pool,
 };
 use sqlx::PgPool;
 use tenant_registry::{
@@ -45,11 +45,7 @@ async fn get_tenant_status(registry_pool: &PgPool, tenant_id: Uuid) -> Option<St
         .expect("Failed to fetch tenant status")
 }
 
-async fn get_outbox_event_count(
-    registry_pool: &PgPool,
-    tenant_id: Uuid,
-    event_type: &str,
-) -> i64 {
+async fn get_outbox_event_count(registry_pool: &PgPool, tenant_id: Uuid, event_type: &str) -> i64 {
     sqlx::query_scalar::<_, i64>(
         r#"
         SELECT COUNT(*)
@@ -88,13 +84,12 @@ async fn test_seed_gl_creates_accounting_period() {
         .expect("GL seed should succeed");
 
     // Verify accounting period was created
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM accounting_periods WHERE tenant_id = $1",
-    )
-    .bind(tenant_id.to_string())
-    .fetch_one(&gl_pool)
-    .await
-    .expect("Failed to count accounting periods");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM accounting_periods WHERE tenant_id = $1")
+            .bind(tenant_id.to_string())
+            .fetch_one(&gl_pool)
+            .await
+            .expect("Failed to count accounting periods");
 
     assert_eq!(count, 1, "Should have exactly one accounting period");
 
@@ -129,13 +124,12 @@ async fn test_seed_gl_is_idempotent() {
         .await
         .expect("Second GL seed should succeed (idempotent)");
 
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM accounting_periods WHERE tenant_id = $1",
-    )
-    .bind(tenant_id.to_string())
-    .fetch_one(&gl_pool)
-    .await
-    .expect("Failed to count accounting periods");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM accounting_periods WHERE tenant_id = $1")
+            .bind(tenant_id.to_string())
+            .fetch_one(&gl_pool)
+            .await
+            .expect("Failed to count accounting periods");
 
     assert_eq!(count, 1, "Idempotent seed should not create duplicates");
 
@@ -193,12 +187,11 @@ async fn test_seed_ar_is_idempotent() {
         .await
         .expect("Second AR seed should succeed (idempotent)");
 
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM ar_dunning_config WHERE app_id = $1")
-            .bind(&app_id)
-            .fetch_one(&ar_pool)
-            .await
-            .expect("Failed to count dunning configs");
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_dunning_config WHERE app_id = $1")
+        .bind(&app_id)
+        .fetch_one(&ar_pool)
+        .await
+        .expect("Failed to count dunning configs");
 
     assert_eq!(count, 1, "Idempotent seed should not create duplicates");
 
@@ -224,18 +217,17 @@ async fn test_seed_subscriptions_creates_default_plan() {
         .await
         .expect("Subscriptions seed should succeed");
 
-    let (name, schedule, price_minor, currency): (String, String, i64, String) =
-        sqlx::query_as(
-            r#"
+    let (name, schedule, price_minor, currency): (String, String, i64, String) = sqlx::query_as(
+        r#"
             SELECT name, schedule, price_minor, currency
             FROM subscription_plans
             WHERE tenant_id = $1 AND name = 'Standard Monthly'
             "#,
-        )
-        .bind(&tenant_id_str)
-        .fetch_one(&subs_pool)
-        .await
-        .expect("Failed to fetch subscription plan");
+    )
+    .bind(&tenant_id_str)
+    .fetch_one(&subs_pool)
+    .await
+    .expect("Failed to fetch subscription plan");
 
     assert_eq!(name, "Standard Monthly");
     assert_eq!(schedule, "monthly");
@@ -271,7 +263,10 @@ async fn test_seed_subscriptions_is_idempotent() {
     .await
     .expect("Failed to count plans");
 
-    assert_eq!(count, 1, "Idempotent seed should not create duplicate plans");
+    assert_eq!(
+        count, 1,
+        "Idempotent seed should not create duplicate plans"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM subscription_plans WHERE tenant_id = $1")
@@ -296,13 +291,12 @@ async fn test_seed_identity_creates_admin_user() {
         .await
         .expect("Identity seed should succeed");
 
-    let (email, is_active): (String, bool) = sqlx::query_as(
-        "SELECT email, is_active FROM credentials WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_one(&auth_pool)
-    .await
-    .expect("Failed to fetch admin credential");
+    let (email, is_active): (String, bool) =
+        sqlx::query_as("SELECT email, is_active FROM credentials WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_one(&auth_pool)
+            .await
+            .expect("Failed to fetch admin credential");
 
     assert_eq!(email, expected_email);
     assert!(is_active, "Admin user should be active");
@@ -328,14 +322,16 @@ async fn test_seed_identity_is_idempotent() {
         .await
         .expect("Second identity seed should succeed (idempotent)");
 
-    let count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM credentials WHERE tenant_id = $1")
-            .bind(tenant_id)
-            .fetch_one(&auth_pool)
-            .await
-            .expect("Failed to count credentials");
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM credentials WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_one(&auth_pool)
+        .await
+        .expect("Failed to count credentials");
 
-    assert_eq!(count, 1, "Idempotent seed should not create duplicate users");
+    assert_eq!(
+        count, 1,
+        "Idempotent seed should not create duplicate users"
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM credentials WHERE tenant_id = $1")
@@ -381,9 +377,11 @@ async fn test_activate_tenant_emits_provisioned_outbox_event() {
         .await
         .expect("Activation should succeed");
 
-    let event_count =
-        get_outbox_event_count(&registry_pool, tenant_id, "tenant.provisioned").await;
-    assert_eq!(event_count, 1, "Should have exactly one tenant.provisioned outbox event");
+    let event_count = get_outbox_event_count(&registry_pool, tenant_id, "tenant.provisioned").await;
+    assert_eq!(
+        event_count, 1,
+        "Should have exactly one tenant.provisioned outbox event"
+    );
 
     cleanup_tenant(&registry_pool, tenant_id).await;
 }
@@ -448,10 +446,7 @@ async fn test_activate_already_active_tenant_returns_error() {
 
     // Activation should fail because guard requires status='provisioning'
     let result = activate_tenant_atomic(&registry_pool, tenant_id).await;
-    assert!(
-        result.is_err(),
-        "Should fail when tenant is already active"
-    );
+    assert!(result.is_err(), "Should fail when tenant is already active");
 
     cleanup_tenant(&registry_pool, tenant_id).await;
 }
@@ -464,7 +459,10 @@ async fn test_activate_already_active_tenant_returns_error() {
 async fn test_health_check_empty_modules_is_ready() {
     let client = reqwest::Client::new();
     let result = check_all_modules_ready(&client, &[]).await;
-    assert!(result.all_ready, "Empty module list should be vacuously ready");
+    assert!(
+        result.all_ready,
+        "Empty module list should be vacuously ready"
+    );
 }
 
 #[tokio::test]

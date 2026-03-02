@@ -15,9 +15,9 @@
 //! Uses tokio::spawn for true async concurrency.
 
 use inventory_rs::domain::{
-    issue_service::{IssueError, IssueRequest, process_issue},
+    issue_service::{process_issue, IssueError, IssueRequest},
     items::{CreateItemRequest, ItemRepo, TrackingMode},
-    receipt_service::{ReceiptRequest, process_receipt},
+    receipt_service::{process_receipt, ReceiptRequest},
 };
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
@@ -320,7 +320,10 @@ async fn inventory_concurrency_conservation_invariant() {
     for handle in handles {
         match handle.await.expect("task did not panic") {
             Ok((result, _)) => {
-                assert!(result.quantity <= issue_qty, "issued qty must not exceed requested");
+                assert!(
+                    result.quantity <= issue_qty,
+                    "issued qty must not exceed requested"
+                );
                 total_issued += result.quantity;
             }
             Err(IssueError::InsufficientQuantity { .. }) => {

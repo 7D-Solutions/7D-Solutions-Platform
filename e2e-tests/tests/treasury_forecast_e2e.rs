@@ -19,10 +19,10 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use ar_rs::aging::refresh_aging;
+use treasury::domain::reports::assumptions::ForecastAssumptions;
 use treasury::domain::reports::forecast::{
     compute_forecast, read_ap_aging, read_ar_aging, read_scheduled_payments,
 };
-use treasury::domain::reports::assumptions::ForecastAssumptions;
 
 // ============================================================================
 // AR seed helpers
@@ -148,11 +148,7 @@ async fn ap_make_approved_bill(
 }
 
 /// Insert a pending payment run directly.
-async fn ap_make_pending_payment_run(
-    pool: &PgPool,
-    tenant_id: &str,
-    total_minor: i64,
-) -> Uuid {
+async fn ap_make_pending_payment_run(pool: &PgPool, tenant_id: &str, total_minor: i64) -> Uuid {
     let run_id = Uuid::new_v4();
     sqlx::query(
         r#"
@@ -237,7 +233,10 @@ async fn test_treasury_forecast_e2e() {
 
     assert_eq!(snapshot.current_minor, 10_000, "AR current bucket");
     assert_eq!(snapshot.days_31_60_minor, 5_000, "AR 31-60 bucket");
-    assert_eq!(snapshot.total_outstanding_minor, 15_000, "AR total outstanding");
+    assert_eq!(
+        snapshot.total_outstanding_minor, 15_000,
+        "AR total outstanding"
+    );
 
     // --- Step 2: Seed AP bill + payment run ---
 
@@ -266,14 +265,23 @@ async fn test_treasury_forecast_e2e() {
     assert!(!scheduled.is_empty(), "Scheduled payments should have data");
 
     // Verify raw read values before rates are applied
-    let ar_usd = ar_aging.iter().find(|a| a.currency == "USD").expect("USD AR aging");
+    let ar_usd = ar_aging
+        .iter()
+        .find(|a| a.currency == "USD")
+        .expect("USD AR aging");
     assert_eq!(ar_usd.current_minor, 10_000, "AR read: current bucket");
     assert_eq!(ar_usd.days_31_60_minor, 5_000, "AR read: 31-60 bucket");
 
-    let ap_usd = ap_aging.iter().find(|a| a.currency == "USD").expect("USD AP aging");
+    let ap_usd = ap_aging
+        .iter()
+        .find(|a| a.currency == "USD")
+        .expect("USD AP aging");
     assert_eq!(ap_usd.current_minor, 3_000, "AP read: current bucket");
 
-    let sched_usd = scheduled.iter().find(|s| s.currency == "USD").expect("USD scheduled");
+    let sched_usd = scheduled
+        .iter()
+        .find(|s| s.currency == "USD")
+        .expect("USD scheduled");
     assert_eq!(sched_usd.total_minor, 2_000, "Scheduled: total_minor");
 
     // --- Step 4: Compute forecast ---
@@ -287,50 +295,87 @@ async fn test_treasury_forecast_e2e() {
     let response = compute_forecast(&ar_aging, &ap_aging, &scheduled, &assumptions, data_sources);
 
     // Criterion 1: Forecast returns inflow/outflow grouped by time bucket and currency
-    assert_eq!(response.forecasts.len(), 1, "One currency (USD) in forecast");
-    let usd = response.forecasts.iter().find(|f| f.currency == "USD")
+    assert_eq!(
+        response.forecasts.len(),
+        1,
+        "One currency (USD) in forecast"
+    );
+    let usd = response
+        .forecasts
+        .iter()
+        .find(|f| f.currency == "USD")
         .expect("USD forecast");
 
     // Criterion 2: AR invoice amounts appear in correct inflow buckets
-    assert_eq!(usd.inflows.current_minor, 9_500,
-        "Inflow current: 10_000 * 0.95 = 9_500");
-    assert_eq!(usd.inflows.days_31_60_minor, 3_500,
-        "Inflow 31-60: 5_000 * 0.70 = 3_500");
-    assert_eq!(usd.inflows.total_minor, 13_000,
-        "Inflow total: 9_500 + 3_500 = 13_000");
+    assert_eq!(
+        usd.inflows.current_minor, 9_500,
+        "Inflow current: 10_000 * 0.95 = 9_500"
+    );
+    assert_eq!(
+        usd.inflows.days_31_60_minor, 3_500,
+        "Inflow 31-60: 5_000 * 0.70 = 3_500"
+    );
+    assert_eq!(
+        usd.inflows.total_minor, 13_000,
+        "Inflow total: 9_500 + 3_500 = 13_000"
+    );
 
     // Criterion 3: AP bill amounts appear in correct outflow bucket
-    assert_eq!(usd.outflows.current_minor, 3_000,
-        "Outflow current: 3_000 * 1.0 = 3_000");
-    assert_eq!(usd.outflows.total_minor, 3_000,
-        "Outflow total: 3_000");
+    assert_eq!(
+        usd.outflows.current_minor, 3_000,
+        "Outflow current: 3_000 * 1.0 = 3_000"
+    );
+    assert_eq!(usd.outflows.total_minor, 3_000, "Outflow total: 3_000");
 
     // Scheduled outflow from payment run
-    assert_eq!(usd.scheduled_outflows_minor, 2_000,
-        "Scheduled outflows: 2_000 * 1.0 = 2_000");
+    assert_eq!(
+        usd.scheduled_outflows_minor, 2_000,
+        "Scheduled outflows: 2_000 * 1.0 = 2_000"
+    );
 
     // Net check
-    assert_eq!(usd.total_net_minor, 8_000,
-        "Net: 13_000 - 3_000 - 2_000 = 8_000");
+    assert_eq!(
+        usd.total_net_minor, 8_000,
+        "Net: 13_000 - 3_000 - 2_000 = 8_000"
+    );
 
     // Criterion 4: Assumptions field is populated and data_sources declared
-    assert_eq!(response.assumptions.ar_current_rate, 0.95,
-        "Assumptions: AR current rate declared");
-    assert!(response.data_sources.contains(&"ar_aging_buckets".to_string()),
-        "data_sources includes ar_aging_buckets");
-    assert!(response.data_sources.contains(&"ap_vendor_bills".to_string()),
-        "data_sources includes ap_vendor_bills");
-    assert!(response.data_sources.contains(&"ap_payment_runs".to_string()),
-        "data_sources includes ap_payment_runs");
-    assert!(!response.methodology.is_empty(), "Methodology note populated");
+    assert_eq!(
+        response.assumptions.ar_current_rate, 0.95,
+        "Assumptions: AR current rate declared"
+    );
+    assert!(
+        response
+            .data_sources
+            .contains(&"ar_aging_buckets".to_string()),
+        "data_sources includes ar_aging_buckets"
+    );
+    assert!(
+        response
+            .data_sources
+            .contains(&"ap_vendor_bills".to_string()),
+        "data_sources includes ap_vendor_bills"
+    );
+    assert!(
+        response
+            .data_sources
+            .contains(&"ap_payment_runs".to_string()),
+        "data_sources includes ap_payment_runs"
+    );
+    assert!(
+        !response.methodology.is_empty(),
+        "Methodology note populated"
+    );
 
     println!("✅ Treasury forecast E2E:");
-    println!("   USD inflows:  current={}, 31-60={}, total={}",
-        usd.inflows.current_minor,
-        usd.inflows.days_31_60_minor,
-        usd.inflows.total_minor);
-    println!("   USD outflows: current={}, total={}",
-        usd.outflows.current_minor, usd.outflows.total_minor);
+    println!(
+        "   USD inflows:  current={}, 31-60={}, total={}",
+        usd.inflows.current_minor, usd.inflows.days_31_60_minor, usd.inflows.total_minor
+    );
+    println!(
+        "   USD outflows: current={}, total={}",
+        usd.outflows.current_minor, usd.outflows.total_minor
+    );
     println!("   Scheduled:    {}", usd.scheduled_outflows_minor);
     println!("   Net:          {}", usd.total_net_minor);
     println!("   Data sources: {:?}", response.data_sources);
@@ -407,7 +452,13 @@ async fn test_treasury_forecast_currency_grouping() {
         .expect("read_ar_aging");
 
     let assumptions = ForecastAssumptions::default();
-    let response = compute_forecast(&ar_aging, &[], &[], &assumptions, vec!["ar_aging_buckets".to_string()]);
+    let response = compute_forecast(
+        &ar_aging,
+        &[],
+        &[],
+        &assumptions,
+        vec!["ar_aging_buckets".to_string()],
+    );
 
     // Should have 2 currency forecasts (EUR and USD), sorted alphabetically
     assert_eq!(response.forecasts.len(), 2, "Two currencies in forecast");
@@ -415,13 +466,20 @@ async fn test_treasury_forecast_currency_grouping() {
     assert_eq!(response.forecasts[1].currency, "USD", "Second: USD");
 
     // EUR: 10_000 * 0.95 = 9_500
-    assert_eq!(response.forecasts[0].inflows.current_minor, 9_500, "EUR inflow");
+    assert_eq!(
+        response.forecasts[0].inflows.current_minor, 9_500,
+        "EUR inflow"
+    );
     // USD: 20_000 * 0.95 = 19_000
-    assert_eq!(response.forecasts[1].inflows.current_minor, 19_000, "USD inflow");
+    assert_eq!(
+        response.forecasts[1].inflows.current_minor, 19_000,
+        "USD inflow"
+    );
 
-    println!("✅ Currency grouping: EUR={}, USD={}",
-        response.forecasts[0].inflows.current_minor,
-        response.forecasts[1].inflows.current_minor);
+    println!(
+        "✅ Currency grouping: EUR={}, USD={}",
+        response.forecasts[0].inflows.current_minor, response.forecasts[1].inflows.current_minor
+    );
 
     ar_cleanup(&ar_pool, &tenant).await;
     ap_cleanup(&ap_pool, &tenant).await;
@@ -450,15 +508,25 @@ async fn test_treasury_forecast_ar_only() {
     let data_sources = vec!["ar_aging_buckets".to_string()];
     let response = compute_forecast(&ar_aging, &[], &[], &assumptions, data_sources);
 
-    let usd = response.forecasts.iter().find(|f| f.currency == "USD")
+    let usd = response
+        .forecasts
+        .iter()
+        .find(|f| f.currency == "USD")
         .expect("USD forecast");
 
     // 8_000 * 0.95 = 7_600
-    assert_eq!(usd.inflows.current_minor, 7_600, "Inflow current: 8_000 * 0.95");
+    assert_eq!(
+        usd.inflows.current_minor, 7_600,
+        "Inflow current: 8_000 * 0.95"
+    );
     assert_eq!(usd.outflows.total_minor, 0, "No outflows");
     assert_eq!(usd.total_net_minor, 7_600, "Net = inflow only");
-    assert!(response.data_sources.contains(&"ar_aging_buckets".to_string()),
-        "AR data source declared");
+    assert!(
+        response
+            .data_sources
+            .contains(&"ar_aging_buckets".to_string()),
+        "AR data source declared"
+    );
 
     println!("✅ AR-only forecast: inflow={}", usd.inflows.current_minor);
 

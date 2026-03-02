@@ -45,13 +45,15 @@ async fn consumer_receives_matching_events_only() {
     assert_eq!(m3.subject, "billing.events.invoice");
 
     // No more for either
-    let timeout_auth =
-        tokio::time::timeout(Duration::from_millis(100), auth_stream.next()).await;
+    let timeout_auth = tokio::time::timeout(Duration::from_millis(100), auth_stream.next()).await;
     assert!(timeout_auth.is_err(), "auth should have no more messages");
 
     let timeout_billing =
         tokio::time::timeout(Duration::from_millis(100), billing_stream.next()).await;
-    assert!(timeout_billing.is_err(), "billing should have no more messages");
+    assert!(
+        timeout_billing.is_err(),
+        "billing should have no more messages"
+    );
 }
 
 #[tokio::test]

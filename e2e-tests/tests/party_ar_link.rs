@@ -207,10 +207,7 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
         .await
         .expect("bind ephemeral port for party server");
-    let port = listener
-        .local_addr()
-        .expect("get party server port")
-        .port();
+    let port = listener.local_addr().expect("get party server port").port();
 
     tokio::spawn(async move {
         axum::serve(listener, router)
@@ -224,10 +221,7 @@ async fn spawn_party_server(party_pool: PgPool) -> u16 {
     // Safety: serial lock prevents concurrent env var mutation; env::set_var is unsafe since Rust 1.83
     #[allow(unsafe_code)]
     unsafe {
-        std::env::set_var(
-            "PARTY_MASTER_URL",
-            format!("http://127.0.0.1:{}", port),
-        );
+        std::env::set_var("PARTY_MASTER_URL", format!("http://127.0.0.1:{}", port));
     }
 
     port
@@ -337,7 +331,10 @@ async fn test_party_ar_link_valid_party_id() {
         party_id.to_string(),
         "create response party_id must match the party we created"
     );
-    println!("Created invoice: {} with party_id: {}", invoice_id, returned_party_id);
+    println!(
+        "Created invoice: {} with party_id: {}",
+        invoice_id, returned_party_id
+    );
 
     // ── Step 4: GET /api/ar/invoices/:id — verify party_id in response ────
     let (get_status, get_body) = ar_send(
@@ -369,14 +366,13 @@ async fn test_party_ar_link_valid_party_id() {
     println!("GET invoice party_id verified: {}", get_party_id);
 
     // ── Step 5: Verify party_id persisted in DB ───────────────────────────
-    let db_party_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT party_id FROM ar_invoices WHERE id = $1 AND app_id = $2",
-    )
-    .bind(invoice_id as i32)
-    .bind(AR_APP_ID)
-    .fetch_one(&ar_pool)
-    .await
-    .expect("DB query for party_id failed");
+    let db_party_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT party_id FROM ar_invoices WHERE id = $1 AND app_id = $2")
+            .bind(invoice_id as i32)
+            .bind(AR_APP_ID)
+            .fetch_one(&ar_pool)
+            .await
+            .expect("DB query for party_id failed");
 
     assert_eq!(
         db_party_id,
@@ -434,24 +430,14 @@ async fn test_party_ar_link_invalid_party_id_behavior() {
         "party_id": random_party_id.to_string()
     });
 
-    let (status, body) = ar_send(
-        &ar,
-        "POST",
-        "/api/ar/invoices",
-        Some(invoice_body),
-        true,
-    )
-    .await;
+    let (status, body) = ar_send(&ar, "POST", "/api/ar/invoices", Some(invoice_body), true).await;
 
-    println!(
-        "Invalid party_id behavior: HTTP {} — body={}",
-        status, body
-    );
+    println!("Invalid party_id behavior: HTTP {} — body={}", status, body);
 
     // Document current behavior: 422 (party not found) or 503 (party unreachable).
     // Test PASSES in both cases — this is a baseline documentation test.
-    let is_expected_rejection = status == StatusCode::UNPROCESSABLE_ENTITY
-        || status == StatusCode::SERVICE_UNAVAILABLE;
+    let is_expected_rejection =
+        status == StatusCode::UNPROCESSABLE_ENTITY || status == StatusCode::SERVICE_UNAVAILABLE;
 
     assert!(
         is_expected_rejection,
@@ -463,7 +449,9 @@ async fn test_party_ar_link_invalid_party_id_behavior() {
     if status == StatusCode::UNPROCESSABLE_ENTITY {
         println!("✅ Validation active: unknown party_id correctly rejected with 422");
     } else if status == StatusCode::SERVICE_UNAVAILABLE {
-        println!("ℹ️  Party service unavailable (503) — validation would reject with 422 when live");
+        println!(
+            "ℹ️  Party service unavailable (503) — validation would reject with 422 when live"
+        );
     }
 
     // ── Cleanup ────────────────────────────────────────────────────────────
@@ -500,14 +488,8 @@ async fn test_party_ar_link_invoice_without_party_id() {
         // No party_id field
     });
 
-    let (create_status, create_body) = ar_send(
-        &ar,
-        "POST",
-        "/api/ar/invoices",
-        Some(invoice_body),
-        true,
-    )
-    .await;
+    let (create_status, create_body) =
+        ar_send(&ar, "POST", "/api/ar/invoices", Some(invoice_body), true).await;
 
     assert_eq!(
         create_status,
@@ -537,7 +519,12 @@ async fn test_party_ar_link_invoice_without_party_id() {
     )
     .await;
 
-    assert_eq!(get_status, StatusCode::OK, "GET must return 200; body={}", get_body);
+    assert_eq!(
+        get_status,
+        StatusCode::OK,
+        "GET must return 200; body={}",
+        get_body
+    );
     assert!(
         get_body["party_id"].is_null(),
         "GET invoice party_id must be null when not set; body={}",
@@ -545,14 +532,13 @@ async fn test_party_ar_link_invoice_without_party_id() {
     );
 
     // Verify in DB
-    let db_party_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT party_id FROM ar_invoices WHERE id = $1 AND app_id = $2",
-    )
-    .bind(invoice_id as i32)
-    .bind(AR_APP_ID)
-    .fetch_one(&ar_pool)
-    .await
-    .expect("DB query failed");
+    let db_party_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT party_id FROM ar_invoices WHERE id = $1 AND app_id = $2")
+            .bind(invoice_id as i32)
+            .bind(AR_APP_ID)
+            .fetch_one(&ar_pool)
+            .await
+            .expect("DB query failed");
 
     assert!(
         db_party_id.is_none(),

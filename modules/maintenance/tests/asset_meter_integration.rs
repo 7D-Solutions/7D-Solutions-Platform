@@ -12,7 +12,7 @@ use maintenance_rs::domain::assets::{
     AssetRepo, CreateAssetRequest, ListAssetsQuery, UpdateAssetRequest,
 };
 use maintenance_rs::domain::meters::{
-    MeterReadingRepo, MeterTypeRepo, CreateMeterTypeRequest, ListReadingsQuery,
+    CreateMeterTypeRequest, ListReadingsQuery, MeterReadingRepo, MeterTypeRepo,
     RecordReadingRequest,
 };
 use serial_test::serial;
@@ -120,7 +120,10 @@ async fn test_duplicate_asset_tag_rejected() {
     };
     let err = AssetRepo::create(&pool, &dup).await.unwrap_err();
     assert!(
-        matches!(err, maintenance_rs::domain::assets::AssetError::DuplicateTag(_, _)),
+        matches!(
+            err,
+            maintenance_rs::domain::assets::AssetError::DuplicateTag(_, _)
+        ),
         "expected DuplicateTag, got: {:?}",
         err
     );
@@ -136,7 +139,11 @@ async fn test_list_assets_with_filters() {
     let pool = setup_db().await;
     let tid = unique_tenant();
 
-    for (tag, atype) in &[("V-001", "vehicle"), ("V-002", "vehicle"), ("E-001", "equipment")] {
+    for (tag, atype) in &[
+        ("V-001", "vehicle"),
+        ("V-002", "vehicle"),
+        ("E-001", "equipment"),
+    ] {
         AssetRepo::create(
             &pool,
             &CreateAssetRequest {
@@ -219,7 +226,9 @@ async fn test_tenant_isolation_assets() {
     .unwrap();
 
     // Cross-tenant lookup returns None
-    let result = AssetRepo::find_by_id(&pool, asset.id, &tid_b).await.unwrap();
+    let result = AssetRepo::find_by_id(&pool, asset.id, &tid_b)
+        .await
+        .unwrap();
     assert!(result.is_none(), "cross-tenant access should return None");
 
     // Cross-tenant list returns empty
@@ -367,7 +376,10 @@ async fn test_duplicate_meter_type_rejected() {
     .unwrap_err();
 
     assert!(
-        matches!(err, maintenance_rs::domain::meters::MeterError::DuplicateName(_, _)),
+        matches!(
+            err,
+            maintenance_rs::domain::meters::MeterError::DuplicateName(_, _)
+        ),
         "expected DuplicateName, got: {:?}",
         err
     );
@@ -689,7 +701,10 @@ async fn test_meter_reading_invalid_rollover_rejected() {
     .unwrap_err();
 
     assert!(
-        matches!(err, maintenance_rs::domain::meters::MeterError::MonotonicityViolation { .. }),
+        matches!(
+            err,
+            maintenance_rs::domain::meters::MeterError::MonotonicityViolation { .. }
+        ),
         "expected MonotonicityViolation, got: {:?}",
         err
     );
@@ -841,7 +856,10 @@ async fn test_tenant_isolation_meter_readings() {
     .unwrap_err();
 
     assert!(
-        matches!(err, maintenance_rs::domain::meters::MeterError::AssetNotFound),
+        matches!(
+            err,
+            maintenance_rs::domain::meters::MeterError::AssetNotFound
+        ),
         "cross-tenant recording should fail with AssetNotFound, got: {:?}",
         err
     );

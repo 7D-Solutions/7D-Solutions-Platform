@@ -100,13 +100,12 @@ async fn test_create_adhoc_work_order() {
     assert!(wo.plan_assignment_id.is_none());
 
     // Verify outbox event
-    let event: Option<(String,)> = sqlx::query_as(
-        "SELECT event_type FROM events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(wo.id.to_string())
-    .fetch_optional(&pool)
-    .await
-    .unwrap();
+    let event: Option<(String,)> =
+        sqlx::query_as("SELECT event_type FROM events_outbox WHERE aggregate_id = $1")
+            .bind(wo.id.to_string())
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
     assert_eq!(event.unwrap().0, "maintenance.work_order.created");
 }
 

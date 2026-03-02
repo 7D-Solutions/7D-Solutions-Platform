@@ -117,7 +117,10 @@ fn test_csv() -> Vec<u8> {
         .to_vec()
 }
 
-async fn create_test_account(pool: &PgPool, tenant: &str) -> treasury::domain::accounts::TreasuryAccount {
+async fn create_test_account(
+    pool: &PgPool,
+    tenant: &str,
+) -> treasury::domain::accounts::TreasuryAccount {
     account_svc::create_bank_account(
         pool,
         tenant,
@@ -230,13 +233,12 @@ async fn test_treasury_bank_recon_lifecycle() {
     assert!(inserted3, "payment 3 should insert a bank txn");
 
     // Verify: 6 total transactions (3 statement + 3 payment)
-    let txn_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM treasury_bank_transactions WHERE app_id = $1",
-    )
-    .bind(&tenant)
-    .fetch_one(&pool)
-    .await
-    .expect("txn count query");
+    let txn_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM treasury_bank_transactions WHERE app_id = $1")
+            .bind(&tenant)
+            .fetch_one(&pool)
+            .await
+            .expect("txn count query");
     assert_eq!(txn_count, 6, "3 statement lines + 3 payment txns");
 
     // --- Step 4: Run auto-match ---
@@ -244,8 +246,14 @@ async fn test_treasury_bank_recon_lifecycle() {
         .await
         .expect("auto-match failed");
 
-    assert_eq!(match_result.matches_created, 2, "2 matches: PAY-001 + PAY-002");
-    assert_eq!(match_result.unmatched_statement_lines, 1, "INT-001 unmatched");
+    assert_eq!(
+        match_result.matches_created, 2,
+        "2 matches: PAY-001 + PAY-002"
+    );
+    assert_eq!(
+        match_result.unmatched_statement_lines, 1,
+        "INT-001 unmatched"
+    );
     assert_eq!(match_result.unmatched_transactions, 1, "PAY-003 unmatched");
 
     // Verify matches in DB
@@ -284,7 +292,10 @@ async fn test_treasury_bank_recon_lifecycle() {
         .expect("rerun auto-match failed");
 
     assert_eq!(rerun.matches_created, 0, "no new matches on rerun");
-    assert_eq!(rerun.unmatched_statement_lines, 1, "INT-001 still unmatched");
+    assert_eq!(
+        rerun.unmatched_statement_lines, 1,
+        "INT-001 still unmatched"
+    );
     assert_eq!(rerun.unmatched_transactions, 1, "PAY-003 still unmatched");
 
     // Cash position unchanged

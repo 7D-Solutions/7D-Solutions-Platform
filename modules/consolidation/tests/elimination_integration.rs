@@ -86,9 +86,10 @@ async fn test_create_elimination_rule_happy_path() {
         .await
         .unwrap();
 
-    let rule = service_rules::create_elimination_rule(&pool, &tid, group.id, &ic_rule_req("IC Rule A"))
-        .await
-        .unwrap();
+    let rule =
+        service_rules::create_elimination_rule(&pool, &tid, group.id, &ic_rule_req("IC Rule A"))
+            .await
+            .unwrap();
 
     assert_eq!(rule.rule_name, "IC Rule A");
     assert_eq!(rule.rule_type, "intercompany_receivable_payable");
@@ -189,7 +190,11 @@ async fn test_create_elimination_rule_blank_name() {
         .await
         .unwrap_err();
 
-    assert!(matches!(err, ConfigError::Validation(_)), "blank name should fail: {:?}", err);
+    assert!(
+        matches!(err, ConfigError::Validation(_)),
+        "blank name should fail: {:?}",
+        err
+    );
 }
 
 // ============================================================================

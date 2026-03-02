@@ -70,7 +70,10 @@ fn make_ap_router(pool: PgPool) -> Router {
     let state = Arc::new(AppState { pool, metrics });
 
     let ap_mutations = Router::new()
-        .route("/api/ap/bills/{bill_id}/approve", post(http::bills::approve_bill))
+        .route(
+            "/api/ap/bills/{bill_id}/approve",
+            post(http::bills::approve_bill),
+        )
         .route("/api/ap/bills/{bill_id}/void", post(http::bills::void_bill))
         .route_layer(RequirePermissionsLayer::new(&[permissions::AP_MUTATE]))
         .with_state(state.clone());
@@ -152,7 +155,10 @@ async fn create_vendor_db(pool: &PgPool) -> Uuid {
     )
     .bind(vendor_id)
     .bind(TENANT_ID)
-    .bind(format!("Approval-E2E-Vendor-{}", &vendor_id.to_string()[..8]))
+    .bind(format!(
+        "Approval-E2E-Vendor-{}",
+        &vendor_id.to_string()[..8]
+    ))
     .execute(pool)
     .await
     .expect("insert vendor");
@@ -281,7 +287,11 @@ async fn test_approve_bill_happy_path() {
     // ── Step 3: Verify bill appears in default list (payment run candidates) ─
     let (list_status, list_resp) = ap_send(&router, "GET", "/api/ap/bills", None, false).await;
 
-    assert_eq!(list_status, StatusCode::OK, "GET /api/ap/bills must return 200");
+    assert_eq!(
+        list_status,
+        StatusCode::OK,
+        "GET /api/ap/bills must return 200"
+    );
     let bills = list_resp.as_array().expect("list response must be array");
     let approved_in_list = bills.iter().any(|b| {
         b["bill_id"].as_str() == Some(&bill_id.to_string())
@@ -292,7 +302,10 @@ async fn test_approve_bill_happy_path() {
         "approved bill must appear in default GET /api/ap/bills list; got: {}",
         list_resp
     );
-    println!("✓ Approved bill {} appears in payment run candidate list", bill_id);
+    println!(
+        "✓ Approved bill {} appears in payment run candidate list",
+        bill_id
+    );
 
     // ── Step 4: Verify DB status ─────────────────────────────────────────────
     let (db_status,): (String,) =
@@ -314,8 +327,14 @@ async fn test_approve_bill_happy_path() {
     .fetch_one(&pool)
     .await
     .expect("fetch outbox event count");
-    assert_eq!(event_count, 1, "ap.vendor_bill_approved event must be in outbox");
-    println!("✓ ap.vendor_bill_approved event in outbox for bill {}", bill_id);
+    assert_eq!(
+        event_count, 1,
+        "ap.vendor_bill_approved event must be in outbox"
+    );
+    println!(
+        "✓ ap.vendor_bill_approved event in outbox for bill {}",
+        bill_id
+    );
 
     cleanup(&pool).await;
     println!("✅ test_approve_bill_happy_path PASS");
@@ -376,7 +395,11 @@ async fn test_reject_bill_void_path() {
     // ── Step 3: Verify voided bill NOT in default list ───────────────────────
     let (list_status, list_resp) = ap_send(&router, "GET", "/api/ap/bills", None, false).await;
 
-    assert_eq!(list_status, StatusCode::OK, "GET /api/ap/bills must return 200");
+    assert_eq!(
+        list_status,
+        StatusCode::OK,
+        "GET /api/ap/bills must return 200"
+    );
     let bills = list_resp.as_array().expect("list response must be array");
     let voided_in_list = bills
         .iter()
@@ -386,7 +409,10 @@ async fn test_reject_bill_void_path() {
         "voided bill must NOT appear in default GET /api/ap/bills (excluded from payment run candidates); got: {}",
         list_resp
     );
-    println!("✓ Voided bill {} excluded from payment run candidate list", bill_id);
+    println!(
+        "✓ Voided bill {} excluded from payment run candidate list",
+        bill_id
+    );
 
     // ── Step 4: Attempt to approve a voided bill → must fail 422 ────────────
     let (bad_approve_status, bad_approve_resp) = ap_send(
@@ -502,7 +528,10 @@ async fn test_payment_run_candidate_filtering() {
         candidate_id, bill_a,
         "the candidate must be bill_a (the approved one)"
     );
-    println!("✓ Payment run DB query: bill_a={} is candidate, bill_b={} excluded", bill_a, bill_b);
+    println!(
+        "✓ Payment run DB query: bill_a={} is candidate, bill_b={} excluded",
+        bill_a, bill_b
+    );
 
     // ── Attempt to approve the voided bill → 422 ─────────────────────────────
     let (s, b) = ap_send(

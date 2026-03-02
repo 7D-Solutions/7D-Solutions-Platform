@@ -21,20 +21,19 @@
 mod common;
 
 use anyhow::Result;
-use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_payments_pool, get_subscriptions_pool, get_gl_pool};
+use common::{
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
+    get_subscriptions_pool,
+};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 /// Create a payment attempt in Payments database
-async fn create_payment_attempt(
-    pool: &PgPool,
-    tenant_id: &str,
-    status: &str,
-) -> Result<Uuid> {
+async fn create_payment_attempt(pool: &PgPool, tenant_id: &str, status: &str) -> Result<Uuid> {
     let attempt_id = Uuid::new_v4();
     let payment_id = Uuid::new_v4();
-    
+
     sqlx::query(
         r#"
         INSERT INTO payment_attempts (
@@ -58,12 +57,11 @@ async fn create_payment_attempt(
 
 /// Get payment attempt status
 async fn get_payment_status(pool: &PgPool, attempt_id: Uuid) -> Result<String> {
-    let status: String = sqlx::query_scalar(
-        "SELECT status::text FROM payment_attempts WHERE id = $1"
-    )
-    .bind(attempt_id)
-    .fetch_one(pool)
-    .await?;
+    let status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(pool)
+            .await?;
 
     Ok(status)
 }
@@ -75,7 +73,7 @@ async fn count_outbox_rows_for_payment(pool: &PgPool, payment_id: Uuid) -> Resul
         SELECT COUNT(*) 
         FROM payments_events_outbox 
         WHERE payload->>'payment_id' = $1
-        "#
+        "#,
     )
     .bind(payment_id.to_string())
     .fetch_one(pool)
@@ -100,9 +98,15 @@ async fn test_payments_status_transition_outbox_atomicity() -> Result<()> {
     let gl_pool = get_gl_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     // Step 1: Create payment attempt in "attempting" status
     let attempt_id = create_payment_attempt(&payments_pool, &tenant_id, "attempting").await?;
@@ -110,15 +114,17 @@ async fn test_payments_status_transition_outbox_atomicity() -> Result<()> {
 
     // Step 2: Verify initial state
     let initial_status = get_payment_status(&payments_pool, attempt_id).await?;
-    assert_eq!(initial_status, "attempting", "Payment should start in attempting status");
+    assert_eq!(
+        initial_status, "attempting",
+        "Payment should start in attempting status"
+    );
 
     // Get payment_id for outbox lookup
-    let payment_id: Uuid = sqlx::query_scalar(
-        "SELECT payment_id FROM payment_attempts WHERE id = $1"
-    )
-    .bind(attempt_id)
-    .fetch_one(&payments_pool)
-    .await?;
+    let payment_id: Uuid =
+        sqlx::query_scalar("SELECT payment_id FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&payments_pool)
+            .await?;
 
     let initial_outbox_count = count_outbox_rows_for_payment(&payments_pool, payment_id).await?;
     assert_eq!(
@@ -139,12 +145,15 @@ async fn test_payments_status_transition_outbox_atomicity() -> Result<()> {
 
     println!("\n📊 Atomicity Check:");
     println!("  Payment Status: {} -> {}", initial_status, final_status);
-    println!("  Outbox Rows: {} -> {}", initial_outbox_count, final_outbox_count);
+    println!(
+        "  Outbox Rows: {} -> {}",
+        initial_outbox_count, final_outbox_count
+    );
 
     // Step 5: Assert atomicity
     // CURRENT BUG: Payment is succeeded but outbox has no events
     // AFTER FIX: If payment succeeded, outbox MUST have payment.succeeded event
-    
+
     if final_status == "succeeded" {
         // Payment was transitioned - outbox MUST have events
         assert!(
@@ -165,9 +174,15 @@ async fn test_payments_status_transition_outbox_atomicity() -> Result<()> {
     }
 
     // Clean up
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("\n🎯 Test Result: Atomicity verified!");
     println!("   - Domain state and outbox are consistent");
@@ -196,9 +211,15 @@ async fn test_payments_webhook_handler_atomicity() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     // Create a payment attempt in "attempting" status
     let attempt_id = create_payment_attempt(&payments_pool, &tenant_id, "attempting").await?;
@@ -220,7 +241,10 @@ async fn test_payments_webhook_handler_atomicity() -> Result<()> {
 
     // Assert status was updated
     let final_status = get_payment_status(&payments_pool, attempt_id).await?;
-    assert_eq!(final_status, "succeeded", "Webhook handler must update payment status");
+    assert_eq!(
+        final_status, "succeeded",
+        "Webhook handler must update payment status"
+    );
 
     // Assert idempotency: same webhook_event_id is a no-op
     update_payment_status_from_webhook(
@@ -236,13 +260,22 @@ async fn test_payments_webhook_handler_atomicity() -> Result<()> {
     .map_err(|e| anyhow::anyhow!("idempotent replay failed: {:?}", e))?;
 
     let after_replay_status = get_payment_status(&payments_pool, attempt_id).await?;
-    assert_eq!(after_replay_status, "succeeded", "Status must remain succeeded after idempotent replay");
+    assert_eq!(
+        after_replay_status, "succeeded",
+        "Status must remain succeeded after idempotent replay"
+    );
 
     println!("✅ Webhook handler: status updated atomically, idempotency gate works");
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }

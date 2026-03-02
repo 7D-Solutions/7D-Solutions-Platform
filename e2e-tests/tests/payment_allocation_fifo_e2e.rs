@@ -78,8 +78,9 @@ async fn create_invoice(
 
 /// Run the payment allocations migration (idempotent).
 async fn run_alloc_migration(pool: &sqlx::PgPool) {
-    let sql =
-        include_str!("../../modules/ar/db/migrations/20260217000008_create_payment_allocations.sql");
+    let sql = include_str!(
+        "../../modules/ar/db/migrations/20260217000008_create_payment_allocations.sql"
+    );
     sqlx::raw_sql(sql)
         .execute(pool)
         .await
@@ -127,7 +128,15 @@ async fn test_alloc_single_invoice_exact_amount() {
     let tenant_id = generate_test_tenant();
 
     let customer = create_customer(&pool, &tenant_id).await;
-    let inv_id = create_invoice(&pool, &tenant_id, customer, 10000, "usd", Some("2026-01-15")).await;
+    let inv_id = create_invoice(
+        &pool,
+        &tenant_id,
+        customer,
+        10000,
+        "usd",
+        Some("2026-01-15"),
+    )
+    .await;
 
     let req = AllocatePaymentRequest {
         payment_id: format!("pay_{}", Uuid::new_v4()),
@@ -141,7 +150,10 @@ async fn test_alloc_single_invoice_exact_amount() {
         .await
         .expect("allocation failed");
 
-    assert_eq!(result.allocated_amount_cents, 10000, "full allocation expected");
+    assert_eq!(
+        result.allocated_amount_cents, 10000,
+        "full allocation expected"
+    );
     assert_eq!(result.unallocated_amount_cents, 0, "zero remainder");
     assert_eq!(result.strategy, "fifo");
     assert_eq!(result.allocations.len(), 1);
@@ -181,9 +193,12 @@ async fn test_alloc_fifo_ordering_multiple_invoices() {
     let customer = create_customer(&pool, &tenant_id).await;
 
     // Create invoices with different due dates — FIFO should allocate oldest first
-    let inv_old = create_invoice(&pool, &tenant_id, customer, 3000, "usd", Some("2026-01-01")).await;
-    let inv_mid = create_invoice(&pool, &tenant_id, customer, 5000, "usd", Some("2026-02-01")).await;
-    let inv_new = create_invoice(&pool, &tenant_id, customer, 4000, "usd", Some("2026-03-01")).await;
+    let inv_old =
+        create_invoice(&pool, &tenant_id, customer, 3000, "usd", Some("2026-01-01")).await;
+    let inv_mid =
+        create_invoice(&pool, &tenant_id, customer, 5000, "usd", Some("2026-02-01")).await;
+    let inv_new =
+        create_invoice(&pool, &tenant_id, customer, 4000, "usd", Some("2026-03-01")).await;
 
     // Payment of $70 = $30 (inv_old) + $40 partial (inv_mid)
     let req = AllocatePaymentRequest {
@@ -218,7 +233,10 @@ async fn test_alloc_fifo_ordering_multiple_invoices() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(alloc_for_new, 0, "newest invoice should have no allocations");
+    assert_eq!(
+        alloc_for_new, 0,
+        "newest invoice should have no allocations"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await;
 }
@@ -248,7 +266,10 @@ async fn test_alloc_overpayment_returns_remainder() {
         .await
         .expect("allocation failed");
 
-    assert_eq!(result.allocated_amount_cents, 5000, "total of both invoices");
+    assert_eq!(
+        result.allocated_amount_cents, 5000,
+        "total of both invoices"
+    );
     assert_eq!(result.unallocated_amount_cents, 3000, "$30 unallocated");
     assert_eq!(result.allocations.len(), 2);
 
@@ -420,7 +441,15 @@ async fn test_alloc_respects_prior_allocations() {
     let tenant_id = generate_test_tenant();
 
     let customer = create_customer(&pool, &tenant_id).await;
-    let inv_id = create_invoice(&pool, &tenant_id, customer, 10000, "usd", Some("2026-01-15")).await;
+    let inv_id = create_invoice(
+        &pool,
+        &tenant_id,
+        customer,
+        10000,
+        "usd",
+        Some("2026-01-15"),
+    )
+    .await;
 
     // First payment: $60 against a $100 invoice → $40 remaining
     let req1 = AllocatePaymentRequest {
@@ -448,7 +477,10 @@ async fn test_alloc_respects_prior_allocations() {
     let result2 = allocate_payment_fifo(&pool, &tenant_id, &req2)
         .await
         .expect("second allocation failed");
-    assert_eq!(result2.allocated_amount_cents, 4000, "only $40 remaining on invoice");
+    assert_eq!(
+        result2.allocated_amount_cents, 4000,
+        "only $40 remaining on invoice"
+    );
     assert_eq!(result2.unallocated_amount_cents, 3000, "$30 unallocated");
     assert_eq!(result2.allocations.len(), 1);
     assert_eq!(result2.allocations[0].invoice_id, inv_id);
@@ -462,7 +494,10 @@ async fn test_alloc_respects_prior_allocations() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(total_allocated, 10000, "invoice fully allocated across two payments");
+    assert_eq!(
+        total_allocated, 10000,
+        "invoice fully allocated across two payments"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await;
 }
@@ -517,23 +552,41 @@ async fn test_integrated_allocation_aging_multi_cycle() {
     let due_future = chrono::Utc::now().naive_utc().date() + chrono::Duration::days(10);
 
     let inv_a = create_invoice(
-        &pool, &tenant_id, customer, 10000, "usd",
+        &pool,
+        &tenant_id,
+        customer,
+        10000,
+        "usd",
         Some(&due_15_ago.format("%Y-%m-%d").to_string()),
-    ).await;
+    )
+    .await;
     let inv_b = create_invoice(
-        &pool, &tenant_id, customer, 20000, "usd",
+        &pool,
+        &tenant_id,
+        customer,
+        20000,
+        "usd",
         Some(&due_45_ago.format("%Y-%m-%d").to_string()),
-    ).await;
+    )
+    .await;
     let _inv_c = create_invoice(
-        &pool, &tenant_id, customer, 15000, "usd",
+        &pool,
+        &tenant_id,
+        customer,
+        15000,
+        "usd",
         Some(&due_future.format("%Y-%m-%d").to_string()),
-    ).await;
+    )
+    .await;
 
     // --- Pre-allocation aging baseline ---
     let snapshot_before = refresh_aging(&pool, &tenant_id, customer)
         .await
         .expect("refresh_aging before allocation failed");
-    assert_eq!(snapshot_before.total_outstanding_minor, 45000, "total = $100 + $200 + $150");
+    assert_eq!(
+        snapshot_before.total_outstanding_minor, 45000,
+        "total = $100 + $200 + $150"
+    );
     assert_eq!(snapshot_before.invoice_count, 3);
 
     // --- Cycle 1: Partial payment of $250 via FIFO ---
@@ -552,7 +605,11 @@ async fn test_integrated_allocation_aging_multi_cycle() {
         .expect("cycle 1 allocation failed");
     assert_eq!(alloc_result1.allocated_amount_cents, 25000);
     assert_eq!(alloc_result1.unallocated_amount_cents, 0);
-    assert_eq!(alloc_result1.allocations.len(), 2, "covers inv_b fully + inv_a partially");
+    assert_eq!(
+        alloc_result1.allocations.len(),
+        2,
+        "covers inv_b fully + inv_a partially"
+    );
 
     // Refresh aging after allocation
     let snapshot_after_cycle1 = refresh_aging(&pool, &tenant_id, customer)
@@ -621,7 +678,10 @@ async fn test_integrated_allocation_aging_multi_cycle() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(alloc_event_count, 2, "two payment_allocated events for two cycles");
+    assert_eq!(
+        alloc_event_count, 2,
+        "two payment_allocated events for two cycles"
+    );
 
     // Verify aging outbox events
     let aging_event_count: i64 = sqlx::query_scalar(
@@ -631,7 +691,10 @@ async fn test_integrated_allocation_aging_multi_cycle() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert!(aging_event_count >= 2, "at least 2 aging events (one per refresh)");
+    assert!(
+        aging_event_count >= 2,
+        "at least 2 aging events (one per refresh)"
+    );
 
     cleanup_tenant_with_aging(&pool, &tenant_id).await;
 }

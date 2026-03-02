@@ -75,14 +75,8 @@ fn classify_reversals() {
 
 #[test]
 fn classify_deletes() {
-    assert_eq!(
-        classify_event_type("item.deleted"),
-        MutationClass::Delete
-    );
-    assert_eq!(
-        classify_event_type("record.removed"),
-        MutationClass::Delete
-    );
+    assert_eq!(classify_event_type("item.deleted"), MutationClass::Delete);
+    assert_eq!(classify_event_type("record.removed"), MutationClass::Delete);
 }
 
 // ── completeness check tests ──────────────────────────────────────────
@@ -180,13 +174,12 @@ async fn backfill_creates_missing_audit_records() {
 
     // Verify the backfilled records exist via causation_id
     for gap in &gaps {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1",
-        )
-        .bind(gap.event_id)
-        .fetch_one(&pool)
-        .await
-        .expect("count query failed");
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1")
+                .bind(gap.event_id)
+                .fetch_one(&pool)
+                .await
+                .expect("count query failed");
 
         assert_eq!(count, 1, "backfilled record missing for {:?}", gap.event_id);
     }

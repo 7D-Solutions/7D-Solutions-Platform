@@ -59,10 +59,7 @@ async fn create_test_invoice(
 }
 
 /// Create an AR customer for testing
-async fn create_test_customer(
-    pool: &PgPool,
-    tenant_id: &str,
-) -> Result<i32, sqlx::Error> {
+async fn create_test_customer(pool: &PgPool, tenant_id: &str) -> Result<i32, sqlx::Error> {
     let email = format!("test-{}@e2e-test.com", Uuid::new_v4());
     let external_id = format!("ext-{}", Uuid::new_v4());
 
@@ -120,7 +117,7 @@ async fn create_payment_attempt_failed_retry(
     sqlx::query(
         "INSERT INTO payment_attempts
          (id, app_id, payment_id, invoice_id, attempt_no, status, created_at, completed_at)
-         VALUES ($1, $2, $3, $4::text, 0, 'failed_retry'::payment_attempt_status, NOW(), NOW())"
+         VALUES ($1, $2, $3, $4::text, 0, 'failed_retry'::payment_attempt_status, NOW(), NOW())",
     )
     .bind(attempt_id)
     .bind(tenant_id)
@@ -133,11 +130,7 @@ async fn create_payment_attempt_failed_retry(
 }
 
 /// Cleanup test data
-async fn cleanup_test_data(
-    payments_pool: &PgPool,
-    ar_pool: &PgPool,
-    tenant_id: &str,
-) {
+async fn cleanup_test_data(payments_pool: &PgPool, ar_pool: &PgPool, tenant_id: &str) {
     // Payments cleanup
     sqlx::query("DELETE FROM payment_attempts WHERE app_id = $1")
         .bind(tenant_id)
@@ -201,7 +194,7 @@ async fn test_unknown_blocks_retry_eligibility() {
          FROM payment_attempts pa
          WHERE pa.app_id = $1
            AND pa.status::text IN ('attempting', 'failed_retry')
-           AND pa.status::text != 'unknown'"
+           AND pa.status::text != 'unknown'",
     )
     .bind(&tenant_id)
     .fetch_all(&payments_pool)
@@ -238,7 +231,9 @@ async fn test_unknown_blocks_retry_eligibility() {
         tenant_id: &tenant_id,
         audit_pool: &audit_pool,
     };
-    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+    oracle::assert_cross_module_invariants(&ctx)
+        .await
+        .expect("Oracle invariants should pass");
 
     // Cleanup
     cleanup_test_data(&payments_pool, &ar_pool, &tenant_id).await;
@@ -285,14 +280,9 @@ async fn test_unknown_excluded_from_retry_query() {
 
     // Payment 2: FAILED_RETRY (should be included)
     let payment_id_2 = Uuid::new_v4();
-    create_payment_attempt_failed_retry(
-        &payments_pool,
-        &tenant_id,
-        invoice_id_2,
-        payment_id_2,
-    )
-    .await
-    .expect("Failed to create FAILED_RETRY attempt");
+    create_payment_attempt_failed_retry(&payments_pool, &tenant_id, invoice_id_2, payment_id_2)
+        .await
+        .expect("Failed to create FAILED_RETRY attempt");
 
     // Payment 3: UNKNOWN (should be excluded)
     let payment_id_3 = Uuid::new_v4();
@@ -315,7 +305,7 @@ async fn test_unknown_excluded_from_retry_query() {
          WHERE pa.app_id = $1
            AND pa.status::text IN ('attempting', 'failed_retry')
            AND pa.status::text != 'unknown'
-         ORDER BY pa.payment_id"
+         ORDER BY pa.payment_id",
     )
     .bind(&tenant_id)
     .fetch_all(&payments_pool)
@@ -345,7 +335,9 @@ async fn test_unknown_excluded_from_retry_query() {
         tenant_id: &tenant_id,
         audit_pool: &audit_pool,
     };
-    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+    oracle::assert_cross_module_invariants(&ctx)
+        .await
+        .expect("Oracle invariants should pass");
 
     // Cleanup
     cleanup_test_data(&payments_pool, &ar_pool, &tenant_id).await;
@@ -386,13 +378,12 @@ async fn test_reconciliation_resolves_unknown_to_succeeded() {
         .expect("Reconciliation failed");
 
     // Assert: Attempt transitioned to SUCCEEDED
-    let final_status: String = sqlx::query_scalar(
-        "SELECT status::text FROM payment_attempts WHERE id = $1"
-    )
-    .bind(attempt_id)
-    .fetch_one(&payments_pool)
-    .await
-    .expect("Failed to fetch status");
+    let final_status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&payments_pool)
+            .await
+            .expect("Failed to fetch status");
 
     assert_eq!(
         final_status, "succeeded",
@@ -412,7 +403,9 @@ async fn test_reconciliation_resolves_unknown_to_succeeded() {
         tenant_id: &tenant_id,
         audit_pool: &audit_pool,
     };
-    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+    oracle::assert_cross_module_invariants(&ctx)
+        .await
+        .expect("Oracle invariants should pass");
 
     // Cleanup
     cleanup_test_data(&payments_pool, &ar_pool, &tenant_id).await;
@@ -453,13 +446,12 @@ async fn test_reconciliation_resolves_unknown_to_failed() {
         .expect("Reconciliation failed");
 
     // Assert: Attempt transitioned to FAILED_RETRY
-    let final_status: String = sqlx::query_scalar(
-        "SELECT status::text FROM payment_attempts WHERE id = $1"
-    )
-    .bind(attempt_id)
-    .fetch_one(&payments_pool)
-    .await
-    .expect("Failed to fetch status");
+    let final_status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&payments_pool)
+            .await
+            .expect("Failed to fetch status");
 
     assert_eq!(
         final_status, "failed_retry",
@@ -479,7 +471,9 @@ async fn test_reconciliation_resolves_unknown_to_failed() {
         tenant_id: &tenant_id,
         audit_pool: &audit_pool,
     };
-    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+    oracle::assert_cross_module_invariants(&ctx)
+        .await
+        .expect("Oracle invariants should pass");
 
     // Cleanup
     cleanup_test_data(&payments_pool, &ar_pool, &tenant_id).await;
@@ -529,13 +523,12 @@ async fn test_reconciliation_idempotency() {
         .expect("Third reconciliation failed");
 
     // Assert: Status remains SUCCEEDED (no duplicate transitions)
-    let final_status: String = sqlx::query_scalar(
-        "SELECT status::text FROM payment_attempts WHERE id = $1"
-    )
-    .bind(attempt_id)
-    .fetch_one(&payments_pool)
-    .await
-    .expect("Failed to fetch status");
+    let final_status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&payments_pool)
+            .await
+            .expect("Failed to fetch status");
 
     assert_eq!(
         final_status, "succeeded",
@@ -569,7 +562,9 @@ async fn test_reconciliation_idempotency() {
         tenant_id: &tenant_id,
         audit_pool: &audit_pool,
     };
-    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+    oracle::assert_cross_module_invariants(&ctx)
+        .await
+        .expect("Oracle invariants should pass");
 
     // Cleanup
     cleanup_test_data(&payments_pool, &ar_pool, &tenant_id).await;

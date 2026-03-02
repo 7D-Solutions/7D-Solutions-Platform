@@ -10,7 +10,6 @@
 ///
 /// Runs with BUS_TYPE=inmemory (all components in same process share one bus instance)
 /// Can also run with NATS if services are running externally
-
 mod common;
 
 use chrono::{NaiveDate, Utc};
@@ -101,7 +100,7 @@ async fn create_subscription(
     sqlx::query(
         "INSERT INTO subscription_plans
          (id, tenant_id, name, description, schedule, price_minor, currency, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 'monthly', 2999, 'usd', NOW(), NOW())"
+         VALUES ($1, $2, $3, $4, 'monthly', 2999, 'usd', NOW(), NOW())",
     )
     .bind(plan_id)
     .bind(tenant_id)
@@ -146,7 +145,7 @@ async fn trigger_bill_run_inmemory(
     let subscriptions: Vec<(Uuid, i64, String)> = sqlx::query_as(
         "SELECT id, price_minor, currency
          FROM subscriptions
-         WHERE status = 'active' AND next_bill_date <= $1"
+         WHERE status = 'active' AND next_bill_date <= $1",
     )
     .bind(execution_date)
     .fetch_all(subscriptions_pool)
@@ -180,7 +179,7 @@ async fn trigger_bill_run_inmemory(
         // Finalize invoice - update status to 'open'
         sqlx::query(
             "UPDATE ar_invoices SET status = 'open', updated_at = NOW()
-             WHERE id = $1"
+             WHERE id = $1",
         )
         .bind(invoice_id)
         .execute(ar_pool)
@@ -206,8 +205,9 @@ async fn trigger_bill_run_inmemory(
 
         bus.publish(
             "ar.events.ar.payment.collection.requested",
-            serde_json::to_vec(&event_envelope)?
-        ).await?;
+            serde_json::to_vec(&event_envelope)?,
+        )
+        .await?;
 
         invoices_created += 1;
 
@@ -216,7 +216,7 @@ async fn trigger_bill_run_inmemory(
         sqlx::query(
             "UPDATE subscriptions
              SET next_bill_date = $1, updated_at = NOW()
-             WHERE id = $2"
+             WHERE id = $2",
         )
         .bind(new_next_bill_date)
         .bind(subscription_id)
@@ -245,8 +245,9 @@ async fn trigger_bill_run_inmemory(
 
     bus.publish(
         "subscriptions.events.subscriptions.billrun.completed",
-        serde_json::to_vec(&billrun_event)?
-    ).await?;
+        serde_json::to_vec(&billrun_event)?,
+    )
+    .await?;
 
     Ok(invoice_id_result.ok_or("No invoice created")?)
 }
@@ -256,12 +257,10 @@ async fn wait_for_event(
     stream: &mut futures::stream::BoxStream<'_, event_bus::BusMessage>,
     timeout_secs: u64,
 ) -> Result<serde_json::Value, Box<dyn std::error::Error>> {
-    let msg = tokio::time::timeout(
-        Duration::from_secs(timeout_secs),
-        stream.next()
-    ).await
-    .map_err(|_| "Timeout waiting for event")?
-    .ok_or("Stream ended unexpectedly")?;
+    let msg = tokio::time::timeout(Duration::from_secs(timeout_secs), stream.next())
+        .await
+        .map_err(|_| "Timeout waiting for event")?
+        .ok_or("Stream ended unexpectedly")?;
 
     let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
     Ok(envelope)
@@ -269,12 +268,11 @@ async fn wait_for_event(
 
 /// Start mock payment consumer
 /// Listens for ar.payment.collection.requested and emits payment.succeeded
-async fn start_payment_consumer(
-    bus: Arc<dyn EventBus>,
-    payments_pool: PgPool,
-) {
+async fn start_payment_consumer(bus: Arc<dyn EventBus>, payments_pool: PgPool) {
     tokio::spawn(async move {
-        let mut stream = bus.subscribe("ar.events.ar.payment.collection.requested").await
+        let mut stream = bus
+            .subscribe("ar.events.ar.payment.collection.requested")
+            .await
             .expect("Failed to subscribe to payment collection events");
 
         while let Some(msg) = stream.next().await {
@@ -292,7 +290,10 @@ async fn start_payment_consumer(
             let currency = envelope["payload"]["currency"].as_str().unwrap();
             let tenant_id = envelope["tenant_id"].as_str().unwrap();
 
-            tracing::info!("💳 Payment consumer: Processing payment for invoice {}", invoice_id);
+            tracing::info!(
+                "💳 Payment consumer: Processing payment for invoice {}",
+                invoice_id
+            );
 
             // Create payment record
             let payment_id = format!("pay_{}", Uuid::new_v4());
@@ -329,22 +330,26 @@ async fn start_payment_consumer(
 
             bus.publish(
                 "payments.events.payments.payment.succeeded",
-                serde_json::to_vec(&payment_event).unwrap()
-            ).await.ok();
+                serde_json::to_vec(&payment_event).unwrap(),
+            )
+            .await
+            .ok();
 
-            tracing::info!("✓ Payment consumer: Emitted payment.succeeded for {}", payment_id);
+            tracing::info!(
+                "✓ Payment consumer: Emitted payment.succeeded for {}",
+                payment_id
+            );
         }
     });
 }
 
 /// Start mock AR consumer for payment.succeeded
 /// Listens for payment.succeeded and updates invoice status
-async fn start_ar_payment_consumer(
-    bus: Arc<dyn EventBus>,
-    ar_pool: PgPool,
-) {
+async fn start_ar_payment_consumer(bus: Arc<dyn EventBus>, ar_pool: PgPool) {
     tokio::spawn(async move {
-        let mut stream = bus.subscribe("payments.events.payments.payment.succeeded").await
+        let mut stream = bus
+            .subscribe("payments.events.payments.payment.succeeded")
+            .await
             .expect("Failed to subscribe to payment succeeded events");
 
         while let Some(msg) = stream.next().await {
@@ -359,20 +364,27 @@ async fn start_ar_payment_consumer(
             let invoice_id = envelope["payload"]["invoice_id"].as_str().unwrap();
             let payment_id = envelope["payload"]["payment_id"].as_str().unwrap();
 
-            tracing::info!("📝 AR payment consumer: Applying payment {} to invoice {}", payment_id, invoice_id);
+            tracing::info!(
+                "📝 AR payment consumer: Applying payment {} to invoice {}",
+                payment_id,
+                invoice_id
+            );
 
             // Update invoice status to 'paid'
             let invoice_id_i32 = invoice_id.parse::<i32>().unwrap();
             sqlx::query(
                 "UPDATE ar_invoices SET status = 'paid', updated_at = NOW()
-                 WHERE id = $1"
+                 WHERE id = $1",
             )
             .bind(invoice_id_i32)
             .execute(&ar_pool)
             .await
             .ok();
 
-            tracing::info!("✓ AR payment consumer: Invoice {} marked as paid", invoice_id);
+            tracing::info!(
+                "✓ AR payment consumer: Invoice {} marked as paid",
+                invoice_id
+            );
         }
     });
 }
@@ -382,11 +394,11 @@ async fn start_ar_payment_consumer(
 ///
 /// Notifications is a stateless module — it does not persist to a DB table.
 /// This mock only emits the NATS event; no DB writes are performed.
-async fn start_notification_consumer(
-    bus: Arc<dyn EventBus>,
-) {
+async fn start_notification_consumer(bus: Arc<dyn EventBus>) {
     tokio::spawn(async move {
-        let mut stream = bus.subscribe("payments.events.payments.payment.succeeded").await
+        let mut stream = bus
+            .subscribe("payments.events.payments.payment.succeeded")
+            .await
             .expect("Failed to subscribe to payment succeeded events");
 
         while let Some(msg) = stream.next().await {
@@ -401,7 +413,10 @@ async fn start_notification_consumer(
             let payment_id = envelope["payload"]["payment_id"].as_str().unwrap();
             let tenant_id = envelope["tenant_id"].as_str().unwrap();
 
-            tracing::info!("📧 Notification consumer: Sending notification for payment {}", payment_id);
+            tracing::info!(
+                "📧 Notification consumer: Sending notification for payment {}",
+                payment_id
+            );
 
             let notification_id = format!("notif_{}", Uuid::new_v4());
 
@@ -425,8 +440,10 @@ async fn start_notification_consumer(
 
             bus.publish(
                 "notifications.events.notifications.delivery.succeeded",
-                serde_json::to_vec(&notification_event).unwrap()
-            ).await.ok();
+                serde_json::to_vec(&notification_event).unwrap(),
+            )
+            .await
+            .ok();
 
             tracing::info!("✓ Notification consumer: Emitted notification.delivery.succeeded");
         }
@@ -454,9 +471,20 @@ async fn test_bill_run_to_notification_happy_path() {
     let payments_pool = common::get_payments_pool().await;
 
     // Clean up test data from previous runs
-    sqlx::query("TRUNCATE TABLE ar_invoices, ar_customers CASCADE").execute(&ar_pool).await.ok();
-    sqlx::query("TRUNCATE TABLE subscriptions, subscription_plans, bill_runs CASCADE").execute(&subscriptions_pool).await.ok();
-    sqlx::query("TRUNCATE TABLE payments, payments_events_outbox, payments_processed_events CASCADE").execute(&payments_pool).await.ok();
+    sqlx::query("TRUNCATE TABLE ar_invoices, ar_customers CASCADE")
+        .execute(&ar_pool)
+        .await
+        .ok();
+    sqlx::query("TRUNCATE TABLE subscriptions, subscription_plans, bill_runs CASCADE")
+        .execute(&subscriptions_pool)
+        .await
+        .ok();
+    sqlx::query(
+        "TRUNCATE TABLE payments, payments_events_outbox, payments_processed_events CASCADE",
+    )
+    .execute(&payments_pool)
+    .await
+    .ok();
 
     // Create shared InMemoryBus
     let bus: Arc<dyn EventBus> = Arc::new(InMemoryBus::new());
@@ -471,26 +499,37 @@ async fn test_bill_run_to_notification_happy_path() {
     tokio::time::sleep(Duration::from_millis(100)).await;
 
     // Subscribe to all events we want to track
-    let mut billrun_stream = bus.subscribe("subscriptions.events.>").await
+    let mut billrun_stream = bus
+        .subscribe("subscriptions.events.>")
+        .await
         .expect("Failed to subscribe to subscriptions events");
-    let mut ar_payment_stream = bus.subscribe("ar.events.ar.payment.collection.requested").await
+    let mut ar_payment_stream = bus
+        .subscribe("ar.events.ar.payment.collection.requested")
+        .await
         .expect("Failed to subscribe to AR payment collection events");
-    let mut payment_stream = bus.subscribe("payments.events.payments.payment.succeeded").await
+    let mut payment_stream = bus
+        .subscribe("payments.events.payments.payment.succeeded")
+        .await
         .expect("Failed to subscribe to payment events");
-    let mut notification_stream = bus.subscribe("notifications.events.>").await
+    let mut notification_stream = bus
+        .subscribe("notifications.events.>")
+        .await
         .expect("Failed to subscribe to notification events");
 
     // SETUP: Create test data
     let tenant_id = "test-tenant";
-    let ar_customer_id = create_ar_customer(&ar_pool, tenant_id).await
+    let ar_customer_id = create_ar_customer(&ar_pool, tenant_id)
+        .await
         .expect("Failed to create AR customer");
 
     tracing::info!("✓ Created AR customer: {}", ar_customer_id);
 
     // Create subscription due for billing today
     let today = Utc::now().date_naive();
-    let subscription_id = create_subscription(&subscriptions_pool, tenant_id, ar_customer_id, today).await
-        .expect("Failed to create subscription");
+    let subscription_id =
+        create_subscription(&subscriptions_pool, tenant_id, ar_customer_id, today)
+            .await
+            .expect("Failed to create subscription");
 
     tracing::info!("✓ Created subscription: {}", subscription_id);
 
@@ -505,39 +544,55 @@ async fn test_bill_run_to_notification_happy_path() {
         &bill_run_id,
         today,
         tenant_id,
-        ar_customer_id
-    ).await
+        ar_customer_id,
+    )
+    .await
     .expect("Failed to trigger bill run");
 
     tracing::info!("✓ Bill-run triggered, created invoice: {}", invoice_id);
 
     // STEP 2: Wait for subscriptions.billrun.completed event
     tracing::info!("⏳ Waiting for subscriptions.billrun.completed...");
-    let billrun_event = wait_for_event(&mut billrun_stream, 10).await
+    let billrun_event = wait_for_event(&mut billrun_stream, 10)
+        .await
         .expect("Failed to receive billrun.completed event");
 
-    assert_eq!(billrun_event["event_type"], "subscriptions.billrun.completed");
+    assert_eq!(
+        billrun_event["event_type"],
+        "subscriptions.billrun.completed"
+    );
     tracing::info!("✓ Received subscriptions.billrun.completed");
 
     // STEP 3: Wait for ar.payment.collection.requested event
     tracing::info!("⏳ Waiting for ar.payment.collection.requested...");
-    let payment_collection_event = wait_for_event(&mut ar_payment_stream, 10).await
+    let payment_collection_event = wait_for_event(&mut ar_payment_stream, 10)
+        .await
         .expect("Failed to receive payment collection requested event");
 
-    assert_eq!(payment_collection_event["event_type"], "ar.payment.collection.requested");
+    assert_eq!(
+        payment_collection_event["event_type"],
+        "ar.payment.collection.requested"
+    );
     let event_invoice_id = payment_collection_event["payload"]["invoice_id"]
         .as_str()
         .expect("Missing invoice_id");
 
-    tracing::info!("✓ Received ar.payment.collection.requested for invoice: {}", event_invoice_id);
+    tracing::info!(
+        "✓ Received ar.payment.collection.requested for invoice: {}",
+        event_invoice_id
+    );
     assert_eq!(event_invoice_id, invoice_id.to_string());
 
     // STEP 4: Wait for payment.succeeded event
     tracing::info!("⏳ Waiting for payment.succeeded...");
-    let payment_succeeded_event = wait_for_event(&mut payment_stream, 10).await
+    let payment_succeeded_event = wait_for_event(&mut payment_stream, 10)
+        .await
         .expect("Failed to receive payment succeeded event");
 
-    assert_eq!(payment_succeeded_event["event_type"], "payments.payment.succeeded");
+    assert_eq!(
+        payment_succeeded_event["event_type"],
+        "payments.payment.succeeded"
+    );
     let payment_id = payment_succeeded_event["payload"]["payment_id"]
         .as_str()
         .expect("Missing payment_id");
@@ -546,10 +601,14 @@ async fn test_bill_run_to_notification_happy_path() {
 
     // STEP 5: Wait for notification.delivery.succeeded event
     tracing::info!("⏳ Waiting for notification.delivery.succeeded...");
-    let notification_event = wait_for_event(&mut notification_stream, 10).await
+    let notification_event = wait_for_event(&mut notification_stream, 10)
+        .await
         .expect("Failed to receive notification event");
 
-    assert_eq!(notification_event["event_type"], "notification.delivery.succeeded");
+    assert_eq!(
+        notification_event["event_type"],
+        "notification.delivery.succeeded"
+    );
     tracing::info!("✓ Received notification.delivery.succeeded");
 
     // STEP 6: Assert final state in databases
@@ -559,37 +618,44 @@ async fn test_bill_run_to_notification_happy_path() {
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     // Check AR: Invoice should be paid
-    let invoice_status: Option<String> = sqlx::query_scalar(
-        "SELECT status FROM ar_invoices WHERE id = $1"
-    )
-    .bind(invoice_id)
-    .fetch_optional(&ar_pool)
-    .await
-    .expect("Failed to query invoice status");
+    let invoice_status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
+            .bind(invoice_id)
+            .fetch_optional(&ar_pool)
+            .await
+            .expect("Failed to query invoice status");
 
-    assert_eq!(invoice_status, Some("paid".to_string()), "Invoice should be marked as paid");
+    assert_eq!(
+        invoice_status,
+        Some("paid".to_string()),
+        "Invoice should be marked as paid"
+    );
     tracing::info!("  ✓ AR: Invoice status = paid");
 
     // Check Subscriptions: next_bill_date should be updated
-    let next_bill_date: NaiveDate = sqlx::query_scalar(
-        "SELECT next_bill_date FROM subscriptions WHERE id = $1"
-    )
-    .bind(subscription_id)
-    .fetch_one(&subscriptions_pool)
-    .await
-    .expect("Failed to query subscription");
+    let next_bill_date: NaiveDate =
+        sqlx::query_scalar("SELECT next_bill_date FROM subscriptions WHERE id = $1")
+            .bind(subscription_id)
+            .fetch_one(&subscriptions_pool)
+            .await
+            .expect("Failed to query subscription");
 
-    assert!(next_bill_date > today, "Subscription next_bill_date should be updated");
-    tracing::info!("  ✓ Subscriptions: next_bill_date updated to {}", next_bill_date);
+    assert!(
+        next_bill_date > today,
+        "Subscription next_bill_date should be updated"
+    );
+    tracing::info!(
+        "  ✓ Subscriptions: next_bill_date updated to {}",
+        next_bill_date
+    );
 
     // Check Payments: Payment record exists
-    let payment_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM payments WHERE payment_id = $1"
-    )
-    .bind(payment_id)
-    .fetch_one(&payments_pool)
-    .await
-    .expect("Failed to query payments");
+    let payment_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM payments WHERE payment_id = $1")
+            .bind(payment_id)
+            .fetch_one(&payments_pool)
+            .await
+            .expect("Failed to query payments");
 
     assert_eq!(payment_count, 1, "Payment record should exist");
     tracing::info!("  ✓ Payments: Payment record exists");

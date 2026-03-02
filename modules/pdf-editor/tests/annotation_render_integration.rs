@@ -104,7 +104,10 @@ fn render_text_annotation() {
     assert!(result.is_ok(), "render_text failed: {:?}", result.err());
     let output = result.unwrap();
     assert!(output.starts_with(b"%PDF-"), "output is not valid PDF");
-    assert!(output.len() > pdf.len(), "output should be larger than input");
+    assert!(
+        output.len() > pdf.len(),
+        "output should be larger than input"
+    );
 }
 
 #[test]
@@ -129,12 +132,26 @@ fn render_highlight_with_text_rects() {
     ann.color = Some("#FFFF00".to_string());
     ann.opacity = Some(0.4);
     ann.text_rects = Some(vec![
-        TextRect { x: 50.0, y: 100.0, width: 200.0, height: 14.0 },
-        TextRect { x: 50.0, y: 116.0, width: 150.0, height: 14.0 },
+        TextRect {
+            x: 50.0,
+            y: 100.0,
+            width: 200.0,
+            height: 14.0,
+        },
+        TextRect {
+            x: 50.0,
+            y: 116.0,
+            width: 150.0,
+            height: 14.0,
+        },
     ]);
 
     let result = render_annotations(&pdf, &[ann]);
-    assert!(result.is_ok(), "render_highlight failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "render_highlight failed: {:?}",
+        result.err()
+    );
     assert!(result.unwrap().starts_with(b"%PDF-"));
 }
 
@@ -147,7 +164,11 @@ fn render_highlight_fallback_rect() {
     ann.color = Some("#00FF00".to_string());
 
     let result = render_annotations(&pdf, &[ann]);
-    assert!(result.is_ok(), "render_highlight fallback failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "render_highlight fallback failed: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -178,7 +199,11 @@ fn render_stamp_custom() {
     ann.text = Some("RUSH ORDER".to_string());
 
     let result = render_annotations(&pdf, &[ann]);
-    assert!(result.is_ok(), "render_stamp_custom failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "render_stamp_custom failed: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -192,7 +217,11 @@ fn render_shape_rectangle() {
     ann.stroke_width = Some(2.0);
 
     let result = render_annotations(&pdf, &[ann]);
-    assert!(result.is_ok(), "render_shape_rect failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "render_shape_rect failed: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -206,7 +235,11 @@ fn render_shape_circle() {
     ann.bg_color = Some("#FFCCFF".to_string());
 
     let result = render_annotations(&pdf, &[ann]);
-    assert!(result.is_ok(), "render_shape_circle failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "render_shape_circle failed: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -218,7 +251,11 @@ fn render_shape_line() {
     ann.y2 = Some(500.0);
 
     let result = render_annotations(&pdf, &[ann]);
-    assert!(result.is_ok(), "render_shape_line failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "render_shape_line failed: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -277,7 +314,11 @@ fn render_bubble_with_leader_line() {
     ann.leader_y = Some(300.0);
 
     let result = render_annotations(&pdf, &[ann]);
-    assert!(result.is_ok(), "render_bubble_leader failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "render_bubble_leader failed: {:?}",
+        result.err()
+    );
 }
 
 #[test]
@@ -290,7 +331,11 @@ fn render_signature_text() {
     ann.color = Some("#000080".to_string());
 
     let result = render_annotations(&pdf, &[ann]);
-    assert!(result.is_ok(), "render_signature_text failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "render_signature_text failed: {:?}",
+        result.err()
+    );
     assert!(result.unwrap().starts_with(b"%PDF-"));
 }
 
@@ -300,18 +345,46 @@ fn render_signature_draw() {
     let mut ann = base_annotation(AnnotationType::Signature, 1);
     ann.signature_method = Some("DRAW".to_string());
     ann.signature_path = Some(vec![
-        SignaturePoint { x: 0.0, y: 0.0, new_stroke: None },
-        SignaturePoint { x: 10.0, y: 5.0, new_stroke: None },
-        SignaturePoint { x: 20.0, y: 2.0, new_stroke: None },
-        SignaturePoint { x: 30.0, y: 8.0, new_stroke: Some(true) },
-        SignaturePoint { x: 35.0, y: 10.0, new_stroke: None },
-        SignaturePoint { x: 45.0, y: 6.0, new_stroke: None },
+        SignaturePoint {
+            x: 0.0,
+            y: 0.0,
+            new_stroke: None,
+        },
+        SignaturePoint {
+            x: 10.0,
+            y: 5.0,
+            new_stroke: None,
+        },
+        SignaturePoint {
+            x: 20.0,
+            y: 2.0,
+            new_stroke: None,
+        },
+        SignaturePoint {
+            x: 30.0,
+            y: 8.0,
+            new_stroke: Some(true),
+        },
+        SignaturePoint {
+            x: 35.0,
+            y: 10.0,
+            new_stroke: None,
+        },
+        SignaturePoint {
+            x: 45.0,
+            y: 6.0,
+            new_stroke: None,
+        },
     ]);
     ann.stroke_width = Some(2.0);
     ann.color = Some("#000000".to_string());
 
     let result = render_annotations(&pdf, &[ann]);
-    assert!(result.is_ok(), "render_signature_draw failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "render_signature_draw failed: {:?}",
+        result.err()
+    );
 }
 
 // ============================================================================
@@ -381,7 +454,11 @@ fn render_multiple_annotation_types_on_one_page() {
     stamp.height = Some(40.0);
 
     let result = render_annotations(&pdf, &[text, arrow, highlight, stamp]);
-    assert!(result.is_ok(), "mixed annotations failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "mixed annotations failed: {:?}",
+        result.err()
+    );
     assert!(result.unwrap().starts_with(b"%PDF-"));
 }
 

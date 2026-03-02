@@ -126,8 +126,7 @@ fn tampered_claims_rejected() {
             issued_at: Utc::now().timestamp(),
             expires_at: Utc::now().timestamp() + 9999,
         };
-        let tampered_b64 =
-            URL_SAFE_NO_PAD.encode(serde_json::to_string(&tampered_claims).unwrap());
+        let tampered_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_string(&tampered_claims).unwrap());
         let tampered_token = format!("{}.{}", tampered_b64, parts[1]);
 
         let result = verify_service_token(&tampered_token);
@@ -137,9 +136,7 @@ fn tampered_claims_rejected() {
 
 #[test]
 fn wrong_secret_rejects_token() {
-    let token = with_secret("secret-A", || {
-        generate_service_token("svc", None).unwrap()
-    });
+    let token = with_secret("secret-A", || generate_service_token("svc", None).unwrap());
 
     with_secret("secret-B", || {
         let result = verify_service_token(&token);

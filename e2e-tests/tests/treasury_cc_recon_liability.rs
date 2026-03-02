@@ -99,14 +99,16 @@ async fn cleanup(pool: &PgPool, app_id: &str) {
         .execute(pool)
         .await
         .ok();
-    sqlx::query("DELETE FROM processed_events WHERE event_id IN \
+    sqlx::query(
+        "DELETE FROM processed_events WHERE event_id IN \
                  (SELECT id::uuid FROM treasury_bank_transactions WHERE app_id = $1 \
                   AND external_id IS NOT NULL AND \
-                  external_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')")
-        .bind(app_id)
-        .execute(pool)
-        .await
-        .ok();
+                  external_id ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')",
+    )
+    .bind(app_id)
+    .execute(pool)
+    .await
+    .ok();
     sqlx::query("DELETE FROM treasury_bank_accounts WHERE app_id = $1")
         .bind(app_id)
         .execute(pool)
@@ -233,7 +235,10 @@ async fn test_cc_recon_full_lifecycle() {
     .await
     .expect("Chase CC import failed");
 
-    assert_eq!(import_result.lines_imported, 4, "4 Chase CSV lines imported");
+    assert_eq!(
+        import_result.lines_imported, 4,
+        "4 Chase CSV lines imported"
+    );
     assert_eq!(import_result.lines_skipped, 0);
     assert!(import_result.errors.is_empty());
 
@@ -289,13 +294,12 @@ async fn test_cc_recon_full_lifecycle() {
     .await;
 
     // Verify total transaction count: 4 statement-sourced + 3 expense-sourced = 7
-    let txn_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM treasury_bank_transactions WHERE app_id = $1",
-    )
-    .bind(&tenant)
-    .fetch_one(&pool)
-    .await
-    .expect("txn count query");
+    let txn_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM treasury_bank_transactions WHERE app_id = $1")
+            .bind(&tenant)
+            .fetch_one(&pool)
+            .await
+            .expect("txn count query");
     assert_eq!(txn_count, 7, "4 statement lines + 3 expense txns");
 
     // --- Step 4: Run CC auto-match ---
@@ -323,7 +327,10 @@ async fn test_cc_recon_full_lifecycle() {
         .await
         .expect("CC auto-match failed");
 
-    assert_eq!(match_result.matches_created, 2, "Starbucks + Amazon matched");
+    assert_eq!(
+        match_result.matches_created, 2,
+        "Starbucks + Amazon matched"
+    );
     assert_eq!(
         match_result.unmatched_statement_lines, 2,
         "PAYMENT THANK YOU + ANNUAL FEE unmatched"
@@ -340,7 +347,10 @@ async fn test_cc_recon_full_lifecycle() {
     assert_eq!(matches.len(), 2, "2 active matches");
     for m in &matches {
         assert_eq!(m.match_type, ReconMatchType::Auto, "all auto-matched");
-        assert!(m.statement_line_id.is_some(), "each match has statement_line_id");
+        assert!(
+            m.statement_line_id.is_some(),
+            "each match has statement_line_id"
+        );
         assert!(m.superseded_by.is_none(), "no superseded matches");
     }
 
@@ -358,17 +368,30 @@ async fn test_cc_recon_full_lifecycle() {
         .await
         .expect("cash position failed");
 
-    assert!(pos.bank_cash.is_empty(), "no bank accounts — bank_cash empty");
-    assert_eq!(pos.credit_card_liability.len(), 1, "1 CC account in liability bucket");
+    assert!(
+        pos.bank_cash.is_empty(),
+        "no bank accounts — bank_cash empty"
+    );
+    assert_eq!(
+        pos.credit_card_liability.len(),
+        1,
+        "1 CC account in liability bucket"
+    );
 
     let cc_pos = &pos.credit_card_liability[0];
     assert_eq!(cc_pos.account_id, cc.id);
-    assert_eq!(cc_pos.opening_balance_minor, 0, "opening = 0 from statement");
+    assert_eq!(
+        cc_pos.opening_balance_minor, 0,
+        "opening = 0 from statement"
+    );
     // Statement txns: -1500 + -8999 + 20000 + -9500 = 1
     // Expense txns:   -1500 + -8999 + -5000 = -15499
     // Total: -15498
     assert_eq!(cc_pos.transaction_total_minor, -15_498);
-    assert_eq!(cc_pos.balance_minor, -15_498, "CC balance is negative (liability)");
+    assert_eq!(
+        cc_pos.balance_minor, -15_498,
+        "CC balance is negative (liability)"
+    );
 
     assert_eq!(pos.summary.total_bank_cash_minor, 0);
     assert_eq!(pos.summary.total_cc_liability_minor, -15_498);
@@ -381,7 +404,10 @@ async fn test_cc_recon_full_lifecycle() {
         .expect("CC rerun auto-match failed");
 
     assert_eq!(rerun.matches_created, 0, "no new matches on rerun");
-    assert_eq!(rerun.unmatched_statement_lines, 2, "same 2 unmatched statement lines");
+    assert_eq!(
+        rerun.unmatched_statement_lines, 2,
+        "same 2 unmatched statement lines"
+    );
     assert_eq!(rerun.unmatched_transactions, 1, "same 1 unmatched expense");
 
     // Cash position unchanged
@@ -471,7 +497,10 @@ async fn test_cc_reimport_same_statement_idempotent() {
     .await;
 
     assert!(
-        matches!(r2, Err(treasury::domain::import::ImportError::DuplicateImport { .. })),
+        matches!(
+            r2,
+            Err(treasury::domain::import::ImportError::DuplicateImport { .. })
+        ),
         "expected DuplicateImport, got {:?}",
         r2
     );
@@ -574,16 +603,26 @@ async fn test_cc_liability_separated_from_bank_cash() {
     assert_eq!(pos.bank_cash[0].balance_minor, 100_000);
 
     // CC liability bucket
-    assert_eq!(pos.credit_card_liability.len(), 1, "1 CC account in liability bucket");
+    assert_eq!(
+        pos.credit_card_liability.len(),
+        1,
+        "1 CC account in liability bucket"
+    );
     assert_eq!(pos.credit_card_liability[0].account_id, cc.id);
     assert_eq!(pos.credit_card_liability[0].opening_balance_minor, 0);
-    assert_eq!(pos.credit_card_liability[0].transaction_total_minor, -20_000);
+    assert_eq!(
+        pos.credit_card_liability[0].transaction_total_minor,
+        -20_000
+    );
     assert_eq!(pos.credit_card_liability[0].balance_minor, -20_000);
 
     // Summary
     assert_eq!(pos.summary.total_bank_cash_minor, 100_000);
     assert_eq!(pos.summary.total_cc_liability_minor, -20_000);
-    assert_eq!(pos.summary.net_position_minor, 80_000, "net = bank - cc_owed");
+    assert_eq!(
+        pos.summary.net_position_minor, 80_000,
+        "net = bank - cc_owed"
+    );
     assert_eq!(pos.summary.currencies, vec!["USD"]);
 
     cleanup(&pool, &tenant).await;

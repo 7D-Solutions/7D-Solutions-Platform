@@ -16,7 +16,10 @@ fn test_all_event_schemas_have_valid_examples() {
 
     match validate_event_contracts(&contracts) {
         Ok(validated) => {
-            println!("✓ Validated {} event schemas with examples:", validated.len());
+            println!(
+                "✓ Validated {} event schemas with examples:",
+                validated.len()
+            );
             for (schema, example) in &validated {
                 println!("  ✓ {} -> {}", schema, example);
             }
@@ -37,8 +40,12 @@ fn test_payments_payment_succeeded_example() {
     let schema = load_schema(&schema_path).expect("Failed to load schema");
     let example = load_example(&example_path).expect("Failed to load example");
 
-    validate_example(&schema, &example, "payments-payment-succeeded.v1.example.json")
-        .expect("Validation failed");
+    validate_example(
+        &schema,
+        &example,
+        "payments-payment-succeeded.v1.example.json",
+    )
+    .expect("Validation failed");
 }
 
 #[test]
@@ -63,8 +70,12 @@ fn test_payments_refund_succeeded_example() {
     let schema = load_schema(&schema_path).expect("Failed to load schema");
     let example = load_example(&example_path).expect("Failed to load example");
 
-    validate_example(&schema, &example, "payments-refund-succeeded.v1.example.json")
-        .expect("Validation failed");
+    validate_example(
+        &schema,
+        &example,
+        "payments-refund-succeeded.v1.example.json",
+    )
+    .expect("Validation failed");
 }
 
 #[test]
@@ -84,26 +95,36 @@ fn test_payments_refund_failed_example() {
 fn test_notifications_delivery_succeeded_example() {
     let contracts = contracts_dir();
     let schema_path = contracts.join("events/notifications-delivery-succeeded.v1.json");
-    let example_path = contracts.join("events/examples/notifications-delivery-succeeded.v1.example.json");
+    let example_path =
+        contracts.join("events/examples/notifications-delivery-succeeded.v1.example.json");
 
     let schema = load_schema(&schema_path).expect("Failed to load schema");
     let example = load_example(&example_path).expect("Failed to load example");
 
-    validate_example(&schema, &example, "notifications-delivery-succeeded.v1.example.json")
-        .expect("Validation failed");
+    validate_example(
+        &schema,
+        &example,
+        "notifications-delivery-succeeded.v1.example.json",
+    )
+    .expect("Validation failed");
 }
 
 #[test]
 fn test_notifications_delivery_failed_example() {
     let contracts = contracts_dir();
     let schema_path = contracts.join("events/notifications-delivery-failed.v1.json");
-    let example_path = contracts.join("events/examples/notifications-delivery-failed.v1.example.json");
+    let example_path =
+        contracts.join("events/examples/notifications-delivery-failed.v1.example.json");
 
     let schema = load_schema(&schema_path).expect("Failed to load schema");
     let example = load_example(&example_path).expect("Failed to load example");
 
-    validate_example(&schema, &example, "notifications-delivery-failed.v1.example.json")
-        .expect("Validation failed");
+    validate_example(
+        &schema,
+        &example,
+        "notifications-delivery-failed.v1.example.json",
+    )
+    .expect("Validation failed");
 }
 
 #[test]
@@ -149,13 +170,18 @@ fn test_subscriptions_resumed_example() {
 fn test_subscriptions_billrun_executed_example() {
     let contracts = contracts_dir();
     let schema_path = contracts.join("events/subscriptions-billrun-executed.v1.json");
-    let example_path = contracts.join("events/examples/subscriptions-billrun-executed.v1.example.json");
+    let example_path =
+        contracts.join("events/examples/subscriptions-billrun-executed.v1.example.json");
 
     let schema = load_schema(&schema_path).expect("Failed to load schema");
     let example = load_example(&example_path).expect("Failed to load example");
 
-    validate_example(&schema, &example, "subscriptions-billrun-executed.v1.example.json")
-        .expect("Validation failed");
+    validate_example(
+        &schema,
+        &example,
+        "subscriptions-billrun-executed.v1.example.json",
+    )
+    .expect("Validation failed");
 }
 
 #[test]

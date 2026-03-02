@@ -189,10 +189,26 @@ async fn test_cash_position_balance_arithmetic() {
     insert_opening_balance(&pool, &tenant, account.id, 1_000_000).await;
 
     // 3. Record inflow: +250,000 cents (customer payment)
-    insert_txn(&pool, &tenant, account.id, 250_000, "Customer payment", "cp-in-001").await;
+    insert_txn(
+        &pool,
+        &tenant,
+        account.id,
+        250_000,
+        "Customer payment",
+        "cp-in-001",
+    )
+    .await;
 
     // 4. Record outflow: −75,000 cents (vendor payment)
-    insert_txn(&pool, &tenant, account.id, -75_000, "Vendor payment", "cp-out-001").await;
+    insert_txn(
+        &pool,
+        &tenant,
+        account.id,
+        -75_000,
+        "Vendor payment",
+        "cp-out-001",
+    )
+    .await;
 
     // 5. Get cash position report
     let pos = get_cash_position(&pool, &tenant)
@@ -207,7 +223,10 @@ async fn test_cash_position_balance_arithmetic() {
     assert_eq!(acct.account_id, account.id, "correct account in report");
     assert_eq!(acct.account_name, "Operating Account");
     assert_eq!(acct.currency, "USD");
-    assert_eq!(acct.opening_balance_minor, 1_000_000, "opening balance preserved");
+    assert_eq!(
+        acct.opening_balance_minor, 1_000_000,
+        "opening balance preserved"
+    );
 
     // 7. Verify inflow_total, outflow_total, net_change via DB queries
     let inflow_total: i64 = sqlx::query_scalar(
@@ -234,7 +253,10 @@ async fn test_cash_position_balance_arithmetic() {
     assert_eq!(outflow_abs, 75_000, "outflow_total = 75,000 cents");
 
     let net_change = inflow_total - outflow_abs;
-    assert_eq!(net_change, 175_000, "net_change = inflow − outflow = 175,000");
+    assert_eq!(
+        net_change, 175_000,
+        "net_change = inflow − outflow = 175,000"
+    );
     assert_eq!(
         acct.transaction_total_minor, net_change,
         "transaction_total_minor matches net_change"
@@ -283,7 +305,15 @@ async fn test_cash_position_tenant_isolation() {
     .expect("create tenant A account failed");
 
     insert_opening_balance(&pool, &tenant_a, acct_a.id, 500_000).await;
-    insert_txn(&pool, &tenant_a, acct_a.id, 100_000, "A inflow", "iso-a-001").await;
+    insert_txn(
+        &pool,
+        &tenant_a,
+        acct_a.id,
+        100_000,
+        "A inflow",
+        "iso-a-001",
+    )
+    .await;
 
     // Tenant B queries — should see nothing
     let pos_b = get_cash_position(&pool, &tenant_b)
@@ -291,7 +321,10 @@ async fn test_cash_position_tenant_isolation() {
         .expect("tenant B cash position failed");
 
     assert!(pos_b.bank_cash.is_empty(), "tenant B sees no bank accounts");
-    assert_eq!(pos_b.summary.net_position_minor, 0, "tenant B net position = 0");
+    assert_eq!(
+        pos_b.summary.net_position_minor, 0,
+        "tenant B net position = 0"
+    );
 
     // Tenant A queries — should only see their own account
     let pos_a = get_cash_position(&pool, &tenant_a)
@@ -350,9 +383,15 @@ async fn test_cash_position_precision_no_rounding_loss() {
     let acct = &pos.bank_cash[0];
 
     // net txn = 99901 − 33333 + 1 = 66569
-    assert_eq!(acct.transaction_total_minor, 66_569, "net transactions exact");
+    assert_eq!(
+        acct.transaction_total_minor, 66_569,
+        "net transactions exact"
+    );
     // balance = 1234567 + 66569 = 1301136
-    assert_eq!(acct.balance_minor, 1_301_136, "balance exact — no rounding loss");
+    assert_eq!(
+        acct.balance_minor, 1_301_136,
+        "balance exact — no rounding loss"
+    );
     assert_eq!(pos.summary.net_position_minor, 1_301_136);
 
     cleanup(&pool, &tenant).await;

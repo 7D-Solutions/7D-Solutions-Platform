@@ -36,10 +36,30 @@ async fn setup_test_data(pool: &PgPool, tenant_id: &str, period_id: Uuid) {
     // Create accounts
     let accounts = vec![
         ("1000", "Cash", AccountType::Asset, NormalBalance::Debit),
-        ("1100", "Accounts Receivable", AccountType::Asset, NormalBalance::Debit),
-        ("2000", "Accounts Payable", AccountType::Liability, NormalBalance::Credit),
-        ("4000", "Sales Revenue", AccountType::Revenue, NormalBalance::Credit),
-        ("5000", "Operating Expenses", AccountType::Expense, NormalBalance::Debit),
+        (
+            "1100",
+            "Accounts Receivable",
+            AccountType::Asset,
+            NormalBalance::Debit,
+        ),
+        (
+            "2000",
+            "Accounts Payable",
+            AccountType::Liability,
+            NormalBalance::Credit,
+        ),
+        (
+            "4000",
+            "Sales Revenue",
+            AccountType::Revenue,
+            NormalBalance::Credit,
+        ),
+        (
+            "5000",
+            "Operating Expenses",
+            AccountType::Expense,
+            NormalBalance::Debit,
+        ),
     ];
 
     for (code, name, account_type, normal_balance) in accounts {
@@ -71,11 +91,11 @@ async fn setup_test_data(pool: &PgPool, tenant_id: &str, period_id: Uuid) {
     // Total credits: 75 + 100 = 175 (balanced!)
 
     let balances = vec![
-        ("1000", 10000i64, 0i64),       // Cash: $100 debit
-        ("1100", 5000, 0),               // A/R: $50 debit
-        ("2000", 0, 7500),               // A/P: $75 credit
-        ("4000", 0, 10000),              // Revenue: $100 credit
-        ("5000", 2500, 0),               // Expenses: $25 debit
+        ("1000", 10000i64, 0i64), // Cash: $100 debit
+        ("1100", 5000, 0),        // A/R: $50 debit
+        ("2000", 0, 7500),        // A/P: $75 credit
+        ("4000", 0, 10000),       // Revenue: $100 credit
+        ("5000", 2500, 0),        // Expenses: $25 debit
     ];
 
     for (account_code, debit_total, credit_total) in balances {
@@ -140,16 +160,13 @@ async fn test_trial_balance_service_balanced() {
     setup_test_data(&pool, tenant_id, period_id).await;
 
     // Execute
-    let result = trial_balance_service::get_trial_balance(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-    )
-    .await;
+    let result = trial_balance_service::get_trial_balance(&pool, tenant_id, period_id, "USD").await;
 
     // Verify
-    assert!(result.is_ok(), "Trial balance should succeed for balanced books");
+    assert!(
+        result.is_ok(),
+        "Trial balance should succeed for balanced books"
+    );
     let response = result.unwrap();
 
     // Check metadata
@@ -198,16 +215,13 @@ async fn test_trial_balance_service_unbalanced_error() {
     .unwrap();
 
     // Execute
-    let result = trial_balance_service::get_trial_balance(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-    )
-    .await;
+    let result = trial_balance_service::get_trial_balance(&pool, tenant_id, period_id, "USD").await;
 
     // Verify: Should fail with Unbalanced error (acceptance criteria)
-    assert!(result.is_err(), "Trial balance should fail for unbalanced books");
+    assert!(
+        result.is_err(),
+        "Trial balance should fail for unbalanced books"
+    );
     let error = result.unwrap_err();
 
     match error {
@@ -233,23 +247,13 @@ async fn test_trial_balance_service_deterministic_json_snapshot() {
     setup_test_data(&pool, tenant_id, period_id).await;
 
     // Execute twice
-    let result1 = trial_balance_service::get_trial_balance(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-    )
-    .await
-    .unwrap();
+    let result1 = trial_balance_service::get_trial_balance(&pool, tenant_id, period_id, "USD")
+        .await
+        .unwrap();
 
-    let result2 = trial_balance_service::get_trial_balance(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-    )
-    .await
-    .unwrap();
+    let result2 = trial_balance_service::get_trial_balance(&pool, tenant_id, period_id, "USD")
+        .await
+        .unwrap();
 
     // Serialize to JSON
     let json1 = serde_json::to_string_pretty(&result1).unwrap();
@@ -300,21 +304,20 @@ async fn test_trial_balance_service_period_not_found() {
     let non_existent_period_id = Uuid::new_v4();
 
     // Execute without creating period
-    let result = trial_balance_service::get_trial_balance(
-        &pool,
-        tenant_id,
-        non_existent_period_id,
-        "USD",
-    )
-    .await;
+    let result =
+        trial_balance_service::get_trial_balance(&pool, tenant_id, non_existent_period_id, "USD")
+            .await;
 
     // Verify: Should fail with StatementRepo::PeriodNotFound error
-    assert!(result.is_err(), "Trial balance should fail for non-existent period");
+    assert!(
+        result.is_err(),
+        "Trial balance should fail for non-existent period"
+    );
     let error = result.unwrap_err();
 
     match error {
         trial_balance_service::TrialBalanceError::StatementRepo(
-            gl_rs::repos::statement_repo::StatementError::PeriodNotFound { .. }
+            gl_rs::repos::statement_repo::StatementError::PeriodNotFound { .. },
         ) => {
             // Expected
         }
@@ -346,22 +349,22 @@ async fn test_trial_balance_service_empty_period() {
     .unwrap();
 
     // Execute
-    let result = trial_balance_service::get_trial_balance(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-    )
-    .await;
+    let result = trial_balance_service::get_trial_balance(&pool, tenant_id, period_id, "USD").await;
 
     // Verify: Empty period should succeed with zero totals
-    assert!(result.is_ok(), "Trial balance should succeed for empty period");
+    assert!(
+        result.is_ok(),
+        "Trial balance should succeed for empty period"
+    );
     let response = result.unwrap();
 
     assert_eq!(response.rows.len(), 0);
     assert_eq!(response.totals.total_debits, 0);
     assert_eq!(response.totals.total_credits, 0);
-    assert!(response.totals.is_balanced, "Empty period should be balanced");
+    assert!(
+        response.totals.is_balanced,
+        "Empty period should be balanced"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;

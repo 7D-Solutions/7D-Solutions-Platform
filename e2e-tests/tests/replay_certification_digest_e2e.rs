@@ -12,9 +12,8 @@
 
 use chrono::{DateTime, Utc};
 use projections::{
-    compute_versioned_digest, create_shadow_cursor_table, create_shadow_table,
-    drop_shadow_table, save_shadow_cursor, swap_cursor_tables_atomic, swap_tables_atomic,
-    VersionedDigest,
+    compute_versioned_digest, create_shadow_cursor_table, create_shadow_table, drop_shadow_table,
+    save_shadow_cursor, swap_cursor_tables_atomic, swap_tables_atomic, VersionedDigest,
 };
 use serial_test::serial;
 use sqlx::PgPool;
@@ -24,7 +23,10 @@ use uuid::Uuid;
 async fn get_projections_pool() -> PgPool {
     let url = std::env::var("PROJECTIONS_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
-        .unwrap_or_else(|_| "postgresql://projections_user:projections_pass@localhost:5439/projections_db".to_string());
+        .unwrap_or_else(|_| {
+            "postgresql://projections_user:projections_pass@localhost:5439/projections_db"
+                .to_string()
+        });
     sqlx::PgPool::connect(&url)
         .await
         .expect("Failed to connect to projections database")
@@ -114,10 +116,9 @@ async fn replay_ar_invoice_events(
     tenant_id: &str,
     event_count: usize,
 ) -> (Uuid, DateTime<Utc>, i64, i64) {
-    let deterministic_timestamp =
-        DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+    let deterministic_timestamp = DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
 
     let mut last_event_id = Uuid::nil();
     let mut last_event_occurred_at = deterministic_timestamp;
@@ -151,9 +152,15 @@ async fn replay_ar_invoice_events(
         .expect("Failed to apply AR invoice event");
 
         // Update cursor
-        save_shadow_cursor(pool, projection_name, tenant_id, event_id, event_occurred_at)
-            .await
-            .expect("Failed to save cursor");
+        save_shadow_cursor(
+            pool,
+            projection_name,
+            tenant_id,
+            event_id,
+            event_occurred_at,
+        )
+        .await
+        .expect("Failed to save cursor");
 
         last_event_id = event_id;
         last_event_occurred_at = event_occurred_at;
@@ -165,7 +172,12 @@ async fn replay_ar_invoice_events(
         .await
         .expect("Failed to get row count");
 
-    (last_event_id, last_event_occurred_at, event_count as i64, row_count)
+    (
+        last_event_id,
+        last_event_occurred_at,
+        event_count as i64,
+        row_count,
+    )
 }
 
 /// Replay events into Payments attempt summary projection
@@ -177,10 +189,9 @@ async fn replay_payments_attempt_events(
     tenant_id: &str,
     event_count: usize,
 ) -> (Uuid, DateTime<Utc>, i64, i64) {
-    let deterministic_timestamp =
-        DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
-            .unwrap()
-            .with_timezone(&Utc);
+    let deterministic_timestamp = DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
 
     let mut last_event_id = Uuid::nil();
     let mut last_event_occurred_at = deterministic_timestamp;
@@ -218,9 +229,15 @@ async fn replay_payments_attempt_events(
         .expect("Failed to apply Payments attempt event");
 
         // Update cursor
-        save_shadow_cursor(pool, projection_name, tenant_id, event_id, event_occurred_at)
-            .await
-            .expect("Failed to save cursor");
+        save_shadow_cursor(
+            pool,
+            projection_name,
+            tenant_id,
+            event_id,
+            event_occurred_at,
+        )
+        .await
+        .expect("Failed to save cursor");
 
         last_event_id = event_id;
         last_event_occurred_at = event_occurred_at;
@@ -232,7 +249,12 @@ async fn replay_payments_attempt_events(
         .await
         .expect("Failed to get row count");
 
-    (last_event_id, last_event_occurred_at, event_count as i64, row_count)
+    (
+        last_event_id,
+        last_event_occurred_at,
+        event_count as i64,
+        row_count,
+    )
 }
 
 /// Rebuild summary for a single projection run
@@ -338,10 +360,9 @@ async fn rebuild_payments_attempt_summary(
         .await;
 
     // Compute digest
-    let digest =
-        compute_versioned_digest(pool, &format!("{}_shadow", base_table), "customer_id")
-            .await
-            .expect("Failed to compute digest");
+    let digest = compute_versioned_digest(pool, &format!("{}_shadow", base_table), "customer_id")
+        .await
+        .expect("Failed to compute digest");
 
     // Perform atomic swap
     swap_tables_atomic(pool, base_table)
@@ -408,10 +429,7 @@ async fn test_ar_invoice_summary_digest_equality() {
     println!("✅ Cursor position equality: PASSED");
 
     // Assert row count equality
-    assert_eq!(
-        run1.row_count, run2.row_count,
-        "Row counts must match"
-    );
+    assert_eq!(run1.row_count, run2.row_count, "Row counts must match");
     println!("✅ Row count equality: PASSED");
 
     // Assert events processed equality
@@ -483,10 +501,7 @@ async fn test_payments_attempt_summary_digest_equality() {
     println!("✅ Cursor position equality: PASSED");
 
     // Assert row count equality
-    assert_eq!(
-        run1.row_count, run2.row_count,
-        "Row counts must match"
-    );
+    assert_eq!(run1.row_count, run2.row_count, "Row counts must match");
     println!("✅ Row count equality: PASSED");
 
     // Assert events processed equality

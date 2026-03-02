@@ -62,12 +62,22 @@ fn test_trial_balance_response_contract_snapshot() {
     };
 
     // Serialize to JSON Value for field inspection
-    let json_value = serde_json::to_value(&response).expect("Failed to serialize TrialBalanceResponse");
+    let json_value =
+        serde_json::to_value(&response).expect("Failed to serialize TrialBalanceResponse");
 
     // ===== CONTRACT ASSERTION: Top-Level Fields =====
-    assert!(json_value.get("tenant_id").is_some(), "Missing field: tenant_id");
-    assert!(json_value.get("period_id").is_some(), "Missing field: period_id");
-    assert!(json_value.get("currency").is_some(), "Missing field: currency");
+    assert!(
+        json_value.get("tenant_id").is_some(),
+        "Missing field: tenant_id"
+    );
+    assert!(
+        json_value.get("period_id").is_some(),
+        "Missing field: period_id"
+    );
+    assert!(
+        json_value.get("currency").is_some(),
+        "Missing field: currency"
+    );
     assert!(json_value.get("rows").is_some(), "Missing field: rows");
     assert!(json_value.get("totals").is_some(), "Missing field: totals");
 
@@ -82,9 +92,18 @@ fn test_trial_balance_response_contract_snapshot() {
     );
 
     // ===== CONTRACT ASSERTION: Field Types =====
-    assert!(json_value["tenant_id"].is_string(), "tenant_id should be string");
-    assert!(json_value["period_id"].is_string(), "period_id should be string (UUID)");
-    assert!(json_value["currency"].is_string(), "currency should be string");
+    assert!(
+        json_value["tenant_id"].is_string(),
+        "tenant_id should be string"
+    );
+    assert!(
+        json_value["period_id"].is_string(),
+        "period_id should be string (UUID)"
+    );
+    assert!(
+        json_value["currency"].is_string(),
+        "currency should be string"
+    );
     assert!(json_value["rows"].is_array(), "rows should be array");
     assert!(json_value["totals"].is_object(), "totals should be object");
 
@@ -93,14 +112,35 @@ fn test_trial_balance_response_contract_snapshot() {
     let row_obj = row.as_object().expect("Row should be an object");
 
     // Check all required row fields exist
-    assert!(row.get("account_code").is_some(), "Missing field: account_code");
-    assert!(row.get("account_name").is_some(), "Missing field: account_name");
-    assert!(row.get("account_type").is_some(), "Missing field: account_type");
-    assert!(row.get("normal_balance").is_some(), "Missing field: normal_balance");
+    assert!(
+        row.get("account_code").is_some(),
+        "Missing field: account_code"
+    );
+    assert!(
+        row.get("account_name").is_some(),
+        "Missing field: account_name"
+    );
+    assert!(
+        row.get("account_type").is_some(),
+        "Missing field: account_type"
+    );
+    assert!(
+        row.get("normal_balance").is_some(),
+        "Missing field: normal_balance"
+    );
     assert!(row.get("currency").is_some(), "Missing field: currency");
-    assert!(row.get("debit_total_minor").is_some(), "Missing field: debit_total_minor");
-    assert!(row.get("credit_total_minor").is_some(), "Missing field: credit_total_minor");
-    assert!(row.get("net_balance_minor").is_some(), "Missing field: net_balance_minor");
+    assert!(
+        row.get("debit_total_minor").is_some(),
+        "Missing field: debit_total_minor"
+    );
+    assert!(
+        row.get("credit_total_minor").is_some(),
+        "Missing field: credit_total_minor"
+    );
+    assert!(
+        row.get("net_balance_minor").is_some(),
+        "Missing field: net_balance_minor"
+    );
 
     // Verify exact field count (8 fields)
     assert_eq!(
@@ -114,9 +154,18 @@ fn test_trial_balance_response_contract_snapshot() {
     let totals = &json_value["totals"];
     let totals_obj = totals.as_object().expect("Totals should be an object");
 
-    assert!(totals.get("total_debits").is_some(), "Missing field: total_debits");
-    assert!(totals.get("total_credits").is_some(), "Missing field: total_credits");
-    assert!(totals.get("is_balanced").is_some(), "Missing field: is_balanced");
+    assert!(
+        totals.get("total_debits").is_some(),
+        "Missing field: total_debits"
+    );
+    assert!(
+        totals.get("total_credits").is_some(),
+        "Missing field: total_credits"
+    );
+    assert!(
+        totals.get("is_balanced").is_some(),
+        "Missing field: is_balanced"
+    );
 
     assert_eq!(
         totals_obj.len(),
@@ -131,11 +180,19 @@ fn test_trial_balance_response_contract_snapshot() {
     let json_str = serde_json::to_string_pretty(&response).expect("Failed to serialize");
 
     // Verify tenant_id appears in JSON
-    let tenant_idx = json_str.find("\"tenant_id\"").expect("tenant_id should be in JSON");
-    let period_idx = json_str.find("\"period_id\"").expect("period_id should be in JSON");
-    let currency_idx = json_str.find("\"currency\"").expect("currency should be in JSON");
+    let tenant_idx = json_str
+        .find("\"tenant_id\"")
+        .expect("tenant_id should be in JSON");
+    let period_idx = json_str
+        .find("\"period_id\"")
+        .expect("period_id should be in JSON");
+    let currency_idx = json_str
+        .find("\"currency\"")
+        .expect("currency should be in JSON");
     let rows_idx = json_str.find("\"rows\"").expect("rows should be in JSON");
-    let totals_idx = json_str.find("\"totals\"").expect("totals should be in JSON");
+    let totals_idx = json_str
+        .find("\"totals\"")
+        .expect("totals should be in JSON");
 
     // Field order matches struct definition: tenant_id, period_id, currency, rows, totals
     assert!(
@@ -202,12 +259,22 @@ fn test_income_statement_response_contract_snapshot() {
         },
     };
 
-    let json_value = serde_json::to_value(&response).expect("Failed to serialize IncomeStatementResponse");
+    let json_value =
+        serde_json::to_value(&response).expect("Failed to serialize IncomeStatementResponse");
 
     // ===== CONTRACT ASSERTION: Top-Level Fields =====
-    assert!(json_value.get("tenant_id").is_some(), "Missing field: tenant_id");
-    assert!(json_value.get("period_id").is_some(), "Missing field: period_id");
-    assert!(json_value.get("currency").is_some(), "Missing field: currency");
+    assert!(
+        json_value.get("tenant_id").is_some(),
+        "Missing field: tenant_id"
+    );
+    assert!(
+        json_value.get("period_id").is_some(),
+        "Missing field: period_id"
+    );
+    assert!(
+        json_value.get("currency").is_some(),
+        "Missing field: currency"
+    );
     assert!(json_value.get("rows").is_some(), "Missing field: rows");
     assert!(json_value.get("totals").is_some(), "Missing field: totals");
 
@@ -223,11 +290,23 @@ fn test_income_statement_response_contract_snapshot() {
     let row = &json_value["rows"][0];
     let row_obj = row.as_object().expect("Row should be an object");
 
-    assert!(row.get("account_code").is_some(), "Missing field: account_code");
-    assert!(row.get("account_name").is_some(), "Missing field: account_name");
-    assert!(row.get("account_type").is_some(), "Missing field: account_type");
+    assert!(
+        row.get("account_code").is_some(),
+        "Missing field: account_code"
+    );
+    assert!(
+        row.get("account_name").is_some(),
+        "Missing field: account_name"
+    );
+    assert!(
+        row.get("account_type").is_some(),
+        "Missing field: account_type"
+    );
     assert!(row.get("currency").is_some(), "Missing field: currency");
-    assert!(row.get("amount_minor").is_some(), "Missing field: amount_minor");
+    assert!(
+        row.get("amount_minor").is_some(),
+        "Missing field: amount_minor"
+    );
 
     assert_eq!(
         row_obj.len(),
@@ -240,9 +319,18 @@ fn test_income_statement_response_contract_snapshot() {
     let totals = &json_value["totals"];
     let totals_obj = totals.as_object().expect("Totals should be an object");
 
-    assert!(totals.get("total_revenue").is_some(), "Missing field: total_revenue");
-    assert!(totals.get("total_expenses").is_some(), "Missing field: total_expenses");
-    assert!(totals.get("net_income").is_some(), "Missing field: net_income");
+    assert!(
+        totals.get("total_revenue").is_some(),
+        "Missing field: total_revenue"
+    );
+    assert!(
+        totals.get("total_expenses").is_some(),
+        "Missing field: total_expenses"
+    );
+    assert!(
+        totals.get("net_income").is_some(),
+        "Missing field: net_income"
+    );
 
     assert_eq!(
         totals_obj.len(),
@@ -253,8 +341,14 @@ fn test_income_statement_response_contract_snapshot() {
 
     // ===== CONTRACT ASSERTION: Field Types =====
     assert!(row["amount_minor"].is_i64(), "amount_minor should be i64");
-    assert!(totals["total_revenue"].is_i64(), "total_revenue should be i64");
-    assert!(totals["total_expenses"].is_i64(), "total_expenses should be i64");
+    assert!(
+        totals["total_revenue"].is_i64(),
+        "total_revenue should be i64"
+    );
+    assert!(
+        totals["total_expenses"].is_i64(),
+        "total_expenses should be i64"
+    );
     assert!(totals["net_income"].is_i64(), "net_income should be i64");
 
     // ===== CONTRACT ASSERTION: Round-Trip Stability =====
@@ -312,12 +406,22 @@ fn test_balance_sheet_response_contract_snapshot() {
         },
     };
 
-    let json_value = serde_json::to_value(&response).expect("Failed to serialize BalanceSheetResponse");
+    let json_value =
+        serde_json::to_value(&response).expect("Failed to serialize BalanceSheetResponse");
 
     // ===== CONTRACT ASSERTION: Top-Level Fields =====
-    assert!(json_value.get("tenant_id").is_some(), "Missing field: tenant_id");
-    assert!(json_value.get("period_id").is_some(), "Missing field: period_id");
-    assert!(json_value.get("currency").is_some(), "Missing field: currency");
+    assert!(
+        json_value.get("tenant_id").is_some(),
+        "Missing field: tenant_id"
+    );
+    assert!(
+        json_value.get("period_id").is_some(),
+        "Missing field: period_id"
+    );
+    assert!(
+        json_value.get("currency").is_some(),
+        "Missing field: currency"
+    );
     assert!(json_value.get("rows").is_some(), "Missing field: rows");
     assert!(json_value.get("totals").is_some(), "Missing field: totals");
 
@@ -333,11 +437,23 @@ fn test_balance_sheet_response_contract_snapshot() {
     let row = &json_value["rows"][0];
     let row_obj = row.as_object().expect("Row should be an object");
 
-    assert!(row.get("account_code").is_some(), "Missing field: account_code");
-    assert!(row.get("account_name").is_some(), "Missing field: account_name");
-    assert!(row.get("account_type").is_some(), "Missing field: account_type");
+    assert!(
+        row.get("account_code").is_some(),
+        "Missing field: account_code"
+    );
+    assert!(
+        row.get("account_name").is_some(),
+        "Missing field: account_name"
+    );
+    assert!(
+        row.get("account_type").is_some(),
+        "Missing field: account_type"
+    );
     assert!(row.get("currency").is_some(), "Missing field: currency");
-    assert!(row.get("amount_minor").is_some(), "Missing field: amount_minor");
+    assert!(
+        row.get("amount_minor").is_some(),
+        "Missing field: amount_minor"
+    );
 
     assert_eq!(
         row_obj.len(),
@@ -350,10 +466,22 @@ fn test_balance_sheet_response_contract_snapshot() {
     let totals = &json_value["totals"];
     let totals_obj = totals.as_object().expect("Totals should be an object");
 
-    assert!(totals.get("total_assets").is_some(), "Missing field: total_assets");
-    assert!(totals.get("total_liabilities").is_some(), "Missing field: total_liabilities");
-    assert!(totals.get("total_equity").is_some(), "Missing field: total_equity");
-    assert!(totals.get("is_balanced").is_some(), "Missing field: is_balanced");
+    assert!(
+        totals.get("total_assets").is_some(),
+        "Missing field: total_assets"
+    );
+    assert!(
+        totals.get("total_liabilities").is_some(),
+        "Missing field: total_liabilities"
+    );
+    assert!(
+        totals.get("total_equity").is_some(),
+        "Missing field: total_equity"
+    );
+    assert!(
+        totals.get("is_balanced").is_some(),
+        "Missing field: is_balanced"
+    );
 
     assert_eq!(
         totals_obj.len(),
@@ -363,10 +491,22 @@ fn test_balance_sheet_response_contract_snapshot() {
     );
 
     // ===== CONTRACT ASSERTION: Field Types =====
-    assert!(totals["total_assets"].is_i64(), "total_assets should be i64");
-    assert!(totals["total_liabilities"].is_i64(), "total_liabilities should be i64");
-    assert!(totals["total_equity"].is_i64(), "total_equity should be i64");
-    assert!(totals["is_balanced"].is_boolean(), "is_balanced should be boolean");
+    assert!(
+        totals["total_assets"].is_i64(),
+        "total_assets should be i64"
+    );
+    assert!(
+        totals["total_liabilities"].is_i64(),
+        "total_liabilities should be i64"
+    );
+    assert!(
+        totals["total_equity"].is_i64(),
+        "total_equity should be i64"
+    );
+    assert!(
+        totals["is_balanced"].is_boolean(),
+        "is_balanced should be boolean"
+    );
 
     // ===== CONTRACT ASSERTION: Accounting Equation in Contract =====
     // This validates that the accounting equation fields are present and correct types
@@ -409,10 +549,22 @@ fn test_currency_totals_contract_snapshot() {
     let json_obj = json_value.as_object().expect("Should be an object");
 
     // ===== CONTRACT ASSERTION: Field Presence =====
-    assert!(json_value.get("currency").is_some(), "Missing field: currency");
-    assert!(json_value.get("total_debits").is_some(), "Missing field: total_debits");
-    assert!(json_value.get("total_credits").is_some(), "Missing field: total_credits");
-    assert!(json_value.get("is_balanced").is_some(), "Missing field: is_balanced");
+    assert!(
+        json_value.get("currency").is_some(),
+        "Missing field: currency"
+    );
+    assert!(
+        json_value.get("total_debits").is_some(),
+        "Missing field: total_debits"
+    );
+    assert!(
+        json_value.get("total_credits").is_some(),
+        "Missing field: total_credits"
+    );
+    assert!(
+        json_value.get("is_balanced").is_some(),
+        "Missing field: is_balanced"
+    );
 
     // ===== CONTRACT ASSERTION: Field Count =====
     assert_eq!(
@@ -423,7 +575,8 @@ fn test_currency_totals_contract_snapshot() {
     );
 
     // ===== CONTRACT ASSERTION: Round-Trip Stability =====
-    let roundtrip: CurrencyTotals = serde_json::from_value(json_value).expect("Failed to deserialize CurrencyTotals");
+    let roundtrip: CurrencyTotals =
+        serde_json::from_value(json_value).expect("Failed to deserialize CurrencyTotals");
     assert_eq!(roundtrip.currency, totals.currency);
     assert_eq!(roundtrip.total_debits, totals.total_debits);
     assert_eq!(roundtrip.total_credits, totals.total_credits);
@@ -505,7 +658,11 @@ fn test_cross_statement_field_consistency() {
             "{} missing common field: currency",
             name
         );
-        assert!(json.get("rows").is_some(), "{} missing common field: rows", name);
+        assert!(
+            json.get("rows").is_some(),
+            "{} missing common field: rows",
+            name
+        );
         assert!(
             json.get("totals").is_some(),
             "{} missing common field: totals",
@@ -535,7 +692,11 @@ fn test_cross_statement_field_consistency() {
             name
         );
         assert!(json["rows"].is_array(), "{} rows should be array", name);
-        assert!(json["totals"].is_object(), "{} totals should be object", name);
+        assert!(
+            json["totals"].is_object(),
+            "{} totals should be object",
+            name
+        );
     }
 
     println!("✅ Cross-statement field consistency validated");
@@ -554,18 +715,16 @@ fn test_json_schema_stability_golden_snapshot() {
         tenant_id: "tenant_golden".to_string(),
         period_id,
         currency: "USD".to_string(),
-        rows: vec![
-            TrialBalanceRow {
-                account_code: "1000".to_string(),
-                account_name: "Cash".to_string(),
-                account_type: "asset".to_string(),
-                normal_balance: "debit".to_string(),
-                currency: "USD".to_string(),
-                debit_total_minor: 50000,
-                credit_total_minor: 0,
-                net_balance_minor: 50000,
-            },
-        ],
+        rows: vec![TrialBalanceRow {
+            account_code: "1000".to_string(),
+            account_name: "Cash".to_string(),
+            account_type: "asset".to_string(),
+            normal_balance: "debit".to_string(),
+            currency: "USD".to_string(),
+            debit_total_minor: 50000,
+            credit_total_minor: 0,
+            net_balance_minor: 50000,
+        }],
         totals: StatementTotals {
             total_debits: 50000,
             total_credits: 50000,

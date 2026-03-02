@@ -259,7 +259,7 @@ async fn test_query_account_activity_success() {
     let start_date = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
     let end_date = Utc.with_ymd_and_hms(2025, 1, 31, 23, 59, 59).unwrap();
 
-    let lines = query_account_activity(&pool, &tenant_id,"1000", start_date, end_date, 100, 0)
+    let lines = query_account_activity(&pool, &tenant_id, "1000", start_date, end_date, 100, 0)
         .await
         .expect("Query failed");
 
@@ -279,7 +279,7 @@ async fn test_count_account_activity() {
     let start_date = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
     let end_date = Utc.with_ymd_and_hms(2025, 1, 31, 23, 59, 59).unwrap();
 
-    let count = count_account_activity(&pool, &tenant_id,"1000", start_date, end_date)
+    let count = count_account_activity(&pool, &tenant_id, "1000", start_date, end_date)
         .await
         .expect("Count failed");
 
@@ -296,8 +296,8 @@ async fn test_account_activity_invalid_date_range() {
     let start_date = Utc.with_ymd_and_hms(2025, 1, 31, 0, 0, 0).unwrap();
     let end_date = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
 
-    let result = query_account_activity(&pool, &tenant_id,"1000", start_date, end_date, 100, 0)
-        .await;
+    let result =
+        query_account_activity(&pool, &tenant_id, "1000", start_date, end_date, 100, 0).await;
 
     assert!(matches!(
         result,
@@ -316,16 +316,16 @@ async fn test_account_activity_invalid_pagination() {
     let end_date = Utc.with_ymd_and_hms(2025, 1, 31, 0, 0, 0).unwrap();
 
     // Invalid limit
-    let result = query_account_activity(&pool, &tenant_id,"1000", start_date, end_date, 0, 0)
-        .await;
+    let result =
+        query_account_activity(&pool, &tenant_id, "1000", start_date, end_date, 0, 0).await;
     assert!(matches!(
         result,
         Err(ReportQueryError::InvalidPagination { .. })
     ));
 
     // Invalid offset
-    let result = query_account_activity(&pool, &tenant_id,"1000", start_date, end_date, 100, -1)
-        .await;
+    let result =
+        query_account_activity(&pool, &tenant_id, "1000", start_date, end_date, 100, -1).await;
     assert!(matches!(
         result,
         Err(ReportQueryError::InvalidPagination { .. })
@@ -346,7 +346,7 @@ async fn test_query_entries_by_date_range() {
     let start_date = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
     let end_date = Utc.with_ymd_and_hms(2025, 1, 31, 23, 59, 59).unwrap();
 
-    let entry_ids = query_entries_by_date_range(&pool, &tenant_id,start_date, end_date, 100, 0)
+    let entry_ids = query_entries_by_date_range(&pool, &tenant_id, start_date, end_date, 100, 0)
         .await
         .expect("Query failed");
 
@@ -445,7 +445,7 @@ async fn test_fetch_entry_lines_with_accounts() {
     let start_date = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
     let end_date = Utc.with_ymd_and_hms(2025, 1, 31, 23, 59, 59).unwrap();
 
-    let entry_ids = query_entries_by_date_range(&pool, &tenant_id,start_date, end_date, 1, 2)
+    let entry_ids = query_entries_by_date_range(&pool, &tenant_id, start_date, end_date, 1, 2)
         .await
         .expect("Query failed");
     assert_eq!(entry_ids.len(), 1);
@@ -470,21 +470,21 @@ async fn test_count_entries() {
     let start_date = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
     let end_date = Utc.with_ymd_and_hms(2025, 1, 31, 23, 59, 59).unwrap();
 
-    let count = count_entries_by_date_range(&pool, &tenant_id,start_date, end_date)
+    let count = count_entries_by_date_range(&pool, &tenant_id, start_date, end_date)
         .await
         .expect("Count failed");
     assert_eq!(count, 3);
 
     let account_codes = vec!["1000".to_string()];
     let count =
-        count_entries_by_account_codes(&pool, &tenant_id,&account_codes, start_date, end_date)
+        count_entries_by_account_codes(&pool, &tenant_id, &account_codes, start_date, end_date)
             .await
             .expect("Count failed");
     assert_eq!(count, 3);
 
     let account_types = vec![AccountType::Revenue];
     let count =
-        count_entries_by_account_types(&pool, &tenant_id,&account_types, start_date, end_date)
+        count_entries_by_account_types(&pool, &tenant_id, &account_types, start_date, end_date)
             .await
             .expect("Count failed");
     assert_eq!(count, 1);
@@ -504,7 +504,7 @@ async fn test_query_period_journal_entries() {
     let start_date = Utc.with_ymd_and_hms(2025, 1, 1, 0, 0, 0).unwrap();
     let end_date = Utc.with_ymd_and_hms(2025, 1, 31, 23, 59, 59).unwrap();
 
-    let entries = query_period_journal_entries(&pool, &tenant_id,start_date, end_date, 100, 0)
+    let entries = query_period_journal_entries(&pool, &tenant_id, start_date, end_date, 100, 0)
         .await
         .expect("Query failed");
 
@@ -523,7 +523,7 @@ async fn test_query_account_activity_no_results() {
     let start_date = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
     let end_date = Utc.with_ymd_and_hms(2024, 12, 31, 23, 59, 59).unwrap();
 
-    let lines = query_account_activity(&pool, &tenant_id,"1000", start_date, end_date, 100, 0)
+    let lines = query_account_activity(&pool, &tenant_id, "1000", start_date, end_date, 100, 0)
         .await
         .expect("Query failed");
 

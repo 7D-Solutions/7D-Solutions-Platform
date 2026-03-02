@@ -14,7 +14,10 @@
 
 mod common;
 
-use axum::{body::Body, http::{Request, StatusCode}};
+use axum::{
+    body::Body,
+    http::{Request, StatusCode},
+};
 use common::{get_integrations_pool, setup_nats_client};
 use futures::StreamExt;
 use integrations_rs::{http, metrics::IntegrationsMetrics, AppState};
@@ -80,17 +83,15 @@ async fn post_webhook(
         .unwrap();
     let resp = router.clone().oneshot(req).await.unwrap();
     let status = resp.status();
-    let bytes = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(json!({}));
     (status, body)
 }
 
 /// Manually dispatch unpublished outbox rows to NATS; returns count dispatched.
-async fn dispatch_outbox_to_nats(
-    pool: &PgPool,
-    nats: &async_nats::Client,
-    app_id: &str,
-) -> usize {
+async fn dispatch_outbox_to_nats(pool: &PgPool, nats: &async_nats::Client, app_id: &str) -> usize {
     #[derive(sqlx::FromRow)]
     struct OutboxRow {
         event_id: uuid::Uuid,
@@ -140,7 +141,9 @@ async fn test_webhook_ingest_full_path_with_nats() {
 
     // Subscribe to integrations wildcard BEFORE the mutation so we catch the event.
     let nats_subject = "integrations.events.>";
-    let mut subscriber = nats.subscribe(nats_subject.to_string()).await
+    let mut subscriber = nats
+        .subscribe(nats_subject.to_string())
+        .await
         .expect("NATS subscribe failed");
 
     let router = make_router(pool.clone());
@@ -157,7 +160,9 @@ async fn test_webhook_ingest_full_path_with_nats() {
 
     assert_eq!(status, StatusCode::OK, "expected 200; body={}", body);
     assert_eq!(body["status"], "accepted", "body={}", body);
-    let ingest_id = body["ingest_id"].as_i64().expect("ingest_id must be integer");
+    let ingest_id = body["ingest_id"]
+        .as_i64()
+        .expect("ingest_id must be integer");
     assert!(ingest_id > 0, "ingest_id must be positive");
 
     // ── DB: ingest row exists and is processed ────────────────────────────
@@ -187,7 +192,10 @@ async fn test_webhook_ingest_full_path_with_nats() {
     .fetch_one(&pool)
     .await
     .expect("outbox received query");
-    assert_eq!(received.0, 1, "webhook.received must be in outbox exactly once");
+    assert_eq!(
+        received.0, 1,
+        "webhook.received must be in outbox exactly once"
+    );
 
     let routed: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM integrations_outbox
@@ -202,7 +210,11 @@ async fn test_webhook_ingest_full_path_with_nats() {
 
     // ── NATS: dispatch outbox → subscriber receives ───────────────────────
     let dispatched = dispatch_outbox_to_nats(&pool, &nats, &app_id).await;
-    assert!(dispatched >= 2, "expected at least 2 events dispatched; got {}", dispatched);
+    assert!(
+        dispatched >= 2,
+        "expected at least 2 events dispatched; got {}",
+        dispatched
+    );
 
     // Collect the published messages (expect at least 2 within 3s)
     let mut received_types: Vec<String> = Vec::new();
@@ -250,7 +262,11 @@ async fn test_webhook_idempotent_replay() {
     // Replay — same idempotency key
     let (s2, b2) = post_webhook(&router, "internal", &app_id, &idem_key, payload.clone()).await;
     assert_eq!(s2, StatusCode::OK, "replay: {}", b2);
-    assert_eq!(b2["status"], "duplicate", "replay must be flagged duplicate; body={}", b2);
+    assert_eq!(
+        b2["status"], "duplicate",
+        "replay must be flagged duplicate; body={}",
+        b2
+    );
     let replay_id = b2["ingest_id"].as_i64().expect("replay ingest_id");
     assert_eq!(ingest_id, replay_id, "replay ingest_id must match original");
 
@@ -302,10 +318,17 @@ async fn test_external_ref_create_and_query_by_entity() {
 
     let resp = router.clone().oneshot(create_request).await.unwrap();
     let create_status = resp.status();
-    let bytes = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
     let created: Value = serde_json::from_slice(&bytes).unwrap_or(json!({}));
 
-    assert_eq!(create_status, StatusCode::CREATED, "expected 201; body={}", created);
+    assert_eq!(
+        create_status,
+        StatusCode::CREATED,
+        "expected 201; body={}",
+        created
+    );
     let ref_id = created["id"].as_i64().expect("id must be integer");
     assert!(ref_id > 0);
     assert_eq!(created["entity_type"], "invoice");
@@ -351,7 +374,9 @@ async fn test_external_ref_create_and_query_by_entity() {
 
     let list_resp = router.clone().oneshot(list_req).await.unwrap();
     assert_eq!(list_resp.status(), StatusCode::OK);
-    let list_bytes = axum::body::to_bytes(list_resp.into_body(), 64 * 1024).await.unwrap();
+    let list_bytes = axum::body::to_bytes(list_resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
     let list: Value = serde_json::from_slice(&list_bytes).unwrap_or(json!([]));
 
     let refs = list.as_array().expect("list must be array");
@@ -395,7 +420,9 @@ async fn test_external_ref_query_by_external_key() {
 
     let resp = router.clone().oneshot(create_request).await.unwrap();
     assert_eq!(resp.status(), StatusCode::CREATED, "create must return 201");
-    let bytes = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+    let bytes = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
     let created: Value = serde_json::from_slice(&bytes).expect("create body must be JSON");
     let ref_id = created["id"].as_i64().expect("id");
 
@@ -411,8 +438,14 @@ async fn test_external_ref_query_by_external_key() {
         .unwrap();
 
     let lookup_resp = router.clone().oneshot(lookup_req).await.unwrap();
-    assert_eq!(lookup_resp.status(), StatusCode::OK, "by-system lookup must return 200");
-    let lb = axum::body::to_bytes(lookup_resp.into_body(), 64 * 1024).await.unwrap();
+    assert_eq!(
+        lookup_resp.status(),
+        StatusCode::OK,
+        "by-system lookup must return 200"
+    );
+    let lb = axum::body::to_bytes(lookup_resp.into_body(), 64 * 1024)
+        .await
+        .unwrap();
     let found: Value = serde_json::from_slice(&lb).expect("lookup body must be JSON");
 
     assert_eq!(found["id"], ref_id, "by-system must return the correct ref");
@@ -423,7 +456,10 @@ async fn test_external_ref_query_by_external_key() {
     // Verify NATS: dispatch outbox and confirm external_ref.created event was published
     let nats = setup_nats_client().await;
     let dispatched = dispatch_outbox_to_nats(&pool, &nats, &app_id).await;
-    assert!(dispatched >= 1, "external_ref.created event must have been dispatched to NATS");
+    assert!(
+        dispatched >= 1,
+        "external_ref.created event must have been dispatched to NATS"
+    );
 
     cleanup(&pool, &app_id).await;
 }

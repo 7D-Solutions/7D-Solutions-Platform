@@ -227,8 +227,10 @@ async fn test_boundary_http_account_activity_with_period_id() {
     .await;
 
     // Insert test journal entries with posted_at within the period
-    let posted_at = NaiveDate::from_ymd_opt(2024, 3, 15).unwrap()
-        .and_hms_opt(10, 0, 0).unwrap()
+    let posted_at = NaiveDate::from_ymd_opt(2024, 3, 15)
+        .unwrap()
+        .and_hms_opt(10, 0, 0)
+        .unwrap()
         .and_utc();
 
     insert_test_journal_entry(
@@ -356,7 +358,9 @@ async fn test_boundary_http_account_activity_pagination() {
         gl_service_url, account_code, tenant_id, period_id
     );
 
-    let response1 = reqwest::get(&url_page1).await.expect("Failed to fetch page 1");
+    let response1 = reqwest::get(&url_page1)
+        .await
+        .expect("Failed to fetch page 1");
     assert_eq!(response1.status(), 200);
 
     let activity1: AccountActivityResponse = response1.json().await.expect("Failed to parse JSON");
@@ -372,7 +376,9 @@ async fn test_boundary_http_account_activity_pagination() {
         gl_service_url, account_code, tenant_id, period_id
     );
 
-    let response2 = reqwest::get(&url_page2).await.expect("Failed to fetch page 2");
+    let response2 = reqwest::get(&url_page2)
+        .await
+        .expect("Failed to fetch page 2");
     assert_eq!(response2.status(), 200);
 
     let activity2: AccountActivityResponse = response2.json().await.expect("Failed to parse JSON");
@@ -386,7 +392,9 @@ async fn test_boundary_http_account_activity_pagination() {
         gl_service_url, account_code, tenant_id, period_id
     );
 
-    let response3 = reqwest::get(&url_page3).await.expect("Failed to fetch page 3");
+    let response3 = reqwest::get(&url_page3)
+        .await
+        .expect("Failed to fetch page 3");
     assert_eq!(response3.status(), 200);
 
     let activity3: AccountActivityResponse = response3.json().await.expect("Failed to parse JSON");
@@ -433,9 +441,42 @@ async fn test_boundary_http_account_activity_currency_filter() {
 
     // Insert entries with different currencies within the period
     let posted_at = Utc.with_ymd_and_hms(2024, 3, 15, 10, 0, 0).unwrap();
-    insert_test_journal_entry(&pool, tenant_id, account_code, "USD", 0, 100000, Some("USD tx"), None, posted_at).await;
-    insert_test_journal_entry(&pool, tenant_id, account_code, "EUR", 0, 50000, Some("EUR tx"), None, posted_at + chrono::Duration::hours(1)).await;
-    insert_test_journal_entry(&pool, tenant_id, account_code, "USD", 0, 75000, Some("USD tx 2"), None, posted_at + chrono::Duration::hours(2)).await;
+    insert_test_journal_entry(
+        &pool,
+        tenant_id,
+        account_code,
+        "USD",
+        0,
+        100000,
+        Some("USD tx"),
+        None,
+        posted_at,
+    )
+    .await;
+    insert_test_journal_entry(
+        &pool,
+        tenant_id,
+        account_code,
+        "EUR",
+        0,
+        50000,
+        Some("EUR tx"),
+        None,
+        posted_at + chrono::Duration::hours(1),
+    )
+    .await;
+    insert_test_journal_entry(
+        &pool,
+        tenant_id,
+        account_code,
+        "USD",
+        0,
+        75000,
+        Some("USD tx 2"),
+        None,
+        posted_at + chrono::Duration::hours(2),
+    )
+    .await;
 
     // Test 1: Filter by USD
     let url_usd = format!(
@@ -443,10 +484,13 @@ async fn test_boundary_http_account_activity_currency_filter() {
         gl_service_url, account_code, tenant_id, period_id
     );
 
-    let response_usd = reqwest::get(&url_usd).await.expect("Failed to fetch USD activity");
+    let response_usd = reqwest::get(&url_usd)
+        .await
+        .expect("Failed to fetch USD activity");
     assert_eq!(response_usd.status(), 200);
 
-    let activity_usd: AccountActivityResponse = response_usd.json().await.expect("Failed to parse JSON");
+    let activity_usd: AccountActivityResponse =
+        response_usd.json().await.expect("Failed to parse JSON");
     assert_eq!(activity_usd.lines.len(), 2, "Should have 2 USD lines");
     assert!(activity_usd.lines.iter().all(|l| l.currency == "USD"));
 
@@ -456,10 +500,13 @@ async fn test_boundary_http_account_activity_currency_filter() {
         gl_service_url, account_code, tenant_id, period_id
     );
 
-    let response_eur = reqwest::get(&url_eur).await.expect("Failed to fetch EUR activity");
+    let response_eur = reqwest::get(&url_eur)
+        .await
+        .expect("Failed to fetch EUR activity");
     assert_eq!(response_eur.status(), 200);
 
-    let activity_eur: AccountActivityResponse = response_eur.json().await.expect("Failed to parse JSON");
+    let activity_eur: AccountActivityResponse =
+        response_eur.json().await.expect("Failed to parse JSON");
     assert_eq!(activity_eur.lines.len(), 1, "Should have 1 EUR line");
     assert_eq!(activity_eur.lines[0].currency, "EUR");
 
@@ -474,12 +521,11 @@ async fn test_boundary_http_account_activity_error_handling() {
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
     // Test 1: Missing required query parameter tenant_id (should return 400)
-    let url_missing_tenant = format!(
-        "{}/api/gl/accounts/1000/activity",
-        gl_service_url
-    );
+    let url_missing_tenant = format!("{}/api/gl/accounts/1000/activity", gl_service_url);
 
-    let response = reqwest::get(&url_missing_tenant).await.expect("Failed to make request");
+    let response = reqwest::get(&url_missing_tenant)
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response.status(),
         400,
@@ -492,7 +538,9 @@ async fn test_boundary_http_account_activity_error_handling() {
         gl_service_url
     );
 
-    let response_no_date = reqwest::get(&url_no_date_filter).await.expect("Failed to make request");
+    let response_no_date = reqwest::get(&url_no_date_filter)
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response_no_date.status(),
         400,
@@ -505,7 +553,9 @@ async fn test_boundary_http_account_activity_error_handling() {
         gl_service_url
     );
 
-    let response_invalid = reqwest::get(&url_invalid_uuid).await.expect("Failed to make request");
+    let response_invalid = reqwest::get(&url_invalid_uuid)
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response_invalid.status(),
         400,
@@ -519,7 +569,9 @@ async fn test_boundary_http_account_activity_error_handling() {
         gl_service_url, nonexistent_period_id
     );
 
-    let response_not_found = reqwest::get(&url_not_found).await.expect("Failed to make request");
+    let response_not_found = reqwest::get(&url_not_found)
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response_not_found.status(),
         404,
@@ -533,7 +585,9 @@ async fn test_boundary_http_account_activity_error_handling() {
         gl_service_url, period_id
     );
 
-    let response_bad_pagination = reqwest::get(&url_invalid_pagination).await.expect("Failed to make request");
+    let response_bad_pagination = reqwest::get(&url_invalid_pagination)
+        .await
+        .expect("Failed to make request");
     assert!(
         response_bad_pagination.status().is_client_error(),
         "Should return 4xx for invalid pagination (limit > 100)"
@@ -603,12 +657,27 @@ async fn test_boundary_http_account_activity_json_dto_structure() {
     let json_value: serde_json::Value = response.json().await.expect("Failed to parse JSON");
 
     // Assert: All expected top-level fields present
-    assert!(json_value.get("tenant_id").is_some(), "Missing tenant_id field");
-    assert!(json_value.get("account_code").is_some(), "Missing account_code field");
-    assert!(json_value.get("period_start").is_some(), "Missing period_start field");
-    assert!(json_value.get("period_end").is_some(), "Missing period_end field");
+    assert!(
+        json_value.get("tenant_id").is_some(),
+        "Missing tenant_id field"
+    );
+    assert!(
+        json_value.get("account_code").is_some(),
+        "Missing account_code field"
+    );
+    assert!(
+        json_value.get("period_start").is_some(),
+        "Missing period_start field"
+    );
+    assert!(
+        json_value.get("period_end").is_some(),
+        "Missing period_end field"
+    );
     assert!(json_value.get("lines").is_some(), "Missing lines field");
-    assert!(json_value.get("pagination").is_some(), "Missing pagination field");
+    assert!(
+        json_value.get("pagination").is_some(),
+        "Missing pagination field"
+    );
 
     // Assert: Correct field types
     assert!(json_value["tenant_id"].is_string());
@@ -625,15 +694,33 @@ async fn test_boundary_http_account_activity_json_dto_structure() {
     assert!(line.get("entry_id").is_some(), "Missing entry_id in line");
     assert!(line.get("posted_at").is_some(), "Missing posted_at in line");
     assert!(line.get("currency").is_some(), "Missing currency in line");
-    assert!(line.get("debit_minor").is_some(), "Missing debit_minor in line");
-    assert!(line.get("credit_minor").is_some(), "Missing credit_minor in line");
+    assert!(
+        line.get("debit_minor").is_some(),
+        "Missing debit_minor in line"
+    );
+    assert!(
+        line.get("credit_minor").is_some(),
+        "Missing credit_minor in line"
+    );
 
     // Assert: Pagination structure
     let pagination = &json_value["pagination"];
-    assert!(pagination.get("limit").is_some(), "Missing limit in pagination");
-    assert!(pagination.get("offset").is_some(), "Missing offset in pagination");
-    assert!(pagination.get("total_count").is_some(), "Missing total_count in pagination");
-    assert!(pagination.get("has_more").is_some(), "Missing has_more in pagination");
+    assert!(
+        pagination.get("limit").is_some(),
+        "Missing limit in pagination"
+    );
+    assert!(
+        pagination.get("offset").is_some(),
+        "Missing offset in pagination"
+    );
+    assert!(
+        pagination.get("total_count").is_some(),
+        "Missing total_count in pagination"
+    );
+    assert!(
+        pagination.get("has_more").is_some(),
+        "Missing has_more in pagination"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -698,7 +785,9 @@ async fn test_boundary_http_account_activity_performance_guard() {
     );
 
     let start = std::time::Instant::now();
-    let response = reqwest::get(&url).await.expect("Failed to fetch account activity");
+    let response = reqwest::get(&url)
+        .await
+        .expect("Failed to fetch account activity");
     let elapsed = start.elapsed();
 
     assert_eq!(response.status(), 200);

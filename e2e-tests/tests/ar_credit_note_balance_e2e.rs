@@ -52,11 +52,26 @@ async fn create_customer_and_invoice(
 }
 
 async fn cleanup(pool: &sqlx::PgPool, tenant_id: &str) -> Result<()> {
-    sqlx::query("DELETE FROM events_outbox WHERE tenant_id = $1").bind(tenant_id).execute(pool).await?;
-    sqlx::query("DELETE FROM ar_credit_notes WHERE app_id = $1").bind(tenant_id).execute(pool).await?;
-    sqlx::query("DELETE FROM ar_invoice_attempts WHERE app_id = $1").bind(tenant_id).execute(pool).await?;
-    sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1").bind(tenant_id).execute(pool).await?;
-    sqlx::query("DELETE FROM ar_customers WHERE app_id = $1").bind(tenant_id).execute(pool).await?;
+    sqlx::query("DELETE FROM events_outbox WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
+    sqlx::query("DELETE FROM ar_credit_notes WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
+    sqlx::query("DELETE FROM ar_invoice_attempts WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
+    sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
+    sqlx::query("DELETE FROM ar_customers WHERE app_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 
@@ -144,7 +159,9 @@ async fn test_credit_note_nats_event_payload() {
         {
             let subject = format!("ar.events.{}", event.event_type);
             let payload_bytes = serde_json::to_vec(&event.payload).expect("serialize failed");
-            nats.publish(subject, payload_bytes.into()).await.expect("nats publish failed");
+            nats.publish(subject, payload_bytes.into())
+                .await
+                .expect("nats publish failed");
             ar_rs::events::outbox::mark_as_published(&pool, event.event_id)
                 .await
                 .expect("mark_as_published failed");
@@ -217,7 +234,10 @@ async fn test_over_credit_rejected() {
             .fetch_one(&pool)
             .await
             .expect("count failed");
-    assert_eq!(row_count, 0, "no credit note row must exist after over-credit rejection");
+    assert_eq!(
+        row_count, 0,
+        "no credit note row must exist after over-credit rejection"
+    );
 
     cleanup(&pool, &tenant_id).await.unwrap();
 }

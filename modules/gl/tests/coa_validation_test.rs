@@ -219,7 +219,10 @@ async fn test_posting_fails_account_not_found() {
     .await;
 
     // Should fail with validation error
-    assert!(result.is_err(), "Posting should fail with non-existent account");
+    assert!(
+        result.is_err(),
+        "Posting should fail with non-existent account"
+    );
 
     let error = result.unwrap_err();
     let error_msg = error.to_string();
@@ -241,7 +244,10 @@ async fn test_posting_fails_account_not_found() {
     .await
     .expect("Failed to query journal entries");
 
-    assert_eq!(count, 0, "No journal entry should be created for failed posting");
+    assert_eq!(
+        count, 0,
+        "No journal entry should be created for failed posting"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -338,7 +344,10 @@ async fn test_posting_fails_account_inactive() {
     .await
     .expect("Failed to query journal entries");
 
-    assert_eq!(count, 0, "No journal entry should be created for failed posting");
+    assert_eq!(
+        count, 0,
+        "No journal entry should be created for failed posting"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -507,7 +516,10 @@ async fn test_posting_preserves_idempotency_with_coa_validation() {
     )
     .await;
 
-    assert!(result2.is_err(), "Second posting should be rejected as duplicate");
+    assert!(
+        result2.is_err(),
+        "Second posting should be rejected as duplicate"
+    );
 
     let error = result2.unwrap_err();
     assert!(

@@ -147,13 +147,11 @@ async fn get_invoice_status(pool: &PgPool, invoice_id: i32) -> String {
 
 /// Count processed events recorded for an event_id.
 async fn count_processed_events(pool: &PgPool, event_id: Uuid) -> i64 {
-    sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM processed_events WHERE event_id = $1",
-    )
-    .bind(event_id)
-    .fetch_one(pool)
-    .await
-    .unwrap_or(0)
+    sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
+        .bind(event_id)
+        .fetch_one(pool)
+        .await
+        .unwrap_or(0)
 }
 
 /// Count payment attempts by payment_id.
@@ -342,7 +340,14 @@ async fn test_double_payment_guard_already_paid_invoice() {
     let invoice_id = create_ar_invoice(&ar_pool, &app_id, customer_id, AMOUNT).await;
 
     // First payment settles the invoice
-    create_payment_attempt(&payments_pool, &app_id, payment_id_1, invoice_id, "succeeded").await;
+    create_payment_attempt(
+        &payments_pool,
+        &app_id,
+        payment_id_1,
+        invoice_id,
+        "succeeded",
+    )
+    .await;
     let msg1 =
         make_payment_succeeded_msg(event_id_1, &app_id, payment_id_1, invoice_id, AMOUNT as i32);
     process_payment_succeeded(&ar_pool, &msg1)
@@ -351,7 +356,14 @@ async fn test_double_payment_guard_already_paid_invoice() {
     assert_eq!(get_invoice_status(&ar_pool, invoice_id).await, "paid");
 
     // Second payment event for the same invoice (different event_id, different payment_id)
-    create_payment_attempt(&payments_pool, &app_id, payment_id_2, invoice_id, "succeeded").await;
+    create_payment_attempt(
+        &payments_pool,
+        &app_id,
+        payment_id_2,
+        invoice_id,
+        "succeeded",
+    )
+    .await;
     let msg2 =
         make_payment_succeeded_msg(event_id_2, &app_id, payment_id_2, invoice_id, AMOUNT as i32);
     process_payment_succeeded(&ar_pool, &msg2)

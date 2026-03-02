@@ -8,15 +8,14 @@
 
 mod common;
 
-use common::{generate_test_tenant, get_gl_pool};
 use chrono::Utc;
+use common::{generate_test_tenant, get_gl_pool};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use gl_rs::repos::revrec_repo;
 use gl_rs::revrec::{
-    ContractCreatedPayload, PerformanceObligation, RecognitionPattern,
-    EVENT_TYPE_CONTRACT_CREATED,
+    ContractCreatedPayload, PerformanceObligation, RecognitionPattern, EVENT_TYPE_CONTRACT_CREATED,
 };
 
 // ============================================================================
@@ -34,7 +33,8 @@ async fn run_revrec_migrations(pool: &PgPool) {
         .await
         .expect("Failed to acquire revrec migration advisory lock");
 
-    let migration_sql = include_str!("../../modules/gl/db/migrations/20260217000001_create_revrec_tables.sql");
+    let migration_sql =
+        include_str!("../../modules/gl/db/migrations/20260217000001_create_revrec_tables.sql");
     let result = sqlx::raw_sql(migration_sql).execute(pool).await;
 
     sqlx::query("SELECT pg_advisory_unlock($1)")
@@ -130,7 +130,11 @@ async fn test_revrec_contract_create_persists_atomically() {
 
     // Act: create contract
     let result = revrec_repo::create_contract(&gl_pool, event_id, &payload).await;
-    assert!(result.is_ok(), "Contract creation failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Contract creation failed: {:?}",
+        result.err()
+    );
     assert_eq!(result.unwrap(), contract_id);
 
     // Assert: contract row exists
@@ -151,11 +155,17 @@ async fn test_revrec_contract_create_persists_atomically() {
         .expect("get_obligations query failed");
     assert_eq!(obligations.len(), 2, "Expected 2 obligations");
 
-    let saas = obligations.iter().find(|o| o.name == "SaaS License").unwrap();
+    let saas = obligations
+        .iter()
+        .find(|o| o.name == "SaaS License")
+        .unwrap();
     assert_eq!(saas.allocated_amount_minor, 96000_00);
     assert_eq!(saas.status, "unsatisfied");
 
-    let impl_svc = obligations.iter().find(|o| o.name == "Implementation Services").unwrap();
+    let impl_svc = obligations
+        .iter()
+        .find(|o| o.name == "Implementation Services")
+        .unwrap();
     assert_eq!(impl_svc.allocated_amount_minor, 24000_00);
     println!("✅ {} obligation rows persisted", obligations.len());
 
@@ -171,7 +181,10 @@ async fn test_revrec_contract_create_persists_atomically() {
         db_sum, contract.total_transaction_price_minor,
         "Allocation sum in DB must equal total_transaction_price_minor"
     );
-    println!("✅ Allocation sum invariant: {} == {}", db_sum, contract.total_transaction_price_minor);
+    println!(
+        "✅ Allocation sum invariant: {} == {}",
+        db_sum, contract.total_transaction_price_minor
+    );
 
     // Assert: outbox has revrec.contract_created event
     let outbox_count: i64 = sqlx::query_scalar(
@@ -187,16 +200,18 @@ async fn test_revrec_contract_create_persists_atomically() {
         "❌ ATOMICITY VIOLATION: contract committed but no outbox event (expected 1, found {})",
         outbox_count
     );
-    println!("✅ Outbox event {} emitted atomically", EVENT_TYPE_CONTRACT_CREATED);
+    println!(
+        "✅ Outbox event {} emitted atomically",
+        EVENT_TYPE_CONTRACT_CREATED
+    );
 
     // Assert: outbox aggregate references the contract
-    let outbox_aggregate: String = sqlx::query_scalar(
-        "SELECT aggregate_id FROM events_outbox WHERE event_id = $1",
-    )
-    .bind(event_id)
-    .fetch_one(&gl_pool)
-    .await
-    .expect("Outbox aggregate query failed");
+    let outbox_aggregate: String =
+        sqlx::query_scalar("SELECT aggregate_id FROM events_outbox WHERE event_id = $1")
+            .bind(event_id)
+            .fetch_one(&gl_pool)
+            .await
+            .expect("Outbox aggregate query failed");
     assert_eq!(outbox_aggregate, contract_id.to_string());
     println!("✅ Outbox aggregate_id matches contract_id");
 
@@ -233,13 +248,12 @@ async fn test_revrec_contract_create_idempotent() {
     }
 
     // Verify only one contract row exists
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM revrec_contracts WHERE contract_id = $1",
-    )
-    .bind(contract_id)
-    .fetch_one(&gl_pool)
-    .await
-    .expect("Count query failed");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM revrec_contracts WHERE contract_id = $1")
+            .bind(contract_id)
+            .fetch_one(&gl_pool)
+            .await
+            .expect("Count query failed");
     assert_eq!(count, 1, "Must have exactly one contract row");
 
     // Verify only one outbox event (from first create)
@@ -278,20 +292,25 @@ async fn test_revrec_contract_allocation_mismatch_rejected() {
         revrec_repo::RevrecRepoError::AllocationMismatch { sum, expected } => {
             assert_eq!(sum, 74000_00);
             assert_eq!(expected, 120000_00);
-            println!("✅ Allocation mismatch correctly rejected: sum={}, expected={}", sum, expected);
+            println!(
+                "✅ Allocation mismatch correctly rejected: sum={}, expected={}",
+                sum, expected
+            );
         }
         other => panic!("Expected AllocationMismatch error, got: {:?}", other),
     }
 
     // Verify nothing was persisted
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM revrec_contracts WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&gl_pool)
-    .await
-    .expect("Count query failed");
-    assert_eq!(count, 0, "No contract should be persisted on validation failure");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM revrec_contracts WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&gl_pool)
+            .await
+            .expect("Count query failed");
+    assert_eq!(
+        count, 0,
+        "No contract should be persisted on validation failure"
+    );
     println!("✅ No partial data persisted on validation failure");
 
     cleanup_revrec(&gl_pool, &tenant_id).await;
@@ -336,7 +355,11 @@ async fn test_revrec_contract_usage_based_pattern() {
 
     let event_id = Uuid::new_v4();
     let result = revrec_repo::create_contract(&gl_pool, event_id, &payload).await;
-    assert!(result.is_ok(), "Usage-based contract creation failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "Usage-based contract creation failed: {:?}",
+        result.err()
+    );
 
     // Verify the recognition_pattern JSON roundtrips correctly
     let obligations = revrec_repo::get_obligations(&gl_pool, contract_id)

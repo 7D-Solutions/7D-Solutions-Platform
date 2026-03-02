@@ -8,8 +8,7 @@ use uuid::Uuid;
 async fn setup_test_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
 
-    let database_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for tests");
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)

@@ -62,7 +62,9 @@ async fn make_party(pool: &sqlx::PgPool, app: &str, name: &str) -> Uuid {
         country: None,
         metadata: None,
     };
-    let view = create_company(pool, app, &req, corr()).await.expect("make_party failed");
+    let view = create_company(pool, app, &req, corr())
+        .await
+        .expect("make_party failed");
     view.party.id
 }
 
@@ -70,7 +72,11 @@ fn base_contact_req(first: &str, last: &str) -> CreateContactRequest {
     CreateContactRequest {
         first_name: first.to_string(),
         last_name: last.to_string(),
-        email: Some(format!("{}.{}@example.com", first.to_lowercase(), last.to_lowercase())),
+        email: Some(format!(
+            "{}.{}@example.com",
+            first.to_lowercase(),
+            last.to_lowercase()
+        )),
         phone: Some("+1-555-0100".to_string()),
         role: Some("Manager".to_string()),
         is_primary: Some(false),
@@ -114,7 +120,9 @@ async fn test_create_contact_empty_first_name() {
     let mut req = base_contact_req("Bob", "Jones");
     req.first_name = "".to_string();
 
-    let err = create_contact(&pool, &app, party_id, &req).await.unwrap_err();
+    let err = create_contact(&pool, &app, party_id, &req)
+        .await
+        .unwrap_err();
     assert!(
         matches!(err, PartyError::Validation(_)),
         "expected Validation, got: {:?}",
@@ -136,7 +144,9 @@ async fn test_create_contact_invalid_email() {
     let mut req = base_contact_req("Carol", "White");
     req.email = Some("not-an-email".to_string());
 
-    let err = create_contact(&pool, &app, party_id, &req).await.unwrap_err();
+    let err = create_contact(&pool, &app, party_id, &req)
+        .await
+        .unwrap_err();
     assert!(
         matches!(err, PartyError::Validation(_)),
         "expected Validation, got: {:?}",
@@ -154,9 +164,14 @@ async fn test_create_contact_party_not_found() {
     let pool = setup_db().await;
     let app = unique_app();
 
-    let err = create_contact(&pool, &app, Uuid::new_v4(), &base_contact_req("Dan", "Brown"))
-        .await
-        .unwrap_err();
+    let err = create_contact(
+        &pool,
+        &app,
+        Uuid::new_v4(),
+        &base_contact_req("Dan", "Brown"),
+    )
+    .await
+    .unwrap_err();
     assert!(
         matches!(err, PartyError::NotFound(_)),
         "expected NotFound, got: {:?}",
@@ -175,8 +190,12 @@ async fn test_list_contacts() {
     let app = unique_app();
     let party_id = make_party(&pool, &app, "List Contacts Corp").await;
 
-    create_contact(&pool, &app, party_id, &base_contact_req("Eve", "Adams")).await.unwrap();
-    create_contact(&pool, &app, party_id, &base_contact_req("Frank", "Baker")).await.unwrap();
+    create_contact(&pool, &app, party_id, &base_contact_req("Eve", "Adams"))
+        .await
+        .unwrap();
+    create_contact(&pool, &app, party_id, &base_contact_req("Frank", "Baker"))
+        .await
+        .unwrap();
 
     let contacts = list_contacts(&pool, &app, party_id).await.unwrap();
     assert_eq!(contacts.len(), 2);
@@ -289,7 +308,11 @@ async fn test_update_contact_not_found() {
     .await
     .unwrap_err();
 
-    assert!(matches!(err, PartyError::NotFound(_)), "expected NotFound, got: {:?}", err);
+    assert!(
+        matches!(err, PartyError::NotFound(_)),
+        "expected NotFound, got: {:?}",
+        err
+    );
 }
 
 // ============================================================================
@@ -323,8 +346,14 @@ async fn test_delete_contact_not_found() {
     let pool = setup_db().await;
     let app = unique_app();
 
-    let err = delete_contact(&pool, &app, Uuid::new_v4()).await.unwrap_err();
-    assert!(matches!(err, PartyError::NotFound(_)), "expected NotFound, got: {:?}", err);
+    let err = delete_contact(&pool, &app, Uuid::new_v4())
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, PartyError::NotFound(_)),
+        "expected NotFound, got: {:?}",
+        err
+    );
 }
 
 // ============================================================================
@@ -350,7 +379,10 @@ async fn test_only_one_primary_contact() {
 
     // First contact should now be non-primary
     let first_refreshed = get_contact(&pool, &app, first.id).await.unwrap().unwrap();
-    assert!(!first_refreshed.is_primary, "original primary should be cleared");
+    assert!(
+        !first_refreshed.is_primary,
+        "original primary should be cleared"
+    );
 }
 
 // ============================================================================
@@ -365,8 +397,9 @@ async fn test_contact_tenant_isolation() {
     let app_b = unique_app();
 
     let party_id = make_party(&pool, &app_a, "Isolation Corp").await;
-    let contact =
-        create_contact(&pool, &app_a, party_id, &base_contact_req("Nora", "Owen")).await.unwrap();
+    let contact = create_contact(&pool, &app_a, party_id, &base_contact_req("Nora", "Owen"))
+        .await
+        .unwrap();
 
     // App B cannot read App A's contact
     let result = get_contact(&pool, &app_b, contact.id).await.unwrap();

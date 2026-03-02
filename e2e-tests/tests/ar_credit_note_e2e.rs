@@ -147,13 +147,12 @@ async fn test_credit_note_issued_with_outbox_event() {
             assert_eq!(event_count, 1, "expected exactly 1 outbox event");
 
             // Verify event type is correct
-            let event_type: String = sqlx::query_scalar(
-                "SELECT event_type FROM events_outbox WHERE aggregate_id = $1",
-            )
-            .bind(credit_note_id.to_string())
-            .fetch_one(&pool)
-            .await
-            .expect("failed to fetch event type");
+            let event_type: String =
+                sqlx::query_scalar("SELECT event_type FROM events_outbox WHERE aggregate_id = $1")
+                    .bind(credit_note_id.to_string())
+                    .fetch_one(&pool)
+                    .await
+                    .expect("failed to fetch event type");
             assert_eq!(event_type, "ar.credit_note_issued");
         }
         IssueCreditNoteResult::AlreadyProcessed { .. } => {
@@ -208,20 +207,22 @@ async fn test_credit_note_idempotency() {
     );
 
     // Only one credit note row should exist
-    let row_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_credit_notes WHERE credit_note_id = $1",
-    )
-    .bind(credit_note_id)
-    .fetch_one(&pool)
-    .await
-    .expect("failed to count credit note rows");
+    let row_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_credit_notes WHERE credit_note_id = $1")
+            .bind(credit_note_id)
+            .fetch_one(&pool)
+            .await
+            .expect("failed to count credit note rows");
     assert_eq!(row_count, 1, "expected exactly 1 credit note row");
 
     // Only one outbox event should exist
     let event_count = count_outbox_events(&pool, &credit_note_id.to_string())
         .await
         .expect("failed to count outbox events");
-    assert_eq!(event_count, 1, "expected exactly 1 outbox event (no duplicate)");
+    assert_eq!(
+        event_count, 1,
+        "expected exactly 1 outbox event (no duplicate)"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await.unwrap();
 }
@@ -287,7 +288,10 @@ async fn test_credit_note_unknown_invoice_rejected() {
         .await
         .expect_err("expected InvoiceNotFound error");
     assert!(
-        matches!(err, ar_rs::credit_notes::CreditNoteError::InvoiceNotFound { .. }),
+        matches!(
+            err,
+            ar_rs::credit_notes::CreditNoteError::InvoiceNotFound { .. }
+        ),
         "expected InvoiceNotFound, got {:?}",
         err
     );
@@ -299,7 +303,10 @@ async fn test_credit_note_unknown_invoice_rejected() {
             .fetch_one(&pool)
             .await
             .expect("count failed");
-    assert_eq!(row_count, 0, "no credit note rows should exist after rejection");
+    assert_eq!(
+        row_count, 0,
+        "no credit note rows should exist after rejection"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await.unwrap();
 }
@@ -347,16 +354,18 @@ async fn test_credit_note_outbox_atomicity() {
         .expect("count failed");
 
     assert_eq!(note_count, 1, "credit note row must exist after issue");
-    assert_eq!(event_count, 1, "outbox event must exist atomically with credit note row");
+    assert_eq!(
+        event_count, 1,
+        "outbox event must exist atomically with credit note row"
+    );
 
     // Verify outbox event has correct mutation_class = DATA_MUTATION
-    let mutation_class: String = sqlx::query_scalar(
-        "SELECT mutation_class FROM events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(credit_note_id.to_string())
-    .fetch_one(&pool)
-    .await
-    .expect("fetch mutation_class failed");
+    let mutation_class: String =
+        sqlx::query_scalar("SELECT mutation_class FROM events_outbox WHERE aggregate_id = $1")
+            .bind(credit_note_id.to_string())
+            .fetch_one(&pool)
+            .await
+            .expect("fetch mutation_class failed");
     assert_eq!(mutation_class, "DATA_MUTATION");
 
     cleanup_tenant(&pool, &tenant_id).await.unwrap();

@@ -18,8 +18,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -60,13 +60,12 @@ async fn get_inventory_ref(pool: &sqlx::PgPool, line_id: Uuid) -> Option<Uuid> {
 }
 
 async fn count_outbox_events_for(pool: &sqlx::PgPool, aggregate_id: &str) -> i64 {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(aggregate_id)
-    .fetch_one(pool)
-    .await
-    .expect("count outbox events");
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1")
+            .bind(aggregate_id)
+            .fetch_one(pool)
+            .await
+            .expect("count outbox events");
     row.0
 }
 
@@ -123,7 +122,10 @@ async fn inbound_close_idempotent_no_duplicate_inventory_or_events() {
 
     // inventory_ref_id unchanged
     let ref_after = get_inventory_ref(&pool, line_id).await;
-    assert_eq!(ref_first, ref_after, "inventory_ref_id must not change on retry");
+    assert_eq!(
+        ref_first, ref_after,
+        "inventory_ref_id must not change on retry"
+    );
 
     // No new outbox events
     let events_after_second = count_outbox_events_for(&pool, &ship_id_str).await;
@@ -184,7 +186,10 @@ async fn outbound_ship_idempotent_no_duplicate_inventory_or_events() {
 
     // inventory_ref_id unchanged
     let ref_after = get_inventory_ref(&pool, line_id).await;
-    assert_eq!(ref_first, ref_after, "inventory_ref_id must not change on retry");
+    assert_eq!(
+        ref_first, ref_after,
+        "inventory_ref_id must not change on retry"
+    );
 
     // No new outbox events
     let events_after_second = count_outbox_events_for(&pool, &ship_id_str).await;

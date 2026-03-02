@@ -3,7 +3,6 @@
 /// Calls process_idempotent() twice with the same event_id.  The second call
 /// is short-circuited by the processed_events gate, so handle_invoice_issued
 /// is invoked exactly once, resulting in exactly 1 row in scheduled_notifications.
-
 use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -108,13 +107,12 @@ async fn test_replay_safety_exactly_one_scheduled_row() {
 
     // Assert exactly 1 scheduled_notifications row for this recipient.
     let recipient_ref = format!("{}:{}", tenant_id, customer_id);
-    let (count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM scheduled_notifications WHERE recipient_ref = $1",
-    )
-    .bind(&recipient_ref)
-    .fetch_one(&pool)
-    .await
-    .expect("count query failed");
+    let (count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM scheduled_notifications WHERE recipient_ref = $1")
+            .bind(&recipient_ref)
+            .fetch_one(&pool)
+            .await
+            .expect("count query failed");
 
     assert_eq!(
         count, 1,

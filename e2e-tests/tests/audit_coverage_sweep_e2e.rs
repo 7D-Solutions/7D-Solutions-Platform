@@ -10,7 +10,6 @@
 /// 3. Sweep test: query all outbox events, verify no gaps
 ///
 /// **bd-197** — Phase 22 post-E2E bead
-
 mod common;
 
 use audit::{
@@ -64,9 +63,7 @@ const GL_AUDITABLE_EVENT_TYPES: &[&str] = &[
     "gl.fx_realized_posted",
 ];
 
-const SUBSCRIPTIONS_AUDITABLE_EVENT_TYPES: &[&str] = &[
-    "subscriptions.status.changed",
-];
+const SUBSCRIPTIONS_AUDITABLE_EVENT_TYPES: &[&str] = &["subscriptions.status.changed"];
 
 /// Mutation paths in AR that do NOT write to outbox (CRUD-only, no outbox event).
 ///
@@ -156,12 +153,11 @@ async fn write_audit_for_mutation(
 async fn test_ar_outbox_event_types_all_registered() {
     let pool = get_ar_pool().await;
 
-    let rows: Vec<String> = sqlx::query_scalar(
-        "SELECT DISTINCT event_type FROM events_outbox ORDER BY event_type",
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
+    let rows: Vec<String> =
+        sqlx::query_scalar("SELECT DISTINCT event_type FROM events_outbox ORDER BY event_type")
+            .fetch_all(&pool)
+            .await
+            .unwrap_or_default();
 
     let mut unregistered = Vec::new();
     for event_type in &rows {
@@ -182,12 +178,11 @@ async fn test_ar_outbox_event_types_all_registered() {
 async fn test_gl_outbox_event_types_all_registered() {
     let pool = get_gl_pool().await;
 
-    let rows: Vec<String> = sqlx::query_scalar(
-        "SELECT DISTINCT event_type FROM events_outbox ORDER BY event_type",
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
+    let rows: Vec<String> =
+        sqlx::query_scalar("SELECT DISTINCT event_type FROM events_outbox ORDER BY event_type")
+            .fetch_all(&pool)
+            .await
+            .unwrap_or_default();
 
     let mut unregistered = Vec::new();
     for event_type in &rows {
@@ -208,12 +203,11 @@ async fn test_gl_outbox_event_types_all_registered() {
 async fn test_subscriptions_outbox_event_types_all_registered() {
     let pool = get_subscriptions_pool().await;
 
-    let rows: Vec<String> = sqlx::query_scalar(
-        "SELECT DISTINCT event_type FROM events_outbox ORDER BY event_type",
-    )
-    .fetch_all(&pool)
-    .await
-    .unwrap_or_default();
+    let rows: Vec<String> =
+        sqlx::query_scalar("SELECT DISTINCT event_type FROM events_outbox ORDER BY event_type")
+            .fetch_all(&pool)
+            .await
+            .unwrap_or_default();
 
     let mut unregistered = Vec::new();
     for event_type in &rows {
@@ -266,12 +260,11 @@ async fn test_ar_outbox_audit_coverage_no_gaps() {
     common::run_audit_migrations(&audit_pool).await;
 
     // Get all AR outbox events
-    let outbox_events: Vec<(Uuid, String)> = sqlx::query_as(
-        "SELECT event_id, event_type FROM events_outbox ORDER BY created_at",
-    )
-    .fetch_all(&ar_pool)
-    .await
-    .unwrap_or_default();
+    let outbox_events: Vec<(Uuid, String)> =
+        sqlx::query_as("SELECT event_id, event_type FROM events_outbox ORDER BY created_at")
+            .fetch_all(&ar_pool)
+            .await
+            .unwrap_or_default();
 
     if outbox_events.is_empty() {
         eprintln!("AR outbox is empty — no events to verify audit coverage against");
@@ -279,12 +272,10 @@ async fn test_ar_outbox_audit_coverage_no_gaps() {
     }
 
     // Check if audit table has any records at all
-    let total_audit: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*)::bigint FROM audit_events",
-    )
-    .fetch_one(&audit_pool)
-    .await
-    .unwrap_or(0);
+    let total_audit: i64 = sqlx::query_scalar("SELECT COUNT(*)::bigint FROM audit_events")
+        .fetch_one(&audit_pool)
+        .await
+        .unwrap_or(0);
 
     if total_audit == 0 {
         eprintln!(
@@ -300,13 +291,12 @@ async fn test_ar_outbox_audit_coverage_no_gaps() {
     let mut covered = 0u64;
 
     for (event_id, event_type) in &outbox_events {
-        let audit_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1",
-        )
-        .bind(event_id)
-        .fetch_one(&audit_pool)
-        .await
-        .unwrap_or(0);
+        let audit_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1")
+                .bind(event_id)
+                .fetch_one(&audit_pool)
+                .await
+                .unwrap_or(0);
 
         if audit_count == 0 {
             gaps.push(format!("{} ({})", event_type, event_id));
@@ -348,27 +338,27 @@ async fn test_gl_outbox_audit_coverage_no_gaps() {
     let audit_pool = get_audit_pool().await;
     common::run_audit_migrations(&audit_pool).await;
 
-    let outbox_events: Vec<(Uuid, String)> = sqlx::query_as(
-        "SELECT event_id, event_type FROM events_outbox ORDER BY created_at",
-    )
-    .fetch_all(&gl_pool)
-    .await
-    .unwrap_or_default();
+    let outbox_events: Vec<(Uuid, String)> =
+        sqlx::query_as("SELECT event_id, event_type FROM events_outbox ORDER BY created_at")
+            .fetch_all(&gl_pool)
+            .await
+            .unwrap_or_default();
 
     if outbox_events.is_empty() {
         eprintln!("GL outbox is empty — no events to verify");
         return;
     }
 
-    let total_audit: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*)::bigint FROM audit_events",
-    )
-    .fetch_one(&audit_pool)
-    .await
-    .unwrap_or(0);
+    let total_audit: i64 = sqlx::query_scalar("SELECT COUNT(*)::bigint FROM audit_events")
+        .fetch_one(&audit_pool)
+        .await
+        .unwrap_or(0);
 
     if total_audit == 0 {
-        eprintln!("Audit table is empty — {} GL outbox events unaudited", outbox_events.len());
+        eprintln!(
+            "Audit table is empty — {} GL outbox events unaudited",
+            outbox_events.len()
+        );
         return;
     }
 
@@ -376,13 +366,12 @@ async fn test_gl_outbox_audit_coverage_no_gaps() {
     let mut covered = 0u64;
 
     for (event_id, event_type) in &outbox_events {
-        let audit_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1",
-        )
-        .bind(event_id)
-        .fetch_one(&audit_pool)
-        .await
-        .unwrap_or(0);
+        let audit_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1")
+                .bind(event_id)
+                .fetch_one(&audit_pool)
+                .await
+                .unwrap_or(0);
 
         if audit_count == 0 {
             gaps.push(format!("{} ({})", event_type, event_id));
@@ -449,13 +438,12 @@ async fn test_synthetic_ar_mutations_all_audited() {
         .await;
 
         // Verify: audit record exists with correct causation_id
-        let audit_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1",
-        )
-        .bind(event_id)
-        .fetch_one(&audit_pool)
-        .await
-        .expect("Failed to query audit events");
+        let audit_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1")
+                .bind(event_id)
+                .fetch_one(&audit_pool)
+                .await
+                .expect("Failed to query audit events");
 
         assert_eq!(
             audit_count, 1,
@@ -495,13 +483,12 @@ async fn test_synthetic_gl_mutations_all_audited() {
         )
         .await;
 
-        let audit_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1",
-        )
-        .bind(event_id)
-        .fetch_one(&audit_pool)
-        .await
-        .expect("Failed to query audit events");
+        let audit_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1")
+                .bind(event_id)
+                .fetch_one(&audit_pool)
+                .await
+                .expect("Failed to query audit events");
 
         assert_eq!(
             audit_count, 1,
@@ -539,13 +526,12 @@ async fn test_synthetic_subscriptions_mutations_all_audited() {
         )
         .await;
 
-        let audit_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1",
-        )
-        .bind(event_id)
-        .fetch_one(&audit_pool)
-        .await
-        .expect("Failed to query audit events");
+        let audit_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1")
+                .bind(event_id)
+                .fetch_one(&audit_pool)
+                .await
+                .expect("Failed to query audit events");
 
         assert_eq!(
             audit_count, 1,
@@ -571,22 +557,19 @@ async fn test_no_duplicate_audit_records_for_ar_events() {
     let audit_pool = get_audit_pool().await;
     common::run_audit_migrations(&audit_pool).await;
 
-    let outbox_events: Vec<(Uuid,)> = sqlx::query_as(
-        "SELECT event_id FROM events_outbox",
-    )
-    .fetch_all(&ar_pool)
-    .await
-    .unwrap_or_default();
+    let outbox_events: Vec<(Uuid,)> = sqlx::query_as("SELECT event_id FROM events_outbox")
+        .fetch_all(&ar_pool)
+        .await
+        .unwrap_or_default();
 
     let mut duplicates = Vec::new();
     for (event_id,) in &outbox_events {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1",
-        )
-        .bind(event_id)
-        .fetch_one(&audit_pool)
-        .await
-        .unwrap_or(0);
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1")
+                .bind(event_id)
+                .fetch_one(&audit_pool)
+                .await
+                .unwrap_or(0);
 
         if count > 1 {
             duplicates.push((*event_id, count));
@@ -691,7 +674,8 @@ async fn test_mutation_path_enumeration_complete() {
         + SUBSCRIPTIONS_AUDITABLE_EVENT_TYPES.len();
     assert_eq!(total, 24, "Total auditable mutation paths changed");
 
-    eprintln!("Mutation path enumeration: {} AR + {} GL + {} Subs = {} total",
+    eprintln!(
+        "Mutation path enumeration: {} AR + {} GL + {} Subs = {} total",
         AR_AUDITABLE_EVENT_TYPES.len(),
         GL_AUDITABLE_EVENT_TYPES.len(),
         SUBSCRIPTIONS_AUDITABLE_EVENT_TYPES.len(),
@@ -707,9 +691,9 @@ async fn test_mutation_path_enumeration_complete() {
 fn classify_event_type(event_type: &str) -> MutationClass {
     match event_type {
         // Reversals
-        "ar.invoice_written_off"
-        | "gl.events.entry.reversed"
-        | "gl.accrual_reversed" => MutationClass::Reversal,
+        "ar.invoice_written_off" | "gl.events.entry.reversed" | "gl.accrual_reversed" => {
+            MutationClass::Reversal
+        }
         // State transitions
         "ar.invoice.finalizing"
         | "ar.dunning_state_changed"

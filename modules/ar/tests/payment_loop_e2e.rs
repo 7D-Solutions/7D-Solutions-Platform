@@ -42,11 +42,7 @@ fn tilled_signature(payload: &str, ts: i64) -> String {
 }
 
 /// Deliver a webhook payload to the AR router and return the HTTP status.
-async fn deliver_webhook(
-    app: axum::Router,
-    payload_str: &str,
-    ts: i64,
-) -> StatusCode {
+async fn deliver_webhook(app: axum::Router, payload_str: &str, ts: i64) -> StatusCode {
     let sig = tilled_signature(payload_str, ts);
     let resp = app
         .oneshot(
@@ -124,7 +120,10 @@ async fn test_payment_loop_invoice_marked_paid() {
     let invoice_id = invoice["id"].as_i64().unwrap() as i32;
     let tilled_invoice_id = invoice["tilled_invoice_id"].as_str().unwrap().to_owned();
 
-    assert!(!tilled_invoice_id.is_empty(), "tilled_invoice_id must be set by AR");
+    assert!(
+        !tilled_invoice_id.is_empty(),
+        "tilled_invoice_id must be set by AR"
+    );
 
     // Step 3: Deliver invoice.payment_succeeded webhook referencing the tilled_invoice_id
     let event_id = format!("evt_loop_{}", uuid::Uuid::new_v4());
@@ -233,18 +232,23 @@ async fn test_payment_loop_webhook_replay_is_idempotent() {
     // Delivery 2 — replay of the same event_id (new timestamp for freshness window)
     let ts2 = chrono::Utc::now().timestamp();
     let s2 = deliver_webhook(app.clone(), &payload_str, ts2).await;
-    assert_eq!(s2, StatusCode::OK, "replay must return 200 (idempotent, not error)");
+    assert_eq!(
+        s2,
+        StatusCode::OK,
+        "replay must return 200 (idempotent, not error)"
+    );
 
     // Verify: exactly ONE ar_webhooks row for this event_id
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_webhooks WHERE event_id = $1",
-    )
-    .bind(&event_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count query");
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_webhooks WHERE event_id = $1")
+        .bind(&event_id)
+        .fetch_one(&pool)
+        .await
+        .expect("count query");
 
-    assert_eq!(count, 1, "exactly one webhook record must exist (replay must not double-post)");
+    assert_eq!(
+        count, 1,
+        "exactly one webhook record must exist (replay must not double-post)"
+    );
 
     // Verify invoice status is still paid (not corrupted by replay)
     let resp = app
@@ -323,13 +327,11 @@ async fn test_payment_loop_multiple_replays_single_record() {
         assert_eq!(s, StatusCode::OK, "delivery {} must return 200", i + 1);
     }
 
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_webhooks WHERE event_id = $1",
-    )
-    .bind(&event_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count query");
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_webhooks WHERE event_id = $1")
+        .bind(&event_id)
+        .fetch_one(&pool)
+        .await
+        .expect("count query");
 
     assert_eq!(
         count, 1,

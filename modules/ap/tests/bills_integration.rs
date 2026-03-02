@@ -17,10 +17,10 @@ use ap::domain::bills::void::void_bill;
 use ap::domain::bills::{
     ApproveBillRequest, BillError, CreateBillLineRequest, CreateBillRequest, VoidBillRequest,
 };
-use ap::domain::r#match::engine::run_match;
-use ap::domain::r#match::{MatchError, RunMatchRequest};
 use ap::domain::po::service::create_po;
 use ap::domain::po::{CreatePoLineRequest, CreatePoRequest};
+use ap::domain::r#match::engine::run_match;
+use ap::domain::r#match::{MatchError, RunMatchRequest};
 use ap::domain::tax::{quote_bill_tax, TaxAddress, ZeroTaxProvider};
 use ap::domain::vendors::service::create_vendor;
 use ap::domain::vendors::CreateVendorRequest;
@@ -32,9 +32,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://ap_user:ap_pass@localhost:5443/ap_db".to_string()
-    });
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://ap_user:ap_pass@localhost:5443/ap_db".to_string());
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -115,7 +114,10 @@ async fn test_create_bill() {
     assert_eq!(bill.bill.total_minor, 50_000); // 5 × 10_000
     assert_eq!(bill.lines.len(), 1);
 
-    let fetched = get_bill(&pool, &tid, bill.bill.bill_id).await.unwrap().unwrap();
+    let fetched = get_bill(&pool, &tid, bill.bill.bill_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(fetched.bill.bill_id, bill.bill.bill_id);
 }
 
@@ -156,9 +158,14 @@ async fn test_run_match_po_not_found() {
     let tid = unique_tenant();
     let vendor_id = make_vendor(&pool, &tid).await;
 
-    let bill = create_bill(&pool, &tid, &make_bill_req(vendor_id, "INV-NOMATCH"), corr())
-        .await
-        .unwrap();
+    let bill = create_bill(
+        &pool,
+        &tid,
+        &make_bill_req(vendor_id, "INV-NOMATCH"),
+        corr(),
+    )
+    .await
+    .unwrap();
 
     let err = run_match(
         &pool,
@@ -264,7 +271,10 @@ async fn test_run_match_two_way() {
     assert!(outcome.lines[0].within_tolerance);
 
     // Bill status should now be "matched"
-    let fetched = get_bill(&pool, &tid, bill.bill.bill_id).await.unwrap().unwrap();
+    let fetched = get_bill(&pool, &tid, bill.bill.bill_id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(fetched.bill.status, "matched");
 }
 
@@ -279,9 +289,14 @@ async fn test_approve_bill_with_override() {
     let tid = unique_tenant();
     let vendor_id = make_vendor(&pool, &tid).await;
 
-    let bill = create_bill(&pool, &tid, &make_bill_req(vendor_id, "INV-APPROVE"), corr())
-        .await
-        .unwrap();
+    let bill = create_bill(
+        &pool,
+        &tid,
+        &make_bill_req(vendor_id, "INV-APPROVE"),
+        corr(),
+    )
+    .await
+    .unwrap();
 
     let approved = approve_bill(
         &pool,
@@ -352,14 +367,28 @@ async fn test_void_idempotent() {
         void_reason: "Test void".to_string(),
     };
 
-    let first = void_bill(&pool, &ZeroTaxProvider, &tid, bill.bill.bill_id, &void_req, corr())
-        .await
-        .unwrap();
+    let first = void_bill(
+        &pool,
+        &ZeroTaxProvider,
+        &tid,
+        bill.bill.bill_id,
+        &void_req,
+        corr(),
+    )
+    .await
+    .unwrap();
 
     // Second call is idempotent — returns ok with voided status, no error
-    let second = void_bill(&pool, &ZeroTaxProvider, &tid, bill.bill.bill_id, &void_req, corr())
-        .await
-        .unwrap();
+    let second = void_bill(
+        &pool,
+        &ZeroTaxProvider,
+        &tid,
+        bill.bill.bill_id,
+        &void_req,
+        corr(),
+    )
+    .await
+    .unwrap();
 
     assert_eq!(first.status, "voided");
     assert_eq!(second.status, "voided");

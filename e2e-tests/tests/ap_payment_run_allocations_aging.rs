@@ -20,11 +20,11 @@ use ap::domain::bills::{
     approve::approve_bill, service::create_bill, ApproveBillRequest, CreateBillLineRequest,
     CreateBillRequest,
 };
-use ap::domain::tax::ZeroTaxProvider;
 use ap::domain::payment_runs::{
     builder::create_payment_run, execute::execute_payment_run, CreatePaymentRunRequest,
 };
 use ap::domain::reports::aging::compute_aging;
+use ap::domain::tax::ZeroTaxProvider;
 
 // ============================================================================
 // Test helpers
@@ -56,7 +56,11 @@ async fn create_approved_bill(
     currency: &str,
     correlation_suffix: &str,
 ) -> Uuid {
-    let invoice_ref = format!("INV-{}-{}", correlation_suffix, &Uuid::new_v4().to_string()[..8]);
+    let invoice_ref = format!(
+        "INV-{}-{}",
+        correlation_suffix,
+        &Uuid::new_v4().to_string()[..8]
+    );
     let bill_with_lines = create_bill(
         pool,
         tenant_id,
@@ -146,10 +150,10 @@ async fn test_payment_run_pays_bills_and_clears_aging() {
     let vendor_id = create_vendor(&pool, &tenant).await;
 
     // Two approved USD bills due in future (current bucket)
-    let bill_a = create_approved_bill(&pool, &tenant, vendor_id, 30000, "2026-03-01", "USD", "a")
-        .await;
-    let bill_b = create_approved_bill(&pool, &tenant, vendor_id, 20000, "2026-03-15", "USD", "b")
-        .await;
+    let bill_a =
+        create_approved_bill(&pool, &tenant, vendor_id, 30000, "2026-03-01", "USD", "a").await;
+    let bill_b =
+        create_approved_bill(&pool, &tenant, vendor_id, 20000, "2026-03-15", "USD", "b").await;
 
     // Aging before payment: both bills in current bucket
     let as_of = NaiveDate::from_ymd_opt(2026, 2, 18).unwrap();
@@ -216,7 +220,11 @@ async fn test_payment_run_pays_bills_and_clears_aging() {
                 .fetch_one(&pool)
                 .await
                 .expect("fetch bill status");
-        assert_eq!(status, "paid", "bill {} must be paid after execution", bill_id);
+        assert_eq!(
+            status, "paid",
+            "bill {} must be paid after execution",
+            bill_id
+        );
     }
 
     // Allocations created: one per bill, referencing the run
@@ -239,7 +247,10 @@ async fn test_payment_run_pays_bills_and_clears_aging() {
     .fetch_one(&pool)
     .await
     .expect("event count");
-    assert_eq!(ev_count, 1, "ap.payment_executed must be in outbox exactly once");
+    assert_eq!(
+        ev_count, 1,
+        "ap.payment_executed must be in outbox exactly once"
+    );
 
     // Aging after payment: zero outstanding (paid bills excluded)
     let after = compute_aging(&pool, &tenant, as_of, false)
@@ -265,8 +276,16 @@ async fn test_payment_run_execution_is_idempotent() {
     cleanup(&pool, &tenant).await;
 
     let vendor_id = create_vendor(&pool, &tenant).await;
-    let bill_id =
-        create_approved_bill(&pool, &tenant, vendor_id, 15000, "2026-03-01", "USD", "idem").await;
+    let bill_id = create_approved_bill(
+        &pool,
+        &tenant,
+        vendor_id,
+        15000,
+        "2026-03-01",
+        "USD",
+        "idem",
+    )
+    .await;
 
     let run_id = Uuid::new_v4();
     create_payment_run(
@@ -298,21 +317,22 @@ async fn test_payment_run_execution_is_idempotent() {
         .expect("second execute (idempotent)");
     assert_eq!(r2.run.status, "completed");
     assert_eq!(
-        r1.executions[0].payment_id,
-        r2.executions[0].payment_id,
+        r1.executions[0].payment_id, r2.executions[0].payment_id,
         "same payment_id on retry"
     );
 
     // Only one allocation for the bill
-    let (alloc_count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM ap_allocations WHERE bill_id = $1 AND tenant_id = $2",
-    )
-    .bind(bill_id)
-    .bind(&tenant)
-    .fetch_one(&pool)
-    .await
-    .expect("alloc count");
-    assert_eq!(alloc_count, 1, "idempotent: exactly one allocation per bill");
+    let (alloc_count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM ap_allocations WHERE bill_id = $1 AND tenant_id = $2")
+            .bind(bill_id)
+            .bind(&tenant)
+            .fetch_one(&pool)
+            .await
+            .expect("alloc count");
+    assert_eq!(
+        alloc_count, 1,
+        "idempotent: exactly one allocation per bill"
+    );
 
     // Only one ap.payment_executed event
     let (ev_count,): (i64,) = sqlx::query_as(
@@ -341,9 +361,16 @@ async fn test_partial_payment_reduces_aging_balance() {
     let vendor_id = create_vendor(&pool, &tenant).await;
 
     // Create and approve a bill for 50000
-    let bill_id =
-        create_approved_bill(&pool, &tenant, vendor_id, 50000, "2026-03-01", "USD", "partial")
-            .await;
+    let bill_id = create_approved_bill(
+        &pool,
+        &tenant,
+        vendor_id,
+        50000,
+        "2026-03-01",
+        "USD",
+        "partial",
+    )
+    .await;
 
     // Pre-allocate 20000 so open balance = 30000 and status = partially_paid
     let pre_alloc_id = Uuid::new_v4();
@@ -469,7 +496,10 @@ async fn test_payment_run_no_eligible_bills_returns_error() {
     assert!(
         matches!(
             result,
-            Err(ap::domain::payment_runs::PaymentRunError::NoBillsEligible(_, _))
+            Err(ap::domain::payment_runs::PaymentRunError::NoBillsEligible(
+                _,
+                _
+            ))
         ),
         "should return NoBillsEligible, got {:?}",
         result
@@ -491,8 +521,16 @@ async fn test_cross_tenant_isolation() {
     cleanup(&pool, &tenant_b).await;
 
     let vendor_a = create_vendor(&pool, &tenant_a).await;
-    create_approved_bill(&pool, &tenant_a, vendor_a, 25000, "2026-03-01", "USD", "isolation")
-        .await;
+    create_approved_bill(
+        &pool,
+        &tenant_a,
+        vendor_a,
+        25000,
+        "2026-03-01",
+        "USD",
+        "isolation",
+    )
+    .await;
 
     // Build and execute run for tenant_a
     let run_id = Uuid::new_v4();

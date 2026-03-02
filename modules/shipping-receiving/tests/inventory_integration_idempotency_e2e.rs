@@ -21,8 +21,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -169,19 +169,35 @@ async fn inbound_close_creates_receipts_for_accepted_lines() {
     };
 
     let result = ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
-    assert!(result.is_ok(), "transition should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "transition should succeed: {:?}",
+        result.err()
+    );
 
     // Line 1 and 2 should have inventory_ref_id set
     let ref1 = get_inventory_ref(&pool, line1).await;
     let ref2 = get_inventory_ref(&pool, line2).await;
     let ref3 = get_inventory_ref(&pool, line3).await;
 
-    assert!(ref1.is_some(), "line1 (qty_accepted=10) must have receipt ref");
-    assert!(ref2.is_some(), "line2 (qty_accepted=5) must have receipt ref");
-    assert!(ref3.is_none(), "line3 (qty_accepted=0) must NOT have receipt ref");
+    assert!(
+        ref1.is_some(),
+        "line1 (qty_accepted=10) must have receipt ref"
+    );
+    assert!(
+        ref2.is_some(),
+        "line2 (qty_accepted=5) must have receipt ref"
+    );
+    assert!(
+        ref3.is_none(),
+        "line3 (qty_accepted=0) must NOT have receipt ref"
+    );
 
     // Receipts must be different
-    assert_ne!(ref1, ref2, "different lines must have different receipt IDs");
+    assert_ne!(
+        ref1, ref2,
+        "different lines must have different receipt IDs"
+    );
 }
 
 #[tokio::test]
@@ -209,7 +225,11 @@ async fn outbound_ship_creates_issues_for_shipped_lines() {
     };
 
     let result = ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
-    assert!(result.is_ok(), "transition should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "transition should succeed: {:?}",
+        result.err()
+    );
 
     let ref1 = get_inventory_ref(&pool, line1).await;
     let ref2 = get_inventory_ref(&pool, line2).await;

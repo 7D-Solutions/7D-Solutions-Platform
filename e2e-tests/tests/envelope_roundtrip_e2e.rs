@@ -25,8 +25,8 @@ use anyhow::Result;
 use common::{setup_nats_client, subscribe_to_events};
 use event_bus::EventEnvelope;
 use futures::StreamExt;
-use serial_test::serial;
 use serde::{Deserialize, Serialize};
+use serial_test::serial;
 use sqlx::PgPool;
 use std::time::Duration;
 use tokio::time::timeout;
@@ -131,12 +131,8 @@ async fn test_envelope_nats_roundtrip_preserves_metadata() -> Result<()> {
     let original_replay_safe = envelope.replay_safe;
 
     // Step 3: Enqueue event into outbox
-    subscriptions_rs::outbox::enqueue_event(
-        &subscriptions_pool,
-        "test.roundtrip",
-        &envelope,
-    )
-    .await?;
+    subscriptions_rs::outbox::enqueue_event(&subscriptions_pool, "test.roundtrip", &envelope)
+        .await?;
 
     println!("✅ Envelope enqueued into outbox");
 
@@ -148,7 +144,10 @@ async fn test_envelope_nats_roundtrip_preserves_metadata() -> Result<()> {
         published_count
     );
 
-    println!("✅ Outbox publisher emitted {} events to NATS", published_count);
+    println!(
+        "✅ Outbox publisher emitted {} events to NATS",
+        published_count
+    );
 
     // Step 5: Receive event from NATS subscriber
     let received_message = timeout(Duration::from_secs(5), subscriber.next())
@@ -165,10 +164,7 @@ async fn test_envelope_nats_roundtrip_preserves_metadata() -> Result<()> {
     println!("✅ Deserialized envelope from NATS payload");
 
     // Step 7: Verify envelope metadata preserved
-    assert_eq!(
-        received_envelope.tenant_id, tenant_id,
-        "tenant_id mismatch"
-    );
+    assert_eq!(received_envelope.tenant_id, tenant_id, "tenant_id mismatch");
     assert_eq!(
         received_envelope.event_type, original_event_type,
         "event_type mismatch"
@@ -218,8 +214,7 @@ async fn test_envelope_nats_roundtrip_preserves_metadata() -> Result<()> {
 
     // Step 9: Verify payload preserved
     assert_eq!(
-        received_envelope.payload.message,
-        "Envelope roundtrip test",
+        received_envelope.payload.message, "Envelope roundtrip test",
         "payload.message mismatch"
     );
     assert_eq!(

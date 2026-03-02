@@ -45,7 +45,8 @@ async fn query_outbox_mutation_class(
         Ok(rows) => Ok(Some(rows)),
         Err(e) => {
             let msg = e.to_string();
-            if msg.contains("does not exist") || msg.contains("relation") || msg.contains("column") {
+            if msg.contains("does not exist") || msg.contains("relation") || msg.contains("column")
+            {
                 println!(
                     "⚠️  {} events_outbox unavailable (migration not applied): {}",
                     module, msg
@@ -73,10 +74,16 @@ async fn test_ar_module_emits_mutation_class() -> Result<()> {
         return Ok(());
     }
 
-    println!("✅ AR module emits {} events with mutation_class", result.len());
+    println!(
+        "✅ AR module emits {} events with mutation_class",
+        result.len()
+    );
 
     for (event_type, mutation_class) in &result {
-        println!("   - event_type: {:?}, mutation_class: {:?}", event_type, mutation_class);
+        println!(
+            "   - event_type: {:?}, mutation_class: {:?}",
+            event_type, mutation_class
+        );
         assert!(mutation_class.is_some(), "AR event has null mutation_class");
     }
 
@@ -98,17 +105,29 @@ async fn test_payments_module_emits_mutation_class() -> Result<()> {
         return Ok(());
     }
 
-    println!("✅ Payments module emits {} events with mutation_class", result.len());
+    println!(
+        "✅ Payments module emits {} events with mutation_class",
+        result.len()
+    );
 
     for (event_type, mutation_class) in &result {
-        println!("   - event_type: {:?}, mutation_class: {:?}", event_type, mutation_class);
-        assert!(mutation_class.is_some(), "Payments event has null mutation_class");
+        println!(
+            "   - event_type: {:?}, mutation_class: {:?}",
+            event_type, mutation_class
+        );
+        assert!(
+            mutation_class.is_some(),
+            "Payments event has null mutation_class"
+        );
 
         // Validate classification: payment success/failure should be DATA_MUTATION
         if let Some(et) = event_type {
             if et.contains("payment.succeeded") || et.contains("payment.failed") {
-                assert_eq!(mutation_class.as_deref(), Some("DATA_MUTATION"),
-                    "Payment events should have mutation_class=DATA_MUTATION");
+                assert_eq!(
+                    mutation_class.as_deref(),
+                    Some("DATA_MUTATION"),
+                    "Payment events should have mutation_class=DATA_MUTATION"
+                );
             }
         }
     }
@@ -122,7 +141,8 @@ async fn test_payments_module_emits_mutation_class() -> Result<()> {
 async fn test_subscriptions_module_emits_mutation_class() -> Result<()> {
     let subscriptions_pool = common::get_subscriptions_pool().await;
 
-    let Some(result) = query_outbox_mutation_class(&subscriptions_pool, "Subscriptions").await? else {
+    let Some(result) = query_outbox_mutation_class(&subscriptions_pool, "Subscriptions").await?
+    else {
         return Ok(()); // table not yet migrated — skip
     };
 
@@ -131,17 +151,29 @@ async fn test_subscriptions_module_emits_mutation_class() -> Result<()> {
         return Ok(());
     }
 
-    println!("✅ Subscriptions module emits {} events with mutation_class", result.len());
+    println!(
+        "✅ Subscriptions module emits {} events with mutation_class",
+        result.len()
+    );
 
     for (event_type, mutation_class) in &result {
-        println!("   - event_type: {:?}, mutation_class: {:?}", event_type, mutation_class);
-        assert!(mutation_class.is_some(), "Subscriptions event has null mutation_class");
+        println!(
+            "   - event_type: {:?}, mutation_class: {:?}",
+            event_type, mutation_class
+        );
+        assert!(
+            mutation_class.is_some(),
+            "Subscriptions event has null mutation_class"
+        );
 
         // Validate classification: billrun.completed should be LIFECYCLE
         if let Some(et) = event_type {
             if et.contains("billrun.completed") {
-                assert_eq!(mutation_class.as_deref(), Some("LIFECYCLE"),
-                    "Bill run completion should have mutation_class=LIFECYCLE");
+                assert_eq!(
+                    mutation_class.as_deref(),
+                    Some("LIFECYCLE"),
+                    "Bill run completion should have mutation_class=LIFECYCLE"
+                );
             }
         }
     }
@@ -164,17 +196,26 @@ async fn test_gl_module_emits_mutation_class() -> Result<()> {
         return Ok(());
     }
 
-    println!("✅ GL module emits {} events with mutation_class", result.len());
+    println!(
+        "✅ GL module emits {} events with mutation_class",
+        result.len()
+    );
 
     for (event_type, mutation_class) in &result {
-        println!("   - event_type: {:?}, mutation_class: {:?}", event_type, mutation_class);
+        println!(
+            "   - event_type: {:?}, mutation_class: {:?}",
+            event_type, mutation_class
+        );
         assert!(mutation_class.is_some(), "GL event has null mutation_class");
 
         // Validate classification: gl.entry.reversed should be REVERSAL
         if let Some(et) = event_type {
             if et.contains("entry.reversed") {
-                assert_eq!(mutation_class.as_deref(), Some("REVERSAL"),
-                    "GL reversal events should have mutation_class=REVERSAL");
+                assert_eq!(
+                    mutation_class.as_deref(),
+                    Some("REVERSAL"),
+                    "GL reversal events should have mutation_class=REVERSAL"
+                );
             }
         }
     }
@@ -191,7 +232,8 @@ async fn test_gl_module_emits_mutation_class() -> Result<()> {
 async fn test_notifications_module_emits_mutation_class() -> Result<()> {
     let notifications_pool = common::get_notifications_pool().await;
 
-    let Some(result) = query_outbox_mutation_class(&notifications_pool, "Notifications").await? else {
+    let Some(result) = query_outbox_mutation_class(&notifications_pool, "Notifications").await?
+    else {
         // Notifications is stateless — no persistent outbox is expected
         println!("⚠️  Notifications is stateless — events_outbox not present (expected)");
         return Ok(());
@@ -202,17 +244,29 @@ async fn test_notifications_module_emits_mutation_class() -> Result<()> {
         return Ok(());
     }
 
-    println!("✅ Notifications module emits {} events with mutation_class", result.len());
+    println!(
+        "✅ Notifications module emits {} events with mutation_class",
+        result.len()
+    );
 
     for (event_type, mutation_class) in &result {
-        println!("   - event_type: {:?}, mutation_class: {:?}", event_type, mutation_class);
-        assert!(mutation_class.is_some(), "Notifications event has null mutation_class");
+        println!(
+            "   - event_type: {:?}, mutation_class: {:?}",
+            event_type, mutation_class
+        );
+        assert!(
+            mutation_class.is_some(),
+            "Notifications event has null mutation_class"
+        );
 
         // Validate classification: notifications.delivery.* should be SIDE_EFFECT
         if let Some(et) = event_type {
             if et.contains("notifications.delivery") {
-                assert_eq!(mutation_class.as_deref(), Some("SIDE_EFFECT"),
-                    "Notification delivery events should have mutation_class=SIDE_EFFECT");
+                assert_eq!(
+                    mutation_class.as_deref(),
+                    Some("SIDE_EFFECT"),
+                    "Notification delivery events should have mutation_class=SIDE_EFFECT"
+                );
             }
         }
     }
@@ -250,7 +304,10 @@ async fn test_mutation_class_registry_compliance() -> Result<()> {
             .await;
 
         match result {
-            Err(e) if e.to_string().contains("does not exist") || e.to_string().contains("relation") => {
+            Err(e)
+                if e.to_string().contains("does not exist")
+                    || e.to_string().contains("relation") =>
+            {
                 println!("⚠️  {} events_outbox unavailable (migration not applied) — skipping compliance check", module);
                 continue;
             }

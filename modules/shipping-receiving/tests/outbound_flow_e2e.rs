@@ -19,8 +19,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -148,8 +148,7 @@ async fn outbound_happy_path_draft_to_closed() {
     // draft → confirmed → picking → packed
     for status in &["confirmed", "picking", "packed"] {
         let req = make_transition(status);
-        let result =
-            ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
+        let result = ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
         assert!(
             result.is_ok(),
             "transition to {status} failed: {:?}",
@@ -168,20 +167,21 @@ async fn outbound_happy_path_draft_to_closed() {
 
     // packed → shipped
     let req = make_transition("shipped");
-    let result =
-        ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
+    let result = ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
     assert!(result.is_ok(), "ship failed: {:?}", result.err());
     assert_eq!(get_shipment_status(&pool, ship_id).await, "shipped");
 
     // Verify inventory issue linkage
     let ref_id = get_inventory_ref(&pool, line_id).await;
-    assert!(ref_id.is_some(), "line must have inventory_ref_id after ship");
+    assert!(
+        ref_id.is_some(),
+        "line must have inventory_ref_id after ship"
+    );
 
     // shipped → delivered → closed
     for status in &["delivered", "closed"] {
         let req = make_transition(status);
-        let result =
-            ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
+        let result = ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
         assert!(
             result.is_ok(),
             "transition to {status} failed: {:?}",
@@ -231,7 +231,10 @@ async fn outbound_ship_rejects_qty_shipped_exceeds_expected() {
 
     let req = make_transition("shipped");
     let result = ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
-    assert!(result.is_err(), "ship must fail when qty_shipped > expected");
+    assert!(
+        result.is_err(),
+        "ship must fail when qty_shipped > expected"
+    );
 }
 
 #[tokio::test]

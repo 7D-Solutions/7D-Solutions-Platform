@@ -366,7 +366,15 @@ async fn test_accrual_reversal_cashflow_lifecycle() {
     cleanup_tenant(&pool, &tenant).await;
 
     // --- Setup accounts and classifications ---
-    create_account(&pool, &tenant, "PREPAID_INS", "Prepaid Insurance", "asset", "debit").await;
+    create_account(
+        &pool,
+        &tenant,
+        "PREPAID_INS",
+        "Prepaid Insurance",
+        "asset",
+        "debit",
+    )
+    .await;
     create_account(&pool, &tenant, "CASH_ACCT", "Cash", "asset", "debit").await;
 
     // Classify ONLY the cash account for cash flow — this means only journal lines
@@ -417,11 +425,17 @@ async fn test_accrual_reversal_cashflow_lifecycle() {
     .await
     .expect("accrual creation failed");
 
-    assert!(!accrual.idempotent_hit, "First creation should not be idempotent");
+    assert!(
+        !accrual.idempotent_hit,
+        "First creation should not be idempotent"
+    );
     assert_eq!(accrual.status, "posted");
     assert_eq!(accrual.amount_minor, 500000);
     assert_eq!(accrual.currency, "USD");
-    println!("  Accrual posted: journal_entry_id={}", accrual.journal_entry_id);
+    println!(
+        "  Accrual posted: journal_entry_id={}",
+        accrual.journal_entry_id
+    );
 
     // Verify journal is balanced
     let lines: Vec<(i64, i64, String)> = sqlx::query_as(
@@ -432,7 +446,11 @@ async fn test_accrual_reversal_cashflow_lifecycle() {
     .await
     .expect("fetch accrual journal lines");
 
-    assert_eq!(lines.len(), 2, "Accrual should have exactly 2 journal lines");
+    assert_eq!(
+        lines.len(),
+        2,
+        "Accrual should have exactly 2 journal lines"
+    );
     let total_dr: i64 = lines.iter().map(|l| l.0).sum();
     let total_cr: i64 = lines.iter().map(|l| l.1).sum();
     assert_eq!(total_dr, total_cr, "Accrual journal must be balanced");
@@ -460,7 +478,10 @@ async fn test_accrual_reversal_cashflow_lifecycle() {
 
     println!("  Rows: {:?}", cf_n.rows);
     println!("  Net cash flow: {}", cf_n.net_cash_flow);
-    println!("  Cash account net change: {}", cf_n.cash_account_net_change);
+    println!(
+        "  Cash account net change: {}",
+        cf_n.cash_account_net_change
+    );
     println!("  Reconciles: {}", cf_n.reconciles);
 
     // CASH_ACCT journal lines in period N: DR=0, CR=500000 → net = -500000
@@ -483,13 +504,11 @@ async fn test_accrual_reversal_cashflow_lifecycle() {
     println!("\n--- Step 3: Close period N ---");
     close_period(&pool, period_n_id).await;
 
-    let closed: (bool,) = sqlx::query_as(
-        "SELECT is_closed FROM accounting_periods WHERE id = $1",
-    )
-    .bind(period_n_id)
-    .fetch_one(&pool)
-    .await
-    .expect("check period closed");
+    let closed: (bool,) = sqlx::query_as("SELECT is_closed FROM accounting_periods WHERE id = $1")
+        .bind(period_n_id)
+        .fetch_one(&pool)
+        .await
+        .expect("check period closed");
     assert!(closed.0, "Period N should be closed");
     println!("  Period N closed successfully");
 
@@ -509,13 +528,19 @@ async fn test_accrual_reversal_cashflow_lifecycle() {
     .await
     .expect("reversal execution failed");
 
-    assert_eq!(reversal_result.reversals_executed, 1, "Should reverse exactly 1 accrual");
+    assert_eq!(
+        reversal_result.reversals_executed, 1,
+        "Should reverse exactly 1 accrual"
+    );
     assert_eq!(reversal_result.reversals_skipped, 0);
     let rev = &reversal_result.results[0];
     assert_eq!(rev.original_accrual_id, accrual.accrual_id);
     assert_eq!(rev.amount_minor, 500000);
     assert!(!rev.idempotent_hit);
-    println!("  Reversal posted: journal_entry_id={}", rev.journal_entry_id);
+    println!(
+        "  Reversal posted: journal_entry_id={}",
+        rev.journal_entry_id
+    );
 
     // Verify reversal journal is balanced
     let rev_lines: Vec<(i64, i64, String)> = sqlx::query_as(
@@ -526,26 +551,38 @@ async fn test_accrual_reversal_cashflow_lifecycle() {
     .await
     .expect("fetch reversal journal lines");
 
-    assert_eq!(rev_lines.len(), 2, "Reversal should have exactly 2 journal lines");
+    assert_eq!(
+        rev_lines.len(),
+        2,
+        "Reversal should have exactly 2 journal lines"
+    );
     let rev_dr: i64 = rev_lines.iter().map(|l| l.0).sum();
     let rev_cr: i64 = rev_lines.iter().map(|l| l.1).sum();
     assert_eq!(rev_dr, rev_cr, "Reversal journal must be balanced");
     assert_eq!(rev_dr, 500000);
 
     // Verify accounts are swapped: reversal DR=CASH_ACCT, CR=PREPAID_INS
-    assert_eq!(rev_lines[0].2, "CASH_ACCT", "Reversal debit should be original credit");
-    assert_eq!(rev_lines[1].2, "PREPAID_INS", "Reversal credit should be original debit");
+    assert_eq!(
+        rev_lines[0].2, "CASH_ACCT",
+        "Reversal debit should be original credit"
+    );
+    assert_eq!(
+        rev_lines[1].2, "PREPAID_INS",
+        "Reversal credit should be original debit"
+    );
     println!("  Reversal journal balanced: DR={} CR={}", rev_dr, rev_cr);
 
     // Verify original accrual status updated to 'reversed'
-    let instance_status: (String,) = sqlx::query_as(
-        "SELECT status FROM gl_accrual_instances WHERE instance_id = $1",
-    )
-    .bind(accrual.instance_id)
-    .fetch_one(&pool)
-    .await
-    .expect("check instance status");
-    assert_eq!(instance_status.0, "reversed", "Accrual should be marked reversed");
+    let instance_status: (String,) =
+        sqlx::query_as("SELECT status FROM gl_accrual_instances WHERE instance_id = $1")
+            .bind(accrual.instance_id)
+            .fetch_one(&pool)
+            .await
+            .expect("check instance status");
+    assert_eq!(
+        instance_status.0, "reversed",
+        "Accrual should be marked reversed"
+    );
 
     // Update account_balances for period N+1
     update_balances_from_journal(&pool, &tenant, period_n1_id, rev.journal_entry_id, "USD").await;
@@ -567,7 +604,10 @@ async fn test_accrual_reversal_cashflow_lifecycle() {
 
     println!("  Rows: {:?}", cf_n1.rows);
     println!("  Net cash flow: {}", cf_n1.net_cash_flow);
-    println!("  Cash account net change: {}", cf_n1.cash_account_net_change);
+    println!(
+        "  Cash account net change: {}",
+        cf_n1.cash_account_net_change
+    );
     println!("  Reconciles: {}", cf_n1.reconciles);
 
     // CASH_ACCT journal lines in period N+1: DR=500000, CR=0 → net = +500000
@@ -647,7 +687,15 @@ async fn test_lifecycle_replay_no_duplicate_postings() {
     cleanup_tenant(&pool, &tenant).await;
 
     // --- Same setup as lifecycle test ---
-    create_account(&pool, &tenant, "PREPAID_INS", "Prepaid Insurance", "asset", "debit").await;
+    create_account(
+        &pool,
+        &tenant,
+        "PREPAID_INS",
+        "Prepaid Insurance",
+        "asset",
+        "debit",
+    )
+    .await;
     create_account(&pool, &tenant, "CASH_ACCT", "Cash", "asset", "debit").await;
     classify_account(&pool, &tenant, "CASH_ACCT", "operating").await;
 
@@ -669,7 +717,10 @@ async fn test_lifecycle_replay_no_duplicate_postings() {
             }),
             cashflow_class: Some("operating".to_string()),
         };
-        create_template(&pool, &req).await.expect("create template").template_id
+        create_template(&pool, &req)
+            .await
+            .expect("create template")
+            .template_id
     };
 
     // --- First pass: create accrual + reversal ---
@@ -686,8 +737,14 @@ async fn test_lifecycle_replay_no_duplicate_postings() {
         .expect("first accrual");
     assert!(!first_accrual.idempotent_hit);
 
-    update_balances_from_journal(&pool, &tenant, period_n_id, first_accrual.journal_entry_id, "USD")
-        .await;
+    update_balances_from_journal(
+        &pool,
+        &tenant,
+        period_n_id,
+        first_accrual.journal_entry_id,
+        "USD",
+    )
+    .await;
 
     let reversal_req = ExecuteReversalsRequest {
         tenant_id: tenant.clone(),
@@ -740,7 +797,10 @@ async fn test_lifecycle_replay_no_duplicate_postings() {
         "Replay should return idempotent_hit=true"
     );
     assert_eq!(replay_accrual.instance_id, first_accrual.instance_id);
-    assert_eq!(replay_accrual.journal_entry_id, first_accrual.journal_entry_id);
+    assert_eq!(
+        replay_accrual.journal_entry_id,
+        first_accrual.journal_entry_id
+    );
     println!("  Accrual replay: idempotent_hit=true, same IDs");
 
     // --- REPLAY: execute reversals again ---
@@ -758,13 +818,12 @@ async fn test_lifecycle_replay_no_duplicate_postings() {
     );
 
     // --- Verify no duplicate journal entries ---
-    let je_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(&tenant)
-    .fetch_one(&pool)
-    .await
-    .expect("count journal entries");
+    let je_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(&tenant)
+            .fetch_one(&pool)
+            .await
+            .expect("count journal entries");
     assert_eq!(
         je_count.0, 2,
         "Should have exactly 2 journal entries (1 accrual + 1 reversal)"
@@ -846,9 +905,33 @@ async fn test_multi_accrual_reversal_cashflow_categories() {
 
     // --- Setup accounts with different classifications ---
     create_account(&pool, &tenant, "CASH", "Cash", "asset", "debit").await;
-    create_account(&pool, &tenant, "PREPAID_RENT", "Prepaid Rent", "asset", "debit").await;
-    create_account(&pool, &tenant, "EQUIPMENT_DEP", "Equipment Deposit", "asset", "debit").await;
-    create_account(&pool, &tenant, "LOAN_FEE", "Loan Origination Fee", "asset", "debit").await;
+    create_account(
+        &pool,
+        &tenant,
+        "PREPAID_RENT",
+        "Prepaid Rent",
+        "asset",
+        "debit",
+    )
+    .await;
+    create_account(
+        &pool,
+        &tenant,
+        "EQUIPMENT_DEP",
+        "Equipment Deposit",
+        "asset",
+        "debit",
+    )
+    .await;
+    create_account(
+        &pool,
+        &tenant,
+        "LOAN_FEE",
+        "Loan Origination Fee",
+        "asset",
+        "debit",
+    )
+    .await;
 
     // Classify cash account in all three categories won't work — each account gets one category.
     // Instead, classify the counterparty accounts:
@@ -943,15 +1026,10 @@ async fn test_multi_accrual_reversal_cashflow_categories() {
     println!("3 accruals created in period N");
 
     // --- Cash flow for period N ---
-    let cf_n = cashflow_service::get_cash_flow(
-        &pool,
-        &tenant,
-        period_n_id,
-        "USD",
-        &["CASH".to_string()],
-    )
-    .await
-    .expect("cash flow period N");
+    let cf_n =
+        cashflow_service::get_cash_flow(&pool, &tenant, period_n_id, "USD", &["CASH".to_string()])
+            .await
+            .expect("cash flow period N");
 
     // Only CASH account is classified. All 3 accruals credit CASH:
     // CASH net = DR(0) - CR(300000 + 500000 + 200000) = -1,000,000
@@ -961,7 +1039,10 @@ async fn test_multi_accrual_reversal_cashflow_categories() {
     );
     assert_eq!(cf_n.cash_account_net_change, -1000000);
     assert!(cf_n.reconciles, "Period N should reconcile");
-    println!("Period N cash flow: {} (reconciles: {})", cf_n.net_cash_flow, cf_n.reconciles);
+    println!(
+        "Period N cash flow: {} (reconciles: {})",
+        cf_n.net_cash_flow, cf_n.reconciles
+    );
 
     // --- Execute reversals for period N+1 ---
     let reversal_result = execute_auto_reversals(
@@ -975,7 +1056,10 @@ async fn test_multi_accrual_reversal_cashflow_categories() {
     .await
     .expect("reversal execution");
 
-    assert_eq!(reversal_result.reversals_executed, 3, "All 3 should be reversed");
+    assert_eq!(
+        reversal_result.reversals_executed, 3,
+        "All 3 should be reversed"
+    );
 
     for rev in &reversal_result.results {
         update_balances_from_journal(&pool, &tenant, period_n1_id, rev.journal_entry_id, "USD")
@@ -984,15 +1068,10 @@ async fn test_multi_accrual_reversal_cashflow_categories() {
     println!("3 reversals executed in period N+1");
 
     // --- Cash flow for period N+1 ---
-    let cf_n1 = cashflow_service::get_cash_flow(
-        &pool,
-        &tenant,
-        period_n1_id,
-        "USD",
-        &["CASH".to_string()],
-    )
-    .await
-    .expect("cash flow period N+1");
+    let cf_n1 =
+        cashflow_service::get_cash_flow(&pool, &tenant, period_n1_id, "USD", &["CASH".to_string()])
+            .await
+            .expect("cash flow period N+1");
 
     // All 3 reversals debit CASH: DR(300000 + 500000 + 200000) - CR(0) = +1,000,000
     assert_eq!(
@@ -1012,13 +1091,12 @@ async fn test_multi_accrual_reversal_cashflow_categories() {
     println!("Cross-period net: {} (expected 0)", net);
 
     // --- Verify total journal entries: 3 accruals + 3 reversals = 6 ---
-    let je_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(&tenant)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let je_count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(&tenant)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(je_count.0, 6, "6 journal entries total");
 
     cleanup_tenant(&pool, &tenant).await;

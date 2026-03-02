@@ -53,7 +53,10 @@ fn base_company_req(name: &str) -> CreateCompanyRequest {
         employee_count: None,
         annual_revenue_cents: None,
         currency: None,
-        email: Some(format!("{}@example.com", name.to_lowercase().replace(' ', "."))),
+        email: Some(format!(
+            "{}@example.com",
+            name.to_lowercase().replace(' ', ".")
+        )),
         phone: None,
         website: None,
         address_line1: None,
@@ -77,7 +80,11 @@ fn base_individual_req(first: &str, last: &str) -> CreateIndividualRequest {
         nationality: Some("US".to_string()),
         job_title: Some("Engineer".to_string()),
         department: None,
-        email: Some(format!("{}.{}@example.com", first.to_lowercase(), last.to_lowercase())),
+        email: Some(format!(
+            "{}.{}@example.com",
+            first.to_lowercase(),
+            last.to_lowercase()
+        )),
         phone: None,
         address_line1: None,
         address_line2: None,
@@ -166,7 +173,9 @@ async fn test_create_individual_empty_first_name() {
     let mut req = base_individual_req("Bob", "Jones");
     req.first_name = "".to_string();
 
-    let err = create_individual(&pool, &app, &req, corr()).await.unwrap_err();
+    let err = create_individual(&pool, &app, &req, corr())
+        .await
+        .unwrap_err();
     assert!(
         matches!(err, PartyError::Validation(_)),
         "expected Validation, got: {:?}",
@@ -221,10 +230,16 @@ async fn test_list_parties_active_only() {
     let pool = setup_db().await;
     let app = unique_app();
 
-    let a = create_company(&pool, &app, &base_company_req("Active One"), corr()).await.unwrap();
-    create_company(&pool, &app, &base_company_req("Active Two"), corr()).await.unwrap();
+    let a = create_company(&pool, &app, &base_company_req("Active One"), corr())
+        .await
+        .unwrap();
+    create_company(&pool, &app, &base_company_req("Active Two"), corr())
+        .await
+        .unwrap();
     // Deactivate first
-    deactivate_party(&pool, &app, a.party.id, "test", corr()).await.unwrap();
+    deactivate_party(&pool, &app, a.party.id, "test", corr())
+        .await
+        .unwrap();
 
     let active = list_parties(&pool, &app, false).await.unwrap();
     assert_eq!(active.len(), 1);
@@ -241,9 +256,15 @@ async fn test_list_parties_include_inactive() {
     let pool = setup_db().await;
     let app = unique_app();
 
-    let a = create_company(&pool, &app, &base_company_req("Firm A"), corr()).await.unwrap();
-    create_company(&pool, &app, &base_company_req("Firm B"), corr()).await.unwrap();
-    deactivate_party(&pool, &app, a.party.id, "test", corr()).await.unwrap();
+    let a = create_company(&pool, &app, &base_company_req("Firm A"), corr())
+        .await
+        .unwrap();
+    create_company(&pool, &app, &base_company_req("Firm B"), corr())
+        .await
+        .unwrap();
+    deactivate_party(&pool, &app, a.party.id, "test", corr())
+        .await
+        .unwrap();
 
     let all = list_parties(&pool, &app, true).await.unwrap();
     assert_eq!(all.len(), 2);
@@ -262,7 +283,9 @@ async fn test_update_party() {
     let pool = setup_db().await;
     let app = unique_app();
 
-    let created = create_company(&pool, &app, &base_company_req("Old Name"), corr()).await.unwrap();
+    let created = create_company(&pool, &app, &base_company_req("Old Name"), corr())
+        .await
+        .unwrap();
 
     let updated = update_party(
         &pool,
@@ -324,7 +347,11 @@ async fn test_update_party_not_found() {
     .await
     .unwrap_err();
 
-    assert!(matches!(err, PartyError::NotFound(_)), "expected NotFound, got: {:?}", err);
+    assert!(
+        matches!(err, PartyError::NotFound(_)),
+        "expected NotFound, got: {:?}",
+        err
+    );
 }
 
 // ============================================================================
@@ -337,10 +364,17 @@ async fn test_deactivate_party() {
     let pool = setup_db().await;
     let app = unique_app();
 
-    let created = create_company(&pool, &app, &base_company_req("Gamma Inc"), corr()).await.unwrap();
-    deactivate_party(&pool, &app, created.party.id, "admin", corr()).await.unwrap();
+    let created = create_company(&pool, &app, &base_company_req("Gamma Inc"), corr())
+        .await
+        .unwrap();
+    deactivate_party(&pool, &app, created.party.id, "admin", corr())
+        .await
+        .unwrap();
 
-    let view = get_party(&pool, &app, created.party.id).await.unwrap().unwrap();
+    let view = get_party(&pool, &app, created.party.id)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(view.party.status, "inactive");
 }
 
@@ -358,7 +392,11 @@ async fn test_deactivate_party_not_found() {
         .await
         .unwrap_err();
 
-    assert!(matches!(err, PartyError::NotFound(_)), "expected NotFound, got: {:?}", err);
+    assert!(
+        matches!(err, PartyError::NotFound(_)),
+        "expected NotFound, got: {:?}",
+        err
+    );
 }
 
 // ============================================================================
@@ -371,9 +409,15 @@ async fn test_search_parties_by_name() {
     let pool = setup_db().await;
     let app = unique_app();
 
-    create_company(&pool, &app, &base_company_req("Delta Supplies"), corr()).await.unwrap();
-    create_company(&pool, &app, &base_company_req("Delta Analytics"), corr()).await.unwrap();
-    create_company(&pool, &app, &base_company_req("Epsilon LLC"), corr()).await.unwrap();
+    create_company(&pool, &app, &base_company_req("Delta Supplies"), corr())
+        .await
+        .unwrap();
+    create_company(&pool, &app, &base_company_req("Delta Analytics"), corr())
+        .await
+        .unwrap();
+    create_company(&pool, &app, &base_company_req("Epsilon LLC"), corr())
+        .await
+        .unwrap();
 
     let results = search_parties(
         &pool,
@@ -391,7 +435,12 @@ async fn test_search_parties_by_name() {
     .await
     .unwrap();
 
-    assert_eq!(results.len(), 2, "expected 2 Delta parties, got {}", results.len());
+    assert_eq!(
+        results.len(),
+        2,
+        "expected 2 Delta parties, got {}",
+        results.len()
+    );
     assert!(results.iter().all(|p| p.display_name.contains("Delta")));
 }
 
@@ -405,8 +454,12 @@ async fn test_search_parties_by_type() {
     let pool = setup_db().await;
     let app = unique_app();
 
-    create_company(&pool, &app, &base_company_req("Theta Corp"), corr()).await.unwrap();
-    create_individual(&pool, &app, &base_individual_req("Iota", "Person"), corr()).await.unwrap();
+    create_company(&pool, &app, &base_company_req("Theta Corp"), corr())
+        .await
+        .unwrap();
+    create_individual(&pool, &app, &base_individual_req("Iota", "Person"), corr())
+        .await
+        .unwrap();
 
     let companies = search_parties(
         &pool,

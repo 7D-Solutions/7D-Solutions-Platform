@@ -8,15 +8,16 @@
 
 use sqlx::PgPool;
 use subscriptions_rs::lifecycle::{
-    SubscriptionStatus, TransitionError, transition_guard,
-    transition_to_active, transition_to_past_due, transition_to_suspended,
+    transition_guard, transition_to_active, transition_to_past_due, transition_to_suspended,
+    SubscriptionStatus, TransitionError,
 };
 use uuid::Uuid;
 
 // Test helper to create a test database pool
 async fn setup_test_pool() -> PgPool {
-    let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5433/subscriptions_test".to_string());
+    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgres://postgres:postgres@localhost:5433/subscriptions_test".to_string()
+    });
 
     let pool = sqlx::PgPool::connect(&database_url)
         .await
@@ -32,10 +33,7 @@ async fn setup_test_pool() -> PgPool {
 }
 
 // Test helper to create a subscription in a specific status
-async fn create_test_subscription(
-    pool: &PgPool,
-    status: &str,
-) -> Uuid {
+async fn create_test_subscription(pool: &PgPool, status: &str) -> Uuid {
     let tenant_id = format!("test-tenant-{}", Uuid::new_v4());
     let ar_customer_id = format!("customer-{}", Uuid::new_v4());
 
@@ -43,7 +41,7 @@ async fn create_test_subscription(
     let plan_id: Uuid = sqlx::query_scalar(
         "INSERT INTO subscription_plans (tenant_id, name, schedule, price_minor, currency)
          VALUES ($1, 'Test Plan', 'monthly', 2999, 'USD')
-         RETURNING id"
+         RETURNING id",
     )
     .bind(&tenant_id)
     .fetch_one(pool)
@@ -107,13 +105,9 @@ async fn test_lifecycle_function_active_to_past_due() {
     let subscription_id = create_test_subscription(&pool, "active").await;
 
     // Call lifecycle function
-    transition_to_past_due(
-        subscription_id,
-        "payment_failed",
-        &pool,
-    )
-    .await
-    .expect("Transition should succeed");
+    transition_to_past_due(subscription_id, "payment_failed", &pool)
+        .await
+        .expect("Transition should succeed");
 
     // Verify status was updated
     let status = get_subscription_status(&pool, subscription_id).await;
@@ -148,13 +142,9 @@ async fn test_lifecycle_function_past_due_to_suspended() {
     let subscription_id = create_test_subscription(&pool, "past_due").await;
 
     // Call lifecycle function
-    transition_to_suspended(
-        subscription_id,
-        "grace_period_expired",
-        &pool,
-    )
-    .await
-    .expect("Transition should succeed");
+    transition_to_suspended(subscription_id, "grace_period_expired", &pool)
+        .await
+        .expect("Transition should succeed");
 
     // Verify status was updated
     let status = get_subscription_status(&pool, subscription_id).await;
@@ -189,13 +179,9 @@ async fn test_lifecycle_function_suspended_to_active() {
     let subscription_id = create_test_subscription(&pool, "suspended").await;
 
     // Call lifecycle function
-    transition_to_active(
-        subscription_id,
-        "payment_recovered",
-        &pool,
-    )
-    .await
-    .expect("Transition should succeed");
+    transition_to_active(subscription_id, "payment_recovered", &pool)
+        .await
+        .expect("Transition should succeed");
 
     // Verify status was updated
     let status = get_subscription_status(&pool, subscription_id).await;
@@ -230,13 +216,9 @@ async fn test_lifecycle_function_past_due_to_active() {
     let subscription_id = create_test_subscription(&pool, "past_due").await;
 
     // Call lifecycle function
-    transition_to_active(
-        subscription_id,
-        "payment_recovered",
-        &pool,
-    )
-    .await
-    .expect("Transition should succeed");
+    transition_to_active(subscription_id, "payment_recovered", &pool)
+        .await
+        .expect("Transition should succeed");
 
     // Verify status was updated
     let status = get_subscription_status(&pool, subscription_id).await;
@@ -299,18 +281,20 @@ async fn test_lifecycle_function_rejects_illegal_transition() {
 
     // Attempt illegal transition: Active → PastDue → then try Suspended → PastDue (backwards)
     // First set the subscription to suspended state
-    transition_to_past_due(subscription_id, "payment_failed", &pool).await.unwrap();
-    transition_to_suspended(subscription_id, "grace_expired", &pool).await.unwrap();
+    transition_to_past_due(subscription_id, "payment_failed", &pool)
+        .await
+        .unwrap();
+    transition_to_suspended(subscription_id, "grace_expired", &pool)
+        .await
+        .unwrap();
 
     // Now attempt illegal Suspended → PastDue (backwards)
-    let result = transition_to_past_due(
-        subscription_id,
-        "backwards",
-        &pool,
-    )
-    .await;
+    let result = transition_to_past_due(subscription_id, "backwards", &pool).await;
 
-    assert!(result.is_err(), "Lifecycle function should reject illegal transition");
+    assert!(
+        result.is_err(),
+        "Lifecycle function should reject illegal transition"
+    );
 
     // Verify status was NOT updated
     let status = get_subscription_status(&pool, subscription_id).await;
@@ -336,7 +320,10 @@ async fn test_idempotent_transition_active_to_active() {
         "idempotent",
     );
 
-    assert!(result.is_ok(), "Active → Active should be allowed (idempotent)");
+    assert!(
+        result.is_ok(),
+        "Active → Active should be allowed (idempotent)"
+    );
 }
 
 #[tokio::test]
@@ -345,22 +332,14 @@ async fn test_lifecycle_function_idempotent() {
     let subscription_id = create_test_subscription(&pool, "past_due").await;
 
     // First transition
-    transition_to_past_due(
-        subscription_id,
-        "idempotent_test",
-        &pool,
-    )
-    .await
-    .expect("First call should succeed");
+    transition_to_past_due(subscription_id, "idempotent_test", &pool)
+        .await
+        .expect("First call should succeed");
 
     // Second transition (idempotent)
-    transition_to_past_due(
-        subscription_id,
-        "idempotent_test",
-        &pool,
-    )
-    .await
-    .expect("Second call should succeed (idempotent)");
+    transition_to_past_due(subscription_id, "idempotent_test", &pool)
+        .await
+        .expect("Second call should succeed (idempotent)");
 
     // Verify status
     let status = get_subscription_status(&pool, subscription_id).await;
@@ -383,14 +362,12 @@ async fn test_lifecycle_function_subscription_not_found() {
     let pool = setup_test_pool().await;
     let non_existent_id = Uuid::new_v4();
 
-    let result = transition_to_past_due(
-        non_existent_id,
-        "test",
-        &pool,
-    )
-    .await;
+    let result = transition_to_past_due(non_existent_id, "test", &pool).await;
 
-    assert!(result.is_err(), "Should fail when subscription doesn't exist");
+    assert!(
+        result.is_err(),
+        "Should fail when subscription doesn't exist"
+    );
     match result {
         Err(TransitionError::SubscriptionNotFound { subscription_id }) => {
             assert_eq!(subscription_id, non_existent_id);

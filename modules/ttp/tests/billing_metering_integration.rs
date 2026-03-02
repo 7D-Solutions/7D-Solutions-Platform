@@ -10,7 +10,6 @@
 ///   - TENANT_REGISTRY_URL pointing at a running tenant-registry service
 ///
 /// Run with: cargo test -p ttp-rs --test billing_metering_integration -- --ignored
-
 use chrono::{TimeZone, Utc};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
@@ -18,9 +17,7 @@ use uuid::Uuid;
 use ttp_rs::clients::ar::ArClient;
 use ttp_rs::clients::tenant_registry::TenantRegistryClient;
 use ttp_rs::domain::billing::{compute_trace_hash, run_billing};
-use ttp_rs::domain::metering::{
-    compute_price_trace, ingest_events, MeteringEventInput,
-};
+use ttp_rs::domain::metering::{compute_price_trace, ingest_events, MeteringEventInput};
 
 /// Connect to the TTP test database and run migrations.
 async fn test_pool() -> PgPool {
@@ -159,8 +156,8 @@ async fn trace_to_invoice_equivalence() {
     // 3. Run billing (requires AR + tenant-registry services)
     let registry_url = std::env::var("TENANT_REGISTRY_URL")
         .unwrap_or_else(|_| "http://localhost:8092".to_string());
-    let ar_url = std::env::var("AR_BASE_URL")
-        .unwrap_or_else(|_| "http://localhost:8086".to_string());
+    let ar_url =
+        std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
 
     let registry = TenantRegistryClient::new(registry_url);
     let ar = ArClient::new(ar_url);
@@ -247,8 +244,8 @@ async fn non_metering_items_have_null_trace_hash() {
 
     let registry_url = std::env::var("TENANT_REGISTRY_URL")
         .unwrap_or_else(|_| "http://localhost:8092".to_string());
-    let ar_url = std::env::var("AR_BASE_URL")
-        .unwrap_or_else(|_| "http://localhost:8086".to_string());
+    let ar_url =
+        std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
 
     let registry = TenantRegistryClient::new(registry_url);
     let ar = ArClient::new(ar_url);

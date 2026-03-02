@@ -6,7 +6,6 @@
 /// 3. Digest computation is deterministic
 /// 4. Blue/green swap is atomic from reader perspective
 /// 5. Two rebuilds with same event stream produce identical digests
-
 mod common;
 
 use chrono::Utc;
@@ -111,9 +110,15 @@ async fn replay_events_into_table(
 
         // Update cursor (using provided cursor table name)
         if cursor_table == "projection_cursors_shadow" {
-            save_shadow_cursor(pool, projection_name, tenant_id, event_id, event_occurred_at)
-                .await
-                .expect("Failed to save shadow cursor");
+            save_shadow_cursor(
+                pool,
+                projection_name,
+                tenant_id,
+                event_id,
+                event_occurred_at,
+            )
+            .await
+            .expect("Failed to save shadow cursor");
         } else {
             sqlx::query(&format!(
                 r#"
@@ -157,9 +162,7 @@ async fn test_create_shadow_table() {
     run_base_migrations(&pool).await;
 
     // Clean up any existing shadow table
-    drop_shadow_table(&pool, "test_balances")
-        .await
-        .ok();
+    drop_shadow_table(&pool, "test_balances").await.ok();
 
     // Create shadow table
     let create_ddl = r#"
@@ -321,22 +324,23 @@ async fn test_blue_green_swap_atomic() {
         .expect("Failed to swap tables");
 
     // Verify: live table should now have shadow data
-    let balance: i64 = sqlx::query_scalar(
-        "SELECT balance FROM test_balances WHERE customer_id = 'cust-new'",
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to fetch balance from swapped table");
+    let balance: i64 =
+        sqlx::query_scalar("SELECT balance FROM test_balances WHERE customer_id = 'cust-new'")
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to fetch balance from swapped table");
 
-    assert_eq!(balance, 2000, "Live table should have shadow data after swap");
+    assert_eq!(
+        balance, 2000,
+        "Live table should have shadow data after swap"
+    );
 
     // Verify: old table should exist with old data
-    let old_balance: i64 = sqlx::query_scalar(
-        "SELECT balance FROM test_balances_old WHERE customer_id = 'cust-old'",
-    )
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to fetch balance from old table");
+    let old_balance: i64 =
+        sqlx::query_scalar("SELECT balance FROM test_balances_old WHERE customer_id = 'cust-old'")
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to fetch balance from old table");
 
     assert_eq!(old_balance, 1000, "Old table should preserve original data");
 
@@ -512,10 +516,9 @@ async fn test_rebuild_determinism_two_runs() {
 
         // Use deterministic event IDs and timestamps for reproducibility
         // In a real system, you'd replay from the same event stream
-        let deterministic_timestamp =
-            chrono::DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
-                .unwrap()
-                .with_timezone(&Utc);
+        let deterministic_timestamp = chrono::DateTime::parse_from_rfc3339("2024-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&Utc);
 
         for i in 0..event_count {
             let event_id = Uuid::from_u128(i as u128); // Deterministic UUID
@@ -541,9 +544,15 @@ async fn test_rebuild_determinism_two_runs() {
             .await
             .expect("Failed to apply event");
 
-            save_shadow_cursor(pool, projection_name, tenant_id, event_id, deterministic_timestamp)
-                .await
-                .expect("Failed to save shadow cursor");
+            save_shadow_cursor(
+                pool,
+                projection_name,
+                tenant_id,
+                event_id,
+                deterministic_timestamp,
+            )
+            .await
+            .expect("Failed to save shadow cursor");
         }
 
         // Compute digest

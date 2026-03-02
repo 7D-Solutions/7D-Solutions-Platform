@@ -29,8 +29,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -57,7 +57,13 @@ fn make_item_req(tenant_id: &str, sku: &str) -> CreateItemRequest {
     }
 }
 
-fn receipt_req(tenant_id: &str, item_id: Uuid, warehouse_id: Uuid, qty: i64, key: &str) -> ReceiptRequest {
+fn receipt_req(
+    tenant_id: &str,
+    item_id: Uuid,
+    warehouse_id: Uuid,
+    qty: i64,
+    key: &str,
+) -> ReceiptRequest {
     ReceiptRequest {
         tenant_id: tenant_id.to_string(),
         item_id,
@@ -98,7 +104,12 @@ fn adjust_req(
     }
 }
 
-async fn read_on_hand(pool: &sqlx::PgPool, tenant_id: &str, item_id: Uuid, warehouse_id: Uuid) -> i64 {
+async fn read_on_hand(
+    pool: &sqlx::PgPool,
+    tenant_id: &str,
+    item_id: Uuid,
+    warehouse_id: Uuid,
+) -> i64 {
     sqlx::query_scalar::<_, i64>(
         "SELECT COALESCE(quantity_on_hand, 0) FROM item_on_hand WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3 AND location_id IS NULL",
     )
@@ -111,7 +122,12 @@ async fn read_on_hand(pool: &sqlx::PgPool, tenant_id: &str, item_id: Uuid, wareh
     .unwrap_or(0)
 }
 
-async fn read_available_status(pool: &sqlx::PgPool, tenant_id: &str, item_id: Uuid, warehouse_id: Uuid) -> i64 {
+async fn read_available_status(
+    pool: &sqlx::PgPool,
+    tenant_id: &str,
+    item_id: Uuid,
+    warehouse_id: Uuid,
+) -> i64 {
     sqlx::query_scalar::<_, i64>(
         "SELECT COALESCE(quantity_on_hand, 0) FROM item_on_hand_by_status WHERE tenant_id = $1 AND item_id = $2 AND warehouse_id = $3 AND status = 'available'",
     )
@@ -138,17 +154,24 @@ async fn test_positive_adjustment_increases_on_hand() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 50, "r-adj-1"), None)
-        .await
-        .expect("receipt");
+    process_receipt(
+        &pool,
+        &receipt_req(&tenant, item.id, wh, 50, "r-adj-1"),
+        None,
+    )
+    .await
+    .expect("receipt");
 
     let before = read_on_hand(&pool, &tenant, item.id, wh).await;
     assert_eq!(before, 50);
 
-    let (result, is_replay) =
-        process_adjustment(&pool, &adjust_req(&tenant, item.id, wh, 15, "cycle_count_correction", "adj-1"), None)
-            .await
-            .expect("adjustment");
+    let (result, is_replay) = process_adjustment(
+        &pool,
+        &adjust_req(&tenant, item.id, wh, 15, "cycle_count_correction", "adj-1"),
+        None,
+    )
+    .await
+    .expect("adjustment");
 
     assert!(!is_replay);
     assert_eq!(result.quantity_delta, 15);
@@ -175,14 +198,21 @@ async fn test_negative_adjustment_decreases_on_hand() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-adj-2"), None)
-        .await
-        .expect("receipt");
+    process_receipt(
+        &pool,
+        &receipt_req(&tenant, item.id, wh, 100, "r-adj-2"),
+        None,
+    )
+    .await
+    .expect("receipt");
 
-    let (result, _) =
-        process_adjustment(&pool, &adjust_req(&tenant, item.id, wh, -20, "shrinkage", "adj-2"), None)
-            .await
-            .expect("negative adjustment");
+    let (result, _) = process_adjustment(
+        &pool,
+        &adjust_req(&tenant, item.id, wh, -20, "shrinkage", "adj-2"),
+        None,
+    )
+    .await
+    .expect("negative adjustment");
 
     assert_eq!(result.quantity_delta, -20);
 
@@ -207,9 +237,13 @@ async fn test_no_negative_guard_blocks_excess_negative() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 30, "r-adj-3"), None)
-        .await
-        .expect("receipt");
+    process_receipt(
+        &pool,
+        &receipt_req(&tenant, item.id, wh, 30, "r-adj-3"),
+        None,
+    )
+    .await
+    .expect("receipt");
 
     let err = process_adjustment(
         &pool,
@@ -226,7 +260,10 @@ async fn test_no_negative_guard_blocks_excess_negative() {
     );
 
     let on_hand = read_on_hand(&pool, &tenant, item.id, wh).await;
-    assert_eq!(on_hand, 30, "on_hand must be unchanged after blocked adjustment");
+    assert_eq!(
+        on_hand, 30,
+        "on_hand must be unchanged after blocked adjustment"
+    );
 }
 
 // ============================================================================
@@ -243,9 +280,13 @@ async fn test_allow_negative_bypasses_guard() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 10, "r-adj-4"), None)
-        .await
-        .expect("receipt");
+    process_receipt(
+        &pool,
+        &receipt_req(&tenant, item.id, wh, 10, "r-adj-4"),
+        None,
+    )
+    .await
+    .expect("receipt");
 
     let mut req = adjust_req(&tenant, item.id, wh, -50, "write_off", "adj-4");
     req.allow_negative = true;
@@ -257,7 +298,10 @@ async fn test_allow_negative_bypasses_guard() {
     assert_eq!(result.quantity_delta, -50);
 
     let after = read_on_hand(&pool, &tenant, item.id, wh).await;
-    assert_eq!(after, -40, "on_hand can go negative when allow_negative = true");
+    assert_eq!(
+        after, -40,
+        "on_hand can go negative when allow_negative = true"
+    );
 }
 
 // ============================================================================
@@ -364,17 +408,26 @@ async fn test_idempotency_replay() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-adj-8"), None)
-        .await
-        .expect("receipt");
+    process_receipt(
+        &pool,
+        &receipt_req(&tenant, item.id, wh, 100, "r-adj-8"),
+        None,
+    )
+    .await
+    .expect("receipt");
 
     let req = adjust_req(&tenant, item.id, wh, 25, "cycle_count", "adj-8-idem");
 
-    let (first, is_replay_1) = process_adjustment(&pool, &req, None).await.expect("first call");
+    let (first, is_replay_1) = process_adjustment(&pool, &req, None)
+        .await
+        .expect("first call");
     assert!(!is_replay_1);
 
     let (second, is_replay_2) = process_adjustment(&pool, &req, None).await.expect("replay");
-    assert!(is_replay_2, "second call with same key+body should be a replay");
+    assert!(
+        is_replay_2,
+        "second call with same key+body should be a replay"
+    );
     assert_eq!(first.adjustment_id, second.adjustment_id);
 
     // on_hand should only increase once
@@ -396,13 +449,19 @@ async fn test_idempotency_conflict() {
         .await
         .expect("create item");
 
-    process_receipt(&pool, &receipt_req(&tenant, item.id, wh, 100, "r-adj-9"), None)
-        .await
-        .expect("receipt");
+    process_receipt(
+        &pool,
+        &receipt_req(&tenant, item.id, wh, 100, "r-adj-9"),
+        None,
+    )
+    .await
+    .expect("receipt");
 
     let key = "conflict-key-adj";
     let req1 = adjust_req(&tenant, item.id, wh, 10, "shrinkage", key);
-    process_adjustment(&pool, &req1, None).await.expect("first call");
+    process_adjustment(&pool, &req1, None)
+        .await
+        .expect("first call");
 
     let mut req2 = adjust_req(&tenant, item.id, wh, 99, "different_reason", key);
     req2.idempotency_key = key.to_string();

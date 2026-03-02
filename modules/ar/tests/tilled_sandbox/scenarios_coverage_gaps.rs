@@ -311,7 +311,11 @@ mod tests {
         // Validate structure of each refund
         for r in &list.items {
             assert!(!r.id.is_empty(), "refund id must be non-empty");
-            assert!(r.amount > 0, "refund amount must be positive, got {}", r.amount);
+            assert!(
+                r.amount > 0,
+                "refund amount must be positive, got {}",
+                r.amount
+            );
             assert!(!r.status.is_empty(), "refund status must be non-empty");
         }
 
@@ -408,10 +412,8 @@ mod tests {
                 let cust_id = customer.id.clone();
                 let pm_id = pm.id.clone();
                 async move {
-                    c.create_charge(
-                        cust_id, pm_id, DISPUTE_TRIGGER_AMOUNT, None, None, None,
-                    )
-                    .await
+                    c.create_charge(cust_id, pm_id, DISPUTE_TRIGGER_AMOUNT, None, None, None)
+                        .await
                 }
             })
             .await
@@ -437,7 +439,10 @@ mod tests {
         let dispute = match wait_for_dispute(&client, &ch_id, 20).await {
             Some(d) => d,
             None => {
-                eprintln!("SKIP: dispute did not appear within timeout for charge {}", ch_id);
+                eprintln!(
+                    "SKIP: dispute did not appear within timeout for charge {}",
+                    ch_id
+                );
                 cleanup_payment_method(&client, &pm.id).await;
                 cleanup_customer(&client, &customer.id).await;
                 return;

@@ -6,7 +6,6 @@
 /// 3. projection_backlog_count can be recorded
 /// 4. Metrics reflect stale projections correctly
 /// 5. Metrics are exposed via module /metrics endpoints
-
 mod common;
 
 use chrono::{Duration, Utc};
@@ -48,14 +47,17 @@ async fn test_projection_metrics_creation() {
 
     // Verify metrics are registered
     let families = metrics.registry().gather();
-    assert!(!families.is_empty(), "Should have at least one metric family");
+    assert!(
+        !families.is_empty(),
+        "Should have at least one metric family"
+    );
 
     // Verify metric names include our key metrics
     let metric_names: Vec<String> = families.iter().map(|f| f.get_name().to_string()).collect();
     let has_projection_metrics = metric_names.iter().any(|name| {
         name.contains("projection_lag")
-        || name.contains("projection_backlog")
-        || name.contains("projection_last_applied")
+            || name.contains("projection_backlog")
+            || name.contains("projection_last_applied")
     });
     assert!(
         has_projection_metrics,
@@ -77,9 +79,15 @@ async fn test_projection_lag_from_cursor() {
     let event_occurred_at = Utc::now() - Duration::seconds(30);
 
     // Save the cursor
-    ProjectionCursor::save(&pool, projection_name, tenant_id, event_id, event_occurred_at)
-        .await
-        .expect("Failed to save cursor");
+    ProjectionCursor::save(
+        &pool,
+        projection_name,
+        tenant_id,
+        event_id,
+        event_occurred_at,
+    )
+    .await
+    .expect("Failed to save cursor");
 
     // Load the cursor
     let cursor = ProjectionCursor::load(&pool, projection_name, tenant_id)
@@ -125,9 +133,15 @@ async fn test_projection_last_applied_age() {
     let event_occurred_at = Utc::now() - Duration::seconds(5);
 
     // Save the cursor
-    ProjectionCursor::save(&pool, projection_name, tenant_id, event_id, event_occurred_at)
-        .await
-        .expect("Failed to save cursor");
+    ProjectionCursor::save(
+        &pool,
+        projection_name,
+        tenant_id,
+        event_id,
+        event_occurred_at,
+    )
+    .await
+    .expect("Failed to save cursor");
 
     // Manually update the updated_at to be 10 seconds old
     sqlx::query(
@@ -264,9 +278,15 @@ async fn test_failing_projection_increases_lag() {
     // Simulate a projection that starts processing but fails
     // First event processed successfully (time T)
     let event_occurred_at = Utc::now() - Duration::seconds(120);
-    ProjectionCursor::save(&pool, projection_name, tenant_id, event_id, event_occurred_at)
-        .await
-        .expect("Failed to save cursor");
+    ProjectionCursor::save(
+        &pool,
+        projection_name,
+        tenant_id,
+        event_id,
+        event_occurred_at,
+    )
+    .await
+    .expect("Failed to save cursor");
 
     // Record initial metrics
     let metrics = ProjectionMetrics::new().expect("Failed to create metrics");

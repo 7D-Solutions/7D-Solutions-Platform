@@ -23,7 +23,10 @@ async fn log_explain_plan(pool: &PgPool, query: &str, tenant_id: &str, period_id
     let explain_query = format!("EXPLAIN (FORMAT TEXT, ANALYZE FALSE) {}", query_with_params);
 
     println!("\n=== EXPLAIN PLAN ===");
-    println!("Query: {}", query.lines().take(3).collect::<Vec<_>>().join(" "));
+    println!(
+        "Query: {}",
+        query.lines().take(3).collect::<Vec<_>>().join(" ")
+    );
     println!("Tenant: {}, Period: {}", tenant_id, period_id);
 
     let plan: Vec<(String,)> = sqlx::query_as(&explain_query)
@@ -533,11 +536,15 @@ async fn test_period_validation_not_found() {
         .expect("Failed to clean up periods");
 
     // Attempt to query with non-existent period - should fail with PeriodNotFound
-    let result = get_trial_balance_rows(&pool, tenant_id, non_existent_period_id, Some("USD")).await;
+    let result =
+        get_trial_balance_rows(&pool, tenant_id, non_existent_period_id, Some("USD")).await;
 
     assert!(result.is_err());
     match result.unwrap_err() {
-        gl_rs::repos::statement_repo::StatementError::PeriodNotFound { period_id, tenant_id: tid } => {
+        gl_rs::repos::statement_repo::StatementError::PeriodNotFound {
+            period_id,
+            tenant_id: tid,
+        } => {
             assert_eq!(period_id, non_existent_period_id);
             assert_eq!(tid, tenant_id);
         }
@@ -634,7 +641,10 @@ async fn test_numeric_safety_proof_decimal_exactness() {
 
     // Exact integer arithmetic: 10 + 20 + 30 = 60
     assert_eq!(total_debits, 60, "Debit totals must be exact (no rounding)");
-    assert_eq!(total_credits, 60, "Credit totals must be exact (no rounding)");
+    assert_eq!(
+        total_credits, 60,
+        "Credit totals must be exact (no rounding)"
+    );
 
     // Verify individual balances are exact
     let account_a = rows.iter().find(|r| r.account_code == "1000").unwrap();

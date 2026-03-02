@@ -84,13 +84,12 @@ async fn seed_performance_dataset(pool: &PgPool, tenant_id: &str, period_id: Uui
     println!("   Creating 10,000 account_balances (simulating 1M journal_lines equivalent)...");
 
     // Get all account codes with their types and normal balances
-    let accounts: Vec<(String, String)> = sqlx::query_as(
-        "SELECT code, type::text FROM accounts WHERE tenant_id = $1 ORDER BY code"
-    )
-    .bind(tenant_id)
-    .fetch_all(pool)
-    .await
-    .expect("Failed to fetch accounts");
+    let accounts: Vec<(String, String)> =
+        sqlx::query_as("SELECT code, type::text FROM accounts WHERE tenant_id = $1 ORDER BY code")
+            .bind(tenant_id)
+            .fetch_all(pool)
+            .await
+            .expect("Failed to fetch accounts");
 
     println!("      Retrieved {} accounts", accounts.len());
 
@@ -129,8 +128,8 @@ async fn seed_performance_dataset(pool: &PgPool, tenant_id: &str, period_id: Uui
             // We need: 2k assets (DR) = 2k liabilities (CR) + 2k equity (CR)
             // So: 2k × 1M = (2k × 500k) + (2k × 500k)
             let (debit_minor, credit_minor) = match account_type.as_str() {
-                "asset" => (total_amount, 0),  // Debit normal
-                "expense" => (total_amount, 0), // Debit normal
+                "asset" => (total_amount, 0),         // Debit normal
+                "expense" => (total_amount, 0),       // Debit normal
                 "liability" => (0, total_amount / 2), // Credit normal (half amount for balance)
                 "equity" => (0, total_amount / 2),    // Credit normal (half amount for balance)
                 "revenue" => (0, total_amount),       // Credit normal (full to offset expense)
@@ -193,7 +192,10 @@ async fn benchmark_trial_balance_1m_dataset() {
         .expect("Trial balance should succeed");
     let elapsed = start.elapsed();
 
-    println!("   ✓ Trial Balance completed in {:.2}ms", elapsed.as_millis());
+    println!(
+        "   ✓ Trial Balance completed in {:.2}ms",
+        elapsed.as_millis()
+    );
     println!("   - Rows returned: {}", result.rows.len());
     println!("   - Total debits: {}", result.totals.total_debits);
     println!("   - Total credits: {}", result.totals.total_credits);
@@ -235,7 +237,10 @@ async fn benchmark_income_statement_1m_dataset() {
         .expect("Income statement should succeed");
     let elapsed = start.elapsed();
 
-    println!("   ✓ Income Statement completed in {:.2}ms", elapsed.as_millis());
+    println!(
+        "   ✓ Income Statement completed in {:.2}ms",
+        elapsed.as_millis()
+    );
     println!("   - Total rows: {}", result.rows.len());
     println!("   - Total revenue: {}", result.totals.total_revenue);
     println!("   - Total expenses: {}", result.totals.total_expenses);
@@ -278,10 +283,16 @@ async fn benchmark_balance_sheet_1m_dataset() {
         .expect("Balance sheet should succeed");
     let elapsed = start.elapsed();
 
-    println!("   ✓ Balance Sheet completed in {:.2}ms", elapsed.as_millis());
+    println!(
+        "   ✓ Balance Sheet completed in {:.2}ms",
+        elapsed.as_millis()
+    );
     println!("   - Total rows: {}", result.rows.len());
     println!("   - Total assets: {}", result.totals.total_assets);
-    println!("   - Total liabilities: {}", result.totals.total_liabilities);
+    println!(
+        "   - Total liabilities: {}",
+        result.totals.total_liabilities
+    );
     println!("   - Total equity: {}", result.totals.total_equity);
 
     // Performance assertion: <150ms
@@ -321,8 +332,16 @@ async fn benchmark_all_statements_1m_dataset() {
         .await
         .expect("Trial balance should succeed");
     let tb_elapsed = start.elapsed();
-    println!("   1️⃣  Trial Balance: {:.2}ms ({} rows)", tb_elapsed.as_millis(), tb_result.rows.len());
-    assert!(tb_elapsed.as_millis() < 150, "Trial balance took {}ms (expected <150ms)", tb_elapsed.as_millis());
+    println!(
+        "   1️⃣  Trial Balance: {:.2}ms ({} rows)",
+        tb_elapsed.as_millis(),
+        tb_result.rows.len()
+    );
+    assert!(
+        tb_elapsed.as_millis() < 150,
+        "Trial balance took {}ms (expected <150ms)",
+        tb_elapsed.as_millis()
+    );
 
     // 2. Income Statement
     let start = Instant::now();
@@ -330,10 +349,19 @@ async fn benchmark_all_statements_1m_dataset() {
         .await
         .expect("Income statement should succeed");
     let is_elapsed = start.elapsed();
-    println!("   2️⃣  Income Statement: {:.2}ms ({} rows, revenue: {}, expenses: {}, net: {})",
-        is_elapsed.as_millis(), is_result.rows.len(),
-        is_result.totals.total_revenue, is_result.totals.total_expenses, is_result.totals.net_income);
-    assert!(is_elapsed.as_millis() < 150, "Income statement took {}ms (expected <150ms)", is_elapsed.as_millis());
+    println!(
+        "   2️⃣  Income Statement: {:.2}ms ({} rows, revenue: {}, expenses: {}, net: {})",
+        is_elapsed.as_millis(),
+        is_result.rows.len(),
+        is_result.totals.total_revenue,
+        is_result.totals.total_expenses,
+        is_result.totals.net_income
+    );
+    assert!(
+        is_elapsed.as_millis() < 150,
+        "Income statement took {}ms (expected <150ms)",
+        is_elapsed.as_millis()
+    );
 
     // 3. Balance Sheet
     let start = Instant::now();
@@ -341,10 +369,19 @@ async fn benchmark_all_statements_1m_dataset() {
         .await
         .expect("Balance sheet should succeed");
     let bs_elapsed = start.elapsed();
-    println!("   3️⃣  Balance Sheet: {:.2}ms ({} rows, assets: {}, liabilities: {}, equity: {})",
-        bs_elapsed.as_millis(), bs_result.rows.len(),
-        bs_result.totals.total_assets, bs_result.totals.total_liabilities, bs_result.totals.total_equity);
-    assert!(bs_elapsed.as_millis() < 150, "Balance sheet took {}ms (expected <150ms)", bs_elapsed.as_millis());
+    println!(
+        "   3️⃣  Balance Sheet: {:.2}ms ({} rows, assets: {}, liabilities: {}, equity: {})",
+        bs_elapsed.as_millis(),
+        bs_result.rows.len(),
+        bs_result.totals.total_assets,
+        bs_result.totals.total_liabilities,
+        bs_result.totals.total_equity
+    );
+    assert!(
+        bs_elapsed.as_millis() < 150,
+        "Balance sheet took {}ms (expected <150ms)",
+        bs_elapsed.as_millis()
+    );
 
     // Total time
     let total_elapsed = tb_elapsed + is_elapsed + bs_elapsed;

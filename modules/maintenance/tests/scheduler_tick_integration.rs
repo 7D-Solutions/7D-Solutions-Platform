@@ -24,8 +24,7 @@ use uuid::Uuid;
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://maintenance_user:maintenance_pass@localhost:5452/maintenance_db"
-            .to_string()
+        "postgresql://maintenance_user:maintenance_pass@localhost:5452/maintenance_db".to_string()
     });
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -44,41 +43,87 @@ fn tid() -> String {
 }
 
 async fn mk_asset(pool: &sqlx::PgPool, tid: &str, tag: &str) -> Uuid {
-    AssetRepo::create(pool, &CreateAssetRequest {
-        tenant_id: tid.into(), asset_tag: tag.into(), name: format!("Asset {tag}"),
-        description: None, asset_type: "vehicle".into(), location: None,
-        department: None, responsible_person: None, serial_number: None,
-        fixed_asset_ref: None, metadata: None,
-    }).await.unwrap().id
+    AssetRepo::create(
+        pool,
+        &CreateAssetRequest {
+            tenant_id: tid.into(),
+            asset_tag: tag.into(),
+            name: format!("Asset {tag}"),
+            description: None,
+            asset_type: "vehicle".into(),
+            location: None,
+            department: None,
+            responsible_person: None,
+            serial_number: None,
+            fixed_asset_ref: None,
+            metadata: None,
+        },
+    )
+    .await
+    .unwrap()
+    .id
 }
 
 async fn mk_meter(pool: &sqlx::PgPool, tid: &str, name: &str) -> Uuid {
-    MeterTypeRepo::create(pool, &CreateMeterTypeRequest {
-        tenant_id: tid.into(), name: name.into(), unit_label: "mi".into(),
-        rollover_value: None,
-    }).await.unwrap().id
+    MeterTypeRepo::create(
+        pool,
+        &CreateMeterTypeRequest {
+            tenant_id: tid.into(),
+            name: name.into(),
+            unit_label: "mi".into(),
+            rollover_value: None,
+        },
+    )
+    .await
+    .unwrap()
+    .id
 }
 
 async fn mk_cal_plan(pool: &sqlx::PgPool, tid: &str, name: &str, days: i32) -> Uuid {
-    PlanRepo::create(pool, &CreatePlanRequest {
-        tenant_id: tid.into(), name: name.into(), description: None,
-        asset_type_filter: None, schedule_type: "calendar".into(),
-        calendar_interval_days: Some(days), meter_type_id: None,
-        meter_interval: None, priority: None, estimated_duration_minutes: None,
-        estimated_cost_minor: None, task_checklist: None,
-    }).await.unwrap().id
+    PlanRepo::create(
+        pool,
+        &CreatePlanRequest {
+            tenant_id: tid.into(),
+            name: name.into(),
+            description: None,
+            asset_type_filter: None,
+            schedule_type: "calendar".into(),
+            calendar_interval_days: Some(days),
+            meter_type_id: None,
+            meter_interval: None,
+            priority: None,
+            estimated_duration_minutes: None,
+            estimated_cost_minor: None,
+            task_checklist: None,
+        },
+    )
+    .await
+    .unwrap()
+    .id
 }
 
 async fn assign(pool: &sqlx::PgPool, plan_id: Uuid, tid: &str, asset_id: Uuid) -> Uuid {
-    AssignmentRepo::assign(pool, plan_id, &AssignPlanRequest {
-        tenant_id: tid.into(), asset_id,
-    }).await.unwrap().id
+    AssignmentRepo::assign(
+        pool,
+        plan_id,
+        &AssignPlanRequest {
+            tenant_id: tid.into(),
+            asset_id,
+        },
+    )
+    .await
+    .unwrap()
+    .id
 }
 
 async fn backdate(pool: &sqlx::PgPool, assignment_id: Uuid, days_ago: i64) {
     let d = (Utc::now() - Duration::days(days_ago)).date_naive();
     sqlx::query("UPDATE maintenance_plan_assignments SET next_due_date = $1 WHERE id = $2")
-        .bind(d).bind(assignment_id).execute(pool).await.unwrap();
+        .bind(d)
+        .bind(assignment_id)
+        .execute(pool)
+        .await
+        .unwrap();
 }
 
 async fn count_due_events(pool: &sqlx::PgPool, agg_id: &str) -> i64 {
@@ -107,8 +152,14 @@ async fn test_calendar_due_emits_event() {
     assert_eq!(r.events_emitted, 1);
     assert_eq!(count_due_events(&pool, &asn.to_string()).await, 1);
 
-    let updated = AssignmentRepo::find_by_id(&pool, asn, &t).await.unwrap().unwrap();
-    assert!(updated.due_notified_at.is_some(), "due_notified_at should be set");
+    let updated = AssignmentRepo::find_by_id(&pool, asn, &t)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        updated.due_notified_at.is_some(),
+        "due_notified_at should be set"
+    );
 }
 
 // ============================================================================
@@ -123,19 +174,39 @@ async fn test_meter_due_emits_event() {
     let asset = mk_asset(&pool, &t, "MTR-001").await;
     let meter = mk_meter(&pool, &t, "Odometer").await;
 
-    MeterReadingRepo::record(&pool, asset, &RecordReadingRequest {
-        tenant_id: t.clone(), meter_type_id: meter, reading_value: 50_000,
-        recorded_at: None, recorded_by: None,
-    }).await.unwrap();
+    MeterReadingRepo::record(
+        &pool,
+        asset,
+        &RecordReadingRequest {
+            tenant_id: t.clone(),
+            meter_type_id: meter,
+            reading_value: 50_000,
+            recorded_at: None,
+            recorded_by: None,
+        },
+    )
+    .await
+    .unwrap();
 
-    let plan = PlanRepo::create(&pool, &CreatePlanRequest {
-        tenant_id: t.clone(), name: "Tire Rotation".into(), description: None,
-        asset_type_filter: None, schedule_type: "meter".into(),
-        calendar_interval_days: None, meter_type_id: Some(meter),
-        meter_interval: Some(5000), priority: None,
-        estimated_duration_minutes: None, estimated_cost_minor: None,
-        task_checklist: None,
-    }).await.unwrap();
+    let plan = PlanRepo::create(
+        &pool,
+        &CreatePlanRequest {
+            tenant_id: t.clone(),
+            name: "Tire Rotation".into(),
+            description: None,
+            asset_type_filter: None,
+            schedule_type: "meter".into(),
+            calendar_interval_days: None,
+            meter_type_id: Some(meter),
+            meter_interval: Some(5000),
+            priority: None,
+            estimated_duration_minutes: None,
+            estimated_cost_minor: None,
+            task_checklist: None,
+        },
+    )
+    .await
+    .unwrap();
 
     let asn = assign(&pool, plan.id, &t, asset).await;
 
@@ -144,10 +215,19 @@ async fn test_meter_due_emits_event() {
     assert_eq!(r.events_emitted, 0, "should not be due yet");
 
     // Record reading past threshold
-    MeterReadingRepo::record(&pool, asset, &RecordReadingRequest {
-        tenant_id: t.clone(), meter_type_id: meter, reading_value: 56_000,
-        recorded_at: None, recorded_by: None,
-    }).await.unwrap();
+    MeterReadingRepo::record(
+        &pool,
+        asset,
+        &RecordReadingRequest {
+            tenant_id: t.clone(),
+            meter_type_id: meter,
+            reading_value: 56_000,
+            recorded_at: None,
+            recorded_by: None,
+        },
+    )
+    .await
+    .unwrap();
 
     let r = evaluate_due(&pool).await.unwrap();
     assert_eq!(r.evaluated, 1);
@@ -167,19 +247,39 @@ async fn test_both_schedule_calendar_trigger() {
     let asset = mk_asset(&pool, &t, "BOTH-001").await;
     let meter = mk_meter(&pool, &t, "Engine Hours").await;
 
-    MeterReadingRepo::record(&pool, asset, &RecordReadingRequest {
-        tenant_id: t.clone(), meter_type_id: meter, reading_value: 1000,
-        recorded_at: None, recorded_by: None,
-    }).await.unwrap();
+    MeterReadingRepo::record(
+        &pool,
+        asset,
+        &RecordReadingRequest {
+            tenant_id: t.clone(),
+            meter_type_id: meter,
+            reading_value: 1000,
+            recorded_at: None,
+            recorded_by: None,
+        },
+    )
+    .await
+    .unwrap();
 
-    let plan = PlanRepo::create(&pool, &CreatePlanRequest {
-        tenant_id: t.clone(), name: "Full Service".into(), description: None,
-        asset_type_filter: None, schedule_type: "both".into(),
-        calendar_interval_days: Some(30), meter_type_id: Some(meter),
-        meter_interval: Some(500), priority: Some("critical".into()),
-        estimated_duration_minutes: None, estimated_cost_minor: None,
-        task_checklist: None,
-    }).await.unwrap();
+    let plan = PlanRepo::create(
+        &pool,
+        &CreatePlanRequest {
+            tenant_id: t.clone(),
+            name: "Full Service".into(),
+            description: None,
+            asset_type_filter: None,
+            schedule_type: "both".into(),
+            calendar_interval_days: Some(30),
+            meter_type_id: Some(meter),
+            meter_interval: Some(500),
+            priority: Some("critical".into()),
+            estimated_duration_minutes: None,
+            estimated_cost_minor: None,
+            task_checklist: None,
+        },
+    )
+    .await
+    .unwrap();
 
     let asn = assign(&pool, plan.id, &t, asset).await;
     backdate(&pool, asn, 1).await; // calendar due, meter not yet
@@ -242,7 +342,10 @@ async fn test_inactive_plan_skipped() {
     backdate(&pool, asn, 1).await;
 
     sqlx::query("UPDATE maintenance_plans SET is_active = false WHERE id = $1")
-        .bind(plan).execute(&pool).await.unwrap();
+        .bind(plan)
+        .execute(&pool)
+        .await
+        .unwrap();
 
     let r = evaluate_due(&pool).await.unwrap();
     assert_eq!(r.events_emitted, 0, "inactive plan should be skipped");

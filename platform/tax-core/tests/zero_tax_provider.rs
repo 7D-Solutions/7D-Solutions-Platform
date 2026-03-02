@@ -90,10 +90,7 @@ async fn multiple_lines_all_zero() {
 async fn line_ids_preserved_in_breakdown() {
     let provider = ZeroTaxProvider;
     let resp = provider
-        .quote_tax(quote_req(vec![
-            line("alpha", 100),
-            line("beta", 200),
-        ]))
+        .quote_tax(quote_req(vec![line("alpha", 100), line("beta", 200)]))
         .await
         .unwrap();
 

@@ -352,7 +352,10 @@ async fn test_duplicate_assignment_rejected() {
     .unwrap_err();
 
     assert!(
-        matches!(err, maintenance_rs::domain::plans::PlanError::DuplicateAssignment),
+        matches!(
+            err,
+            maintenance_rs::domain::plans::PlanError::DuplicateAssignment
+        ),
         "expected DuplicateAssignment, got: {:?}",
         err
     );

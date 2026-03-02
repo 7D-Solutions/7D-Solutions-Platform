@@ -21,8 +21,8 @@ use common::{get_ar_pool, get_notifications_pool, setup_nats_client};
 use event_bus::{BusMessage, NatsBus};
 use futures::StreamExt;
 use notifications_rs::{consumer_tasks, event_bus::start_outbox_publisher};
-use serial_test::serial;
 use serde_json::json;
+use serial_test::serial;
 use sqlx::PgPool;
 use std::sync::Arc;
 use std::time::Duration;
@@ -67,7 +67,12 @@ async fn create_ar_customer(pool: &PgPool, tenant_id: &str) -> i32 {
     .expect("Failed to create AR customer")
 }
 
-async fn create_ar_invoice(pool: &PgPool, tenant_id: &str, customer_id: i32, amount_cents: i32) -> i32 {
+async fn create_ar_invoice(
+    pool: &PgPool,
+    tenant_id: &str,
+    customer_id: i32,
+    amount_cents: i32,
+) -> i32 {
     sqlx::query_scalar::<_, i32>(
         r#"
         INSERT INTO ar_invoices (
@@ -117,14 +122,13 @@ fn build_invoice_issued_envelope(
 // ============================================================================
 
 async fn count_notif_outbox(pool: &PgPool, tenant_id: &str, subject: &str) -> i64 {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND subject = $2",
-    )
-    .bind(tenant_id)
-    .bind(subject)
-    .fetch_one(pool)
-    .await
-    .unwrap_or((0,));
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND subject = $2")
+            .bind(tenant_id)
+            .bind(subject)
+            .fetch_one(pool)
+            .await
+            .unwrap_or((0,));
     row.0
 }
 
@@ -205,17 +209,16 @@ async fn ar_invoice_issued_triggers_delivery_succeeded_on_nats() {
     //    (simulates what AR outbox publisher emits when an invoice is issued)
     let envelope = build_invoice_issued_envelope(&tenant_id, invoice_id, customer_id, amount_cents);
     let payload_bytes = serde_json::to_vec(&envelope).expect("serialize envelope");
-    nats.publish(
-        "ar.events.invoice.issued",
-        payload_bytes.into(),
-    )
-    .await
-    .expect("Failed to publish ar.events.invoice.issued");
+    nats.publish("ar.events.invoice.issued", payload_bytes.into())
+        .await
+        .expect("Failed to publish ar.events.invoice.issued");
 
     // 7. Wait up to 5s for notifications.delivery.succeeded on NATS
     let received_msg = timeout(Duration::from_secs(5), notif_sub.next())
         .await
-        .expect("Timed out waiting for notifications.delivery.succeeded — notification chain is broken")
+        .expect(
+            "Timed out waiting for notifications.delivery.succeeded — notification chain is broken",
+        )
         .expect("NATS subscription closed unexpectedly");
 
     // 8. Verify the NATS event fields
@@ -293,7 +296,9 @@ async fn outbox_row_has_correct_channel_and_tenant() {
     tokio::spawn({
         let p = notif_pool.clone();
         let b = notif_bus.clone();
-        async move { start_outbox_publisher(p, b).await; }
+        async move {
+            start_outbox_publisher(p, b).await;
+        }
     });
 
     tokio::time::sleep(Duration::from_millis(300)).await;
@@ -383,7 +388,9 @@ async fn notification_envelope_has_correct_metadata() {
     tokio::spawn({
         let p = notif_pool.clone();
         let b = notif_bus.clone();
-        async move { start_outbox_publisher(p, b).await; }
+        async move {
+            start_outbox_publisher(p, b).await;
+        }
     });
 
     tokio::time::sleep(Duration::from_millis(300)).await;
@@ -423,7 +430,10 @@ async fn notification_envelope_has_correct_metadata() {
     // payload.notification_id must be non-empty
     let notif_payload = &body["payload"];
     assert!(
-        !notif_payload["notification_id"].as_str().unwrap_or("").is_empty(),
+        !notif_payload["notification_id"]
+            .as_str()
+            .unwrap_or("")
+            .is_empty(),
         "notification_id must be non-empty"
     );
 

@@ -8,7 +8,6 @@
 /// - Call gl_rs::services functions directly — no Docker, no NATS
 /// - Setup accounts/periods directly in DB; clean up via unique tenant_id
 /// - Remove #[ignore] — all tests run in default cargo test sweep
-
 mod common;
 
 use anyhow::Result;
@@ -41,9 +40,23 @@ fn sha256_hex(input: String) -> String {
 async fn setup_test_accounts(pool: &PgPool, tenant_id: &str) -> Result<()> {
     let accounts = [
         (Uuid::new_v4(), "1100", "Cash", "asset", "debit", true),
-        (Uuid::new_v4(), "1200", "Accounts Receivable", "asset", "debit", true),
+        (
+            Uuid::new_v4(),
+            "1200",
+            "Accounts Receivable",
+            "asset",
+            "debit",
+            true,
+        ),
         (Uuid::new_v4(), "4000", "Revenue", "revenue", "credit", true),
-        (Uuid::new_v4(), "9999", "Inactive Account", "expense", "debit", false),
+        (
+            Uuid::new_v4(),
+            "9999",
+            "Inactive Account",
+            "expense",
+            "debit",
+            false,
+        ),
     ];
 
     for (id, code, name, acct_type, normal_balance, is_active) in accounts {
@@ -198,7 +211,10 @@ async fn test_phase10_invalid_account_rejection() -> Result<()> {
     .bind(event_id)
     .fetch_one(&pool)
     .await?;
-    assert_eq!(count, 0, "No journal entry should exist for rejected posting");
+    assert_eq!(
+        count, 0,
+        "No journal entry should exist for rejected posting"
+    );
 
     println!("✅ Invalid account correctly rejected");
     Ok(())
@@ -239,10 +255,7 @@ async fn test_phase10_inactive_account_rejection() -> Result<()> {
     )
     .await;
 
-    assert!(
-        result.is_err(),
-        "Posting with inactive account should fail"
-    );
+    assert!(result.is_err(), "Posting with inactive account should fail");
     let err_msg = result.unwrap_err().to_string();
     assert!(
         err_msg.contains("9999") || err_msg.contains("inactive") || err_msg.contains("Validation"),
@@ -257,7 +270,10 @@ async fn test_phase10_inactive_account_rejection() -> Result<()> {
     .bind(event_id)
     .fetch_one(&pool)
     .await?;
-    assert_eq!(count, 0, "No journal entry should exist for rejected posting");
+    assert_eq!(
+        count, 0,
+        "No journal entry should exist for rejected posting"
+    );
 
     println!("✅ Inactive account correctly rejected");
     Ok(())
@@ -281,10 +297,7 @@ async fn test_phase10_closed_period_rejection() -> Result<()> {
     // January 2024 is the closed period
     let payload = make_posting_request(
         "2024-01-15",
-        vec![
-            ("1200", 100.0, 0.0),
-            ("4000", 0.0, 100.0),
-        ],
+        vec![("1200", 100.0, 0.0), ("4000", 0.0, 100.0)],
     );
 
     let result = journal_service::process_gl_posting_request(
@@ -298,10 +311,7 @@ async fn test_phase10_closed_period_rejection() -> Result<()> {
     )
     .await;
 
-    assert!(
-        result.is_err(),
-        "Posting to closed period should fail"
-    );
+    assert!(result.is_err(), "Posting to closed period should fail");
     let err_msg = result.unwrap_err().to_string();
     assert!(
         err_msg.contains("closed") || err_msg.contains("Period"),
@@ -316,7 +326,10 @@ async fn test_phase10_closed_period_rejection() -> Result<()> {
     .bind(event_id)
     .fetch_one(&pool)
     .await?;
-    assert_eq!(count, 0, "No journal entry should exist for rejected posting");
+    assert_eq!(
+        count, 0,
+        "No journal entry should exist for rejected posting"
+    );
 
     println!("✅ Closed period posting correctly rejected");
     Ok(())
@@ -340,10 +353,7 @@ async fn test_phase10_valid_posting_open_period() -> Result<()> {
     // February 2024 is open
     let payload = make_posting_request(
         "2024-02-15",
-        vec![
-            ("1200", 100.0, 0.0),
-            ("4000", 0.0, 100.0),
-        ],
+        vec![("1200", 100.0, 0.0), ("4000", 0.0, 100.0)],
     );
 
     let entry_id = journal_service::process_gl_posting_request(
@@ -359,25 +369,26 @@ async fn test_phase10_valid_posting_open_period() -> Result<()> {
     .map_err(|e| anyhow::anyhow!("Posting failed: {}", e))?;
 
     // Verify journal entry was created
-    let entry_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(entry_id)
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await?;
+    let entry_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE id = $1 AND tenant_id = $2")
+            .bind(entry_id)
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await?;
     assert_eq!(entry_count, 1, "Journal entry should be created");
 
     // Verify two journal lines exist
-    let line_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_lines WHERE journal_entry_id = $1",
-    )
-    .bind(entry_id)
-    .fetch_one(&pool)
-    .await?;
+    let line_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_lines WHERE journal_entry_id = $1")
+            .bind(entry_id)
+            .fetch_one(&pool)
+            .await?;
     assert_eq!(line_count, 2, "Two journal lines should exist");
 
-    println!("✅ Valid posting created journal entry {} with 2 lines", entry_id);
+    println!(
+        "✅ Valid posting created journal entry {} with 2 lines",
+        entry_id
+    );
     Ok(())
 }
 
@@ -399,10 +410,7 @@ async fn test_phase10_valid_reversal() -> Result<()> {
     let orig_event_id = Uuid::new_v4();
     let payload = make_posting_request(
         "2024-02-15",
-        vec![
-            ("1200", 100.0, 0.0),
-            ("4000", 0.0, 100.0),
-        ],
+        vec![("1200", 100.0, 0.0), ("4000", 0.0, 100.0)],
     );
     let original_entry_id = journal_service::process_gl_posting_request(
         &pool,
@@ -420,23 +428,19 @@ async fn test_phase10_valid_reversal() -> Result<()> {
 
     // Step 2: Create reversal
     let reversal_event_id = Uuid::new_v4();
-    let reversal_entry_id = reversal_service::create_reversal_entry(
-        &pool,
-        reversal_event_id,
-        original_entry_id,
-    )
-    .await
-    .map_err(|e| anyhow::anyhow!("Reversal failed: {}", e))?;
+    let reversal_entry_id =
+        reversal_service::create_reversal_entry(&pool, reversal_event_id, original_entry_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Reversal failed: {}", e))?;
 
     println!("✅ Reversal entry created: {}", reversal_entry_id);
 
     // Verify reversal references original
-    let reverses_ref: Option<Uuid> = sqlx::query_scalar(
-        "SELECT reverses_entry_id FROM journal_entries WHERE id = $1",
-    )
-    .bind(reversal_entry_id)
-    .fetch_one(&pool)
-    .await?;
+    let reverses_ref: Option<Uuid> =
+        sqlx::query_scalar("SELECT reverses_entry_id FROM journal_entries WHERE id = $1")
+            .bind(reversal_entry_id)
+            .fetch_one(&pool)
+            .await?;
     assert_eq!(
         reverses_ref,
         Some(original_entry_id),
@@ -486,10 +490,7 @@ async fn test_phase10_idempotent_reversal() -> Result<()> {
     let orig_event_id = Uuid::new_v4();
     let payload = make_posting_request(
         "2024-02-15",
-        vec![
-            ("1200", 100.0, 0.0),
-            ("4000", 0.0, 100.0),
-        ],
+        vec![("1200", 100.0, 0.0), ("4000", 0.0, 100.0)],
     );
     let original_entry_id = journal_service::process_gl_posting_request(
         &pool,
@@ -505,13 +506,10 @@ async fn test_phase10_idempotent_reversal() -> Result<()> {
 
     // First reversal — succeeds
     let reversal_event_id = Uuid::new_v4();
-    let reversal_id = reversal_service::create_reversal_entry(
-        &pool,
-        reversal_event_id,
-        original_entry_id,
-    )
-    .await
-    .map_err(|e| anyhow::anyhow!("First reversal failed: {}", e))?;
+    let reversal_id =
+        reversal_service::create_reversal_entry(&pool, reversal_event_id, original_entry_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("First reversal failed: {}", e))?;
 
     println!("✅ First reversal created: {}", reversal_id);
 
@@ -535,12 +533,11 @@ async fn test_phase10_idempotent_reversal() -> Result<()> {
     );
 
     // Exactly one reversal entry in DB
-    let reversal_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE reverses_entry_id = $1",
-    )
-    .bind(original_entry_id)
-    .fetch_one(&pool)
-    .await?;
+    let reversal_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE reverses_entry_id = $1")
+            .bind(original_entry_id)
+            .fetch_one(&pool)
+            .await?;
     assert_eq!(
         reversal_count, 1,
         "Exactly one reversal should exist even after duplicate event replay"

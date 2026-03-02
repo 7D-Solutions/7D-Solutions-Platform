@@ -59,15 +59,30 @@ async fn create_test_invoice(pool: &sqlx::PgPool, tenant_id: &str) -> Result<(i3
 /// Clean up all test data for a tenant (reverse FK order).
 async fn cleanup_tenant(pool: &sqlx::PgPool, tenant_id: &str) {
     sqlx::query("DELETE FROM events_outbox WHERE tenant_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_dunning_states WHERE app_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_invoice_attempts WHERE app_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_customers WHERE app_id = $1")
-        .bind(tenant_id).execute(pool).await.ok();
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 /// Read dunning state from DB: (state, version, attempt_count, next_attempt_at).
@@ -137,8 +152,9 @@ async fn test_dunning_workflow_full_lifecycle() {
     assert!(matches!(result, InitDunningResult::Initialized { .. }));
     println!("[1/6] Dunning initialized: Pending (past due)");
 
-    let (state, version, attempt_count, _next) =
-        get_dunning_state(&pool, &tenant_id, invoice_id).await.unwrap();
+    let (state, version, attempt_count, _next) = get_dunning_state(&pool, &tenant_id, invoice_id)
+        .await
+        .unwrap();
     assert_eq!(state, "pending");
     assert_eq!(version, 1);
     assert_eq!(attempt_count, 0);
@@ -150,20 +166,27 @@ async fn test_dunning_workflow_full_lifecycle() {
         .expect("scheduler step 1");
     match &outcome {
         DunningExecutionOutcome::Transitioned {
-            from_state, to_state, new_attempt_count, next_attempt_at,
+            from_state,
+            to_state,
+            new_attempt_count,
+            next_attempt_at,
         } => {
             assert_eq!(from_state, "pending");
             assert_eq!(to_state, "warned");
             assert_eq!(*new_attempt_count, 1);
-            assert!(next_attempt_at.is_some(), "warned should have next_attempt_at");
+            assert!(
+                next_attempt_at.is_some(),
+                "warned should have next_attempt_at"
+            );
         }
         other => panic!("expected Transitioned, got {:?}", other),
     }
     println!("[2/6] Scheduler: Pending → Warned (attempt=1)");
 
     // Verify backoff for attempt=1 is ~1h
-    let (state, version, attempt_count, next_at) =
-        get_dunning_state(&pool, &tenant_id, invoice_id).await.unwrap();
+    let (state, version, attempt_count, next_at) = get_dunning_state(&pool, &tenant_id, invoice_id)
+        .await
+        .unwrap();
     assert_eq!(state, "warned");
     assert_eq!(version, 2);
     assert_eq!(attempt_count, 1);
@@ -176,19 +199,27 @@ async fn test_dunning_workflow_full_lifecycle() {
     );
 
     // ── Step 3: Make due again, scheduler → Warned to Escalated ──
-    make_dunning_due(&pool, &tenant_id, invoice_id).await.unwrap();
+    make_dunning_due(&pool, &tenant_id, invoice_id)
+        .await
+        .unwrap();
     let corr = Uuid::new_v4().to_string();
     let outcome = claim_and_execute_one(&pool, &corr, Some(&tenant_id))
         .await
         .expect("scheduler step 2");
     match &outcome {
         DunningExecutionOutcome::Transitioned {
-            from_state, to_state, new_attempt_count, next_attempt_at,
+            from_state,
+            to_state,
+            new_attempt_count,
+            next_attempt_at,
         } => {
             assert_eq!(from_state, "warned");
             assert_eq!(to_state, "escalated");
             assert_eq!(*new_attempt_count, 2);
-            assert!(next_attempt_at.is_some(), "escalated should have next_attempt_at");
+            assert!(
+                next_attempt_at.is_some(),
+                "escalated should have next_attempt_at"
+            );
         }
         other => panic!("expected Transitioned, got {:?}", other),
     }
@@ -196,7 +227,9 @@ async fn test_dunning_workflow_full_lifecycle() {
 
     // Verify backoff for attempt=2 is ~2h
     let (state, _version, attempt_count, next_at) =
-        get_dunning_state(&pool, &tenant_id, invoice_id).await.unwrap();
+        get_dunning_state(&pool, &tenant_id, invoice_id)
+            .await
+            .unwrap();
     assert_eq!(state, "escalated");
     assert_eq!(attempt_count, 2);
     let next_at = next_at.expect("escalated should have next_attempt_at");
@@ -208,14 +241,19 @@ async fn test_dunning_workflow_full_lifecycle() {
     );
 
     // ── Step 4: Make due again, scheduler → Escalated to Suspended ──
-    make_dunning_due(&pool, &tenant_id, invoice_id).await.unwrap();
+    make_dunning_due(&pool, &tenant_id, invoice_id)
+        .await
+        .unwrap();
     let corr = Uuid::new_v4().to_string();
     let outcome = claim_and_execute_one(&pool, &corr, Some(&tenant_id))
         .await
         .expect("scheduler step 3");
     match &outcome {
         DunningExecutionOutcome::Transitioned {
-            from_state, to_state, new_attempt_count, ..
+            from_state,
+            to_state,
+            new_attempt_count,
+            ..
         } => {
             assert_eq!(from_state, "escalated");
             assert_eq!(to_state, "suspended");
@@ -226,12 +264,16 @@ async fn test_dunning_workflow_full_lifecycle() {
     println!("[4/6] Scheduler: Escalated → Suspended (attempt=3, final auto-state)");
 
     let (state, _version, attempt_count, _next_at) =
-        get_dunning_state(&pool, &tenant_id, invoice_id).await.unwrap();
+        get_dunning_state(&pool, &tenant_id, invoice_id)
+            .await
+            .unwrap();
     assert_eq!(state, "suspended");
     assert_eq!(attempt_count, 3);
 
     // ── Step 5: Scheduler does NOT progress past Suspended ──
-    make_dunning_due(&pool, &tenant_id, invoice_id).await.unwrap();
+    make_dunning_due(&pool, &tenant_id, invoice_id)
+        .await
+        .unwrap();
     let corr = Uuid::new_v4().to_string();
     let outcome = claim_and_execute_one(&pool, &corr, Some(&tenant_id))
         .await
@@ -258,14 +300,16 @@ async fn test_dunning_workflow_full_lifecycle() {
     );
 
     // Total outbox: 1 (init) + 3 (transitions) + 1 (invoice_suspended) = 5
-    let total_events: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("total event count");
-    assert_eq!(total_events, 5, "init + 3 transitions + 1 invoice_suspended = 5 events");
+    let total_events: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("total event count");
+    assert_eq!(
+        total_events, 5,
+        "init + 3 transitions + 1 invoice_suspended = 5 events"
+    );
     println!("[6/6] ar.invoice_suspended outbox event confirmed (5 total events)");
 
     println!("\n=== Dunning Workflow Full Lifecycle: ALL PASSED ===");
@@ -314,8 +358,9 @@ async fn test_dunning_grace_period_boundary() {
     );
 
     // Verify state is still Pending (untouched)
-    let (state, version, attempt_count, _) =
-        get_dunning_state(&pool, &tenant_id, invoice_id).await.unwrap();
+    let (state, version, attempt_count, _) = get_dunning_state(&pool, &tenant_id, invoice_id)
+        .await
+        .unwrap();
     assert_eq!(state, "pending", "state must remain pending");
     assert_eq!(version, 1, "version must be unchanged");
     assert_eq!(attempt_count, 0, "attempt_count must be unchanged");

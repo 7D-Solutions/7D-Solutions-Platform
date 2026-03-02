@@ -136,11 +136,14 @@ mod tests {
 
         let updated = retry
             .execute(|| {
-                client.update_payment_intent(&created.id, UpdatePaymentIntentRequest {
-                    amount: Some(4400),
-                    currency: None,
-                    metadata: Some(meta.clone()),
-                })
+                client.update_payment_intent(
+                    &created.id,
+                    UpdatePaymentIntentRequest {
+                        amount: Some(4400),
+                        currency: None,
+                        metadata: Some(meta.clone()),
+                    },
+                )
             })
             .await
             .expect("update_payment_intent should succeed");
@@ -153,7 +156,11 @@ mod tests {
         assert_eq!(updated.id, created.id);
         assert_eq!(updated.amount, 4400);
         assert_eq!(
-            updated.metadata.as_ref().and_then(|m| m.get("updated_by")).map(|s| s.as_str()),
+            updated
+                .metadata
+                .as_ref()
+                .and_then(|m| m.get("updated_by"))
+                .map(|s| s.as_str()),
             Some("sandbox-test")
         );
 

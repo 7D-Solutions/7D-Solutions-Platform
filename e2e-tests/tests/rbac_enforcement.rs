@@ -28,7 +28,11 @@
 
 mod common;
 
-use audit::{actor::Actor, schema::{MutationClass, WriteAuditRequest}, writer::AuditWriter};
+use audit::{
+    actor::Actor,
+    schema::{MutationClass, WriteAuditRequest},
+    writer::AuditWriter,
+};
 use axum::{body::Body, http::Request, routing::post, Router};
 use chrono::Utc;
 use jsonwebtoken::{Algorithm, EncodingKey, Header};
@@ -36,8 +40,7 @@ use rsa::pkcs8::{EncodePrivateKey, EncodePublicKey, LineEnding};
 use rsa::RsaPrivateKey;
 use security::{
     authz_middleware::{ClaimsLayer, RequirePermissionsLayer},
-    permissions,
-    JwtVerifier,
+    permissions, JwtVerifier,
 };
 use serde::Serialize;
 use std::sync::Arc;
@@ -124,7 +127,13 @@ async fn rbac_no_token_returns_401_ar() {
     let app = make_guarded_router(permissions::AR_MUTATE, keys.verifier);
 
     let resp = app
-        .oneshot(Request::builder().uri("/guarded").method("POST").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/guarded")
+                .method("POST")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -142,11 +151,21 @@ async fn rbac_no_token_returns_401_gl() {
     let app = make_guarded_router(permissions::GL_POST, keys.verifier);
 
     let resp = app
-        .oneshot(Request::builder().uri("/guarded").method("POST").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/guarded")
+                .method("POST")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 401, "GL post without token must return 401");
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "GL post without token must return 401"
+    );
     println!("✅ GL: no token → 401");
 }
 
@@ -156,11 +175,21 @@ async fn rbac_no_token_returns_401_inventory() {
     let app = make_guarded_router(permissions::INVENTORY_MUTATE, keys.verifier);
 
     let resp = app
-        .oneshot(Request::builder().uri("/guarded").method("POST").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/guarded")
+                .method("POST")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 401, "Inventory mutation without token must return 401");
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "Inventory mutation without token must return 401"
+    );
     println!("✅ Inventory: no token → 401");
 }
 
@@ -170,11 +199,21 @@ async fn rbac_no_token_returns_401_ap() {
     let app = make_guarded_router(permissions::AP_MUTATE, keys.verifier);
 
     let resp = app
-        .oneshot(Request::builder().uri("/guarded").method("POST").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/guarded")
+                .method("POST")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 401, "AP mutation without token must return 401");
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "AP mutation without token must return 401"
+    );
     println!("✅ AP: no token → 401");
 }
 
@@ -184,11 +223,21 @@ async fn rbac_no_token_returns_401_payments() {
     let app = make_guarded_router(permissions::PAYMENTS_MUTATE, keys.verifier);
 
     let resp = app
-        .oneshot(Request::builder().uri("/guarded").method("POST").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/guarded")
+                .method("POST")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 401, "Payments mutation without token must return 401");
+    assert_eq!(
+        resp.status().as_u16(),
+        401,
+        "Payments mutation without token must return 401"
+    );
     println!("✅ Payments: no token → 401");
 }
 
@@ -216,7 +265,11 @@ async fn rbac_wrong_permission_returns_403_ar() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 403, "Wrong perm on AR route must return 403");
+    assert_eq!(
+        resp.status().as_u16(),
+        403,
+        "Wrong perm on AR route must return 403"
+    );
     println!("✅ AR: wrong permission → 403");
 }
 
@@ -239,7 +292,11 @@ async fn rbac_wrong_permission_returns_403_gl() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 403, "Wrong perm on GL route must return 403");
+    assert_eq!(
+        resp.status().as_u16(),
+        403,
+        "Wrong perm on GL route must return 403"
+    );
     println!("✅ GL: wrong permission → 403");
 }
 
@@ -261,7 +318,11 @@ async fn rbac_wrong_permission_returns_403_inventory() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 403, "Wrong perm on Inventory route must return 403");
+    assert_eq!(
+        resp.status().as_u16(),
+        403,
+        "Wrong perm on Inventory route must return 403"
+    );
     println!("✅ Inventory: wrong permission → 403");
 }
 
@@ -315,7 +376,11 @@ async fn rbac_correct_permission_succeeds_ar() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 200, "Correct perm on AR route must succeed");
+    assert_eq!(
+        resp.status().as_u16(),
+        200,
+        "Correct perm on AR route must succeed"
+    );
     println!("✅ AR: correct permission → 200");
 }
 
@@ -337,7 +402,11 @@ async fn rbac_correct_permission_succeeds_gl() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 200, "Correct perm on GL route must succeed");
+    assert_eq!(
+        resp.status().as_u16(),
+        200,
+        "Correct perm on GL route must succeed"
+    );
     println!("✅ GL: correct permission → 200");
 }
 
@@ -359,7 +428,11 @@ async fn rbac_correct_permission_succeeds_inventory() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 200, "Correct perm on Inventory route must succeed");
+    assert_eq!(
+        resp.status().as_u16(),
+        200,
+        "Correct perm on Inventory route must succeed"
+    );
     println!("✅ Inventory: correct permission → 200");
 }
 
@@ -392,7 +465,11 @@ async fn rbac_superset_perms_succeeds() {
         .await
         .unwrap();
 
-    assert_eq!(resp.status().as_u16(), 200, "Superset perms must satisfy perm gate");
+    assert_eq!(
+        resp.status().as_u16(),
+        200,
+        "Superset perms must satisfy perm gate"
+    );
     println!("✅ Superset permissions → 200");
 }
 
@@ -441,7 +518,10 @@ async fn rbac_deny_by_default_all_modules() {
         println!("✅ {}: deny-by-default → 401", label);
     }
 
-    println!("\n✅ All {} modules enforce deny-by-default (no token → 401)", modules.len());
+    println!(
+        "\n✅ All {} modules enforce deny-by-default (no token → 401)",
+        modules.len()
+    );
 }
 
 /// Verify authorised access across all module permission gates.
@@ -487,7 +567,10 @@ async fn rbac_authorised_succeeds_all_modules() {
         println!("✅ {}: authorised → 200", label);
     }
 
-    println!("\n✅ All {} modules accept correctly-permissioned tokens", modules.len());
+    println!(
+        "\n✅ All {} modules accept correctly-permissioned tokens",
+        modules.len()
+    );
 }
 
 // ============================================================================
@@ -512,7 +595,10 @@ async fn rbac_audit_actor_captured_for_authorised_mutation() {
     {
         Ok(Ok(p)) => p,
         Ok(Err(e)) => {
-            println!("⚠️  Audit DB unavailable ({}) — skipping actor-in-audit test", e);
+            println!(
+                "⚠️  Audit DB unavailable ({}) — skipping actor-in-audit test",
+                e
+            );
             return;
         }
         Err(_) => {
@@ -532,16 +618,14 @@ async fn rbac_audit_actor_captured_for_authorised_mutation() {
 
     // Write the audit entry that a mutation handler would produce
     let audit_id = writer
-        .write(
-            WriteAuditRequest::new(
-                actor.id,
-                actor.actor_type_str(),
-                "CreateInvoice".to_string(),
-                MutationClass::Create,
-                "Invoice".to_string(),
-                entity_id.clone(),
-            ),
-        )
+        .write(WriteAuditRequest::new(
+            actor.id,
+            actor.actor_type_str(),
+            "CreateInvoice".to_string(),
+            MutationClass::Create,
+            "Invoice".to_string(),
+            entity_id.clone(),
+        ))
         .await
         .expect("Audit write failed");
 
@@ -558,7 +642,10 @@ async fn rbac_audit_actor_captured_for_authorised_mutation() {
     assert_eq!(events[0].action, "CreateInvoice");
     assert_eq!(events[0].entity_type, "Invoice");
 
-    println!("✅ Audit actor captured: actor_id={}, actor_type=User, action=CreateInvoice", user_id);
+    println!(
+        "✅ Audit actor captured: actor_id={}, actor_type=User, action=CreateInvoice",
+        user_id
+    );
 }
 
 /// Service actor recorded when a service-to-service call passes RBAC.
@@ -577,7 +664,10 @@ async fn rbac_audit_service_actor_captured() {
     {
         Ok(Ok(p)) => p,
         Ok(Err(e)) => {
-            println!("⚠️  Audit DB unavailable ({}) — skipping service actor test", e);
+            println!(
+                "⚠️  Audit DB unavailable ({}) — skipping service actor test",
+                e
+            );
             return;
         }
         Err(_) => {
@@ -593,16 +683,14 @@ async fn rbac_audit_service_actor_captured() {
     let writer = AuditWriter::new(pool.clone());
 
     writer
-        .write(
-            WriteAuditRequest::new(
-                actor.id,
-                actor.actor_type_str(),
-                "AllocatePayment".to_string(),
-                MutationClass::Update,
-                "Payment".to_string(),
-                entity_id.clone(),
-            ),
-        )
+        .write(WriteAuditRequest::new(
+            actor.id,
+            actor.actor_type_str(),
+            "AllocatePayment".to_string(),
+            MutationClass::Update,
+            "Payment".to_string(),
+            entity_id.clone(),
+        ))
         .await
         .expect("Audit write failed");
 
@@ -612,13 +700,22 @@ async fn rbac_audit_service_actor_captured() {
         .expect("Audit query failed");
 
     assert_eq!(events.len(), 1);
-    assert_eq!(events[0].actor_id, actor.id, "Service actor ID must be deterministic");
+    assert_eq!(
+        events[0].actor_id, actor.id,
+        "Service actor ID must be deterministic"
+    );
     assert_eq!(events[0].actor_type, "Service");
     assert_eq!(events[0].action, "AllocatePayment");
 
     // Verify service actor ID is deterministic (same name → same UUID)
     let actor2 = Actor::service("ar-module");
-    assert_eq!(actor.id, actor2.id, "Service actors must use deterministic UUIDs");
+    assert_eq!(
+        actor.id, actor2.id,
+        "Service actors must use deterministic UUIDs"
+    );
 
-    println!("✅ Service actor captured: actor_id={} (deterministic), actor_type=Service", actor.id);
+    println!(
+        "✅ Service actor captured: actor_id={} (deterministic), actor_type=Service",
+        actor.id
+    );
 }

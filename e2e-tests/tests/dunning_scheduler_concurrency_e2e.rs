@@ -16,9 +16,7 @@
 mod common;
 
 use anyhow::Result;
-use ar_rs::dunning::{
-    init_dunning, DunningStateValue, InitDunningRequest, InitDunningResult,
-};
+use ar_rs::dunning::{init_dunning, DunningStateValue, InitDunningRequest, InitDunningResult};
 use ar_rs::dunning_scheduler::{
     claim_and_execute_one, poll_and_execute_batch, DunningExecutionOutcome,
 };
@@ -146,7 +144,10 @@ async fn test_scheduler_claims_due_row_and_transitions() {
             assert_eq!(from_state, "pending", "should transition FROM pending");
             assert_eq!(to_state, "warned", "should transition TO warned");
             assert_eq!(*new_attempt_count, 1, "attempt_count should be 1");
-            assert!(next_attempt_at.is_some(), "non-terminal should have next_attempt_at");
+            assert!(
+                next_attempt_at.is_some(),
+                "non-terminal should have next_attempt_at"
+            );
         }
         other => panic!("expected Transitioned, got {:?}", other),
     }
@@ -337,11 +338,16 @@ async fn test_scheduler_more_workers_than_rows() {
         }
     }
 
-    assert_eq!(transitioned, 1, "exactly 1 worker should transition the row");
+    assert_eq!(
+        transitioned, 1,
+        "exactly 1 worker should transition the row"
+    );
     assert!(
         transitioned + nothing + concurrent_mod == 4,
         "all 4 workers should have returned: transitioned={}, nothing={}, errors={}",
-        transitioned, nothing, concurrent_mod
+        transitioned,
+        nothing,
+        concurrent_mod
     );
 
     cleanup_tenant(&pool, &tenant_id).await.unwrap();
@@ -487,7 +493,10 @@ async fn test_scheduler_outbox_atomicity() {
     .fetch_one(&pool)
     .await
     .expect("event count failed");
-    assert_eq!(event_count, 2, "init + transition = 2 outbox events atomically");
+    assert_eq!(
+        event_count, 2,
+        "init + transition = 2 outbox events atomically"
+    );
 
     // Verify all events have LIFECYCLE mutation_class
     let mutation_classes: Vec<String> = sqlx::query_scalar(

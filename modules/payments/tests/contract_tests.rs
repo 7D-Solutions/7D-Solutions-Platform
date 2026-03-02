@@ -5,7 +5,6 @@
 ///
 /// This ensures that the events we produce will be consumable by
 /// other modules (like AR) that depend on payments events.
-
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
@@ -20,16 +19,15 @@ fn contracts_dir() -> PathBuf {
 }
 
 fn load_json_file(path: &PathBuf) -> Value {
-    let contents = fs::read_to_string(path)
-        .unwrap_or_else(|_| panic!("Failed to read file: {:?}", path));
-    serde_json::from_str(&contents)
-        .unwrap_or_else(|_| panic!("Failed to parse JSON: {:?}", path))
+    let contents =
+        fs::read_to_string(path).unwrap_or_else(|_| panic!("Failed to read file: {:?}", path));
+    serde_json::from_str(&contents).unwrap_or_else(|_| panic!("Failed to parse JSON: {:?}", path))
 }
 
 #[test]
 fn test_payment_succeeded_example_has_valid_envelope() {
-    let example_path = contracts_dir()
-        .join("events/examples/payments-payment-succeeded.v1.example.json");
+    let example_path =
+        contracts_dir().join("events/examples/payments-payment-succeeded.v1.example.json");
 
     let example: Value = load_json_file(&example_path);
 
@@ -37,8 +35,14 @@ fn test_payment_succeeded_example_has_valid_envelope() {
     assert!(example.get("event_id").is_some(), "Missing event_id");
     assert!(example.get("occurred_at").is_some(), "Missing occurred_at");
     assert!(example.get("tenant_id").is_some(), "Missing tenant_id");
-    assert!(example.get("source_module").is_some(), "Missing source_module");
-    assert!(example.get("source_version").is_some(), "Missing source_version");
+    assert!(
+        example.get("source_module").is_some(),
+        "Missing source_module"
+    );
+    assert!(
+        example.get("source_version").is_some(),
+        "Missing source_version"
+    );
     assert!(example.get("payload").is_some(), "Missing payload");
 
     // Validate source_module is correct
@@ -52,7 +56,10 @@ fn test_payment_succeeded_example_has_valid_envelope() {
     let payload = example.get("payload").unwrap();
     assert!(payload.get("payment_id").is_some(), "Missing payment_id");
     assert!(payload.get("invoice_id").is_some(), "Missing invoice_id");
-    assert!(payload.get("amount_minor").is_some(), "Missing amount_minor");
+    assert!(
+        payload.get("amount_minor").is_some(),
+        "Missing amount_minor"
+    );
     assert!(payload.get("currency").is_some(), "Missing currency");
 
     // Validate amount_minor is an integer
@@ -64,8 +71,8 @@ fn test_payment_succeeded_example_has_valid_envelope() {
 
 #[test]
 fn test_payment_failed_example_has_valid_envelope() {
-    let example_path = contracts_dir()
-        .join("events/examples/payments-payment-failed.v1.example.json");
+    let example_path =
+        contracts_dir().join("events/examples/payments-payment-failed.v1.example.json");
 
     let example: Value = load_json_file(&example_path);
 
@@ -80,14 +87,20 @@ fn test_payment_failed_example_has_valid_envelope() {
 
     // Validate failure fields
     let payload = example.get("payload").unwrap();
-    assert!(payload.get("failure_code").is_some(), "Missing failure_code");
-    assert!(payload.get("failure_message").is_some(), "Missing failure_message");
+    assert!(
+        payload.get("failure_code").is_some(),
+        "Missing failure_code"
+    );
+    assert!(
+        payload.get("failure_message").is_some(),
+        "Missing failure_message"
+    );
 }
 
 #[test]
 fn test_refund_succeeded_example_has_valid_envelope() {
-    let example_path = contracts_dir()
-        .join("events/examples/payments-refund-succeeded.v1.example.json");
+    let example_path =
+        contracts_dir().join("events/examples/payments-refund-succeeded.v1.example.json");
 
     let example: Value = load_json_file(&example_path);
 
@@ -102,13 +115,16 @@ fn test_refund_succeeded_example_has_valid_envelope() {
     let payload = example.get("payload").unwrap();
     assert!(payload.get("refund_id").is_some(), "Missing refund_id");
     assert!(payload.get("payment_id").is_some(), "Missing payment_id");
-    assert!(payload.get("amount_minor").is_some(), "Missing amount_minor");
+    assert!(
+        payload.get("amount_minor").is_some(),
+        "Missing amount_minor"
+    );
 }
 
 #[test]
 fn test_refund_failed_example_has_valid_envelope() {
-    let example_path = contracts_dir()
-        .join("events/examples/payments-refund-failed.v1.example.json");
+    let example_path =
+        contracts_dir().join("events/examples/payments-refund-failed.v1.example.json");
 
     let example: Value = load_json_file(&example_path);
 
@@ -121,8 +137,14 @@ fn test_refund_failed_example_has_valid_envelope() {
 
     // Validate failure fields
     let payload = example.get("payload").unwrap();
-    assert!(payload.get("failure_code").is_some(), "Missing failure_code");
-    assert!(payload.get("failure_message").is_some(), "Missing failure_message");
+    assert!(
+        payload.get("failure_code").is_some(),
+        "Missing failure_code"
+    );
+    assert!(
+        payload.get("failure_message").is_some(),
+        "Missing failure_message"
+    );
 }
 
 #[test]
@@ -135,9 +157,7 @@ fn test_all_payment_examples_use_minor_currency_units() {
     ];
 
     for example_name in examples {
-        let example_path = contracts_dir()
-            .join("events/examples")
-            .join(example_name);
+        let example_path = contracts_dir().join("events/examples").join(example_name);
 
         let example: Value = load_json_file(&example_path);
         let payload = example.get("payload").unwrap();

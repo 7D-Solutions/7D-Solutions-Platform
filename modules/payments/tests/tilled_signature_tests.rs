@@ -38,13 +38,12 @@ fn test_valid_tilled_signature_accepted() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), sig_header);
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        body,
-        &[secret],
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
+    assert!(
+        result.is_ok(),
+        "Valid signature must be accepted: {:?}",
+        result
     );
-    assert!(result.is_ok(), "Valid signature must be accepted: {:?}", result);
 }
 
 /// Tampered body must be rejected even with a valid-looking header.
@@ -59,12 +58,8 @@ fn test_tampered_body_rejected() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), sig_header);
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        tampered_body,
-        &[secret],
-    );
+    let result =
+        validate_webhook_signature(WebhookSource::Tilled, &headers, tampered_body, &[secret]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
         "Tampered body must be rejected"
@@ -83,12 +78,7 @@ fn test_wrong_secret_rejected() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), sig_header);
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        body,
-        &[wrong_secret],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[wrong_secret]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
         "Wrong secret must be rejected"
@@ -106,12 +96,7 @@ fn test_replay_rejected_old_timestamp() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), sig_header);
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        body,
-        &[secret],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { ref reason }) if reason.contains("replay")),
         "Stale timestamp must be rejected as replay"
@@ -129,12 +114,7 @@ fn test_replay_rejected_future_timestamp() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), sig_header);
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        body,
-        &[secret],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
         "Future timestamp beyond tolerance must be rejected"
@@ -145,12 +125,7 @@ fn test_replay_rejected_future_timestamp() {
 #[test]
 fn test_missing_header_produces_error() {
     let headers = HashMap::new();
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        b"{}",
-        &["secret"],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, b"{}", &["secret"]);
     assert_eq!(
         result.unwrap_err(),
         SignatureError::MissingSignature,
@@ -164,12 +139,7 @@ fn test_malformed_header_rejected() {
     let mut headers = HashMap::new();
     headers.insert("tilled-signature".to_string(), "notavalidsig".to_string());
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        b"{}",
-        &["secret"],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, b"{}", &["secret"]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { .. })),
         "Malformed header must be rejected"
@@ -185,12 +155,7 @@ fn test_no_secret_configured() {
         "t=123456,v1=abc".to_string(),
     );
 
-    let result = validate_webhook_signature(
-        WebhookSource::Tilled,
-        &headers,
-        b"{}",
-        &[],
-    );
+    let result = validate_webhook_signature(WebhookSource::Tilled, &headers, b"{}", &[]);
     assert!(
         matches!(result, Err(SignatureError::InvalidSignature { ref reason }) if reason.contains("not configured")),
         "Missing secret must produce clear error"
@@ -201,15 +166,24 @@ fn test_no_secret_configured() {
 #[test]
 fn test_provider_selection_mock() {
     use payments_rs::PaymentsProvider;
-    assert_eq!(PaymentsProvider::from_str("mock").unwrap(), PaymentsProvider::Mock);
-    assert_eq!(PaymentsProvider::from_str("MOCK").unwrap(), PaymentsProvider::Mock);
+    assert_eq!(
+        PaymentsProvider::from_str("mock").unwrap(),
+        PaymentsProvider::Mock
+    );
+    assert_eq!(
+        PaymentsProvider::from_str("MOCK").unwrap(),
+        PaymentsProvider::Mock
+    );
 }
 
 /// Provider selection test: PAYMENTS_PROVIDER=tilled selects Tilled.
 #[test]
 fn test_provider_selection_tilled() {
     use payments_rs::PaymentsProvider;
-    assert_eq!(PaymentsProvider::from_str("tilled").unwrap(), PaymentsProvider::Tilled);
+    assert_eq!(
+        PaymentsProvider::from_str("tilled").unwrap(),
+        PaymentsProvider::Tilled
+    );
 }
 
 /// Provider selection rejects unknown values.

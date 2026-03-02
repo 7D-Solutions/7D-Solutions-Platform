@@ -101,11 +101,10 @@ mod tests {
         };
         let retry = RetryPolicy::default();
 
-        let (cust_id, pm_id) =
-            match setup_customer_with_pm(&client, &sk, &acct, &base_url).await {
-                Some(ids) => ids,
-                None => return,
-            };
+        let (cust_id, pm_id) = match setup_customer_with_pm(&client, &sk, &acct, &base_url).await {
+            Some(ids) => ids,
+            None => return,
+        };
 
         let sub_id = create_sub(&client, &cust_id, &pm_id).await;
 
@@ -191,11 +190,10 @@ mod tests {
         };
         let retry = RetryPolicy::default();
 
-        let (cust_id, pm_id) =
-            match setup_customer_with_pm(&client, &sk, &acct, &base_url).await {
-                Some(ids) => ids,
-                None => return,
-            };
+        let (cust_id, pm_id) = match setup_customer_with_pm(&client, &sk, &acct, &base_url).await {
+            Some(ids) => ids,
+            None => return,
+        };
 
         let sub_id = create_sub(&client, &cust_id, &pm_id).await;
 
@@ -231,10 +229,7 @@ mod tests {
                 eprintln!(
                     "[scenario-sl2] confirm returned {status_code}: {message} (expected for active sub)"
                 );
-                assert!(
-                    !message.is_empty(),
-                    "expected meaningful error message"
-                );
+                assert!(!message.is_empty(), "expected meaningful error message");
             }
             Err(e) => panic!("confirm_subscription failed unexpectedly: {e}"),
         }
@@ -263,11 +258,10 @@ mod tests {
         };
         let retry = RetryPolicy::default();
 
-        let (cust_id, pm_id) =
-            match setup_customer_with_pm(&client, &sk, &acct, &base_url).await {
-                Some(ids) => ids,
-                None => return,
-            };
+        let (cust_id, pm_id) = match setup_customer_with_pm(&client, &sk, &acct, &base_url).await {
+            Some(ids) => ids,
+            None => return,
+        };
 
         let sub_id = create_sub(&client, &cust_id, &pm_id).await;
 
@@ -296,10 +290,7 @@ mod tests {
                 eprintln!(
                     "[scenario-sl3] retry returned {status_code}: {message} (expected for active sub)"
                 );
-                assert!(
-                    !message.is_empty(),
-                    "expected meaningful error message"
-                );
+                assert!(!message.is_empty(), "expected meaningful error message");
             }
             Err(e) => panic!("retry_subscription failed unexpectedly: {e}"),
         }
@@ -328,11 +319,10 @@ mod tests {
         };
         let retry = RetryPolicy::default();
 
-        let (cust_id, pm_id) =
-            match setup_customer_with_pm(&client, &sk, &acct, &base_url).await {
-                Some(ids) => ids,
-                None => return,
-            };
+        let (cust_id, pm_id) = match setup_customer_with_pm(&client, &sk, &acct, &base_url).await {
+            Some(ids) => ids,
+            None => return,
+        };
 
         let sub_id = create_sub(&client, &cust_id, &pm_id).await;
 
@@ -350,9 +340,7 @@ mod tests {
                 status_code,
                 ref message,
             }) if status_code == 400 || status_code == 422 => {
-                eprintln!(
-                    "[scenario-sl4] pause not supported: {status_code} {message}"
-                );
+                eprintln!("[scenario-sl4] pause not supported: {status_code} {message}");
                 assert!(!message.is_empty());
                 cleanup_subscription(&client, &sub_id).await;
                 cleanup_payment_method(&client, &pm_id).await;

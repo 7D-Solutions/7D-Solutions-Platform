@@ -19,24 +19,23 @@
 mod common;
 
 use anyhow::Result;
-use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_payments_pool, get_subscriptions_pool, get_gl_pool};
+use common::{
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
+    get_subscriptions_pool,
+};
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 /// Create a subscription in Subscriptions database
-async fn create_subscription(
-    pool: &PgPool,
-    tenant_id: &str,
-    status: &str,
-) -> Result<Uuid> {
+async fn create_subscription(pool: &PgPool, tenant_id: &str, status: &str) -> Result<Uuid> {
     let subscription_id = Uuid::new_v4();
     let ar_customer_id = format!("cust-{}", Uuid::new_v4());
 
     // Create plan first (plan_id is UUID FK)
     let plan_id: Uuid = sqlx::query_scalar(
         "INSERT INTO subscription_plans (tenant_id, name, schedule, price_minor, currency) \
-         VALUES ($1, 'Test Plan', 'monthly', 5000, 'USD') RETURNING id"
+         VALUES ($1, 'Test Plan', 'monthly', 5000, 'USD') RETURNING id",
     )
     .bind(tenant_id)
     .fetch_one(pool)
@@ -64,24 +63,20 @@ async fn create_subscription(
 
 /// Get subscription status
 async fn get_subscription_status(pool: &PgPool, subscription_id: Uuid) -> Result<String> {
-    let status: String = sqlx::query_scalar(
-        "SELECT status FROM subscriptions WHERE id = $1"
-    )
-    .bind(subscription_id)
-    .fetch_one(pool)
-    .await?;
+    let status: String = sqlx::query_scalar("SELECT status FROM subscriptions WHERE id = $1")
+        .bind(subscription_id)
+        .fetch_one(pool)
+        .await?;
 
     Ok(status)
 }
 
 /// Count outbox rows for a given subscription
 async fn count_outbox_rows_for_subscription(pool: &PgPool, tenant_id: &str) -> Result<i64> {
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1"
-    )
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_one(pool)
+        .await?;
 
     Ok(count)
 }
@@ -102,9 +97,15 @@ async fn test_subscriptions_lifecycle_transition_outbox_atomicity() -> Result<()
     let gl_pool = get_gl_pool().await;
 
     // Clean up tenant data before test
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     // Step 1: Create subscription in "active" status
     let subscription_id = create_subscription(&subscriptions_pool, &tenant_id, "active").await?;
@@ -112,33 +113,51 @@ async fn test_subscriptions_lifecycle_transition_outbox_atomicity() -> Result<()
 
     // Step 2: Verify initial state
     let initial_status = get_subscription_status(&subscriptions_pool, subscription_id).await?;
-    assert_eq!(initial_status, "active", "Subscription should start in active status");
+    assert_eq!(
+        initial_status, "active",
+        "Subscription should start in active status"
+    );
 
-    let initial_outbox_count = count_outbox_rows_for_subscription(&subscriptions_pool, &tenant_id).await?;
+    let initial_outbox_count =
+        count_outbox_rows_for_subscription(&subscriptions_pool, &tenant_id).await?;
     assert_eq!(
         initial_outbox_count, 0,
         "No outbox rows should exist initially"
     );
 
     // Step 3: Call production lifecycle function — atomically transitions status + enqueues outbox event
-    subscriptions_rs::lifecycle::transition_to_past_due(subscription_id, "test past_due", &subscriptions_pool)
-        .await
-        .map_err(|e| anyhow::anyhow!("transition_to_past_due failed: {:?}", e))?;
+    subscriptions_rs::lifecycle::transition_to_past_due(
+        subscription_id,
+        "test past_due",
+        &subscriptions_pool,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!("transition_to_past_due failed: {:?}", e))?;
 
-    println!("✅ Transitioned subscription {} to 'past_due'", subscription_id);
+    println!(
+        "✅ Transitioned subscription {} to 'past_due'",
+        subscription_id
+    );
 
     // Step 4: Check final state
     let final_status = get_subscription_status(&subscriptions_pool, subscription_id).await?;
-    let final_outbox_count = count_outbox_rows_for_subscription(&subscriptions_pool, &tenant_id).await?;
+    let final_outbox_count =
+        count_outbox_rows_for_subscription(&subscriptions_pool, &tenant_id).await?;
 
     println!("\n📊 Atomicity Check:");
-    println!("  Subscription Status: {} -> {}", initial_status, final_status);
-    println!("  Outbox Rows: {} -> {}", initial_outbox_count, final_outbox_count);
+    println!(
+        "  Subscription Status: {} -> {}",
+        initial_status, final_status
+    );
+    println!(
+        "  Outbox Rows: {} -> {}",
+        initial_outbox_count, final_outbox_count
+    );
 
     // Step 5: Assert atomicity
     // CURRENT BUG: Subscription is past_due but outbox has no events
     // AFTER FIX: If subscription transitioned, outbox MUST have status.changed event
-    
+
     if final_status == "past_due" {
         // Subscription was transitioned - outbox MUST have events
         assert!(
@@ -159,9 +178,15 @@ async fn test_subscriptions_lifecycle_transition_outbox_atomicity() -> Result<()
     }
 
     // Clean up
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("\n🎯 Test Result: Atomicity verified!");
     println!("   - Domain state and outbox are consistent");
@@ -183,8 +208,8 @@ async fn test_subscriptions_lifecycle_transition_outbox_atomicity() -> Result<()
 async fn test_subscriptions_cycle_advance_atomicity() -> Result<()> {
     use chrono::Local;
     use subscriptions_rs::{
-        record_cycle_attempt, mark_attempt_succeeded, generate_cycle_key,
-        calculate_cycle_boundaries, CycleGatingError,
+        calculate_cycle_boundaries, generate_cycle_key, mark_attempt_succeeded,
+        record_cycle_attempt, CycleGatingError,
     };
 
     let tenant_id = generate_test_tenant();
@@ -193,9 +218,15 @@ async fn test_subscriptions_cycle_advance_atomicity() -> Result<()> {
     let payments_pool = get_payments_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let subscription_id = create_subscription(&subscriptions_pool, &tenant_id, "active").await?;
     println!("✅ Created subscription {}", subscription_id);
@@ -226,13 +257,15 @@ async fn test_subscriptions_cycle_advance_atomicity() -> Result<()> {
     println!("✅ Committed cycle attempt {} as succeeded", attempt_id);
 
     // Step 2: Assert DB state is correct (cast enum to text for comparison)
-    let status: String = sqlx::query_scalar(
-        "SELECT status::text FROM subscription_invoice_attempts WHERE id = $1",
-    )
-    .bind(attempt_id)
-    .fetch_one(&subscriptions_pool)
-    .await?;
-    assert_eq!(status, "succeeded", "Attempt must be succeeded after atomic commit");
+    let status: String =
+        sqlx::query_scalar("SELECT status::text FROM subscription_invoice_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&subscriptions_pool)
+            .await?;
+    assert_eq!(
+        status, "succeeded",
+        "Attempt must be succeeded after atomic commit"
+    );
 
     // Step 3: Assert UNIQUE constraint blocks duplicate cycle attempt
     let mut tx2 = subscriptions_pool.begin().await?;
@@ -253,11 +286,20 @@ async fn test_subscriptions_cycle_advance_atomicity() -> Result<()> {
         "Duplicate cycle attempt must be rejected by UNIQUE constraint, got: {:?}",
         dup_result
     );
-    println!("✅ UNIQUE constraint blocks double-billing for cycle {}", cycle_key);
+    println!(
+        "✅ UNIQUE constraint blocks double-billing for cycle {}",
+        cycle_key
+    );
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     println!("\n🎯 Cycle advance atomicity verified:");
     println!("   - record_cycle_attempt + mark_succeeded committed atomically");

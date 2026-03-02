@@ -52,7 +52,10 @@ fn strict_immutable_blocks_update() {
         false,
     );
     let err = validate_mutation(&req).unwrap_err();
-    assert!(matches!(err, PolicyViolation::StrictImmutableViolation { .. }));
+    assert!(matches!(
+        err,
+        PolicyViolation::StrictImmutableViolation { .. }
+    ));
 }
 
 #[test]

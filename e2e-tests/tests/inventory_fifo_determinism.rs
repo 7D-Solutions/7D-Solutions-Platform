@@ -15,9 +15,9 @@
 //! No Docker, no mocks — uses live inventory DB.
 
 use inventory_rs::domain::{
+    issue_service::{process_issue, IssueRequest},
     items::{CreateItemRequest, ItemRepo, TrackingMode},
-    issue_service::{IssueRequest, process_issue},
-    receipt_service::{ReceiptRequest, process_receipt},
+    receipt_service::{process_receipt, ReceiptRequest},
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -62,7 +62,13 @@ fn item_req(tenant_id: &str, sku: &str) -> CreateItemRequest {
     }
 }
 
-fn receipt_req(tenant_id: &str, item_id: Uuid, warehouse_id: Uuid, qty: i64, cost: i64) -> ReceiptRequest {
+fn receipt_req(
+    tenant_id: &str,
+    item_id: Uuid,
+    warehouse_id: Uuid,
+    qty: i64,
+    cost: i64,
+) -> ReceiptRequest {
     ReceiptRequest {
         tenant_id: tenant_id.to_string(),
         item_id,
@@ -151,22 +157,29 @@ async fn inventory_fifo_two_layers_consumed_oldest_first() {
     let warehouse_id = Uuid::new_v4();
 
     // Layer A: 30 units @ $10.00
-    let (rcpt_a, _) = process_receipt(&pool, &receipt_req(&tenant_id, item.id, warehouse_id, 30, 1000))
-        .await
-        .expect("Layer A receipt");
+    let (rcpt_a, _) = process_receipt(
+        &pool,
+        &receipt_req(&tenant_id, item.id, warehouse_id, 30, 1000),
+    )
+    .await
+    .expect("Layer A receipt");
 
     // Small sleep ensures Layer B has a later timestamp even on fast machines.
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
 
     // Layer B: 40 units @ $20.00
-    let (rcpt_b, _) = process_receipt(&pool, &receipt_req(&tenant_id, item.id, warehouse_id, 40, 2000))
-        .await
-        .expect("Layer B receipt");
+    let (rcpt_b, _) = process_receipt(
+        &pool,
+        &receipt_req(&tenant_id, item.id, warehouse_id, 40, 2000),
+    )
+    .await
+    .expect("Layer B receipt");
 
     // Issue 40 units — must consume 30 from A then 10 from B
-    let (issue, is_replay) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 40))
-        .await
-        .expect("issue must succeed");
+    let (issue, is_replay) =
+        process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 40))
+            .await
+            .expect("issue must succeed");
     assert!(!is_replay);
     assert_eq!(issue.quantity, 40);
 
@@ -177,8 +190,15 @@ async fn inventory_fifo_two_layers_consumed_oldest_first() {
     );
 
     // Cost sum invariant
-    let sum: i64 = issue.consumed_layers.iter().map(|cl| cl.extended_cost_minor).sum();
-    assert_eq!(sum, issue.total_cost_minor, "sum(extended_cost_minor) must equal total_cost_minor");
+    let sum: i64 = issue
+        .consumed_layers
+        .iter()
+        .map(|cl| cl.extended_cost_minor)
+        .sum();
+    assert_eq!(
+        sum, issue.total_cost_minor,
+        "sum(extended_cost_minor) must equal total_cost_minor"
+    );
 
     // FIFO order: Layer A first
     assert!(
@@ -189,33 +209,40 @@ async fn inventory_fifo_two_layers_consumed_oldest_first() {
         issue.consumed_layers[0].layer_id, rcpt_a.layer_id,
         "oldest layer (A) must be consumed first"
     );
-    assert_eq!(issue.consumed_layers[0].quantity, 30, "Layer A: consume all 30");
-    assert_eq!(issue.consumed_layers[0].unit_cost_minor, 1000, "Layer A cost = $10.00");
+    assert_eq!(
+        issue.consumed_layers[0].quantity, 30,
+        "Layer A: consume all 30"
+    );
+    assert_eq!(
+        issue.consumed_layers[0].unit_cost_minor, 1000,
+        "Layer A cost = $10.00"
+    );
 
     assert_eq!(
         issue.consumed_layers[1].layer_id, rcpt_b.layer_id,
         "Layer B consumed second"
     );
     assert_eq!(issue.consumed_layers[1].quantity, 10, "Layer B: consume 10");
-    assert_eq!(issue.consumed_layers[1].unit_cost_minor, 2000, "Layer B cost = $20.00");
+    assert_eq!(
+        issue.consumed_layers[1].unit_cost_minor, 2000,
+        "Layer B cost = $20.00"
+    );
 
     // Verify remaining quantities in DB
-    let layer_a_rem: i64 = sqlx::query_scalar(
-        "SELECT quantity_remaining FROM inventory_layers WHERE id = $1",
-    )
-    .bind(rcpt_a.layer_id)
-    .fetch_one(&pool)
-    .await
-    .expect("layer A remaining");
+    let layer_a_rem: i64 =
+        sqlx::query_scalar("SELECT quantity_remaining FROM inventory_layers WHERE id = $1")
+            .bind(rcpt_a.layer_id)
+            .fetch_one(&pool)
+            .await
+            .expect("layer A remaining");
     assert_eq!(layer_a_rem, 0, "Layer A fully consumed");
 
-    let layer_b_rem: i64 = sqlx::query_scalar(
-        "SELECT quantity_remaining FROM inventory_layers WHERE id = $1",
-    )
-    .bind(rcpt_b.layer_id)
-    .fetch_one(&pool)
-    .await
-    .expect("layer B remaining");
+    let layer_b_rem: i64 =
+        sqlx::query_scalar("SELECT quantity_remaining FROM inventory_layers WHERE id = $1")
+            .bind(rcpt_b.layer_id)
+            .fetch_one(&pool)
+            .await
+            .expect("layer B remaining");
     assert_eq!(layer_b_rem, 30, "Layer B: 30 remaining (40 - 10 = 30)");
 
     cleanup_tenant(&pool, &tenant_id).await;
@@ -248,17 +275,26 @@ async fn inventory_fifo_three_layers_full_consumption() {
     let warehouse_id = Uuid::new_v4();
 
     // Receive 3 layers with increasing timestamps
-    let (rcpt_a, _) = process_receipt(&pool, &receipt_req(&tenant_id, item.id, warehouse_id, 10, 500))
-        .await
-        .expect("Layer A");
+    let (rcpt_a, _) = process_receipt(
+        &pool,
+        &receipt_req(&tenant_id, item.id, warehouse_id, 10, 500),
+    )
+    .await
+    .expect("Layer A");
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    let (rcpt_b, _) = process_receipt(&pool, &receipt_req(&tenant_id, item.id, warehouse_id, 20, 800))
-        .await
-        .expect("Layer B");
+    let (rcpt_b, _) = process_receipt(
+        &pool,
+        &receipt_req(&tenant_id, item.id, warehouse_id, 20, 800),
+    )
+    .await
+    .expect("Layer B");
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    let (rcpt_c, _) = process_receipt(&pool, &receipt_req(&tenant_id, item.id, warehouse_id, 30, 1200))
-        .await
-        .expect("Layer C");
+    let (rcpt_c, _) = process_receipt(
+        &pool,
+        &receipt_req(&tenant_id, item.id, warehouse_id, 30, 1200),
+    )
+    .await
+    .expect("Layer C");
 
     // Issue all 60 units
     let (issue, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 60))
@@ -270,7 +306,11 @@ async fn inventory_fifo_three_layers_full_consumption() {
     assert_eq!(issue.total_cost_minor, 57_000, "total cost = $570.00");
 
     // Cost sum invariant
-    let sum: i64 = issue.consumed_layers.iter().map(|cl| cl.extended_cost_minor).sum();
+    let sum: i64 = issue
+        .consumed_layers
+        .iter()
+        .map(|cl| cl.extended_cost_minor)
+        .sum();
     assert_eq!(sum, 57_000, "sum(extended_cost_minor) == total_cost_minor");
 
     // Exactly 3 consumed layers in FIFO order
@@ -288,14 +328,17 @@ async fn inventory_fifo_three_layers_full_consumption() {
     assert_eq!(issue.consumed_layers[2].extended_cost_minor, 36_000);
 
     // All layers fully consumed
-    for (layer_id, label) in [(rcpt_a.layer_id, "A"), (rcpt_b.layer_id, "B"), (rcpt_c.layer_id, "C")] {
-        let remaining: i64 = sqlx::query_scalar(
-            "SELECT quantity_remaining FROM inventory_layers WHERE id = $1",
-        )
-        .bind(layer_id)
-        .fetch_one(&pool)
-        .await
-        .expect("layer remaining");
+    for (layer_id, label) in [
+        (rcpt_a.layer_id, "A"),
+        (rcpt_b.layer_id, "B"),
+        (rcpt_c.layer_id, "C"),
+    ] {
+        let remaining: i64 =
+            sqlx::query_scalar("SELECT quantity_remaining FROM inventory_layers WHERE id = $1")
+                .bind(layer_id)
+                .fetch_one(&pool)
+                .await
+                .expect("layer remaining");
         assert_eq!(remaining, 0, "Layer {} must be fully consumed", label);
     }
 
@@ -322,9 +365,12 @@ async fn inventory_fifo_partial_consumption_exact() {
         .expect("create item");
     let warehouse_id = Uuid::new_v4();
 
-    let (rcpt, _) = process_receipt(&pool, &receipt_req(&tenant_id, item.id, warehouse_id, 100, 1500))
-        .await
-        .expect("receipt");
+    let (rcpt, _) = process_receipt(
+        &pool,
+        &receipt_req(&tenant_id, item.id, warehouse_id, 100, 1500),
+    )
+    .await
+    .expect("receipt");
 
     let (issue, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 37))
         .await
@@ -332,20 +378,22 @@ async fn inventory_fifo_partial_consumption_exact() {
 
     assert_eq!(issue.quantity, 37);
     // 37 × 1500 = 55500
-    assert_eq!(issue.total_cost_minor, 55_500, "cost = 37 × $15.00 = $555.00");
+    assert_eq!(
+        issue.total_cost_minor, 55_500,
+        "cost = 37 × $15.00 = $555.00"
+    );
     assert_eq!(issue.consumed_layers.len(), 1, "single layer");
     assert_eq!(issue.consumed_layers[0].layer_id, rcpt.layer_id);
     assert_eq!(issue.consumed_layers[0].quantity, 37);
     assert_eq!(issue.consumed_layers[0].extended_cost_minor, 55_500);
 
     // Remaining in layer
-    let remaining: i64 = sqlx::query_scalar(
-        "SELECT quantity_remaining FROM inventory_layers WHERE id = $1",
-    )
-    .bind(rcpt.layer_id)
-    .fetch_one(&pool)
-    .await
-    .expect("layer remaining");
+    let remaining: i64 =
+        sqlx::query_scalar("SELECT quantity_remaining FROM inventory_layers WHERE id = $1")
+            .bind(rcpt.layer_id)
+            .fetch_one(&pool)
+            .await
+            .expect("layer remaining");
     assert_eq!(remaining, 63, "63 units remain (100 - 37)");
 
     // On-hand updated
@@ -387,13 +435,19 @@ async fn inventory_fifo_consecutive_issues_deterministic() {
         .expect("create item");
     let warehouse_id = Uuid::new_v4();
 
-    let (rcpt_a, _) = process_receipt(&pool, &receipt_req(&tenant_id, item.id, warehouse_id, 20, 1000))
-        .await
-        .expect("Layer A");
+    let (rcpt_a, _) = process_receipt(
+        &pool,
+        &receipt_req(&tenant_id, item.id, warehouse_id, 20, 1000),
+    )
+    .await
+    .expect("Layer A");
     tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-    let (rcpt_b, _) = process_receipt(&pool, &receipt_req(&tenant_id, item.id, warehouse_id, 20, 3000))
-        .await
-        .expect("Layer B");
+    let (rcpt_b, _) = process_receipt(
+        &pool,
+        &receipt_req(&tenant_id, item.id, warehouse_id, 20, 3000),
+    )
+    .await
+    .expect("Layer B");
 
     // Issue 1: 15 units — all from Layer A
     let (issue1, _) = process_issue(&pool, &issue_req(&tenant_id, item.id, warehouse_id, 15))
@@ -412,9 +466,15 @@ async fn inventory_fifo_consecutive_issues_deterministic() {
         "issue2: 5×$10 + 10×$30 = $350"
     );
     assert_eq!(issue2.consumed_layers.len(), 2);
-    assert_eq!(issue2.consumed_layers[0].layer_id, rcpt_a.layer_id, "A first");
+    assert_eq!(
+        issue2.consumed_layers[0].layer_id, rcpt_a.layer_id,
+        "A first"
+    );
     assert_eq!(issue2.consumed_layers[0].quantity, 5);
-    assert_eq!(issue2.consumed_layers[1].layer_id, rcpt_b.layer_id, "B second");
+    assert_eq!(
+        issue2.consumed_layers[1].layer_id, rcpt_b.layer_id,
+        "B second"
+    );
     assert_eq!(issue2.consumed_layers[1].quantity, 10);
 
     // Issue 3: 10 units — all from Layer B remainder
@@ -427,22 +487,20 @@ async fn inventory_fifo_consecutive_issues_deterministic() {
     assert_eq!(issue3.consumed_layers[0].quantity, 10);
 
     // Both layers fully drained
-    let a_rem: i64 = sqlx::query_scalar(
-        "SELECT quantity_remaining FROM inventory_layers WHERE id = $1",
-    )
-    .bind(rcpt_a.layer_id)
-    .fetch_one(&pool)
-    .await
-    .expect("layer A");
+    let a_rem: i64 =
+        sqlx::query_scalar("SELECT quantity_remaining FROM inventory_layers WHERE id = $1")
+            .bind(rcpt_a.layer_id)
+            .fetch_one(&pool)
+            .await
+            .expect("layer A");
     assert_eq!(a_rem, 0, "Layer A fully drained");
 
-    let b_rem: i64 = sqlx::query_scalar(
-        "SELECT quantity_remaining FROM inventory_layers WHERE id = $1",
-    )
-    .bind(rcpt_b.layer_id)
-    .fetch_one(&pool)
-    .await
-    .expect("layer B");
+    let b_rem: i64 =
+        sqlx::query_scalar("SELECT quantity_remaining FROM inventory_layers WHERE id = $1")
+            .bind(rcpt_b.layer_id)
+            .fetch_one(&pool)
+            .await
+            .expect("layer B");
     assert_eq!(b_rem, 0, "Layer B fully drained");
 
     cleanup_tenant(&pool, &tenant_id).await;

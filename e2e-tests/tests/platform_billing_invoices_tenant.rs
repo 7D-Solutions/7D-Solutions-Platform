@@ -64,34 +64,28 @@ async fn cleanup(
     period: &str,
 ) {
     // Delete AR invoices created by the platform runner for this tenant/period
-    sqlx::query(
-        "DELETE FROM ar_invoices WHERE app_id = $1 AND correlation_id = $2",
-    )
-    .bind(PLATFORM_APP_ID)
-    .bind(format!("plat-{}-{}", tenant_id, period))
-    .execute(ar_pool)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1 AND correlation_id = $2")
+        .bind(PLATFORM_APP_ID)
+        .bind(format!("plat-{}-{}", tenant_id, period))
+        .execute(ar_pool)
+        .await
+        .ok();
 
     // Delete the PLATFORM-side AR customer for this tenant
-    sqlx::query(
-        "DELETE FROM ar_customers WHERE app_id = $1 AND external_customer_id = $2",
-    )
-    .bind(PLATFORM_APP_ID)
-    .bind(tenant_id.to_string())
-    .execute(ar_pool)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM ar_customers WHERE app_id = $1 AND external_customer_id = $2")
+        .bind(PLATFORM_APP_ID)
+        .bind(tenant_id.to_string())
+        .execute(ar_pool)
+        .await
+        .ok();
 
     // Delete any stray invoices under the tenant's own app_id (should be none)
-    sqlx::query(
-        "DELETE FROM ar_invoices WHERE app_id = $1 AND correlation_id LIKE $2",
-    )
-    .bind(tenant_app_id)
-    .bind(format!("plat-{}-%", tenant_id))
-    .execute(ar_pool)
-    .await
-    .ok();
+    sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1 AND correlation_id LIKE $2")
+        .bind(tenant_app_id)
+        .bind(format!("plat-{}-%", tenant_id))
+        .execute(ar_pool)
+        .await
+        .ok();
 
     // Delete outbox events
     sqlx::query(
@@ -136,7 +130,9 @@ async fn test_platform_billing_invoices_tenant() {
     // -----------------------------------------------------------------------
     let result = platform_billing_run(
         State(state.clone()),
-        Json(PlatformBillingRunRequest { period: period.clone() }),
+        Json(PlatformBillingRunRequest {
+            period: period.clone(),
+        }),
     )
     .await
     .expect("platform_billing_run should succeed");
@@ -243,14 +239,19 @@ async fn test_platform_billing_invoices_tenant() {
     // -----------------------------------------------------------------------
     let result2 = platform_billing_run(
         State(state.clone()),
-        Json(PlatformBillingRunRequest { period: period.clone() }),
+        Json(PlatformBillingRunRequest {
+            period: period.clone(),
+        }),
     )
     .await
     .expect("second billing run should succeed");
 
     let (_, Json(resp2)) = result2;
     assert!(
-        resp2.skipped.iter().any(|e| e.tenant_id == tenant_id && e.reason == "already_billed"),
+        resp2
+            .skipped
+            .iter()
+            .any(|e| e.tenant_id == tenant_id && e.reason == "already_billed"),
         "second run must skip the tenant with reason=already_billed"
     );
 

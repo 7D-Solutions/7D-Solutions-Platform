@@ -111,7 +111,10 @@ fn valid_token_service_actor() {
     let token = sign(&kp.encoding, &claims);
 
     let verifier = JwtVerifier::from_public_pem(&kp.pub_pem).unwrap();
-    assert_eq!(verifier.verify(&token).unwrap().actor_type, ActorType::Service);
+    assert_eq!(
+        verifier.verify(&token).unwrap().actor_type,
+        ActorType::Service
+    );
 }
 
 #[test]
@@ -122,7 +125,10 @@ fn valid_token_system_actor() {
     let token = sign(&kp.encoding, &claims);
 
     let verifier = JwtVerifier::from_public_pem(&kp.pub_pem).unwrap();
-    assert_eq!(verifier.verify(&token).unwrap().actor_type, ActorType::System);
+    assert_eq!(
+        verifier.verify(&token).unwrap().actor_type,
+        ActorType::System
+    );
 }
 
 // ── Expired token ────────────────────────────────────────────────────────
@@ -137,7 +143,10 @@ fn expired_token_returns_token_expired() {
     let token = sign(&kp.encoding, &claims);
 
     let verifier = JwtVerifier::from_public_pem(&kp.pub_pem).unwrap();
-    assert!(matches!(verifier.verify(&token), Err(SecurityError::TokenExpired)));
+    assert!(matches!(
+        verifier.verify(&token),
+        Err(SecurityError::TokenExpired)
+    ));
 }
 
 // ── Invalid tokens ───────────────────────────────────────────────────────
@@ -149,21 +158,30 @@ fn wrong_signing_key_rejected() {
     let token = sign(&kp_sign.encoding, &valid_claims());
 
     let verifier = JwtVerifier::from_public_pem(&kp_verify.pub_pem).unwrap();
-    assert!(matches!(verifier.verify(&token), Err(SecurityError::InvalidToken)));
+    assert!(matches!(
+        verifier.verify(&token),
+        Err(SecurityError::InvalidToken)
+    ));
 }
 
 #[test]
 fn garbage_token_rejected() {
     let kp = gen_keypair();
     let verifier = JwtVerifier::from_public_pem(&kp.pub_pem).unwrap();
-    assert!(matches!(verifier.verify("not.a.jwt"), Err(SecurityError::InvalidToken)));
+    assert!(matches!(
+        verifier.verify("not.a.jwt"),
+        Err(SecurityError::InvalidToken)
+    ));
 }
 
 #[test]
 fn empty_token_rejected() {
     let kp = gen_keypair();
     let verifier = JwtVerifier::from_public_pem(&kp.pub_pem).unwrap();
-    assert!(matches!(verifier.verify(""), Err(SecurityError::InvalidToken)));
+    assert!(matches!(
+        verifier.verify(""),
+        Err(SecurityError::InvalidToken)
+    ));
 }
 
 #[test]
@@ -174,7 +192,10 @@ fn wrong_issuer_rejected() {
     let token = sign(&kp.encoding, &claims);
 
     let verifier = JwtVerifier::from_public_pem(&kp.pub_pem).unwrap();
-    assert!(matches!(verifier.verify(&token), Err(SecurityError::InvalidToken)));
+    assert!(matches!(
+        verifier.verify(&token),
+        Err(SecurityError::InvalidToken)
+    ));
 }
 
 #[test]
@@ -185,7 +206,10 @@ fn wrong_audience_rejected() {
     let token = sign(&kp.encoding, &claims);
 
     let verifier = JwtVerifier::from_public_pem(&kp.pub_pem).unwrap();
-    assert!(matches!(verifier.verify(&token), Err(SecurityError::InvalidToken)));
+    assert!(matches!(
+        verifier.verify(&token),
+        Err(SecurityError::InvalidToken)
+    ));
 }
 
 #[test]
@@ -196,7 +220,10 @@ fn invalid_uuid_in_sub_rejected() {
     let token = sign(&kp.encoding, &claims);
 
     let verifier = JwtVerifier::from_public_pem(&kp.pub_pem).unwrap();
-    assert!(matches!(verifier.verify(&token), Err(SecurityError::InvalidToken)));
+    assert!(matches!(
+        verifier.verify(&token),
+        Err(SecurityError::InvalidToken)
+    ));
 }
 
 #[test]
@@ -207,7 +234,10 @@ fn invalid_actor_type_rejected() {
     let token = sign(&kp.encoding, &claims);
 
     let verifier = JwtVerifier::from_public_pem(&kp.pub_pem).unwrap();
-    assert!(matches!(verifier.verify(&token), Err(SecurityError::InvalidToken)));
+    assert!(matches!(
+        verifier.verify(&token),
+        Err(SecurityError::InvalidToken)
+    ));
 }
 
 // ── Key rotation ─────────────────────────────────────────────────────────
@@ -243,7 +273,10 @@ fn rotation_ended_old_key_rejected() {
     let token = sign(&old_kp.encoding, &valid_claims());
 
     let verifier = JwtVerifier::from_public_pem(&new_kp.pub_pem).unwrap();
-    assert!(matches!(verifier.verify(&token), Err(SecurityError::InvalidToken)));
+    assert!(matches!(
+        verifier.verify(&token),
+        Err(SecurityError::InvalidToken)
+    ));
 }
 
 #[test]
@@ -256,7 +289,10 @@ fn rotation_third_party_key_rejected() {
     let mut verifier = JwtVerifier::from_public_pem(&new_kp.pub_pem).unwrap();
     verifier.with_prev_key(&old_kp.pub_pem).unwrap();
 
-    assert!(matches!(verifier.verify(&token), Err(SecurityError::InvalidToken)));
+    assert!(matches!(
+        verifier.verify(&token),
+        Err(SecurityError::InvalidToken)
+    ));
 }
 
 // ── Verifier construction ────────────────────────────────────────────────
@@ -287,7 +323,10 @@ fn token_carries_many_permissions() {
     ];
     let token = sign(&kp.encoding, &claims);
 
-    let v = JwtVerifier::from_public_pem(&kp.pub_pem).unwrap().verify(&token).unwrap();
+    let v = JwtVerifier::from_public_pem(&kp.pub_pem)
+        .unwrap()
+        .verify(&token)
+        .unwrap();
     assert_eq!(v.perms.len(), 4);
     assert!(v.perms.contains(&"treasury.mutate".to_string()));
 }
@@ -299,5 +338,8 @@ fn different_tokens_have_different_jti() {
     let t2 = sign(&kp.encoding, &valid_claims());
 
     let verifier = JwtVerifier::from_public_pem(&kp.pub_pem).unwrap();
-    assert_ne!(verifier.verify(&t1).unwrap().token_id, verifier.verify(&t2).unwrap().token_id);
+    assert_ne!(
+        verifier.verify(&t1).unwrap().token_id,
+        verifier.verify(&t2).unwrap().token_id
+    );
 }

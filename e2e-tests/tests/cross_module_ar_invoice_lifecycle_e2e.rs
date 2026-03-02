@@ -76,11 +76,7 @@ async fn setup_gl_period(gl_pool: &PgPool, tenant_id: &str) {
 }
 
 /// Create a company party in Party Master via direct SQL insert.
-async fn create_party_company(
-    pool: &PgPool,
-    app_id: &str,
-    display_name: &str,
-) -> Uuid {
+async fn create_party_company(pool: &PgPool, app_id: &str, display_name: &str) -> Uuid {
     let party_id = Uuid::new_v4();
     sqlx::query(
         "INSERT INTO party_parties (id, app_id, party_type, display_name, status, created_at, updated_at)
@@ -120,12 +116,7 @@ async fn create_ar_customer(pool: &PgPool, app_id: &str) -> i32 {
     .expect("create AR customer failed")
 }
 
-async fn create_ar_invoice(
-    pool: &PgPool,
-    app_id: &str,
-    customer_id: i32,
-    amount: i64,
-) -> i32 {
+async fn create_ar_invoice(pool: &PgPool, app_id: &str, customer_id: i32, amount: i64) -> i32 {
     sqlx::query_scalar::<_, i32>(
         "INSERT INTO ar_invoices
              (app_id, ar_customer_id, status, amount_cents, currency, due_at,
@@ -339,12 +330,7 @@ async fn test_full_invoice_lifecycle_party_ar_gl_payments() {
     let amount: i64 = 100_000; // $1,000.00
 
     // ── Step 1: Create customer via Party ───────────────────────────────
-    let party_id = create_party_company(
-        &party_pool,
-        &app_id,
-        "Lifecycle Corp E2E",
-    )
-    .await;
+    let party_id = create_party_company(&party_pool, &app_id, "Lifecycle Corp E2E").await;
 
     // Verify party exists
     let party_exists: bool = sqlx::query_scalar(
@@ -362,12 +348,11 @@ async fn test_full_invoice_lifecycle_party_ar_gl_payments() {
     let invoice_id = create_ar_invoice(&ar_pool, &app_id, customer_id, amount).await;
 
     // Verify invoice is open
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
-            .bind(invoice_id)
-            .fetch_one(&ar_pool)
-            .await
-            .expect("fetch invoice status failed");
+    let status: String = sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
+        .bind(invoice_id)
+        .fetch_one(&ar_pool)
+        .await
+        .expect("fetch invoice status failed");
     assert_eq!(status, "open", "invoice must start as open");
 
     // ── Step 3: GL journal entry for invoice (DR AR / CR REV) ───────────
@@ -395,18 +380,19 @@ async fn test_full_invoice_lifecycle_party_ar_gl_payments() {
 
     // Verify GL entry is balanced
     assert!(
-        common::assert_journal_balanced(&gl_pool, inv_entry).await.is_ok(),
+        common::assert_journal_balanced(&gl_pool, inv_entry)
+            .await
+            .is_ok(),
         "Invoice GL entry must be balanced"
     );
 
     // Verify entry count = 1
-    let entry_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(&gl_tenant_id)
-    .fetch_one(&gl_pool)
-    .await
-    .expect("count entries failed");
+    let entry_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(&gl_tenant_id)
+            .fetch_one(&gl_pool)
+            .await
+            .expect("count entries failed");
     assert_eq!(entry_count, 1, "must have 1 GL entry after invoice");
 
     // ── Step 4: Payment collection attempt ──────────────────────────────
@@ -444,12 +430,11 @@ async fn test_full_invoice_lifecycle_party_ar_gl_payments() {
 
     mark_invoice_paid(&ar_pool, invoice_id).await;
 
-    let paid_status: String =
-        sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
-            .bind(invoice_id)
-            .fetch_one(&ar_pool)
-            .await
-            .expect("fetch paid status failed");
+    let paid_status: String = sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
+        .bind(invoice_id)
+        .fetch_one(&ar_pool)
+        .await
+        .expect("fetch paid status failed");
     assert_eq!(paid_status, "paid", "invoice must be paid after settlement");
 
     // ── Step 6: GL journal entry for payment (DR CASH / CR AR) ──────────
@@ -473,18 +458,19 @@ async fn test_full_invoice_lifecycle_party_ar_gl_payments() {
     create_gl_line(&gl_pool, pay_entry, 2, "AR", 0, amount).await;
 
     assert!(
-        common::assert_journal_balanced(&gl_pool, pay_entry).await.is_ok(),
+        common::assert_journal_balanced(&gl_pool, pay_entry)
+            .await
+            .is_ok(),
         "Payment GL entry must be balanced"
     );
 
     // ── Step 7: Verify full cycle invariants ────────────────────────────
-    let final_entry_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(&gl_tenant_id)
-    .fetch_one(&gl_pool)
-    .await
-    .expect("count final entries failed");
+    let final_entry_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(&gl_tenant_id)
+            .fetch_one(&gl_pool)
+            .await
+            .expect("count final entries failed");
     assert_eq!(final_entry_count, 2, "must have exactly 2 GL entries");
     assert_ne!(inv_entry, pay_entry, "GL entries must be distinct");
 
@@ -542,8 +528,13 @@ async fn test_full_invoice_lifecycle_party_ar_gl_payments() {
     );
 
     cleanup(
-        &party_pool, &ar_pool, &payments_pool, &gl_pool,
-        &app_id, &gl_tenant_id, party_id,
+        &party_pool,
+        &ar_pool,
+        &payments_pool,
+        &gl_pool,
+        &app_id,
+        &gl_tenant_id,
+        party_id,
     )
     .await;
 }
@@ -581,16 +572,28 @@ async fn test_no_duplicate_gl_entries_across_lifecycle() {
 
     // Create both GL entries
     let inv_entry = create_gl_journal_entry(
-        &gl_pool, &gl_tenant_id, "ar", invoice_event_id,
-        "invoice.created", "USD", "Invoice created",
-    ).await;
+        &gl_pool,
+        &gl_tenant_id,
+        "ar",
+        invoice_event_id,
+        "invoice.created",
+        "USD",
+        "Invoice created",
+    )
+    .await;
     create_gl_line(&gl_pool, inv_entry, 1, "AR", amount, 0).await;
     create_gl_line(&gl_pool, inv_entry, 2, "REV", 0, amount).await;
 
     let pay_entry = create_gl_journal_entry(
-        &gl_pool, &gl_tenant_id, "payments", payment_event_id,
-        "payment.succeeded", "USD", "Payment received",
-    ).await;
+        &gl_pool,
+        &gl_tenant_id,
+        "payments",
+        payment_event_id,
+        "payment.succeeded",
+        "USD",
+        "Payment received",
+    )
+    .await;
     create_gl_line(&gl_pool, pay_entry, 1, "CASH", amount, 0).await;
     create_gl_line(&gl_pool, pay_entry, 2, "AR", 0, amount).await;
 
@@ -601,8 +604,11 @@ async fn test_no_duplicate_gl_entries_across_lifecycle() {
               posted_at, currency, description)
          VALUES ($1, $2, 'ar', $3, 'invoice.created', NOW(), 'USD', 'dup')",
     )
-    .bind(Uuid::new_v4()).bind(&gl_tenant_id).bind(invoice_event_id)
-    .execute(&gl_pool).await;
+    .bind(Uuid::new_v4())
+    .bind(&gl_tenant_id)
+    .bind(invoice_event_id)
+    .execute(&gl_pool)
+    .await;
     assert!(dup_inv.is_err(), "Invoice event replay must be rejected");
 
     let dup_pay = sqlx::query(
@@ -611,14 +617,19 @@ async fn test_no_duplicate_gl_entries_across_lifecycle() {
               posted_at, currency, description)
          VALUES ($1, $2, 'payments', $3, 'payment.succeeded', NOW(), 'USD', 'dup')",
     )
-    .bind(Uuid::new_v4()).bind(&gl_tenant_id).bind(payment_event_id)
-    .execute(&gl_pool).await;
+    .bind(Uuid::new_v4())
+    .bind(&gl_tenant_id)
+    .bind(payment_event_id)
+    .execute(&gl_pool)
+    .await;
     assert!(dup_pay.is_err(), "Payment event replay must be rejected");
 
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1",
-    )
-    .bind(&gl_tenant_id).fetch_one(&gl_pool).await.expect("count");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(&gl_tenant_id)
+            .fetch_one(&gl_pool)
+            .await
+            .expect("count");
     assert_eq!(count, 2, "exactly 2 entries must exist after replay");
 
     println!("✅ GL deduplication — replayed events rejected");
@@ -627,17 +638,36 @@ async fn test_no_duplicate_gl_entries_across_lifecycle() {
     sqlx::query(
         "DELETE FROM journal_lines WHERE journal_entry_id IN
          (SELECT id FROM journal_entries WHERE tenant_id = $1)",
-    ).bind(&gl_tenant_id).execute(&gl_pool).await.ok();
+    )
+    .bind(&gl_tenant_id)
+    .execute(&gl_pool)
+    .await
+    .ok();
     sqlx::query("DELETE FROM journal_entries WHERE tenant_id = $1")
-        .bind(&gl_tenant_id).execute(&gl_pool).await.ok();
+        .bind(&gl_tenant_id)
+        .execute(&gl_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
-        .bind(&gl_tenant_id).execute(&gl_pool).await.ok();
+        .bind(&gl_tenant_id)
+        .execute(&gl_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
-        .bind(&gl_tenant_id).execute(&gl_pool).await.ok();
+        .bind(&gl_tenant_id)
+        .execute(&gl_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
-        .bind(&app_id).execute(&ar_pool).await.ok();
+        .bind(&app_id)
+        .execute(&ar_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_customers WHERE app_id = $1")
-        .bind(&app_id).execute(&ar_pool).await.ok();
+        .bind(&app_id)
+        .execute(&ar_pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -658,46 +688,69 @@ async fn test_payment_attempt_precedes_settlement() {
     let invoice_id = create_ar_invoice(&ar_pool, &app_id, customer_id, amount).await;
 
     // No payment attempts yet
-    let pre_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM payment_attempts WHERE app_id = $1",
-    )
-    .bind(&app_id).fetch_one(&payments_pool).await.expect("pre-count");
+    let pre_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM payment_attempts WHERE app_id = $1")
+            .bind(&app_id)
+            .fetch_one(&payments_pool)
+            .await
+            .expect("pre-count");
     assert_eq!(pre_count, 0, "no payment attempts before collection");
 
     // Create succeeded payment attempt
     let payment_id = Uuid::new_v4();
-    let attempt_id = create_payment_attempt(
-        &payments_pool, &app_id, payment_id, invoice_id, "succeeded",
-    ).await;
+    let attempt_id =
+        create_payment_attempt(&payments_pool, &app_id, payment_id, invoice_id, "succeeded").await;
     assert_ne!(attempt_id, Uuid::nil());
 
     let post_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM payment_attempts WHERE app_id = $1 AND payment_id = $2",
     )
-    .bind(&app_id).bind(payment_id)
-    .fetch_one(&payments_pool).await.expect("post-count");
-    assert_eq!(post_count, 1, "payment attempt must exist before settlement");
+    .bind(&app_id)
+    .bind(payment_id)
+    .fetch_one(&payments_pool)
+    .await
+    .expect("post-count");
+    assert_eq!(
+        post_count, 1,
+        "payment attempt must exist before settlement"
+    );
 
     // Settle invoice
     mark_invoice_paid(&ar_pool, invoice_id).await;
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
-            .bind(invoice_id).fetch_one(&ar_pool).await.expect("status");
+    let status: String = sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1")
+        .bind(invoice_id)
+        .fetch_one(&ar_pool)
+        .await
+        .expect("status");
     assert_eq!(status, "paid");
 
-    let attempt_status: String = sqlx::query_scalar(
-        "SELECT status::text FROM payment_attempts WHERE id = $1",
-    )
-    .bind(attempt_id).fetch_one(&payments_pool).await.expect("attempt status");
+    let attempt_status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&payments_pool)
+            .await
+            .expect("attempt status");
     assert_eq!(attempt_status, "succeeded");
 
-    println!("✅ Payment attempt({}) precedes invoice({}) settlement", attempt_id, invoice_id);
+    println!(
+        "✅ Payment attempt({}) precedes invoice({}) settlement",
+        attempt_id, invoice_id
+    );
 
     // Cleanup
     sqlx::query("DELETE FROM payment_attempts WHERE app_id = $1")
-        .bind(&app_id).execute(&payments_pool).await.ok();
+        .bind(&app_id)
+        .execute(&payments_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1")
-        .bind(&app_id).execute(&ar_pool).await.ok();
+        .bind(&app_id)
+        .execute(&ar_pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM ar_customers WHERE app_id = $1")
-        .bind(&app_id).execute(&ar_pool).await.ok();
+        .bind(&app_id)
+        .execute(&ar_pool)
+        .await
+        .ok();
 }

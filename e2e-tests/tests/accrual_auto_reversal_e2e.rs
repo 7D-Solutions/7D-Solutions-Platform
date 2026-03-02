@@ -19,9 +19,7 @@ use gl_rs::accruals::{
     create_accrual_instance, create_template, execute_auto_reversals, CreateAccrualRequest,
     CreateTemplateRequest, ExecuteReversalsRequest,
 };
-use gl_rs::events::contracts::{
-    ReversalPolicy, EVENT_TYPE_ACCRUAL_REVERSED,
-};
+use gl_rs::events::contracts::{ReversalPolicy, EVENT_TYPE_ACCRUAL_REVERSED};
 
 // ============================================================================
 // Helpers
@@ -215,7 +213,10 @@ async fn test_auto_reversal_produces_one_journal() {
     .await
     .expect("reversal execution failed");
 
-    assert_eq!(result.reversals_executed, 1, "Should execute exactly 1 reversal");
+    assert_eq!(
+        result.reversals_executed, 1,
+        "Should execute exactly 1 reversal"
+    );
     assert_eq!(result.reversals_skipped, 0, "Should skip 0");
     assert_eq!(result.results.len(), 1);
 
@@ -236,16 +237,25 @@ async fn test_auto_reversal_produces_one_journal() {
     assert_eq!(lines.len(), 2, "Reversal should have 2 journal lines");
 
     // Reversal swaps accounts: DR ACCRUED_RENT (was credit), CR RENT_EXPENSE (was debit)
-    assert_eq!(lines[0].2, "ACCRUED_RENT", "Debit should be original credit account");
+    assert_eq!(
+        lines[0].2, "ACCRUED_RENT",
+        "Debit should be original credit account"
+    );
     assert_eq!(lines[0].0, 500000, "Debit amount");
     assert_eq!(lines[0].1, 0);
-    assert_eq!(lines[1].2, "RENT_EXPENSE", "Credit should be original debit account");
+    assert_eq!(
+        lines[1].2, "RENT_EXPENSE",
+        "Credit should be original debit account"
+    );
     assert_eq!(lines[1].0, 0);
     assert_eq!(lines[1].1, 500000, "Credit amount");
 
     let total_debit: i64 = lines.iter().map(|l| l.0).sum();
     let total_credit: i64 = lines.iter().map(|l| l.1).sum();
-    assert_eq!(total_debit, total_credit, "Reversal journal must be balanced");
+    assert_eq!(
+        total_debit, total_credit,
+        "Reversal journal must be balanced"
+    );
 
     println!("✅ test_auto_reversal_produces_one_journal: PASS");
 }
@@ -399,8 +409,14 @@ async fn test_reversal_replay_idempotency() {
     let second = execute_auto_reversals(&pool, &reversal_req)
         .await
         .expect("second reversal failed");
-    assert_eq!(second.reversals_executed, 0, "Replay should execute 0 new reversals");
-    assert_eq!(second.reversals_skipped, 0, "Already reversed — not even a candidate");
+    assert_eq!(
+        second.reversals_executed, 0,
+        "Replay should execute 0 new reversals"
+    );
+    assert_eq!(
+        second.reversals_skipped, 0,
+        "Already reversed — not even a candidate"
+    );
 
     // Verify only 1 reversal record exists
     let reversal_count: (i64,) = sqlx::query_as(
@@ -421,7 +437,10 @@ async fn test_reversal_replay_idempotency() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(je_count.0, 1, "Should have exactly 1 reversal journal entry");
+    assert_eq!(
+        je_count.0, 1,
+        "Should have exactly 1 reversal journal entry"
+    );
 
     println!("✅ test_reversal_replay_idempotency: PASS");
 }
@@ -491,8 +510,14 @@ async fn test_reversal_linkage_preserved() {
     .await
     .expect("reversal record not found");
 
-    assert_eq!(rev.get::<Uuid, _>("original_accrual_id"), accrual.accrual_id);
-    assert_eq!(rev.get::<Uuid, _>("original_instance_id"), accrual.instance_id);
+    assert_eq!(
+        rev.get::<Uuid, _>("original_accrual_id"),
+        accrual.accrual_id
+    );
+    assert_eq!(
+        rev.get::<Uuid, _>("original_instance_id"),
+        accrual.instance_id
+    );
     assert_eq!(rev.get::<String, _>("reversal_period"), "2026-08");
     // Accounts swapped
     assert_eq!(rev.get::<String, _>("debit_account"), "CASH");
@@ -513,14 +538,16 @@ async fn test_reversal_linkage_preserved() {
     );
 
     // Verify original accrual status updated to 'reversed'
-    let instance_status: (String,) = sqlx::query_as(
-        "SELECT status FROM gl_accrual_instances WHERE instance_id = $1",
-    )
-    .bind(accrual.instance_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert_eq!(instance_status.0, "reversed", "Original accrual should be marked reversed");
+    let instance_status: (String,) =
+        sqlx::query_as("SELECT status FROM gl_accrual_instances WHERE instance_id = $1")
+            .bind(accrual.instance_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(
+        instance_status.0, "reversed",
+        "Original accrual should be marked reversed"
+    );
 
     println!("✅ test_reversal_linkage_preserved: PASS");
 }
@@ -577,7 +604,10 @@ async fn test_no_reverse_when_policy_disabled() {
     .await
     .expect("reversal execution failed");
 
-    assert_eq!(result.reversals_executed, 0, "No auto-reverse accruals should be found");
+    assert_eq!(
+        result.reversals_executed, 0,
+        "No auto-reverse accruals should be found"
+    );
     assert_eq!(result.reversals_skipped, 0);
     assert!(result.results.is_empty());
 
@@ -599,15 +629,33 @@ async fn test_multiple_accruals_all_reversed() {
     };
 
     let t1 = create_test_template_with_policy(
-        &pool, &tenant, "Accrual A", "EXP_A", "LIAB_A", 100000, policy.clone(),
+        &pool,
+        &tenant,
+        "Accrual A",
+        "EXP_A",
+        "LIAB_A",
+        100000,
+        policy.clone(),
     )
     .await;
     let t2 = create_test_template_with_policy(
-        &pool, &tenant, "Accrual B", "EXP_B", "LIAB_B", 200000, policy.clone(),
+        &pool,
+        &tenant,
+        "Accrual B",
+        "EXP_B",
+        "LIAB_B",
+        200000,
+        policy.clone(),
     )
     .await;
     let t3 = create_test_template_with_policy(
-        &pool, &tenant, "Accrual C", "EXP_C", "LIAB_C", 300000, policy,
+        &pool,
+        &tenant,
+        "Accrual C",
+        "EXP_C",
+        "LIAB_C",
+        300000,
+        policy,
     )
     .await;
 
@@ -640,7 +688,10 @@ async fn test_multiple_accruals_all_reversed() {
     .await
     .expect("reversal execution failed");
 
-    assert_eq!(result.reversals_executed, 3, "All 3 accruals should be reversed");
+    assert_eq!(
+        result.reversals_executed, 3,
+        "All 3 accruals should be reversed"
+    );
     assert_eq!(result.results.len(), 3);
 
     // Verify total amounts
@@ -709,14 +760,16 @@ async fn test_processed_events_dedupe() {
         &Uuid::NAMESPACE_OID,
         format!("reversal_event:{}", accrual.accrual_id).as_bytes(),
     );
-    let processed: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM processed_events WHERE event_id = $1)",
-    )
-    .bind(expected_event_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
-    assert!(processed, "processed_events should contain the reversal event_id");
+    let processed: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM processed_events WHERE event_id = $1)")
+            .bind(expected_event_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(
+        processed,
+        "processed_events should contain the reversal event_id"
+    );
 
     println!("✅ test_processed_events_dedupe: PASS");
 }

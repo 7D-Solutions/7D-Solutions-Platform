@@ -179,12 +179,7 @@ async fn test_create_close_snapshot_with_entries() {
 
     // Verify hash is reproducible (balance_count will be 0 since we didn't create balances)
     let expected_hash = compute_close_hash(
-        tenant_id,
-        period_id,
-        2,
-        150000,
-        150000,
-        0, // No account_balances created in test
+        tenant_id, period_id, 2, 150000, 150000, 0, // No account_balances created in test
     );
     assert_eq!(snapshot.close_hash, expected_hash);
 }
@@ -473,7 +468,6 @@ async fn create_test_journal_entry(
     amount_minor: i64,
     entry_date: NaiveDate,
 ) {
-
     // Create journal entry (no period_id column in journal_entries table)
     let entry_id = Uuid::new_v4();
     let posted_at = entry_date.and_hms_opt(12, 0, 0).unwrap().and_utc();

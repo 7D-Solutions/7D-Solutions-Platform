@@ -15,12 +15,8 @@
 ///    ```bash
 ///    cargo run --example tilled_example
 ///    ```
-
 use ar_rs::tilled::{
-    customer::UpdateCustomerRequest,
-    subscription::SubscriptionOptions,
-    TilledClient,
-    TilledConfig,
+    customer::UpdateCustomerRequest, subscription::SubscriptionOptions, TilledClient, TilledConfig,
 };
 
 #[tokio::main]
@@ -90,9 +86,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     type HmacSha256 = Hmac<Sha256>;
 
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)?
-        .as_secs();
+    let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
 
     let signed_payload = format!("{}.{}", timestamp, test_body);
     let mut mac = HmacSha256::new_from_slice(test_secret.as_bytes())?;

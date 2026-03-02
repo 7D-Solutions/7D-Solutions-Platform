@@ -50,7 +50,7 @@ async fn dump_pg_activity() {
                 FROM pg_stat_activity
                 WHERE datname = current_database()
                 ORDER BY state, pid
-                "#
+                "#,
             )
             .fetch_all(&mut conn)
             .await;
@@ -63,8 +63,10 @@ async fn dump_pg_activity() {
                         let state: Option<String> = row.try_get("state").ok();
                         let wait_event_type: Option<String> = row.try_get("wait_event_type").ok();
                         let wait_event: Option<String> = row.try_get("wait_event").ok();
-                        let xact_start: Option<chrono::DateTime<chrono::Utc>> = row.try_get("xact_start").ok();
-                        let state_change: Option<chrono::DateTime<chrono::Utc>> = row.try_get("state_change").ok();
+                        let xact_start: Option<chrono::DateTime<chrono::Utc>> =
+                            row.try_get("xact_start").ok();
+                        let state_change: Option<chrono::DateTime<chrono::Utc>> =
+                            row.try_get("state_change").ok();
                         let query: Option<String> = row.try_get("query").ok();
 
                         eprintln!("[DIAGNOSTIC]   pid={}, state={:?}, wait_type={:?}, wait_event={:?}, xact_start={:?}, state_change={:?}, query={:?}",
@@ -400,7 +402,10 @@ async fn test_posting_blocked_when_period_closed() -> Result<(), sqlx::Error> {
     .await
     .expect("Failed to query journal entries");
 
-    assert_eq!(count, 0, "No journal entry should be created for failed posting");
+    assert_eq!(
+        count, 0,
+        "No journal entry should be created for failed posting"
+    );
 
     // Explicit cleanup to release DB connections
     cleanup_test_data(&pool, &tenant_id).await?;
@@ -504,12 +509,8 @@ async fn test_reversal_blocked_when_original_period_closed() -> Result<(), sqlx:
     // Attempt to reverse the entry (reversal would go to period B which is open)
     let reversal_event_id = Uuid::new_v4();
 
-    let result = reversal_service::create_reversal_entry(
-        &pool,
-        reversal_event_id,
-        original_entry_id,
-    )
-    .await;
+    let result =
+        reversal_service::create_reversal_entry(&pool, reversal_event_id, original_entry_id).await;
 
     // Assert reversal fails with OriginalPeriodClosed error
     assert!(
@@ -643,28 +644,26 @@ async fn test_reversal_succeeds_when_both_periods_open() -> Result<(), sqlx::Err
     // Reverse the entry (both periods are open)
     let reversal_event_id = Uuid::new_v4();
 
-    let result = reversal_service::create_reversal_entry(
-        &pool,
-        reversal_event_id,
-        original_entry_id,
-    )
-    .await;
+    let result =
+        reversal_service::create_reversal_entry(&pool, reversal_event_id, original_entry_id).await;
 
     // Assert reversal succeeds
     if let Err(ref e) = result {
-        panic!("Reversal should succeed when both periods are open. Error: {}", e);
+        panic!(
+            "Reversal should succeed when both periods are open. Error: {}",
+            e
+        );
     }
 
     let reversal_entry_id = result.unwrap();
 
     // Verify reversal entry was created
-    let reversal_entry: Option<Uuid> = sqlx::query_scalar(
-        "SELECT reverses_entry_id FROM journal_entries WHERE id = $1",
-    )
-    .bind(reversal_entry_id)
-    .fetch_one(&pool)
-    .await
-    .expect("Failed to query reversal entry");
+    let reversal_entry: Option<Uuid> =
+        sqlx::query_scalar("SELECT reverses_entry_id FROM journal_entries WHERE id = $1")
+            .bind(reversal_entry_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to query reversal entry");
 
     assert_eq!(
         reversal_entry,

@@ -100,20 +100,14 @@ async fn test_circuit_breaker_trips() {
     // Simulate 3 consecutive failures
     for i in 0..3 {
         let result = policy
-            .execute_with_budget(
-                &metrics,
-                &circuit,
-                projection_name,
-                tenant_id,
-                async {
-                    // Simulate failure
-                    Err::<(), _>(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "Simulated failure",
-                    ))
-                        as Box<dyn std::error::Error + Send + Sync>)
-                },
-            )
+            .execute_with_budget(&metrics, &circuit, projection_name, tenant_id, async {
+                // Simulate failure
+                Err::<(), _>(Box::new(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Simulated failure",
+                ))
+                    as Box<dyn std::error::Error + Send + Sync>)
+            })
             .await;
 
         assert!(result.is_err(), "Fallback should fail");
@@ -121,22 +115,19 @@ async fn test_circuit_breaker_trips() {
         if i < 2 {
             assert!(circuit.is_closed(), "Circuit should still be closed");
         } else {
-            assert!(!circuit.is_closed(), "Circuit should be open after 3 failures");
+            assert!(
+                !circuit.is_closed(),
+                "Circuit should be open after 3 failures"
+            );
         }
     }
 
     // Circuit is now open - next attempt should fail immediately without calling fallback
     let result = policy
-        .execute_with_budget(
-            &metrics,
-            &circuit,
-            projection_name,
-            tenant_id,
-            async {
-                // This should not execute
-                Ok::<i32, _>(42)
-            },
-        )
+        .execute_with_budget(&metrics, &circuit, projection_name, tenant_id, async {
+            // This should not execute
+            Ok::<i32, _>(42)
+        })
         .await;
 
     assert!(result.is_err(), "Should fail due to open circuit");
@@ -159,19 +150,12 @@ async fn test_circuit_breaker_recovery() {
     // Trip the circuit
     for _ in 0..3 {
         let _ = policy
-            .execute_with_budget(
-                &metrics,
-                &circuit,
-                projection_name,
-                tenant_id,
-                async {
-                    Err::<(), _>(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "Failure",
-                    ))
-                        as Box<dyn std::error::Error + Send + Sync>)
-                },
-            )
+            .execute_with_budget(&metrics, &circuit, projection_name, tenant_id, async {
+                Err::<(), _>(
+                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Failure"))
+                        as Box<dyn std::error::Error + Send + Sync>,
+                )
+            })
             .await;
     }
 
@@ -179,10 +163,16 @@ async fn test_circuit_breaker_recovery() {
 
     // Record 2 successful operations (manually for testing)
     circuit.record_success();
-    assert!(!circuit.is_closed(), "Circuit should still be open after 1 success");
+    assert!(
+        !circuit.is_closed(),
+        "Circuit should still be open after 1 success"
+    );
 
     circuit.record_success();
-    assert!(circuit.is_closed(), "Circuit should close after 2 successes");
+    assert!(
+        circuit.is_closed(),
+        "Circuit should close after 2 successes"
+    );
 }
 
 /// Test 4: Time budget enforcement
@@ -197,16 +187,10 @@ async fn test_time_budget_enforcement() {
 
     // Fast operation - should succeed
     let result = policy
-        .execute_with_budget(
-            &metrics,
-            &circuit,
-            projection_name,
-            tenant_id,
-            async {
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-                Ok::<i32, _>(42)
-            },
-        )
+        .execute_with_budget(&metrics, &circuit, projection_name, tenant_id, async {
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            Ok::<i32, _>(42)
+        })
         .await;
 
     assert!(result.is_ok(), "Fast operation should succeed");
@@ -214,16 +198,10 @@ async fn test_time_budget_enforcement() {
 
     // Slow operation - should timeout
     let result = policy
-        .execute_with_budget(
-            &metrics,
-            &circuit,
-            projection_name,
-            tenant_id,
-            async {
-                tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-                Ok::<i32, _>(42)
-            },
-        )
+        .execute_with_budget(&metrics, &circuit, projection_name, tenant_id, async {
+            tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+            Ok::<i32, _>(42)
+        })
         .await;
 
     assert!(result.is_err(), "Slow operation should timeout");
@@ -245,26 +223,17 @@ async fn test_fallback_metrics() {
 
     // Successful fallback
     let result = policy
-        .execute_with_budget(
-            &metrics,
-            &circuit,
-            projection_name,
-            tenant_id,
-            async {
-                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                Ok::<i32, _>(42)
-            },
-        )
+        .execute_with_budget(&metrics, &circuit, projection_name, tenant_id, async {
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            Ok::<i32, _>(42)
+        })
         .await;
 
     assert!(result.is_ok(), "Fallback should succeed");
 
     // Gather metrics
     let metric_families = metrics.registry().gather();
-    assert!(
-        !metric_families.is_empty(),
-        "Metrics should be recorded"
-    );
+    assert!(!metric_families.is_empty(), "Metrics should be recorded");
 
     // Verify counter and histogram metrics exist
     let has_counter = metric_families
@@ -314,17 +283,11 @@ async fn test_e2e_fallback_flow() {
     let circuit = CircuitBreaker::new(5, 2);
 
     let result = policy
-        .execute_with_budget(
-            &metrics,
-            &circuit,
-            projection_name,
-            tenant_id,
-            async {
-                // Simulate HTTP fallback call
-                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-                Ok::<String, _>("fallback_data".to_string())
-            },
-        )
+        .execute_with_budget(&metrics, &circuit, projection_name, tenant_id, async {
+            // Simulate HTTP fallback call
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            Ok::<String, _>("fallback_data".to_string())
+        })
         .await;
 
     assert!(result.is_ok(), "Fallback should succeed");
@@ -349,20 +312,13 @@ async fn test_circuit_prevents_cascading_failures() {
     for _ in 0..3 {
         let count = failure_count.clone();
         let _ = policy
-            .execute_with_budget(
-                &metrics,
-                &circuit,
-                projection_name,
-                tenant_id,
-                async move {
-                    count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    Err::<(), _>(Box::new(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "Failure",
-                    ))
-                        as Box<dyn std::error::Error + Send + Sync>)
-                },
-            )
+            .execute_with_budget(&metrics, &circuit, projection_name, tenant_id, async move {
+                count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Err::<(), _>(
+                    Box::new(std::io::Error::new(std::io::ErrorKind::Other, "Failure"))
+                        as Box<dyn std::error::Error + Send + Sync>,
+                )
+            })
             .await;
     }
 
@@ -374,16 +330,10 @@ async fn test_circuit_prevents_cascading_failures() {
     for _ in 0..5 {
         let count = failure_count.clone();
         let result = policy
-            .execute_with_budget(
-                &metrics,
-                &circuit,
-                projection_name,
-                tenant_id,
-                async move {
-                    count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    Ok::<(), _>(())
-                },
-            )
+            .execute_with_budget(&metrics, &circuit, projection_name, tenant_id, async move {
+                count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Ok::<(), _>(())
+            })
             .await;
 
         assert!(

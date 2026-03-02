@@ -60,9 +60,8 @@ pub async fn get_test_pool() -> PgPool {
     }
 
     // Get database URL
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string()
-    });
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string());
 
     // Create fresh pool (no OnceCell, no advisory lock)
     // Serial execution (#[serial] + --test-threads=1) already prevents races

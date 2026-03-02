@@ -19,8 +19,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -102,11 +102,7 @@ async fn get_inventory_ref(pool: &sqlx::PgPool, line_id: Uuid) -> Option<Uuid> {
     row.0
 }
 
-async fn count_outbox_events(
-    pool: &sqlx::PgPool,
-    aggregate_id: &str,
-    event_type: &str,
-) -> i64 {
+async fn count_outbox_events(pool: &sqlx::PgPool, aggregate_id: &str, event_type: &str) -> i64 {
     let row: (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM sr_events_outbox WHERE aggregate_id = $1 AND event_type = $2",
     )
@@ -155,8 +151,7 @@ async fn inbound_happy_path_draft_to_closed() {
     // Progress: draft → confirmed → in_transit → arrived → receiving
     for status in &["confirmed", "in_transit", "arrived", "receiving"] {
         let req = make_transition(status);
-        let result =
-            ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
+        let result = ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
         assert!(
             result.is_ok(),
             "transition to {status} failed: {:?}",
@@ -184,7 +179,10 @@ async fn inbound_happy_path_draft_to_closed() {
 
     // Verify inventory receipt linkage
     let ref_id = get_inventory_ref(&pool, line_id).await;
-    assert!(ref_id.is_some(), "line must have inventory_ref_id after close");
+    assert!(
+        ref_id.is_some(),
+        "line must have inventory_ref_id after close"
+    );
 }
 
 #[tokio::test]
@@ -215,17 +213,19 @@ async fn inbound_close_rejects_qty_mismatch_then_succeeds_after_fix() {
     assert_eq!(get_shipment_status(&pool, ship_id).await, "receiving");
 
     // Fix: accepted=8, rejected=2, so 8+2=10==received
-    sqlx::query(
-        "UPDATE shipment_lines SET qty_accepted = 8, qty_rejected = 2 WHERE id = $1",
-    )
-    .bind(line_id)
-    .execute(&pool)
-    .await
-    .expect("fix line qtys");
+    sqlx::query("UPDATE shipment_lines SET qty_accepted = 8, qty_rejected = 2 WHERE id = $1")
+        .bind(line_id)
+        .execute(&pool)
+        .await
+        .expect("fix line qtys");
 
     // Retry close — should succeed now
     let result2 = ShipmentService::transition(&pool, ship_id, tenant_id, &req, &inventory).await;
-    assert!(result2.is_ok(), "close must succeed after fix: {:?}", result2.err());
+    assert!(
+        result2.is_ok(),
+        "close must succeed after fix: {:?}",
+        result2.err()
+    );
     assert_eq!(get_shipment_status(&pool, ship_id).await, "closed");
 }
 

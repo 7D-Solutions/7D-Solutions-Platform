@@ -6,8 +6,7 @@ mod helpers;
 
 use axum::{body::Body, http::Request};
 use helpers::{
-    body_json, build_test_app, seed_open_invoice, seed_payment_history,
-    setup_db, unique_tenant,
+    body_json, build_test_app, seed_open_invoice, seed_payment_history, setup_db, unique_tenant,
 };
 use serial_test::serial;
 use tower::ServiceExt;
@@ -50,8 +49,13 @@ async fn forecast_default_horizons_are_7_14_30_60_90() {
     // Seed enough history for profile + one open invoice
     for (i, days) in [10, 20, 30].iter().enumerate() {
         seed_payment_history(
-            &pool, &tid_str, "cust-h", &format!("hist-h{i}"),
-            "USD", 10000, *days,
+            &pool,
+            &tid_str,
+            "cust-h",
+            &format!("hist-h{i}"),
+            "USD",
+            10000,
+            *days,
         )
         .await;
     }
@@ -71,7 +75,10 @@ async fn forecast_default_horizons_are_7_14_30_60_90() {
     assert_eq!(resp.status(), 200);
     let json = body_json(resp).await;
     let results = json["results"].as_array().unwrap();
-    assert!(!results.is_empty(), "Should have at least one currency group");
+    assert!(
+        !results.is_empty(),
+        "Should have at least one currency group"
+    );
 
     let horizons = results[0]["horizons"].as_array().unwrap();
     let days: Vec<u64> = horizons
@@ -93,8 +100,13 @@ async fn forecast_custom_horizons_respected() {
 
     for (i, days) in [10, 20, 30].iter().enumerate() {
         seed_payment_history(
-            &pool, &tid_str, "cust-c", &format!("hist-c{i}"),
-            "USD", 10000, *days,
+            &pool,
+            &tid_str,
+            "cust-c",
+            &format!("hist-c{i}"),
+            "USD",
+            10000,
+            *days,
         )
         .await;
     }
@@ -114,7 +126,10 @@ async fn forecast_custom_horizons_respected() {
     assert_eq!(resp.status(), 200);
     let json = body_json(resp).await;
     let horizons = json["results"][0]["horizons"].as_array().unwrap();
-    let days: Vec<u64> = horizons.iter().map(|h| h["days"].as_u64().unwrap()).collect();
+    let days: Vec<u64> = horizons
+        .iter()
+        .map(|h| h["days"].as_u64().unwrap())
+        .collect();
     assert_eq!(days, vec![7, 30]);
 }
 
@@ -154,8 +169,13 @@ async fn forecast_with_profile_computes_expected_cents() {
     // Profile: customer pays in [10, 20, 30] days
     for (i, days) in [10, 20, 30].iter().enumerate() {
         seed_payment_history(
-            &pool, &tid_str, "cust-e", &format!("hist-e{i}"),
-            "USD", 10000, *days,
+            &pool,
+            &tid_str,
+            "cust-e",
+            &format!("hist-e{i}"),
+            "USD",
+            10000,
+            *days,
         )
         .await;
     }
@@ -195,8 +215,13 @@ async fn forecast_at_risk_flagged_for_overdue() {
     // Profile: very fast payer [5, 6, 7] days
     for (i, days) in [5, 6, 7].iter().enumerate() {
         seed_payment_history(
-            &pool, &tid_str, "cust-risk", &format!("hist-r{i}"),
-            "USD", 10000, *days,
+            &pool,
+            &tid_str,
+            "cust-risk",
+            &format!("hist-r{i}"),
+            "USD",
+            10000,
+            *days,
         )
         .await;
     }
@@ -235,16 +260,26 @@ async fn forecast_multi_currency_groups() {
     // USD profile
     for (i, days) in [10, 20, 30].iter().enumerate() {
         seed_payment_history(
-            &pool, &tid_str, "cust-mc", &format!("hist-mc-usd-{i}"),
-            "USD", 10000, *days,
+            &pool,
+            &tid_str,
+            "cust-mc",
+            &format!("hist-mc-usd-{i}"),
+            "USD",
+            10000,
+            *days,
         )
         .await;
     }
     // EUR profile
     for (i, days) in [15, 25, 35].iter().enumerate() {
         seed_payment_history(
-            &pool, &tid_str, "cust-mc", &format!("hist-mc-eur-{i}"),
-            "EUR", 10000, *days,
+            &pool,
+            &tid_str,
+            "cust-mc",
+            &format!("hist-mc-eur-{i}"),
+            "EUR",
+            10000,
+            *days,
         )
         .await;
     }
@@ -267,7 +302,10 @@ async fn forecast_multi_currency_groups() {
     let json = body_json(resp).await;
     let results = json["results"].as_array().unwrap();
     assert_eq!(results.len(), 2, "Should have USD and EUR groups");
-    let currencies: Vec<&str> = results.iter().map(|r| r["currency"].as_str().unwrap()).collect();
+    let currencies: Vec<&str> = results
+        .iter()
+        .map(|r| r["currency"].as_str().unwrap())
+        .collect();
     assert!(currencies.contains(&"USD"));
     assert!(currencies.contains(&"EUR"));
 }
@@ -306,12 +344,26 @@ async fn forecast_tenant_isolation() {
     // Seed data only for tenant A
     for (i, days) in [10, 20, 30].iter().enumerate() {
         seed_payment_history(
-            &pool, &tid_a.to_string(), "cust-iso", &format!("hist-iso{i}"),
-            "USD", 10000, *days,
+            &pool,
+            &tid_a.to_string(),
+            "cust-iso",
+            &format!("hist-iso{i}"),
+            "USD",
+            10000,
+            *days,
         )
         .await;
     }
-    seed_open_invoice(&pool, &tid_a.to_string(), "open-iso", "cust-iso", "USD", 50000, 0).await;
+    seed_open_invoice(
+        &pool,
+        &tid_a.to_string(),
+        "open-iso",
+        "cust-iso",
+        "USD",
+        50000,
+        0,
+    )
+    .await;
 
     // Tenant A: has results
     let resp_a = app

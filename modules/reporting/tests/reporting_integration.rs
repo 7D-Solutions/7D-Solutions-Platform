@@ -7,8 +7,8 @@ mod helpers;
 
 use axum::{body::Body, http::Request};
 use helpers::{
-    body_json, build_test_app, seed_ap_aging, seed_ar_aging, seed_cashflow,
-    seed_trial_balance, setup_db, unique_tenant,
+    body_json, build_test_app, seed_ap_aging, seed_ar_aging, seed_cashflow, seed_trial_balance,
+    setup_db, unique_tenant,
 };
 use serial_test::serial;
 use tower::ServiceExt;
@@ -26,9 +26,28 @@ async fn pl_happy_path_returns_200_with_sections() {
     let tid_str = tid.to_string();
     let app = build_test_app(pool.clone());
 
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "4000", "Revenue", "USD", 0, 100_000).await;
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "6000", "Rent Expense", "USD", 40_000, 0)
-        .await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "4000",
+        "Revenue",
+        "USD",
+        0,
+        100_000,
+    )
+    .await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "6000",
+        "Rent Expense",
+        "USD",
+        40_000,
+        0,
+    )
+    .await;
 
     let resp = app
         .oneshot(
@@ -125,9 +144,39 @@ async fn balance_sheet_happy_path_returns_200_with_sections() {
     let tid_str = tid.to_string();
     let app = build_test_app(pool.clone());
 
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "1000", "Cash", "USD", 200_000, 0).await;
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "2000", "AP", "USD", 0, 80_000).await;
-    seed_trial_balance(&pool, &tid_str, "2026-01-31", "3000", "Equity", "USD", 0, 120_000).await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "1000",
+        "Cash",
+        "USD",
+        200_000,
+        0,
+    )
+    .await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "2000",
+        "AP",
+        "USD",
+        0,
+        80_000,
+    )
+    .await;
+    seed_trial_balance(
+        &pool,
+        &tid_str,
+        "2026-01-31",
+        "3000",
+        "Equity",
+        "USD",
+        0,
+        120_000,
+    )
+    .await;
 
     let resp = app
         .oneshot(
@@ -336,7 +385,14 @@ async fn tenant_isolation_pl_statement() {
     let tenant_b = unique_tenant();
 
     seed_trial_balance(
-        &pool, &tenant_a.to_string(), "2026-01-31", "4001", "Revenue A", "USD", 0, 99_000,
+        &pool,
+        &tenant_a.to_string(),
+        "2026-01-31",
+        "4001",
+        "Revenue A",
+        "USD",
+        0,
+        99_000,
     )
     .await;
 

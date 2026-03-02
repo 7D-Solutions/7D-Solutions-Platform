@@ -17,8 +17,8 @@
 use inventory_rs::domain::{
     items::{CreateItemRequest, ItemRepo, TrackingMode},
     receipt_service::{process_receipt, ReceiptRequest},
-    reservation_service::{ReserveRequest, process_reserve},
-    transfer_service::{TransferError, TransferRequest, process_transfer},
+    reservation_service::{process_reserve, ReserveRequest},
+    transfer_service::{process_transfer, TransferError, TransferRequest},
 };
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -30,8 +30,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -58,7 +58,14 @@ fn make_item(tenant_id: &str, sku: &str) -> CreateItemRequest {
     }
 }
 
-fn receipt(tenant_id: &str, item_id: Uuid, wh: Uuid, qty: i64, cost: i64, key: &str) -> ReceiptRequest {
+fn receipt(
+    tenant_id: &str,
+    item_id: Uuid,
+    wh: Uuid,
+    qty: i64,
+    cost: i64,
+    key: &str,
+) -> ReceiptRequest {
     ReceiptRequest {
         tenant_id: tenant_id.to_string(),
         item_id,
@@ -77,7 +84,14 @@ fn receipt(tenant_id: &str, item_id: Uuid, wh: Uuid, qty: i64, cost: i64, key: &
     }
 }
 
-fn transfer(tenant_id: &str, item_id: Uuid, from: Uuid, to: Uuid, qty: i64, key: &str) -> TransferRequest {
+fn transfer(
+    tenant_id: &str,
+    item_id: Uuid,
+    from: Uuid,
+    to: Uuid,
+    qty: i64,
+    key: &str,
+) -> TransferRequest {
     TransferRequest {
         tenant_id: tenant_id.to_string(),
         item_id,
@@ -92,16 +106,52 @@ fn transfer(tenant_id: &str, item_id: Uuid, from: Uuid, to: Uuid, qty: i64, key:
 }
 
 async fn cleanup(pool: &sqlx::PgPool, tenant_id: &str) {
-    sqlx::query("DELETE FROM inv_transfers WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
+    sqlx::query("DELETE FROM inv_transfers WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
     sqlx::query("DELETE FROM layer_consumptions WHERE layer_id IN (SELECT id FROM inventory_layers WHERE tenant_id = $1)").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_reservations WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
+    sqlx::query("DELETE FROM inventory_reservations WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand_by_status WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 async fn get_on_hand(pool: &sqlx::PgPool, tenant_id: &str, item_id: Uuid, wh: Uuid) -> i64 {
@@ -112,7 +162,12 @@ async fn get_on_hand(pool: &sqlx::PgPool, tenant_id: &str, item_id: Uuid, wh: Uu
     .fetch_optional(pool).await.unwrap().unwrap_or(0)
 }
 
-async fn get_available_bucket(pool: &sqlx::PgPool, tenant_id: &str, item_id: Uuid, wh: Uuid) -> i64 {
+async fn get_available_bucket(
+    pool: &sqlx::PgPool,
+    tenant_id: &str,
+    item_id: Uuid,
+    wh: Uuid,
+) -> i64 {
     sqlx::query_scalar::<_, i64>(
         "SELECT COALESCE(quantity_on_hand, 0) FROM item_on_hand_by_status WHERE tenant_id=$1 AND item_id=$2 AND warehouse_id=$3 AND status='available'"
     )
@@ -133,15 +188,38 @@ async fn transfer_happy_path_paired_ledger_fifo_layer_outbox() {
     let wh_dst = Uuid::new_v4();
     cleanup(&pool, &tid).await;
 
-    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-001")).await.unwrap();
+    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-001"))
+        .await
+        .unwrap();
 
     // Receive 50 units at $10 in source warehouse
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 50, 1000, &format!("rcv-{}", Uuid::new_v4())), None)
-        .await.unwrap();
+    process_receipt(
+        &pool,
+        &receipt(
+            &tid,
+            item.id,
+            wh_src,
+            50,
+            1000,
+            &format!("rcv-{}", Uuid::new_v4()),
+        ),
+        None,
+    )
+    .await
+    .unwrap();
 
     // Transfer 20 units to destination
-    let req = transfer(&tid, item.id, wh_src, wh_dst, 20, &format!("xfr-{}", Uuid::new_v4()));
-    let (result, is_replay) = process_transfer(&pool, &req, None).await.expect("transfer should succeed");
+    let req = transfer(
+        &tid,
+        item.id,
+        wh_src,
+        wh_dst,
+        20,
+        &format!("xfr-{}", Uuid::new_v4()),
+    );
+    let (result, is_replay) = process_transfer(&pool, &req, None)
+        .await
+        .expect("transfer should succeed");
 
     assert!(!is_replay);
     assert_eq!(result.quantity, 20);
@@ -192,9 +270,13 @@ async fn transfer_happy_path_paired_ledger_fifo_layer_outbox() {
     assert_eq!(outbox_count, 1);
 
     // inv_transfers business record
-    let transfer_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inv_transfers WHERE tenant_id=$1 AND id=$2"
-    ).bind(&tid).bind(result.transfer_id).fetch_one(&pool).await.unwrap();
+    let transfer_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inv_transfers WHERE tenant_id=$1 AND id=$2")
+            .bind(&tid)
+            .bind(result.transfer_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(transfer_count, 1);
 
     cleanup(&pool, &tid).await;
@@ -213,9 +295,23 @@ async fn transfer_idempotency_replay_returns_same_result() {
     let wh_dst = Uuid::new_v4();
     cleanup(&pool, &tid).await;
 
-    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-IDEM")).await.unwrap();
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 30, 500, &format!("rcv-{}", Uuid::new_v4())), None)
-        .await.unwrap();
+    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-IDEM"))
+        .await
+        .unwrap();
+    process_receipt(
+        &pool,
+        &receipt(
+            &tid,
+            item.id,
+            wh_src,
+            30,
+            500,
+            &format!("rcv-{}", Uuid::new_v4()),
+        ),
+        None,
+    )
+    .await
+    .unwrap();
 
     let key = format!("xfr-idem-{}", Uuid::new_v4());
     let req = transfer(&tid, item.id, wh_src, wh_dst, 10, &key);
@@ -250,13 +346,40 @@ async fn transfer_insufficient_quantity_rejected() {
     let wh_dst = Uuid::new_v4();
     cleanup(&pool, &tid).await;
 
-    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-INS")).await.unwrap();
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 5, 1000, &format!("rcv-{}", Uuid::new_v4())), None)
-        .await.unwrap();
+    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-INS"))
+        .await
+        .unwrap();
+    process_receipt(
+        &pool,
+        &receipt(
+            &tid,
+            item.id,
+            wh_src,
+            5,
+            1000,
+            &format!("rcv-{}", Uuid::new_v4()),
+        ),
+        None,
+    )
+    .await
+    .unwrap();
 
-    let req = transfer(&tid, item.id, wh_src, wh_dst, 10, &format!("xfr-{}", Uuid::new_v4()));
+    let req = transfer(
+        &tid,
+        item.id,
+        wh_src,
+        wh_dst,
+        10,
+        &format!("xfr-{}", Uuid::new_v4()),
+    );
     let err = process_transfer(&pool, &req, None).await.unwrap_err();
-    assert!(matches!(err, TransferError::InsufficientQuantity { requested: 10, available: 5 }));
+    assert!(matches!(
+        err,
+        TransferError::InsufficientQuantity {
+            requested: 10,
+            available: 5
+        }
+    ));
 
     cleanup(&pool, &tid).await;
 }
@@ -274,12 +397,33 @@ async fn transfer_inactive_item_rejected() {
     let wh_dst = Uuid::new_v4();
     cleanup(&pool, &tid).await;
 
-    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-INACT")).await.unwrap();
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 20, 500, &format!("rcv-{}", Uuid::new_v4())), None)
-        .await.unwrap();
+    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-INACT"))
+        .await
+        .unwrap();
+    process_receipt(
+        &pool,
+        &receipt(
+            &tid,
+            item.id,
+            wh_src,
+            20,
+            500,
+            &format!("rcv-{}", Uuid::new_v4()),
+        ),
+        None,
+    )
+    .await
+    .unwrap();
     ItemRepo::deactivate(&pool, item.id, &tid).await.unwrap();
 
-    let req = transfer(&tid, item.id, wh_src, wh_dst, 5, &format!("xfr-{}", Uuid::new_v4()));
+    let req = transfer(
+        &tid,
+        item.id,
+        wh_src,
+        wh_dst,
+        5,
+        &format!("xfr-{}", Uuid::new_v4()),
+    );
     let err = process_transfer(&pool, &req, None).await.unwrap_err();
     assert!(matches!(err, TransferError::Guard(_)));
 
@@ -298,7 +442,9 @@ async fn transfer_same_warehouse_rejected() {
     let wh = Uuid::new_v4();
     cleanup(&pool, &tid).await;
 
-    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-SAME")).await.unwrap();
+    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-SAME"))
+        .await
+        .unwrap();
 
     let req = transfer(&tid, item.id, wh, wh, 5, &format!("xfr-{}", Uuid::new_v4()));
     let err = process_transfer(&pool, &req, None).await.unwrap_err();
@@ -320,17 +466,50 @@ async fn transfer_fifo_multi_layer_oldest_first() {
     let wh_dst = Uuid::new_v4();
     cleanup(&pool, &tid).await;
 
-    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-FIFO")).await.unwrap();
+    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-FIFO"))
+        .await
+        .unwrap();
 
     // Layer 1: 10 units @ $5 (older)
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 10, 500, &format!("rcv1-{}", Uuid::new_v4())), None)
-        .await.unwrap();
+    process_receipt(
+        &pool,
+        &receipt(
+            &tid,
+            item.id,
+            wh_src,
+            10,
+            500,
+            &format!("rcv1-{}", Uuid::new_v4()),
+        ),
+        None,
+    )
+    .await
+    .unwrap();
     // Layer 2: 15 units @ $8 (newer)
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 15, 800, &format!("rcv2-{}", Uuid::new_v4())), None)
-        .await.unwrap();
+    process_receipt(
+        &pool,
+        &receipt(
+            &tid,
+            item.id,
+            wh_src,
+            15,
+            800,
+            &format!("rcv2-{}", Uuid::new_v4()),
+        ),
+        None,
+    )
+    .await
+    .unwrap();
 
     // Transfer 12 units — should consume all of layer 1 (10) + 2 from layer 2
-    let req = transfer(&tid, item.id, wh_src, wh_dst, 12, &format!("xfr-{}", Uuid::new_v4()));
+    let req = transfer(
+        &tid,
+        item.id,
+        wh_src,
+        wh_dst,
+        12,
+        &format!("xfr-{}", Uuid::new_v4()),
+    );
     let (result, _) = process_transfer(&pool, &req, None).await.unwrap();
 
     assert_eq!(result.consumed_layers.len(), 2);
@@ -363,32 +542,73 @@ async fn transfer_reserved_qty_not_transferable() {
     let wh_dst = Uuid::new_v4();
     cleanup(&pool, &tid).await;
 
-    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-RSV")).await.unwrap();
-    process_receipt(&pool, &receipt(&tid, item.id, wh_src, 20, 1000, &format!("rcv-{}", Uuid::new_v4())), None)
-        .await.unwrap();
+    let item = ItemRepo::create(&pool, &make_item(&tid, "SKU-XFR-RSV"))
+        .await
+        .unwrap();
+    process_receipt(
+        &pool,
+        &receipt(
+            &tid,
+            item.id,
+            wh_src,
+            20,
+            1000,
+            &format!("rcv-{}", Uuid::new_v4()),
+        ),
+        None,
+    )
+    .await
+    .unwrap();
 
     // Reserve 15 units
-    process_reserve(&pool, &ReserveRequest {
-        tenant_id: tid.clone(),
-        item_id: item.id,
-        warehouse_id: wh_src,
-        quantity: 15,
-        reference_type: Some("sales_order".to_string()),
-        reference_id: Some("SO-001".to_string()),
-        expires_at: None,
-        idempotency_key: format!("rsv-{}", Uuid::new_v4()),
-        correlation_id: None,
-        causation_id: None,
-    }).await.unwrap();
+    process_reserve(
+        &pool,
+        &ReserveRequest {
+            tenant_id: tid.clone(),
+            item_id: item.id,
+            warehouse_id: wh_src,
+            quantity: 15,
+            reference_type: Some("sales_order".to_string()),
+            reference_id: Some("SO-001".to_string()),
+            expires_at: None,
+            idempotency_key: format!("rsv-{}", Uuid::new_v4()),
+            correlation_id: None,
+            causation_id: None,
+        },
+    )
+    .await
+    .unwrap();
 
     // Only 5 units available; trying to transfer 10 should fail
-    let req = transfer(&tid, item.id, wh_src, wh_dst, 10, &format!("xfr-{}", Uuid::new_v4()));
+    let req = transfer(
+        &tid,
+        item.id,
+        wh_src,
+        wh_dst,
+        10,
+        &format!("xfr-{}", Uuid::new_v4()),
+    );
     let err = process_transfer(&pool, &req, None).await.unwrap_err();
-    assert!(matches!(err, TransferError::InsufficientQuantity { requested: 10, available: 5 }));
+    assert!(matches!(
+        err,
+        TransferError::InsufficientQuantity {
+            requested: 10,
+            available: 5
+        }
+    ));
 
     // Transferring exactly 5 (available) should succeed
-    let req2 = transfer(&tid, item.id, wh_src, wh_dst, 5, &format!("xfr-{}", Uuid::new_v4()));
-    let (result, _) = process_transfer(&pool, &req2, None).await.expect("transfer of 5 available units should succeed");
+    let req2 = transfer(
+        &tid,
+        item.id,
+        wh_src,
+        wh_dst,
+        5,
+        &format!("xfr-{}", Uuid::new_v4()),
+    );
+    let (result, _) = process_transfer(&pool, &req2, None)
+        .await
+        .expect("transfer of 5 available units should succeed");
     assert_eq!(result.quantity, 5);
 
     cleanup(&pool, &tid).await;

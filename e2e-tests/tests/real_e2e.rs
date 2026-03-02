@@ -7,7 +7,6 @@
 /// 4. Asserts results in real databases
 ///
 /// Run with: cargo test --test real_e2e -- --test-threads=1
-
 use chrono::{NaiveDate, Utc};
 use reqwest::Client;
 use serde_json::json;
@@ -56,7 +55,9 @@ async fn connect_ar_db() -> PgPool {
 async fn connect_subscriptions_db() -> PgPool {
     PgPoolOptions::new()
         .max_connections(5)
-        .connect("postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db")
+        .connect(
+            "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db",
+        )
         .await
         .expect("Failed to connect to Subscriptions database")
 }
@@ -72,7 +73,9 @@ async fn connect_payments_db() -> PgPool {
 async fn connect_notifications_db() -> PgPool {
     PgPoolOptions::new()
         .max_connections(5)
-        .connect("postgresql://notifications_user:notifications_pass@localhost:5437/notifications_db")
+        .connect(
+            "postgresql://notifications_user:notifications_pass@localhost:5437/notifications_db",
+        )
         .await
         .expect("Failed to connect to Notifications database")
 }
@@ -119,27 +122,50 @@ async fn wait_for_log_line(container: &str, needle: &str, timeout_secs: u64) -> 
     }
 }
 
-async fn wait_for_health(client: &Client, service_name: &str, url: &str, max_attempts: u32) -> Result<(), String> {
-    println!("⏳ Waiting for {} to be healthy at {}...", service_name, url);
+async fn wait_for_health(
+    client: &Client,
+    service_name: &str,
+    url: &str,
+    max_attempts: u32,
+) -> Result<(), String> {
+    println!(
+        "⏳ Waiting for {} to be healthy at {}...",
+        service_name, url
+    );
 
     for attempt in 1..=max_attempts {
         tokio::time::sleep(Duration::from_millis(500)).await;
 
         match client.get(url).send().await {
             Ok(resp) if resp.status().is_success() => {
-                println!("✓ {} is healthy (attempt {}/{})", service_name, attempt, max_attempts);
+                println!(
+                    "✓ {} is healthy (attempt {}/{})",
+                    service_name, attempt, max_attempts
+                );
                 return Ok(());
             }
             Ok(resp) => {
-                println!("  {} health check returned {} (attempt {}/{})", service_name, resp.status(), attempt, max_attempts);
+                println!(
+                    "  {} health check returned {} (attempt {}/{})",
+                    service_name,
+                    resp.status(),
+                    attempt,
+                    max_attempts
+                );
             }
             Err(e) => {
-                println!("  {} health check failed: {} (attempt {}/{})", service_name, e, attempt, max_attempts);
+                println!(
+                    "  {} health check failed: {} (attempt {}/{})",
+                    service_name, e, attempt, max_attempts
+                );
             }
         }
     }
 
-    Err(format!("{} failed to become healthy after {} attempts", service_name, max_attempts))
+    Err(format!(
+        "{} failed to become healthy after {} attempts",
+        service_name, max_attempts
+    ))
 }
 
 async fn start_all_services() -> Result<TestInfrastructure, String> {
@@ -148,7 +174,14 @@ async fn start_all_services() -> Result<TestInfrastructure, String> {
     // Recreate services with docker compose (picks up rebuilt images)
     println!("🔄 Recreating services with docker compose...");
     let recreate_status = Command::new("docker")
-        .args(&["compose", "-f", "docker-compose.modules.yml", "up", "-d", "--force-recreate"])
+        .args(&[
+            "compose",
+            "-f",
+            "docker-compose.modules.yml",
+            "up",
+            "-d",
+            "--force-recreate",
+        ])
         .current_dir(project_root)
         .status()
         .expect("Failed to recreate services");
@@ -166,19 +199,46 @@ async fn start_all_services() -> Result<TestInfrastructure, String> {
         .unwrap();
 
     wait_for_health(&client, "AR", "http://localhost:8086/api/health", 60).await?;
-    wait_for_health(&client, "Subscriptions", "http://localhost:8087/api/health", 60).await?;
+    wait_for_health(
+        &client,
+        "Subscriptions",
+        "http://localhost:8087/api/health",
+        60,
+    )
+    .await?;
     wait_for_health(&client, "Payments", "http://localhost:8088/api/health", 60).await?;
-    wait_for_health(&client, "Notifications", "http://localhost:8089/api/health", 60).await?;
+    wait_for_health(
+        &client,
+        "Notifications",
+        "http://localhost:8089/api/health",
+        60,
+    )
+    .await?;
     wait_for_health(&client, "GL", "http://localhost:8090/api/health", 60).await?;
 
     println!("✓ All services are healthy");
 
     // Wait for NATS consumers to be subscribed (readiness gate)
-    wait_for_log_line("7d-payments", "Subscribed to ar.events.payment.collection.requested", 30).await?;
+    wait_for_log_line(
+        "7d-payments",
+        "Subscribed to ar.events.payment.collection.requested",
+        30,
+    )
+    .await?;
     wait_for_log_line("7d-payments", "Starting outbox publisher", 30).await?;
-    wait_for_log_line("7d-ar", "Subscribed to payments.events.payment.succeeded", 30).await?;
+    wait_for_log_line(
+        "7d-ar",
+        "Subscribed to payments.events.payment.succeeded",
+        30,
+    )
+    .await?;
     wait_for_log_line("7d-ar", "Publisher tick", 30).await?;
-    wait_for_log_line("7d-notifications", "Subscribed to payments.events.payment.succeeded", 30).await?;
+    wait_for_log_line(
+        "7d-notifications",
+        "Subscribed to payments.events.payment.succeeded",
+        30,
+    )
+    .await?;
     wait_for_log_line("7d-gl", "Subscribed to gl.events.posting.requested", 30).await?;
 
     println!("✓ All NATS consumers ready");
@@ -192,7 +252,10 @@ async fn start_all_services() -> Result<TestInfrastructure, String> {
 // Test Data Setup
 // ============================================================================
 
-async fn setup_test_data(ar_pool: &PgPool, subscriptions_pool: &PgPool) -> Result<(i32, Uuid), Box<dyn std::error::Error>> {
+async fn setup_test_data(
+    ar_pool: &PgPool,
+    subscriptions_pool: &PgPool,
+) -> Result<(i32, Uuid), Box<dyn std::error::Error>> {
     let tenant_id = "test-app";
 
     // Create AR customer
@@ -218,7 +281,7 @@ async fn setup_test_data(ar_pool: &PgPool, subscriptions_pool: &PgPool) -> Resul
     sqlx::query(
         "INSERT INTO subscription_plans
          (id, tenant_id, name, description, schedule, price_minor, currency, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, 'monthly', 2999, 'usd', NOW(), NOW())"
+         VALUES ($1, $2, $3, $4, 'monthly', 2999, 'usd', NOW(), NOW())",
     )
     .bind(plan_id)
     .bind(tenant_id)
@@ -277,18 +340,22 @@ async fn test_real_nats_based_e2e() {
 
     // Clean up test data from previous runs
     println!("🧹 Cleaning up previous test data...");
-    sqlx::query("TRUNCATE TABLE ar_invoices, ar_customers, events_outbox, processed_events CASCADE")
-        .execute(&ar_pool)
-        .await
-        .ok();
+    sqlx::query(
+        "TRUNCATE TABLE ar_invoices, ar_customers, events_outbox, processed_events CASCADE",
+    )
+    .execute(&ar_pool)
+    .await
+    .ok();
     sqlx::query("TRUNCATE TABLE subscriptions, subscription_plans, bill_runs CASCADE")
         .execute(&subscriptions_pool)
         .await
         .ok();
-    sqlx::query("TRUNCATE TABLE payments, payments_events_outbox, payments_processed_events CASCADE")
-        .execute(&payments_pool)
-        .await
-        .ok();
+    sqlx::query(
+        "TRUNCATE TABLE payments, payments_events_outbox, payments_processed_events CASCADE",
+    )
+    .execute(&payments_pool)
+    .await
+    .ok();
     sqlx::query("TRUNCATE TABLE notifications, events_outbox, processed_events CASCADE")
         .execute(&notifications_pool)
         .await
@@ -305,7 +372,9 @@ async fn test_real_nats_based_e2e() {
         .expect("Failed to setup test data");
 
     // Start all services
-    let _infra = start_all_services().await.expect("Failed to start services");
+    let _infra = start_all_services()
+        .await
+        .expect("Failed to start services");
 
     // Trigger bill run via HTTP POST
     println!("\n📋 Triggering bill run via HTTP POST...");
@@ -328,7 +397,8 @@ async fn test_real_nats_based_e2e() {
         panic!("❌ Bill run failed: {}", error_text);
     }
 
-    let bill_run_response: serde_json::Value = response.json().await.expect("Failed to parse response");
+    let bill_run_response: serde_json::Value =
+        response.json().await.expect("Failed to parse response");
     println!("✓ Bill run triggered: {:?}", bill_run_response);
 
     // Poll for event propagation with timeout
@@ -340,7 +410,7 @@ async fn test_real_nats_based_e2e() {
         let invoice: Option<(i32, String, i32, String, i32)> = sqlx::query_as(
             "SELECT id, status, amount_cents, currency, ar_customer_id
              FROM ar_invoices WHERE ar_customer_id = $1
-             ORDER BY created_at DESC LIMIT 1"
+             ORDER BY created_at DESC LIMIT 1",
         )
         .bind(ar_customer_id)
         .fetch_optional(&ar_pool)
@@ -359,7 +429,10 @@ async fn test_real_nats_based_e2e() {
             break;
         }
         if tokio::time::Instant::now() >= poll_deadline {
-            panic!("❌ No invoice found in AR database for customer {}", ar_customer_id);
+            panic!(
+                "❌ No invoice found in AR database for customer {}",
+                ar_customer_id
+            );
         }
         tokio::time::sleep(Duration::from_millis(500)).await;
     }
@@ -367,7 +440,7 @@ async fn test_real_nats_based_e2e() {
     // 2. Wait for invoice to be marked as paid (full AR → Payments → AR chain)
     loop {
         let paid: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM ar_invoices WHERE ar_customer_id = $1 AND status = 'paid'"
+            "SELECT COUNT(*) FROM ar_invoices WHERE ar_customer_id = $1 AND status = 'paid'",
         )
         .bind(ar_customer_id)
         .fetch_one(&ar_pool)
@@ -387,7 +460,7 @@ async fn test_real_nats_based_e2e() {
     // 3. Wait for payment.succeeded event in Payments outbox
     loop {
         let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payment.succeeded'"
+            "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payment.succeeded'",
         )
         .fetch_one(&payments_pool)
         .await
@@ -405,12 +478,10 @@ async fn test_real_nats_based_e2e() {
 
     // 4. Wait for Notifications to process at least one event
     loop {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM processed_events"
-        )
-        .fetch_one(&notifications_pool)
-        .await
-        .expect("Failed to query notifications processed_events");
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM processed_events")
+            .fetch_one(&notifications_pool)
+            .await
+            .expect("Failed to query notifications processed_events");
 
         if count > 0 {
             println!("✓ Notifications: {} event(s) processed", count);
@@ -418,7 +489,12 @@ async fn test_real_nats_based_e2e() {
         }
         if tokio::time::Instant::now() >= poll_deadline {
             // Dump full container logs before failing (stdout + stderr, unfiltered)
-            for container in &["7d-ar", "7d-payments", "7d-subscriptions", "7d-notifications"] {
+            for container in &[
+                "7d-ar",
+                "7d-payments",
+                "7d-subscriptions",
+                "7d-notifications",
+            ] {
                 println!("\n📊 === Full logs: {} ===", container);
                 if let Ok(output) = Command::new("docker").args(&["logs", container]).output() {
                     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -445,16 +521,18 @@ async fn test_real_nats_based_e2e() {
     }
 
     // 5. Check Subscriptions: next_bill_date should be updated
-    let next_bill_date: NaiveDate = sqlx::query_scalar(
-        "SELECT next_bill_date FROM subscriptions WHERE id = $1"
-    )
-    .bind(subscription_id)
-    .fetch_one(&subscriptions_pool)
-    .await
-    .expect("Failed to query subscription");
+    let next_bill_date: NaiveDate =
+        sqlx::query_scalar("SELECT next_bill_date FROM subscriptions WHERE id = $1")
+            .bind(subscription_id)
+            .fetch_one(&subscriptions_pool)
+            .await
+            .expect("Failed to query subscription");
 
     println!("✓ Subscriptions: next_bill_date = {}", next_bill_date);
-    assert!(next_bill_date > today, "Subscription next_bill_date should be updated to future date");
+    assert!(
+        next_bill_date > today,
+        "Subscription next_bill_date should be updated to future date"
+    );
 
     // 6. Wait for GL journal entry to be created
     println!("\n⏳ Waiting for GL journal entry...");
@@ -462,7 +540,7 @@ async fn test_real_nats_based_e2e() {
         let result: Option<(Uuid, Uuid)> = sqlx::query_as(
             "SELECT id, source_event_id FROM journal_entries
              WHERE tenant_id = $1
-             ORDER BY created_at DESC LIMIT 1"
+             ORDER BY created_at DESC LIMIT 1",
         )
         .bind("test-app")
         .fetch_optional(&gl_pool)
@@ -492,7 +570,7 @@ async fn test_real_nats_based_e2e() {
     let lines: Vec<JournalLine> = sqlx::query_as(
         "SELECT debit_minor, credit_minor, account_ref
          FROM journal_lines
-         WHERE journal_entry_id = $1"
+         WHERE journal_entry_id = $1",
     )
     .bind(journal_entry_id)
     .fetch_all(&gl_pool)
@@ -509,8 +587,10 @@ async fn test_real_nats_based_e2e() {
     println!("  - Total Credits: {}", total_credits);
 
     for line in &lines {
-        println!("  - Account {}: Debit={}, Credit={}",
-                 line.account_ref, line.debit_minor, line.credit_minor);
+        println!(
+            "  - Account {}: Debit={}, Credit={}",
+            line.account_ref, line.debit_minor, line.credit_minor
+        );
     }
 
     assert_eq!(total_debits, total_credits, "Debits must equal credits");
@@ -523,7 +603,7 @@ async fn test_real_nats_based_e2e() {
     let original_event: Option<serde_json::Value> = sqlx::query_scalar(
         "SELECT payload FROM events_outbox
          WHERE event_type = 'gl.posting.requested'
-         ORDER BY created_at DESC LIMIT 1"
+         ORDER BY created_at DESC LIMIT 1",
     )
     .fetch_optional(&ar_pool)
     .await
@@ -535,11 +615,13 @@ async fn test_real_nats_based_e2e() {
             .await
             .expect("Failed to connect to NATS");
 
-        let payload_bytes = serde_json::to_vec(&event_payload)
-            .expect("Failed to serialize event");
+        let payload_bytes = serde_json::to_vec(&event_payload).expect("Failed to serialize event");
 
         nats_client
-            .publish("gl.events.posting.requested".to_string(), payload_bytes.into())
+            .publish(
+                "gl.events.posting.requested".to_string(),
+                payload_bytes.into(),
+            )
             .await
             .expect("Failed to republish event");
 
@@ -551,14 +633,17 @@ async fn test_real_nats_based_e2e() {
         // Verify no duplicate journal entry was created
         let entry_count: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM journal_entries
-             WHERE source_event_id = $1"
+             WHERE source_event_id = $1",
         )
         .bind(source_event_id)
         .fetch_one(&gl_pool)
         .await
         .expect("Failed to count journal entries");
 
-        assert_eq!(entry_count, 1, "Should only have one journal entry despite republish");
+        assert_eq!(
+            entry_count, 1,
+            "Should only have one journal entry despite republish"
+        );
         println!("✓ GL Idempotency verified: no duplicate entry created");
     } else {
         println!("⚠️  Warning: No GL posting event found in AR outbox (idempotency test skipped)");

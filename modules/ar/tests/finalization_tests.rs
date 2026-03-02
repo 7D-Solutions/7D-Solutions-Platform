@@ -28,7 +28,7 @@ async fn ensure_test_customer(pool: &PgPool) {
     if !exists {
         sqlx::query(
             "INSERT INTO ar_customers (app_id, email, name, created_at, updated_at)
-             VALUES ('app-test', 'test@example.com', 'Test Customer', $1, $2)"
+             VALUES ('app-test', 'test@example.com', 'Test Customer', $1, $2)",
         )
         .bind(Utc::now().naive_utc())
         .bind(Utc::now().naive_utc())
@@ -41,7 +41,7 @@ async fn ensure_test_customer(pool: &PgPool) {
 /// Test helper: Get test customer ID
 async fn get_test_customer_id(pool: &PgPool) -> i32 {
     sqlx::query_scalar(
-        "SELECT id FROM ar_customers WHERE app_id = 'app-test' AND email = 'test@example.com'"
+        "SELECT id FROM ar_customers WHERE app_id = 'app-test' AND email = 'test@example.com'",
     )
     .fetch_one(pool)
     .await
@@ -110,8 +110,7 @@ fn get_pool() -> PgPool {
     let database_url = std::env::var("DATABASE_URL_AR")
         .expect("DATABASE_URL_AR must be set for integration tests");
 
-    sqlx::PgPool::connect_lazy(&database_url)
-        .expect("Failed to create database pool")
+    sqlx::PgPool::connect_lazy(&database_url).expect("Failed to create database pool")
 }
 
 // ============================================================================
@@ -160,10 +159,7 @@ async fn test_finalize_invoice_new_attempt() {
 
     // Verify attempt row was created
     let attempt_count = get_attempt_count(&pool, invoice_id).await;
-    assert_eq!(
-        attempt_count, 1,
-        "Should have exactly one attempt row"
-    );
+    assert_eq!(attempt_count, 1, "Should have exactly one attempt row");
 
     cleanup_test_data(&pool).await;
 }
@@ -199,10 +195,7 @@ async fn test_finalize_invoice_duplicate_attempt() {
 
     // Verify result is AlreadyProcessed
     assert!(
-        matches!(
-            second_result,
-            FinalizationResult::AlreadyProcessed { .. }
-        ),
+        matches!(second_result, FinalizationResult::AlreadyProcessed { .. }),
         "Duplicate attempt should return AlreadyProcessed"
     );
 
@@ -297,9 +290,10 @@ async fn test_finalize_invoice_concurrent_attempts() {
     let mut tasks = Vec::new();
     for _ in 0..10 {
         let pool_clone = pool.clone();
-        let task = tokio::spawn(async move {
-            finalize_invoice(&pool_clone, "app-test", invoice_id, 0).await
-        });
+        let task =
+            tokio::spawn(
+                async move { finalize_invoice(&pool_clone, "app-test", invoice_id, 0).await },
+            );
         tasks.push(task);
     }
 
@@ -353,27 +347,30 @@ async fn test_finalize_invoice_concurrent_different_attempts() {
     // 5 tasks for attempt 0
     for _ in 0..5 {
         let pool_clone = pool.clone();
-        let task = tokio::spawn(async move {
-            finalize_invoice(&pool_clone, "app-test", invoice_id, 0).await
-        });
+        let task =
+            tokio::spawn(
+                async move { finalize_invoice(&pool_clone, "app-test", invoice_id, 0).await },
+            );
         tasks.push(task);
     }
 
     // 5 tasks for attempt 1
     for _ in 0..5 {
         let pool_clone = pool.clone();
-        let task = tokio::spawn(async move {
-            finalize_invoice(&pool_clone, "app-test", invoice_id, 1).await
-        });
+        let task =
+            tokio::spawn(
+                async move { finalize_invoice(&pool_clone, "app-test", invoice_id, 1).await },
+            );
         tasks.push(task);
     }
 
     // 5 tasks for attempt 2
     for _ in 0..5 {
         let pool_clone = pool.clone();
-        let task = tokio::spawn(async move {
-            finalize_invoice(&pool_clone, "app-test", invoice_id, 2).await
-        });
+        let task =
+            tokio::spawn(
+                async move { finalize_invoice(&pool_clone, "app-test", invoice_id, 2).await },
+            );
         tasks.push(task);
     }
 
@@ -479,10 +476,7 @@ async fn test_finalize_invoice_idempotency_key_format() {
         .await
         .expect("Should find attempt row");
 
-        assert_eq!(
-            stored_key, expected,
-            "Stored idempotency key should match"
-        );
+        assert_eq!(stored_key, expected, "Stored idempotency key should match");
     } else {
         panic!("Expected NewAttempt result");
     }

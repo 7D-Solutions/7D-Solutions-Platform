@@ -207,7 +207,11 @@ async fn lot_tracked_flow() {
         },
     )
     .await;
-    assert!(result.is_ok(), "lot issue with lot_code must succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "lot issue with lot_code must succeed: {:?}",
+        result.err()
+    );
     assert_eq!(result.unwrap().0.quantity, 5);
 
     // Issue WITHOUT lot_code — must fail
@@ -343,10 +347,7 @@ async fn serial_tracked_flow() {
         },
     )
     .await;
-    assert!(
-        bad.is_err(),
-        "serial issue without serial_codes must fail"
-    );
+    assert!(bad.is_err(), "serial issue without serial_codes must fail");
 
     cleanup(&pool, &tenant).await;
 }
@@ -457,16 +458,18 @@ async fn cycle_count_full_scope() {
         .expect("approve cycle count");
 
     assert_eq!(approve_result.status, "approved");
-    assert_eq!(approve_result.adjustment_count, 1, "one non-zero variance line → one adjustment");
+    assert_eq!(
+        approve_result.adjustment_count, 1,
+        "one non-zero variance line → one adjustment"
+    );
 
     // Verify the adjustment row exists in inv_adjustments
-    let adj_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inv_adjustments WHERE tenant_id = $1",
-    )
-    .bind(&tenant)
-    .fetch_one(&pool)
-    .await
-    .expect("query adjustments");
+    let adj_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inv_adjustments WHERE tenant_id = $1")
+            .bind(&tenant)
+            .fetch_one(&pool)
+            .await
+            .expect("query adjustments");
     assert_eq!(adj_count, 1, "one adjustment row created");
 
     cleanup(&pool, &tenant).await;
@@ -525,7 +528,10 @@ async fn status_buckets_quarantine_and_restore() {
     .fetch_one(&pool)
     .await
     .expect("query available before");
-    assert_eq!(available_before, 30, "all 30 units should be available initially");
+    assert_eq!(
+        available_before, 30,
+        "all 30 units should be available initially"
+    );
 
     // Quarantine all 30 units: available → quarantine
     let (transfer_result, _) = process_status_transfer(
@@ -577,7 +583,10 @@ async fn status_buckets_quarantine_and_restore() {
     .fetch_one(&pool)
     .await
     .expect("query quarantine bucket");
-    assert_eq!(quarantine_qty, 30, "quarantine bucket holds the transferred qty");
+    assert_eq!(
+        quarantine_qty, 30,
+        "quarantine bucket holds the transferred qty"
+    );
 
     // Status transfer back: quarantine → available (restore)
     process_status_transfer(
@@ -760,7 +769,10 @@ async fn uom_receipt_issue_converts_correctly() {
     .await
     .expect("issue 1 box");
 
-    assert_eq!(issue_result.quantity, 12, "issued qty stored in base units (ea)");
+    assert_eq!(
+        issue_result.quantity, 12,
+        "issued qty stored in base units (ea)"
+    );
 
     // Projection should show 12 ea remaining
     let on_hand_after: i64 = sqlx::query_scalar(
@@ -903,9 +915,12 @@ async fn low_stock_dedup_and_rearm() {
     let tenant = generate_test_tenant();
     let wh = Uuid::new_v4();
 
-    let item = ItemRepo::create(&inv_pool, &item_req(&tenant, "LS-EXT-001", TrackingMode::None))
-        .await
-        .expect("create item");
+    let item = ItemRepo::create(
+        &inv_pool,
+        &item_req(&tenant, "LS-EXT-001", TrackingMode::None),
+    )
+    .await
+    .expect("create item");
 
     // Create reorder policy: reorder_point = 10
     ReorderPolicyRepo::create(
@@ -1007,7 +1022,10 @@ async fn low_stock_dedup_and_rearm() {
     .expect("second issue while below threshold");
 
     let count_2 = count_low_stock_outbox(&inv_pool, &tenant, item.id).await;
-    assert_eq!(count_2, 1, "still below threshold → no additional signal (dedup)");
+    assert_eq!(
+        count_2, 1,
+        "still below threshold → no additional signal (dedup)"
+    );
 
     // Recovery: receipt brings qty above threshold AND creates FIFO layers
     // (adjustment would update item_on_hand but NOT create consumable FIFO layers,
@@ -1060,7 +1078,10 @@ async fn low_stock_dedup_and_rearm() {
     .expect("third issue — re-arm trigger");
 
     let count_3 = count_low_stock_outbox(&inv_pool, &tenant, item.id).await;
-    assert_eq!(count_3, 2, "second threshold crossing after recovery → new signal (re-arm)");
+    assert_eq!(
+        count_3, 2,
+        "second threshold crossing after recovery → new signal (re-arm)"
+    );
 
     cleanup(&inv_pool, &tenant).await;
     cleanup_notifications(&notif_pool, &tenant).await;

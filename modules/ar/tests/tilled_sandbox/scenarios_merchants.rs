@@ -85,10 +85,7 @@ mod tests {
             account.id, account.name, account.status
         );
         assert_eq!(account.id, shovel_id);
-        assert!(
-            account.name.is_some(),
-            "Shovel Shop should have a name set"
-        );
+        assert!(account.name.is_some(), "Shovel Shop should have a name set");
 
         if let Some(caps) = &account.capabilities {
             eprintln!("[scenario-m02] capabilities: {}", caps);
@@ -191,9 +188,7 @@ mod tests {
         // Cross-scope fetch: partner scope should NOT see merchant's customer
         let cross_fetch = partner_client.get_customer(&customer.id).await;
         match cross_fetch {
-            Err(ar_rs::tilled::error::TilledError::ApiError {
-                status_code, ..
-            }) => {
+            Err(ar_rs::tilled::error::TilledError::ApiError { status_code, .. }) => {
                 eprintln!(
                     "[scenario-m04] cross-scope fetch returned {} (expected 4xx)",
                     status_code

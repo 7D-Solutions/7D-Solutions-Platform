@@ -75,7 +75,10 @@ async fn test_journal_entry_with_lines() {
     .await
     .expect("Failed to insert journal entry");
 
-    assert_eq!(returned_id, entry_id, "Returned entry_id should match input");
+    assert_eq!(
+        returned_id, entry_id,
+        "Returned entry_id should match input"
+    );
 
     // Insert journal lines
     let lines = vec![
@@ -92,7 +95,7 @@ async fn test_journal_entry_with_lines() {
             line_no: 2,
             account_ref: "4000".to_string(), // Revenue account
             debit_minor: 0,
-            credit_minor: 10000,             // $100.00 credit
+            credit_minor: 10000, // $100.00 credit
             memo: Some("Revenue".to_string()),
         },
     ];
@@ -113,11 +116,12 @@ async fn test_journal_entry_with_lines() {
     assert_eq!(count, 1, "Journal entry should exist");
 
     // Verify the journal lines exist
-    let line_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM journal_lines WHERE journal_entry_id = $1")
-        .bind(entry_id)
-        .fetch_one(&pool)
-        .await
-        .expect("Failed to query journal lines");
+    let line_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_lines WHERE journal_entry_id = $1")
+            .bind(entry_id)
+            .fetch_one(&pool)
+            .await
+            .expect("Failed to query journal lines");
 
     assert_eq!(line_count, 2, "Should have 2 journal lines");
 

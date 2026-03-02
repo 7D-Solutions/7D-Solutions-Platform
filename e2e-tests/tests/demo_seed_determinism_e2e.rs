@@ -12,14 +12,17 @@
 /// Import demo-seed library types via the compiled binary's source
 /// (re-implemented inline to avoid a circular dependency — the library
 /// functions are pure and can be tested here).
-
 // ============================================================================
 // Digest algorithm tests (mirror of demo-seed/src/digest.rs)
 // ============================================================================
-
 use sha2::{Digest, Sha256};
 
-fn compute_expected_digest(tenant: &str, seed: u64, customers: usize, invoices_per_customer: usize) -> String {
+fn compute_expected_digest(
+    tenant: &str,
+    seed: u64,
+    customers: usize,
+    invoices_per_customer: usize,
+) -> String {
     use rand::Rng;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
@@ -35,8 +38,12 @@ fn compute_expected_digest(tenant: &str, seed: u64, customers: usize, invoices_p
         }));
 
         for invoice_idx in 0..invoices_per_customer {
-            let invoice_corr_id =
-                format!("{}-invoice-{}-{}", tenant, seed, customer_idx * 100 + invoice_idx);
+            let invoice_corr_id = format!(
+                "{}-invoice-{}-{}",
+                tenant,
+                seed,
+                customer_idx * 100 + invoice_idx
+            );
             let amount_cents: i32 = rng.gen_range(1000..=50000);
             let _due_days: u32 = rng.gen_range(14..=60);
             entries.push(serde_json::json!({
@@ -145,7 +152,10 @@ fn test_seed_42_produces_known_stable_digest() {
     // The exact hash value depends on the algorithm, so we just verify it's stable.
     assert_eq!(d1, d2, "Canonical digest for seed=42 must be stable");
     assert!(!d1.is_empty(), "Digest must not be empty");
-    println!("Canonical digest for seed=42, tenant=t1, 2 customers, 3 invoices: {}", d1);
+    println!(
+        "Canonical digest for seed=42, tenant=t1, 2 customers, 3 invoices: {}",
+        d1
+    );
 }
 
 /// Correlation IDs follow the expected naming pattern

@@ -4,7 +4,6 @@
 /// stale projections, (3) admin query_projection_status, (4) admin query_consistency_check,
 /// (5) admin query_projection_list.
 /// All tests run against a real PostgreSQL database — no mocks.
-
 use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -71,12 +70,15 @@ async fn compute_digest_is_deterministic() {
     // Insert deterministic data
     let id1 = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
     let id2 = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
-    sqlx::query(&format!("INSERT INTO {} (id, val) VALUES ($1, 10), ($2, 20)", table))
-        .bind(id1)
-        .bind(id2)
-        .execute(&pool)
-        .await
-        .expect("insert data");
+    sqlx::query(&format!(
+        "INSERT INTO {} (id, val) VALUES ($1, 10), ($2, 20)",
+        table
+    ))
+    .bind(id1)
+    .bind(id2)
+    .execute(&pool)
+    .await
+    .expect("insert data");
 
     // Compute digest twice — must be identical
     let digest1 = compute_digest(&pool, &table, "id").await.expect("digest1");
@@ -146,8 +148,13 @@ async fn compute_digest_empty_table() {
     .await
     .expect("create table");
 
-    let digest = compute_digest(&pool, &table, "id").await.expect("empty digest");
-    assert!(!digest.is_empty(), "empty-table digest must still produce a hash");
+    let digest = compute_digest(&pool, &table, "id")
+        .await
+        .expect("empty digest");
+    assert!(
+        !digest.is_empty(),
+        "empty-table digest must still produce a hash"
+    );
 
     sqlx::query(&format!("DROP TABLE IF EXISTS {} CASCADE", table))
         .execute(&pool)
@@ -353,10 +360,7 @@ async fn admin_projection_list_returns_known_projections() {
     let resp = query_projection_list(&pool).await.expect("list");
     assert_eq!(resp.status, "ok");
 
-    let found = resp
-        .projections
-        .iter()
-        .any(|p| p.projection_name == proj);
+    let found = resp.projections.iter().any(|p| p.projection_name == proj);
     assert!(found, "inserted projection must appear in list");
 
     cleanup_cursors(&pool, &proj).await;
@@ -387,13 +391,11 @@ async fn admin_projection_list_shows_tenant_count() {
 
     for i in 0..3 {
         let tenant = format!("tenant-lc-{}", i);
-        sqlx::query(
-            "DELETE FROM projection_cursors WHERE projection_name = $1 AND tenant_id = $2",
-        )
-        .bind(&proj)
-        .bind(&tenant)
-        .execute(&pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM projection_cursors WHERE projection_name = $1 AND tenant_id = $2")
+            .bind(&proj)
+            .bind(&tenant)
+            .execute(&pool)
+            .await
+            .ok();
     }
 }

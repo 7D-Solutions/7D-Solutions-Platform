@@ -3,7 +3,6 @@
 /// Validates that `handle_invoice_issued()` and `handle_payment_failed()`
 /// insert the correct rows into `scheduled_notifications`.  No dispatcher
 /// is involved — this is purely producer-side verification.
-
 use chrono::{Duration, Utc};
 use notifications_rs::{
     handlers::{handle_invoice_issued, handle_payment_failed},
@@ -17,8 +16,7 @@ const DEFAULT_DB_URL: &str =
 
 /// Returns a connected pool and ensures all migrations are applied.
 async fn get_pool() -> PgPool {
-    let url =
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DB_URL.to_string());
+    let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DB_URL.to_string());
     let pool = PgPool::connect(&url)
         .await
         .expect("Failed to connect to notifications test DB");
@@ -149,13 +147,12 @@ async fn test_invoice_issued_no_due_date_skips_insert() {
         .expect("handler returned an error");
 
     let recipient_ref = format!("{}:{}", tenant_id, customer_id);
-    let count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM scheduled_notifications WHERE recipient_ref = $1",
-    )
-    .bind(&recipient_ref)
-    .fetch_one(&pool)
-    .await
-    .expect("count query failed");
+    let count: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM scheduled_notifications WHERE recipient_ref = $1")
+            .bind(&recipient_ref)
+            .fetch_one(&pool)
+            .await
+            .expect("count query failed");
 
     assert_eq!(
         count.0, 0,

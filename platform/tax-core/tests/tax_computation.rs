@@ -122,7 +122,11 @@ fn multi_config() -> JurisdictionConfig {
 #[tokio::test]
 async fn standard_rate_computation_100_dollars() {
     let provider = LocalTaxProvider::new(multi_config());
-    let req = quote_req(addr("US", "CA"), addr("US", "CA"), vec![line("l1", 10000, None)]);
+    let req = quote_req(
+        addr("US", "CA"),
+        addr("US", "CA"),
+        vec![line("l1", 10000, None)],
+    );
     let resp = provider.quote_tax(req).await.unwrap();
 
     assert_eq!(resp.total_tax_minor, 850); // 8.5% of $100
@@ -157,8 +161,8 @@ async fn mixed_taxable_and_exempt_lines() {
         addr("US", "CA"),
         vec![
             line("l1", 10000, None),               // taxable: 850
-            line("l2", 5000, Some("EXEMPT_FOOD")),  // exempt: 0
-            line("l3", 2000, None),                 // taxable: 170
+            line("l2", 5000, Some("EXEMPT_FOOD")), // exempt: 0
+            line("l3", 2000, None),                // taxable: 170
         ],
     );
     let resp = provider.quote_tax(req).await.unwrap();
@@ -201,7 +205,11 @@ async fn flat_fee_plus_rate_computation() {
 async fn rounding_sub_cent_to_zero() {
     let provider = LocalTaxProvider::new(multi_config());
     // 8.5% on 1 cent = 0.085 → rounds to 0
-    let req = quote_req(addr("US", "CA"), addr("US", "CA"), vec![line("l1", 1, None)]);
+    let req = quote_req(
+        addr("US", "CA"),
+        addr("US", "CA"),
+        vec![line("l1", 1, None)],
+    );
     let resp = provider.quote_tax(req).await.unwrap();
     assert_eq!(resp.total_tax_minor, 0);
 }
@@ -210,7 +218,11 @@ async fn rounding_sub_cent_to_zero() {
 async fn rounding_half_up_at_boundary() {
     let provider = LocalTaxProvider::new(multi_config());
     // 8.5% on 6 cents = 0.51 → rounds to 1
-    let req = quote_req(addr("US", "CA"), addr("US", "CA"), vec![line("l1", 6, None)]);
+    let req = quote_req(
+        addr("US", "CA"),
+        addr("US", "CA"),
+        vec![line("l1", 6, None)],
+    );
     let resp = provider.quote_tax(req).await.unwrap();
     assert_eq!(resp.total_tax_minor, 1);
 }
@@ -219,7 +231,11 @@ async fn rounding_half_up_at_boundary() {
 async fn rounding_fractional_333_cents() {
     let provider = LocalTaxProvider::new(multi_config());
     // 8.5% on 333 = 28.305 → rounds to 28
-    let req = quote_req(addr("US", "CA"), addr("US", "CA"), vec![line("l1", 333, None)]);
+    let req = quote_req(
+        addr("US", "CA"),
+        addr("US", "CA"),
+        vec![line("l1", 333, None)],
+    );
     let resp = provider.quote_tax(req).await.unwrap();
     assert_eq!(resp.total_tax_minor, 28);
 }
@@ -280,7 +296,11 @@ async fn multi_line_totals_and_ids_correct() {
 #[tokio::test]
 async fn provider_quote_ref_includes_invoice_id_and_version() {
     let provider = LocalTaxProvider::new(multi_config());
-    let req = quote_req(addr("US", "CA"), addr("US", "CA"), vec![line("l1", 100, None)]);
+    let req = quote_req(
+        addr("US", "CA"),
+        addr("US", "CA"),
+        vec![line("l1", 100, None)],
+    );
     let resp = provider.quote_tax(req).await.unwrap();
 
     assert!(resp.provider_quote_ref.contains("inv-test"));

@@ -4,7 +4,6 @@
 /// 1. Payments module can consume ar.payment.collection.requested events
 /// 2. Mock processor successfully processes payments
 /// 3. payment.succeeded events are emitted to the outbox
-
 use payments_rs::{PaymentCollectionRequestedPayload, PaymentSucceededPayload};
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
@@ -13,8 +12,7 @@ use uuid::Uuid;
 async fn setup_test_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
 
-    let database_url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for tests");
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -67,12 +65,9 @@ async fn test_payment_collection_handler() {
     };
 
     // Handle the payment collection request
-    let result = payments_rs::handle_payment_collection_requested(
-        &pool,
-        request_payload.clone(),
-        metadata,
-    )
-    .await;
+    let result =
+        payments_rs::handle_payment_collection_requested(&pool, request_payload.clone(), metadata)
+            .await;
 
     assert!(result.is_ok(), "Handler should succeed: {:?}", result);
 
@@ -104,8 +99,8 @@ async fn test_payment_collection_handler() {
     assert_eq!(event.event_type, "payment.succeeded");
 
     // Validate the payload
-    let payload: PaymentSucceededPayload = serde_json::from_value(event.payload.clone())
-        .expect("Failed to deserialize payload");
+    let payload: PaymentSucceededPayload =
+        serde_json::from_value(event.payload.clone()).expect("Failed to deserialize payload");
 
     assert_eq!(payload.invoice_id, "inv_test123");
     assert_eq!(payload.ar_customer_id, "cust_test456");
@@ -141,7 +136,10 @@ async fn test_mock_processor_generates_payment_ids() {
     assert!(result.is_ok(), "Mock processor should always succeed");
 
     let payment_result = result.unwrap();
-    assert!(!payment_result.payment_id.is_empty(), "Should generate payment_id");
+    assert!(
+        !payment_result.payment_id.is_empty(),
+        "Should generate payment_id"
+    );
     assert!(
         payment_result.processor_payment_id.starts_with("mock_pi_"),
         "Should generate mock processor payment ID"
@@ -186,7 +184,7 @@ async fn test_idempotent_event_processing() {
 
     // Count events in outbox before second processing
     let count_before: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payment.succeeded'"
+        "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payment.succeeded'",
     )
     .fetch_one(&pool)
     .await
@@ -209,7 +207,7 @@ async fn test_idempotent_event_processing() {
 
     // We should now have two events since we used different event IDs
     let count_after: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payment.succeeded'"
+        "SELECT COUNT(*) FROM payments_events_outbox WHERE event_type = 'payment.succeeded'",
     )
     .fetch_one(&pool)
     .await

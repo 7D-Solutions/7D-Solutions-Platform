@@ -146,13 +146,12 @@ async fn test_write_off_invoice_with_reversal_outbox_event() {
             assert_eq!(event_count, 1, "expected exactly 1 outbox event");
 
             // Verify event type
-            let event_type: String = sqlx::query_scalar(
-                "SELECT event_type FROM events_outbox WHERE aggregate_id = $1",
-            )
-            .bind(write_off_id.to_string())
-            .fetch_one(&pool)
-            .await
-            .expect("failed to fetch event type");
+            let event_type: String =
+                sqlx::query_scalar("SELECT event_type FROM events_outbox WHERE aggregate_id = $1")
+                    .bind(write_off_id.to_string())
+                    .fetch_one(&pool)
+                    .await
+                    .expect("failed to fetch event type");
             assert_eq!(event_type, "ar.invoice_written_off");
         }
         other => panic!("expected WrittenOff, got {:?}", other),
@@ -204,20 +203,22 @@ async fn test_write_off_idempotency() {
     );
 
     // Only one write-off row should exist
-    let row_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_invoice_write_offs WHERE write_off_id = $1",
-    )
-    .bind(write_off_id)
-    .fetch_one(&pool)
-    .await
-    .expect("failed to count write-off rows");
+    let row_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoice_write_offs WHERE write_off_id = $1")
+            .bind(write_off_id)
+            .fetch_one(&pool)
+            .await
+            .expect("failed to count write-off rows");
     assert_eq!(row_count, 1, "expected exactly 1 write-off row");
 
     // Only one outbox event should exist
     let event_count = count_outbox_events(&pool, &write_off_id.to_string())
         .await
         .expect("failed to count outbox events");
-    assert_eq!(event_count, 1, "expected exactly 1 outbox event (no duplicate)");
+    assert_eq!(
+        event_count, 1,
+        "expected exactly 1 outbox event (no duplicate)"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await.unwrap();
 }
@@ -273,13 +274,12 @@ async fn test_double_write_off_same_invoice_returns_already_written_off() {
     );
 
     // Only one write-off row should exist for this invoice
-    let row_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_invoice_write_offs WHERE invoice_id = $1",
-    )
-    .bind(invoice_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count failed");
+    let row_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoice_write_offs WHERE invoice_id = $1")
+            .bind(invoice_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count failed");
     assert_eq!(row_count, 1, "exactly one write-off per invoice");
 
     cleanup_tenant(&pool, &tenant_id).await.unwrap();
@@ -352,7 +352,10 @@ async fn test_write_off_unknown_invoice_rejected() {
         .await
         .expect_err("expected InvoiceNotFound error");
     assert!(
-        matches!(err, ar_rs::write_offs::WriteOffError::InvoiceNotFound { .. }),
+        matches!(
+            err,
+            ar_rs::write_offs::WriteOffError::InvoiceNotFound { .. }
+        ),
         "expected InvoiceNotFound, got {:?}",
         err
     );
@@ -401,17 +404,22 @@ async fn test_write_off_outbox_atomicity_and_reversal_class() {
         .await
         .expect("count failed");
 
-    assert_eq!(write_off_count, 1, "write-off row must exist after write-off");
-    assert_eq!(event_count, 1, "outbox event must exist atomically with write-off row");
+    assert_eq!(
+        write_off_count, 1,
+        "write-off row must exist after write-off"
+    );
+    assert_eq!(
+        event_count, 1,
+        "outbox event must exist atomically with write-off row"
+    );
 
     // Verify outbox event has mutation_class = REVERSAL (not DATA_MUTATION)
-    let mutation_class: String = sqlx::query_scalar(
-        "SELECT mutation_class FROM events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(write_off_id.to_string())
-    .fetch_one(&pool)
-    .await
-    .expect("fetch mutation_class failed");
+    let mutation_class: String =
+        sqlx::query_scalar("SELECT mutation_class FROM events_outbox WHERE aggregate_id = $1")
+            .bind(write_off_id.to_string())
+            .fetch_one(&pool)
+            .await
+            .expect("fetch mutation_class failed");
     assert_eq!(
         mutation_class, "REVERSAL",
         "write-off must be a REVERSAL, not DATA_MUTATION"

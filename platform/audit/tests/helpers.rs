@@ -52,8 +52,7 @@ pub async fn run_audit_migrations(pool: &PgPool) {
         .await
         .expect("Failed to acquire audit migration advisory lock");
 
-    let migration_sql =
-        include_str!("../db/migrations/20260216000001_create_audit_log.sql");
+    let migration_sql = include_str!("../db/migrations/20260216000001_create_audit_log.sql");
 
     let result = sqlx::raw_sql(migration_sql).execute(pool).await;
 

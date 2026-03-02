@@ -118,13 +118,12 @@ async fn test_submit_approval() {
     assert!(approval.submitted_at.is_some());
 
     // Verify outbox event
-    let event: Option<(String,)> = sqlx::query_as(
-        "SELECT event_type FROM events_outbox WHERE aggregate_id = $1",
-    )
-    .bind(approval.id.to_string())
-    .fetch_optional(&pool)
-    .await
-    .unwrap();
+    let event: Option<(String,)> =
+        sqlx::query_as("SELECT event_type FROM events_outbox WHERE aggregate_id = $1")
+            .bind(approval.id.to_string())
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
     assert_eq!(event.unwrap().0, "timesheet.submitted");
 }
 

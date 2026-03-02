@@ -167,7 +167,9 @@ async fn test_template_creation() {
         cashflow_class: Some("operating".to_string()),
     };
 
-    let result = create_template(&pool, &req).await.expect("template creation failed");
+    let result = create_template(&pool, &req)
+        .await
+        .expect("template creation failed");
     assert_eq!(result.tenant_id, tenant);
     assert_eq!(result.name, "Prepaid Insurance");
     assert!(result.active);
@@ -302,11 +304,12 @@ async fn test_accrual_emits_outbox_event() {
 
     // The outbox event_id is derived from Uuid::v5("accrual_event:{template_id}:{period}")
     // Query by the instance's outbox_event_id field
-    let instance = sqlx::query("SELECT outbox_event_id FROM gl_accrual_instances WHERE instance_id = $1")
-        .bind(result.instance_id)
-        .fetch_one(&pool)
-        .await
-        .expect("instance not found");
+    let instance =
+        sqlx::query("SELECT outbox_event_id FROM gl_accrual_instances WHERE instance_id = $1")
+            .bind(result.instance_id)
+            .fetch_one(&pool)
+            .await
+            .expect("instance not found");
     let outbox_event_id: Uuid = instance.get("outbox_event_id");
 
     let outbox = sqlx::query(
@@ -373,7 +376,10 @@ async fn test_accrual_idempotency() {
     let second = create_accrual_instance(&pool, &req)
         .await
         .expect("second accrual creation failed");
-    assert!(second.idempotent_hit, "Second call should be idempotent hit");
+    assert!(
+        second.idempotent_hit,
+        "Second call should be idempotent hit"
+    );
     assert_eq!(second.instance_id, first.instance_id);
     assert_eq!(second.accrual_id, first.accrual_id);
     assert_eq!(second.journal_entry_id, first.journal_entry_id);
@@ -391,13 +397,11 @@ async fn test_accrual_idempotency() {
     assert_eq!(count.0, 1, "Should have exactly 1 instance, not 2");
 
     // Verify only 1 journal entry
-    let je_count: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM journal_entries WHERE id = $1",
-    )
-    .bind(first.journal_entry_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let je_count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM journal_entries WHERE id = $1")
+        .bind(first.journal_entry_id)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(je_count.0, 1);
 
     println!("✅ test_accrual_idempotency: PASS");
@@ -493,8 +497,14 @@ async fn test_deterministic_accrual_ids() {
         format!("instance:{}:{}", template_id, "2026-05").as_bytes(),
     );
 
-    assert_eq!(result.accrual_id, expected_accrual_id, "accrual_id must be deterministic");
-    assert_eq!(result.instance_id, expected_instance_id, "instance_id must be deterministic");
+    assert_eq!(
+        result.accrual_id, expected_accrual_id,
+        "accrual_id must be deterministic"
+    );
+    assert_eq!(
+        result.instance_id, expected_instance_id,
+        "instance_id must be deterministic"
+    );
 
     println!("✅ test_deterministic_accrual_ids: PASS");
 }
@@ -544,7 +554,10 @@ async fn test_template_validation_accounts_differ() {
     };
 
     let result = create_template(&pool, &req).await;
-    assert!(result.is_err(), "Same debit/credit accounts should be rejected");
+    assert!(
+        result.is_err(),
+        "Same debit/credit accounts should be rejected"
+    );
 
     println!("✅ test_template_validation_accounts_differ: PASS");
 }

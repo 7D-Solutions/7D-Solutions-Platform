@@ -25,8 +25,8 @@ use common::{
 use serial_test::serial;
 use sqlx::PgPool;
 use subscriptions_rs::{
-    acquire_cycle_lock, calculate_cycle_boundaries, generate_cycle_key,
-    mark_attempt_succeeded, record_cycle_attempt, CycleGatingError,
+    acquire_cycle_lock, calculate_cycle_boundaries, generate_cycle_key, mark_attempt_succeeded,
+    record_cycle_attempt, CycleGatingError,
 };
 use uuid::Uuid;
 
@@ -174,13 +174,11 @@ async fn run_billing_cycle(
 
     // Advance next_bill_date (one calendar month forward)
     let next_month = advance_one_month(billing_date);
-    sqlx::query(
-        "UPDATE subscriptions SET next_bill_date = $1, updated_at = NOW() WHERE id = $2",
-    )
-    .bind(next_month)
-    .bind(subscription_id)
-    .execute(subscriptions_pool)
-    .await?;
+    sqlx::query("UPDATE subscriptions SET next_bill_date = $1, updated_at = NOW() WHERE id = $2")
+        .bind(next_month)
+        .bind(subscription_id)
+        .execute(subscriptions_pool)
+        .await?;
 
     // Enqueue billrun.completed outbox event
     let outbox_payload = serde_json::json!({
@@ -233,9 +231,15 @@ async fn test_billing_cycle_invoice_fields_correct() -> Result<()> {
     let payments_pool = get_payments_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .ok();
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .ok();
 
     // ── Step 1: Create AR customer ──────────────────────────────────────────
     let ar_customer_id = create_ar_customer(&ar_pool, &tenant_id).await?;
@@ -270,7 +274,10 @@ async fn test_billing_cycle_invoice_fields_correct() -> Result<()> {
         billing_date,
     )
     .await?;
-    assert!(invoice_id.is_some(), "billing cycle must produce an invoice");
+    assert!(
+        invoice_id.is_some(),
+        "billing cycle must produce an invoice"
+    );
     let invoice_id = invoice_id.unwrap();
 
     // ── Step 4: Verify invoice fields ──────────────────────────────────────
@@ -299,7 +306,10 @@ async fn test_billing_cycle_invoice_fields_correct() -> Result<()> {
         inv_amount, price_minor as i32,
         "invoice amount_cents must equal subscription price_minor"
     );
-    assert_eq!(inv_currency, "USD", "invoice currency must match subscription");
+    assert_eq!(
+        inv_currency, "USD",
+        "invoice currency must match subscription"
+    );
     assert_eq!(inv_status, "draft", "newly created invoice starts as draft");
 
     let period_start = inv_period_start.expect("billing_period_start must be set");
@@ -369,9 +379,15 @@ async fn test_billing_cycle_invoice_fields_correct() -> Result<()> {
     .await?;
     assert_eq!(attempt_count, 1, "exactly one succeeded cycle attempt");
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .ok();
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .ok();
     Ok(())
 }
 
@@ -387,9 +403,15 @@ async fn test_billing_cycle_idempotency_no_duplicate_invoice() -> Result<()> {
     let payments_pool = get_payments_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .ok();
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .ok();
 
     let ar_customer_id = create_ar_customer(&ar_pool, &tenant_id).await?;
     let billing_date = NaiveDate::from_ymd_opt(2026, 4, 15).unwrap();
@@ -437,7 +459,10 @@ async fn test_billing_cycle_idempotency_no_duplicate_invoice() -> Result<()> {
             .bind(&tenant_id)
             .fetch_one(&ar_pool)
             .await?;
-    assert_eq!(invoice_count, 1, "exactly one invoice despite two billing attempts");
+    assert_eq!(
+        invoice_count, 1,
+        "exactly one invoice despite two billing attempts"
+    );
 
     // Verify: exactly one cycle attempt
     let attempt_count: i64 = sqlx::query_scalar(
@@ -448,7 +473,10 @@ async fn test_billing_cycle_idempotency_no_duplicate_invoice() -> Result<()> {
     .bind(subscription_id)
     .fetch_one(&subscriptions_pool)
     .await?;
-    assert_eq!(attempt_count, 1, "exactly one cycle attempt despite two triggers");
+    assert_eq!(
+        attempt_count, 1,
+        "exactly one cycle attempt despite two triggers"
+    );
 
     // Verify: exactly one outbox event (only the successful run emits one)
     let outbox_count: i64 = sqlx::query_scalar(
@@ -458,11 +486,20 @@ async fn test_billing_cycle_idempotency_no_duplicate_invoice() -> Result<()> {
     .bind(&tenant_id)
     .fetch_one(&subscriptions_pool)
     .await?;
-    assert_eq!(outbox_count, 1, "exactly one outbox event despite two triggers");
+    assert_eq!(
+        outbox_count, 1,
+        "exactly one outbox event despite two triggers"
+    );
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .ok();
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .ok();
     Ok(())
 }
 
@@ -477,9 +514,15 @@ async fn test_monthly_renewal_creates_second_invoice_with_correct_period() -> Re
     let payments_pool = get_payments_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .ok();
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .ok();
 
     let ar_customer_id = create_ar_customer(&ar_pool, &tenant_id).await?;
     let may_billing = NaiveDate::from_ymd_opt(2026, 5, 1).unwrap();
@@ -519,7 +562,10 @@ async fn test_monthly_renewal_creates_second_invoice_with_correct_period() -> Re
     .await?
     .expect("June billing must create invoice");
 
-    assert_ne!(may_invoice, jun_invoice, "renewal must produce a distinct invoice");
+    assert_ne!(
+        may_invoice, jun_invoice,
+        "renewal must produce a distinct invoice"
+    );
 
     // Verify May invoice period: 2026-05-01 → 2026-05-31
     let (may_start, may_end): (Option<NaiveDateTime>, Option<NaiveDateTime>) = sqlx::query_as(
@@ -531,8 +577,14 @@ async fn test_monthly_renewal_creates_second_invoice_with_correct_period() -> Re
 
     let may_start = may_start.expect("May invoice must have billing_period_start");
     let may_end = may_end.expect("May invoice must have billing_period_end");
-    assert_eq!(may_start.date(), NaiveDate::from_ymd_opt(2026, 5, 1).unwrap());
-    assert_eq!(may_end.date(), NaiveDate::from_ymd_opt(2026, 5, 31).unwrap());
+    assert_eq!(
+        may_start.date(),
+        NaiveDate::from_ymd_opt(2026, 5, 1).unwrap()
+    );
+    assert_eq!(
+        may_end.date(),
+        NaiveDate::from_ymd_opt(2026, 5, 31).unwrap()
+    );
 
     // Verify June invoice period: 2026-06-01 → 2026-06-30
     let (jun_start, jun_end): (Option<NaiveDateTime>, Option<NaiveDateTime>) = sqlx::query_as(
@@ -544,8 +596,14 @@ async fn test_monthly_renewal_creates_second_invoice_with_correct_period() -> Re
 
     let jun_start = jun_start.expect("June invoice must have billing_period_start");
     let jun_end = jun_end.expect("June invoice must have billing_period_end");
-    assert_eq!(jun_start.date(), NaiveDate::from_ymd_opt(2026, 6, 1).unwrap());
-    assert_eq!(jun_end.date(), NaiveDate::from_ymd_opt(2026, 6, 30).unwrap());
+    assert_eq!(
+        jun_start.date(),
+        NaiveDate::from_ymd_opt(2026, 6, 1).unwrap()
+    );
+    assert_eq!(
+        jun_end.date(),
+        NaiveDate::from_ymd_opt(2026, 6, 30).unwrap()
+    );
 
     // Two attempts, two invoices, two outbox events
     let total_invoices: i64 =
@@ -553,7 +611,10 @@ async fn test_monthly_renewal_creates_second_invoice_with_correct_period() -> Re
             .bind(&tenant_id)
             .fetch_one(&ar_pool)
             .await?;
-    assert_eq!(total_invoices, 2, "two distinct billing cycles → two invoices");
+    assert_eq!(
+        total_invoices, 2,
+        "two distinct billing cycles → two invoices"
+    );
 
     let total_outbox: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM events_outbox WHERE tenant_id = $1 AND subject = 'billrun.completed'",
@@ -563,8 +624,14 @@ async fn test_monthly_renewal_creates_second_invoice_with_correct_period() -> Re
     .await?;
     assert_eq!(total_outbox, 2, "two billing cycles → two outbox events");
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .ok();
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .ok();
     Ok(())
 }

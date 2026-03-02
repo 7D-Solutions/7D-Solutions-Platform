@@ -8,9 +8,7 @@
 
 use serial_test::serial;
 use shipping_receiving_rs::{
-    db::repository::ShipmentRepository,
-    domain::shipments::ShipmentService,
-    InventoryIntegration,
+    db::repository::ShipmentRepository, domain::shipments::ShipmentService, InventoryIntegration,
 };
 use sqlx::postgres::PgPoolOptions;
 use uuid::Uuid;
@@ -19,8 +17,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -82,7 +80,10 @@ async fn get_shipment_is_tenant_isolated() {
     let not_found = ShipmentService::find_by_id(&pool, ship_a, tenant_b)
         .await
         .expect("query succeeds");
-    assert!(not_found.is_none(), "tenant B must NOT see tenant A's shipment");
+    assert!(
+        not_found.is_none(),
+        "tenant B must NOT see tenant A's shipment"
+    );
 }
 
 #[tokio::test]
@@ -100,17 +101,15 @@ async fn list_shipments_is_tenant_isolated() {
     let ship_b = insert_shipment(&pool, tenant_b, "outbound").await;
 
     // Tenant A list: should see exactly 2
-    let list_a =
-        ShipmentRepository::list_shipments(&pool, tenant_a, None, None, 100, 0)
-            .await
-            .expect("list tenant A");
+    let list_a = ShipmentRepository::list_shipments(&pool, tenant_a, None, None, 100, 0)
+        .await
+        .expect("list tenant A");
     assert_eq!(list_a.len(), 2, "tenant A must see exactly 2 shipments");
 
     // Tenant B list: should see exactly 1
-    let list_b =
-        ShipmentRepository::list_shipments(&pool, tenant_b, None, None, 100, 0)
-            .await
-            .expect("list tenant B");
+    let list_b = ShipmentRepository::list_shipments(&pool, tenant_b, None, None, 100, 0)
+        .await
+        .expect("list tenant B");
     assert_eq!(list_b.len(), 1, "tenant B must see exactly 1 shipment");
     assert_eq!(list_b[0].id, ship_b);
 }
@@ -135,8 +134,7 @@ async fn cross_tenant_transition_fails_not_found() {
         closed_at: None,
     };
 
-    let result =
-        ShipmentService::transition(&pool, ship_a, tenant_b, &req, &inventory).await;
+    let result = ShipmentService::transition(&pool, ship_a, tenant_b, &req, &inventory).await;
     assert!(result.is_err(), "cross-tenant transition must fail");
     let err_msg = result.unwrap_err().to_string();
     assert!(
@@ -156,10 +154,9 @@ async fn cross_tenant_line_query_returns_empty() {
     insert_line(&pool, tenant_a, ship_a).await;
 
     // Tenant B queries lines for tenant A's shipment
-    let lines =
-        ShipmentRepository::get_lines_for_shipment(&pool, ship_a, tenant_b)
-            .await
-            .expect("query lines");
+    let lines = ShipmentRepository::get_lines_for_shipment(&pool, ship_a, tenant_b)
+        .await
+        .expect("query lines");
     assert!(
         lines.is_empty(),
         "tenant B must NOT see tenant A's shipment lines"

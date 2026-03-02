@@ -73,8 +73,9 @@ pub fn get_ar_db_url() -> String {
 
 /// Resolve Payments database URL with local-dev default.
 pub fn get_payments_db_url() -> String {
-    std::env::var("PAYMENTS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string())
+    std::env::var("PAYMENTS_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string()
+    })
 }
 
 /// Resolve GL database URL with local-dev default.
@@ -87,7 +88,9 @@ pub fn get_gl_db_url() -> String {
 pub fn get_audit_db_url() -> String {
     std::env::var("AUDIT_DATABASE_URL")
         .or_else(|_| std::env::var("PLATFORM_AUDIT_DATABASE_URL"))
-        .unwrap_or_else(|_| "postgresql://audit_user:audit_pass@localhost:5440/audit_db".to_string())
+        .unwrap_or_else(|_| {
+            "postgresql://audit_user:audit_pass@localhost:5440/audit_db".to_string()
+        })
 }
 
 /// Resolve Tenant Registry database URL with local-dev default.
@@ -106,15 +109,18 @@ pub async fn get_ar_pool() -> PgPool {
 
 /// Get Payments database pool
 pub async fn get_payments_pool() -> PgPool {
-    let url = std::env::var("PAYMENTS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string());
+    let url = std::env::var("PAYMENTS_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://payments_user:payments_pass@localhost:5436/payments_db".to_string()
+    });
     wait_for_db_ready("payments", &url).await
 }
 
 /// Get Subscriptions database pool
 pub async fn get_subscriptions_pool() -> PgPool {
-    let url = std::env::var("SUBSCRIPTIONS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db".to_string());
+    let url = std::env::var("SUBSCRIPTIONS_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db"
+            .to_string()
+    });
     wait_for_db_ready("subscriptions", &url).await
 }
 
@@ -127,8 +133,10 @@ pub async fn get_gl_pool() -> PgPool {
 
 /// Get Notifications database pool
 pub async fn get_notifications_pool() -> PgPool {
-    let url = std::env::var("NOTIFICATIONS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://notifications_user:notifications_pass@localhost:5437/notifications_db".to_string());
+    let url = std::env::var("NOTIFICATIONS_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://notifications_user:notifications_pass@localhost:5437/notifications_db"
+            .to_string()
+    });
     wait_for_db_ready("notifications", &url).await
 }
 
@@ -144,7 +152,10 @@ pub async fn get_auth_pool() -> PgPool {
 pub async fn get_projections_pool() -> PgPool {
     let url = std::env::var("PROJECTIONS_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
-        .unwrap_or_else(|_| "postgresql://projections_user:projections_pass@localhost:5439/projections_db".to_string());
+        .unwrap_or_else(|_| {
+            "postgresql://projections_user:projections_pass@localhost:5439/projections_db"
+                .to_string()
+        });
     wait_for_db_ready("projections", &url).await
 }
 
@@ -152,7 +163,9 @@ pub async fn get_projections_pool() -> PgPool {
 pub async fn get_audit_pool() -> PgPool {
     let url = std::env::var("AUDIT_DATABASE_URL")
         .or_else(|_| std::env::var("DATABASE_URL"))
-        .unwrap_or_else(|_| "postgresql://audit_user:audit_pass@localhost:5440/audit_db".to_string());
+        .unwrap_or_else(|_| {
+            "postgresql://audit_user:audit_pass@localhost:5440/audit_db".to_string()
+        });
     wait_for_db_ready("audit", &url).await
 }
 
@@ -173,29 +186,34 @@ pub async fn get_ap_pool() -> PgPool {
 
 /// Get Integrations database pool
 pub async fn get_integrations_pool() -> PgPool {
-    let url = std::env::var("INTEGRATIONS_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://integrations_user:integrations_pass@localhost:5449/integrations_db".to_string());
+    let url = std::env::var("INTEGRATIONS_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://integrations_user:integrations_pass@localhost:5449/integrations_db"
+            .to_string()
+    });
     wait_for_db_ready("integrations", &url).await
 }
 
 /// Get Timekeeping database pool
 pub async fn get_timekeeping_pool() -> PgPool {
-    let url = std::env::var("TIMEKEEPING_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://timekeeping_user:timekeeping_pass@localhost:5447/timekeeping_db".to_string());
+    let url = std::env::var("TIMEKEEPING_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://timekeeping_user:timekeeping_pass@localhost:5447/timekeeping_db".to_string()
+    });
     wait_for_db_ready("timekeeping", &url).await
 }
 
 /// Get Reporting database pool (shares AP postgres instance on port 5443)
 pub async fn get_reporting_pool() -> PgPool {
-    let url = std::env::var("REPORTING_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://ap_user:ap_pass@localhost:5443/reporting_test".to_string());
+    let url = std::env::var("REPORTING_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://ap_user:ap_pass@localhost:5443/reporting_test".to_string()
+    });
     wait_for_db_ready("reporting", &url).await
 }
 
 /// Get Party database pool (party-postgres on port 5448)
 pub async fn get_party_pool() -> PgPool {
-    let url = std::env::var("PARTY_DATABASE_URL")
-        .unwrap_or_else(|_| "postgresql://party_user:party_pass@localhost:5448/party_db".to_string());
+    let url = std::env::var("PARTY_DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://party_user:party_pass@localhost:5448/party_db".to_string()
+    });
     wait_for_db_ready("party", &url).await
 }
 
@@ -212,8 +230,8 @@ pub async fn get_ttp_pool() -> PgPool {
 
 /// Setup NATS client connection
 pub async fn setup_nats_client() -> NatsClient {
-    let nats_url = std::env::var("NATS_URL")
-        .unwrap_or_else(|_| "nats://localhost:4222".to_string());
+    let nats_url =
+        std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
 
     async_nats::connect(&nats_url)
         .await
@@ -226,10 +244,11 @@ pub async fn publish_event<T: serde::Serialize>(
     subject: &str,
     payload: &T,
 ) -> Result<(), String> {
-    let json = serde_json::to_vec(payload)
-        .map_err(|e| format!("Failed to serialize event: {}", e))?;
+    let json =
+        serde_json::to_vec(payload).map_err(|e| format!("Failed to serialize event: {}", e))?;
 
-    client.publish(subject.to_string(), json.into())
+    client
+        .publish(subject.to_string(), json.into())
         .await
         .map_err(|e| format!("Failed to publish event: {}", e))?;
 
@@ -237,11 +256,9 @@ pub async fn publish_event<T: serde::Serialize>(
 }
 
 /// Subscribe to NATS subject and collect messages
-pub async fn subscribe_to_events(
-    client: &NatsClient,
-    subject: &str,
-) -> async_nats::Subscriber {
-    client.subscribe(subject.to_string())
+pub async fn subscribe_to_events(client: &NatsClient, subject: &str) -> async_nats::Subscriber {
+    client
+        .subscribe(subject.to_string())
         .await
         .expect("Failed to subscribe to NATS subject")
 }
@@ -304,7 +321,7 @@ pub async fn poll_for_invoice(
             sqlx::query_scalar::<_, i32>(
                 "SELECT id FROM ar_invoices
                  WHERE app_id = $1 AND ar_customer_id = $2
-                 ORDER BY created_at DESC LIMIT 1"
+                 ORDER BY created_at DESC LIMIT 1",
             )
             .bind(app_id)
             .bind(ar_customer_id)
@@ -332,7 +349,7 @@ pub async fn poll_for_payment_attempt(
             sqlx::query_scalar::<_, Uuid>(
                 "SELECT id FROM payment_attempts
                  WHERE app_id = $1 AND invoice_id = $2
-                 ORDER BY created_at DESC LIMIT 1"
+                 ORDER BY created_at DESC LIMIT 1",
             )
             .bind(app_id)
             .bind(invoice_id)
@@ -360,7 +377,7 @@ pub async fn poll_for_journal_entry(
             sqlx::query_scalar::<_, Uuid>(
                 "SELECT id FROM journal_entries
                  WHERE tenant_id = $1 AND source_event_id = $2
-                 LIMIT 1"
+                 LIMIT 1",
             )
             .bind(tenant_id)
             .bind(source_event_id)
@@ -380,11 +397,7 @@ pub async fn poll_for_journal_entry(
 // ============================================================================
 
 /// Assert exactly one record exists matching query
-pub async fn assert_exactly_one(
-    pool: &PgPool,
-    query: &str,
-    error_msg: &str,
-) -> Result<(), String> {
+pub async fn assert_exactly_one(pool: &PgPool, query: &str, error_msg: &str) -> Result<(), String> {
     let count: i64 = sqlx::query_scalar(query)
         .fetch_one(pool)
         .await
@@ -398,25 +411,24 @@ pub async fn assert_exactly_one(
 }
 
 /// Assert GL journal entry is balanced (debits == credits)
-pub async fn assert_journal_balanced(
-    pool: &PgPool,
-    entry_id: Uuid,
-) -> Result<(), String> {
+pub async fn assert_journal_balanced(pool: &PgPool, entry_id: Uuid) -> Result<(), String> {
     let row = sqlx::query(
         "SELECT
             COALESCE(SUM(debit_minor), 0)::BIGINT as total_debits,
             COALESCE(SUM(credit_minor), 0)::BIGINT as total_credits
          FROM journal_lines
-         WHERE journal_entry_id = $1"
+         WHERE journal_entry_id = $1",
     )
     .bind(entry_id)
     .fetch_one(pool)
     .await
     .map_err(|e| format!("Failed to fetch journal lines: {}", e))?;
 
-    let total_debits: i64 = row.try_get("total_debits")
+    let total_debits: i64 = row
+        .try_get("total_debits")
         .map_err(|e| format!("Failed to get total_debits: {}", e))?;
-    let total_credits: i64 = row.try_get("total_credits")
+    let total_credits: i64 = row
+        .try_get("total_credits")
         .map_err(|e| format!("Failed to get total_credits: {}", e))?;
 
     if total_debits != total_credits {
@@ -675,15 +687,14 @@ pub async fn run_audit_migrations(pool: &PgPool) {
 }
 
 async fn run_audit_migrations_inner(pool: &PgPool) -> Result<(), sqlx::Error> {
-    let migration_sql = include_str!("../../../platform/audit/db/migrations/20260216000001_create_audit_log.sql");
+    let migration_sql =
+        include_str!("../../../platform/audit/db/migrations/20260216000001_create_audit_log.sql");
 
     // Execute the migration idempotently — migration SQL already uses
     // CREATE TABLE IF NOT EXISTS and DO $$ ... EXCEPTION duplicate_object $$
     // for the enum. No DROP needed: tests use unique tenant_ids for isolation
     // and dropping here causes race conditions across parallel test binaries.
-    sqlx::raw_sql(migration_sql)
-        .execute(pool)
-        .await?;
+    sqlx::raw_sql(migration_sql).execute(pool).await?;
 
     Ok(())
 }

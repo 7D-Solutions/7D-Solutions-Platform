@@ -293,7 +293,10 @@ async fn test_failed_transition_does_not_emit_outbox_event() {
     .await
     .unwrap();
 
-    assert_eq!(before, after, "Failed transition should not emit outbox event");
+    assert_eq!(
+        before, after,
+        "Failed transition should not emit outbox event"
+    );
 
     cleanup(&pool, sub_id).await;
 }
@@ -305,8 +308,7 @@ async fn test_failed_transition_does_not_emit_outbox_event() {
 #[tokio::test]
 async fn test_consumer_suspends_active_subscription() {
     let pool = setup_test_pool().await;
-    let (sub_id, tenant_id, ar_customer_id) =
-        create_test_subscription(&pool, "active").await;
+    let (sub_id, tenant_id, ar_customer_id) = create_test_subscription(&pool, "active").await;
 
     let event = InvoiceSuspendedEvent {
         tenant_id: tenant_id.clone(),
@@ -330,8 +332,7 @@ async fn test_consumer_suspends_active_subscription() {
 #[tokio::test]
 async fn test_consumer_suspends_past_due_subscription() {
     let pool = setup_test_pool().await;
-    let (sub_id, tenant_id, ar_customer_id) =
-        create_test_subscription(&pool, "past_due").await;
+    let (sub_id, tenant_id, ar_customer_id) = create_test_subscription(&pool, "past_due").await;
 
     let event = InvoiceSuspendedEvent {
         tenant_id: tenant_id.clone(),
@@ -355,8 +356,7 @@ async fn test_consumer_suspends_past_due_subscription() {
 #[tokio::test]
 async fn test_consumer_idempotent_duplicate_event() {
     let pool = setup_test_pool().await;
-    let (sub_id, tenant_id, ar_customer_id) =
-        create_test_subscription(&pool, "active").await;
+    let (sub_id, tenant_id, ar_customer_id) = create_test_subscription(&pool, "active").await;
 
     let event = InvoiceSuspendedEvent {
         tenant_id: tenant_id.clone(),
@@ -389,8 +389,7 @@ async fn test_consumer_idempotent_duplicate_event() {
 #[tokio::test]
 async fn test_consumer_skips_already_suspended_subscription() {
     let pool = setup_test_pool().await;
-    let (sub_id, tenant_id, ar_customer_id) =
-        create_test_subscription(&pool, "suspended").await;
+    let (sub_id, tenant_id, ar_customer_id) = create_test_subscription(&pool, "suspended").await;
 
     let event = InvoiceSuspendedEvent {
         tenant_id: tenant_id.clone(),

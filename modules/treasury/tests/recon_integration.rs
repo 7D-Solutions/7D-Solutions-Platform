@@ -203,7 +203,10 @@ async fn test_auto_match_is_idempotent() {
     let r2 = recon_svc::run_auto_match(&pool, &app, acct, "corr2")
         .await
         .unwrap();
-    assert_eq!(r2.matches_created, 0, "running again should find nothing new");
+    assert_eq!(
+        r2.matches_created, 0,
+        "running again should find nothing new"
+    );
 }
 
 // ============================================================================
@@ -355,7 +358,10 @@ async fn test_gl_link_happy_path() {
     assert_eq!(m.bank_transaction_id, txn_id);
     assert_eq!(m.gl_entry_id, Some(42001));
     assert_eq!(m.status, ReconMatchStatus::Confirmed);
-    assert!(m.statement_line_id.is_none(), "GL-only match has no stmt line");
+    assert!(
+        m.statement_line_id.is_none(),
+        "GL-only match has no stmt line"
+    );
 }
 
 // ============================================================================
@@ -409,7 +415,11 @@ async fn test_list_matches_excludes_superseded() {
     let all = recon_svc::list_matches(&pool, &app, acct, true)
         .await
         .unwrap();
-    assert_eq!(all.len(), 2, "both matches visible when including superseded");
+    assert_eq!(
+        all.len(),
+        2,
+        "both matches visible when including superseded"
+    );
 }
 
 // ============================================================================
@@ -443,7 +453,10 @@ async fn test_tenant_isolation_matches() {
     let b_matches = recon_svc::list_matches(&pool, &app_b, acct_b, true)
         .await
         .unwrap();
-    assert!(b_matches.is_empty(), "app_b should see no matches from app_a");
+    assert!(
+        b_matches.is_empty(),
+        "app_b should see no matches from app_a"
+    );
 
     // Statement line and payment txn are only used to populate data — assert isolation via lists
     let _ = (sl_a, pt_a); // suppress unused warnings

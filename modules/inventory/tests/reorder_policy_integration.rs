@@ -28,8 +28,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
@@ -204,7 +204,9 @@ async fn test_duplicate_location_policy_rejected() {
         created_by: None,
     };
 
-    ReorderPolicyRepo::create(&pool, &make_req(10)).await.unwrap();
+    ReorderPolicyRepo::create(&pool, &make_req(10))
+        .await
+        .unwrap();
     let err = ReorderPolicyRepo::create(&pool, &make_req(20))
         .await
         .unwrap_err();

@@ -36,11 +36,36 @@ async fn setup_test_data(pool: &PgPool, tenant_id: &str, period_id: Uuid) {
     // Create accounts (Asset, Liability, Equity only for balance sheet)
     let accounts = vec![
         ("1000", "Cash", AccountType::Asset, NormalBalance::Debit),
-        ("1100", "Accounts Receivable", AccountType::Asset, NormalBalance::Debit),
-        ("2000", "Accounts Payable", AccountType::Liability, NormalBalance::Credit),
-        ("2100", "Notes Payable", AccountType::Liability, NormalBalance::Credit),
-        ("3000", "Common Stock", AccountType::Equity, NormalBalance::Credit),
-        ("3100", "Retained Earnings", AccountType::Equity, NormalBalance::Credit),
+        (
+            "1100",
+            "Accounts Receivable",
+            AccountType::Asset,
+            NormalBalance::Debit,
+        ),
+        (
+            "2000",
+            "Accounts Payable",
+            AccountType::Liability,
+            NormalBalance::Credit,
+        ),
+        (
+            "2100",
+            "Notes Payable",
+            AccountType::Liability,
+            NormalBalance::Credit,
+        ),
+        (
+            "3000",
+            "Common Stock",
+            AccountType::Equity,
+            NormalBalance::Credit,
+        ),
+        (
+            "3100",
+            "Retained Earnings",
+            AccountType::Equity,
+            NormalBalance::Credit,
+        ),
     ];
 
     for (code, name, account_type, normal_balance) in accounts {
@@ -69,12 +94,12 @@ async fn setup_test_data(pool: &PgPool, tenant_id: &str, period_id: Uuid) {
     // Check: Assets (150) == Liabilities (50) + Equity (100) ✓
 
     let balances = vec![
-        ("1000", 10000i64, 0i64),   // Cash: $100 debit
-        ("1100", 5000, 0),           // A/R: $50 debit
-        ("2000", 0, 3000),           // A/P: $30 credit
-        ("2100", 0, 2000),           // Notes Payable: $20 credit
-        ("3000", 0, 8000),           // Common Stock: $80 credit
-        ("3100", 0, 2000),           // Retained Earnings: $20 credit
+        ("1000", 10000i64, 0i64), // Cash: $100 debit
+        ("1100", 5000, 0),        // A/R: $50 debit
+        ("2000", 0, 3000),        // A/P: $30 credit
+        ("2100", 0, 2000),        // Notes Payable: $20 credit
+        ("3000", 0, 8000),        // Common Stock: $80 credit
+        ("3100", 0, 2000),        // Retained Earnings: $20 credit
     ];
 
     for (account_code, debit_total, credit_total) in balances {
@@ -139,16 +164,13 @@ async fn test_balance_sheet_service_balanced() {
     setup_test_data(&pool, tenant_id, period_id).await;
 
     // Execute
-    let result = balance_sheet_service::get_balance_sheet(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-    )
-    .await;
+    let result = balance_sheet_service::get_balance_sheet(&pool, tenant_id, period_id, "USD").await;
 
     // Verify
-    assert!(result.is_ok(), "Balance sheet should succeed for balanced books");
+    assert!(
+        result.is_ok(),
+        "Balance sheet should succeed for balanced books"
+    );
     let response = result.unwrap();
 
     // Check metadata
@@ -225,24 +247,25 @@ async fn test_balance_sheet_service_unbalanced_error() {
     .unwrap();
 
     // Execute
-    let result = balance_sheet_service::get_balance_sheet(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-    )
-    .await;
+    let result = balance_sheet_service::get_balance_sheet(&pool, tenant_id, period_id, "USD").await;
 
     // Verify: Should fail with Unbalanced error (acceptance criteria)
-    assert!(result.is_err(), "Balance sheet should fail for unbalanced books");
+    assert!(
+        result.is_err(),
+        "Balance sheet should fail for unbalanced books"
+    );
     let error = result.unwrap_err();
 
     match error {
-        balance_sheet_service::BalanceSheetError::Unbalanced { assets, liabilities, equity } => {
+        balance_sheet_service::BalanceSheetError::Unbalanced {
+            assets,
+            liabilities,
+            equity,
+        } => {
             assert_eq!(assets, 25000); // 20000 + 5000
             assert_eq!(liabilities, 5000); // 3000 + 2000
             assert_eq!(equity, 10000); // 8000 + 2000
-            // Verify imbalance: 25000 != 5000 + 10000 (15000)
+                                       // Verify imbalance: 25000 != 5000 + 10000 (15000)
             assert_ne!(assets, liabilities + equity);
         }
         _ => panic!("Expected Unbalanced error, got: {:?}", error),
@@ -263,23 +286,13 @@ async fn test_balance_sheet_service_deterministic_json_snapshot() {
     setup_test_data(&pool, tenant_id, period_id).await;
 
     // Execute twice
-    let result1 = balance_sheet_service::get_balance_sheet(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-    )
-    .await
-    .unwrap();
+    let result1 = balance_sheet_service::get_balance_sheet(&pool, tenant_id, period_id, "USD")
+        .await
+        .unwrap();
 
-    let result2 = balance_sheet_service::get_balance_sheet(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-    )
-    .await
-    .unwrap();
+    let result2 = balance_sheet_service::get_balance_sheet(&pool, tenant_id, period_id, "USD")
+        .await
+        .unwrap();
 
     // Serialize to JSON
     let json1 = serde_json::to_string_pretty(&result1).unwrap();
@@ -321,7 +334,11 @@ async fn test_balance_sheet_service_deterministic_json_snapshot() {
     let assets = totals["total_assets"].as_i64().unwrap();
     let liabilities = totals["total_liabilities"].as_i64().unwrap();
     let equity = totals["total_equity"].as_i64().unwrap();
-    assert_eq!(assets, liabilities + equity, "Accounting equation must hold in JSON");
+    assert_eq!(
+        assets,
+        liabilities + equity,
+        "Accounting equation must hold in JSON"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -334,21 +351,20 @@ async fn test_balance_sheet_service_period_not_found() {
     let non_existent_period_id = Uuid::new_v4();
 
     // Execute without creating period
-    let result = balance_sheet_service::get_balance_sheet(
-        &pool,
-        tenant_id,
-        non_existent_period_id,
-        "USD",
-    )
-    .await;
+    let result =
+        balance_sheet_service::get_balance_sheet(&pool, tenant_id, non_existent_period_id, "USD")
+            .await;
 
     // Verify: Should fail with StatementRepo::PeriodNotFound error
-    assert!(result.is_err(), "Balance sheet should fail for non-existent period");
+    assert!(
+        result.is_err(),
+        "Balance sheet should fail for non-existent period"
+    );
     let error = result.unwrap_err();
 
     match error {
         balance_sheet_service::BalanceSheetError::StatementRepo(
-            gl_rs::repos::statement_repo::StatementError::PeriodNotFound { .. }
+            gl_rs::repos::statement_repo::StatementError::PeriodNotFound { .. },
         ) => {
             // Expected
         }
@@ -380,23 +396,23 @@ async fn test_balance_sheet_service_empty_period() {
     .unwrap();
 
     // Execute
-    let result = balance_sheet_service::get_balance_sheet(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-    )
-    .await;
+    let result = balance_sheet_service::get_balance_sheet(&pool, tenant_id, period_id, "USD").await;
 
     // Verify: Empty period should succeed with zero totals
-    assert!(result.is_ok(), "Balance sheet should succeed for empty period");
+    assert!(
+        result.is_ok(),
+        "Balance sheet should succeed for empty period"
+    );
     let response = result.unwrap();
 
     assert_eq!(response.rows.len(), 0);
     assert_eq!(response.totals.total_assets, 0);
     assert_eq!(response.totals.total_liabilities, 0);
     assert_eq!(response.totals.total_equity, 0);
-    assert!(response.totals.is_balanced, "Empty period should be balanced (0 = 0 + 0)");
+    assert!(
+        response.totals.is_balanced,
+        "Empty period should be balanced (0 = 0 + 0)"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -429,9 +445,24 @@ async fn test_balance_sheet_service_negative_balances() {
     // Create accounts including contra account
     let accounts = vec![
         ("1000", "Cash", AccountType::Asset, NormalBalance::Debit),
-        ("1900", "Allowance for Doubtful Accounts", AccountType::Asset, NormalBalance::Credit), // Contra asset
-        ("2000", "Accounts Payable", AccountType::Liability, NormalBalance::Credit),
-        ("3000", "Retained Earnings", AccountType::Equity, NormalBalance::Credit),
+        (
+            "1900",
+            "Allowance for Doubtful Accounts",
+            AccountType::Asset,
+            NormalBalance::Credit,
+        ), // Contra asset
+        (
+            "2000",
+            "Accounts Payable",
+            AccountType::Liability,
+            NormalBalance::Credit,
+        ),
+        (
+            "3000",
+            "Retained Earnings",
+            AccountType::Equity,
+            NormalBalance::Credit,
+        ),
     ];
 
     for (code, name, account_type, normal_balance) in accounts {
@@ -459,10 +490,10 @@ async fn test_balance_sheet_service_negative_balances() {
     // Check: Assets (90) == Liabilities (30) + Equity (60) ✓
 
     let balances = vec![
-        ("1000", 10000i64, 0i64),   // Cash: $100 debit
-        ("1900", 0, 1000),           // Allowance: $10 credit (contra asset = negative net balance)
-        ("2000", 0, 3000),           // A/P: $30 credit
-        ("3000", 0, 6000),           // Retained Earnings: $60 credit
+        ("1000", 10000i64, 0i64), // Cash: $100 debit
+        ("1900", 0, 1000),        // Allowance: $10 credit (contra asset = negative net balance)
+        ("2000", 0, 3000),        // A/P: $30 credit
+        ("3000", 0, 6000),        // Retained Earnings: $60 credit
     ];
 
     for (account_code, debit_total, credit_total) in balances {
@@ -490,16 +521,13 @@ async fn test_balance_sheet_service_negative_balances() {
     }
 
     // Execute
-    let result = balance_sheet_service::get_balance_sheet(
-        &pool,
-        tenant_id,
-        period_id,
-        "USD",
-    )
-    .await;
+    let result = balance_sheet_service::get_balance_sheet(&pool, tenant_id, period_id, "USD").await;
 
     // Verify
-    assert!(result.is_ok(), "Balance sheet should handle contra accounts");
+    assert!(
+        result.is_ok(),
+        "Balance sheet should handle contra accounts"
+    );
     let response = result.unwrap();
 
     // Check totals

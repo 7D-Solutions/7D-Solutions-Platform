@@ -13,7 +13,7 @@
 
 use chrono::NaiveDate;
 use gl_rs::contracts::period_close_v1::{
-    CloseStatus, ClosePeriodRequest, CloseStatusResponse, ValidateCloseRequest,
+    ClosePeriodRequest, CloseStatus, CloseStatusResponse, ValidateCloseRequest,
 };
 use serial_test::serial;
 use sqlx::PgPool;

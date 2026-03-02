@@ -2,7 +2,6 @@
 ///
 /// Requires DATABASE_URL pointing at a running TTP Postgres instance.
 /// Run with: cargo test -p ttp-rs --test metering_integration -- --ignored
-
 use chrono::{TimeZone, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;

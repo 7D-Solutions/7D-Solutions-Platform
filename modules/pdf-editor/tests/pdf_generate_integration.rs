@@ -5,8 +5,8 @@
 
 mod submission_helpers;
 
-use pdf_editor_rs::domain::forms::{CreateFieldRequest, FieldRepo, TemplateRepo};
 use pdf_editor_rs::domain::forms::CreateTemplateRequest;
+use pdf_editor_rs::domain::forms::{CreateFieldRequest, FieldRepo, TemplateRepo};
 use pdf_editor_rs::domain::generate::{generate_filled_pdf, validate_pdf, GenerateError};
 use pdf_editor_rs::domain::submissions::{CreateSubmissionRequest, SubmissionRepo};
 use pdf_editor_rs::event_bus::{create_pdf_editor_envelope, enqueue_event};
@@ -16,8 +16,11 @@ use uuid::Uuid;
 
 /// Load the test PDF fixture.
 fn test_pdf_bytes() -> Vec<u8> {
-    std::fs::read(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test.pdf"))
-        .expect("test.pdf fixture must exist")
+    std::fs::read(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/test.pdf"
+    ))
+    .expect("test.pdf fixture must exist")
 }
 
 /// Create a template with fields that have pdf_position set.
@@ -35,21 +38,51 @@ async fn create_template_with_positions(pool: &sqlx::PgPool, tid: &str) -> Uuid 
     .unwrap();
 
     let fields = vec![
-        ("company_name", "Company Name", "text", pos(100.0, 700.0, 1, 14.0)),
-        ("mileage", "Current Mileage", "number", pos(100.0, 680.0, 1, 12.0)),
-        ("inspection_date", "Inspection Date", "date", pos(100.0, 660.0, 1, 12.0)),
-        ("vehicle_type", "Vehicle Type", "dropdown", pos(100.0, 640.0, 1, 12.0)),
-        ("passed", "Passed Inspection", "checkbox", pos(100.0, 620.0, 1, 12.0)),
+        (
+            "company_name",
+            "Company Name",
+            "text",
+            pos(100.0, 700.0, 1, 14.0),
+        ),
+        (
+            "mileage",
+            "Current Mileage",
+            "number",
+            pos(100.0, 680.0, 1, 12.0),
+        ),
+        (
+            "inspection_date",
+            "Inspection Date",
+            "date",
+            pos(100.0, 660.0, 1, 12.0),
+        ),
+        (
+            "vehicle_type",
+            "Vehicle Type",
+            "dropdown",
+            pos(100.0, 640.0, 1, 12.0),
+        ),
+        (
+            "passed",
+            "Passed Inspection",
+            "checkbox",
+            pos(100.0, 620.0, 1, 12.0),
+        ),
     ];
 
     for (key, label, ft, pdf_pos) in fields {
-        FieldRepo::create(pool, tmpl.id, tid, &CreateFieldRequest {
-            field_key: key.into(),
-            field_label: label.into(),
-            field_type: ft.into(),
-            validation_rules: Some(serde_json::json!({"required": true})),
-            pdf_position: Some(pdf_pos),
-        })
+        FieldRepo::create(
+            pool,
+            tmpl.id,
+            tid,
+            &CreateFieldRequest {
+                field_key: key.into(),
+                field_label: label.into(),
+                field_type: ft.into(),
+                validation_rules: Some(serde_json::json!({"required": true})),
+                pdf_position: Some(pdf_pos),
+            },
+        )
         .await
         .unwrap();
     }
@@ -88,7 +121,11 @@ async fn test_generate_filled_pdf_roundtrip() {
 
     // Generate
     let result = generate_filled_pdf(&pdf_bytes, &fields, &valid_field_data());
-    assert!(result.is_ok(), "generate_filled_pdf failed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "generate_filled_pdf failed: {:?}",
+        result.err()
+    );
 
     let output = result.unwrap();
     // Output should be a valid PDF (starts with %PDF-)
@@ -185,24 +222,34 @@ async fn test_generate_skips_fields_without_position() {
     .await
     .unwrap();
 
-    FieldRepo::create(&pool, tmpl.id, &tid, &CreateFieldRequest {
-        field_key: "with_pos".into(),
-        field_label: "Has Position".into(),
-        field_type: "text".into(),
-        validation_rules: None,
-        pdf_position: Some(pos(50.0, 500.0, 1, 12.0)),
-    })
+    FieldRepo::create(
+        &pool,
+        tmpl.id,
+        &tid,
+        &CreateFieldRequest {
+            field_key: "with_pos".into(),
+            field_label: "Has Position".into(),
+            field_type: "text".into(),
+            validation_rules: None,
+            pdf_position: Some(pos(50.0, 500.0, 1, 12.0)),
+        },
+    )
     .await
     .unwrap();
 
     // No pdf_position (defaults to {})
-    FieldRepo::create(&pool, tmpl.id, &tid, &CreateFieldRequest {
-        field_key: "no_pos".into(),
-        field_label: "No Position".into(),
-        field_type: "text".into(),
-        validation_rules: None,
-        pdf_position: None,
-    })
+    FieldRepo::create(
+        &pool,
+        tmpl.id,
+        &tid,
+        &CreateFieldRequest {
+            field_key: "no_pos".into(),
+            field_label: "No Position".into(),
+            field_type: "text".into(),
+            validation_rules: None,
+            pdf_position: None,
+        },
+    )
     .await
     .unwrap();
 
@@ -214,7 +261,10 @@ async fn test_generate_skips_fields_without_position() {
 
     let pdf_bytes = test_pdf_bytes();
     let result = generate_filled_pdf(&pdf_bytes, &fields, &data);
-    assert!(result.is_ok(), "Should succeed, skipping fields without valid position");
+    assert!(
+        result.is_ok(),
+        "Should succeed, skipping fields without valid position"
+    );
 }
 
 #[test]

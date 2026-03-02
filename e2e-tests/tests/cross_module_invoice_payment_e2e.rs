@@ -51,7 +51,7 @@ async fn create_payment_attempt(
     sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO payment_attempts (app_id, payment_id, invoice_id, attempt_no, status)
          VALUES ($1, $2, $3::text, $4, $5::payment_attempt_status)
-         RETURNING id"
+         RETURNING id",
     )
     .bind(app_id)
     .bind(payment_id)
@@ -101,7 +101,7 @@ async fn test_no_duplicate_payment_attempts() {
     // Execute: Try to create duplicate attempt (same app_id, payment_id, attempt_no)
     let result = sqlx::query(
         "INSERT INTO payment_attempts (app_id, payment_id, invoice_id, attempt_no, status)
-         VALUES ($1, $2, $3::text, $4, $5::payment_attempt_status)"
+         VALUES ($1, $2, $3::text, $4, $5::payment_attempt_status)",
     )
     .bind(app_id)
     .bind(payment_id)
@@ -143,12 +143,20 @@ async fn test_no_duplicate_payment_attempts() {
         tenant_id: app_id,
         audit_pool: &audit_pool,
     };
-    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+    oracle::assert_cross_module_invariants(&ctx)
+        .await
+        .expect("Oracle invariants should pass");
 
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        app_id,
+    )
+    .await
+    .ok();
 }
 
 // ============================================================================
@@ -210,7 +218,7 @@ async fn test_retry_window_discipline() {
 
     // Assert: Exactly 3 attempts (windows: 0, 1, 2)
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM payment_attempts WHERE app_id = $1 AND payment_id = $2"
+        "SELECT COUNT(*) FROM payment_attempts WHERE app_id = $1 AND payment_id = $2",
     )
     .bind(app_id)
     .bind(payment_id)
@@ -224,7 +232,7 @@ async fn test_retry_window_discipline() {
     let attempt_nos: Vec<i32> = sqlx::query_scalar(
         "SELECT attempt_no FROM payment_attempts
          WHERE app_id = $1 AND payment_id = $2
-         ORDER BY attempt_no"
+         ORDER BY attempt_no",
     )
     .bind(app_id)
     .bind(payment_id)
@@ -232,7 +240,11 @@ async fn test_retry_window_discipline() {
     .await
     .expect("Failed to fetch attempt numbers");
 
-    assert_eq!(attempt_nos, vec![0, 1, 2], "Attempt numbers should be 0, 1, 2");
+    assert_eq!(
+        attempt_nos,
+        vec![0, 1, 2],
+        "Attempt numbers should be 0, 1, 2"
+    );
 
     // Oracle: Assert all module invariants
     let subscriptions_pool = common::get_subscriptions_pool().await;
@@ -247,12 +259,20 @@ async fn test_retry_window_discipline() {
         tenant_id: app_id,
         audit_pool: &audit_pool,
     };
-    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+    oracle::assert_cross_module_invariants(&ctx)
+        .await
+        .expect("Oracle invariants should pass");
 
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        app_id,
+    )
+    .await
+    .ok();
 }
 
 // ============================================================================
@@ -289,13 +309,12 @@ async fn test_failed_retry_allows_next_attempt() {
     .await;
 
     // Assert: failed_retry status recorded
-    let status0: String = sqlx::query_scalar(
-        "SELECT status::text FROM payment_attempts WHERE id = $1"
-    )
-    .bind(attempt0_id)
-    .fetch_one(&payments_pool)
-    .await
-    .expect("Failed to fetch status");
+    let status0: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt0_id)
+            .fetch_one(&payments_pool)
+            .await
+            .expect("Failed to fetch status");
 
     assert_eq!(status0, "failed_retry", "Attempt 0 should be failed_retry");
 
@@ -314,7 +333,7 @@ async fn test_failed_retry_allows_next_attempt() {
 
     // Assert: Both attempts exist
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM payment_attempts WHERE app_id = $1 AND payment_id = $2"
+        "SELECT COUNT(*) FROM payment_attempts WHERE app_id = $1 AND payment_id = $2",
     )
     .bind(app_id)
     .bind(payment_id)
@@ -337,12 +356,20 @@ async fn test_failed_retry_allows_next_attempt() {
         tenant_id: app_id,
         audit_pool: &audit_pool,
     };
-    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+    oracle::assert_cross_module_invariants(&ctx)
+        .await
+        .expect("Oracle invariants should pass");
 
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        app_id,
+    )
+    .await
+    .ok();
 }
 
 // ============================================================================
@@ -379,13 +406,12 @@ async fn test_succeeded_is_terminal() {
     .await;
 
     // Assert: succeeded status recorded
-    let status: String = sqlx::query_scalar(
-        "SELECT status::text FROM payment_attempts WHERE id = $1"
-    )
-    .bind(attempt0_id)
-    .fetch_one(&payments_pool)
-    .await
-    .expect("Failed to fetch status");
+    let status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt0_id)
+            .fetch_one(&payments_pool)
+            .await
+            .expect("Failed to fetch status");
 
     assert_eq!(status, "succeeded", "Attempt should be succeeded");
 
@@ -421,12 +447,20 @@ async fn test_succeeded_is_terminal() {
         tenant_id: app_id,
         audit_pool: &audit_pool,
     };
-    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+    oracle::assert_cross_module_invariants(&ctx)
+        .await
+        .expect("Oracle invariants should pass");
 
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        app_id,
+    )
+    .await
+    .ok();
 }
 
 // ============================================================================
@@ -452,8 +486,24 @@ async fn test_payment_invariants_enforcement() {
     .await;
 
     // Execute: Create payment attempts
-    create_payment_attempt(&payments_pool, app_id, payment_id, invoice_id, 0, "attempting").await;
-    create_payment_attempt(&payments_pool, app_id, Uuid::new_v4(), invoice_id, 0, "succeeded").await;
+    create_payment_attempt(
+        &payments_pool,
+        app_id,
+        payment_id,
+        invoice_id,
+        0,
+        "attempting",
+    )
+    .await;
+    create_payment_attempt(
+        &payments_pool,
+        app_id,
+        Uuid::new_v4(),
+        invoice_id,
+        0,
+        "succeeded",
+    )
+    .await;
 
     // Oracle: Assert all module invariants (replaces manual checks and commented oracle call)
     let subscriptions_pool = common::get_subscriptions_pool().await;
@@ -468,10 +518,18 @@ async fn test_payment_invariants_enforcement() {
         tenant_id: app_id,
         audit_pool: &audit_pool,
     };
-    oracle::assert_cross_module_invariants(&ctx).await.expect("Oracle invariants should pass");
+    oracle::assert_cross_module_invariants(&ctx)
+        .await
+        .expect("Oracle invariants should pass");
 
     // Cleanup
-    common::cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, app_id)
-        .await
-        .ok();
+    common::cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        app_id,
+    )
+    .await
+    .ok();
 }

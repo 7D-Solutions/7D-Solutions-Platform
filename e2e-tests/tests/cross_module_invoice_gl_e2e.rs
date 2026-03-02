@@ -31,7 +31,7 @@ async fn setup_test_accounts(
            (gen_random_uuid(), $1, 'AR', 'Accounts Receivable', 'asset', 'debit', true),
            (gen_random_uuid(), $1, 'REV', 'Revenue', 'revenue', 'credit', true),
            (gen_random_uuid(), $1, 'TAX', 'Sales Tax Payable', 'liability', 'credit', true)
-         ON CONFLICT (tenant_id, code) DO NOTHING"
+         ON CONFLICT (tenant_id, code) DO NOTHING",
     )
     .bind(tenant_id)
     .execute(gl_pool)
@@ -47,7 +47,7 @@ async fn setup_accounting_period(
     let period_id = sqlx::query_scalar::<_, Uuid>(
         "INSERT INTO accounting_periods (tenant_id, period_start, period_end, is_closed)
          VALUES ($1, '2026-02-01', '2026-02-28', false)
-         RETURNING id"
+         RETURNING id",
     )
     .bind(tenant_id)
     .fetch_one(gl_pool)
@@ -146,7 +146,7 @@ async fn test_no_duplicate_gl_postings() {
 
     // Assert: Exactly one journal entry exists for this event
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1 AND source_event_id = $2"
+        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1 AND source_event_id = $2",
     )
     .bind(tenant_id)
     .bind(source_event_id)
@@ -206,17 +206,14 @@ async fn test_gl_balance_validation() {
             COALESCE(SUM(debit_minor), 0)::BIGINT as total_debits,
             COALESCE(SUM(credit_minor), 0)::BIGINT as total_credits
          FROM journal_lines
-         WHERE journal_entry_id = $1"
+         WHERE journal_entry_id = $1",
     )
     .bind(entry_id)
     .fetch_one(&gl_pool)
     .await
     .expect("Failed to fetch totals");
 
-    assert_eq!(
-        total_debits, total_credits,
-        "Debits should equal credits"
-    );
+    assert_eq!(total_debits, total_credits, "Debits should equal credits");
     assert_eq!(total_debits, 10000, "Total debits should be 10000");
 
     // Cleanup
@@ -325,18 +322,23 @@ async fn test_multiple_independent_entries() {
         .unwrap();
 
     // Assert: All entries are balanced
-    assert!(common::assert_journal_balanced(&gl_pool, entry1_id).await.is_ok());
-    assert!(common::assert_journal_balanced(&gl_pool, entry2_id).await.is_ok());
-    assert!(common::assert_journal_balanced(&gl_pool, entry3_id).await.is_ok());
+    assert!(common::assert_journal_balanced(&gl_pool, entry1_id)
+        .await
+        .is_ok());
+    assert!(common::assert_journal_balanced(&gl_pool, entry2_id)
+        .await
+        .is_ok());
+    assert!(common::assert_journal_balanced(&gl_pool, entry3_id)
+        .await
+        .is_ok());
 
     // Assert: Exactly 3 entries exist
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1"
-    )
-    .bind(tenant_id)
-    .fetch_one(&gl_pool)
-    .await
-    .expect("Failed to count entries");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_one(&gl_pool)
+            .await
+            .expect("Failed to count entries");
 
     assert_eq!(count, 3, "Should have exactly 3 journal entries");
 
@@ -368,7 +370,7 @@ async fn test_account_validation() {
         "INSERT INTO accounts (id, tenant_id, code, name, type, normal_balance, is_active)
          VALUES
            (gen_random_uuid(), $1, 'AR', 'Accounts Receivable', 'asset', 'debit', true),
-           (gen_random_uuid(), $1, 'REV', 'Revenue', 'revenue', 'credit', false)"
+           (gen_random_uuid(), $1, 'REV', 'Revenue', 'revenue', 'credit', false)",
     )
     .bind(tenant_id)
     .execute(&gl_pool)
@@ -392,7 +394,7 @@ async fn test_account_validation() {
          FROM journal_lines jl
          JOIN journal_entries je ON je.id = jl.journal_entry_id
          LEFT JOIN accounts a ON a.tenant_id = je.tenant_id AND a.code = jl.account_ref
-         WHERE je.tenant_id = $1 AND (a.id IS NULL OR a.is_active = false)"
+         WHERE je.tenant_id = $1 AND (a.id IS NULL OR a.is_active = false)",
     )
     .bind(tenant_id)
     .fetch_all(&gl_pool)
@@ -404,7 +406,10 @@ async fn test_account_validation() {
         "Should detect inactive account reference: {:?}",
         invalid_refs
     );
-    assert!(invalid_refs.contains(&"REV".to_string()), "Should detect REV as inactive");
+    assert!(
+        invalid_refs.contains(&"REV".to_string()),
+        "Should detect REV as inactive"
+    );
 
     // Cleanup
     common::cleanup_tenant_data(

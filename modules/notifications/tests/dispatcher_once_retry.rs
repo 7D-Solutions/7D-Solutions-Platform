@@ -4,7 +4,6 @@
 /// After the first dispatch fails, the row is rescheduled with an advanced
 /// deliver_at and retry_count=1.  A second dispatch with LoggingSender
 /// succeeds and marks the row sent.
-
 use std::sync::{
     atomic::{AtomicI32, Ordering},
     Arc,
@@ -52,7 +51,9 @@ impl NotificationSender for FailingSender {
     async fn send(&self, _notif: &ScheduledNotification) -> Result<(), NotificationError> {
         let prev = self.remaining.fetch_sub(1, Ordering::SeqCst);
         if prev > 0 {
-            Err(NotificationError::DeliveryFailed("simulated failure".to_string()))
+            Err(NotificationError::DeliveryFailed(
+                "simulated failure".to_string(),
+            ))
         } else {
             Ok(())
         }
@@ -102,8 +103,16 @@ async fn test_dispatch_once_retry_backoff() {
     .await
     .expect("row not found after first dispatch");
 
-    assert_eq!(row.status, "pending", "expected pending after failure, got {}", row.status);
-    assert_eq!(row.retry_count, 1, "expected retry_count=1, got {}", row.retry_count);
+    assert_eq!(
+        row.status, "pending",
+        "expected pending after failure, got {}",
+        row.status
+    );
+    assert_eq!(
+        row.retry_count, 1,
+        "expected retry_count=1, got {}",
+        row.retry_count
+    );
 
     // deliver_at should be ~5 minutes ahead; allow a 4-minute lower bound for timing slack.
     let min_expected = before_retry + chrono::Duration::minutes(4);

@@ -11,7 +11,10 @@ mod common;
 
 use anyhow::Result;
 use ar_rs::aging::refresh_aging;
-use common::{cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_payments_pool, get_subscriptions_pool, get_gl_pool};
+use common::{
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_payments_pool,
+    get_subscriptions_pool,
+};
 use serial_test::serial;
 use sqlx::PgPool;
 
@@ -118,9 +121,15 @@ async fn test_aging_current_bucket() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
     // Invoice due in 10 days (not yet overdue)
@@ -128,8 +137,10 @@ async fn test_aging_current_bucket() -> Result<()> {
 
     let snapshot = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
-    assert_eq!(snapshot.current_minor, 10000,
-        "Invoice due in future should appear in current bucket");
+    assert_eq!(
+        snapshot.current_minor, 10000,
+        "Invoice due in future should appear in current bucket"
+    );
     assert_eq!(snapshot.days_1_30_minor, 0, "No 1-30 overdue");
     assert_eq!(snapshot.days_31_60_minor, 0, "No 31-60 overdue");
     assert_eq!(snapshot.days_61_90_minor, 0, "No 61-90 overdue");
@@ -139,9 +150,15 @@ async fn test_aging_current_bucket() -> Result<()> {
 
     println!("✅ Current bucket: {} minor units", snapshot.current_minor);
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }
 
@@ -155,9 +172,15 @@ async fn test_aging_overdue_buckets() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
 
@@ -173,20 +196,42 @@ async fn test_aging_overdue_buckets() -> Result<()> {
     let snapshot = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
     assert_eq!(snapshot.current_minor, 0, "No current invoices");
-    assert_eq!(snapshot.days_1_30_minor, 5000, "5 days overdue → 1-30 bucket");
-    assert_eq!(snapshot.days_31_60_minor, 3000, "45 days overdue → 31-60 bucket");
-    assert_eq!(snapshot.days_61_90_minor, 2000, "75 days overdue → 61-90 bucket");
-    assert_eq!(snapshot.days_over_90_minor, 1000, "100 days overdue → 90+ bucket");
+    assert_eq!(
+        snapshot.days_1_30_minor, 5000,
+        "5 days overdue → 1-30 bucket"
+    );
+    assert_eq!(
+        snapshot.days_31_60_minor, 3000,
+        "45 days overdue → 31-60 bucket"
+    );
+    assert_eq!(
+        snapshot.days_61_90_minor, 2000,
+        "75 days overdue → 61-90 bucket"
+    );
+    assert_eq!(
+        snapshot.days_over_90_minor, 1000,
+        "100 days overdue → 90+ bucket"
+    );
     assert_eq!(snapshot.total_outstanding_minor, 11000);
     assert_eq!(snapshot.invoice_count, 4);
 
-    println!("✅ Overdue buckets correct: 1-30={}, 31-60={}, 61-90={}, 90+={}",
-        snapshot.days_1_30_minor, snapshot.days_31_60_minor,
-        snapshot.days_61_90_minor, snapshot.days_over_90_minor);
+    println!(
+        "✅ Overdue buckets correct: 1-30={}, 31-60={}, 61-90={}, 90+={}",
+        snapshot.days_1_30_minor,
+        snapshot.days_31_60_minor,
+        snapshot.days_61_90_minor,
+        snapshot.days_over_90_minor
+    );
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }
 
@@ -200,9 +245,15 @@ async fn test_aging_partial_payment() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
     // Invoice of 10000, 15 days overdue
@@ -213,16 +264,27 @@ async fn test_aging_partial_payment() -> Result<()> {
     let snapshot = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
     // Open balance = 10000 - 3000 = 7000, in days_1_30 bucket
-    assert_eq!(snapshot.days_1_30_minor, 7000,
-        "Open balance (10000 - 3000 partial payment) should be 7000 in 1-30 bucket");
+    assert_eq!(
+        snapshot.days_1_30_minor, 7000,
+        "Open balance (10000 - 3000 partial payment) should be 7000 in 1-30 bucket"
+    );
     assert_eq!(snapshot.total_outstanding_minor, 7000);
     assert_eq!(snapshot.invoice_count, 1);
 
-    println!("✅ Partial payment reduces balance: {} minor units remaining", snapshot.days_1_30_minor);
+    println!(
+        "✅ Partial payment reduces balance: {} minor units remaining",
+        snapshot.days_1_30_minor
+    );
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }
 
@@ -236,9 +298,15 @@ async fn test_aging_fully_paid_excluded() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
     // Invoice overdue, fully paid
@@ -251,20 +319,34 @@ async fn test_aging_fully_paid_excluded() -> Result<()> {
     let snapshot = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
     // Only the unpaid current invoice should appear
-    assert_eq!(snapshot.total_outstanding_minor, 2000,
-        "Fully paid invoice (5000 - 5000 = 0) must not appear in aging");
-    assert_eq!(snapshot.days_1_30_minor, 0,
-        "Paid invoice must not show in overdue buckets");
-    assert_eq!(snapshot.current_minor, 2000,
-        "Unpaid current invoice should appear in current bucket");
-    assert_eq!(snapshot.invoice_count, 1,
-        "Only 1 open invoice should be counted");
+    assert_eq!(
+        snapshot.total_outstanding_minor, 2000,
+        "Fully paid invoice (5000 - 5000 = 0) must not appear in aging"
+    );
+    assert_eq!(
+        snapshot.days_1_30_minor, 0,
+        "Paid invoice must not show in overdue buckets"
+    );
+    assert_eq!(
+        snapshot.current_minor, 2000,
+        "Unpaid current invoice should appear in current bucket"
+    );
+    assert_eq!(
+        snapshot.invoice_count, 1,
+        "Only 1 open invoice should be counted"
+    );
 
     println!("✅ Fully paid invoice excluded from aging, 2000 minor units outstanding");
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }
 
@@ -278,9 +360,15 @@ async fn test_aging_outbox_event_emitted() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
     make_invoice(&ar_pool, &tenant_id, customer_id, 8000, 30).await?;
@@ -291,35 +379,55 @@ async fn test_aging_outbox_event_emitted() -> Result<()> {
     refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
     let post_count = count_aging_outbox_events(&ar_pool, &tenant_id).await?;
-    assert_eq!(post_count, 1,
-        "One ar.ar_aging_updated event should be enqueued after refresh");
+    assert_eq!(
+        post_count, 1,
+        "One ar.ar_aging_updated event should be enqueued after refresh"
+    );
 
     // Verify envelope metadata
-    let (mutation_class, schema_version, source_module): (Option<String>, Option<String>, Option<String>) =
-        sqlx::query_as(
-            r#"
+    let (mutation_class, schema_version, source_module): (
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    ) = sqlx::query_as(
+        r#"
             SELECT mutation_class, schema_version, source_module
             FROM events_outbox
             WHERE event_type = 'ar.ar_aging_updated'
               AND tenant_id = $1
             "#,
-        )
-        .bind(&tenant_id)
-        .fetch_one(&ar_pool)
-        .await?;
+    )
+    .bind(&tenant_id)
+    .fetch_one(&ar_pool)
+    .await?;
 
-    assert_eq!(mutation_class.as_deref(), Some("DATA_MUTATION"),
-        "ar.ar_aging_updated must have mutation_class=DATA_MUTATION");
-    assert_eq!(schema_version.as_deref(), Some("1.0.0"),
-        "ar.ar_aging_updated must have schema_version=1.0.0");
-    assert_eq!(source_module.as_deref(), Some("ar"),
-        "ar.ar_aging_updated must have source_module=ar");
+    assert_eq!(
+        mutation_class.as_deref(),
+        Some("DATA_MUTATION"),
+        "ar.ar_aging_updated must have mutation_class=DATA_MUTATION"
+    );
+    assert_eq!(
+        schema_version.as_deref(),
+        Some("1.0.0"),
+        "ar.ar_aging_updated must have schema_version=1.0.0"
+    );
+    assert_eq!(
+        source_module.as_deref(),
+        Some("ar"),
+        "ar.ar_aging_updated must have source_module=ar"
+    );
 
     println!("✅ ar.ar_aging_updated outbox event emitted with correct envelope metadata");
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }
 
@@ -333,9 +441,15 @@ async fn test_aging_refresh_idempotent() -> Result<()> {
     let subscriptions_pool = get_subscriptions_pool().await;
     let gl_pool = get_gl_pool().await;
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     let customer_id = make_customer(&ar_pool, &tenant_id).await?;
     make_invoice(&ar_pool, &tenant_id, customer_id, 12000, -60).await?;
@@ -344,17 +458,29 @@ async fn test_aging_refresh_idempotent() -> Result<()> {
     let snapshot2 = refresh_aging(&ar_pool, &tenant_id, customer_id).await?;
 
     // Same ID (upsert should have updated the existing row)
-    assert_eq!(snapshot1.id, snapshot2.id,
-        "Repeated refresh must upsert the same row, not create duplicates");
-    assert_eq!(snapshot1.total_outstanding_minor, snapshot2.total_outstanding_minor,
-        "Repeated refresh must produce same totals");
-    assert_eq!(snapshot1.days_31_60_minor, snapshot2.days_31_60_minor,
-        "Repeated refresh must produce same bucket amounts");
+    assert_eq!(
+        snapshot1.id, snapshot2.id,
+        "Repeated refresh must upsert the same row, not create duplicates"
+    );
+    assert_eq!(
+        snapshot1.total_outstanding_minor, snapshot2.total_outstanding_minor,
+        "Repeated refresh must produce same totals"
+    );
+    assert_eq!(
+        snapshot1.days_31_60_minor, snapshot2.days_31_60_minor,
+        "Repeated refresh must produce same bucket amounts"
+    );
 
     println!("✅ Projection upsert is idempotent: same row updated, same totals");
 
-    cleanup_tenant_data(&ar_pool, &payments_pool, &subscriptions_pool, &gl_pool, &tenant_id)
-        .await
-        .map_err(|e| anyhow::anyhow!(e))?;
+    cleanup_tenant_data(
+        &ar_pool,
+        &payments_pool,
+        &subscriptions_pool,
+        &gl_pool,
+        &tenant_id,
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
     Ok(())
 }

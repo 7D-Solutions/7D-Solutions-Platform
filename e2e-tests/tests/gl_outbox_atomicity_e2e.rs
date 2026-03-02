@@ -92,7 +92,7 @@ async fn create_journal_entry(
     source_event_id: Uuid,
 ) -> Result<Uuid> {
     let entry_id = Uuid::new_v4();
-    
+
     sqlx::query(
         r#"
         INSERT INTO journal_entries (
@@ -211,23 +211,19 @@ async fn test_gl_reversal_outbox_atomicity() -> Result<()> {
 
     // Step 3: Create reversal via production service (atomic: entry + outbox in one tx)
     let reversal_event_id = Uuid::new_v4();
-    let reversal_entry_id = reversal_service::create_reversal_entry(
-        &gl_pool,
-        reversal_event_id,
-        original_entry_id,
-    )
-    .await
-    .map_err(|e| anyhow::anyhow!("Reversal failed: {:?}", e))?;
+    let reversal_entry_id =
+        reversal_service::create_reversal_entry(&gl_pool, reversal_event_id, original_entry_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Reversal failed: {:?}", e))?;
 
     println!("✅ Created reversal entry {}", reversal_entry_id);
 
     // Step 4: Assert reversal entry exists and references original
-    let reverses_ref: Option<Uuid> = sqlx::query_scalar(
-        "SELECT reverses_entry_id FROM journal_entries WHERE id = $1",
-    )
-    .bind(reversal_entry_id)
-    .fetch_one(&gl_pool)
-    .await?;
+    let reverses_ref: Option<Uuid> =
+        sqlx::query_scalar("SELECT reverses_entry_id FROM journal_entries WHERE id = $1")
+            .bind(reversal_entry_id)
+            .fetch_one(&gl_pool)
+            .await?;
     assert_eq!(
         reverses_ref,
         Some(original_entry_id),
@@ -255,12 +251,9 @@ async fn test_gl_reversal_outbox_atomicity() -> Result<()> {
     );
 
     // Step 6: Assert idempotency — same reversal_event_id is rejected
-    let dup_result = reversal_service::create_reversal_entry(
-        &gl_pool,
-        reversal_event_id,
-        original_entry_id,
-    )
-    .await;
+    let dup_result =
+        reversal_service::create_reversal_entry(&gl_pool, reversal_event_id, original_entry_id)
+            .await;
     assert!(
         dup_result.is_err(),
         "Duplicate reversal event must be rejected (idempotency)"
@@ -305,7 +298,9 @@ async fn test_gl_posting_no_event_emission() -> Result<()> {
         &get_subscriptions_pool().await,
         &gl_pool,
         &tenant_id,
-    ).await.map_err(|e| anyhow::anyhow!(e))?;
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     // Step 1: Create journal entry (simulating what journal_service does)
     let source_event_id = Uuid::new_v4();
@@ -314,7 +309,7 @@ async fn test_gl_posting_no_event_emission() -> Result<()> {
 
     // Step 2: Verify NO events emitted for normal posting
     let outbox_count = count_outbox_rows_for_tenant(&gl_pool, &tenant_id).await?;
-    
+
     assert_eq!(
         outbox_count, 0,
         "GL normal posting should NOT emit events (count: {})",
@@ -333,7 +328,9 @@ async fn test_gl_posting_no_event_emission() -> Result<()> {
         &get_subscriptions_pool().await,
         &gl_pool,
         &tenant_id,
-    ).await.map_err(|e| anyhow::anyhow!(e))?;
+    )
+    .await
+    .map_err(|e| anyhow::anyhow!(e))?;
 
     Ok(())
 }

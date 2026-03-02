@@ -13,7 +13,11 @@ struct OrderCreated {
 }
 
 /// Helper: build a valid envelope with mutation_class set.
-fn make_envelope(tenant: &str, event_type: &str, payload: OrderCreated) -> EventEnvelope<OrderCreated> {
+fn make_envelope(
+    tenant: &str,
+    event_type: &str,
+    payload: OrderCreated,
+) -> EventEnvelope<OrderCreated> {
     EventEnvelope::new(
         tenant.to_string(),
         "orders".to_string(),

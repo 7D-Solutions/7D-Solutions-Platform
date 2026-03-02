@@ -18,8 +18,8 @@ mod common;
 use anyhow::Result;
 use chrono::NaiveDate;
 use common::{
-    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool,
-    get_party_pool, get_payments_pool, get_subscriptions_pool,
+    cleanup_tenant_data, generate_test_tenant, get_ar_pool, get_gl_pool, get_party_pool,
+    get_payments_pool, get_subscriptions_pool,
 };
 use serial_test::serial;
 use sqlx::PgPool;
@@ -47,7 +47,10 @@ async fn create_party(pool: &PgPool, app_id: &str) -> Result<Uuid> {
          VALUES ($1, $2)",
     )
     .bind(party_id)
-    .bind(format!("Billing Test Corporation {}", &party_id.to_string()[..8]))
+    .bind(format!(
+        "Billing Test Corporation {}",
+        &party_id.to_string()[..8]
+    ))
     .execute(pool)
     .await?;
 
@@ -55,11 +58,7 @@ async fn create_party(pool: &PgPool, app_id: &str) -> Result<Uuid> {
 }
 
 /// Create an AR customer with party_id link and return its SERIAL id.
-async fn create_ar_customer_with_party(
-    pool: &PgPool,
-    app_id: &str,
-    party_id: Uuid,
-) -> Result<i32> {
+async fn create_ar_customer_with_party(pool: &PgPool, app_id: &str, party_id: Uuid) -> Result<i32> {
     let id: i32 = sqlx::query_scalar(
         "INSERT INTO ar_customers
          (app_id, email, name, status, retry_attempt_count, party_id, created_at, updated_at)
@@ -120,8 +119,8 @@ async fn trigger_billing_cycle(
     execution_date: NaiveDate,
 ) -> Result<Option<i32>> {
     use subscriptions_rs::{
-        acquire_cycle_lock, calculate_cycle_boundaries, generate_cycle_key,
-        mark_attempt_succeeded, record_cycle_attempt, CycleGatingError,
+        acquire_cycle_lock, calculate_cycle_boundaries, generate_cycle_key, mark_attempt_succeeded,
+        record_cycle_attempt, CycleGatingError,
     };
 
     // Status guard: only active subscriptions are billed
@@ -294,16 +293,14 @@ async fn test_full_subscription_billing_cycle() -> Result<()> {
     assert_eq!(db_party_type, "company", "party must be a company");
 
     // ── Step 2: Create AR customer with party_id link ────────────────
-    let ar_customer_id =
-        create_ar_customer_with_party(&ar_pool, &tenant_id, party_id).await?;
+    let ar_customer_id = create_ar_customer_with_party(&ar_pool, &tenant_id, party_id).await?;
 
-    let db_party_link: Option<Uuid> = sqlx::query_scalar(
-        "SELECT party_id FROM ar_customers WHERE id = $1 AND app_id = $2",
-    )
-    .bind(ar_customer_id)
-    .bind(&tenant_id)
-    .fetch_one(&ar_pool)
-    .await?;
+    let db_party_link: Option<Uuid> =
+        sqlx::query_scalar("SELECT party_id FROM ar_customers WHERE id = $1 AND app_id = $2")
+            .bind(ar_customer_id)
+            .bind(&tenant_id)
+            .fetch_one(&ar_pool)
+            .await?;
     assert_eq!(
         db_party_link,
         Some(party_id),
@@ -320,11 +317,10 @@ async fn test_full_subscription_billing_cycle() -> Result<()> {
     )
     .await?;
 
-    let sub_status: String =
-        sqlx::query_scalar("SELECT status FROM subscriptions WHERE id = $1")
-            .bind(subscription_id)
-            .fetch_one(&subscriptions_pool)
-            .await?;
+    let sub_status: String = sqlx::query_scalar("SELECT status FROM subscriptions WHERE id = $1")
+        .bind(subscription_id)
+        .fetch_one(&subscriptions_pool)
+        .await?;
     assert_eq!(sub_status, "active", "subscription must start active");
 
     // ── Step 4: Trigger billing cycle → verify AR invoice ────────────
@@ -336,10 +332,7 @@ async fn test_full_subscription_billing_cycle() -> Result<()> {
         billing_date,
     )
     .await?;
-    assert!(
-        invoice_id.is_some(),
-        "billing cycle must create an invoice"
-    );
+    assert!(invoice_id.is_some(), "billing cycle must create an invoice");
     let invoice_id = invoice_id.unwrap();
 
     // Verify invoice details
@@ -373,14 +366,8 @@ async fn test_full_subscription_billing_cycle() -> Result<()> {
     assert_eq!(attempt_count, 1, "exactly one cycle attempt recorded");
 
     // ── Step 5: Apply payment → verify invoice 'paid' ────────────────
-    let payment_id = apply_payment(
-        &payments_pool,
-        &ar_pool,
-        &tenant_id,
-        invoice_id,
-        inv_amount,
-    )
-    .await?;
+    let payment_id =
+        apply_payment(&payments_pool, &ar_pool, &tenant_id, invoice_id, inv_amount).await?;
 
     // Verify payment attempt in Payments DB
     let pa_status: String = sqlx::query_scalar(
@@ -394,13 +381,12 @@ async fn test_full_subscription_billing_cycle() -> Result<()> {
     assert_eq!(pa_status, "succeeded", "payment attempt must be succeeded");
 
     // Verify invoice status updated to 'paid'
-    let paid_status: String = sqlx::query_scalar(
-        "SELECT status FROM ar_invoices WHERE id = $1 AND app_id = $2",
-    )
-    .bind(invoice_id)
-    .bind(&tenant_id)
-    .fetch_one(&ar_pool)
-    .await?;
+    let paid_status: String =
+        sqlx::query_scalar("SELECT status FROM ar_invoices WHERE id = $1 AND app_id = $2")
+            .bind(invoice_id)
+            .bind(&tenant_id)
+            .fetch_one(&ar_pool)
+            .await?;
     assert_eq!(paid_status, "paid", "invoice must be paid after payment");
 
     // ── Step 6: Trigger next cycle (renewal) → new invoice ───────────
@@ -429,8 +415,14 @@ async fn test_full_subscription_billing_cycle() -> Result<()> {
     .bind(&tenant_id)
     .fetch_one(&ar_pool)
     .await?;
-    assert_eq!(ren_amount, 499, "renewal amount must equal subscription price");
-    assert_eq!(ren_customer, ar_customer_id, "renewal must bill same customer");
+    assert_eq!(
+        ren_amount, 499,
+        "renewal amount must equal subscription price"
+    );
+    assert_eq!(
+        ren_customer, ar_customer_id,
+        "renewal must bill same customer"
+    );
     assert_eq!(ren_status, "draft", "renewal invoice starts as draft");
 
     // Two cycle attempts now (March + April)
@@ -445,13 +437,15 @@ async fn test_full_subscription_billing_cycle() -> Result<()> {
     assert_eq!(final_attempts, 2, "two cycle attempts (initial + renewal)");
 
     // Two invoices total
-    let total_invoices: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&ar_pool)
-    .await?;
-    assert_eq!(total_invoices, 2, "exactly two invoices (initial + renewal)");
+    let total_invoices: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&ar_pool)
+            .await?;
+    assert_eq!(
+        total_invoices, 2,
+        "exactly two invoices (initial + renewal)"
+    );
 
     // ── Cleanup ──────────────────────────────────────────────────────
     cleanup_tenant_data(
@@ -491,8 +485,7 @@ async fn test_billing_cycle_duplicate_blocked() -> Result<()> {
     .ok();
 
     let party_id = create_party(&party_pool, &tenant_id).await?;
-    let ar_customer_id =
-        create_ar_customer_with_party(&ar_pool, &tenant_id, party_id).await?;
+    let ar_customer_id = create_ar_customer_with_party(&ar_pool, &tenant_id, party_id).await?;
 
     let billing_date = NaiveDate::from_ymd_opt(2026, 3, 15).unwrap();
     let (_plan_id, subscription_id) = create_plan_and_subscription(
@@ -539,12 +532,10 @@ async fn test_billing_cycle_duplicate_blocked() -> Result<()> {
     .await?;
     assert_eq!(attempts, 1, "exactly one attempt despite two triggers");
 
-    let invoices: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&ar_pool)
-    .await?;
+    let invoices: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM ar_invoices WHERE app_id = $1")
+        .bind(&tenant_id)
+        .fetch_one(&ar_pool)
+        .await?;
     assert_eq!(invoices, 1, "exactly one invoice despite two triggers");
 
     cleanup_tenant_data(
@@ -584,8 +575,7 @@ async fn test_payment_records_match_invoice() -> Result<()> {
     .ok();
 
     let party_id = create_party(&party_pool, &tenant_id).await?;
-    let ar_customer_id =
-        create_ar_customer_with_party(&ar_pool, &tenant_id, party_id).await?;
+    let ar_customer_id = create_ar_customer_with_party(&ar_pool, &tenant_id, party_id).await?;
 
     let billing_date = NaiveDate::from_ymd_opt(2026, 5, 1).unwrap();
     let (_plan_id, subscription_id) = create_plan_and_subscription(
@@ -607,17 +597,14 @@ async fn test_payment_records_match_invoice() -> Result<()> {
     .expect("billing must create invoice");
 
     // Fetch invoice amount
-    let inv_amount: i32 = sqlx::query_scalar(
-        "SELECT amount_cents FROM ar_invoices WHERE id = $1",
-    )
-    .bind(invoice_id)
-    .fetch_one(&ar_pool)
-    .await?;
+    let inv_amount: i32 = sqlx::query_scalar("SELECT amount_cents FROM ar_invoices WHERE id = $1")
+        .bind(invoice_id)
+        .fetch_one(&ar_pool)
+        .await?;
 
     // Apply payment
     let payment_id =
-        apply_payment(&payments_pool, &ar_pool, &tenant_id, invoice_id, inv_amount)
-            .await?;
+        apply_payment(&payments_pool, &ar_pool, &tenant_id, invoice_id, inv_amount).await?;
 
     // Verify exactly one payment attempt for this payment
     let pa_count: i64 = sqlx::query_scalar(

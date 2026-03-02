@@ -34,8 +34,8 @@ use uuid::Uuid;
 
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
-    let url = std::env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set for integration tests");
+    let url =
+        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -122,7 +122,14 @@ async fn setup_submitted_task(
 
     process_receipt(
         pool,
-        &receipt_req(tenant, item.id, warehouse_id, loc.id, on_hand_qty, &format!("ca-rcpt-{}", sku_suffix)),
+        &receipt_req(
+            tenant,
+            item.id,
+            warehouse_id,
+            loc.id,
+            on_hand_qty,
+            &format!("ca-rcpt-{}", sku_suffix),
+        ),
         None,
     )
     .await
@@ -149,7 +156,10 @@ async fn setup_submitted_task(
             task_id: task.task_id,
             tenant_id: tenant.to_string(),
             idempotency_key: format!("ca-submit-{}", sku_suffix),
-            lines: vec![SubmitLineInput { line_id, counted_qty }],
+            lines: vec![SubmitLineInput {
+                line_id,
+                counted_qty,
+            }],
             correlation_id: None,
             causation_id: None,
         },
@@ -193,21 +203,28 @@ async fn test_approve_creates_adjustment_for_variance() {
     assert_eq!(result.status, "approved");
     assert_eq!(result.task_id, task_id);
     assert_eq!(result.line_count, 1);
-    assert_eq!(result.adjustment_count, 1, "one non-zero variance → one adjustment");
+    assert_eq!(
+        result.adjustment_count, 1,
+        "one non-zero variance → one adjustment"
+    );
 
     let line = &result.lines[0];
     assert_eq!(line.item_id, item_id);
     assert_eq!(line.expected_qty, 50);
     assert_eq!(line.counted_qty, 45);
     assert_eq!(line.variance_qty, -5);
-    assert!(line.adjustment_id.is_some(), "adjustment created for non-zero variance");
+    assert!(
+        line.adjustment_id.is_some(),
+        "adjustment created for non-zero variance"
+    );
 
     // Verify task status in DB
-    let status: String = sqlx::query_scalar("SELECT status::TEXT FROM cycle_count_tasks WHERE id = $1")
-        .bind(task_id)
-        .fetch_one(&pool)
-        .await
-        .expect("fetch status");
+    let status: String =
+        sqlx::query_scalar("SELECT status::TEXT FROM cycle_count_tasks WHERE id = $1")
+            .bind(task_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch status");
     assert_eq!(status, "approved");
 }
 
@@ -234,7 +251,10 @@ async fn test_approve_zero_variance_no_adjustment() {
     let line = &result.lines[0];
     assert_eq!(line.item_id, item_id);
     assert_eq!(line.variance_qty, 0);
-    assert!(line.adjustment_id.is_none(), "no adjustment for zero variance");
+    assert!(
+        line.adjustment_id.is_none(),
+        "no adjustment for zero variance"
+    );
 }
 
 /// 3. Idempotent approve (same key, same body) → is_replay = true, same result.
@@ -250,14 +270,21 @@ async fn test_approve_idempotent_replay() {
 
     let req = approve_req(task_id, &tenant, "approve-03");
 
-    let (result1, replay1) = approve_cycle_count(&pool, &req).await.expect("first approve");
+    let (result1, replay1) = approve_cycle_count(&pool, &req)
+        .await
+        .expect("first approve");
     assert!(!replay1);
 
-    let (result2, replay2) = approve_cycle_count(&pool, &req).await.expect("second approve");
+    let (result2, replay2) = approve_cycle_count(&pool, &req)
+        .await
+        .expect("second approve");
     assert!(replay2, "second call with same key is a replay");
     assert_eq!(result1.task_id, result2.task_id);
     assert_eq!(result1.adjustment_count, result2.adjustment_count);
-    assert_eq!(result1.lines[0].adjustment_id, result2.lines[0].adjustment_id);
+    assert_eq!(
+        result1.lines[0].adjustment_id,
+        result2.lines[0].adjustment_id
+    );
 }
 
 /// 4. Conflicting idempotency key (different task_id) → error.
@@ -274,7 +301,9 @@ async fn test_approve_idempotency_conflict() {
         setup_submitted_task(&pool, &tenant, wh, "APR04B", "A-04B", 10, 10).await;
 
     let req_a = approve_req(task_id_a, &tenant, "approve-04-conflict");
-    approve_cycle_count(&pool, &req_a).await.expect("first approve");
+    approve_cycle_count(&pool, &req_a)
+        .await
+        .expect("first approve");
 
     // Same key, different task_id → conflict
     let req_b = approve_req(task_id_b, &tenant, "approve-04-conflict");
@@ -459,5 +488,8 @@ async fn test_approve_updates_on_hand_for_shrinkage() {
     .await
     .expect("on_hand query");
 
-    assert_eq!(qty_on_hand, 35, "on_hand should be 35 after -5 variance applied");
+    assert_eq!(
+        qty_on_hand, 35,
+        "on_hand should be 35 after -5 variance applied"
+    );
 }

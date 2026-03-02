@@ -83,13 +83,41 @@ fn test_reserve_req(tenant_id: &str, item_id: Uuid, warehouse_id: Uuid) -> Reser
 }
 
 async fn cleanup_tenant(pool: &sqlx::PgPool, tenant_id: &str) {
-    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_reservations WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-    sqlx::query("DELETE FROM items WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
+    sqlx::query("DELETE FROM inv_outbox WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_reservations WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_on_hand WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_layers WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM inventory_ledger WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM items WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 // ============================================================================
@@ -141,13 +169,12 @@ async fn inventory_reservation_reserve_creates_atomically() {
     assert_eq!(qty_reserved, 50);
 
     // Outbox event: correct type.
-    let event_type: String = sqlx::query_scalar(
-        "SELECT event_type FROM inv_outbox WHERE event_id = $1",
-    )
-    .bind(result.event_id)
-    .fetch_one(&pool)
-    .await
-    .expect("outbox event");
+    let event_type: String =
+        sqlx::query_scalar("SELECT event_type FROM inv_outbox WHERE event_id = $1")
+            .bind(result.event_id)
+            .fetch_one(&pool)
+            .await
+            .expect("outbox event");
 
     assert_eq!(event_type, "inventory.item_reserved");
 
@@ -165,9 +192,10 @@ async fn inventory_reservation_release_compensates() {
         .await
         .expect("create item");
 
-    let (reserve_result, _) = process_reserve(&pool, &test_reserve_req(&tenant_id, item.id, warehouse_id))
-        .await
-        .expect("reserve");
+    let (reserve_result, _) =
+        process_reserve(&pool, &test_reserve_req(&tenant_id, item.id, warehouse_id))
+            .await
+            .expect("reserve");
 
     let release_req = ReleaseRequest {
         tenant_id: tenant_id.clone(),
@@ -193,8 +221,11 @@ async fn inventory_reservation_release_compensates() {
     .expect("release row");
 
     assert_eq!(status, "released");
-    assert_eq!(reverses, Some(reserve_result.reservation_id),
-        "compensating row must reference original reserve");
+    assert_eq!(
+        reverses,
+        Some(reserve_result.reservation_id),
+        "compensating row must reference original reserve"
+    );
 
     // Projection: quantity_reserved back to 0.
     let qty_reserved: i64 = sqlx::query_scalar(
@@ -232,13 +263,12 @@ async fn inventory_reservation_idempotency_reserve() {
     assert_eq!(r1.event_id, r2.event_id);
 
     // Only one reservation row.
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inventory_reservations WHERE tenant_id = $1",
-    )
-    .bind(&tenant_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inventory_reservations WHERE tenant_id = $1")
+            .bind(&tenant_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count");
     assert_eq!(count, 1, "no duplicate rows on replay");
 
     // quantity_reserved not doubled.
@@ -266,9 +296,10 @@ async fn inventory_reservation_idempotency_release() {
         .await
         .expect("create item");
 
-    let (reserve_result, _) = process_reserve(&pool, &test_reserve_req(&tenant_id, item.id, warehouse_id))
-        .await
-        .expect("reserve");
+    let (reserve_result, _) =
+        process_reserve(&pool, &test_reserve_req(&tenant_id, item.id, warehouse_id))
+            .await
+            .expect("reserve");
 
     let rel_req = ReleaseRequest {
         tenant_id: tenant_id.clone(),
@@ -278,8 +309,12 @@ async fn inventory_reservation_idempotency_release() {
         causation_id: None,
     };
 
-    let (r1, _) = process_release(&pool, &rel_req).await.expect("first release");
-    let (r2, is_replay) = process_release(&pool, &rel_req).await.expect("second release");
+    let (r1, _) = process_release(&pool, &rel_req)
+        .await
+        .expect("first release");
+    let (r2, is_replay) = process_release(&pool, &rel_req)
+        .await
+        .expect("second release");
 
     assert!(is_replay);
     assert_eq!(r1.release_id, r2.release_id);
@@ -309,9 +344,10 @@ async fn inventory_reservation_double_release_rejected() {
         .await
         .expect("create item");
 
-    let (reserve_result, _) = process_reserve(&pool, &test_reserve_req(&tenant_id, item.id, warehouse_id))
-        .await
-        .expect("reserve");
+    let (reserve_result, _) =
+        process_reserve(&pool, &test_reserve_req(&tenant_id, item.id, warehouse_id))
+            .await
+            .expect("reserve");
 
     let rel_req1 = ReleaseRequest {
         tenant_id: tenant_id.clone(),
@@ -320,7 +356,9 @@ async fn inventory_reservation_double_release_rejected() {
         correlation_id: None,
         causation_id: None,
     };
-    process_release(&pool, &rel_req1).await.expect("first release must succeed");
+    process_release(&pool, &rel_req1)
+        .await
+        .expect("first release must succeed");
 
     let rel_req2 = ReleaseRequest {
         idempotency_key: format!("e2e-rel-{}", Uuid::new_v4()),
@@ -332,7 +370,8 @@ async fn inventory_reservation_double_release_rejected() {
 
     assert!(
         matches!(err, ReservationError::AlreadyReleased),
-        "expected AlreadyReleased, got: {:?}", err
+        "expected AlreadyReleased, got: {:?}",
+        err
     );
 
     cleanup_tenant(&pool, &tenant_id).await;
@@ -384,7 +423,10 @@ async fn inventory_reservation_available_quantity() {
 
     assert_eq!(on_hand, 200, "on_hand must remain 200");
     assert_eq!(reserved, 75, "reserved must be 75");
-    assert_eq!(available, 125, "available must equal on_hand - reserved = 125");
+    assert_eq!(
+        available, 125,
+        "available must equal on_hand - reserved = 125"
+    );
 
     cleanup_tenant(&pool, &tenant_id).await;
 }
@@ -394,7 +436,13 @@ async fn inventory_reservation_available_quantity() {
 // ============================================================================
 
 /// Helper: seed quantity_on_hand = n for a given item/warehouse.
-async fn seed_on_hand(pool: &sqlx::PgPool, tenant_id: &str, item_id: uuid::Uuid, warehouse_id: uuid::Uuid, qty: i64) {
+async fn seed_on_hand(
+    pool: &sqlx::PgPool,
+    tenant_id: &str,
+    item_id: uuid::Uuid,
+    warehouse_id: uuid::Uuid,
+    qty: i64,
+) {
     sqlx::query(
         r#"
         INSERT INTO item_on_hand
@@ -490,8 +538,11 @@ async fn inventory_reservation_fulfill_reduces_on_hand() {
     .expect("fulfillment row");
 
     assert_eq!(status, "fulfilled");
-    assert_eq!(reverses, Some(reserve_result.reservation_id),
-        "compensating row must reference original reserve");
+    assert_eq!(
+        reverses,
+        Some(reserve_result.reservation_id),
+        "compensating row must reference original reserve"
+    );
 
     // Verify on_hand=90, reserved=0, available=90 after fulfillment.
     let (on_hand, reserved, available): (i64, i64, i64) = sqlx::query_as(
@@ -505,8 +556,14 @@ async fn inventory_reservation_fulfill_reduces_on_hand() {
     .await
     .expect("on-hand row after fulfill");
 
-    assert_eq!(on_hand, 90, "on_hand must be 90 after fulfill (stock physically issued)");
-    assert_eq!(reserved, 0, "reserved must be 0 after fulfill (hold consumed)");
+    assert_eq!(
+        on_hand, 90,
+        "on_hand must be 90 after fulfill (stock physically issued)"
+    );
+    assert_eq!(
+        reserved, 0,
+        "reserved must be 0 after fulfill (hold consumed)"
+    );
     assert_eq!(available, 90, "available must remain 90 after fulfill");
 
     cleanup_tenant(&pool, &tenant_id).await;
@@ -554,13 +611,12 @@ async fn inventory_reservation_fulfill_outbox_event() {
     .expect("fulfill");
 
     // Verify outbox event was written with correct type and payload.
-    let (event_type, payload_text): (String, String) = sqlx::query_as(
-        "SELECT event_type, payload::TEXT FROM inv_outbox WHERE event_id = $1",
-    )
-    .bind(fulfill_result.event_id)
-    .fetch_one(&pool)
-    .await
-    .expect("outbox event");
+    let (event_type, payload_text): (String, String) =
+        sqlx::query_as("SELECT event_type, payload::TEXT FROM inv_outbox WHERE event_id = $1")
+            .bind(fulfill_result.event_id)
+            .fetch_one(&pool)
+            .await
+            .expect("outbox event");
 
     assert_eq!(event_type, "inventory.reservation_fulfilled");
 
@@ -622,7 +678,10 @@ async fn inventory_reservation_cancel_releases_stock() {
     .await
     .expect("on-hand available after reserve");
 
-    assert_eq!(available, 85, "available must be 85 after reserving 15 from 100");
+    assert_eq!(
+        available, 85,
+        "available must be 85 after reserving 15 from 100"
+    );
 
     // Cancel the reservation (release).
     let (release_result, _) = process_release(
@@ -652,7 +711,10 @@ async fn inventory_reservation_cancel_releases_stock() {
     .await
     .expect("on-hand row after cancel");
 
-    assert_eq!(on_hand, 100, "on_hand unchanged after cancel (no physical movement)");
+    assert_eq!(
+        on_hand, 100,
+        "on_hand unchanged after cancel (no physical movement)"
+    );
     assert_eq!(reserved, 0, "reserved must be 0 after cancel");
     assert_eq!(available, 100, "available fully restored after cancel");
 
@@ -719,7 +781,8 @@ async fn inventory_reservation_fulfill_after_cancel_rejected() {
 
     assert!(
         matches!(err, FulfillError::AlreadySettled),
-        "expected AlreadySettled, got: {:?}", err
+        "expected AlreadySettled, got: {:?}",
+        err
     );
 
     cleanup_tenant(&pool, &tenant_id).await;

@@ -232,13 +232,26 @@ async fn test_boundary_http_income_statement_returns_correct_json() {
     assert_eq!(income_statement.currency, "USD");
 
     // Assert: Rows present and correct totals
-    assert_eq!(income_statement.rows.len(), 2, "Should have 2 account rows (revenue + expense)");
+    assert_eq!(
+        income_statement.rows.len(),
+        2,
+        "Should have 2 account rows (revenue + expense)"
+    );
 
     // Assert: Totals calculation (Net Income = Revenue + Expenses = $1000 + (-$400) = $600)
     // Sign convention: Revenue is positive, Expenses are negative
-    assert_eq!(income_statement.totals.total_revenue, 100000, "Revenue should be $1000 (100000 minor units)");
-    assert_eq!(income_statement.totals.total_expenses, -40000, "Expenses should be -$400 (-40000 minor units, negative sign)");
-    assert_eq!(income_statement.totals.net_income, 60000, "Net income should be $600 (60000 minor units = 100000 + (-40000))");
+    assert_eq!(
+        income_statement.totals.total_revenue, 100000,
+        "Revenue should be $1000 (100000 minor units)"
+    );
+    assert_eq!(
+        income_statement.totals.total_expenses, -40000,
+        "Expenses should be -$400 (-40000 minor units, negative sign)"
+    );
+    assert_eq!(
+        income_statement.totals.net_income, 60000,
+        "Net income should be $600 (60000 minor units = 100000 + (-40000))"
+    );
 
     // Cleanup
     cleanup_test_data(&pool, tenant_id).await;
@@ -253,7 +266,9 @@ async fn test_boundary_http_income_statement_error_handling() {
     // Test: Missing required query parameter (should return 400)
     let url_missing_params = format!("{}/api/gl/income-statement", gl_service_url);
 
-    let response = reqwest::get(&url_missing_params).await.expect("Failed to make request");
+    let response = reqwest::get(&url_missing_params)
+        .await
+        .expect("Failed to make request");
 
     // Axum returns 400 for missing query parameters
     assert_eq!(
@@ -268,7 +283,9 @@ async fn test_boundary_http_income_statement_error_handling() {
         gl_service_url
     );
 
-    let response_invalid = reqwest::get(&url_invalid_uuid).await.expect("Failed to make request");
+    let response_invalid = reqwest::get(&url_invalid_uuid)
+        .await
+        .expect("Failed to make request");
     assert_eq!(
         response_invalid.status(),
         400,
@@ -315,7 +332,9 @@ async fn test_boundary_http_income_statement_schema_validation() {
         gl_service_url, tenant_id, period_id
     );
 
-    let response = reqwest::get(&url).await.expect("Failed to fetch income statement");
+    let response = reqwest::get(&url)
+        .await
+        .expect("Failed to fetch income statement");
     assert_eq!(response.status(), 200);
 
     // Parse as generic JSON to validate structure

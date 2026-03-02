@@ -71,7 +71,7 @@ async fn create_payment_attempt(
     let attempt_id: Uuid = sqlx::query_scalar(
         "INSERT INTO payment_attempts (app_id, payment_id, invoice_id, attempt_no, status)
          VALUES ($1, $2, $3, $4, $5::payment_attempt_status)
-         RETURNING id"
+         RETURNING id",
     )
     .bind(app_id)
     .bind(payment_id)
@@ -154,9 +154,15 @@ async fn test_unknown_status_blocks_retry() {
 
     // Create payment attempt with status='unknown', anchored in the past
     create_payment_attempt_at(
-        &pool, app_id, payment_id, &invoice_id, 0, "unknown",
+        &pool,
+        app_id,
+        payment_id,
+        &invoice_id,
+        0,
+        "unknown",
         "2026-01-01 00:00:00",
-    ).await;
+    )
+    .await;
 
     // Query for retry-eligible payments
     let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)
@@ -182,9 +188,15 @@ async fn test_failed_retry_is_eligible() {
     // Create payment attempt with status='failed_retry', anchored far in the past
     // so that multiple retry windows are now active
     create_payment_attempt_at(
-        &pool, app_id, payment_id, &invoice_id, 0, "failed_retry",
+        &pool,
+        app_id,
+        payment_id,
+        &invoice_id,
+        0,
+        "failed_retry",
         "2026-01-01 00:00:00",
-    ).await;
+    )
+    .await;
 
     // Query for retry-eligible payments (today is well past anchor date)
     let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)
@@ -213,21 +225,39 @@ async fn test_no_duplicate_attempts_per_window() {
 
     // Create attempt 0 in a past window with 'attempting' status
     create_payment_attempt_at(
-        &pool, app_id, payment_id, &invoice_id, 0, "attempting",
+        &pool,
+        app_id,
+        payment_id,
+        &invoice_id,
+        0,
+        "attempting",
         "2026-01-01 00:00:00",
-    ).await;
+    )
+    .await;
 
     // Also create attempt 1 to fill the first retry window
     create_payment_attempt_at(
-        &pool, app_id, payment_id, &invoice_id, 1, "attempting",
+        &pool,
+        app_id,
+        payment_id,
+        &invoice_id,
+        1,
+        "attempting",
         "2026-01-04 00:00:00",
-    ).await;
+    )
+    .await;
 
     // Also create attempt 2 to fill the second retry window
     create_payment_attempt_at(
-        &pool, app_id, payment_id, &invoice_id, 2, "attempting",
+        &pool,
+        app_id,
+        payment_id,
+        &invoice_id,
+        2,
+        "attempting",
         "2026-01-08 00:00:00",
-    ).await;
+    )
+    .await;
 
     // Query for retry-eligible payments
     let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)
@@ -257,7 +287,7 @@ async fn test_unique_constraint_prevents_duplicates() {
     // Try to create duplicate attempt (same app_id, payment_id, attempt_no)
     let result = sqlx::query(
         "INSERT INTO payment_attempts (app_id, payment_id, invoice_id, attempt_no, status)
-         VALUES ($1, $2, $3, $4, $5::payment_attempt_status)"
+         VALUES ($1, $2, $3, $4, $5::payment_attempt_status)",
     )
     .bind(app_id)
     .bind(payment_id)
@@ -290,9 +320,15 @@ async fn test_retry_scheduling_uses_attempted_at_anchor() {
     // Create attempt 0 with a timestamp far enough in the past that window 1 (+3 days) is now active
     // Use a date 10 days ago so all windows have passed
     create_payment_attempt_at(
-        &pool, app_id, payment_id, &invoice_id, 0, "failed_retry",
+        &pool,
+        app_id,
+        payment_id,
+        &invoice_id,
+        0,
+        "failed_retry",
         "2026-01-01 00:00:00",
-    ).await;
+    )
+    .await;
 
     // Query for retry-eligible payments
     let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)
@@ -325,9 +361,15 @@ async fn test_payment_with_no_attempt_zero_excluded() {
 
     // Create only attempt 1 (no attempt_no=0 exists) — scheduler requires attempt 0 as anchor
     create_payment_attempt_at(
-        &pool, app_id, payment_id, &invoice_id, 1, "failed_retry",
+        &pool,
+        app_id,
+        payment_id,
+        &invoice_id,
+        1,
+        "failed_retry",
         "2026-01-01 00:00:00",
-    ).await;
+    )
+    .await;
 
     // Query for retry-eligible payments
     let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)
@@ -357,9 +399,15 @@ async fn test_multi_window_progression() {
 
     // Create attempt 0 far in the past (all windows active)
     create_payment_attempt_at(
-        &pool, app_id, payment_id, &invoice_id, 0, "failed_retry",
+        &pool,
+        app_id,
+        payment_id,
+        &invoice_id,
+        0,
+        "failed_retry",
         "2026-01-01 00:00:00",
-    ).await;
+    )
+    .await;
 
     // Query for retry-eligible payments (today >> anchor + 7 days)
     let retry_list = payments_rs::retry::get_payments_for_retry(&pool, app_id)

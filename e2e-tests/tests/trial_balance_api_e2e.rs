@@ -7,7 +7,6 @@
 /// 4. Currency filtering works correctly
 ///
 /// Run with: cargo test --test trial_balance_api_e2e -- --test-threads=1
-
 mod common;
 
 use chrono::NaiveDate;

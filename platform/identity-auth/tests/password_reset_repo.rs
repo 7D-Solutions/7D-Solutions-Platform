@@ -72,7 +72,10 @@ async fn test_claim_is_single_use() {
     assert_eq!(first, Some(user_id), "first claim must return the user_id");
 
     let second = claim_reset_token(&pool, &hash).await;
-    assert_eq!(second, None, "second claim must return None (token already used)");
+    assert_eq!(
+        second, None,
+        "second claim must return None (token already used)"
+    );
 }
 
 #[tokio::test]

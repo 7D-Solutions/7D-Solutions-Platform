@@ -220,7 +220,9 @@ async fn test_asset_list_with_status_filter() {
     let all = AssetRepo::list(&pool, &tid, None).await.unwrap();
     assert_eq!(all.len(), 2);
 
-    let disposed = AssetRepo::list(&pool, &tid, Some("disposed")).await.unwrap();
+    let disposed = AssetRepo::list(&pool, &tid, Some("disposed"))
+        .await
+        .unwrap();
     assert_eq!(disposed.len(), 1);
     assert_eq!(disposed[0].id, a1.id);
 
