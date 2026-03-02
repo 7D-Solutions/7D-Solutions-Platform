@@ -1,5 +1,6 @@
 #[allow(dead_code)] // RBAC functions prepared for upcoming admin endpoints
 pub mod rbac;
+pub mod user_lifecycle_audit;
 
 use sqlx::{postgres::PgPoolOptions, PgPool};
 

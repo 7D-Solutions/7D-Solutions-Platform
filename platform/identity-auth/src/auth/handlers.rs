@@ -6,7 +6,7 @@ use crate::{
     rate_limit::KeyedLimiters,
 };
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::{Extensions, HeaderMap, HeaderValue, StatusCode},
     response::IntoResponse,
     Json,
@@ -109,8 +109,86 @@ pub struct OkResponse {
     pub ok: bool,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AccessReviewReq {
+    pub tenant_id: Uuid,
+    pub user_id: Uuid,
+    pub review_id: Uuid,
+    pub reviewed_by: Uuid,
+    pub decision: String,
+    pub notes: Option<String>,
+    pub idempotency_key: Option<String>,
+    pub causation_id: Option<Uuid>,
+}
+
+pub async fn record_access_review(
+    State(state): State<Arc<AuthState>>,
+    extensions: Extensions,
+    Json(req): Json<AccessReviewReq>,
+) -> Result<impl IntoResponse, ApiErr> {
+    let trace_id = get_trace_id_from_extensions(&extensions);
+    let decision = req.decision.trim();
+    if decision.is_empty() {
+        return Err(err(StatusCode::BAD_REQUEST, "decision is required"));
+    }
+
+    let idempotency_key = req
+        .idempotency_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| {
+            format!(
+                "access-review:{}:{}:{}",
+                req.tenant_id, req.user_id, req.review_id
+            )
+        });
+
+    let ctx = crate::db::user_lifecycle_audit::LifecycleAuditContext {
+        producer: state.producer.clone(),
+        trace_id,
+        causation_id: req.causation_id,
+        idempotency_key,
+    };
+
+    crate::db::user_lifecycle_audit::record_access_review_decision(
+        &state.db,
+        req.tenant_id,
+        req.user_id,
+        req.reviewed_by,
+        decision,
+        req.review_id,
+        req.notes.as_deref(),
+        &ctx,
+    )
+    .await
+    .map_err(|e| {
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("audit write: {e}"),
+        )
+    })?;
+
+    Ok((StatusCode::OK, Json(OkResponse { ok: true })))
+}
+
+pub async fn get_user_lifecycle_timeline(
+    State(state): State<Arc<AuthState>>,
+    Path((tenant_id, user_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, ApiErr> {
+    let timeline = crate::db::user_lifecycle_audit::list_user_lifecycle_timeline(
+        &state.db, tenant_id, user_id,
+    )
+    .await
+    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("timeline read: {e}")))?;
+
+    Ok((StatusCode::OK, Json(timeline)))
+}
+
 pub async fn register(
     State(state): State<Arc<AuthState>>,
+    headers: HeaderMap,
     extensions: Extensions,
     Json(req): Json<RegisterReq>,
 ) -> Result<impl IntoResponse, ApiErr> {
@@ -177,6 +255,23 @@ pub async fn register(
     let hash =
         hash_password(&state.pwd, &req.password).map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
 
+    let idempotency_key = headers
+        .get("x-idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| format!("register:{}:{}", req.tenant_id, req.user_id));
+
+    let mut tx = state.db.begin().await.map_err(|e| {
+        state
+            .metrics
+            .auth_register_total
+            .with_label_values(&["failure", "db_error"])
+            .inc();
+        err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
+    })?;
+
     let res = sqlx::query(
         r#"
         INSERT INTO credentials (tenant_id, user_id, email, password_hash)
@@ -187,22 +282,69 @@ pub async fn register(
     .bind(req.user_id)
     .bind(email.clone())
     .bind(hash)
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await;
 
     match res {
         Ok(_) => {
-            state
-                .metrics
-                .auth_register_total
-                .with_label_values(&["success", "ok"])
-                .inc();
-
             #[derive(Serialize)]
             struct Data {
                 user_id: String,
                 email: String,
             }
+
+            let payload = serde_json::to_value(Data {
+                user_id: req.user_id.to_string(),
+                email: email.clone(),
+            })
+            .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("serialize: {e}")))?;
+
+            let ctx = crate::db::user_lifecycle_audit::LifecycleAuditContext {
+                producer: state.producer.clone(),
+                trace_id: trace_id.clone(),
+                causation_id: None,
+                idempotency_key: idempotency_key.clone(),
+            };
+
+            crate::db::user_lifecycle_audit::append_lifecycle_event_tx(
+                &mut tx,
+                req.tenant_id,
+                req.user_id,
+                crate::db::user_lifecycle_audit::LifecycleEventType::UserCreated,
+                None,
+                None,
+                None,
+                None,
+                payload,
+                &ctx,
+            )
+            .await
+            .map_err(|e| {
+                state
+                    .metrics
+                    .auth_register_total
+                    .with_label_values(&["failure", "db_error"])
+                    .inc();
+                err(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("audit write: {e}"),
+                )
+            })?;
+
+            tx.commit().await.map_err(|e| {
+                state
+                    .metrics
+                    .auth_register_total
+                    .with_label_values(&["failure", "db_error"])
+                    .inc();
+                err(StatusCode::INTERNAL_SERVER_ERROR, format!("tx commit: {e}"))
+            })?;
+
+            state
+                .metrics
+                .auth_register_total
+                .with_label_values(&["success", "ok"])
+                .inc();
 
             let env = EventEnvelope {
                 event_id: Uuid::new_v4(),
@@ -241,6 +383,7 @@ pub async fn register(
             Ok((StatusCode::OK, Json(OkResponse { ok: true })))
         }
         Err(e) => {
+            let _ = tx.rollback().await;
             state
                 .metrics
                 .auth_register_total

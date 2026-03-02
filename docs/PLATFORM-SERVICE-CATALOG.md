@@ -19,7 +19,7 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 |--------|-------|---------|------|---------|-------------|------|
 | ar | ar-rs | 1.0.54 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | control-plane | control-plane | 1.0.3 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
-| identity-auth | auth-rs | 1.3.6 | 8080 | 5433 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md) |
+| identity-auth | auth-rs | 1.3.7 | 8080 | 5433 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md) |
 | payments | payments-rs | 1.1.13 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md) |
 | ttp | ttp-rs | 2.1.5 | 8100 | 5451 | Tenant-to-platform billing, metering, and service agreement management | [Vision](docs/architecture/TTP-VISION.md), [Revisions](modules/ttp/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
@@ -44,6 +44,7 @@ No version bump discipline required yet.
 | subscriptions | subscriptions-rs | 0.1.0 | 8087 | 5435 | Subscription lifecycle management, billing cycles, and usage gating | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | timekeeping | timekeeping | 0.1.0 | 8097 | 5447 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md) |
 | treasury | treasury | 0.1.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md) |
+| workflow | workflow | 0.1.0 |  |  | Workflow engine: definitions, templates, and durable instance execution |  |
 
 ## Platform Libraries
 
@@ -52,6 +53,7 @@ Shared crates used by services. Not independently deployed.
 | Library | Crate | Version | Description | Docs |
 |---------|-------|---------|-------------|------|
 | audit | audit | 0.1.0 | Append-only audit trail with field-level diffs and policy enforcement |  |
+| doc-mgmt | doc_mgmt | 0.1.0 | Document management service: core doc model, revision tracking, and lifecycle (draft → released) |  |
 | event-bus | event-bus | 0.1.0 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry |  |
 | health | health | 0.1.0 | Shared health and readiness check endpoints for all services |  |
 | platform-contracts | platform_contracts | 0.1.0 | Platform-wide event and command contract conventions — canonical types and constants |  |

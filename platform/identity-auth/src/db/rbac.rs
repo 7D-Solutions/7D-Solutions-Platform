@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use serde_json::json;
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -219,7 +220,31 @@ pub async fn bind_user_role(
     role_id: Uuid,
     granted_by: Option<Uuid>,
 ) -> Result<UserRoleBinding, sqlx::Error> {
-    sqlx::query_as::<_, UserRoleBinding>(
+    let ctx = crate::db::user_lifecycle_audit::LifecycleAuditContext {
+        producer: format!("auth-rs@{}", env!("CARGO_PKG_VERSION")),
+        trace_id: format!("rbac-bind-{}", Uuid::new_v4()),
+        causation_id: None,
+        idempotency_key: format!(
+            "role-bind:{}:{}:{}:{}",
+            tenant_id,
+            user_id,
+            role_id,
+            Uuid::new_v4()
+        ),
+    };
+    bind_user_role_with_audit(pool, tenant_id, user_id, role_id, granted_by, &ctx).await
+}
+
+pub async fn bind_user_role_with_audit(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    role_id: Uuid,
+    granted_by: Option<Uuid>,
+    ctx: &crate::db::user_lifecycle_audit::LifecycleAuditContext,
+) -> Result<UserRoleBinding, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+    let binding = sqlx::query_as::<_, UserRoleBinding>(
         r#"INSERT INTO user_role_bindings (tenant_id, user_id, role_id, granted_by)
            VALUES ($1, $2, $3, $4)
            ON CONFLICT (tenant_id, user_id, role_id)
@@ -230,8 +255,33 @@ pub async fn bind_user_role(
     .bind(user_id)
     .bind(role_id)
     .bind(granted_by)
-    .fetch_one(pool)
-    .await
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let payload = json!({
+        "binding_id": binding.id,
+        "user_id": user_id,
+        "role_id": role_id,
+        "granted_by": granted_by,
+        "granted_at": binding.granted_at,
+    });
+
+    crate::db::user_lifecycle_audit::append_lifecycle_event_tx(
+        &mut tx,
+        tenant_id,
+        user_id,
+        crate::db::user_lifecycle_audit::LifecycleEventType::RoleAssigned,
+        granted_by,
+        Some(role_id),
+        None,
+        None,
+        payload,
+        ctx,
+    )
+    .await?;
+
+    tx.commit().await?;
+    Ok(binding)
 }
 
 pub async fn revoke_user_role(
@@ -240,6 +290,30 @@ pub async fn revoke_user_role(
     user_id: Uuid,
     role_id: Uuid,
 ) -> Result<bool, sqlx::Error> {
+    let ctx = crate::db::user_lifecycle_audit::LifecycleAuditContext {
+        producer: format!("auth-rs@{}", env!("CARGO_PKG_VERSION")),
+        trace_id: format!("rbac-revoke-{}", Uuid::new_v4()),
+        causation_id: None,
+        idempotency_key: format!(
+            "role-revoke:{}:{}:{}:{}",
+            tenant_id,
+            user_id,
+            role_id,
+            Uuid::new_v4()
+        ),
+    };
+    revoke_user_role_with_audit(pool, tenant_id, user_id, role_id, None, &ctx).await
+}
+
+pub async fn revoke_user_role_with_audit(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    user_id: Uuid,
+    role_id: Uuid,
+    revoked_by: Option<Uuid>,
+    ctx: &crate::db::user_lifecycle_audit::LifecycleAuditContext,
+) -> Result<bool, sqlx::Error> {
+    let mut tx = pool.begin().await?;
     let res = sqlx::query(
         r#"UPDATE user_role_bindings
            SET revoked_at = NOW()
@@ -248,9 +322,35 @@ pub async fn revoke_user_role(
     .bind(tenant_id)
     .bind(user_id)
     .bind(role_id)
-    .execute(pool)
+    .execute(&mut *tx)
     .await?;
-    Ok(res.rows_affected() > 0)
+
+    let changed = res.rows_affected() > 0;
+    if changed {
+        let payload = json!({
+            "user_id": user_id,
+            "role_id": role_id,
+            "revoked_by": revoked_by,
+            "revoked_at": Utc::now(),
+        });
+
+        crate::db::user_lifecycle_audit::append_lifecycle_event_tx(
+            &mut tx,
+            tenant_id,
+            user_id,
+            crate::db::user_lifecycle_audit::LifecycleEventType::RoleRevoked,
+            revoked_by,
+            Some(role_id),
+            None,
+            None,
+            payload,
+            ctx,
+        )
+        .await?;
+    }
+
+    tx.commit().await?;
+    Ok(changed)
 }
 
 pub async fn list_roles_for_user(
