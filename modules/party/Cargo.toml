@@ -2,6 +2,7 @@
 name = "party-rs"
 version = "0.1.0"
 edition = "2021"
+description = "Party master: companies, individuals, contacts, and addresses"
 
 [[bin]]
 name = "party"

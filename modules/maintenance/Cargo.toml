@@ -2,6 +2,7 @@
 name = "maintenance-rs"
 version = "0.1.0"
 edition = "2021"
+description = "Maintenance management: work orders, preventive plans, meters, and labor tracking"
 
 [[bin]]
 name = "maintenance-rs"

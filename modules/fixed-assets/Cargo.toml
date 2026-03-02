@@ -2,6 +2,7 @@
 name = "fixed-assets"
 version = "0.1.0"
 edition = "2021"
+description = "Fixed asset lifecycle: capitalization, depreciation schedules, and disposals"
 
 [dependencies]
 axum = "0.8"

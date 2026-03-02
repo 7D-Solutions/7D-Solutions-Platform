@@ -2,6 +2,7 @@
 name = "contract-tests"
 version = "0.1.0"
 edition = "2021"
+description = "Event schema and OpenAPI contract validation tests"
 
 [lib]
 path = "src/lib.rs"

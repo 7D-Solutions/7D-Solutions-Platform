@@ -2,6 +2,7 @@
 name = "simulation"
 version = "0.1.0"
 edition = "2021"
+description = "Failure injection and load simulation for platform resilience testing"
 
 [[bin]]
 name = "simulation"

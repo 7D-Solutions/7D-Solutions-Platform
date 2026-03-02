@@ -2,6 +2,7 @@
 name = "subscriptions-rs"
 version = "0.1.0"
 edition = "2021"
+description = "Subscription lifecycle management, billing cycles, and usage gating"
 
 [dependencies]
 axum = "0.8"

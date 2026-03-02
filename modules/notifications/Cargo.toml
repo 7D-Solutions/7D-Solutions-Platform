@@ -2,6 +2,7 @@
 name = "notifications-rs"
 version = "0.1.0"
 edition = "2021"
+description = "Event-driven notification delivery with scheduled dispatch and retry"
 
 [dependencies]
 axum = "0.8"

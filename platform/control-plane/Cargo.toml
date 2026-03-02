@@ -2,6 +2,7 @@
 name = "control-plane"
 version = "1.0.3"
 edition = "2021"
+description = "Tenant provisioning, platform billing orchestration, and data retention"
 
 [[bin]]
 name = "control-plane"

@@ -2,6 +2,7 @@
 name = "ar-rs"
 version = "1.0.54"
 edition = "2021"
+description = "Invoicing, collections, payment application, dunning, and cash flow forecasting"
 
 [dependencies]
 axum = "0.8"

@@ -2,6 +2,7 @@
 name = "compliance-export"
 version = "0.1.0"
 edition = "2021"
+description = "Compliance evidence pack generation for audit and regulatory export"
 
 [lib]
 name = "compliance_export"

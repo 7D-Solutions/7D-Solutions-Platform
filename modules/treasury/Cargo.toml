@@ -2,6 +2,7 @@
 name = "treasury"
 version = "0.1.0"
 edition = "2021"
+description = "Bank account management, transaction import, reconciliation, and cash position"
 
 [dependencies]
 axum = { version = "0.8", features = ["multipart"] }

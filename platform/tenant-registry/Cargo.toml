@@ -2,6 +2,7 @@
 name = "tenant-registry"
 version = "1.0.3"
 edition = "2021"
+description = "Tenant CRUD, lifecycle management, plan tiers, and fleet summary"
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }

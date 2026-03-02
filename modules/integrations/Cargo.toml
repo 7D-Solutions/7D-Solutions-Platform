@@ -2,6 +2,7 @@
 name = "integrations-rs"
 version = "0.1.0"
 edition = "2021"
+description = "External system connectors, webhook routing, and reference linking"
 
 [[bin]]
 name = "integrations"
