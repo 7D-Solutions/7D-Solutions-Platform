@@ -2,7 +2,7 @@
 name = "ap"
 version = "0.1.0"
 edition = "2021"
-description = "Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging"
+description = "Accounts payable: bills, purchase orders, payment runs, vendor management, AP aging, and 3-way match"
 
 [dependencies]
 axum = "0.8"
