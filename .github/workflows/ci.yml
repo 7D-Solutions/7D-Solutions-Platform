@@ -481,6 +481,28 @@ jobs:
       - name: Check for unapproved ignored E2E tests
         run: bash tools/ci/lint-no-ignored-tests.sh
 
+  lint-service-catalog:
+    name: Lint - Service Catalog Freshness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Check service catalog is up to date
+        run: |
+          bash scripts/generate-service-catalog.sh
+          if ! git diff --exit-code docs/PLATFORM-SERVICE-CATALOG.md; then
+            echo "::error::Service catalog is stale. Run scripts/generate-service-catalog.sh and commit the result."
+            exit 1
+          fi
+
   check-migration-versioning:
     name: Check Migration Versioning
     runs-on: ubuntu-latest
