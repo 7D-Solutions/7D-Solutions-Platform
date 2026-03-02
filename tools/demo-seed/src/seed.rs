@@ -65,7 +65,10 @@ mod tests {
         let seq1: Vec<i32> = (0..10).map(|_| s1.amount_cents(1000, 50000)).collect();
         let seq2: Vec<i32> = (0..10).map(|_| s2.amount_cents(1000, 50000)).collect();
 
-        assert_ne!(seq1, seq2, "Different seeds should produce different sequences");
+        assert_ne!(
+            seq1, seq2,
+            "Different seeds should produce different sequences"
+        );
     }
 
     #[test]

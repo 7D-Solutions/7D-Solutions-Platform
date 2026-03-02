@@ -151,9 +151,8 @@ async fn process_bill_approved_message(
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let envelope: EventEnvelope<VendorBillApprovedPayload> =
-        serde_json::from_slice(&msg.payload).map_err(|e| {
-            format!("Failed to parse ap.vendor_bill_approved envelope: {}", e)
-        })?;
+        serde_json::from_slice(&msg.payload)
+            .map_err(|e| format!("Failed to parse ap.vendor_bill_approved envelope: {}", e))?;
 
     tracing::info!(
         event_id = %envelope.event_id,
@@ -277,13 +276,12 @@ mod tests {
             .await
             .expect("handle_bill_approved failed");
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .fetch_one(&pool)
-        .await
-        .expect("asset count");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1")
+                .bind(TEST_TENANT)
+                .fetch_one(&pool)
+                .await
+                .expect("asset count");
         assert_eq!(count, 1, "one asset must be created for the capex line");
 
         let (link_count,): (i64,) = sqlx::query_as(
@@ -313,13 +311,12 @@ mod tests {
             .await
             .expect("handle failed");
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .fetch_one(&pool)
-        .await
-        .expect("asset count");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1")
+                .bind(TEST_TENANT)
+                .fetch_one(&pool)
+                .await
+                .expect("asset count");
         assert_eq!(count, 0, "no asset for expense line");
 
         cleanup(&pool).await;
@@ -341,13 +338,12 @@ mod tests {
             .await
             .expect("handle failed");
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .fetch_one(&pool)
-        .await
-        .expect("asset count");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1")
+                .bind(TEST_TENANT)
+                .fetch_one(&pool)
+                .await
+                .expect("asset count");
         assert_eq!(count, 1, "only capex line produces an asset");
 
         cleanup(&pool).await;
@@ -371,23 +367,24 @@ mod tests {
             .await
             .expect("second handle (replay) failed");
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .fetch_one(&pool)
-        .await
-        .expect("asset count");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1")
+                .bind(TEST_TENANT)
+                .fetch_one(&pool)
+                .await
+                .expect("asset count");
         assert_eq!(count, 1, "replay must not create duplicate assets");
 
-        let (link_count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM fa_ap_capitalizations WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .fetch_one(&pool)
-        .await
-        .expect("link count");
-        assert_eq!(link_count, 1, "replay must not create duplicate linkage rows");
+        let (link_count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM fa_ap_capitalizations WHERE tenant_id = $1")
+                .bind(TEST_TENANT)
+                .fetch_one(&pool)
+                .await
+                .expect("link count");
+        assert_eq!(
+            link_count, 1,
+            "replay must not create duplicate linkage rows"
+        );
 
         cleanup(&pool).await;
     }
@@ -407,13 +404,12 @@ mod tests {
             .await
             .expect("handle failed");
 
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .fetch_one(&pool)
-        .await
-        .expect("asset count");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1")
+                .bind(TEST_TENANT)
+                .fetch_one(&pool)
+                .await
+                .expect("asset count");
         assert_eq!(count, 2, "two capex lines produce two assets");
 
         cleanup(&pool).await;

@@ -317,12 +317,10 @@ async fn fetch_account_type(
 }
 
 async fn fetch_match(pool: &PgPool, match_id: Uuid) -> Result<Option<ReconMatch>, sqlx::Error> {
-    sqlx::query_as::<_, ReconMatch>(
-        "SELECT * FROM treasury_recon_matches WHERE id = $1",
-    )
-    .bind(match_id)
-    .fetch_optional(pool)
-    .await
+    sqlx::query_as::<_, ReconMatch>("SELECT * FROM treasury_recon_matches WHERE id = $1")
+        .bind(match_id)
+        .fetch_optional(pool)
+        .await
 }
 
 async fn insert_match_tx(

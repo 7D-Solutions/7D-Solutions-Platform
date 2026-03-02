@@ -10,11 +10,7 @@
 /// Returns 200 OK if idempotency key was already used (replays the result).
 /// Returns 422 Unprocessable Entity for validation errors.
 /// Returns 409 Conflict if tenant_id is explicitly supplied and already exists.
-use axum::{
-    extract::State,
-    http::StatusCode,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, Json};
 use chrono::Utc;
 use serde_json::json;
 use sqlx::Acquire;
@@ -70,7 +66,9 @@ pub async fn create_tenant(
         ));
     }
 
-    let concurrent_user_limit = req.concurrent_user_limit.unwrap_or(DEFAULT_CONCURRENT_USER_LIMIT);
+    let concurrent_user_limit = req
+        .concurrent_user_limit
+        .unwrap_or(DEFAULT_CONCURRENT_USER_LIMIT);
     if concurrent_user_limit <= 0 {
         return Err((
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -90,13 +88,12 @@ pub async fn create_tenant(
     })?;
 
     // --- GUARD: check idempotency key ---
-    let existing: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT tenant_id FROM provisioning_requests WHERE idempotency_key = $1",
-    )
-    .bind(&req.idempotency_key)
-    .fetch_optional(&mut *conn)
-    .await
-    .map_err(db_error)?;
+    let existing: Option<(Uuid,)> =
+        sqlx::query_as("SELECT tenant_id FROM provisioning_requests WHERE idempotency_key = $1")
+            .bind(&req.idempotency_key)
+            .fetch_optional(&mut *conn)
+            .await
+            .map_err(db_error)?;
 
     if let Some((existing_tenant_id,)) = existing {
         return replay_response(&mut conn, existing_tenant_id, &req.idempotency_key).await;
@@ -108,13 +105,12 @@ pub async fn create_tenant(
 
     // --- GUARD: check tenant_id uniqueness if explicitly supplied ---
     if req.tenant_id.is_some() {
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM tenants WHERE tenant_id = $1)",
-        )
-        .bind(tenant_id)
-        .fetch_one(&mut *conn)
-        .await
-        .map_err(db_error)?;
+        let exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM tenants WHERE tenant_id = $1)")
+                .bind(tenant_id)
+                .fetch_one(&mut *conn)
+                .await
+                .map_err(db_error)?;
 
         if exists {
             return Err((
@@ -272,13 +268,12 @@ async fn replay_response(
     .await
     .map_err(db_error)?;
 
-    let bundle_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT bundle_id FROM cp_tenant_bundle WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut **conn)
-    .await
-    .map_err(db_error)?;
+    let bundle_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT bundle_id FROM cp_tenant_bundle WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_optional(&mut **conn)
+            .await
+            .map_err(db_error)?;
 
     Ok((
         StatusCode::OK,
@@ -333,7 +328,11 @@ mod tests {
     fn derive_app_id_fits_varchar50() {
         let id = Uuid::new_v4();
         let app_id = derive_app_id(id);
-        assert!(app_id.len() <= 50, "app_id length {} exceeds VARCHAR(50)", app_id.len());
+        assert!(
+            app_id.len() <= 50,
+            "app_id length {} exceeds VARCHAR(50)",
+            app_id.len()
+        );
         assert_eq!(app_id.len(), 16); // "app-" (4) + 12 hex digits
     }
 

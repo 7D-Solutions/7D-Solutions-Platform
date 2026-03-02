@@ -98,7 +98,9 @@ mod tests {
 
     #[test]
     fn test_has_blocking_errors_with_warnings_only() {
-        use crate::contracts::period_close_v1::{ValidationIssue, ValidationReport, ValidationSeverity};
+        use crate::contracts::period_close_v1::{
+            ValidationIssue, ValidationReport, ValidationSeverity,
+        };
         let report = ValidationReport {
             issues: vec![ValidationIssue {
                 severity: ValidationSeverity::Warning,
@@ -112,7 +114,9 @@ mod tests {
 
     #[test]
     fn test_has_blocking_errors_with_error() {
-        use crate::contracts::period_close_v1::{ValidationIssue, ValidationReport, ValidationSeverity};
+        use crate::contracts::period_close_v1::{
+            ValidationIssue, ValidationReport, ValidationSeverity,
+        };
         let report = ValidationReport {
             issues: vec![ValidationIssue {
                 severity: ValidationSeverity::Error,
@@ -126,7 +130,9 @@ mod tests {
 
     #[test]
     fn test_has_blocking_errors_mixed_severities() {
-        use crate::contracts::period_close_v1::{ValidationIssue, ValidationReport, ValidationSeverity};
+        use crate::contracts::period_close_v1::{
+            ValidationIssue, ValidationReport, ValidationSeverity,
+        };
         let report = ValidationReport {
             issues: vec![
                 ValidationIssue {

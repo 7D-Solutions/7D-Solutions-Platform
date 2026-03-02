@@ -17,8 +17,8 @@ use security::VerifiedClaims;
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::domain::statements::{balance_sheet, pl};
 use super::admin_types::ErrorBody;
+use crate::domain::statements::{balance_sheet, pl};
 
 // ── Auth helper ─────────────────────────────────────────────────────────────
 
@@ -55,16 +55,18 @@ pub async fn get_pl(
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<PlParams>,
 ) -> Result<Json<pl::PlStatement>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
-        (status, Json(ErrorBody::new("unauthorized", &msg)))
-    })?;
-    
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|(status, msg)| (status, Json(ErrorBody::new("unauthorized", &msg))))?;
+
     pl::compute_pl(&state.pool, &tenant_id, params.from, params.to)
         .await
         .map(Json)
         .map_err(|e| {
             tracing::error!(tenant_id = %tenant_id, error = %e, "P&L computation failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::new("internal_error", e.to_string())))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorBody::new("internal_error", e.to_string())),
+            )
         })
 }
 
@@ -74,15 +76,17 @@ pub async fn get_balance_sheet(
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<BsParams>,
 ) -> Result<Json<balance_sheet::BalanceSheet>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
-        (status, Json(ErrorBody::new("unauthorized", &msg)))
-    })?;
-    
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|(status, msg)| (status, Json(ErrorBody::new("unauthorized", &msg))))?;
+
     balance_sheet::compute_balance_sheet(&state.pool, &tenant_id, params.as_of)
         .await
         .map(Json)
         .map_err(|e| {
             tracing::error!(tenant_id = %tenant_id, error = %e, "Balance sheet computation failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::new("internal_error", e.to_string())))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorBody::new("internal_error", e.to_string())),
+            )
         })
 }

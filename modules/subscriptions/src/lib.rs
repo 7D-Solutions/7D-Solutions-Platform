@@ -10,35 +10,25 @@ pub mod config;
 pub mod consumer;
 pub mod cycle_gating;
 pub mod envelope;
-pub mod outbox;
 pub mod gated_invoice_creation;
 pub mod invariants;
 pub mod lifecycle;
 pub mod metrics;
 pub mod models;
+pub mod outbox;
 
 // Re-export config types for testing
 pub use config::Config;
 
 // Re-export commonly used types
 pub use lifecycle::{
-    SubscriptionStatus,
-    TransitionError,
-    transition_guard,
-    transition_to_active,
-    transition_to_past_due,
-    transition_to_suspended,
+    transition_guard, transition_to_active, transition_to_past_due, transition_to_suspended,
+    SubscriptionStatus, TransitionError,
 };
 
 pub use cycle_gating::{
-    generate_cycle_key,
-    calculate_cycle_boundaries,
-    acquire_cycle_lock,
-    cycle_attempt_exists,
-    record_cycle_attempt,
-    mark_attempt_succeeded,
-    mark_attempt_failed,
-    CycleGatingError,
+    acquire_cycle_lock, calculate_cycle_boundaries, cycle_attempt_exists, generate_cycle_key,
+    mark_attempt_failed, mark_attempt_succeeded, record_cycle_attempt, CycleGatingError,
 };
 
 /// Subscriptions application state shared across HTTP handlers

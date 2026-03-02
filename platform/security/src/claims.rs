@@ -158,11 +158,9 @@ impl JwtVerifier {
             Err(primary_err) => {
                 // During rotation overlap: try the previous key before failing.
                 if let Some(ref prev) = self.prev_decoding {
-                    if let Ok(data) = jsonwebtoken::decode::<RawAccessClaims>(
-                        token,
-                        prev,
-                        &self.validation,
-                    ) {
+                    if let Ok(data) =
+                        jsonwebtoken::decode::<RawAccessClaims>(token, prev, &self.validation)
+                    {
                         return Self::convert_raw(data.claims);
                     }
                 }
@@ -177,24 +175,18 @@ impl JwtVerifier {
     }
 
     fn convert_raw(raw: RawAccessClaims) -> Result<VerifiedClaims, SecurityError> {
-        let user_id =
-            Uuid::parse_str(&raw.sub).map_err(|_| SecurityError::InvalidToken)?;
-        let tenant_id =
-            Uuid::parse_str(&raw.tenant_id).map_err(|_| SecurityError::InvalidToken)?;
+        let user_id = Uuid::parse_str(&raw.sub).map_err(|_| SecurityError::InvalidToken)?;
+        let tenant_id = Uuid::parse_str(&raw.tenant_id).map_err(|_| SecurityError::InvalidToken)?;
         let app_id = raw
             .app_id
             .as_deref()
             .map(Uuid::parse_str)
             .transpose()
             .map_err(|_| SecurityError::InvalidToken)?;
-        let token_id =
-            Uuid::parse_str(&raw.jti).map_err(|_| SecurityError::InvalidToken)?;
-        let actor_type =
-            ActorType::from_str(&raw.actor_type).ok_or(SecurityError::InvalidToken)?;
-        let issued_at =
-            DateTime::from_timestamp(raw.iat, 0).ok_or(SecurityError::InvalidToken)?;
-        let expires_at =
-            DateTime::from_timestamp(raw.exp, 0).ok_or(SecurityError::InvalidToken)?;
+        let token_id = Uuid::parse_str(&raw.jti).map_err(|_| SecurityError::InvalidToken)?;
+        let actor_type = ActorType::from_str(&raw.actor_type).ok_or(SecurityError::InvalidToken)?;
+        let issued_at = DateTime::from_timestamp(raw.iat, 0).ok_or(SecurityError::InvalidToken)?;
+        let expires_at = DateTime::from_timestamp(raw.exp, 0).ok_or(SecurityError::InvalidToken)?;
 
         Ok(VerifiedClaims {
             user_id,
@@ -372,6 +364,9 @@ mod tests {
         let verifier = JwtVerifier::from_public_pem(&new_pub_pem).unwrap();
 
         // Old-key token must now be rejected
-        assert!(matches!(verifier.verify(&token_signed_with_old_key), Err(SecurityError::InvalidToken)));
+        assert!(matches!(
+            verifier.verify(&token_signed_with_old_key),
+            Err(SecurityError::InvalidToken)
+        ));
     }
 }

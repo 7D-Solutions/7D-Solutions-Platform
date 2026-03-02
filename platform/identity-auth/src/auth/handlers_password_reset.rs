@@ -1,7 +1,7 @@
 use crate::{
     auth::{
-        handlers::{ApiErr, AuthState, OkResponse, err, err_retry_after},
-        password::{hash_password},
+        handlers::{err, err_retry_after, ApiErr, AuthState, OkResponse},
+        password::hash_password,
         password_policy::{validate_password, PasswordRules},
         password_reset_repo::{claim_reset_token, insert_reset_token},
         password_reset_tokens::{generate_raw_token, sha256_token_hash},
@@ -46,13 +46,27 @@ pub async fn forgot_password(
     let email = req.email.trim().to_lowercase();
 
     // Rate limit per-email BEFORE any DB work (prevent enumeration via timing)
-    if let Err(wait) = state.keyed_limits.check_forgot_email(&email, state.forgot_per_min_per_email) {
-        return Err(err_retry_after(StatusCode::TOO_MANY_REQUESTS, wait, "rate limited"));
+    if let Err(wait) = state
+        .keyed_limits
+        .check_forgot_email(&email, state.forgot_per_min_per_email)
+    {
+        return Err(err_retry_after(
+            StatusCode::TOO_MANY_REQUESTS,
+            wait,
+            "rate limited",
+        ));
     }
 
     // Rate limit per-IP
-    if let Err(wait) = state.keyed_limits.check_forgot_ip(&ip, state.forgot_per_min_per_ip) {
-        return Err(err_retry_after(StatusCode::TOO_MANY_REQUESTS, wait, "rate limited"));
+    if let Err(wait) = state
+        .keyed_limits
+        .check_forgot_ip(&ip, state.forgot_per_min_per_ip)
+    {
+        return Err(err_retry_after(
+            StatusCode::TOO_MANY_REQUESTS,
+            wait,
+            "rate limited",
+        ));
     }
 
     // Look up user by email — LIMIT 1 (email unique per tenant; v1 picks first match)
@@ -83,7 +97,12 @@ pub async fn forgot_password(
                 "auth.forgot_password.insert_token_error"
             );
             // Still return 200 — do not reveal server-side errors to caller
-            return Ok((StatusCode::OK, Json(GenericOkResponse { message: FORGOT_PWD_MSG })));
+            return Ok((
+                StatusCode::OK,
+                Json(GenericOkResponse {
+                    message: FORGOT_PWD_MSG,
+                }),
+            ));
         }
 
         #[derive(Serialize)]
@@ -135,7 +154,12 @@ pub async fn forgot_password(
         }
     }
 
-    Ok((StatusCode::OK, Json(GenericOkResponse { message: FORGOT_PWD_MSG })))
+    Ok((
+        StatusCode::OK,
+        Json(GenericOkResponse {
+            message: FORGOT_PWD_MSG,
+        }),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -159,8 +183,15 @@ pub async fn reset_password(
         .unwrap_or_else(|| "unknown".to_string());
 
     // 1. Rate limit per-IP BEFORE any DB work
-    if let Err(wait) = state.keyed_limits.check_reset_ip(&ip, state.reset_per_min_per_ip) {
-        return Err(err_retry_after(StatusCode::TOO_MANY_REQUESTS, wait, "rate limited"));
+    if let Err(wait) = state
+        .keyed_limits
+        .check_reset_ip(&ip, state.reset_per_min_per_ip)
+    {
+        return Err(err_retry_after(
+            StatusCode::TOO_MANY_REQUESTS,
+            wait,
+            "rate limited",
+        ));
     }
 
     // 2. Validate new_password BEFORE touching DB
@@ -174,7 +205,12 @@ pub async fn reset_password(
     let user_id = match claim_reset_token(&state.db, &token_hash).await {
         Ok(Some(uid)) => uid,
         Ok(None) => return Err(err(StatusCode::BAD_REQUEST, "invalid or expired token")),
-        Err(e) => return Err(err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))),
+        Err(e) => {
+            return Err(err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("db error: {e}"),
+            ))
+        }
     };
 
     // 4. Hash new password with argon2id
@@ -189,34 +225,47 @@ pub async fn reset_password(
     .bind(user_id)
     .execute(&state.db)
     .await
-    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("password update: {e}")))?;
+    .map_err(|e| {
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("password update: {e}"),
+        )
+    })?;
 
     // 6. Hard-delete all session leases for this user (any error → 500)
     sqlx::query("DELETE FROM session_leases WHERE user_id = $1")
         .bind(user_id)
         .execute(&state.db)
         .await
-        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("session revocation: {e}")))?;
+        .map_err(|e| {
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("session revocation: {e}"),
+            )
+        })?;
 
     // 7. Hard-delete all refresh tokens for this user (any error → 500)
     sqlx::query("DELETE FROM refresh_tokens WHERE user_id = $1")
         .bind(user_id)
         .execute(&state.db)
         .await
-        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("token revocation: {e}")))?;
+        .map_err(|e| {
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("token revocation: {e}"),
+            )
+        })?;
 
     // 8. Publish completion event
     //    Resolve tenant_id from credentials for the event envelope (LIMIT 1 — v1 acceptable).
-    let tenant_id = sqlx::query(
-        "SELECT tenant_id FROM credentials WHERE user_id = $1 LIMIT 1",
-    )
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .map(|r| r.get::<Uuid, _>("tenant_id"))
-    .unwrap_or_else(Uuid::nil);
+    let tenant_id = sqlx::query("SELECT tenant_id FROM credentials WHERE user_id = $1 LIMIT 1")
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .map(|r| r.get::<Uuid, _>("tenant_id"))
+        .unwrap_or_else(Uuid::nil);
 
     #[derive(Serialize)]
     struct PasswordResetCompletedData {

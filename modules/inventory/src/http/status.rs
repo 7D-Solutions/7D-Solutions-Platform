@@ -9,12 +9,7 @@
 //!   Duplicate keys with the same body return 200 OK with the stored result.
 //!   Duplicate keys with a different body return 409 Conflict.
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde_json::json;
 use std::sync::Arc;
 
@@ -63,7 +58,11 @@ fn transfer_error_response(err: TransferError) -> impl IntoResponse {
                 "message": "from_status and to_status must differ"
             })),
         ),
-        TransferError::InsufficientStock { status, available, requested } => (
+        TransferError::InsufficientStock {
+            status,
+            available,
+            requested,
+        } => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({
                 "error": "insufficient_stock",

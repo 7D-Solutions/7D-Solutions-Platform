@@ -93,15 +93,15 @@ pub fn transition_guard(
         // ACTIVE transitions
         (Active, PastDue) => true,
         (Active, Suspended) => true, // dunning terminal escalation
-        (Active, Active) => true, // idempotent
+        (Active, Active) => true,    // idempotent
 
         // PAST_DUE transitions
         (PastDue, Suspended) => true,
-        (PastDue, Active) => true, // payment recovered
+        (PastDue, Active) => true,  // payment recovered
         (PastDue, PastDue) => true, // idempotent
 
         // SUSPENDED transitions
-        (Suspended, Active) => true, // reactivation
+        (Suspended, Active) => true,    // reactivation
         (Suspended, Suspended) => true, // idempotent
 
         // All other transitions are illegal

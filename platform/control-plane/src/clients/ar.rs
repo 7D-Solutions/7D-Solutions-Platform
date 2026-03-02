@@ -62,8 +62,7 @@ fn period_start(period: &str) -> Option<NaiveDateTime> {
     }
     let year: i32 = parts[0].parse().ok()?;
     let month: u32 = parts[1].parse().ok()?;
-    NaiveDate::from_ymd_opt(year, month, 1)
-        .map(|d| d.and_hms_opt(0, 0, 0).unwrap())
+    NaiveDate::from_ymd_opt(year, month, 1).map(|d| d.and_hms_opt(0, 0, 0).unwrap())
 }
 
 /// Parse the billing period end date (last day of month) from a "YYYY-MM" string.
@@ -104,13 +103,12 @@ pub async fn create_platform_invoice_idempotent(
     let correlation_id = billing_correlation_id(tenant_id, period);
 
     // Guard: check if an invoice for this period already exists.
-    let existing: Option<(i32,)> = sqlx::query_as(
-        "SELECT id FROM ar_invoices WHERE app_id = $1 AND correlation_id = $2",
-    )
-    .bind(PLATFORM_APP_ID)
-    .bind(&correlation_id)
-    .fetch_optional(pool)
-    .await?;
+    let existing: Option<(i32,)> =
+        sqlx::query_as("SELECT id FROM ar_invoices WHERE app_id = $1 AND correlation_id = $2")
+            .bind(PLATFORM_APP_ID)
+            .bind(&correlation_id)
+            .fetch_optional(pool)
+            .await?;
 
     if existing.is_some() {
         return Ok(InvoiceResult::AlreadyExists);
@@ -194,9 +192,8 @@ mod tests {
 
     #[tokio::test]
     async fn platform_billing_full_flow_against_real_db() {
-        let ar_db_url = std::env::var("AR_DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://ar_user:ar_pass@localhost:5434/ar_db".to_string()
-        });
+        let ar_db_url = std::env::var("AR_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://ar_user:ar_pass@localhost:5434/ar_db".to_string());
         let ar_pool = match sqlx::PgPool::connect(&ar_db_url).await {
             Ok(p) => p,
             Err(_) => return, // skip if AR DB unavailable
@@ -218,11 +215,10 @@ mod tests {
         assert_eq!(customer_id, customer_id2);
 
         // Step 3: create invoice
-        let result = create_platform_invoice_idempotent(
-            &ar_pool, customer_id, tenant_id, period, 2_900,
-        )
-        .await
-        .expect("invoice creation should succeed");
+        let result =
+            create_platform_invoice_idempotent(&ar_pool, customer_id, tenant_id, period, 2_900)
+                .await
+                .expect("invoice creation should succeed");
 
         let invoice_id = match result {
             InvoiceResult::Created(id) => id,
@@ -231,11 +227,10 @@ mod tests {
         assert!(invoice_id > 0);
 
         // Step 4: rerun same period → no-op
-        let result2 = create_platform_invoice_idempotent(
-            &ar_pool, customer_id, tenant_id, period, 2_900,
-        )
-        .await
-        .expect("idempotent call should succeed");
+        let result2 =
+            create_platform_invoice_idempotent(&ar_pool, customer_id, tenant_id, period, 2_900)
+                .await
+                .expect("idempotent call should succeed");
         assert!(matches!(result2, InvoiceResult::AlreadyExists));
 
         // Cleanup: remove invoice first (FK constraint), then customer
@@ -244,13 +239,11 @@ mod tests {
             .execute(&ar_pool)
             .await
             .ok();
-        sqlx::query(
-            "DELETE FROM ar_customers WHERE app_id = $1 AND external_customer_id = $2",
-        )
-        .bind(PLATFORM_APP_ID)
-        .bind(tenant_id.to_string())
-        .execute(&ar_pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM ar_customers WHERE app_id = $1 AND external_customer_id = $2")
+            .bind(PLATFORM_APP_ID)
+            .bind(tenant_id.to_string())
+            .execute(&ar_pool)
+            .await
+            .ok();
     }
 }

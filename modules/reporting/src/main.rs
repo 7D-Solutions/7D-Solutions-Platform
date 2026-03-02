@@ -1,6 +1,12 @@
-use axum::{extract::DefaultBodyLimit, routing::{get, post}, Extension, Router};
+use axum::{
+    extract::DefaultBodyLimit,
+    routing::{get, post},
+    Extension, Router,
+};
 use security::{
-    middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
+    middleware::{
+        default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+    },
     optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 use std::net::SocketAddr;
@@ -46,9 +52,8 @@ async fn main() {
     tracing::info!("Reporting: database migrations applied");
 
     // Metrics
-    let reporting_metrics = Arc::new(
-        metrics::ReportingMetrics::new().expect("Reporting: failed to create metrics"),
-    );
+    let reporting_metrics =
+        Arc::new(metrics::ReportingMetrics::new().expect("Reporting: failed to create metrics"));
     tracing::info!("Reporting: metrics initialized");
 
     let app_state = Arc::new(AppState {
@@ -61,7 +66,9 @@ async fn main() {
     let reporting_mutations = Router::new()
         // Rebuild trigger — write
         .route("/api/reporting/rebuild", post(http::admin::rebuild))
-        .route_layer(RequirePermissionsLayer::new(&[permissions::REPORTING_MUTATE]))
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::REPORTING_MUTATE,
+        ]))
         .with_state(app_state.clone());
 
     let app = Router::new()
@@ -72,7 +79,10 @@ async fn main() {
         .route("/metrics", get(metrics::metrics_handler))
         // Reports — read
         .route("/api/reporting/pl", get(http::statements::get_pl))
-        .route("/api/reporting/balance-sheet", get(http::statements::get_balance_sheet))
+        .route(
+            "/api/reporting/balance-sheet",
+            get(http::statements::get_balance_sheet),
+        )
         .route("/api/reporting/cashflow", get(http::cashflow::get_cashflow))
         .route("/api/reporting/ar-aging", get(http::aging::get_ar_aging))
         .route("/api/reporting/ap-aging", get(http::aging::get_ap_aging))
@@ -82,11 +92,16 @@ async fn main() {
         .merge(reporting_mutations)
         .merge(http::admin::admin_router(pool.clone()))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
+        .layer(axum::middleware::from_fn(
+            security::tracing::tracing_context_middleware,
+        ))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
+        .layer(axum::middleware::from_fn_with_state(
+            maybe_verifier,
+            optional_claims_mw,
+        ))
         .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -140,7 +155,9 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
     let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
 
     if is_wildcard && config.env != "development" {
-        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+        tracing::warn!(
+            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
+        );
     }
 
     let layer = if is_wildcard {

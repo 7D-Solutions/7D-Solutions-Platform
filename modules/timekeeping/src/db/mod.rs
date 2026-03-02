@@ -33,7 +33,13 @@ pub async fn resolve_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
 pub fn database_url_for_app(base_url: &str, app_id: &str) -> String {
     let safe_id: String = app_id
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .to_lowercase()
         .replace('-', "_");
@@ -58,7 +64,10 @@ mod tests {
     #[test]
     fn test_database_url_sanitizes_app_id() {
         let url = database_url_for_app("postgres://user:pass@localhost", "my-App.Co");
-        assert_eq!(url, "postgres://user:pass@localhost/timekeeping_my_app_co_db");
+        assert_eq!(
+            url,
+            "postgres://user:pass@localhost/timekeeping_my_app_co_db"
+        );
     }
 
     #[test]

@@ -31,7 +31,10 @@ pub fn extract_tenant(
         Some(Extension(c)) => Ok(c.tenant_id),
         None => Err((
             StatusCode::UNAUTHORIZED,
-            Json(ErrorBody::new("unauthorized", "Missing or invalid authentication")),
+            Json(ErrorBody::new(
+                "unauthorized",
+                "Missing or invalid authentication",
+            )),
         )),
     }
 }
@@ -74,7 +77,10 @@ pub fn error_response(err: ShipmentError) -> (StatusCode, Json<ErrorBody>) {
             tracing::error!("inventory integration error: {msg}");
             (
                 StatusCode::BAD_GATEWAY,
-                Json(ErrorBody::new("inventory_error", "Inventory integration failed")),
+                Json(ErrorBody::new(
+                    "inventory_error",
+                    "Inventory integration failed",
+                )),
             )
         }
     }

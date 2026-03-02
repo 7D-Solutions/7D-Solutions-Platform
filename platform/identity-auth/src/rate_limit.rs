@@ -31,9 +31,11 @@ impl KeyedLimiters {
         }
     }
 
-    fn limiter_for(map: &DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>, key: &str, per_min: u32)
-        -> Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>
-    {
+    fn limiter_for(
+        map: &DashMap<String, Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>>>,
+        key: &str,
+        per_min: u32,
+    ) -> Arc<RateLimiter<NotKeyed, InMemoryState, DefaultClock>> {
         if let Some(v) = map.get(key) {
             return v.clone();
         }
@@ -46,37 +48,58 @@ impl KeyedLimiters {
         limiter
     }
 
-    pub fn check_login_email(&self, tenant_id: &str, email: &str, per_min: u32) -> Result<(), Duration> {
+    pub fn check_login_email(
+        &self,
+        tenant_id: &str,
+        email: &str,
+        per_min: u32,
+    ) -> Result<(), Duration> {
         let key = format!("{}:{}", tenant_id, email);
         let lim = Self::limiter_for(&self.email_login, &key, per_min);
-        lim.check().map_err(|n| n.wait_time_from(DefaultClock::default().now()))
+        lim.check()
+            .map_err(|n| n.wait_time_from(DefaultClock::default().now()))
     }
 
-    pub fn check_register_email(&self, tenant_id: &str, email: &str, per_min: u32) -> Result<(), Duration> {
+    pub fn check_register_email(
+        &self,
+        tenant_id: &str,
+        email: &str,
+        per_min: u32,
+    ) -> Result<(), Duration> {
         let key = format!("{}:{}", tenant_id, email);
         let lim = Self::limiter_for(&self.email_register, &key, per_min);
-        lim.check().map_err(|n| n.wait_time_from(DefaultClock::default().now()))
+        lim.check()
+            .map_err(|n| n.wait_time_from(DefaultClock::default().now()))
     }
 
-    pub fn check_refresh(&self, tenant_id: &str, refresh_token_hash_prefix: &str, per_min: u32) -> Result<(), Duration> {
+    pub fn check_refresh(
+        &self,
+        tenant_id: &str,
+        refresh_token_hash_prefix: &str,
+        per_min: u32,
+    ) -> Result<(), Duration> {
         // hash prefix avoids storing raw token in memory key, but still buckets repeats
         let key = format!("{}:{}", tenant_id, refresh_token_hash_prefix);
         let lim = Self::limiter_for(&self.refresh, &key, per_min);
-        lim.check().map_err(|n| n.wait_time_from(DefaultClock::default().now()))
+        lim.check()
+            .map_err(|n| n.wait_time_from(DefaultClock::default().now()))
     }
 
     pub fn check_forgot_email(&self, email: &str, per_min: u32) -> Result<(), Duration> {
         let lim = Self::limiter_for(&self.forgot_email, email, per_min);
-        lim.check().map_err(|n| n.wait_time_from(DefaultClock::default().now()))
+        lim.check()
+            .map_err(|n| n.wait_time_from(DefaultClock::default().now()))
     }
 
     pub fn check_forgot_ip(&self, ip: &str, per_min: u32) -> Result<(), Duration> {
         let lim = Self::limiter_for(&self.forgot_ip, ip, per_min);
-        lim.check().map_err(|n| n.wait_time_from(DefaultClock::default().now()))
+        lim.check()
+            .map_err(|n| n.wait_time_from(DefaultClock::default().now()))
     }
 
     pub fn check_reset_ip(&self, ip: &str, per_min: u32) -> Result<(), Duration> {
         let lim = Self::limiter_for(&self.reset_ip, ip, per_min);
-        lim.check().map_err(|n| n.wait_time_from(DefaultClock::default().now()))
+        lim.check()
+            .map_err(|n| n.wait_time_from(DefaultClock::default().now()))
     }
 }

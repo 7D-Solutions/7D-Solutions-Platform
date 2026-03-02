@@ -202,7 +202,9 @@ pub async fn try_apply_event<'a, F>(
     apply_fn: F,
 ) -> CursorResult<bool>
 where
-    F: for<'b> FnOnce(&'b mut PgConnection) -> std::pin::Pin<Box<dyn Future<Output = CursorResult<()>> + Send + 'b>>,
+    F: for<'b> FnOnce(
+        &'b mut PgConnection,
+    ) -> std::pin::Pin<Box<dyn Future<Output = CursorResult<()>> + Send + 'b>>,
 {
     // Check if this event was already processed (idempotency check)
     let already_processed =
@@ -217,8 +219,14 @@ where
     apply_fn(tx).await?;
 
     // Update cursor to mark this event as processed (transactional)
-    ProjectionCursor::save(&mut *tx, projection_name, tenant_id, event_id, event_occurred_at)
-        .await?;
+    ProjectionCursor::save(
+        &mut *tx,
+        projection_name,
+        tenant_id,
+        event_id,
+        event_occurred_at,
+    )
+    .await?;
 
     // Event was successfully applied
     Ok(true)
@@ -256,4 +264,3 @@ mod tests {
         assert!(display.contains("tenant-456"));
     }
 }
-

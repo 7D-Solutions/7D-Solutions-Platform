@@ -81,13 +81,9 @@ async fn test_execute_with_budget_success() {
     let circuit = CircuitBreaker::new(5, 2);
 
     let result = policy
-        .execute_with_budget(
-            &metrics,
-            &circuit,
-            "test_projection",
-            "tenant-1",
-            async { Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42) },
-        )
+        .execute_with_budget(&metrics, &circuit, "test_projection", "tenant-1", async {
+            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42)
+        })
         .await;
 
     assert!(result.is_ok());
@@ -102,16 +98,10 @@ async fn test_execute_with_budget_timeout() {
     let circuit = CircuitBreaker::new(5, 2);
 
     let result = policy
-        .execute_with_budget(
-            &metrics,
-            &circuit,
-            "test_projection",
-            "tenant-1",
-            async {
-                tokio::time::sleep(Duration::from_millis(200)).await;
-                Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42)
-            },
-        )
+        .execute_with_budget(&metrics, &circuit, "test_projection", "tenant-1", async {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42)
+        })
         .await;
 
     assert!(result.is_err());
@@ -135,13 +125,9 @@ async fn test_execute_with_circuit_open() {
 
     // Attempt fallback - should fail immediately
     let result = policy
-        .execute_with_budget(
-            &metrics,
-            &circuit,
-            "test_projection",
-            "tenant-1",
-            async { Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42) },
-        )
+        .execute_with_budget(&metrics, &circuit, "test_projection", "tenant-1", async {
+            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(42)
+        })
         .await;
 
     assert!(result.is_err());

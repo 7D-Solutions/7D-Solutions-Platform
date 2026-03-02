@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::domain::tax::reports;
-use crate::http::tenant::extract_tenant;
 use crate::http::admin_types::ErrorBody;
+use crate::http::tenant::extract_tenant;
 use crate::AppState;
 
 // ============================================================================
@@ -69,7 +69,10 @@ pub async fn tax_report_summary(
     if params.from >= params.to {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new("invalid_range", "`from` must be before `to`")),
+            Json(ErrorBody::new(
+                "invalid_range",
+                "`from` must be before `to`",
+            )),
         ));
     }
 
@@ -79,7 +82,10 @@ pub async fn tax_report_summary(
             tracing::error!(error = %e, "ap tax_report_summary DB error");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "An internal error occurred")),
+                Json(ErrorBody::new(
+                    "database_error",
+                    "An internal error occurred",
+                )),
             )
         })?;
 
@@ -110,7 +116,10 @@ pub async fn tax_report_export(
     if params.from >= params.to {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(ErrorBody::new("invalid_range", "`from` must be before `to`")),
+            Json(ErrorBody::new(
+                "invalid_range",
+                "`from` must be before `to`",
+            )),
         ));
     }
 
@@ -120,7 +129,10 @@ pub async fn tax_report_export(
             tracing::error!(error = %e, "ap tax_report_export DB error");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "An internal error occurred")),
+                Json(ErrorBody::new(
+                    "database_error",
+                    "An internal error occurred",
+                )),
             )
         })?;
 

@@ -79,13 +79,8 @@ pub async fn create_export_run(
     let now = Utc::now();
 
     // Fetch approved entries for the period (deterministic order)
-    let entries = fetch_approved_entries(
-        pool,
-        &req.app_id,
-        req.period_start,
-        req.period_end,
-    )
-    .await?;
+    let entries =
+        fetch_approved_entries(pool, &req.app_id, req.period_start, req.period_end).await?;
 
     if entries.is_empty() {
         return Err(ExportError::NoApprovedEntries);
@@ -102,8 +97,7 @@ pub async fn create_export_run(
     );
 
     // Compute content hash (SHA-256 of CSV + canonical JSON)
-    let json_canonical = serde_json::to_string(&json_content)
-        .unwrap_or_default();
+    let json_canonical = serde_json::to_string(&json_content).unwrap_or_default();
     let content_hash = compute_hash(&csv_content, &json_canonical);
 
     // Check for idempotent replay — same app + type + period + hash

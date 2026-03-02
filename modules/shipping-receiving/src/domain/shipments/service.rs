@@ -15,8 +15,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use super::guards::{
-    run_inbound_guards, run_outbound_guards, GuardError, InboundGuardContext,
-    OutboundGuardContext,
+    run_inbound_guards, run_outbound_guards, GuardError, InboundGuardContext, OutboundGuardContext,
 };
 use super::state_machine::{validate_inbound, validate_outbound, TransitionError};
 use super::types::{Direction, InboundStatus, OutboundStatus};
@@ -181,21 +180,20 @@ impl ShipmentService {
         .await?;
 
         // ── Inventory integration ──
-        let inventory_refs = if event_type == subjects::INBOUND_CLOSED
-            || event_type == subjects::OUTBOUND_SHIPPED
-        {
-            Self::process_inventory(
-                &mut tx,
-                inventory,
-                &current.direction,
-                shipment_id,
-                tenant_id,
-                current.currency.as_deref().unwrap_or("usd"),
-            )
-            .await?
-        } else {
-            Vec::new()
-        };
+        let inventory_refs =
+            if event_type == subjects::INBOUND_CLOSED || event_type == subjects::OUTBOUND_SHIPPED {
+                Self::process_inventory(
+                    &mut tx,
+                    inventory,
+                    &current.direction,
+                    shipment_id,
+                    tenant_id,
+                    current.currency.as_deref().unwrap_or("usd"),
+                )
+                .await?
+            } else {
+                Vec::new()
+            };
 
         // ── Outbox ──
         let mut event_payload = serde_json::json!({
@@ -253,8 +251,7 @@ impl ShipmentService {
         tenant_id: Uuid,
         currency: &str,
     ) -> Result<Vec<(Uuid, Uuid)>, ShipmentError> {
-        let lines =
-            ShipmentRepository::get_inventory_lines_tx(tx, shipment_id, tenant_id).await?;
+        let lines = ShipmentRepository::get_inventory_lines_tx(tx, shipment_id, tenant_id).await?;
 
         let mut refs = Vec::new();
 

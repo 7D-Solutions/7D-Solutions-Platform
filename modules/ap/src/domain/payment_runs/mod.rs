@@ -163,20 +163,29 @@ mod tests {
     fn invalid_currency_rejected() {
         let mut req = base_req();
         req.currency = "US".to_string();
-        assert!(matches!(req.validate(), Err(PaymentRunError::Validation(_))));
+        assert!(matches!(
+            req.validate(),
+            Err(PaymentRunError::Validation(_))
+        ));
     }
 
     #[test]
     fn invalid_payment_method_rejected() {
         let mut req = base_req();
         req.payment_method = "crypto".to_string();
-        assert!(matches!(req.validate(), Err(PaymentRunError::Validation(_))));
+        assert!(matches!(
+            req.validate(),
+            Err(PaymentRunError::Validation(_))
+        ));
     }
 
     #[test]
     fn blank_created_by_rejected() {
         let mut req = base_req();
         req.created_by = "  ".to_string();
-        assert!(matches!(req.validate(), Err(PaymentRunError::Validation(_))));
+        assert!(matches!(
+            req.validate(),
+            Err(PaymentRunError::Validation(_))
+        ));
     }
 }

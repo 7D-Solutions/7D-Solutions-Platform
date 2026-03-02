@@ -83,13 +83,15 @@ pub async fn collect_parties_to_bill(
         let currency: String = row.try_get("currency")?;
         let charge_ids: Vec<Uuid> = row.try_get("charge_ids")?;
 
-        let entry = work_map.entry(party_id).or_insert_with(|| PartyBillingWork {
-            party_id,
-            total_amount_minor: 0,
-            currency: currency.clone(),
-            charge_ids: vec![],
-            trace_hash: None,
-        });
+        let entry = work_map
+            .entry(party_id)
+            .or_insert_with(|| PartyBillingWork {
+                party_id,
+                total_amount_minor: 0,
+                currency: currency.clone(),
+                charge_ids: vec![],
+                trace_hash: None,
+            });
         entry.total_amount_minor += amount;
         entry.charge_ids.extend(charge_ids);
     }

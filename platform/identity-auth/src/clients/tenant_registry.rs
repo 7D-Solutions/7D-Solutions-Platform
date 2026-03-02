@@ -146,10 +146,7 @@ impl TenantRegistryClient {
         metrics: &Metrics,
     ) -> Result<i64, EntitlementUnavailable> {
         // --- 1. Cache look-up (drop guard before any await) ---
-        let cached = self
-            .cache
-            .get(&tenant_id)
-            .map(|e| (e.limit, e.cached_at));
+        let cached = self.cache.get(&tenant_id).map(|e| (e.limit, e.cached_at));
 
         if let Some((limit, cached_at)) = cached {
             if cached_at.elapsed() < self.ttl {
@@ -160,10 +157,7 @@ impl TenantRegistryClient {
         }
 
         // --- 2. Fetch from tenant-registry ---
-        let url = format!(
-            "{}/api/tenants/{}/entitlements",
-            self.base_url, tenant_id
-        );
+        let url = format!("{}/api/tenants/{}/entitlements", self.base_url, tenant_id);
 
         let fetch_result = self.http.get(&url).send().await;
 
@@ -191,11 +185,7 @@ impl TenantRegistryClient {
                             .auth_entitlement_fetch_total
                             .with_label_values(&["fail"])
                             .inc();
-                        self.handle_fetch_failure(
-                            tenant_id,
-                            metrics,
-                            format!("json decode: {e}"),
-                        )
+                        self.handle_fetch_failure(tenant_id, metrics, format!("json decode: {e}"))
                     }
                 }
             }
@@ -252,45 +242,40 @@ impl TenantRegistryClient {
         }
 
         // --- 2. Fetch from tenant-registry ---
-        let url = format!(
-            "{}/api/tenants/{}/status",
-            self.base_url, tenant_id
-        );
+        let url = format!("{}/api/tenants/{}/status", self.base_url, tenant_id);
 
         let fetch_result = self.http.get(&url).send().await;
 
         match fetch_result {
-            Ok(resp) if resp.status().is_success() => {
-                match resp.json::<StatusResponse>().await {
-                    Ok(body) => {
-                        let status = body.status.clone();
-                        self.status_cache.insert(
-                            tenant_id,
-                            CachedStatus {
-                                status: status.clone(),
-                                cached_at: Instant::now(),
-                            },
-                        );
-                        metrics
-                            .auth_tenant_status_fetch_total
-                            .with_label_values(&["ok"])
-                            .inc();
-                        tracing::info!(tenant_id = %tenant_id, status = %status, "tenant_status.fetch_ok");
-                        Ok(gate_from_status(&status))
-                    }
-                    Err(e) => {
-                        metrics
-                            .auth_tenant_status_fetch_total
-                            .with_label_values(&["fail"])
-                            .inc();
-                        self.handle_status_fetch_failure(
-                            tenant_id,
-                            metrics,
-                            format!("json decode: {e}"),
-                        )
-                    }
+            Ok(resp) if resp.status().is_success() => match resp.json::<StatusResponse>().await {
+                Ok(body) => {
+                    let status = body.status.clone();
+                    self.status_cache.insert(
+                        tenant_id,
+                        CachedStatus {
+                            status: status.clone(),
+                            cached_at: Instant::now(),
+                        },
+                    );
+                    metrics
+                        .auth_tenant_status_fetch_total
+                        .with_label_values(&["ok"])
+                        .inc();
+                    tracing::info!(tenant_id = %tenant_id, status = %status, "tenant_status.fetch_ok");
+                    Ok(gate_from_status(&status))
                 }
-            }
+                Err(e) => {
+                    metrics
+                        .auth_tenant_status_fetch_total
+                        .with_label_values(&["fail"])
+                        .inc();
+                    self.handle_status_fetch_failure(
+                        tenant_id,
+                        metrics,
+                        format!("json decode: {e}"),
+                    )
+                }
+            },
             Ok(resp) => {
                 let status = resp.status();
                 metrics
@@ -400,8 +385,12 @@ impl TenantRegistryClient {
 pub fn gate_from_status(status: &str) -> TenantGate {
     match status {
         "trial" | "active" => TenantGate::Allow,
-        "past_due" => TenantGate::DenyNewLogin { status: status.to_string() },
-        other => TenantGate::Deny { status: other.to_string() },
+        "past_due" => TenantGate::DenyNewLogin {
+            status: status.to_string(),
+        },
+        other => TenantGate::Deny {
+            status: other.to_string(),
+        },
     }
 }
 
@@ -439,10 +428,12 @@ mod tests {
         // Seed a fresh cache entry
         seed_cache(&client, tenant_id, 7, Duration::from_secs(0));
 
-        let result = client
-            .get_concurrent_user_limit(tenant_id, &metrics)
-            .await;
-        assert_eq!(result.unwrap(), 7, "should return cached limit without HTTP");
+        let result = client.get_concurrent_user_limit(tenant_id, &metrics).await;
+        assert_eq!(
+            result.unwrap(),
+            7,
+            "should return cached limit without HTTP"
+        );
     }
 
     #[tokio::test]
@@ -455,9 +446,7 @@ mod tests {
         let over_grace = Duration::from_secs(60 + GRACE_SECS + 1);
         seed_cache(&client, tenant_id, 5, over_grace);
 
-        let result = client
-            .get_concurrent_user_limit(tenant_id, &metrics)
-            .await;
+        let result = client.get_concurrent_user_limit(tenant_id, &metrics).await;
         assert!(
             result.is_err(),
             "should fail closed when stale entry exceeds grace period"
@@ -471,10 +460,11 @@ mod tests {
         let metrics = Metrics::new();
         let tenant_id = Uuid::new_v4();
 
-        let result = client
-            .get_concurrent_user_limit(tenant_id, &metrics)
-            .await;
-        assert!(result.is_err(), "no cache + unreachable registry must be denied");
+        let result = client.get_concurrent_user_limit(tenant_id, &metrics).await;
+        assert!(
+            result.is_err(),
+            "no cache + unreachable registry must be denied"
+        );
     }
 
     #[tokio::test]
@@ -488,9 +478,7 @@ mod tests {
         let age = Duration::from_secs(70);
         seed_cache(&client, tenant_id, 3, age);
 
-        let result = client
-            .get_concurrent_user_limit(tenant_id, &metrics)
-            .await;
+        let result = client.get_concurrent_user_limit(tenant_id, &metrics).await;
         assert_eq!(
             result.unwrap(),
             3,
@@ -502,7 +490,12 @@ mod tests {
     // Gate tests (no HTTP — test gate_from_status policy mapping)
     // -----------------------------------------------------------------------
 
-    fn seed_status_cache(client: &TenantRegistryClient, tenant_id: Uuid, status: &str, age: Duration) {
+    fn seed_status_cache(
+        client: &TenantRegistryClient,
+        tenant_id: Uuid,
+        status: &str,
+        age: Duration,
+    ) {
         client.status_cache.insert(
             tenant_id,
             CachedStatus {
@@ -526,7 +519,9 @@ mod tests {
     fn gate_past_due_is_deny_new_login() {
         assert_eq!(
             gate_from_status("past_due"),
-            TenantGate::DenyNewLogin { status: "past_due".to_string() }
+            TenantGate::DenyNewLogin {
+                status: "past_due".to_string()
+            }
         );
     }
 
@@ -534,7 +529,9 @@ mod tests {
     fn gate_suspended_is_deny() {
         assert_eq!(
             gate_from_status("suspended"),
-            TenantGate::Deny { status: "suspended".to_string() }
+            TenantGate::Deny {
+                status: "suspended".to_string()
+            }
         );
     }
 
@@ -542,7 +539,9 @@ mod tests {
     fn gate_deleted_is_deny() {
         assert_eq!(
             gate_from_status("deleted"),
-            TenantGate::Deny { status: "deleted".to_string() }
+            TenantGate::Deny {
+                status: "deleted".to_string()
+            }
         );
     }
 
@@ -555,7 +554,11 @@ mod tests {
         seed_status_cache(&client, tenant_id, "active", Duration::from_secs(0));
 
         let result = client.get_tenant_gate(tenant_id, &metrics).await;
-        assert_eq!(result.unwrap(), TenantGate::Allow, "cache hit must return Allow");
+        assert_eq!(
+            result.unwrap(),
+            TenantGate::Allow,
+            "cache hit must return Allow"
+        );
     }
 
     #[tokio::test]
@@ -565,7 +568,10 @@ mod tests {
         let tenant_id = Uuid::new_v4();
 
         let result = client.get_tenant_gate(tenant_id, &metrics).await;
-        assert!(result.is_err(), "no cache + unreachable registry must fail closed");
+        assert!(
+            result.is_err(),
+            "no cache + unreachable registry must fail closed"
+        );
     }
 
     #[tokio::test]
@@ -578,7 +584,11 @@ mod tests {
         seed_status_cache(&client, tenant_id, "active", Duration::from_secs(70));
 
         let result = client.get_tenant_gate(tenant_id, &metrics).await;
-        assert_eq!(result.unwrap(), TenantGate::Allow, "stale cache within grace must be used");
+        assert_eq!(
+            result.unwrap(),
+            TenantGate::Allow,
+            "stale cache within grace must be used"
+        );
     }
 
     #[tokio::test]
@@ -591,7 +601,10 @@ mod tests {
         seed_status_cache(&client, tenant_id, "active", over_grace);
 
         let result = client.get_tenant_gate(tenant_id, &metrics).await;
-        assert!(result.is_err(), "cache beyond grace + unreachable registry must fail closed");
+        assert!(
+            result.is_err(),
+            "cache beyond grace + unreachable registry must fail closed"
+        );
     }
 
     #[tokio::test]

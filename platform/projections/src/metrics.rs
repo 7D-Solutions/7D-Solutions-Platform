@@ -131,9 +131,7 @@ impl ProjectionMetrics {
             .max(0) as f64;
 
         // Calculate last applied age: how long since we last updated the cursor?
-        let last_applied_age_seconds = (now - cursor.updated_at)
-            .num_seconds()
-            .max(0) as f64;
+        let last_applied_age_seconds = (now - cursor.updated_at).num_seconds().max(0) as f64;
 
         // Update metrics
         self.projection_lag_ms

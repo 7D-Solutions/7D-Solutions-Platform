@@ -3,8 +3,8 @@
 //! Wraps event payloads in a platform-compliant EventEnvelope with
 //! maintenance-specific defaults (source_module, source_version, mutation_class).
 
-pub use event_bus::{EventEnvelope, MerchantContext};
 use event_bus::outbox::validate_and_serialize_envelope;
+pub use event_bus::{EventEnvelope, MerchantContext};
 use serde::Serialize;
 use uuid::Uuid;
 

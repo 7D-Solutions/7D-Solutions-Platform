@@ -5,15 +5,18 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::{
-    recompute_due, AssignPlanRequest, CreatePlanRequest, ListAssignmentsQuery,
-    ListPlansQuery, MaintenancePlan, PlanAssignment, PlanError, UpdatePlanRequest,
+    recompute_due, AssignPlanRequest, CreatePlanRequest, ListAssignmentsQuery, ListPlansQuery,
+    MaintenancePlan, PlanAssignment, PlanError, UpdatePlanRequest,
 };
 use crate::domain::work_orders::types::{Priority, ScheduleType};
 
 pub struct PlanRepo;
 
 impl PlanRepo {
-    pub async fn create(pool: &PgPool, req: &CreatePlanRequest) -> Result<MaintenancePlan, PlanError> {
+    pub async fn create(
+        pool: &PgPool,
+        req: &CreatePlanRequest,
+    ) -> Result<MaintenancePlan, PlanError> {
         if req.tenant_id.trim().is_empty() {
             return Err(PlanError::Validation("tenant_id is required".into()));
         }
@@ -68,18 +71,16 @@ impl PlanRepo {
         }
 
         let priority_str = req.priority.as_deref().unwrap_or("medium");
-        Priority::from_str_value(priority_str)
-            .map_err(|e| PlanError::Validation(e.to_string()))?;
+        Priority::from_str_value(priority_str).map_err(|e| PlanError::Validation(e.to_string()))?;
 
         // Verify meter_type exists if provided
         if let Some(mt_id) = req.meter_type_id {
-            let exists: Option<(Uuid,)> = sqlx::query_as(
-                "SELECT id FROM meter_types WHERE id = $1 AND tenant_id = $2",
-            )
-            .bind(mt_id)
-            .bind(&req.tenant_id)
-            .fetch_optional(pool)
-            .await?;
+            let exists: Option<(Uuid,)> =
+                sqlx::query_as("SELECT id FROM meter_types WHERE id = $1 AND tenant_id = $2")
+                    .bind(mt_id)
+                    .bind(&req.tenant_id)
+                    .fetch_optional(pool)
+                    .await?;
             if exists.is_none() {
                 return Err(PlanError::MeterTypeNotFound);
             }
@@ -127,7 +128,10 @@ impl PlanRepo {
         .map_err(PlanError::Database)
     }
 
-    pub async fn list(pool: &PgPool, q: &ListPlansQuery) -> Result<Vec<MaintenancePlan>, PlanError> {
+    pub async fn list(
+        pool: &PgPool,
+        q: &ListPlansQuery,
+    ) -> Result<Vec<MaintenancePlan>, PlanError> {
         if q.tenant_id.trim().is_empty() {
             return Err(PlanError::Validation("tenant_id is required".into()));
         }
@@ -164,8 +168,7 @@ impl PlanRepo {
             }
         }
         if let Some(ref p) = req.priority {
-            Priority::from_str_value(p)
-                .map_err(|e| PlanError::Validation(e.to_string()))?;
+            Priority::from_str_value(p).map_err(|e| PlanError::Validation(e.to_string()))?;
         }
 
         sqlx::query_as::<_, MaintenancePlan>(
@@ -224,13 +227,12 @@ impl AssignmentRepo {
         .ok_or(PlanError::PlanNotFound)?;
 
         // Verify asset exists
-        let asset_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM maintainable_assets WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(req.asset_id)
-        .bind(&req.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let asset_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM maintainable_assets WHERE id = $1 AND tenant_id = $2")
+                .bind(req.asset_id)
+                .bind(&req.tenant_id)
+                .fetch_optional(&mut *tx)
+                .await?;
         if asset_exists.is_none() {
             return Err(PlanError::AssetNotFound);
         }

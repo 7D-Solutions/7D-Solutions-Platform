@@ -157,10 +157,7 @@ impl UomRepo {
         .map_err(|e| {
             if let sqlx::Error::Database(ref dbe) = e {
                 if dbe.code().as_deref() == Some("23505") {
-                    return UomError::DuplicateCode(
-                        req.code.clone(),
-                        req.tenant_id.clone(),
-                    );
+                    return UomError::DuplicateCode(req.code.clone(), req.tenant_id.clone());
                 }
             }
             UomError::Database(e)
@@ -168,17 +165,12 @@ impl UomRepo {
     }
 
     /// List all UoMs for a tenant, ordered by code.
-    pub async fn list_for_tenant(
-        pool: &PgPool,
-        tenant_id: &str,
-    ) -> Result<Vec<Uom>, UomError> {
-        sqlx::query_as::<_, Uom>(
-            "SELECT * FROM uoms WHERE tenant_id = $1 ORDER BY code",
-        )
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await
-        .map_err(UomError::Database)
+    pub async fn list_for_tenant(pool: &PgPool, tenant_id: &str) -> Result<Vec<Uom>, UomError> {
+        sqlx::query_as::<_, Uom>("SELECT * FROM uoms WHERE tenant_id = $1 ORDER BY code")
+            .bind(tenant_id)
+            .fetch_all(pool)
+            .await
+            .map_err(UomError::Database)
     }
 }
 

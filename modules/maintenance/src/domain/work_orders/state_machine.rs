@@ -35,11 +35,7 @@ pub fn allowed_transitions(from: WoStatus) -> &'static [WoStatus] {
         ],
         WoStatus::AwaitingApproval => &[WoStatus::Scheduled, WoStatus::Cancelled],
         WoStatus::Scheduled => &[WoStatus::InProgress, WoStatus::Cancelled],
-        WoStatus::InProgress => &[
-            WoStatus::OnHold,
-            WoStatus::Completed,
-            WoStatus::Cancelled,
-        ],
+        WoStatus::InProgress => &[WoStatus::OnHold, WoStatus::Completed, WoStatus::Cancelled],
         WoStatus::OnHold => &[WoStatus::InProgress, WoStatus::Cancelled],
         WoStatus::Completed => &[WoStatus::Closed],
         WoStatus::Closed => &[],

@@ -143,8 +143,10 @@ pub async fn run(cfg: &Config, dry_run: bool) -> Result<ScenarioResult> {
     );
 
     // Phase 4: Threshold enforcement
-    let min_throughput =
-        read_env_f64("RECON_MIN_MATCHES_PER_SEC", DEFAULT_RECON_MIN_MATCHES_PER_SEC);
+    let min_throughput = read_env_f64(
+        "RECON_MIN_MATCHES_PER_SEC",
+        DEFAULT_RECON_MIN_MATCHES_PER_SEC,
+    );
     let max_exception_rate =
         read_env_f64("RECON_MAX_EXCEPTION_RATE", DEFAULT_RECON_MAX_EXCEPTION_RATE);
 

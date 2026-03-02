@@ -117,10 +117,7 @@ pub async fn get_role(
     .await
 }
 
-pub async fn list_roles(
-    pool: &PgPool,
-    tenant_id: Uuid,
-) -> Result<Vec<Role>, sqlx::Error> {
+pub async fn list_roles(pool: &PgPool, tenant_id: Uuid) -> Result<Vec<Role>, sqlx::Error> {
     sqlx::query_as::<_, Role>(
         r#"SELECT id, tenant_id, name, description, is_system, created_at, updated_at
            FROM roles WHERE tenant_id = $1 ORDER BY name"#,
@@ -156,13 +153,12 @@ pub async fn delete_role(
     tenant_id: Uuid,
     role_id: Uuid,
 ) -> Result<bool, sqlx::Error> {
-    let res = sqlx::query(
-        "DELETE FROM roles WHERE tenant_id = $1 AND id = $2 AND is_system = false",
-    )
-    .bind(tenant_id)
-    .bind(role_id)
-    .execute(pool)
-    .await?;
+    let res =
+        sqlx::query("DELETE FROM roles WHERE tenant_id = $1 AND id = $2 AND is_system = false")
+            .bind(tenant_id)
+            .bind(role_id)
+            .execute(pool)
+            .await?;
     Ok(res.rows_affected() > 0)
 }
 
@@ -190,13 +186,11 @@ pub async fn revoke_permission_from_role(
     role_id: Uuid,
     permission_id: Uuid,
 ) -> Result<bool, sqlx::Error> {
-    let res = sqlx::query(
-        "DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2",
-    )
-    .bind(role_id)
-    .bind(permission_id)
-    .execute(pool)
-    .await?;
+    let res = sqlx::query("DELETE FROM role_permissions WHERE role_id = $1 AND permission_id = $2")
+        .bind(role_id)
+        .bind(permission_id)
+        .execute(pool)
+        .await?;
     Ok(res.rows_affected() > 0)
 }
 

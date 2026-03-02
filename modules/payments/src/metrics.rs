@@ -15,13 +15,15 @@
 //! **Failure Mode to Avoid**: Misleading metrics or missing UNKNOWN visibility
 
 use lazy_static::lazy_static;
-use prometheus::{HistogramOpts, HistogramVec, IntCounterVec, IntGaugeVec, Opts, Registry as PrometheusRegistry};
+use projections::metrics::ProjectionMetrics;
+use prometheus::{
+    HistogramOpts, HistogramVec, IntCounterVec, IntGaugeVec, Opts, Registry as PrometheusRegistry,
+};
 use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
 use prometheus_client::metrics::family::Family;
 use prometheus_client::metrics::histogram::Histogram;
 use prometheus_client::registry::Registry;
-use projections::metrics::ProjectionMetrics;
 use std::sync::Mutex;
 
 /// Label set for payment attempt status
@@ -172,8 +174,14 @@ mod tests {
             })
             .get();
 
-        assert!(attempting_count >= 1, "attempting counter should be incremented");
-        assert!(succeeded_count >= 2, "succeeded counter should be incremented twice");
+        assert!(
+            attempting_count >= 1,
+            "attempting counter should be incremented"
+        );
+        assert!(
+            succeeded_count >= 2,
+            "succeeded counter should be incremented twice"
+        );
     }
 
     #[test]
@@ -199,12 +207,16 @@ mod tests {
         let families = SLO_REGISTRY.gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("http_request_duration_seconds")),
-            "request latency histogram missing: {:?}", names
+            names
+                .iter()
+                .any(|n| n.contains("http_request_duration_seconds")),
+            "request latency histogram missing: {:?}",
+            names
         );
         assert!(
             names.iter().any(|n| n.contains("http_requests_total")),
-            "request count counter missing: {:?}", names
+            "request count counter missing: {:?}",
+            names
         );
     }
 
@@ -214,8 +226,11 @@ mod tests {
         let families = SLO_REGISTRY.gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("event_consumer_lag_messages")),
-            "consumer lag metric missing: {:?}", names
+            names
+                .iter()
+                .any(|n| n.contains("event_consumer_lag_messages")),
+            "consumer lag metric missing: {:?}",
+            names
         );
     }
 }

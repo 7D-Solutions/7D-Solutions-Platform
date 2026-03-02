@@ -67,9 +67,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fetch_snapshot_returns_without_error() {
-        let pool = PgPool::connect(&db_url())
-            .await
-            .expect("DB connect failed");
+        let pool = PgPool::connect(&db_url()).await.expect("DB connect failed");
 
         let snapshot = fetch_snapshot(&pool)
             .await

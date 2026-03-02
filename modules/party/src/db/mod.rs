@@ -33,16 +33,18 @@ pub async fn resolve_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
 pub fn database_url_for_app(base_url: &str, app_id: &str) -> String {
     let safe_id: String = app_id
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .to_lowercase()
         .replace('-', "_");
 
-    format!(
-        "{}/party_{}_db",
-        base_url.trim_end_matches('/'),
-        safe_id
-    )
+    format!("{}/party_{}_db", base_url.trim_end_matches('/'), safe_id)
 }
 
 #[cfg(test)]
@@ -142,7 +144,10 @@ mod tests {
         .await
         .expect("Failed to query outbox index");
 
-        assert_eq!(idx_row.0, 1, "Partial index on party_outbox for unpublished rows should exist");
+        assert_eq!(
+            idx_row.0, 1,
+            "Partial index on party_outbox for unpublished rows should exist"
+        );
 
         pool.close().await;
     }

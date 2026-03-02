@@ -90,12 +90,10 @@ async fn publish_pending(
         let data = serde_json::to_vec(&row.payload)?;
         bus.publish(&subject, data).await?;
 
-        sqlx::query(
-            "UPDATE fa_events_outbox SET published_at = NOW() WHERE event_id = $1",
-        )
-        .bind(row.event_id)
-        .execute(pool)
-        .await?;
+        sqlx::query("UPDATE fa_events_outbox SET published_at = NOW() WHERE event_id = $1")
+            .bind(row.event_id)
+            .execute(pool)
+            .await?;
     }
 
     Ok(count)

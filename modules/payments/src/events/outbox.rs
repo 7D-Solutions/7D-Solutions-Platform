@@ -17,15 +17,16 @@ pub async fn enqueue_event<T: Serialize>(
     envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
     // Validate envelope at boundary - reject invalid envelopes before insert
-    validate_and_serialize_envelope(envelope)
-        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+    validate_and_serialize_envelope(envelope).map_err(|e| {
+        sqlx::Error::Encode(Box::new(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("Envelope validation failed: {}", e),
-        ))))?;
+        )))
+    })?;
 
     // Serialize just the payload for storage (envelope metadata stored in columns)
-    let payload = serde_json::to_value(&envelope.payload)
-        .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
+    let payload =
+        serde_json::to_value(&envelope.payload).map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
 
     sqlx::query(
         r#"
@@ -212,15 +213,16 @@ pub async fn enqueue_event_tx<T: Serialize>(
     envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
     // Validate envelope at boundary - reject invalid envelopes before insert
-    validate_and_serialize_envelope(envelope)
-        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+    validate_and_serialize_envelope(envelope).map_err(|e| {
+        sqlx::Error::Encode(Box::new(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("Envelope validation failed: {}", e),
-        ))))?;
+        )))
+    })?;
 
     // Serialize just the payload for storage (envelope metadata stored in columns)
-    let payload = serde_json::to_value(&envelope.payload)
-        .map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
+    let payload =
+        serde_json::to_value(&envelope.payload).map_err(|e| sqlx::Error::Encode(Box::new(e)))?;
 
     sqlx::query(
         r#"

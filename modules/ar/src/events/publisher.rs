@@ -8,10 +8,7 @@ use std::time::Duration;
 /// This task polls the events_outbox table for unpublished events and publishes
 /// them to the configured event bus (NATS or in-memory). Once published, events
 /// are marked with a published_at timestamp.
-pub async fn run_publisher_task(
-    db: PgPool,
-    event_bus: Arc<dyn event_bus::EventBus>,
-) {
+pub async fn run_publisher_task(db: PgPool, event_bus: Arc<dyn event_bus::EventBus>) {
     tracing::info!("Starting event publisher task");
 
     let mut interval = tokio::time::interval(Duration::from_secs(1));
@@ -23,7 +20,11 @@ pub async fn run_publisher_task(
 
         match publish_batch(&db, &event_bus).await {
             Ok(count) if count > 0 => {
-                tracing::info!("Publisher tick {}: published {} events from outbox", tick_count, count);
+                tracing::info!(
+                    "Publisher tick {}: published {} events from outbox",
+                    tick_count,
+                    count
+                );
             }
             Ok(_) => {
                 if tick_count <= 3 || tick_count.is_multiple_of(60) {
@@ -31,7 +32,11 @@ pub async fn run_publisher_task(
                 }
             }
             Err(e) => {
-                tracing::error!("Publisher tick {}: error publishing events: {}", tick_count, e);
+                tracing::error!(
+                    "Publisher tick {}: error publishing events: {}",
+                    tick_count,
+                    e
+                );
             }
         }
     }
@@ -50,7 +55,13 @@ async fn publish_batch(
         // Otherwise use AR's namespace
         let subject = if event.event_type.starts_with("gl.") {
             // GL events go directly to gl.events.* namespace
-            format!("gl.events.{}", event.event_type.strip_prefix("gl.").unwrap_or(&event.event_type))
+            format!(
+                "gl.events.{}",
+                event
+                    .event_type
+                    .strip_prefix("gl.")
+                    .unwrap_or(&event.event_type)
+            )
         } else {
             // AR events go to ar.events.* namespace
             format!("ar.events.{}", event.event_type)

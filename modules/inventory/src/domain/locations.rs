@@ -84,7 +84,9 @@ impl LocationRepo {
         req: &CreateLocationRequest,
     ) -> Result<Location, LocationError> {
         if req.tenant_id.trim().is_empty() {
-            return Err(LocationError::Validation("tenant_id is required".to_string()));
+            return Err(LocationError::Validation(
+                "tenant_id is required".to_string(),
+            ));
         }
         if req.code.trim().is_empty() {
             return Err(LocationError::Validation("code is required".to_string()));
@@ -127,14 +129,12 @@ impl LocationRepo {
         id: Uuid,
         tenant_id: &str,
     ) -> Result<Option<Location>, LocationError> {
-        sqlx::query_as::<_, Location>(
-            "SELECT * FROM locations WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(LocationError::Database)
+        sqlx::query_as::<_, Location>("SELECT * FROM locations WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(LocationError::Database)
     }
 
     /// List all locations for a (tenant, warehouse), ordered by code.
@@ -164,7 +164,9 @@ impl LocationRepo {
         req: &UpdateLocationRequest,
     ) -> Result<Location, LocationError> {
         if req.tenant_id.trim().is_empty() {
-            return Err(LocationError::Validation("tenant_id is required".to_string()));
+            return Err(LocationError::Validation(
+                "tenant_id is required".to_string(),
+            ));
         }
 
         sqlx::query_as::<_, Location>(

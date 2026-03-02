@@ -176,8 +176,12 @@ pub async fn submit(
         "total_minutes": total_minutes,
     });
     events::enqueue_event_tx(
-        &mut tx, event_id, EVT_TIMESHEET_SUBMITTED,
-        "approval_request", &approval.id.to_string(), &payload,
+        &mut tx,
+        event_id,
+        EVT_TIMESHEET_SUBMITTED,
+        "approval_request",
+        &approval.id.to_string(),
+        &payload,
     )
     .await?;
 
@@ -219,7 +223,14 @@ pub async fn approve(
     .fetch_one(&mut *tx)
     .await?;
 
-    record_action(&mut tx, approval.id, "approve", req.actor_id, req.notes.as_deref()).await?;
+    record_action(
+        &mut tx,
+        approval.id,
+        "approve",
+        req.actor_id,
+        req.notes.as_deref(),
+    )
+    .await?;
 
     let payload = serde_json::json!({
         "approval_id": approval.id,
@@ -231,8 +242,12 @@ pub async fn approve(
         "total_minutes": approval.total_minutes,
     });
     events::enqueue_event_tx(
-        &mut tx, event_id, EVT_TIMESHEET_APPROVED,
-        "approval_request", &approval.id.to_string(), &payload,
+        &mut tx,
+        event_id,
+        EVT_TIMESHEET_APPROVED,
+        "approval_request",
+        &approval.id.to_string(),
+        &payload,
     )
     .await?;
 
@@ -274,7 +289,14 @@ pub async fn reject(
     .fetch_one(&mut *tx)
     .await?;
 
-    record_action(&mut tx, approval.id, "reject", req.actor_id, req.notes.as_deref()).await?;
+    record_action(
+        &mut tx,
+        approval.id,
+        "reject",
+        req.actor_id,
+        req.notes.as_deref(),
+    )
+    .await?;
 
     let payload = serde_json::json!({
         "approval_id": approval.id,
@@ -286,8 +308,12 @@ pub async fn reject(
         "notes": req.notes,
     });
     events::enqueue_event_tx(
-        &mut tx, event_id, EVT_TIMESHEET_REJECTED,
-        "approval_request", &approval.id.to_string(), &payload,
+        &mut tx,
+        event_id,
+        EVT_TIMESHEET_REJECTED,
+        "approval_request",
+        &approval.id.to_string(),
+        &payload,
     )
     .await?;
 
@@ -326,7 +352,14 @@ pub async fn recall(
     .fetch_one(&mut *tx)
     .await?;
 
-    record_action(&mut tx, approval.id, "recall", req.actor_id, req.notes.as_deref()).await?;
+    record_action(
+        &mut tx,
+        approval.id,
+        "recall",
+        req.actor_id,
+        req.notes.as_deref(),
+    )
+    .await?;
 
     let payload = serde_json::json!({
         "approval_id": approval.id,
@@ -336,8 +369,12 @@ pub async fn recall(
         "period_end": approval.period_end,
     });
     events::enqueue_event_tx(
-        &mut tx, event_id, EVT_TIMESHEET_RECALLED,
-        "approval_request", &approval.id.to_string(), &payload,
+        &mut tx,
+        event_id,
+        EVT_TIMESHEET_RECALLED,
+        "approval_request",
+        &approval.id.to_string(),
+        &payload,
     )
     .await?;
 

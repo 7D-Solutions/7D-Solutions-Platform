@@ -9,7 +9,7 @@
 
 use axum::{extract::State, http::StatusCode, Json};
 use prometheus::{
-    Encoder, HistogramOpts, HistogramVec, IntCounter, IntGauge, IntCounterVec, Opts, Registry,
+    Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry,
     TextEncoder,
 };
 use std::sync::Arc;
@@ -38,7 +38,9 @@ impl MaintenanceMetrics {
                 "maintenance_http_request_duration_seconds",
                 "HTTP request duration in seconds",
             )
-            .buckets(vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]),
+            .buckets(vec![
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0,
+            ]),
             &["method", "route", "status"],
         )?;
         registry.register(Box::new(http_request_duration_seconds.clone()))?;
@@ -101,13 +103,19 @@ pub async fn metrics_handler(
     encoder.encode(&families, &mut buffer).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new("internal_error", &format!("Failed to encode metrics: {}", e))),
+            Json(ErrorBody::new(
+                "internal_error",
+                &format!("Failed to encode metrics: {}", e),
+            )),
         )
     })?;
     String::from_utf8(buffer).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new("internal_error", &format!("Failed to convert metrics to UTF-8: {}", e))),
+            Json(ErrorBody::new(
+                "internal_error",
+                &format!("Failed to convert metrics to UTF-8: {}", e),
+            )),
         )
     })
 }
@@ -123,7 +131,9 @@ mod tests {
         let families = m.registry().gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("http_request_duration_seconds")),
+            names
+                .iter()
+                .any(|n| n.contains("http_request_duration_seconds")),
             "request latency histogram missing: {:?}",
             names
         );

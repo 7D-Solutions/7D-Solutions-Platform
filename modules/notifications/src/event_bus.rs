@@ -23,12 +23,18 @@ pub fn create_notifications_envelope<T>(
     mutation_class: String,
     payload: T,
 ) -> EventEnvelope<T> {
-    EventEnvelope::with_event_id(event_id, tenant_id, "notifications".to_string(), event_type, payload)
-        .with_source_version(env!("CARGO_PKG_VERSION").to_string())
-        .with_trace_id(correlation_id.clone())
-        .with_correlation_id(correlation_id)
-        .with_causation_id(causation_id)
-        .with_mutation_class(Some(mutation_class))
+    EventEnvelope::with_event_id(
+        event_id,
+        tenant_id,
+        "notifications".to_string(),
+        event_type,
+        payload,
+    )
+    .with_source_version(env!("CARGO_PKG_VERSION").to_string())
+    .with_trace_id(correlation_id.clone())
+    .with_correlation_id(correlation_id)
+    .with_causation_id(causation_id)
+    .with_mutation_class(Some(mutation_class))
 }
 
 /// Enqueue an event for reliable publishing via the transactional outbox pattern
@@ -44,11 +50,12 @@ pub async fn enqueue_event<T: Serialize>(
     envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
     // Validate envelope at boundary - reject invalid envelopes before insert
-    let payload = validate_and_serialize_envelope(envelope)
-        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+    let payload = validate_and_serialize_envelope(envelope).map_err(|e| {
+        sqlx::Error::Encode(Box::new(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("Envelope validation failed: {}", e),
-        ))))?;
+        )))
+    })?;
 
     sqlx::query(
         r#"
@@ -149,7 +156,7 @@ async fn publish_pending_events(
         WHERE status = 'pending'
         ORDER BY created_at ASC
         LIMIT 100
-        "#
+        "#,
     )
     .fetch_all(db)
     .await?;
@@ -167,7 +174,7 @@ async fn publish_pending_events(
                     UPDATE events_outbox
                     SET status = 'published', published_at = NOW()
                     WHERE id = $1
-                    "#
+                    "#,
                 )
                 .bind(event.id)
                 .execute(db)
@@ -189,7 +196,7 @@ async fn publish_pending_events(
                     UPDATE events_outbox
                     SET retry_count = $1, status = $2, error_message = $3
                     WHERE id = $4
-                    "#
+                    "#,
                 )
                 .bind(retry_count)
                 .bind(status)
@@ -220,7 +227,7 @@ pub async fn is_event_processed(db: &PgPool, event_id: Uuid) -> Result<bool, sql
     let result = sqlx::query_as::<_, EventIdRow>(
         r#"
         SELECT event_id FROM processed_events WHERE event_id = $1
-        "#
+        "#,
     )
     .bind(event_id)
     .fetch_optional(db)
@@ -242,7 +249,7 @@ pub async fn mark_event_processed(
         INSERT INTO processed_events (event_id, subject, tenant_id, source_module)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (event_id) DO NOTHING
-        "#
+        "#,
     )
     .bind(event_id)
     .bind(subject)

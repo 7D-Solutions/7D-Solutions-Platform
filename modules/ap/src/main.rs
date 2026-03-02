@@ -1,9 +1,13 @@
-use axum::{extract::DefaultBodyLimit, routing::{get, post, put}, Extension, Router};
-use security::{optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer};
+use axum::{
+    extract::DefaultBodyLimit,
+    routing::{get, post, put},
+    Extension, Router,
+};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::middleware::{
     default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
 };
+use security::{optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, CorsLayer};
@@ -75,9 +79,7 @@ async fn main() {
     tracing::info!("AP: outbox publisher task started");
 
     // Metrics
-    let ap_metrics = Arc::new(
-        metrics::ApMetrics::new().expect("AP: failed to create metrics"),
-    );
+    let ap_metrics = Arc::new(metrics::ApMetrics::new().expect("AP: failed to create metrics"));
     tracing::info!("AP: metrics initialized");
 
     let app_state = Arc::new(AppState {
@@ -90,18 +92,39 @@ async fn main() {
     let ap_mutations = Router::new()
         // Vendors — write
         .route("/api/ap/vendors", post(http::vendors::create_vendor))
-        .route("/api/ap/vendors/{vendor_id}", put(http::vendors::update_vendor))
-        .route("/api/ap/vendors/{vendor_id}/deactivate", post(http::vendors::deactivate_vendor))
+        .route(
+            "/api/ap/vendors/{vendor_id}",
+            put(http::vendors::update_vendor),
+        )
+        .route(
+            "/api/ap/vendors/{vendor_id}/deactivate",
+            post(http::vendors::deactivate_vendor),
+        )
         // Purchase orders — write
         .route("/api/ap/pos", post(http::purchase_orders::create_po))
-        .route("/api/ap/pos/{po_id}/lines", put(http::purchase_orders::update_po_lines))
-        .route("/api/ap/pos/{po_id}/approve", post(http::purchase_orders::approve_po))
+        .route(
+            "/api/ap/pos/{po_id}/lines",
+            put(http::purchase_orders::update_po_lines),
+        )
+        .route(
+            "/api/ap/pos/{po_id}/approve",
+            post(http::purchase_orders::approve_po),
+        )
         // Bills — write
         .route("/api/ap/bills", post(http::bills::create_bill))
-        .route("/api/ap/bills/{bill_id}/match", post(http::bills::match_bill))
-        .route("/api/ap/bills/{bill_id}/approve", post(http::bills::approve_bill))
+        .route(
+            "/api/ap/bills/{bill_id}/match",
+            post(http::bills::match_bill),
+        )
+        .route(
+            "/api/ap/bills/{bill_id}/approve",
+            post(http::bills::approve_bill),
+        )
         .route("/api/ap/bills/{bill_id}/void", post(http::bills::void_bill))
-        .route("/api/ap/bills/{bill_id}/tax-quote", post(http::bills::quote_bill_tax))
+        .route(
+            "/api/ap/bills/{bill_id}/tax-quote",
+            post(http::bills::quote_bill_tax),
+        )
         // Bill allocations — write
         .route(
             "/api/ap/bills/{bill_id}/allocations",
@@ -109,7 +132,10 @@ async fn main() {
         )
         // Payment runs — write
         .route("/api/ap/payment-runs", post(http::payment_runs::create_run))
-        .route("/api/ap/payment-runs/{run_id}/execute", post(http::payment_runs::execute_run))
+        .route(
+            "/api/ap/payment-runs/{run_id}/execute",
+            post(http::payment_runs::execute_run),
+        )
         .route_layer(RequirePermissionsLayer::new(&[permissions::AP_MUTATE]))
         .with_state(app_state.clone());
 
@@ -121,7 +147,10 @@ async fn main() {
         .route("/metrics", get(metrics::metrics_handler))
         // Vendors — read
         .route("/api/ap/vendors", get(http::vendors::list_vendors))
-        .route("/api/ap/vendors/{vendor_id}", get(http::vendors::get_vendor))
+        .route(
+            "/api/ap/vendors/{vendor_id}",
+            get(http::vendors::get_vendor),
+        )
         // Purchase orders — read
         .route("/api/ap/pos", get(http::purchase_orders::list_pos))
         .route("/api/ap/pos/{po_id}", get(http::purchase_orders::get_po))
@@ -129,23 +158,43 @@ async fn main() {
         .route("/api/ap/bills", get(http::bills::list_bills))
         .route("/api/ap/bills/{bill_id}", get(http::bills::get_bill))
         // Bill allocations — read
-        .route("/api/ap/bills/{bill_id}/allocations", get(http::allocations::list_allocations))
-        .route("/api/ap/bills/{bill_id}/balance", get(http::allocations::get_balance))
+        .route(
+            "/api/ap/bills/{bill_id}/allocations",
+            get(http::allocations::list_allocations),
+        )
+        .route(
+            "/api/ap/bills/{bill_id}/balance",
+            get(http::allocations::get_balance),
+        )
         // Payment runs — read
-        .route("/api/ap/payment-runs/{run_id}", get(http::payment_runs::get_run))
+        .route(
+            "/api/ap/payment-runs/{run_id}",
+            get(http::payment_runs::get_run),
+        )
         // Reports — read
         .route("/api/ap/aging", get(http::reports::aging_report))
-        .route("/api/ap/tax/reports/summary", get(http::tax_reports::tax_report_summary))
-        .route("/api/ap/tax/reports/export", get(http::tax_reports::tax_report_export))
+        .route(
+            "/api/ap/tax/reports/summary",
+            get(http::tax_reports::tax_report_summary),
+        )
+        .route(
+            "/api/ap/tax/reports/export",
+            get(http::tax_reports::tax_report_export),
+        )
         .with_state(app_state)
         .merge(ap_mutations)
         .merge(http::admin::admin_router(pool))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
+        .layer(axum::middleware::from_fn(
+            security::tracing::tracing_context_middleware,
+        ))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
+        .layer(axum::middleware::from_fn_with_state(
+            maybe_verifier,
+            optional_claims_mw,
+        ))
         .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -199,7 +248,9 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
     let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
 
     if is_wildcard && config.env != "development" {
-        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+        tracing::warn!(
+            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
+        );
     }
 
     let layer = if is_wildcard {

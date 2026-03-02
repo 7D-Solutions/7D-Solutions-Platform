@@ -4,10 +4,7 @@ use uuid::Uuid;
 /// Check if an event has already been processed (idempotency check)
 ///
 /// Returns true if the event has been processed before, false otherwise.
-pub async fn is_event_processed(
-    db: &PgPool,
-    event_id: Uuid,
-) -> Result<bool, sqlx::Error> {
+pub async fn is_event_processed(db: &PgPool, event_id: Uuid) -> Result<bool, sqlx::Error> {
     let result: (i64,) = sqlx::query_as(
         r#"
         SELECT COUNT(*) as count

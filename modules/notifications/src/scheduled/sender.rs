@@ -65,7 +65,9 @@ impl NotificationSender for FailingSender {
         use std::sync::atomic::Ordering;
         let prev = self.remaining.fetch_sub(1, Ordering::SeqCst);
         if prev > 0 {
-            Err(NotificationError::DeliveryFailed("simulated failure".to_string()))
+            Err(NotificationError::DeliveryFailed(
+                "simulated failure".to_string(),
+            ))
         } else {
             Ok(())
         }

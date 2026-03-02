@@ -18,7 +18,7 @@
 //!   never process the same run simultaneously.
 //! - **Atomic**: claim + matching + completion all commit in one transaction.
 
-use crate::reconciliation::{run_reconciliation, RunReconRequest, RunReconOutcome};
+use crate::reconciliation::{run_reconciliation, RunReconOutcome, RunReconRequest};
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -70,7 +70,10 @@ pub enum ScheduledRunExecutionOutcome {
     /// Run completed successfully.
     Completed(ScheduledRunResult),
     /// Run failed with an error.
-    Failed { scheduled_run_id: Uuid, error: String },
+    Failed {
+        scheduled_run_id: Uuid,
+        error: String,
+    },
     /// No pending runs to claim.
     NothingToClaim,
 }
@@ -160,14 +163,16 @@ pub async fn create_scheduled_run(
     .await?;
 
     if let Some((scheduled_run_id, status, recon_run_id, match_count, exception_count)) = existing {
-        return Ok(CreateScheduledRunOutcome::AlreadyScheduled(ScheduledRunResult {
-            scheduled_run_id,
-            app_id: req.app_id,
-            status,
-            recon_run_id,
-            match_count,
-            exception_count,
-        }));
+        return Ok(CreateScheduledRunOutcome::AlreadyScheduled(
+            ScheduledRunResult {
+                scheduled_run_id,
+                app_id: req.app_id,
+                status,
+                recon_run_id,
+                match_count,
+                exception_count,
+            },
+        ));
     }
 
     // Insert new scheduled run.
@@ -270,7 +275,9 @@ pub async fn claim_and_execute_scheduled_run(
 
     // 3. Generate a recon_run_id and execute matching.
     let recon_run_id = Uuid::new_v4();
-    let run_correlation = row.correlation_id.clone()
+    let run_correlation = row
+        .correlation_id
+        .clone()
         .unwrap_or_else(|| correlation_id.to_string());
 
     let matching_result = run_reconciliation(
@@ -311,14 +318,16 @@ pub async fn claim_and_execute_scheduled_run(
             .execute(pool)
             .await?;
 
-            Ok(ScheduledRunExecutionOutcome::Completed(ScheduledRunResult {
-                scheduled_run_id: row.scheduled_run_id,
-                app_id: row.app_id,
-                status: "completed".to_string(),
-                recon_run_id: Some(recon_run_id),
-                match_count: Some(match_count),
-                exception_count: Some(exception_count),
-            }))
+            Ok(ScheduledRunExecutionOutcome::Completed(
+                ScheduledRunResult {
+                    scheduled_run_id: row.scheduled_run_id,
+                    app_id: row.app_id,
+                    status: "completed".to_string(),
+                    recon_run_id: Some(recon_run_id),
+                    match_count: Some(match_count),
+                    exception_count: Some(exception_count),
+                },
+            ))
         }
         Err(e) => {
             let error_msg = e.to_string();
@@ -362,7 +371,8 @@ pub async fn poll_scheduled_runs(
     let mut outcomes = Vec::with_capacity(batch_size);
 
     for _ in 0..batch_size {
-        match claim_and_execute_scheduled_run(pool, worker_id, correlation_id, app_id_filter).await {
+        match claim_and_execute_scheduled_run(pool, worker_id, correlation_id, app_id_filter).await
+        {
             Ok(ScheduledRunExecutionOutcome::NothingToClaim) => {
                 outcomes.push(ScheduledRunExecutionOutcome::NothingToClaim);
                 break;

@@ -20,7 +20,10 @@ impl CategoryRepo {
     ///
     /// Guard: validates input. DB enforces (tenant_id, code) uniqueness.
     /// Outbox: emits category_created event.
-    pub async fn create(pool: &PgPool, req: &CreateCategoryRequest) -> Result<Category, AssetError> {
+    pub async fn create(
+        pool: &PgPool,
+        req: &CreateCategoryRequest,
+    ) -> Result<Category, AssetError> {
         req.validate()?;
 
         let id = Uuid::new_v4();
@@ -234,30 +237,30 @@ impl AssetRepo {
             RETURNING *
             "#,
         )
-        .bind(id)                              // $1
-        .bind(&req.tenant_id)                  // $2
-        .bind(req.category_id)                 // $3
-        .bind(req.asset_tag.trim())            // $4
-        .bind(req.name.trim())                 // $5
-        .bind(req.description.as_deref())      // $6
-        .bind(req.acquisition_date)            // $7
-        .bind(req.in_service_date)             // $8
-        .bind(req.acquisition_cost_minor)      // $9
-        .bind(currency)                        // $10
-        .bind(method.as_str())                 // $11
-        .bind(life_months)                     // $12
-        .bind(salvage)                         // $13
-        .bind(nbv)                             // $14
-        .bind(None::<&str>)                    // $15 asset_account_ref (NULL = use category)
-        .bind(None::<&str>)                    // $16 depreciation_expense_ref
-        .bind(None::<&str>)                    // $17 accum_depreciation_ref
-        .bind(req.location.as_deref())         // $18
-        .bind(req.department.as_deref())       // $19
+        .bind(id) // $1
+        .bind(&req.tenant_id) // $2
+        .bind(req.category_id) // $3
+        .bind(req.asset_tag.trim()) // $4
+        .bind(req.name.trim()) // $5
+        .bind(req.description.as_deref()) // $6
+        .bind(req.acquisition_date) // $7
+        .bind(req.in_service_date) // $8
+        .bind(req.acquisition_cost_minor) // $9
+        .bind(currency) // $10
+        .bind(method.as_str()) // $11
+        .bind(life_months) // $12
+        .bind(salvage) // $13
+        .bind(nbv) // $14
+        .bind(None::<&str>) // $15 asset_account_ref (NULL = use category)
+        .bind(None::<&str>) // $16 depreciation_expense_ref
+        .bind(None::<&str>) // $17 accum_depreciation_ref
+        .bind(req.location.as_deref()) // $18
+        .bind(req.department.as_deref()) // $19
         .bind(req.responsible_person.as_deref()) // $20
-        .bind(req.serial_number.as_deref())    // $21
-        .bind(req.vendor.as_deref())           // $22
+        .bind(req.serial_number.as_deref()) // $21
+        .bind(req.vendor.as_deref()) // $22
         .bind(req.purchase_order_ref.as_deref()) // $23
-        .bind(req.notes.as_deref())            // $24
+        .bind(req.notes.as_deref()) // $24
         .fetch_one(&mut *tx)
         .await
         .map_err(|e| map_unique_violation(e, &req.asset_tag, &req.tenant_id, false))?;
@@ -345,25 +348,19 @@ impl AssetRepo {
     }
 
     /// Deactivate (dispose) an asset. Only draft/active assets can be deactivated.
-    pub async fn deactivate(
-        pool: &PgPool,
-        id: Uuid,
-        tenant_id: &str,
-    ) -> Result<Asset, AssetError> {
+    pub async fn deactivate(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<Asset, AssetError> {
         let mut tx = pool.begin().await?;
 
         // Guard: check current status
-        let current = sqlx::query_as::<_, Asset>(
-            "SELECT * FROM fa_assets WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?
-        .ok_or(AssetError::NotFound)?;
+        let current =
+            sqlx::query_as::<_, Asset>("SELECT * FROM fa_assets WHERE id = $1 AND tenant_id = $2")
+                .bind(id)
+                .bind(tenant_id)
+                .fetch_optional(&mut *tx)
+                .await?
+                .ok_or(AssetError::NotFound)?;
 
-        let status = AssetStatus::try_from(current.status.clone())
-            .unwrap_or(AssetStatus::Draft);
+        let status = AssetStatus::try_from(current.status.clone()).unwrap_or(AssetStatus::Draft);
         if status == AssetStatus::Disposed || status == AssetStatus::Impaired {
             // Already deactivated — idempotent return
             tx.commit().await?;
@@ -409,13 +406,12 @@ impl AssetRepo {
         id: Uuid,
         tenant_id: &str,
     ) -> Result<Option<Asset>, AssetError> {
-        let asset = sqlx::query_as::<_, Asset>(
-            "SELECT * FROM fa_assets WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let asset =
+            sqlx::query_as::<_, Asset>("SELECT * FROM fa_assets WHERE id = $1 AND tenant_id = $2")
+                .bind(id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?;
 
         Ok(asset)
     }

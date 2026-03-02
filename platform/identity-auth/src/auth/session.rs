@@ -1,6 +1,5 @@
 use crate::{
-    clients::tenant_registry::TenantGate,
-    events::envelope::EventEnvelope,
+    clients::tenant_registry::TenantGate, events::envelope::EventEnvelope,
     middleware::tracing::get_trace_id_from_extensions,
 };
 use axum::{
@@ -45,13 +44,29 @@ pub async fn refresh(
         &hash_prefix,
         state.refresh_per_min_per_token,
     ) {
-        state.metrics.auth_rate_limited_total.with_label_values(&["refresh"]).inc();
-        state.metrics.auth_refresh_total.with_label_values(&["failure", "rate_limited"]).inc();
-        return Err(err_retry_after(StatusCode::TOO_MANY_REQUESTS, wait, "rate limited"));
+        state
+            .metrics
+            .auth_rate_limited_total
+            .with_label_values(&["refresh"])
+            .inc();
+        state
+            .metrics
+            .auth_refresh_total
+            .with_label_values(&["failure", "rate_limited"])
+            .inc();
+        return Err(err_retry_after(
+            StatusCode::TOO_MANY_REQUESTS,
+            wait,
+            "rate limited",
+        ));
     }
 
     let mut tx = state.db.begin().await.map_err(|e| {
-        state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
+        state
+            .metrics
+            .auth_refresh_total
+            .with_label_values(&["failure", "db_error"])
+            .inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?;
 
@@ -67,14 +82,22 @@ pub async fn refresh(
     .fetch_optional(&mut *tx)
     .await
     .map_err(|e| {
-        state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
+        state
+            .metrics
+            .auth_refresh_total
+            .with_label_values(&["failure", "db_error"])
+            .inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?;
 
     let row = match row {
         Some(r) => r,
         None => {
-            state.metrics.auth_refresh_total.with_label_values(&["failure", "invalid"]).inc();
+            state
+                .metrics
+                .auth_refresh_total
+                .with_label_values(&["failure", "invalid"])
+                .inc();
             return Err(err(StatusCode::UNAUTHORIZED, "invalid refresh token"));
         }
     };
@@ -85,12 +108,23 @@ pub async fn refresh(
     let revoked_at: Option<chrono::DateTime<Utc>> = row.get("revoked_at");
 
     if revoked_at.is_some() {
-        state.metrics.auth_refresh_total.with_label_values(&["failure", "revoked"]).inc();
-        state.metrics.auth_refresh_replay_total.with_label_values(&[&req.tenant_id.to_string()]).inc();
+        state
+            .metrics
+            .auth_refresh_total
+            .with_label_values(&["failure", "revoked"])
+            .inc();
+        state
+            .metrics
+            .auth_refresh_replay_total
+            .with_label_values(&[&req.tenant_id.to_string()])
+            .inc();
 
         let client = crate::middleware::client_ip::get_client_meta(&extensions);
         let ip = client.as_ref().map(|c| c.ip.as_str()).unwrap_or("unknown");
-        let ua = client.as_ref().and_then(|c| c.user_agent.as_deref()).unwrap_or("unknown");
+        let ua = client
+            .as_ref()
+            .and_then(|c| c.user_agent.as_deref())
+            .unwrap_or("unknown");
 
         tracing::warn!(
             tenant_id = %req.tenant_id,
@@ -105,7 +139,11 @@ pub async fn refresh(
     }
 
     if expires_at < Utc::now() {
-        state.metrics.auth_refresh_total.with_label_values(&["failure", "expired"]).inc();
+        state
+            .metrics
+            .auth_refresh_total
+            .with_label_values(&["failure", "expired"])
+            .inc();
         return Err(err(StatusCode::UNAUTHORIZED, "refresh token expired"));
     }
 
@@ -117,7 +155,11 @@ pub async fn refresh(
                 // Allow: active/trial/past_due may refresh
             }
             Ok(TenantGate::Deny { status }) => {
-                state.metrics.auth_tenant_status_denied_total.with_label_values(&[&status]).inc();
+                state
+                    .metrics
+                    .auth_tenant_status_denied_total
+                    .with_label_values(&[&status])
+                    .inc();
                 tracing::warn!(
                     tenant_id = %req.tenant_id,
                     user_id = %user_id,
@@ -129,7 +171,11 @@ pub async fn refresh(
                 return Err(err(StatusCode::FORBIDDEN, "tenant account inactive"));
             }
             Err(_) => {
-                state.metrics.auth_tenant_status_denied_total.with_label_values(&["unavailable"]).inc();
+                state
+                    .metrics
+                    .auth_tenant_status_denied_total
+                    .with_label_values(&["unavailable"])
+                    .inc();
                 tracing::warn!(
                     tenant_id = %req.tenant_id,
                     user_id = %user_id,
@@ -137,7 +183,10 @@ pub async fn refresh(
                     "auth.tenant_status_unavailable_deny_refresh"
                 );
                 let _ = tx.rollback().await;
-                return Err(err(StatusCode::SERVICE_UNAVAILABLE, "tenant status service unavailable"));
+                return Err(err(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "tenant status service unavailable",
+                ));
             }
         }
     }
@@ -153,7 +202,11 @@ pub async fn refresh(
     .execute(&mut *tx)
     .await
     .map_err(|e| {
-        state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
+        state
+            .metrics
+            .auth_refresh_total
+            .with_label_values(&["failure", "db_error"])
+            .inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?;
 
@@ -175,7 +228,11 @@ pub async fn refresh(
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
-        state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
+        state
+            .metrics
+            .auth_refresh_total
+            .with_label_values(&["failure", "db_error"])
+            .inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?
     .get("id");
@@ -184,12 +241,23 @@ pub async fn refresh(
     super::concurrency::rotate_lease_in_tx(&mut tx, token_id, new_token_id)
         .await
         .map_err(|e| {
-            state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
-            err(StatusCode::INTERNAL_SERVER_ERROR, format!("rotate lease: {e}"))
+            state
+                .metrics
+                .auth_refresh_total
+                .with_label_values(&["failure", "db_error"])
+                .inc();
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("rotate lease: {e}"),
+            )
         })?;
 
     tx.commit().await.map_err(|e| {
-        state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
+        state
+            .metrics
+            .auth_refresh_total
+            .with_label_values(&["failure", "db_error"])
+            .inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?;
 
@@ -197,8 +265,15 @@ pub async fn refresh(
     let roles = crate::db::rbac::list_roles_for_user(&state.db, req.tenant_id, user_id)
         .await
         .map_err(|e| {
-            state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
-            err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac roles: {e}"))
+            state
+                .metrics
+                .auth_refresh_total
+                .with_label_values(&["failure", "db_error"])
+                .inc();
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("rbac roles: {e}"),
+            )
         })?
         .into_iter()
         .map(|r| r.name)
@@ -207,11 +282,19 @@ pub async fn refresh(
     let perms = crate::db::rbac::effective_permissions_for_user(&state.db, req.tenant_id, user_id)
         .await
         .map_err(|e| {
-            state.metrics.auth_refresh_total.with_label_values(&["failure", "db_error"]).inc();
-            err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac perms: {e}"))
+            state
+                .metrics
+                .auth_refresh_total
+                .with_label_values(&["failure", "db_error"])
+                .inc();
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("rbac perms: {e}"),
+            )
         })?;
 
-    let access = state.jwt
+    let access = state
+        .jwt
         .sign_access_token(
             req.tenant_id,
             user_id,
@@ -221,14 +304,24 @@ pub async fn refresh(
             state.access_ttl_minutes,
         )
         .map_err(|e| {
-            state.metrics.auth_refresh_total.with_label_values(&["failure", "token_sign_error"]).inc();
+            state
+                .metrics
+                .auth_refresh_total
+                .with_label_values(&["failure", "token_sign_error"])
+                .inc();
             err(StatusCode::INTERNAL_SERVER_ERROR, e)
         })?;
 
-    state.metrics.auth_refresh_total.with_label_values(&["success", "ok"]).inc();
+    state
+        .metrics
+        .auth_refresh_total
+        .with_label_values(&["success", "ok"])
+        .inc();
 
     #[derive(Serialize)]
-    struct Data { user_id: String }
+    struct Data {
+        user_id: String,
+    }
     let env = EventEnvelope {
         event_id: Uuid::new_v4(),
         event_type: "auth.token.refreshed".to_string(),
@@ -240,15 +333,26 @@ pub async fn refresh(
         aggregate_id: user_id,
         trace_id,
         causation_id: None,
-        data: Data { user_id: user_id.to_string() },
+        data: Data {
+            user_id: user_id.to_string(),
+        },
     };
 
-    if state.events.publish(
-        "auth.events.token.refreshed",
-        "auth.token.refreshed.v1.json",
-        &env
-    ).await.is_err() {
-        state.metrics.auth_nats_publish_fail_total.with_label_values(&["auth.token.refreshed"]).inc();
+    if state
+        .events
+        .publish(
+            "auth.events.token.refreshed",
+            "auth.token.refreshed.v1.json",
+            &env,
+        )
+        .await
+        .is_err()
+    {
+        state
+            .metrics
+            .auth_nats_publish_fail_total
+            .with_label_values(&["auth.token.refreshed"])
+            .inc();
     }
 
     Ok((
@@ -283,19 +387,31 @@ pub async fn logout(
     .execute(&state.db)
     .await
     .map_err(|e| {
-        state.metrics.auth_logout_total.with_label_values(&["failure", "db_error"]).inc();
+        state
+            .metrics
+            .auth_logout_total
+            .with_label_values(&["failure", "db_error"])
+            .inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?;
 
     if res.rows_affected() == 0 {
-        state.metrics.auth_logout_total.with_label_values(&["failure", "invalid"]).inc();
+        state
+            .metrics
+            .auth_logout_total
+            .with_label_values(&["failure", "invalid"])
+            .inc();
         return Err(err(StatusCode::UNAUTHORIZED, "invalid refresh token"));
     }
 
     // Revoke the session lease (best-effort — token already revoked above).
     let _ = super::concurrency::revoke_lease_by_token_hash(&state.db, req.tenant_id, &hash).await;
 
-    state.metrics.auth_logout_total.with_label_values(&["success", "ok"]).inc();
+    state
+        .metrics
+        .auth_logout_total
+        .with_label_values(&["success", "ok"])
+        .inc();
 
     Ok((StatusCode::OK, Json(OkResponse { ok: true })))
 }

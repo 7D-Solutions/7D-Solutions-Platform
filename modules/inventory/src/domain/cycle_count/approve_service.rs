@@ -26,13 +26,11 @@ use sqlx::{PgPool, Postgres, Transaction};
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::events::{
-    AdjustedPayload, EVENT_TYPE_ADJUSTED, build_adjusted_envelope,
-};
 use crate::events::cycle_count_approved::{
     build_cycle_count_approved_envelope, CycleCountApprovedLine, CycleCountApprovedPayload,
     EVENT_TYPE_CYCLE_COUNT_APPROVED,
 };
+use crate::events::{build_adjusted_envelope, AdjustedPayload, EVENT_TYPE_ADJUSTED};
 
 // ============================================================================
 // Types
@@ -579,7 +577,10 @@ mod tests {
     fn validate_rejects_empty_tenant() {
         let mut r = make_req();
         r.tenant_id = "".to_string();
-        assert!(matches!(validate_request(&r), Err(ApproveError::MissingTenant)));
+        assert!(matches!(
+            validate_request(&r),
+            Err(ApproveError::MissingTenant)
+        ));
     }
 
     #[test]

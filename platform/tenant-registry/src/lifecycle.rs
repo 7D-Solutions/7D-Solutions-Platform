@@ -129,10 +129,7 @@ pub fn standard_provisioning_sequence() -> Vec<ProvisioningStepDefinition> {
             step_name: step_names::SEED_INITIAL_DATA,
             step_order: 4,
             description: "Seed required initial data (chart of accounts, default settings)",
-            verification_checks: vec![
-                "chart_of_accounts_seeded",
-                "default_settings_created",
-            ],
+            verification_checks: vec!["chart_of_accounts_seeded", "default_settings_created"],
         },
         ProvisioningStepDefinition {
             step_name: step_names::VERIFY_DATABASE_CONNECTIVITY,

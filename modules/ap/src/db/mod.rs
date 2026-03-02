@@ -37,7 +37,13 @@ pub fn database_url_for_app(base_url: &str, app_id: &str) -> String {
     // Sanitize app_id: lowercase alphanumeric + underscore only
     let safe_id: String = app_id
         .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '_' })
+        .map(|c| {
+            if c.is_alphanumeric() || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect::<String>()
         .to_lowercase()
         .replace('-', "_");

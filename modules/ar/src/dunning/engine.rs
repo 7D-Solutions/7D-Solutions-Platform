@@ -5,16 +5,16 @@
 
 use crate::events::{
     build_dunning_state_changed_envelope, build_invoice_suspended_envelope,
-    DunningStateChangedPayload, InvoiceSuspendedPayload,
-    EVENT_TYPE_DUNNING_STATE_CHANGED, EVENT_TYPE_INVOICE_SUSPENDED,
+    DunningStateChangedPayload, InvoiceSuspendedPayload, EVENT_TYPE_DUNNING_STATE_CHANGED,
+    EVENT_TYPE_INVOICE_SUSPENDED,
 };
 use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::{
-    is_valid_transition, DunningError, DunningStateRow, DunningStateValue,
-    InitDunningRequest, InitDunningResult, TransitionDunningRequest, TransitionDunningResult,
+    is_valid_transition, DunningError, DunningStateRow, DunningStateValue, InitDunningRequest,
+    InitDunningResult, TransitionDunningRequest, TransitionDunningResult,
 };
 
 /// Initialize dunning for an invoice (creates the Pending state record).
@@ -107,8 +107,8 @@ pub async fn init_dunning(
         payload,
     );
 
-    let payload_json = serde_json::to_value(&envelope)
-        .map_err(|e| DunningError::DatabaseError(e.to_string()))?;
+    let payload_json =
+        serde_json::to_value(&envelope).map_err(|e| DunningError::DatabaseError(e.to_string()))?;
 
     sqlx::query(
         r#"
@@ -272,8 +272,8 @@ pub async fn transition_dunning(
         payload,
     );
 
-    let payload_json = serde_json::to_value(&envelope)
-        .map_err(|e| DunningError::DatabaseError(e.to_string()))?;
+    let payload_json =
+        serde_json::to_value(&envelope).map_err(|e| DunningError::DatabaseError(e.to_string()))?;
 
     sqlx::query(
         r#"

@@ -81,11 +81,9 @@ impl fmt::Display for ReconciliationError {
                 "Max PSP polling retries exceeded for attempt {}",
                 attempt_id
             ),
-            Self::MissingProcessorPaymentId(id) => write!(
-                f,
-                "Missing processor_payment_id for attempt {}",
-                id
-            ),
+            Self::MissingProcessorPaymentId(id) => {
+                write!(f, "Missing processor_payment_id for attempt {}", id)
+            }
             Self::DatabaseError(msg) => write!(f, "Database error: {}", msg),
             Self::LifecycleError(e) => write!(f, "Lifecycle error: {}", e),
         }
@@ -201,8 +199,8 @@ pub async fn reconcile_unknown_attempt(
     // ========================================================================
     // STEP 3: Poll PSP for actual payment status
     // ========================================================================
-    let processor_payment_id = processor_payment_id
-        .ok_or(ReconciliationError::MissingProcessorPaymentId(attempt_id))?;
+    let processor_payment_id =
+        processor_payment_id.ok_or(ReconciliationError::MissingProcessorPaymentId(attempt_id))?;
 
     let psp_status = poll_psp_status_with_retry(&processor_payment_id, 3).await?;
 
@@ -327,13 +325,12 @@ async fn resolve_unknown_to_terminal(
     psp_status: &PspPaymentStatus,
 ) -> Result<(), ReconciliationError> {
     // Fetch completed_at timestamp to calculate UNKNOWN duration (Phase 16: bd-1pw7)
-    let completed_at: Option<chrono::NaiveDateTime> = sqlx::query_scalar(
-        "SELECT completed_at FROM payment_attempts WHERE id = $1"
-    )
-    .bind(attempt_id)
-    .fetch_optional(pool)
-    .await?
-    .flatten();
+    let completed_at: Option<chrono::NaiveDateTime> =
+        sqlx::query_scalar("SELECT completed_at FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_optional(pool)
+            .await?
+            .flatten();
 
     let reason = match psp_status {
         PspPaymentStatus::Succeeded => "PSP confirmed payment succeeded".to_string(),
@@ -343,9 +340,7 @@ async fn resolve_unknown_to_terminal(
         PspPaymentStatus::FailedFinal { code, message } => {
             format!("PSP returned permanent failure: {} - {}", code, message)
         }
-        PspPaymentStatus::StillUnknown => {
-            "PSP still does not know payment status".to_string()
-        }
+        PspPaymentStatus::StillUnknown => "PSP still does not know payment status".to_string(),
     };
 
     // Call lifecycle functions (enforces guards, emits events)

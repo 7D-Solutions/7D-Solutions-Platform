@@ -21,8 +21,8 @@ use uuid::Uuid;
 use tax_core::TaxProvider;
 
 use crate::events::{
-    build_vendor_bill_voided_envelope, VendorBillVoidedPayload,
-    EVENT_TYPE_VENDOR_BILL_VOIDED, EVENT_TYPE_VENDOR_BILL_CREATED,
+    build_vendor_bill_voided_envelope, VendorBillVoidedPayload, EVENT_TYPE_VENDOR_BILL_CREATED,
+    EVENT_TYPE_VENDOR_BILL_VOIDED,
 };
 use crate::outbox::enqueue_event_tx;
 
@@ -100,7 +100,10 @@ pub async fn void_bill(
     }
 
     // Guard: only voidable statuses are permitted
-    if !matches!(row.status.as_str(), "open" | "matched" | "approved" | "partially_paid") {
+    if !matches!(
+        row.status.as_str(),
+        "open" | "matched" | "approved" | "partially_paid"
+    ) {
         return Err(BillError::InvalidTransition {
             from: row.status.clone(),
             to: "voided".to_string(),
@@ -279,9 +282,16 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "open").await;
 
-        let result = void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v1".to_string())
-            .await
-            .expect("void_bill failed");
+        let result = void_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &void_req(),
+            "corr-v1".to_string(),
+        )
+        .await
+        .expect("void_bill failed");
 
         assert_eq!(result.status, "voided");
 
@@ -307,9 +317,16 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "approved").await;
 
-        let result = void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v2".to_string())
-            .await
-            .expect("void approved bill failed");
+        let result = void_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &void_req(),
+            "corr-v2".to_string(),
+        )
+        .await
+        .expect("void approved bill failed");
 
         assert_eq!(result.status, "voided");
 
@@ -324,7 +341,15 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "paid").await;
 
-        let result = void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v3".to_string()).await;
+        let result = void_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &void_req(),
+            "corr-v3".to_string(),
+        )
+        .await;
 
         assert!(
             matches!(result, Err(BillError::InvalidTransition { .. })),
@@ -343,13 +368,27 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "open").await;
 
-        void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v4a".to_string())
-            .await
-            .expect("first void");
+        void_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &void_req(),
+            "corr-v4a".to_string(),
+        )
+        .await
+        .expect("first void");
 
-        let second = void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v4b".to_string())
-            .await
-            .expect("second void must succeed (idempotent)");
+        let second = void_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &void_req(),
+            "corr-v4b".to_string(),
+        )
+        .await
+        .expect("second void must succeed (idempotent)");
 
         assert_eq!(second.status, "voided");
 
@@ -362,7 +401,10 @@ mod tests {
         .fetch_one(&db)
         .await
         .expect("outbox count");
-        assert_eq!(count, 1, "idempotent second void must not produce a second event");
+        assert_eq!(
+            count, 1,
+            "idempotent second void must not produce a second event"
+        );
 
         cleanup(&db).await;
     }
@@ -375,7 +417,15 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "open").await;
 
-        let result = void_bill(&db, &ZeroTaxProvider, "wrong-tenant", bill_id, &void_req(), "corr-v5".to_string()).await;
+        let result = void_bill(
+            &db,
+            &ZeroTaxProvider,
+            "wrong-tenant",
+            bill_id,
+            &void_req(),
+            "corr-v5".to_string(),
+        )
+        .await;
 
         assert!(
             matches!(result, Err(BillError::NotFound(_))),
@@ -394,9 +444,16 @@ mod tests {
         let vendor_id = create_vendor(&db).await;
         let bill_id = create_bill(&db, vendor_id, "open").await;
 
-        void_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &void_req(), "corr-v6".to_string())
-            .await
-            .expect("void failed");
+        void_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &void_req(),
+            "corr-v6".to_string(),
+        )
+        .await
+        .expect("void failed");
 
         let payload: serde_json::Value = sqlx::query_scalar(
             "SELECT payload FROM events_outbox WHERE aggregate_type = 'bill' \
@@ -412,7 +469,9 @@ mod tests {
         let void_reason = payload["payload"]["void_reason"].as_str().unwrap_or("");
         assert_eq!(void_reason, "duplicate entry");
 
-        let total = payload["payload"]["original_total_minor"].as_i64().unwrap_or(0);
+        let total = payload["payload"]["original_total_minor"]
+            .as_i64()
+            .unwrap_or(0);
         assert_eq!(total, 50000);
 
         cleanup(&db).await;

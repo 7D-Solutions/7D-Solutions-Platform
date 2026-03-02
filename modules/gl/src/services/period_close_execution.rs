@@ -7,7 +7,9 @@ use super::period_close_snapshot::create_close_snapshot;
 use super::period_close_validation::{
     check_close_checklist_gate, has_blocking_errors, validate_period_can_close, PeriodCloseError,
 };
-use crate::contracts::period_close_v1::{CloseStatus, ValidationIssue, ValidationReport, ValidationSeverity};
+use crate::contracts::period_close_v1::{
+    CloseStatus, ValidationIssue, ValidationReport, ValidationSeverity,
+};
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -123,10 +125,7 @@ pub async fn close_period(
                     issues: vec![ValidationIssue {
                         severity: ValidationSeverity::Error,
                         code: "PERIOD_NOT_FOUND".to_string(),
-                        message: format!(
-                            "Period {} not found for tenant {}",
-                            period_id, tenant_id
-                        ),
+                        message: format!("Period {} not found for tenant {}", period_id, tenant_id),
                         metadata: None,
                     }],
                 }),
@@ -185,7 +184,8 @@ pub async fn close_period(
     // ========================================
     // Always re-validate before close, even if client pre-validated.
     // ChatGPT guardrail: validation MUST re-run on every close attempt.
-    let validation_report = validate_period_can_close(&mut tx, tenant_id, period_id, dlq_validation_enabled).await?;
+    let validation_report =
+        validate_period_can_close(&mut tx, tenant_id, period_id, dlq_validation_enabled).await?;
 
     if has_blocking_errors(&validation_report) {
         tx.rollback().await?;

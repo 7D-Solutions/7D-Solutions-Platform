@@ -35,7 +35,10 @@ pub struct ErrorBody {
 
 impl ErrorBody {
     fn new(error: &str, message: &str) -> Self {
-        Self { error: error.to_string(), message: message.to_string() }
+        Self {
+            error: error.to_string(),
+            message: message.to_string(),
+        }
     }
 }
 
@@ -43,7 +46,10 @@ fn connector_error_response(e: ConnectorError) -> (StatusCode, Json<ErrorBody>) 
     match e {
         ConnectorError::UnknownType(t) => (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("unknown_connector_type", &format!("Unknown connector type: {}", t))),
+            Json(ErrorBody::new(
+                "unknown_connector_type",
+                &format!("Unknown connector type: {}", t),
+            )),
         ),
         ConnectorError::InvalidConfig(msg) => (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -55,7 +61,10 @@ fn connector_error_response(e: ConnectorError) -> (StatusCode, Json<ErrorBody>) 
         ),
         ConnectorError::NotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("not_found", &format!("Connector config {} not found", id))),
+            Json(ErrorBody::new(
+                "not_found",
+                &format!("Connector config {} not found", id),
+            )),
         ),
         ConnectorError::Database(e) => {
             tracing::error!("Connector DB error: {}", e);
@@ -134,10 +143,9 @@ pub async fn list_connectors(
 ) -> Result<Json<Vec<ConnectorConfig>>, (StatusCode, Json<ErrorBody>)> {
     let app_id = extract_tenant(&claims)?;
 
-    let configs =
-        service::list_connector_configs(&state.pool, &app_id, q.enabled_only)
-            .await
-            .map_err(connector_error_response)?;
+    let configs = service::list_connector_configs(&state.pool, &app_id, q.enabled_only)
+        .await
+        .map_err(connector_error_response)?;
 
     Ok(Json(configs))
 }
@@ -156,7 +164,10 @@ pub async fn get_connector(
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
-                Json(ErrorBody::new("not_found", &format!("Connector config {} not found", id))),
+                Json(ErrorBody::new(
+                    "not_found",
+                    &format!("Connector config {} not found", id),
+                )),
             )
         })?;
 

@@ -25,7 +25,10 @@ use crate::{metrics, ops, AppState};
 pub fn router(state: Arc<AppState>) -> Router {
     let mutations = Router::new()
         // Employees — write
-        .route("/api/timekeeping/employees", post(employees::create_employee))
+        .route(
+            "/api/timekeeping/employees",
+            post(employees::create_employee),
+        )
         .route(
             "/api/timekeeping/employees/{id}",
             put(employees::update_employee).delete(employees::deactivate_employee),
@@ -44,15 +47,33 @@ pub fn router(state: Arc<AppState>) -> Router {
         )
         // Timesheet Entries — write
         .route("/api/timekeeping/entries", post(entries::create_entry))
-        .route("/api/timekeeping/entries/correct", post(entries::correct_entry))
+        .route(
+            "/api/timekeeping/entries/correct",
+            post(entries::correct_entry),
+        )
         .route("/api/timekeeping/entries/void", post(entries::void_entry))
         // Approvals — write
-        .route("/api/timekeeping/approvals/submit", post(approvals::submit_approval))
-        .route("/api/timekeeping/approvals/approve", post(approvals::approve_approval))
-        .route("/api/timekeeping/approvals/reject", post(approvals::reject_approval))
-        .route("/api/timekeeping/approvals/recall", post(approvals::recall_approval))
+        .route(
+            "/api/timekeeping/approvals/submit",
+            post(approvals::submit_approval),
+        )
+        .route(
+            "/api/timekeeping/approvals/approve",
+            post(approvals::approve_approval),
+        )
+        .route(
+            "/api/timekeeping/approvals/reject",
+            post(approvals::reject_approval),
+        )
+        .route(
+            "/api/timekeeping/approvals/recall",
+            post(approvals::recall_approval),
+        )
         // Allocations — write
-        .route("/api/timekeeping/allocations", post(allocations::create_allocation))
+        .route(
+            "/api/timekeeping/allocations",
+            post(allocations::create_allocation),
+        )
         .route(
             "/api/timekeeping/allocations/{id}",
             put(allocations::update_allocation).delete(allocations::deactivate_allocation),
@@ -61,8 +82,13 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/timekeeping/exports", post(export::create_export))
         // Billing rates + billing runs — write
         .route("/api/timekeeping/rates", post(billing::create_rate))
-        .route("/api/timekeeping/billing-runs", post(billing::create_billing_run))
-        .route_layer(RequirePermissionsLayer::new(&[permissions::TIMEKEEPING_MUTATE]))
+        .route(
+            "/api/timekeeping/billing-runs",
+            post(billing::create_billing_run),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::TIMEKEEPING_MUTATE,
+        ]))
         .with_state(state.clone());
 
     let reads = Router::new()
@@ -74,25 +100,55 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/metrics", get(metrics::metrics_handler))
         // Employees — read
         .route("/api/timekeeping/employees", get(employees::list_employees))
-        .route("/api/timekeeping/employees/{id}", get(employees::get_employee))
+        .route(
+            "/api/timekeeping/employees/{id}",
+            get(employees::get_employee),
+        )
         // Projects — read
         .route("/api/timekeeping/projects", get(projects::list_projects))
         .route("/api/timekeeping/projects/{id}", get(projects::get_project))
-        .route("/api/timekeeping/projects/{project_id}/tasks", get(projects::list_tasks))
+        .route(
+            "/api/timekeeping/projects/{project_id}/tasks",
+            get(projects::list_tasks),
+        )
         .route("/api/timekeeping/tasks/{id}", get(projects::get_task))
         // Entries — read
         .route("/api/timekeeping/entries", get(entries::list_entries))
-        .route("/api/timekeeping/entries/{entry_id}/history", get(entries::entry_history))
+        .route(
+            "/api/timekeeping/entries/{entry_id}/history",
+            get(entries::entry_history),
+        )
         // Approvals — read
         .route("/api/timekeeping/approvals", get(approvals::list_approvals))
-        .route("/api/timekeeping/approvals/pending", get(approvals::list_pending))
-        .route("/api/timekeeping/approvals/{id}", get(approvals::get_approval))
-        .route("/api/timekeeping/approvals/{id}/actions", get(approvals::approval_actions))
+        .route(
+            "/api/timekeeping/approvals/pending",
+            get(approvals::list_pending),
+        )
+        .route(
+            "/api/timekeeping/approvals/{id}",
+            get(approvals::get_approval),
+        )
+        .route(
+            "/api/timekeeping/approvals/{id}/actions",
+            get(approvals::approval_actions),
+        )
         // Allocations — read
-        .route("/api/timekeeping/allocations", get(allocations::list_allocations))
-        .route("/api/timekeeping/allocations/{id}", get(allocations::get_allocation))
-        .route("/api/timekeeping/rollups/by-project", get(allocations::rollup_by_project))
-        .route("/api/timekeeping/rollups/by-employee", get(allocations::rollup_by_employee))
+        .route(
+            "/api/timekeeping/allocations",
+            get(allocations::list_allocations),
+        )
+        .route(
+            "/api/timekeeping/allocations/{id}",
+            get(allocations::get_allocation),
+        )
+        .route(
+            "/api/timekeeping/rollups/by-project",
+            get(allocations::rollup_by_project),
+        )
+        .route(
+            "/api/timekeeping/rollups/by-employee",
+            get(allocations::rollup_by_employee),
+        )
         .route(
             "/api/timekeeping/rollups/by-task/{project_id}",
             get(allocations::rollup_by_task),

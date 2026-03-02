@@ -25,7 +25,10 @@ pub async fn cash_position(
             tracing::error!("Cash position query failed: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "Failed to compute cash position")),
+                Json(ErrorBody::new(
+                    "database_error",
+                    "Failed to compute cash position",
+                )),
             )
         })?;
 

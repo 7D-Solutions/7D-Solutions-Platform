@@ -203,7 +203,15 @@ mod tests {
         let strategy = CreditCardStrategy;
 
         let sl = make_cc_txn(-2000, stmt_date, None, None, Some("STORE"), None, true);
-        let pt = make_cc_txn(-2000, auth, Some(auth), Some(settle), Some("STORE"), None, false);
+        let pt = make_cc_txn(
+            -2000,
+            auth,
+            Some(auth),
+            Some(settle),
+            Some("STORE"),
+            None,
+            false,
+        );
         let score = strategy.score(&sl, &pt).unwrap();
         // 0.5 + 0.3 (settle exact) + 0.2 (merchant exact) = 1.0
         assert_eq!(score, Decimal::from_str("1.0000").unwrap());
@@ -218,7 +226,15 @@ mod tests {
         let strategy = CreditCardStrategy;
 
         let sl = make_cc_txn(-2000, stmt_date, None, None, Some("STORE"), None, true);
-        let pt = make_cc_txn(-2000, auth, Some(auth), Some(settle), Some("STORE"), None, false);
+        let pt = make_cc_txn(
+            -2000,
+            auth,
+            Some(auth),
+            Some(settle),
+            Some("STORE"),
+            None,
+            false,
+        );
         let score = strategy.score(&sl, &pt).unwrap();
         // Date score = 0 (outside window), merchant still matches
         // 0.5 + 0.0 + 0.2 = 0.7

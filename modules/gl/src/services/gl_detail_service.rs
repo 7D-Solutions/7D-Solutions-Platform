@@ -10,8 +10,8 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::repos::report_query_repo::{self, ReportQueryError};
 use crate::repos::period_repo;
+use crate::repos::report_query_repo::{self, ReportQueryError};
 
 /// GL detail response DTO
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,7 +26,7 @@ pub struct GLDetailResponse {
 /// GL detail entry (header + lines)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GLDetailEntry {
-    pub id: String, // UUID as string
+    pub id: String,        // UUID as string
     pub posted_at: String, // ISO 8601 timestamp
     pub description: Option<String>,
     pub currency: String,
@@ -114,9 +114,9 @@ pub async fn get_gl_detail(
     let period = period_repo::find_by_id(pool, period_id)
         .await
         .map_err(|e| match e {
-            period_repo::PeriodError::Database(_) => GLDetailServiceError::Repo(
-                ReportQueryError::Database(sqlx::Error::RowNotFound)
-            ),
+            period_repo::PeriodError::Database(_) => {
+                GLDetailServiceError::Repo(ReportQueryError::Database(sqlx::Error::RowNotFound))
+            }
             _ => GLDetailServiceError::PeriodNotFound {
                 tenant_id: tenant_id.to_string(),
                 period_id,
@@ -136,10 +136,12 @@ pub async fn get_gl_detail(
     }
 
     // Convert NaiveDate to DateTime<Utc> (start of day and end of day)
-    let period_start = period.period_start
+    let period_start = period
+        .period_start
         .and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap())
         .and_utc();
-    let period_end = period.period_end
+    let period_end = period
+        .period_end
         .and_time(NaiveTime::from_hms_opt(23, 59, 59).unwrap())
         .and_utc();
 
@@ -196,9 +198,7 @@ pub async fn get_gl_detail(
         // Fetch header
         let header = report_query_repo::fetch_entry_header(pool, entry_id)
             .await?
-            .ok_or_else(|| {
-                ReportQueryError::Database(sqlx::Error::RowNotFound)
-            })?;
+            .ok_or_else(|| ReportQueryError::Database(sqlx::Error::RowNotFound))?;
 
         // Apply currency filter if specified
         if let Some(cur) = currency {
@@ -208,12 +208,8 @@ pub async fn get_gl_detail(
         }
 
         // Fetch lines with account metadata
-        let lines = report_query_repo::fetch_entry_lines_with_accounts(
-            pool,
-            entry_id,
-            tenant_id,
-        )
-        .await?;
+        let lines =
+            report_query_repo::fetch_entry_lines_with_accounts(pool, entry_id, tenant_id).await?;
 
         // Transform to DTO
         let entry = GLDetailEntry {

@@ -45,9 +45,7 @@ async fn main() {
 
     tracing::info!("TTP: database migrations applied");
 
-    let ttp_metrics = Arc::new(
-        metrics::TtpMetrics::new().expect("TTP: failed to create metrics"),
-    );
+    let ttp_metrics = Arc::new(metrics::TtpMetrics::new().expect("TTP: failed to create metrics"));
     tracing::info!("TTP: metrics initialized");
 
     let app_state = Arc::new(AppState {
@@ -60,11 +58,16 @@ async fn main() {
 
     let app = http::router(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
+        .layer(axum::middleware::from_fn(
+            security::tracing::tracing_context_middleware,
+        ))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
+        .layer(axum::middleware::from_fn_with_state(
+            maybe_verifier,
+            optional_claims_mw,
+        ))
         .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -118,7 +121,9 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
     let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
 
     if is_wildcard && config.env != "development" {
-        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+        tracing::warn!(
+            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
+        );
     }
 
     let layer = if is_wildcard {

@@ -52,10 +52,7 @@ pub enum InvariantViolation {
         attempt_count: i64,
     },
     /// Cycle attempt with succeeded status but no AR invoice ID
-    SucceededWithoutInvoice {
-        attempt_id: Uuid,
-        cycle_key: String,
-    },
+    SucceededWithoutInvoice { attempt_id: Uuid, cycle_key: String },
     /// Database query error
     DatabaseError(String),
 }
@@ -138,7 +135,7 @@ pub async fn assert_no_duplicate_cycle_attempts(
          FROM subscription_invoice_attempts
          WHERE tenant_id = $1
          GROUP BY subscription_id, cycle_key
-         HAVING COUNT(*) > 1"
+         HAVING COUNT(*) > 1",
     )
     .bind(tenant_id)
     .fetch_all(pool)
@@ -177,7 +174,7 @@ pub async fn assert_one_invoice_per_cycle(
          WHERE tenant_id = $1
            AND status = 'succeeded'
          GROUP BY subscription_id, cycle_key
-         HAVING COUNT(*) > 1"
+         HAVING COUNT(*) > 1",
     )
     .bind(tenant_id)
     .fetch_all(pool)
@@ -219,7 +216,7 @@ pub async fn assert_no_attempts_after_terminal(
          WHERE tenant_id = $1
            AND status IN ('succeeded', 'failed_final')
          GROUP BY subscription_id, cycle_key, status
-         HAVING COUNT(*) > 1"
+         HAVING COUNT(*) > 1",
     )
     .bind(tenant_id)
     .fetch_all(pool)
@@ -257,7 +254,7 @@ pub async fn assert_succeeded_has_invoice_id(
          FROM subscription_invoice_attempts
          WHERE tenant_id = $1
            AND status = 'succeeded'
-           AND ar_invoice_id IS NULL"
+           AND ar_invoice_id IS NULL",
     )
     .bind(tenant_id)
     .fetch_all(pool)
@@ -278,7 +275,10 @@ pub async fn assert_succeeded_has_invoice_id(
 /// **Convenience function** that runs all Subscription-specific invariant assertions.
 ///
 /// **Returns:** Ok(()) if all invariants hold, Err on first violation
-pub async fn assert_all_invariants(pool: &PgPool, tenant_id: &str) -> Result<(), InvariantViolation> {
+pub async fn assert_all_invariants(
+    pool: &PgPool,
+    tenant_id: &str,
+) -> Result<(), InvariantViolation> {
     assert_no_duplicate_cycle_attempts(pool, tenant_id).await?;
     assert_one_invoice_per_cycle(pool, tenant_id).await?;
     assert_no_attempts_after_terminal(pool, tenant_id).await?;
@@ -314,14 +314,18 @@ mod tests {
             cycle_key: "2026-02".to_string(),
             invoice_count: 3,
         };
-        assert!(violation.to_string().contains("Multiple invoices for cycle"));
+        assert!(violation
+            .to_string()
+            .contains("Multiple invoices for cycle"));
         assert!(violation.to_string().contains("invoice_count=3"));
 
         let violation = InvariantViolation::SucceededWithoutInvoice {
             attempt_id: Uuid::nil(),
             cycle_key: "2026-02".to_string(),
         };
-        assert!(violation.to_string().contains("marked 'succeeded' but has no ar_invoice_id"));
+        assert!(violation
+            .to_string()
+            .contains("marked 'succeeded' but has no ar_invoice_id"));
     }
 
     #[test]

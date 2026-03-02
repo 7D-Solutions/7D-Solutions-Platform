@@ -428,7 +428,11 @@ mod tests {
             EVENT_TYPE_TRANSFER_COMPLETED,
         ];
         for et in &event_types {
-            assert!(!et.contains("cogs_post_required"), "unexpected cogs_post_required event: {}", et);
+            assert!(
+                !et.contains("cogs_post_required"),
+                "unexpected cogs_post_required event: {}",
+                et
+            );
         }
     }
 

@@ -54,10 +54,20 @@ pub async fn resolve_stacked_jurisdictions(
     let mut results = Vec::new();
 
     for (jurisdiction_id, jurisdiction_name, _country, _state) in jurisdictions {
-        let rule = sqlx::query_as::<_, (
-            Uuid, Option<String>, f64, i64, bool,
-            chrono::NaiveDate, Option<chrono::NaiveDate>, i32, String,
-        )>(
+        let rule = sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                Option<String>,
+                f64,
+                i64,
+                bool,
+                chrono::NaiveDate,
+                Option<chrono::NaiveDate>,
+                i32,
+                String,
+            ),
+        >(
             r#"
             SELECT r.id, r.tax_code, r.rate::FLOAT8, r.flat_amount_minor, r.is_exempt,
                    r.effective_from, r.effective_to, r.priority, j.tax_type

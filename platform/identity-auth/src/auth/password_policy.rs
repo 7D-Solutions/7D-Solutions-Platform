@@ -48,10 +48,16 @@ pub enum PasswordPolicyError {
 impl std::fmt::Display for PasswordPolicyError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PasswordPolicyError::TooShort { min_len } => write!(f, "password too short (min {min_len})"),
+            PasswordPolicyError::TooShort { min_len } => {
+                write!(f, "password too short (min {min_len})")
+            }
             PasswordPolicyError::Denylisted => write!(f, "password is too common"),
-            PasswordPolicyError::MissingUpper => write!(f, "password must include an uppercase letter"),
-            PasswordPolicyError::MissingLower => write!(f, "password must include a lowercase letter"),
+            PasswordPolicyError::MissingUpper => {
+                write!(f, "password must include an uppercase letter")
+            }
+            PasswordPolicyError::MissingLower => {
+                write!(f, "password must include a lowercase letter")
+            }
             PasswordPolicyError::MissingDigit => write!(f, "password must include a digit"),
             PasswordPolicyError::MissingSymbol => write!(f, "password must include a symbol"),
         }
@@ -62,7 +68,9 @@ pub fn validate_password(rules: &PasswordRules, password: &str) -> Result<(), Pa
     let p = password.trim();
 
     if p.len() < rules.min_len {
-        return Err(PasswordPolicyError::TooShort { min_len: rules.min_len });
+        return Err(PasswordPolicyError::TooShort {
+            min_len: rules.min_len,
+        });
     }
 
     let lowered = p.to_lowercase();

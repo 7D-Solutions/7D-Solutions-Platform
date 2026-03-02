@@ -135,12 +135,10 @@ pub async fn reset(
 ///
 /// Returns the number of checkpoint rows deleted.
 pub async fn reset_all(pool: &PgPool, consumer_name: &str) -> Result<u64, sqlx::Error> {
-    let result = sqlx::query(
-        "DELETE FROM rpt_ingestion_checkpoints WHERE consumer_name = $1",
-    )
-    .bind(consumer_name)
-    .execute(pool)
-    .await?;
+    let result = sqlx::query("DELETE FROM rpt_ingestion_checkpoints WHERE consumer_name = $1")
+        .bind(consumer_name)
+        .execute(pool)
+        .await?;
 
     Ok(result.rows_affected())
 }
@@ -202,12 +200,10 @@ mod tests {
     }
 
     async fn cleanup(pool: &PgPool) {
-        sqlx::query(
-            "DELETE FROM rpt_ingestion_checkpoints WHERE consumer_name LIKE 'test-cp-%'",
-        )
-        .execute(pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM rpt_ingestion_checkpoints WHERE consumer_name LIKE 'test-cp-%'")
+            .execute(pool)
+            .await
+            .ok();
     }
 
     #[tokio::test]
@@ -251,8 +247,12 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        save(&pool, CONSUMER, TENANT, 1, "evt-first").await.expect("save1");
-        save(&pool, CONSUMER, TENANT, 2, "evt-second").await.expect("save2");
+        save(&pool, CONSUMER, TENANT, 1, "evt-first")
+            .await
+            .expect("save1");
+        save(&pool, CONSUMER, TENANT, 2, "evt-second")
+            .await
+            .expect("save2");
 
         let cp = load(&pool, CONSUMER, TENANT)
             .await
@@ -326,9 +326,15 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        save(&pool, CONSUMER, "tenant-1", 1, "e1").await.expect("s1");
-        save(&pool, CONSUMER, "tenant-2", 2, "e2").await.expect("s2");
-        save(&pool, CONSUMER, "tenant-3", 3, "e3").await.expect("s3");
+        save(&pool, CONSUMER, "tenant-1", 1, "e1")
+            .await
+            .expect("s1");
+        save(&pool, CONSUMER, "tenant-2", 2, "e2")
+            .await
+            .expect("s2");
+        save(&pool, CONSUMER, "tenant-3", 3, "e3")
+            .await
+            .expect("s3");
 
         let deleted = reset_all(&pool, CONSUMER).await.expect("reset_all");
         assert_eq!(deleted, 3, "three checkpoint rows must be removed");

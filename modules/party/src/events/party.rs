@@ -139,7 +139,10 @@ mod tests {
         );
         assert_eq!(env.event_type, EVENT_TYPE_PARTY_CREATED);
         assert_eq!(env.source_module, "party");
-        assert_eq!(env.mutation_class.as_deref(), Some(MUTATION_CLASS_DATA_MUTATION));
+        assert_eq!(
+            env.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
         assert_eq!(env.schema_version, PARTY_EVENT_SCHEMA_VERSION);
         assert!(env.replay_safe);
     }
@@ -159,6 +162,9 @@ mod tests {
             None,
             payload,
         );
-        assert_eq!(env.mutation_class.as_deref(), Some(MUTATION_CLASS_LIFECYCLE));
+        assert_eq!(
+            env.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_LIFECYCLE)
+        );
     }
 }

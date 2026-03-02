@@ -17,9 +17,7 @@ use sqlx::PgPool;
 use super::admin_types::ErrorBody;
 
 fn extract_token(headers: &HeaderMap) -> Option<&str> {
-    headers
-        .get("x-admin-token")
-        .and_then(|v| v.to_str().ok())
+    headers.get("x-admin-token").and_then(|v| v.to_str().ok())
 }
 
 fn guard(headers: &HeaderMap) -> Result<(), (StatusCode, Json<ErrorBody>)> {
@@ -74,14 +72,12 @@ async fn list_projections(
 ) -> Result<Json<admin::ProjectionListResponse>, (StatusCode, Json<ErrorBody>)> {
     guard(&headers)?;
     tracing::info!("admin: list projections");
-    let resp = admin::query_projection_list(&pool)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", &e)),
-            )
-        })?;
+    let resp = admin::query_projection_list(&pool).await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorBody::new("internal_error", &e)),
+        )
+    })?;
     Ok(Json(resp))
 }
 
@@ -96,10 +92,7 @@ pub fn admin_router(pool: PgPool) -> Router {
             "/api/fixed-assets/admin/consistency-check",
             post(consistency_check),
         )
-        .route(
-            "/api/fixed-assets/admin/projections",
-            get(list_projections),
-        )
+        .route("/api/fixed-assets/admin/projections", get(list_projections))
         .with_state(pool)
 }
 

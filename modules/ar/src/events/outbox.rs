@@ -22,11 +22,12 @@ pub async fn enqueue_event<T: Serialize>(
     envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
     // Validate envelope at boundary - reject invalid envelopes before insert
-    let payload = validate_and_serialize_envelope(envelope)
-        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+    let payload = validate_and_serialize_envelope(envelope).map_err(|e| {
+        sqlx::Error::Encode(Box::new(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("Envelope validation failed: {}", e),
-        ))))?;
+        )))
+    })?;
 
     sqlx::query(
         r#"
@@ -82,11 +83,12 @@ pub async fn enqueue_event_tx_idempotent<T: Serialize>(
     aggregate_id: &str,
     envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
-    let payload = validate_and_serialize_envelope(envelope)
-        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+    let payload = validate_and_serialize_envelope(envelope).map_err(|e| {
+        sqlx::Error::Encode(Box::new(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("Envelope validation failed: {}", e),
-        ))))?;
+        )))
+    })?;
 
     sqlx::query(
         r#"
@@ -156,10 +158,7 @@ pub async fn fetch_unpublished_events(
 }
 
 /// Mark event as published in the outbox
-pub async fn mark_as_published(
-    db: &PgPool,
-    event_id: Uuid,
-) -> Result<(), sqlx::Error> {
+pub async fn mark_as_published(db: &PgPool, event_id: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
         UPDATE events_outbox
@@ -223,11 +222,12 @@ pub async fn enqueue_event_tx<T: Serialize>(
     envelope: &EventEnvelope<T>,
 ) -> Result<(), sqlx::Error> {
     // Validate envelope at boundary - reject invalid envelopes before insert
-    let payload = validate_and_serialize_envelope(envelope)
-        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+    let payload = validate_and_serialize_envelope(envelope).map_err(|e| {
+        sqlx::Error::Encode(Box::new(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("Envelope validation failed: {}", e),
-        ))))?;
+        )))
+    })?;
 
     sqlx::query(
         r#"

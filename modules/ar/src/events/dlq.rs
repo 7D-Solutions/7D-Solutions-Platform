@@ -86,9 +86,16 @@ pub async fn handle_processing_error(
             match (event_id_opt, tenant_id_opt) {
                 (Some(event_id), Some(tenant_id)) => {
                     // Write to DLQ with correlation fields
-                    if let Err(dlq_err) =
-                        insert_failed_event(pool, event_id, &msg.subject, tenant_id, &env, error, retry_count)
-                            .await
+                    if let Err(dlq_err) = insert_failed_event(
+                        pool,
+                        event_id,
+                        &msg.subject,
+                        tenant_id,
+                        &env,
+                        error,
+                        retry_count,
+                    )
+                    .await
                     {
                         tracing::error!(
                             event_id = %event_id,

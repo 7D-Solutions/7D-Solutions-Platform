@@ -33,12 +33,12 @@ pub mod actor_type {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccessClaims {
     // ── Standard JWT (RFC 7519) ──
-    pub sub: String,        // user_id (UUID string)
-    pub iss: String,        // issuer ("auth-rs")
-    pub aud: String,        // audience ("7d-platform")
-    pub iat: i64,           // issued at (Unix timestamp)
-    pub exp: i64,           // expires at (Unix timestamp)
-    pub jti: String,        // unique token ID (UUID)
+    pub sub: String, // user_id (UUID string)
+    pub iss: String, // issuer ("auth-rs")
+    pub aud: String, // audience ("7d-platform")
+    pub iat: i64,    // issued at (Unix timestamp)
+    pub exp: i64,    // expires at (Unix timestamp)
+    pub jti: String, // unique token ID (UUID)
 
     // ── Platform identity ──
     pub tenant_id: String,
@@ -112,14 +112,9 @@ impl JwtKeys {
     ///
     /// Remove the previous key (and the env vars that set it) once all
     /// outstanding tokens signed by it have expired.
-    pub fn with_prev_key(
-        &mut self,
-        prev_public_pem: &str,
-        prev_kid: String,
-    ) -> Result<(), String> {
-        self.prev_decoding = Some(
-            DecodingKey::from_rsa_pem(prev_public_pem.as_bytes()).map_err(|e| e.to_string())?,
-        );
+    pub fn with_prev_key(&mut self, prev_public_pem: &str, prev_kid: String) -> Result<(), String> {
+        self.prev_decoding =
+            Some(DecodingKey::from_rsa_pem(prev_public_pem.as_bytes()).map_err(|e| e.to_string())?);
         self.prev_kid = Some(prev_kid);
         self.prev_public_key_pem = Some(prev_public_pem.to_string());
         Ok(())
@@ -182,8 +177,7 @@ impl JwtKeys {
             Err(primary_err) => {
                 // During rotation overlap: fall back to previous key if present.
                 if let Some(ref prev) = self.prev_decoding {
-                    if let Ok(data) =
-                        jsonwebtoken::decode::<AccessClaims>(token, prev, &validation)
+                    if let Ok(data) = jsonwebtoken::decode::<AccessClaims>(token, prev, &validation)
                     {
                         return Ok(data.claims);
                     }
@@ -248,7 +242,14 @@ mod tests {
         let perms = vec!["ar.create".to_string(), "gl.post".to_string()];
 
         let token = keys
-            .sign_access_token(tenant, user, roles.clone(), perms.clone(), actor_type::USER, 15)
+            .sign_access_token(
+                tenant,
+                user,
+                roles.clone(),
+                perms.clone(),
+                actor_type::USER,
+                15,
+            )
             .unwrap();
 
         let decoded = keys.validate_access_token(&token).unwrap();
@@ -340,8 +341,7 @@ mod tests {
         };
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some("test-kid".to_string());
-        let expired_token =
-            jsonwebtoken::encode(&header, &claims, &keys.encoding).unwrap();
+        let expired_token = jsonwebtoken::encode(&header, &claims, &keys.encoding).unwrap();
 
         let result = keys.validate_access_token(&expired_token);
         assert!(result.is_err());
@@ -374,12 +374,22 @@ mod tests {
         // Old signer issues a token before rotation completes
         let old_keys = JwtKeys::from_pem(&old_priv_pem, &old_pub_pem, "old-kid".into()).unwrap();
         let token_from_old_key = old_keys
-            .sign_access_token(Uuid::new_v4(), Uuid::new_v4(), vec![], vec![], actor_type::USER, 15)
+            .sign_access_token(
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+                vec![],
+                vec![],
+                actor_type::USER,
+                15,
+            )
             .unwrap();
 
         // New signer registers the old public key as prev during overlap
-        let mut new_keys = JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).unwrap();
-        new_keys.with_prev_key(&old_pub_pem, "old-kid".into()).unwrap();
+        let mut new_keys =
+            JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).unwrap();
+        new_keys
+            .with_prev_key(&old_pub_pem, "old-kid".into())
+            .unwrap();
 
         // Token issued by old key must be accepted during overlap
         let claims = new_keys.validate_access_token(&token_from_old_key).unwrap();
@@ -387,7 +397,14 @@ mod tests {
 
         // Token issued by new key must also be accepted
         let token_from_new_key = new_keys
-            .sign_access_token(Uuid::new_v4(), Uuid::new_v4(), vec![], vec![], actor_type::USER, 15)
+            .sign_access_token(
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+                vec![],
+                vec![],
+                actor_type::USER,
+                15,
+            )
             .unwrap();
         new_keys.validate_access_token(&token_from_new_key).unwrap();
     }
@@ -413,7 +430,14 @@ mod tests {
 
         let old_keys = JwtKeys::from_pem(&old_priv_pem, &old_pub_pem, "old-kid".into()).unwrap();
         let token_from_old_key = old_keys
-            .sign_access_token(Uuid::new_v4(), Uuid::new_v4(), vec![], vec![], actor_type::USER, 15)
+            .sign_access_token(
+                Uuid::new_v4(),
+                Uuid::new_v4(),
+                vec![],
+                vec![],
+                actor_type::USER,
+                15,
+            )
             .unwrap();
 
         // New keys WITHOUT prev key (overlap ended)
@@ -431,17 +455,27 @@ mod tests {
 
         let mut rng = rand::thread_rng();
         let old_priv = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-        let old_pub_pem = old_priv.to_public_key().to_public_key_pem(LineEnding::LF).unwrap();
+        let old_pub_pem = old_priv
+            .to_public_key()
+            .to_public_key_pem(LineEnding::LF)
+            .unwrap();
 
         let new_priv = RsaPrivateKey::new(&mut rng, 2048).unwrap();
-        let new_pub_pem = new_priv.to_public_key().to_public_key_pem(LineEnding::LF).unwrap();
+        let new_pub_pem = new_priv
+            .to_public_key()
+            .to_public_key_pem(LineEnding::LF)
+            .unwrap();
         let new_priv_pem = new_priv.to_pkcs8_pem(LineEnding::LF).unwrap();
 
         let mut keys = JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).unwrap();
         keys.with_prev_key(&old_pub_pem, "old-kid".into()).unwrap();
 
         let jwks = keys.to_jwks().unwrap();
-        assert_eq!(jwks.keys.len(), 2, "JWKS must include both keys during overlap");
+        assert_eq!(
+            jwks.keys.len(),
+            2,
+            "JWKS must include both keys during overlap"
+        );
 
         let kids: Vec<&str> = jwks.keys.iter().map(|k| k.kid.as_str()).collect();
         assert!(kids.contains(&"new-kid"));

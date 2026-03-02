@@ -277,11 +277,7 @@ pub struct ParseEnumError {
 
 impl fmt::Display for ParseEnumError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "invalid {} value: '{}'",
-            self.type_name, self.value
-        )
+        write!(f, "invalid {} value: '{}'", self.type_name, self.value)
     }
 }
 

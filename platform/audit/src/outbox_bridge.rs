@@ -52,12 +52,14 @@ pub async fn query_outbox_events(
 
     Ok(rows
         .into_iter()
-        .map(|(event_id, event_type, aggregate_type, aggregate_id)| OutboxEventMeta {
-            event_id,
-            event_type,
-            aggregate_type,
-            aggregate_id,
-        })
+        .map(
+            |(event_id, event_type, aggregate_type, aggregate_id)| OutboxEventMeta {
+                event_id,
+                event_type,
+                aggregate_type,
+                aggregate_id,
+            },
+        )
         .collect())
 }
 
@@ -153,12 +155,11 @@ pub async fn check_module_audit_completeness(
     };
 
     for event in events {
-        let count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1",
-        )
-        .bind(event.event_id)
-        .fetch_one(audit_pool)
-        .await?;
+        let count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*)::bigint FROM audit_events WHERE causation_id = $1")
+                .bind(event.event_id)
+                .fetch_one(audit_pool)
+                .await?;
 
         match count {
             0 => result.gaps.push(event.clone()),

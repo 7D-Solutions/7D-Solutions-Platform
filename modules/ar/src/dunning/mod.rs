@@ -123,7 +123,7 @@ pub(crate) fn is_valid_transition(from: &DunningStateValue, to: &DunningStateVal
     match (from, to) {
         // Progression through dunning stages
         (Pending, Warned) => true,
-        (Pending, Escalated) => true,  // skip Warned for aggressive escalation
+        (Pending, Escalated) => true, // skip Warned for aggressive escalation
         (Warned, Escalated) => true,
         (Escalated, Suspended) => true,
         // Resolution from any non-terminal state
@@ -238,16 +238,35 @@ impl fmt::Display for DunningError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::DunningNotFound { invoice_id, app_id } => {
-                write!(f, "Dunning record not found for invoice {} (tenant {})", invoice_id, app_id)
+                write!(
+                    f,
+                    "Dunning record not found for invoice {} (tenant {})",
+                    invoice_id, app_id
+                )
             }
-            Self::IllegalTransition { from_state, to_state } => {
-                write!(f, "Illegal dunning transition: {} → {}", from_state, to_state)
+            Self::IllegalTransition {
+                from_state,
+                to_state,
+            } => {
+                write!(
+                    f,
+                    "Illegal dunning transition: {} → {}",
+                    from_state, to_state
+                )
             }
             Self::TerminalState { state } => {
-                write!(f, "Dunning is in terminal state '{}' — no further transitions", state)
+                write!(
+                    f,
+                    "Dunning is in terminal state '{}' — no further transitions",
+                    state
+                )
             }
             Self::ConcurrentModification { invoice_id } => {
-                write!(f, "Concurrent modification for invoice {} — retry", invoice_id)
+                write!(
+                    f,
+                    "Concurrent modification for invoice {} — retry",
+                    invoice_id
+                )
             }
             Self::DatabaseError(msg) => write!(f, "Database error: {}", msg),
         }

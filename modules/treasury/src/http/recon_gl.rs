@@ -34,7 +34,10 @@ fn recon_error_response(e: ReconError) -> (StatusCode, Json<ReconErrorBody>) {
             tracing::error!("Recon GL DB error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ReconErrorBody::new("database_error", "Internal database error")),
+                Json(ReconErrorBody::new(
+                    "database_error",
+                    "Internal database error",
+                )),
             )
         }
         other => {
@@ -50,9 +53,8 @@ fn recon_error_response(e: ReconError) -> (StatusCode, Json<ReconErrorBody>) {
 fn tenant_from_claims(
     claims: &Option<Extension<VerifiedClaims>>,
 ) -> Result<String, (StatusCode, Json<ReconErrorBody>)> {
-    extract_tenant(claims).map_err(|(status, Json(e))| {
-        (status, Json(ReconErrorBody::new(&e.error, &e.message)))
-    })
+    extract_tenant(claims)
+        .map_err(|(status, Json(e))| (status, Json(ReconErrorBody::new(&e.error, &e.message))))
 }
 
 fn correlation(headers: &HeaderMap) -> String {

@@ -204,10 +204,11 @@ pub async fn update_payment_status_from_webhook(
     // to ensure atomic: lock → validate → mutate → update webhook_event_id
     //
     // Validate transition using lifecycle guard (manual validation within transaction)
-    let current_status: String = sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
-        .bind(attempt_id)
-        .fetch_one(&mut *tx)
-        .await?;
+    let current_status: String =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     // Manual transition validation (mirroring lifecycle::validate_transition logic)
     // This is necessary because we're in a transaction with SELECT FOR UPDATE
@@ -252,16 +253,16 @@ pub async fn update_payment_status_from_webhook(
             "Payment attempt transition rejected"
         );
 
-        return Err(WebhookError::LifecycleError(LifecycleError::TransitionError(
-            TransitionError::IllegalTransition {
+        return Err(WebhookError::LifecycleError(
+            LifecycleError::TransitionError(TransitionError::IllegalTransition {
                 from: current_status.clone(),
                 to: target_status.to_string(),
                 reason: format!(
                     "State machine does not allow transition from {} to {}",
                     current_status, target_status
                 ),
-            },
-        )));
+            }),
+        ));
     }
 
     // Update payment attempt status + webhook_event_id (atomic)

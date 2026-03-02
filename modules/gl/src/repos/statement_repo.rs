@@ -186,13 +186,12 @@ pub async fn get_trial_balance_rows(
 
     // If no rows, check if period exists to provide better error message
     if db_rows.is_empty() {
-        let period_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM accounting_periods WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(period_id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let period_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM accounting_periods WHERE id = $1 AND tenant_id = $2")
+                .bind(period_id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?;
 
         if period_exists.is_none() {
             return Err(StatementError::PeriodNotFound {
@@ -281,13 +280,12 @@ pub async fn get_income_statement_rows(
 
     // If no rows, check if period exists to provide better error message
     if db_rows.is_empty() {
-        let period_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM accounting_periods WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(period_id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let period_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM accounting_periods WHERE id = $1 AND tenant_id = $2")
+                .bind(period_id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?;
 
         if period_exists.is_none() {
             return Err(StatementError::PeriodNotFound {
@@ -381,13 +379,12 @@ pub async fn get_balance_sheet_rows(
 
     // If no rows, check if period exists to provide better error message
     if db_rows.is_empty() {
-        let period_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM accounting_periods WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(period_id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let period_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM accounting_periods WHERE id = $1 AND tenant_id = $2")
+                .bind(period_id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?;
 
         if period_exists.is_none() {
             return Err(StatementError::PeriodNotFound {

@@ -17,14 +17,14 @@
 //! cargo run -p demo-seed -- --tenant t1 --seed 42 --print-hash
 //! ```
 
-mod seed;
 mod ar;
 mod digest;
+mod seed;
 
 use anyhow::Result;
 use clap::Parser;
 use tracing::{info, warn};
-use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 /// demo-seed — deterministic demo data generator
 #[derive(Parser, Debug)]
@@ -60,8 +60,7 @@ struct Cli {
 async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(fmt::layer())
-        .with(EnvFilter::from_default_env()
-            .add_directive(tracing::Level::INFO.into()))
+        .with(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();
 
     let cli = Cli::parse();
@@ -134,7 +133,10 @@ async fn main() -> Result<()> {
             })?;
 
             tracker.record_invoice(invoice_id, &invoice_corr_id, amount_cents);
-            info!(customer_idx, invoice_idx, invoice_id, amount_cents, "Created invoice");
+            info!(
+                customer_idx,
+                invoice_idx, invoice_id, amount_cents, "Created invoice"
+            );
         }
     }
 

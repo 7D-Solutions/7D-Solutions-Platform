@@ -21,7 +21,8 @@ impl EventPublisher {
     ) -> Result<(), Box<dyn std::error::Error>> {
         // Validate against schema (publish-time)
         let v: Value = serde_json::to_value(envelope)?;
-        validate::validate(schema_file, &v).map_err(|e| format!("schema validation failed: {e}"))?;
+        validate::validate(schema_file, &v)
+            .map_err(|e| format!("schema validation failed: {e}"))?;
 
         let bytes = serde_json::to_vec(&v)?;
         self.nats.publish(subject.to_string(), bytes.into()).await?;

@@ -11,7 +11,9 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::events::{build_webhook_received_envelope, WebhookReceivedPayload, EVENT_TYPE_WEBHOOK_RECEIVED};
+use crate::events::{
+    build_webhook_received_envelope, WebhookReceivedPayload, EVENT_TYPE_WEBHOOK_RECEIVED,
+};
 use crate::outbox::enqueue_event_tx;
 
 use super::models::{IngestResult, IngestWebhookRequest, WebhookError};
@@ -129,10 +131,8 @@ impl WebhookService {
         .await?;
 
         // ── 5. Mark as processed + route domain event ─────────────────────────
-        if let Some(domain_event_type) = map_to_domain_event(
-            &req.system,
-            req.event_type.as_deref(),
-        ) {
+        if let Some(domain_event_type) = map_to_domain_event(&req.system, req.event_type.as_deref())
+        {
             emit_routed_event_tx(
                 &mut tx,
                 ingest_id,
@@ -146,13 +146,11 @@ impl WebhookService {
         }
 
         // Mark ingest record as processed
-        sqlx::query(
-            "UPDATE integrations_webhook_ingest SET processed_at = $1 WHERE id = $2",
-        )
-        .bind(Utc::now())
-        .bind(ingest_id)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE integrations_webhook_ingest SET processed_at = $1 WHERE id = $2")
+            .bind(Utc::now())
+            .bind(ingest_id)
+            .execute(&mut *tx)
+            .await?;
 
         // ── 6. Commit ─────────────────────────────────────────────────────────
         tx.commit().await?;
@@ -171,8 +169,8 @@ impl WebhookService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serial_test::serial;
     use serde_json::json;
+    use serial_test::serial;
 
     const TEST_APP: &str = "test-webhook-svc";
 
@@ -207,7 +205,10 @@ mod tests {
             .ok();
     }
 
-    fn internal_req(idempotency_key: Option<&str>, event_type: Option<&str>) -> IngestWebhookRequest {
+    fn internal_req(
+        idempotency_key: Option<&str>,
+        event_type: Option<&str>,
+    ) -> IngestWebhookRequest {
         IngestWebhookRequest {
             app_id: TEST_APP.to_string(),
             system: "internal".to_string(),
@@ -336,6 +337,9 @@ mod tests {
         };
 
         let result = svc.ingest(req, b"{}").await;
-        assert!(matches!(result, Err(WebhookError::UnsupportedSystem { .. })));
+        assert!(matches!(
+            result,
+            Err(WebhookError::UnsupportedSystem { .. })
+        ));
     }
 }

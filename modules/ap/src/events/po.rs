@@ -5,8 +5,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::events::envelope::{create_ap_envelope, EventEnvelope};
 use super::{AP_EVENT_SCHEMA_VERSION, MUTATION_CLASS_DATA_MUTATION, MUTATION_CLASS_LIFECYCLE};
+use crate::events::envelope::{create_ap_envelope, EventEnvelope};
 
 // ============================================================================
 // Event Type Constants
@@ -269,7 +269,10 @@ mod tests {
             payload,
         );
         assert_eq!(envelope.event_type, EVENT_TYPE_PO_CREATED);
-        assert_eq!(envelope.mutation_class.as_deref(), Some(MUTATION_CLASS_DATA_MUTATION));
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
         assert_eq!(envelope.schema_version, AP_EVENT_SCHEMA_VERSION);
         assert_eq!(envelope.source_module, "ap");
         assert!(envelope.replay_safe);
@@ -294,7 +297,10 @@ mod tests {
             payload,
         );
         assert_eq!(envelope.event_type, EVENT_TYPE_PO_CLOSED);
-        assert_eq!(envelope.mutation_class.as_deref(), Some(MUTATION_CLASS_LIFECYCLE));
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_LIFECYCLE)
+        );
     }
 
     #[test]
@@ -321,7 +327,10 @@ mod tests {
             payload,
         );
         assert_eq!(envelope.event_type, EVENT_TYPE_PO_LINE_RECEIVED_LINKED);
-        assert_eq!(envelope.mutation_class.as_deref(), Some(MUTATION_CLASS_DATA_MUTATION));
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
     }
 
     #[test]

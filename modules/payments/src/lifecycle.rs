@@ -130,16 +130,14 @@ async fn validate_transition(
     to_status: &str,
 ) -> Result<(), TransitionError> {
     // Fetch current payment attempt status (cast enum to TEXT)
-    let current_status: Option<String> = sqlx::query_scalar(
-        "SELECT status::text FROM payment_attempts WHERE id = $1"
-    )
-    .bind(attempt_id)
-    .fetch_optional(&mut **tx)
-    .await
-    .map_err(|e| TransitionError::DatabaseError(e.to_string()))?;
+    let current_status: Option<String> =
+        sqlx::query_scalar("SELECT status::text FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_optional(&mut **tx)
+            .await
+            .map_err(|e| TransitionError::DatabaseError(e.to_string()))?;
 
-    let from_status = current_status
-        .ok_or(TransitionError::AttemptNotFound(attempt_id))?;
+    let from_status = current_status.ok_or(TransitionError::AttemptNotFound(attempt_id))?;
 
     // State machine rules
     let is_valid = match (from_status.as_str(), to_status) {
@@ -250,12 +248,11 @@ pub async fn transition_to_succeeded(
         .await?;
 
     // 3. EMIT: Enqueue payment.succeeded event atomically within the same TX
-    let row: (String, Uuid, String) = sqlx::query_as(
-        "SELECT app_id, payment_id, invoice_id FROM payment_attempts WHERE id = $1"
-    )
-    .bind(attempt_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let row: (String, Uuid, String) =
+        sqlx::query_as("SELECT app_id, payment_id, invoice_id FROM payment_attempts WHERE id = $1")
+            .bind(attempt_id)
+            .fetch_one(&mut *tx)
+            .await?;
     let (app_id, payment_id_val, invoice_id) = row;
     let payload = crate::models::PaymentSucceededPayload {
         payment_id: payment_id_val.to_string(),
@@ -453,7 +450,10 @@ mod tests {
     fn test_attempt_not_found_error() {
         let id = Uuid::nil();
         let err = TransitionError::AttemptNotFound(id);
-        assert_eq!(err.to_string(), format!("Payment attempt not found: {}", id));
+        assert_eq!(
+            err.to_string(),
+            format!("Payment attempt not found: {}", id)
+        );
     }
 
     #[test]

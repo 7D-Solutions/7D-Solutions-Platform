@@ -26,16 +26,16 @@ fn contact_error_response(e: PartyError) -> (StatusCode, Json<ErrorBody>) {
     match e {
         PartyError::NotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("not_found", &format!("Resource {} not found", id))),
+            Json(ErrorBody::new(
+                "not_found",
+                &format!("Resource {} not found", id),
+            )),
         ),
         PartyError::Validation(msg) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorBody::new("validation_error", &msg)),
         ),
-        PartyError::Conflict(msg) => (
-            StatusCode::CONFLICT,
-            Json(ErrorBody::new("conflict", &msg)),
-        ),
+        PartyError::Conflict(msg) => (StatusCode::CONFLICT, Json(ErrorBody::new("conflict", &msg))),
         PartyError::Database(e) => {
             tracing::error!("Contact DB error: {}", e);
             (
@@ -91,7 +91,10 @@ pub async fn get_contact(
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
-                Json(ErrorBody::new("not_found", &format!("Contact {} not found", contact_id))),
+                Json(ErrorBody::new(
+                    "not_found",
+                    &format!("Contact {} not found", contact_id),
+                )),
             )
         })?;
 

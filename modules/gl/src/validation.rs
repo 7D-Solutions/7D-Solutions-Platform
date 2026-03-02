@@ -88,7 +88,10 @@ pub fn validate_gl_posting_request(payload: &GlPostingRequestV1) -> Result<(), V
     // Use epsilon comparison for floating point equality
     const EPSILON: f64 = 0.01; // Penny precision
     if (total_debits - total_credits).abs() > EPSILON {
-        return Err(ValidationError::UnbalancedEntry(total_debits, total_credits));
+        return Err(ValidationError::UnbalancedEntry(
+            total_debits,
+            total_credits,
+        ));
     }
 
     Ok(())

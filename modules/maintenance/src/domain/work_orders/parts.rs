@@ -62,11 +62,8 @@ pub enum WoPartError {
 
 // ── Lifecycle guard ───────────────────────────────────────────
 
-const IMMUTABLE_STATUSES: &[WoStatus] = &[
-    WoStatus::Completed,
-    WoStatus::Closed,
-    WoStatus::Cancelled,
-];
+const IMMUTABLE_STATUSES: &[WoStatus] =
+    &[WoStatus::Completed, WoStatus::Closed, WoStatus::Cancelled];
 
 fn check_modifiable(status: WoStatus) -> Result<(), WoPartError> {
     if IMMUTABLE_STATUSES.contains(&status) {
@@ -86,17 +83,17 @@ impl WoPartsRepo {
         wo_id: Uuid,
         tenant_id: &str,
     ) -> Result<WoStatus, WoPartError> {
-        let row: Option<(String,)> = sqlx::query_as(
-            "SELECT status FROM work_orders WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(wo_id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT status FROM work_orders WHERE id = $1 AND tenant_id = $2")
+                .bind(wo_id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?;
 
         match row {
-            Some((s,)) => WoStatus::from_str_value(&s)
-                .map_err(|e| WoPartError::Validation(e.to_string())),
+            Some((s,)) => {
+                WoStatus::from_str_value(&s).map_err(|e| WoPartError::Validation(e.to_string()))
+            }
             None => Err(WoPartError::WoNotFound),
         }
     }

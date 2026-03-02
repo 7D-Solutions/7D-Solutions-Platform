@@ -158,7 +158,10 @@ mod tests {
     #[test]
     fn test_validate_pdf_magic() {
         assert!(validate_pdf(b"%PDF-1.7 test").is_ok());
-        assert!(matches!(validate_pdf(b"not a pdf"), Err(RenderError::InvalidMagic)));
+        assert!(matches!(
+            validate_pdf(b"not a pdf"),
+            Err(RenderError::InvalidMagic)
+        ));
     }
 
     #[test]

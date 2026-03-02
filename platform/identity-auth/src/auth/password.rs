@@ -27,7 +27,11 @@ pub fn hash_password(policy: &PasswordPolicy, password: &str) -> Result<String, 
     Ok(hash)
 }
 
-pub fn verify_password(policy: &PasswordPolicy, password: &str, stored_hash: &str) -> Result<bool, String> {
+pub fn verify_password(
+    policy: &PasswordPolicy,
+    password: &str,
+    stored_hash: &str,
+) -> Result<bool, String> {
     let parsed = PasswordHash::new(stored_hash).map_err(|e| e.to_string())?;
     let argon2 = policy.argon2();
     Ok(argon2.verify_password(password.as_bytes(), &parsed).is_ok())

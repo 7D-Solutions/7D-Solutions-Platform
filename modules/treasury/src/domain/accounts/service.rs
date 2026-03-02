@@ -13,8 +13,8 @@ use uuid::Uuid;
 use crate::outbox::enqueue_event_tx;
 
 use super::{
-    AccountError, AccountStatus, CreateBankAccountRequest,
-    CreateCreditCardAccountRequest, TreasuryAccount, UpdateAccountRequest,
+    AccountError, AccountStatus, CreateBankAccountRequest, CreateCreditCardAccountRequest,
+    TreasuryAccount, UpdateAccountRequest,
 };
 
 const EVT_ACCOUNT_CREATED: &str = "bank_account.created";
@@ -284,11 +284,21 @@ pub async fn update_account(
 
     let current = existing.ok_or(AccountError::NotFound(id))?;
 
-    let new_name = req.account_name.as_deref().map(str::trim).map(String::from)
+    let new_name = req
+        .account_name
+        .as_deref()
+        .map(str::trim)
+        .map(String::from)
         .unwrap_or(current.account_name.clone());
     let new_institution = req.institution.clone().or(current.institution.clone());
-    let new_last4 = req.account_number_last4.clone().or(current.account_number_last4.clone());
-    let new_routing = req.routing_number.clone().or(current.routing_number.clone());
+    let new_last4 = req
+        .account_number_last4
+        .clone()
+        .or(current.account_number_last4.clone());
+    let new_routing = req
+        .routing_number
+        .clone()
+        .or(current.routing_number.clone());
     let new_limit = req.credit_limit_minor.or(current.credit_limit_minor);
     let new_closing = req.statement_closing_day.or(current.statement_closing_day);
     let new_network = req.cc_network.clone().or(current.cc_network.clone());
@@ -357,13 +367,12 @@ pub async fn deactivate_account(
 
     let mut tx = pool.begin().await?;
 
-    let exists: Option<(AccountStatus,)> = sqlx::query_as(
-        "SELECT status FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2",
-    )
-    .bind(id)
-    .bind(app_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let exists: Option<(AccountStatus,)> =
+        sqlx::query_as("SELECT status FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2")
+            .bind(id)
+            .bind(app_id)
+            .fetch_optional(&mut *tx)
+            .await?;
 
     if exists.is_none() {
         return Err(AccountError::NotFound(id));
@@ -409,11 +418,7 @@ pub async fn deactivate_account(
 // Idempotency helpers
 // ============================================================================
 
-async fn check_idempotency(
-    pool: &PgPool,
-    app_id: &str,
-    key: &str,
-) -> Result<(), AccountError> {
+async fn check_idempotency(pool: &PgPool, app_id: &str, key: &str) -> Result<(), AccountError> {
     let cached: Option<(serde_json::Value, i32)> = sqlx::query_as(
         "SELECT response_body, status_code FROM treasury_idempotency_keys WHERE app_id = $1 AND idempotency_key = $2 LIMIT 1",
     )
@@ -469,15 +474,16 @@ async fn record_idempotency(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::AccountType;
+    use super::*;
     use serial_test::serial;
 
     const TEST_APP: &str = "test-app-accounts";
 
     fn test_db_url() -> String {
-        std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://treasury_user:treasury_pass@localhost:5444/treasury_db".to_string())
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://treasury_user:treasury_pass@localhost:5444/treasury_db".to_string()
+        })
     }
 
     async fn test_pool() -> PgPool {
@@ -562,9 +568,10 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let account = create_credit_card_account(&pool, TEST_APP, &sample_cc(), None, "c1".to_string())
-            .await
-            .expect("create CC failed");
+        let account =
+            create_credit_card_account(&pool, TEST_APP, &sample_cc(), None, "c1".to_string())
+                .await
+                .expect("create CC failed");
 
         assert_eq!(account.account_type, AccountType::CreditCard);
         assert_eq!(account.credit_limit_minor, Some(500_000));
@@ -593,11 +600,15 @@ mod tests {
             .await
             .expect("deactivate failed");
 
-        let active = list_accounts(&pool, TEST_APP, false).await.expect("list failed");
+        let active = list_accounts(&pool, TEST_APP, false)
+            .await
+            .expect("list failed");
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].id, a1.id);
 
-        let all = list_accounts(&pool, TEST_APP, true).await.expect("list all failed");
+        let all = list_accounts(&pool, TEST_APP, true)
+            .await
+            .expect("list all failed");
         assert_eq!(all.len(), 2);
 
         cleanup(&pool).await;
@@ -649,7 +660,8 @@ mod tests {
             .await
             .expect("first create failed");
 
-        let result = create_bank_account(&pool, TEST_APP, &sample_bank(), key, "c2".to_string()).await;
+        let result =
+            create_bank_account(&pool, TEST_APP, &sample_bank(), key, "c2".to_string()).await;
         assert!(
             matches!(result, Err(AccountError::IdempotentReplay { .. })),
             "expected IdempotentReplay, got {:?}",

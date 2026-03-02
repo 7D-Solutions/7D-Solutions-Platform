@@ -38,32 +38,46 @@ fn config_error_response(e: ConfigError) -> (StatusCode, Json<ErrorBody>) {
     match e {
         ConfigError::GroupNotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("group_not_found", &format!("Group {} not found", id))),
+            Json(ErrorBody::new(
+                "group_not_found",
+                &format!("Group {} not found", id),
+            )),
         ),
         ConfigError::EntityNotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("entity_not_found", &format!("Entity {} not found", id))),
+            Json(ErrorBody::new(
+                "entity_not_found",
+                &format!("Entity {} not found", id),
+            )),
         ),
         ConfigError::RuleNotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("rule_not_found", &format!("Rule {} not found", id))),
+            Json(ErrorBody::new(
+                "rule_not_found",
+                &format!("Rule {} not found", id),
+            )),
         ),
         ConfigError::PolicyNotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("policy_not_found", &format!("Policy {} not found", id))),
+            Json(ErrorBody::new(
+                "policy_not_found",
+                &format!("Policy {} not found", id),
+            )),
         ),
         ConfigError::MappingNotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("mapping_not_found", &format!("Mapping {} not found", id))),
+            Json(ErrorBody::new(
+                "mapping_not_found",
+                &format!("Mapping {} not found", id),
+            )),
         ),
         ConfigError::Validation(msg) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorBody::new("validation_error", &msg)),
         ),
-        ConfigError::Conflict(msg) => (
-            StatusCode::CONFLICT,
-            Json(ErrorBody::new("conflict", &msg)),
-        ),
+        ConfigError::Conflict(msg) => {
+            (StatusCode::CONFLICT, Json(ErrorBody::new("conflict", &msg)))
+        }
         ConfigError::Database(e) => {
             tracing::error!("Consolidation config DB error: {}", e);
             (
@@ -82,7 +96,10 @@ pub struct ErrorBody {
 
 impl ErrorBody {
     pub fn new(error: &str, message: &str) -> Self {
-        Self { error: error.to_string(), message: message.to_string() }
+        Self {
+            error: error.to_string(),
+            message: message.to_string(),
+        }
     }
 }
 
@@ -240,14 +257,10 @@ pub async fn list_coa_mappings(
     Query(q): Query<ListCoaMappingsQuery>,
 ) -> Result<Json<Vec<config::CoaMapping>>, (StatusCode, Json<ErrorBody>)> {
     let tid = extract_tenant(&claims)?;
-    let rows = service::list_coa_mappings(
-        &state.pool,
-        &tid,
-        group_id,
-        q.entity_tenant_id.as_deref(),
-    )
-    .await
-    .map_err(config_error_response)?;
+    let rows =
+        service::list_coa_mappings(&state.pool, &tid, group_id, q.entity_tenant_id.as_deref())
+            .await
+            .map_err(config_error_response)?;
     Ok(Json(rows))
 }
 

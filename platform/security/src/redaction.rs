@@ -163,7 +163,10 @@ mod tests {
     #[test]
     fn redact_email_preserves_domain() {
         assert_eq!(redact_email("alice@example.com"), "[redacted]@example.com");
-        assert_eq!(redact_email("bob@corp.internal"), "[redacted]@corp.internal");
+        assert_eq!(
+            redact_email("bob@corp.internal"),
+            "[redacted]@corp.internal"
+        );
     }
 
     #[test]
@@ -204,14 +207,23 @@ mod tests {
         let email = Redacted("alice@example.com".to_string());
         // Would appear in log as: email = [REDACTED]
         let logged = format!("{email}");
-        assert!(!logged.contains('@'), "email address must not appear in logs");
-        assert!(!logged.contains("alice"), "email local part must not appear in logs");
+        assert!(
+            !logged.contains('@'),
+            "email address must not appear in logs"
+        );
+        assert!(
+            !logged.contains("alice"),
+            "email local part must not appear in logs"
+        );
     }
 
     #[test]
     fn redact_email_no_pii_in_output() {
         let masked = redact_email("alice@example.com");
         assert!(!masked.contains("alice"), "local part must be redacted");
-        assert!(masked.contains("example.com"), "domain preserved for audit context");
+        assert!(
+            masked.contains("example.com"),
+            "domain preserved for audit context"
+        );
     }
 }

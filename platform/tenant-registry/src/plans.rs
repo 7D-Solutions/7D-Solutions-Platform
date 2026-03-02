@@ -69,7 +69,9 @@ struct PlanRow {
 fn db_err(e: sqlx::Error) -> (StatusCode, Json<ErrorBody>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ErrorBody { error: format!("Database error: {e}") }),
+        Json(ErrorBody {
+            error: format!("Database error: {e}"),
+        }),
     )
 }
 
@@ -100,13 +102,11 @@ async fn list_plans(
         .await
         .map_err(db_err)?;
 
-        let total: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM cp_plans WHERE status = $1",
-        )
-        .bind(status_filter)
-        .fetch_one(&state.pool)
-        .await
-        .map_err(db_err)?;
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM cp_plans WHERE status = $1")
+            .bind(status_filter)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(db_err)?;
 
         (rows, total)
     } else {
@@ -133,7 +133,9 @@ async fn list_plans(
         .map(|r| PlanSummary {
             id: r.plan_code,
             name: r.name,
-            pricing_model: r.pricing_model.unwrap_or_else(|| "flat_monthly".to_string()),
+            pricing_model: r
+                .pricing_model
+                .unwrap_or_else(|| "flat_monthly".to_string()),
             included_seats: r.included_seats.unwrap_or(5),
             metered_dimensions: vec![],
             status: r.status.unwrap_or_else(|| "active".to_string()),
@@ -171,7 +173,9 @@ mod tests {
             "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
                 .to_string()
         });
-        PgPool::connect(&url).await.expect("connect to tenant-registry DB")
+        PgPool::connect(&url)
+            .await
+            .expect("connect to tenant-registry DB")
     }
 
     fn build_app(pool: PgPool) -> axum::Router {
@@ -200,15 +204,24 @@ mod tests {
         assert!(!plans.is_empty(), "should return at least one plan");
 
         for plan in plans {
-            assert!(plan["pricing_model"].is_string(), "pricing_model must be string");
-            assert!(plan["metered_dimensions"].is_array(), "metered_dimensions must be array");
+            assert!(
+                plan["pricing_model"].is_string(),
+                "pricing_model must be string"
+            );
+            assert!(
+                plan["metered_dimensions"].is_array(),
+                "metered_dimensions must be array"
+            );
             assert_eq!(
                 plan["metered_dimensions"].as_array().unwrap().len(),
                 0,
                 "metered_dimensions always empty for now"
             );
             assert!(plan["status"].is_string(), "status must be string");
-            assert!(plan["included_seats"].is_number(), "included_seats must be number");
+            assert!(
+                plan["included_seats"].is_number(),
+                "included_seats must be number"
+            );
         }
     }
 
@@ -238,7 +251,10 @@ mod tests {
             .collect();
 
         assert!(ids.contains(&"starter"), "starter plan must exist");
-        assert!(ids.contains(&"professional"), "professional plan must exist");
+        assert!(
+            ids.contains(&"professional"),
+            "professional plan must exist"
+        );
         assert!(ids.contains(&"enterprise"), "enterprise plan must exist");
     }
 

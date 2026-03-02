@@ -103,10 +103,7 @@ pub async fn ensure_and_lock(
 }
 
 /// Mark the state as "below threshold" (signal was emitted).
-pub async fn set_below(
-    tx: &mut Transaction<'_, Postgres>,
-    id: Uuid,
-) -> Result<(), sqlx::Error> {
+pub async fn set_below(tx: &mut Transaction<'_, Postgres>, id: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
         UPDATE inv_low_stock_state
@@ -121,10 +118,7 @@ pub async fn set_below(
 }
 
 /// Mark the state as "above threshold" (re-arms for next crossing).
-pub async fn set_above(
-    tx: &mut Transaction<'_, Postgres>,
-    id: Uuid,
-) -> Result<(), sqlx::Error> {
+pub async fn set_above(tx: &mut Transaction<'_, Postgres>, id: Uuid) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
         UPDATE inv_low_stock_state

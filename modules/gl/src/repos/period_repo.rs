@@ -14,7 +14,7 @@ pub struct AccountingPeriod {
     pub tenant_id: String,
     pub period_start: NaiveDate,
     pub period_end: NaiveDate,
-    pub is_closed: bool,  // Deprecated - use closed_at.is_some() instead
+    pub is_closed: bool, // Deprecated - use closed_at.is_some() instead
     pub created_at: DateTime<Utc>,
     // Phase 13: Period close lifecycle fields
     pub close_requested_at: Option<DateTime<Utc>>,
@@ -30,7 +30,9 @@ pub enum PeriodError {
     #[error("No accounting period found for tenant_id={tenant_id}, date={date}")]
     NoPeriodForDate { tenant_id: String, date: NaiveDate },
 
-    #[error("Accounting period is closed: tenant_id={tenant_id}, date={date}, period_id={period_id}")]
+    #[error(
+        "Accounting period is closed: tenant_id={tenant_id}, date={date}, period_id={period_id}"
+    )]
     PeriodClosed {
         tenant_id: String,
         date: NaiveDate,

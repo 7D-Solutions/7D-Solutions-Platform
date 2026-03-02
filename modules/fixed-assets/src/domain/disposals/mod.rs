@@ -165,11 +165,26 @@ mod tests {
 
     #[test]
     fn disposal_type_roundtrip() {
-        assert_eq!(DisposalType::try_from("sale".to_string()), Ok(DisposalType::Sale));
-        assert_eq!(DisposalType::try_from("scrap".to_string()), Ok(DisposalType::Scrap));
-        assert_eq!(DisposalType::try_from("impairment".to_string()), Ok(DisposalType::Impairment));
-        assert_eq!(DisposalType::try_from("write_off".to_string()), Ok(DisposalType::WriteOff));
-        assert_eq!(DisposalType::try_from("transfer".to_string()), Ok(DisposalType::Transfer));
+        assert_eq!(
+            DisposalType::try_from("sale".to_string()),
+            Ok(DisposalType::Sale)
+        );
+        assert_eq!(
+            DisposalType::try_from("scrap".to_string()),
+            Ok(DisposalType::Scrap)
+        );
+        assert_eq!(
+            DisposalType::try_from("impairment".to_string()),
+            Ok(DisposalType::Impairment)
+        );
+        assert_eq!(
+            DisposalType::try_from("write_off".to_string()),
+            Ok(DisposalType::WriteOff)
+        );
+        assert_eq!(
+            DisposalType::try_from("transfer".to_string()),
+            Ok(DisposalType::Transfer)
+        );
         assert!(DisposalType::try_from("invalid".to_string()).is_err());
     }
 

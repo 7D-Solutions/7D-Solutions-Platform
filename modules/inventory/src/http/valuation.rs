@@ -18,9 +18,9 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use security::VerifiedClaims;
 use serde::Deserialize;
 use serde_json::json;
-use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 

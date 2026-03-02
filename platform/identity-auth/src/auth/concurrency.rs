@@ -1,7 +1,7 @@
+use sqlx::Row;
 use std::sync::Arc;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::{timeout, Duration};
-use sqlx::Row;
 use uuid::Uuid;
 
 /// In-memory semaphore for bounding concurrent argon2 hash operations (CPU protection).
@@ -190,11 +190,19 @@ mod tests {
         let token_id = insert_token(&pool, tenant_id, user_id).await;
 
         let mut tx = pool.begin().await.expect("begin tx");
-        acquire_tenant_xact_lock(&mut tx, tenant_id).await.expect("advisory lock");
-        let before = count_active_leases_in_tx(&mut tx, tenant_id).await.expect("count");
+        acquire_tenant_xact_lock(&mut tx, tenant_id)
+            .await
+            .expect("advisory lock");
+        let before = count_active_leases_in_tx(&mut tx, tenant_id)
+            .await
+            .expect("count");
         assert_eq!(before, 0);
-        create_lease_in_tx(&mut tx, tenant_id, user_id, token_id).await.expect("create lease");
-        let after = count_active_leases_in_tx(&mut tx, tenant_id).await.expect("count after");
+        create_lease_in_tx(&mut tx, tenant_id, user_id, token_id)
+            .await
+            .expect("create lease");
+        let after = count_active_leases_in_tx(&mut tx, tenant_id)
+            .await
+            .expect("count after");
         assert_eq!(after, 1);
         tx.commit().await.expect("commit");
     }
@@ -210,12 +218,16 @@ mod tests {
 
         // Create initial lease
         let mut tx = pool.begin().await.expect("begin");
-        create_lease_in_tx(&mut tx, tenant_id, user_id, old_token_id).await.expect("create");
+        create_lease_in_tx(&mut tx, tenant_id, user_id, old_token_id)
+            .await
+            .expect("create");
         tx.commit().await.expect("commit");
 
         // Rotate
         let mut tx2 = pool.begin().await.expect("begin2");
-        rotate_lease_in_tx(&mut tx2, old_token_id, new_token_id).await.expect("rotate");
+        rotate_lease_in_tx(&mut tx2, old_token_id, new_token_id)
+            .await
+            .expect("rotate");
         tx2.commit().await.expect("commit2");
 
         // Verify new session_id is active
@@ -262,10 +274,14 @@ mod tests {
         .get::<Uuid, _>("id");
 
         let mut tx = pool.begin().await.expect("begin");
-        create_lease_in_tx(&mut tx, tenant_id, user_id, token_id).await.expect("create lease");
+        create_lease_in_tx(&mut tx, tenant_id, user_id, token_id)
+            .await
+            .expect("create lease");
         tx.commit().await.expect("commit");
 
-        revoke_lease_by_token_hash(&pool, tenant_id, &raw_hash).await.expect("revoke");
+        revoke_lease_by_token_hash(&pool, tenant_id, &raw_hash)
+            .await
+            .expect("revoke");
 
         let cnt = sqlx::query(
             "SELECT COUNT(*) AS cnt FROM session_leases WHERE session_id = $1 AND revoked_at IS NULL",
@@ -289,14 +305,20 @@ mod tests {
         for _ in 0..limit {
             let token_id = insert_token(&pool, tenant_id, user_id).await;
             let mut tx = pool.begin().await.expect("begin");
-            create_lease_in_tx(&mut tx, tenant_id, user_id, token_id).await.expect("create");
+            create_lease_in_tx(&mut tx, tenant_id, user_id, token_id)
+                .await
+                .expect("create");
             tx.commit().await.expect("commit");
         }
 
         // Now check: count should equal limit, so a 3rd login should be rejected
         let mut tx = pool.begin().await.expect("begin check");
-        acquire_tenant_xact_lock(&mut tx, tenant_id).await.expect("lock");
-        let cnt = count_active_leases_in_tx(&mut tx, tenant_id).await.expect("count");
+        acquire_tenant_xact_lock(&mut tx, tenant_id)
+            .await
+            .expect("lock");
+        let cnt = count_active_leases_in_tx(&mut tx, tenant_id)
+            .await
+            .expect("count");
         tx.rollback().await.ok();
 
         assert_eq!(cnt, limit, "active lease count should equal limit");

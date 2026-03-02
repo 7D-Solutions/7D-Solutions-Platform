@@ -276,10 +276,7 @@ mod tests {
         // Verify propagation
         assert_eq!(downstream.trace_id, original.trace_id);
         assert_eq!(downstream.correlation_id, original.correlation_id);
-        assert_eq!(
-            downstream.causation_id,
-            Some(original.event_id.to_string())
-        );
+        assert_eq!(downstream.causation_id, Some(original.event_id.to_string()));
         assert_eq!(downstream.actor_id, original.actor_id);
         assert_eq!(downstream.actor_type, original.actor_type);
         // Module B's own fields are preserved

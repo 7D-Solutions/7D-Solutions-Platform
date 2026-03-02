@@ -78,7 +78,9 @@ mod tests {
         let hash = format!("hash-single-use-{}", Uuid::new_v4());
         let expires_at = Utc::now() + Duration::hours(1);
 
-        insert_reset_token(&pool, user_id, &hash, expires_at).await.expect("insert");
+        insert_reset_token(&pool, user_id, &hash, expires_at)
+            .await
+            .expect("insert");
 
         // First claim succeeds
         let first = claim_reset_token(&pool, &hash).await.expect("first claim");
@@ -86,7 +88,10 @@ mod tests {
 
         // Second claim returns None — token is already used
         let second = claim_reset_token(&pool, &hash).await.expect("second claim");
-        assert_eq!(second, None, "second claim must return None (token already used)");
+        assert_eq!(
+            second, None,
+            "second claim must return None (token already used)"
+        );
     }
 
     #[tokio::test]
@@ -97,9 +102,13 @@ mod tests {
         // expires_at in the past
         let expires_at = Utc::now() - Duration::minutes(1);
 
-        insert_reset_token(&pool, user_id, &hash, expires_at).await.expect("insert");
+        insert_reset_token(&pool, user_id, &hash, expires_at)
+            .await
+            .expect("insert");
 
-        let result = claim_reset_token(&pool, &hash).await.expect("claim expired");
+        let result = claim_reset_token(&pool, &hash)
+            .await
+            .expect("claim expired");
         assert_eq!(result, None, "expired token must not be claimable");
     }
 
@@ -110,7 +119,9 @@ mod tests {
         let hash = format!("hash-concurrent-{}", Uuid::new_v4());
         let expires_at = Utc::now() + Duration::hours(1);
 
-        insert_reset_token(&pool, user_id, &hash, expires_at).await.expect("insert");
+        insert_reset_token(&pool, user_id, &hash, expires_at)
+            .await
+            .expect("insert");
 
         // Spawn two tasks racing to claim the same token
         let pool1 = pool.clone();

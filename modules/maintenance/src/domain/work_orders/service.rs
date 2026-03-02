@@ -214,10 +214,7 @@ impl WorkOrderRepo {
     }
 
     /// Create a work order (ad-hoc or from plan assignment).
-    pub async fn create(
-        pool: &PgPool,
-        req: &CreateWorkOrderRequest,
-    ) -> Result<WorkOrder, WoError> {
+    pub async fn create(pool: &PgPool, req: &CreateWorkOrderRequest) -> Result<WorkOrder, WoError> {
         // ── Guards ──
         if req.tenant_id.trim().is_empty() {
             return Err(WoError::Validation("tenant_id is required".into()));
@@ -225,22 +222,19 @@ impl WorkOrderRepo {
         if req.title.trim().is_empty() {
             return Err(WoError::Validation("title is required".into()));
         }
-        WoType::from_str_value(&req.wo_type)
-            .map_err(|e| WoError::Validation(e.to_string()))?;
+        WoType::from_str_value(&req.wo_type).map_err(|e| WoError::Validation(e.to_string()))?;
         let priority_str = req.priority.as_deref().unwrap_or("medium");
-        Priority::from_str_value(priority_str)
-            .map_err(|e| WoError::Validation(e.to_string()))?;
+        Priority::from_str_value(priority_str).map_err(|e| WoError::Validation(e.to_string()))?;
 
         let mut tx = pool.begin().await?;
 
         // Verify asset exists
-        let asset_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM maintainable_assets WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(req.asset_id)
-        .bind(&req.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let asset_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM maintainable_assets WHERE id = $1 AND tenant_id = $2")
+                .bind(req.asset_id)
+                .bind(&req.tenant_id)
+                .fetch_optional(&mut *tx)
+                .await?;
         if asset_exists.is_none() {
             return Err(WoError::AssetNotFound);
         }
@@ -466,8 +460,8 @@ impl WorkOrderRepo {
 
         // ── Cost payload for completed events (GL integration seam) ──
         let event_payload = if target == WoStatus::Completed {
-            let cost = Self::compute_cost_payload(&mut tx, wo_id, &req.tenant_id, wo.asset_id)
-                .await?;
+            let cost =
+                Self::compute_cost_payload(&mut tx, wo_id, &req.tenant_id, wo.asset_id).await?;
             serde_json::json!({
                 "work_order_id": wo_id,
                 "tenant_id": &req.tenant_id,
@@ -516,20 +510,15 @@ impl WorkOrderRepo {
         id: Uuid,
         tenant_id: &str,
     ) -> Result<Option<WorkOrder>, WoError> {
-        sqlx::query_as::<_, WorkOrder>(
-            "SELECT * FROM work_orders WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(WoError::Database)
+        sqlx::query_as::<_, WorkOrder>("SELECT * FROM work_orders WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(WoError::Database)
     }
 
-    pub async fn list(
-        pool: &PgPool,
-        q: &ListWorkOrdersQuery,
-    ) -> Result<Vec<WorkOrder>, WoError> {
+    pub async fn list(pool: &PgPool, q: &ListWorkOrdersQuery) -> Result<Vec<WorkOrder>, WoError> {
         if q.tenant_id.trim().is_empty() {
             return Err(WoError::Validation("tenant_id is required".into()));
         }
@@ -537,8 +526,7 @@ impl WorkOrderRepo {
         let offset = q.offset.unwrap_or(0);
 
         if let Some(ref s) = q.status {
-            WoStatus::from_str_value(s)
-                .map_err(|e| WoError::Validation(e.to_string()))?;
+            WoStatus::from_str_value(s).map_err(|e| WoError::Validation(e.to_string()))?;
         }
 
         sqlx::query_as::<_, WorkOrder>(
@@ -560,5 +548,4 @@ impl WorkOrderRepo {
         .await
         .map_err(WoError::Database)
     }
-
 }

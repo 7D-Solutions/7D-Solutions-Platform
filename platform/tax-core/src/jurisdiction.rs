@@ -105,9 +105,7 @@ pub fn resolve_jurisdiction(
     let candidates: Vec<Candidate> = entry
         .rules
         .iter()
-        .filter(|r| {
-            r.effective_from <= as_of && r.effective_to.is_none_or(|end| as_of <= end)
-        })
+        .filter(|r| r.effective_from <= as_of && r.effective_to.is_none_or(|end| as_of <= end))
         .filter_map(|r| {
             let (matches, is_specific) = match (&r.tax_codes, tax_code) {
                 (Some(codes), Some(tc)) => (codes.iter().any(|c| c == tc), true),

@@ -11,9 +11,7 @@ use chrono::NaiveDate;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::models::{
-    CorrectEntryRequest, CreateEntryRequest, EntryError, VoidEntryRequest,
-};
+use super::models::{CorrectEntryRequest, CreateEntryRequest, EntryError, VoidEntryRequest};
 
 /// Maximum minutes in a single entry (24 hours).
 const MAX_ENTRY_MINUTES: i32 = 1440;

@@ -48,8 +48,8 @@ impl Config {
 
         let nats_url = match bus_type {
             BusType::Nats => {
-                let url = env::var("NATS_URL")
-                    .unwrap_or_else(|_| "nats://localhost:4222".to_string());
+                let url =
+                    env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
                 if url.trim().is_empty() {
                     return Err("NATS_URL cannot be empty when BUS_TYPE=nats".to_string());
                 }

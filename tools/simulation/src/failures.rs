@@ -83,25 +83,26 @@ impl FailureInjector {
 #[derive(Debug, Clone)]
 pub enum PaymentOutcome {
     /// Payment declined
-    Decline {
-        code: String,
-        message: String,
-    },
+    Decline { code: String, message: String },
     /// Payment timeout (→ UNKNOWN)
     Timeout {
         duration_ms: u64,
         should_transition_to_unknown: bool,
     },
     /// Payment success
-    Success {
-        psp_reference: String,
-    },
+    Success { psp_reference: String },
 }
 
 impl PaymentOutcome {
     /// Check if this outcome should result in UNKNOWN status
     pub fn should_be_unknown(&self) -> bool {
-        matches!(self, PaymentOutcome::Timeout { should_transition_to_unknown: true, .. })
+        matches!(
+            self,
+            PaymentOutcome::Timeout {
+                should_transition_to_unknown: true,
+                ..
+            }
+        )
     }
 
     /// Check if this outcome is a success
@@ -131,9 +132,9 @@ mod tests {
             let outcome2 = injector2.determine_payment_outcome();
 
             match (outcome1, outcome2) {
-                (PaymentOutcome::Decline { .. }, PaymentOutcome::Decline { .. }) => {},
-                (PaymentOutcome::Timeout { .. }, PaymentOutcome::Timeout { .. }) => {},
-                (PaymentOutcome::Success { .. }, PaymentOutcome::Success { .. }) => {},
+                (PaymentOutcome::Decline { .. }, PaymentOutcome::Decline { .. }) => {}
+                (PaymentOutcome::Timeout { .. }, PaymentOutcome::Timeout { .. }) => {}
+                (PaymentOutcome::Success { .. }, PaymentOutcome::Success { .. }) => {}
                 _ => panic!("Outcomes don't match for same seed"),
             }
         }

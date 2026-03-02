@@ -106,7 +106,9 @@ impl ReorderPolicyRepo {
         req: &CreateReorderPolicyRequest,
     ) -> Result<ReorderPolicy, ReorderPolicyError> {
         if req.tenant_id.trim().is_empty() {
-            return Err(ReorderPolicyError::Validation("tenant_id is required".into()));
+            return Err(ReorderPolicyError::Validation(
+                "tenant_id is required".into(),
+            ));
         }
         if req.reorder_point < 0 {
             return Err(ReorderPolicyError::Validation(
@@ -120,7 +122,9 @@ impl ReorderPolicyRepo {
         }
         if let Some(max) = req.max_qty {
             if max < 0 {
-                return Err(ReorderPolicyError::Validation("max_qty must be >= 0".into()));
+                return Err(ReorderPolicyError::Validation(
+                    "max_qty must be >= 0".into(),
+                ));
             }
         }
 
@@ -154,11 +158,7 @@ impl ReorderPolicyRepo {
             }
         }
 
-        let created_by = req
-            .created_by
-            .as_deref()
-            .unwrap_or("system")
-            .to_string();
+        let created_by = req.created_by.as_deref().unwrap_or("system").to_string();
 
         sqlx::query_as::<_, ReorderPolicy>(
             r#"
@@ -232,7 +232,9 @@ impl ReorderPolicyRepo {
         req: &UpdateReorderPolicyRequest,
     ) -> Result<ReorderPolicy, ReorderPolicyError> {
         if req.tenant_id.trim().is_empty() {
-            return Err(ReorderPolicyError::Validation("tenant_id is required".into()));
+            return Err(ReorderPolicyError::Validation(
+                "tenant_id is required".into(),
+            ));
         }
         if let Some(rp) = req.reorder_point {
             if rp < 0 {
@@ -250,15 +252,13 @@ impl ReorderPolicyRepo {
         }
         if let Some(max) = req.max_qty {
             if max < 0 {
-                return Err(ReorderPolicyError::Validation("max_qty must be >= 0".into()));
+                return Err(ReorderPolicyError::Validation(
+                    "max_qty must be >= 0".into(),
+                ));
             }
         }
 
-        let updated_by = req
-            .updated_by
-            .as_deref()
-            .unwrap_or("system")
-            .to_string();
+        let updated_by = req.updated_by.as_deref().unwrap_or("system").to_string();
 
         sqlx::query_as::<_, ReorderPolicy>(
             r#"

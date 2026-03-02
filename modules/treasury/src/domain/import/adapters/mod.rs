@@ -51,7 +51,8 @@ pub fn detect_format(data: &[u8]) -> Option<CsvFormat> {
     // Some Amex exports also include "Reference" or "Card Member"
     if !header.contains("post date")
         && !header.contains("category")
-        && (header.contains("card member") || header.contains("account #")
+        && (header.contains("card member")
+            || header.contains("account #")
             || is_amex_three_column(header))
     {
         return Some(CsvFormat::AmexCredit);
@@ -69,9 +70,7 @@ fn is_amex_three_column(header: &str) -> bool {
         return false;
     }
     // Must have the core Amex trio
-    let has_core = cols[0] == "date"
-        && cols.contains(&"amount")
-        && cols.contains(&"description");
+    let has_core = cols[0] == "date" && cols.contains(&"amount") && cols.contains(&"description");
     if !has_core {
         return false;
     }

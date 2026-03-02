@@ -272,8 +272,8 @@ mod tests {
             transaction_currency: "EUR".to_string(),
             reporting_currency: "USD".to_string(),
             rate_used: 1.085,
-            original_amount_minor: 100000, // 1000.00 EUR
-            revalued_amount_minor: 108500, // 1085.00 USD
+            original_amount_minor: 100000,   // 1000.00 EUR
+            revalued_amount_minor: 108500,   // 1085.00 USD
             unrealized_gain_loss_minor: 500, // 5.00 USD gain
             gain_loss_account: "UNREALIZED_FX_GAIN_LOSS".to_string(),
             balance_account: "AR_EUR".to_string(),
@@ -328,10 +328,7 @@ mod tests {
             Some("cause-period-close".to_string()),
             sample_fx_revaluation(),
         );
-        assert_eq!(
-            envelope.causation_id.as_deref(),
-            Some("cause-period-close")
-        );
+        assert_eq!(envelope.causation_id.as_deref(), Some("cause-period-close"));
     }
 
     // ─── gl.fx_realized_posted ──────────────────────────────────────────────

@@ -22,8 +22,7 @@ pub const MUTATION_CLASS_LIFECYCLE: &str = "LIFECYCLE";
 // ============================================================================
 
 pub use party::{
-    build_party_created_envelope, build_party_deactivated_envelope,
-    build_party_updated_envelope, PartyCreatedPayload, PartyDeactivatedPayload,
-    PartyUpdatedPayload, EVENT_TYPE_PARTY_CREATED, EVENT_TYPE_PARTY_DEACTIVATED,
-    EVENT_TYPE_PARTY_UPDATED,
+    build_party_created_envelope, build_party_deactivated_envelope, build_party_updated_envelope,
+    PartyCreatedPayload, PartyDeactivatedPayload, PartyUpdatedPayload, EVENT_TYPE_PARTY_CREATED,
+    EVENT_TYPE_PARTY_DEACTIVATED, EVENT_TYPE_PARTY_UPDATED,
 };

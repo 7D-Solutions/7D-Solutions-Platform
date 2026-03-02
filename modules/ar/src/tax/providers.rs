@@ -3,8 +3,8 @@
 use chrono::Utc;
 use uuid::Uuid;
 
-use tax_core::{TaxProvider, TaxProviderError};
 use tax_core::models::*;
+use tax_core::{TaxProvider, TaxProviderError};
 
 // ============================================================================
 // Stub implementation for testing
@@ -103,8 +103,7 @@ impl TaxProvider for LocalTaxProvider {
             ));
         }
 
-        let (rate, jurisdiction) =
-            Self::resolve_rate(&req.ship_to.state, &req.ship_to.country);
+        let (rate, jurisdiction) = Self::resolve_rate(&req.ship_to.state, &req.ship_to.country);
 
         let mut total_tax: i64 = 0;
         let tax_by_line: Vec<TaxByLine> = req
@@ -144,10 +143,7 @@ impl TaxProvider for LocalTaxProvider {
             ));
         }
         Ok(TaxCommitResponse {
-            provider_commit_ref: format!(
-                "local-commit-{}",
-                Uuid::new_v4()
-            ),
+            provider_commit_ref: format!("local-commit-{}", Uuid::new_v4()),
             committed_at: Utc::now(),
         })
     }

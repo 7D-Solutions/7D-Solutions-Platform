@@ -205,18 +205,12 @@ pub async fn list_fx_policies(
     Ok(rows)
 }
 
-pub async fn delete_fx_policy(
-    pool: &PgPool,
-    tenant_id: &str,
-    id: Uuid,
-) -> Result<(), ConfigError> {
-    let existing = sqlx::query_as::<_, FxPolicy>(
-        "SELECT * FROM csl_fx_policies WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or(ConfigError::PolicyNotFound(id))?;
+pub async fn delete_fx_policy(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<(), ConfigError> {
+    let existing = sqlx::query_as::<_, FxPolicy>("SELECT * FROM csl_fx_policies WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or(ConfigError::PolicyNotFound(id))?;
 
     get_group(pool, tenant_id, existing.group_id).await?;
 

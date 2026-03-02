@@ -139,21 +139,24 @@ pub async fn capitalize_from_ap_line(
                 NULL,NULL,NULL,$13,$14,$15,NOW(),NOW())
         "#,
     )
-    .bind(asset_id)                                        // $1
-    .bind(&req.tenant_id)                                  // $2
-    .bind(category.id)                                     // $3
-    .bind(&asset_tag)                                      // $4
-    .bind(&req.vendor_invoice_ref)                         // $5 name
+    .bind(asset_id) // $1
+    .bind(&req.tenant_id) // $2
+    .bind(category.id) // $3
+    .bind(&asset_tag) // $4
+    .bind(&req.vendor_invoice_ref) // $5 name
     .bind(format!("Capitalized from AP bill {}", req.bill_id)) // $6 description
-    .bind(req.acquisition_date)                            // $7
-    .bind(req.amount_minor)                                // $8 acquisition_cost_minor
-    .bind(req.currency.to_lowercase())                     // $9
-    .bind(method.as_str())                                 // $10
-    .bind(life_months)                                     // $11
-    .bind(nbv)                                             // $12 net_book_value_minor
-    .bind(&req.vendor_invoice_ref)                         // $13 vendor
-    .bind(req.bill_id.to_string())                         // $14 purchase_order_ref
-    .bind(format!("Source: AP bill {} line {}", req.bill_id, req.line_id)) // $15 notes
+    .bind(req.acquisition_date) // $7
+    .bind(req.amount_minor) // $8 acquisition_cost_minor
+    .bind(req.currency.to_lowercase()) // $9
+    .bind(method.as_str()) // $10
+    .bind(life_months) // $11
+    .bind(nbv) // $12 net_book_value_minor
+    .bind(&req.vendor_invoice_ref) // $13 vendor
+    .bind(req.bill_id.to_string()) // $14 purchase_order_ref
+    .bind(format!(
+        "Source: AP bill {} line {}",
+        req.bill_id, req.line_id
+    )) // $15 notes
     .execute(&mut *tx)
     .await?;
 
@@ -266,40 +269,36 @@ mod tests {
     }
 
     async fn cleanup(pool: &PgPool) {
-        sqlx::query(
-            "DELETE FROM fa_ap_capitalizations WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .execute(pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM fa_ap_capitalizations WHERE tenant_id = $1")
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
 
-        sqlx::query(
-            "DELETE FROM fa_events_outbox WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .execute(pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM fa_events_outbox WHERE tenant_id = $1")
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
 
-        sqlx::query(
-            "DELETE FROM fa_assets WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .execute(pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM fa_assets WHERE tenant_id = $1")
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
 
-        sqlx::query(
-            "DELETE FROM fa_categories WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .execute(pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM fa_categories WHERE tenant_id = $1")
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
     }
 
-    fn sample_req(bill_id: Uuid, line_id: Uuid, gl_account_code: &str) -> CapitalizeFromApLineRequest {
+    fn sample_req(
+        bill_id: Uuid,
+        line_id: Uuid,
+        gl_account_code: &str,
+    ) -> CapitalizeFromApLineRequest {
         CapitalizeFromApLineRequest {
             tenant_id: TEST_TENANT.to_string(),
             bill_id,
@@ -329,14 +328,13 @@ mod tests {
         let result = result.expect("expected Some(result) for capex line");
 
         // Verify asset was created
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM fa_assets WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(result.asset_id)
-        .bind(TEST_TENANT)
-        .fetch_one(&pool)
-        .await
-        .expect("asset count");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM fa_assets WHERE id = $1 AND tenant_id = $2")
+                .bind(result.asset_id)
+                .bind(TEST_TENANT)
+                .fetch_one(&pool)
+                .await
+                .expect("asset count");
         assert_eq!(count, 1, "asset must be created");
 
         // Verify linkage was created
@@ -394,16 +392,18 @@ mod tests {
         let second = capitalize_from_ap_line(&pool, &req)
             .await
             .expect("second capitalize failed");
-        assert!(second.is_none(), "second call must be idempotent (return None)");
+        assert!(
+            second.is_none(),
+            "second call must be idempotent (return None)"
+        );
 
         // Only one asset should exist
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .fetch_one(&pool)
-        .await
-        .expect("asset count");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM fa_assets WHERE tenant_id = $1")
+                .bind(TEST_TENANT)
+                .fetch_one(&pool)
+                .await
+                .expect("asset count");
         assert_eq!(count, 1, "idempotent replay must not duplicate assets");
 
         cleanup(&pool).await;

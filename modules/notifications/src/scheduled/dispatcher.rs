@@ -42,7 +42,10 @@ pub async fn dispatch_once(
         .map_err(|e| anyhow::anyhow!("reset_orphaned_claims failed: {e}"))?;
 
     if result.reset_count > 0 {
-        tracing::warn!(reset_count = result.reset_count, "reset orphaned claimed notifications");
+        tracing::warn!(
+            reset_count = result.reset_count,
+            "reset orphaned claimed notifications"
+        );
     }
 
     // 2. Claim due batch (FOR UPDATE SKIP LOCKED enforced inside repo).
@@ -70,7 +73,9 @@ pub async fn dispatch_once(
                 );
                 reschedule_or_fail(pool, notif.id, notif.retry_count)
                     .await
-                    .map_err(|e| anyhow::anyhow!("reschedule_or_fail failed for {}: {e}", notif.id))?;
+                    .map_err(|e| {
+                        anyhow::anyhow!("reschedule_or_fail failed for {}: {e}", notif.id)
+                    })?;
 
                 if notif.retry_count >= 5 {
                     result.failed_count += 1;

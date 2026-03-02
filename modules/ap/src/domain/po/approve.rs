@@ -14,9 +14,7 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::events::{
-    build_po_approved_envelope, PoApprovedPayload, EVENT_TYPE_PO_APPROVED,
-};
+use crate::events::{build_po_approved_envelope, PoApprovedPayload, EVENT_TYPE_PO_APPROVED};
 use crate::outbox::enqueue_event_tx;
 
 use super::{ApprovePoRequest, PoError, PurchaseOrder};
@@ -262,15 +260,26 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_create_req(vendor_id), "corr-a1".to_string())
-            .await
-            .expect("create_po failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_create_req(vendor_id),
+            "corr-a1".to_string(),
+        )
+        .await
+        .expect("create_po failed");
 
         assert_eq!(created.po.status, "draft");
 
-        let approved = approve_po(&pool, TEST_TENANT, created.po.po_id, &approve_req(), "corr-a2".to_string())
-            .await
-            .expect("approve_po failed");
+        let approved = approve_po(
+            &pool,
+            TEST_TENANT,
+            created.po.po_id,
+            &approve_req(),
+            "corr-a2".to_string(),
+        )
+        .await
+        .expect("approve_po failed");
 
         assert_eq!(approved.status, "approved");
         assert_eq!(approved.po_id, created.po.po_id);
@@ -292,13 +301,24 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_create_req(vendor_id), "corr-b1".to_string())
-            .await
-            .expect("create_po failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_create_req(vendor_id),
+            "corr-b1".to_string(),
+        )
+        .await
+        .expect("create_po failed");
 
-        approve_po(&pool, TEST_TENANT, created.po.po_id, &approve_req(), "corr-b2".to_string())
-            .await
-            .expect("approve_po failed");
+        approve_po(
+            &pool,
+            TEST_TENANT,
+            created.po.po_id,
+            &approve_req(),
+            "corr-b2".to_string(),
+        )
+        .await
+        .expect("approve_po failed");
 
         let count: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM events_outbox \
@@ -322,19 +342,36 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_create_req(vendor_id), "corr-c1".to_string())
-            .await
-            .expect("create_po failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_create_req(vendor_id),
+            "corr-c1".to_string(),
+        )
+        .await
+        .expect("create_po failed");
 
         // Approve once
-        approve_po(&pool, TEST_TENANT, created.po.po_id, &approve_req(), "corr-c2".to_string())
-            .await
-            .expect("first approve failed");
+        approve_po(
+            &pool,
+            TEST_TENANT,
+            created.po.po_id,
+            &approve_req(),
+            "corr-c2".to_string(),
+        )
+        .await
+        .expect("first approve failed");
 
         // Approve again — must succeed without re-emitting
-        let second = approve_po(&pool, TEST_TENANT, created.po.po_id, &approve_req(), "corr-c3".to_string())
-            .await
-            .expect("second approve failed (should be idempotent)");
+        let second = approve_po(
+            &pool,
+            TEST_TENANT,
+            created.po.po_id,
+            &approve_req(),
+            "corr-c3".to_string(),
+        )
+        .await
+        .expect("second approve failed (should be idempotent)");
 
         assert_eq!(second.status, "approved");
 
@@ -349,7 +386,10 @@ mod tests {
         .await
         .expect("outbox query failed");
 
-        assert_eq!(count.0, 1, "idempotent approve must not produce a second event");
+        assert_eq!(
+            count.0, 1,
+            "idempotent approve must not produce a second event"
+        );
 
         cleanup(&pool).await;
     }
@@ -361,11 +401,23 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_create_req(vendor_id), "corr-d1".to_string())
-            .await
-            .expect("create_po failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_create_req(vendor_id),
+            "corr-d1".to_string(),
+        )
+        .await
+        .expect("create_po failed");
 
-        let result = approve_po(&pool, "wrong-tenant", created.po.po_id, &approve_req(), "corr-d2".to_string()).await;
+        let result = approve_po(
+            &pool,
+            "wrong-tenant",
+            created.po.po_id,
+            &approve_req(),
+            "corr-d2".to_string(),
+        )
+        .await;
         assert!(
             matches!(result, Err(PoError::NotFound(_))),
             "expected NotFound for wrong tenant, got {:?}",
@@ -382,9 +434,14 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_create_req(vendor_id), "corr-e1".to_string())
-            .await
-            .expect("create_po failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_create_req(vendor_id),
+            "corr-e1".to_string(),
+        )
+        .await
+        .expect("create_po failed");
 
         // Force-cancel the PO via raw SQL
         sqlx::query("UPDATE purchase_orders SET status = 'cancelled' WHERE po_id = $1")
@@ -393,7 +450,14 @@ mod tests {
             .await
             .expect("status update failed");
 
-        let result = approve_po(&pool, TEST_TENANT, created.po.po_id, &approve_req(), "corr-e2".to_string()).await;
+        let result = approve_po(
+            &pool,
+            TEST_TENANT,
+            created.po.po_id,
+            &approve_req(),
+            "corr-e2".to_string(),
+        )
+        .await;
         assert!(
             matches!(result, Err(PoError::InvalidTransition { .. })),
             "expected InvalidTransition for cancelled PO, got {:?}",
@@ -410,13 +474,24 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_create_req(vendor_id), "corr-f1".to_string())
-            .await
-            .expect("create_po failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_create_req(vendor_id),
+            "corr-f1".to_string(),
+        )
+        .await
+        .expect("create_po failed");
 
-        approve_po(&pool, TEST_TENANT, created.po.po_id, &approve_req(), "corr-f2".to_string())
-            .await
-            .expect("approve_po failed");
+        approve_po(
+            &pool,
+            TEST_TENANT,
+            created.po.po_id,
+            &approve_req(),
+            "corr-f2".to_string(),
+        )
+        .await
+        .expect("approve_po failed");
 
         let count: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM po_status WHERE po_id = $1 AND status = 'approved'",
@@ -439,13 +514,24 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_create_req(vendor_id), "corr-g1".to_string())
-            .await
-            .expect("create_po failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_create_req(vendor_id),
+            "corr-g1".to_string(),
+        )
+        .await
+        .expect("create_po failed");
 
-        approve_po(&pool, TEST_TENANT, created.po.po_id, &approve_req(), "corr-g2".to_string())
-            .await
-            .expect("approve_po failed");
+        approve_po(
+            &pool,
+            TEST_TENANT,
+            created.po.po_id,
+            &approve_req(),
+            "corr-g2".to_string(),
+        )
+        .await
+        .expect("approve_po failed");
 
         use crate::domain::po::{service::update_po_lines, UpdatePoLinesRequest};
         let update_req = UpdatePoLinesRequest {

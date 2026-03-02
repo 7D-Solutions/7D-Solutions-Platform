@@ -78,7 +78,10 @@ impl PaymentTermsPreset {
 /// This is a pure function — given the same inputs it always returns the same date.
 /// `payment_terms_days` must be >= 0.
 pub fn compute_due_date(invoice_date: NaiveDate, payment_terms_days: i32) -> NaiveDate {
-    debug_assert!(payment_terms_days >= 0, "payment_terms_days must be non-negative");
+    debug_assert!(
+        payment_terms_days >= 0,
+        "payment_terms_days must be non-negative"
+    );
     let days = payment_terms_days.max(0) as i64;
     invoice_date + chrono::Duration::days(days)
 }
@@ -238,7 +241,10 @@ mod tests {
 
     #[test]
     fn payment_terms_preset_from_days() {
-        assert_eq!(PaymentTermsPreset::from_days(30), Some(PaymentTermsPreset::Net30));
+        assert_eq!(
+            PaymentTermsPreset::from_days(30),
+            Some(PaymentTermsPreset::Net30)
+        );
         assert_eq!(PaymentTermsPreset::from_days(99), None);
     }
 

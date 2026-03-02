@@ -195,7 +195,10 @@ mod tests {
         let from = Uuid::new_v4();
         let to = Uuid::new_v4();
         // 1000 pallets × 48 ea/pallet = 48,000 ea
-        assert_eq!(to_base_uom(1000, from, to, &[conv(from, to, 48.0)]), Ok(48_000));
+        assert_eq!(
+            to_base_uom(1000, from, to, &[conv(from, to, 48.0)]),
+            Ok(48_000)
+        );
     }
 
     #[test]

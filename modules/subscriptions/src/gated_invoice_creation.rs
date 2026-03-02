@@ -26,22 +26,13 @@ pub enum InvoiceCreationError {
         cycle_key: String,
     },
     /// AR API error (invoice creation failed)
-    ArApiError {
-        status: u16,
-        message: String,
-    },
+    ArApiError { status: u16, message: String },
     /// AR API communication error
-    ArApiCommunicationError {
-        message: String,
-    },
+    ArApiCommunicationError { message: String },
     /// Database error
-    DatabaseError {
-        message: String,
-    },
+    DatabaseError { message: String },
     /// Cycle gating error
-    GatingError {
-        message: String,
-    },
+    GatingError { message: String },
 }
 
 impl std::fmt::Display for InvoiceCreationError {
@@ -142,9 +133,16 @@ pub async fn create_gated_invoice(
     }
 
     // Step 3: Record attempt (status: 'attempting')
-    let attempt_id =
-        record_cycle_attempt(&mut tx, tenant_id, subscription_id, &cycle_key, cycle_start, cycle_end, None)
-            .await?;
+    let attempt_id = record_cycle_attempt(
+        &mut tx,
+        tenant_id,
+        subscription_id,
+        &cycle_key,
+        cycle_start,
+        cycle_end,
+        None,
+    )
+    .await?;
 
     tracing::debug!(
         attempt_id = %attempt_id,
@@ -194,12 +192,13 @@ pub async fn create_gated_invoice(
         return Err(InvoiceCreationError::ArApiError { status, message });
     }
 
-    let invoice: Invoice = create_result
-        .json()
-        .await
-        .map_err(|e| InvoiceCreationError::ArApiCommunicationError {
-            message: format!("Failed to parse invoice response: {}", e),
-        })?;
+    let invoice: Invoice =
+        create_result
+            .json()
+            .await
+            .map_err(|e| InvoiceCreationError::ArApiCommunicationError {
+                message: format!("Failed to parse invoice response: {}", e),
+            })?;
 
     tracing::info!(
         invoice_id = invoice.id,
@@ -213,7 +212,10 @@ pub async fn create_gated_invoice(
     };
 
     let finalize_result = client
-        .post(format!("{}/api/ar/invoices/{}/finalize", ar_base_url, invoice.id))
+        .post(format!(
+            "{}/api/ar/invoices/{}/finalize",
+            ar_base_url, invoice.id
+        ))
         .json(&finalize_req)
         .send()
         .await
@@ -223,7 +225,10 @@ pub async fn create_gated_invoice(
 
     if !finalize_result.status().is_success() {
         let status = finalize_result.status().as_u16();
-        let message = format!("Failed to finalize invoice {}: status {}", invoice.id, status);
+        let message = format!(
+            "Failed to finalize invoice {}: status {}",
+            invoice.id, status
+        );
 
         // Mark attempt as failed
         let mut tx = pool.begin().await?;

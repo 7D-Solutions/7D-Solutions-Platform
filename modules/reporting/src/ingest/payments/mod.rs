@@ -123,7 +123,10 @@ mod tests {
 
     async fn test_pool() -> PgPool {
         let pool = PgPool::connect(&test_db_url()).await.expect("connect");
-        sqlx::migrate!("./db/migrations").run(&pool).await.expect("migrate");
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("migrate");
         pool
     }
 
@@ -239,7 +242,10 @@ mod tests {
 
         let handler = Arc::new(PaymentsHandler);
 
-        let currencies = [("evt-cf-usd", 100000_i64, "USD"), ("evt-cf-eur", 80000, "EUR")];
+        let currencies = [
+            ("evt-cf-usd", 100000_i64, "USD"),
+            ("evt-cf-eur", 80000, "EUR"),
+        ];
         for (i, (eid, amt, cur)) in currencies.iter().enumerate() {
             let consumer = IngestConsumer::new(
                 format!("test-cf-pay-cur-{i}"),

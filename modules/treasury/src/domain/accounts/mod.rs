@@ -24,7 +24,10 @@ pub enum AccountError {
     Validation(String),
 
     #[error("Idempotent replay: request already processed")]
-    IdempotentReplay { status_code: u16, body: serde_json::Value },
+    IdempotentReplay {
+        status_code: u16,
+        body: serde_json::Value,
+    },
 
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),

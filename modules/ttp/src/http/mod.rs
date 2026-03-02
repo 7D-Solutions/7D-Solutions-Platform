@@ -2,7 +2,10 @@ pub mod billing;
 pub mod metering;
 pub mod service_agreements;
 
-use axum::{routing::{get, post}, Router};
+use axum::{
+    routing::{get, post},
+    Router,
+};
 use security::{permissions, RequirePermissionsLayer};
 use std::sync::Arc;
 
@@ -31,7 +34,10 @@ pub fn router(state: Arc<AppState>) -> Router {
         // Metering — read
         .route("/api/metering/trace", get(metering::get_trace))
         // Service agreements — read
-        .route("/api/ttp/service-agreements", get(service_agreements::list_service_agreements))
+        .route(
+            "/api/ttp/service-agreements",
+            get(service_agreements::list_service_agreements),
+        )
         .with_state(state);
 
     Router::new().merge(mutations).merge(reads)

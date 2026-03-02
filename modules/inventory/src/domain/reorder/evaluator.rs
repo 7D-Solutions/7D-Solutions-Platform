@@ -30,11 +30,9 @@ use uuid::Uuid;
 
 use crate::{
     domain::reorder::{models::ReorderPolicy, state_repo},
-    events::{
-        low_stock_triggered::{
-            build_low_stock_triggered_envelope, LowStockTriggeredPayload,
-            EVENT_TYPE_LOW_STOCK_TRIGGERED,
-        },
+    events::low_stock_triggered::{
+        build_low_stock_triggered_envelope, LowStockTriggeredPayload,
+        EVENT_TYPE_LOW_STOCK_TRIGGERED,
     },
 };
 
@@ -71,7 +69,8 @@ pub async fn evaluate_low_stock(
     }
 
     // --- Get available qty at the mutation's location scope ---
-    let available_qty = get_available_qty(pool, tenant_id, item_id, warehouse_id, location_id).await?;
+    let available_qty =
+        get_available_qty(pool, tenant_id, item_id, warehouse_id, location_id).await?;
 
     // --- Evaluate each policy in its own transaction ---
     for policy in &policies {
@@ -193,7 +192,8 @@ async fn maybe_emit_signal(
 ) -> Result<(), sqlx::Error> {
     let mut tx = pool.begin().await?;
 
-    let state = state_repo::ensure_and_lock(&mut tx, tenant_id, item_id, policy_location_id).await?;
+    let state =
+        state_repo::ensure_and_lock(&mut tx, tenant_id, item_id, policy_location_id).await?;
 
     let crossing_below = available_qty < reorder_point && !state.below_threshold;
     let recovering_above = available_qty >= reorder_point && state.below_threshold;
@@ -221,8 +221,8 @@ async fn maybe_emit_signal(
             causation_id.clone(),
             payload,
         );
-        let envelope_json = serde_json::to_string(&envelope)
-            .map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
+        let envelope_json =
+            serde_json::to_string(&envelope).map_err(|e| sqlx::Error::Protocol(e.to_string()))?;
 
         sqlx::query(
             r#"

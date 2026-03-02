@@ -44,7 +44,6 @@ pub enum FxRevaluationError {
 
     #[error("Balance error: {0}")]
     Balance(#[from] balance_repo::BalanceError),
-
 }
 
 /// Individual adjustment computed for one account/currency balance.
@@ -143,14 +142,8 @@ pub async fn revalue_foreign_balances(
     }
 
     // Step 3: Compute adjustments for each balance
-    let opening_as_of = period_start
-        .and_hms_opt(23, 59, 59)
-        .unwrap()
-        .and_utc();
-    let closing_as_of = period_end
-        .and_hms_opt(23, 59, 59)
-        .unwrap()
-        .and_utc();
+    let opening_as_of = period_start.and_hms_opt(23, 59, 59).unwrap().and_utc();
+    let closing_as_of = period_end.and_hms_opt(23, 59, 59).unwrap().and_utc();
 
     let mut adjustments = Vec::new();
 
@@ -168,11 +161,11 @@ pub async fn revalue_foreign_balances(
 
     for currency in &currencies {
         // Look up opening rate
-        let opening = lookup_rate_tx(tx, tenant_id, currency, reporting_currency, opening_as_of)
-            .await?;
+        let opening =
+            lookup_rate_tx(tx, tenant_id, currency, reporting_currency, opening_as_of).await?;
         // Look up closing rate
-        let closing = lookup_rate_tx(tx, tenant_id, currency, reporting_currency, closing_as_of)
-            .await?;
+        let closing =
+            lookup_rate_tx(tx, tenant_id, currency, reporting_currency, closing_as_of).await?;
 
         match (opening, closing) {
             (Some(o), Some(c)) => {
@@ -203,10 +196,18 @@ pub async fn revalue_foreign_balances(
             None => continue,
         };
 
-        let opening_value =
-            convert_with_sign(balance.net_balance_minor, opening_rate, &currency, reporting_currency)?;
-        let closing_value =
-            convert_with_sign(balance.net_balance_minor, closing_rate, &currency, reporting_currency)?;
+        let opening_value = convert_with_sign(
+            balance.net_balance_minor,
+            opening_rate,
+            &currency,
+            reporting_currency,
+        )?;
+        let closing_value = convert_with_sign(
+            balance.net_balance_minor,
+            closing_rate,
+            &currency,
+            reporting_currency,
+        )?;
 
         let adjustment = closing_value - opening_value;
 
@@ -233,10 +234,7 @@ pub async fn revalue_foreign_balances(
 
     // Step 4: Post balanced journal entry
     let entry_id = Uuid::new_v4();
-    let posted_at: DateTime<Utc> = period_end
-        .and_hms_opt(23, 59, 59)
-        .unwrap()
-        .and_utc();
+    let posted_at: DateTime<Utc> = period_end.and_hms_opt(23, 59, 59).unwrap().and_utc();
 
     journal_repo::insert_entry(
         tx,

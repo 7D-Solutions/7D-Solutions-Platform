@@ -20,9 +20,9 @@
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
+use super::metering;
 use crate::clients::ar::{ArClient, ArClientError};
 use crate::clients::tenant_registry::{TenantRegistryClient, TenantRegistryError};
-use super::metering;
 
 // ---------------------------------------------------------------------------
 // Error
@@ -263,7 +263,13 @@ async fn bill_party(
         .await?;
 
     let invoice = ar_client
-        .create_invoice(ar_customer_id, party.total_amount_minor, &party.currency, item_key, party.party_id)
+        .create_invoice(
+            ar_customer_id,
+            party.total_amount_minor,
+            &party.currency,
+            item_key,
+            party.party_id,
+        )
         .await?;
 
     let finalized = ar_client.finalize_invoice(invoice.id).await?;
@@ -356,7 +362,10 @@ mod tests {
         let run_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
         let party_a = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
         let party_b = Uuid::parse_str("00000000-0000-0000-0000-000000000003").unwrap();
-        assert_ne!(derive_item_key(run_id, party_a), derive_item_key(run_id, party_b));
+        assert_ne!(
+            derive_item_key(run_id, party_a),
+            derive_item_key(run_id, party_b)
+        );
     }
 
     #[test]
@@ -413,9 +422,12 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn integration_billing_run_is_idempotent() {
-        let url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5450/ttp_default_db".to_string());
-        let pool = sqlx::PgPool::connect(&url).await.expect("connect TTP test db");
+        let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://postgres:postgres@localhost:5450/ttp_default_db".to_string()
+        });
+        let pool = sqlx::PgPool::connect(&url)
+            .await
+            .expect("connect TTP test db");
 
         let tenant_id = Uuid::new_v4();
         let party_id = Uuid::new_v4();
@@ -430,20 +442,26 @@ mod tests {
                (tenant_id, party_id, plan_code, amount_minor, currency, effective_from)
                VALUES ($1, $2, 'basic', 10000, 'usd', '2026-01-01')"#,
         )
-        .bind(tenant_id).bind(party_id).execute(&pool).await.expect("seed agreement");
+        .bind(tenant_id)
+        .bind(party_id)
+        .execute(&pool)
+        .await
+        .expect("seed agreement");
 
         let registry_url = std::env::var("TENANT_REGISTRY_URL")
             .unwrap_or_else(|_| "http://localhost:8092".to_string());
-        let ar_url = std::env::var("AR_BASE_URL")
-            .unwrap_or_else(|_| "http://localhost:8086".to_string());
+        let ar_url =
+            std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
 
         let registry = TenantRegistryClient::new(registry_url);
         let ar = ArClient::new(ar_url);
 
         let summary1 = run_billing(&pool, &registry, &ar, tenant_id, "2026-02", "key-001")
-            .await.expect("first billing run");
+            .await
+            .expect("first billing run");
         let summary2 = run_billing(&pool, &registry, &ar, tenant_id, "2026-02", "key-001")
-            .await.expect("second billing run (idempotent)");
+            .await
+            .expect("second billing run (idempotent)");
 
         assert!(summary2.was_noop, "second run must be a no-op");
         assert_eq!(summary1.run_id, summary2.run_id);
@@ -451,8 +469,20 @@ mod tests {
         // Cleanup
         sqlx::query("DELETE FROM ttp_billing_run_items WHERE run_id IN (SELECT run_id FROM ttp_billing_runs WHERE tenant_id = $1)")
             .bind(tenant_id).execute(&pool).await.ok();
-        sqlx::query("DELETE FROM ttp_billing_runs WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
-        sqlx::query("DELETE FROM ttp_service_agreements WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
-        sqlx::query("DELETE FROM ttp_customers WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
+        sqlx::query("DELETE FROM ttp_billing_runs WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(&pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM ttp_service_agreements WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(&pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM ttp_customers WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(&pool)
+            .await
+            .ok();
     }
 }

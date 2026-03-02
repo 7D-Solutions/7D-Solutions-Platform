@@ -9,8 +9,8 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::repos::report_query_repo::{self, ReportQueryError};
 use crate::repos::period_repo;
+use crate::repos::report_query_repo::{self, ReportQueryError};
 
 /// Account activity response DTO
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,7 +26,7 @@ pub struct AccountActivityResponse {
 /// Account activity line (single transaction line)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AccountActivityLine {
-    pub entry_id: String, // UUID as string
+    pub entry_id: String,  // UUID as string
     pub posted_at: String, // ISO 8601 timestamp
     pub description: Option<String>,
     pub currency: String,
@@ -121,7 +121,7 @@ pub async fn get_account_activity(
             .await
             .map_err(|e| match e {
                 period_repo::PeriodError::Database(_) => AccountActivityServiceError::Repo(
-                    ReportQueryError::Database(sqlx::Error::RowNotFound)
+                    ReportQueryError::Database(sqlx::Error::RowNotFound),
                 ),
                 _ => AccountActivityServiceError::PeriodNotFound {
                     tenant_id: tenant_id.to_string(),
@@ -142,10 +142,12 @@ pub async fn get_account_activity(
         }
 
         // Convert NaiveDate to DateTime<Utc> (start of day and end of day)
-        let start = period.period_start
+        let start = period
+            .period_start
             .and_time(NaiveTime::from_hms_opt(0, 0, 0).unwrap())
             .and_utc();
-        let end = period.period_end
+        let end = period
+            .period_end
             .and_time(NaiveTime::from_hms_opt(23, 59, 59).unwrap())
             .and_utc();
 
@@ -153,9 +155,10 @@ pub async fn get_account_activity(
     } else if let (Some(start), Some(end)) = (start_date, end_date) {
         // Use provided date range
         if start > end {
-            return Err(AccountActivityServiceError::InvalidDateRange(
-                format!("start_date {} is after end_date {}", start, end)
-            ));
+            return Err(AccountActivityServiceError::InvalidDateRange(format!(
+                "start_date {} is after end_date {}",
+                start, end
+            )));
         }
         (start, end)
     } else {

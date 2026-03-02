@@ -37,7 +37,9 @@ impl Args {
         if args.len() != 7 {
             return Err(format!(
                 "Usage: {} --tenant TENANT_ID --from YYYY-MM-DD --to YYYY-MM-DD",
-                args.first().map(|s| s.as_str()).unwrap_or("rebuild_balances")
+                args.first()
+                    .map(|s| s.as_str())
+                    .unwrap_or("rebuild_balances")
             ));
         }
 
@@ -60,7 +62,7 @@ impl Args {
                     if i + 1 < args.len() {
                         from_date = Some(
                             NaiveDate::parse_from_str(&args[i + 1], "%Y-%m-%d")
-                                .map_err(|e| format!("Invalid --from date: {}", e))?
+                                .map_err(|e| format!("Invalid --from date: {}", e))?,
                         );
                         i += 2;
                     } else {
@@ -71,7 +73,7 @@ impl Args {
                     if i + 1 < args.len() {
                         to_date = Some(
                             NaiveDate::parse_from_str(&args[i + 1], "%Y-%m-%d")
-                                .map_err(|e| format!("Invalid --to date: {}", e))?
+                                .map_err(|e| format!("Invalid --to date: {}", e))?,
                         );
                         i += 2;
                     } else {
@@ -122,8 +124,7 @@ async fn main() {
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into())
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -144,8 +145,7 @@ async fn main() {
     );
 
     // Connect to database
-    let database_url = env::var("DATABASE_URL")
-        .expect("DATABASE_URL must be set");
+    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
     let pool = PgPoolOptions::new()
         .max_connections(5)

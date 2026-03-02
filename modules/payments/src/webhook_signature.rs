@@ -146,9 +146,11 @@ fn verify_tilled_signature(
     }
 
     // Replay-window check.
-    let ts_unix: i64 = timestamp.parse().map_err(|_| SignatureError::InvalidSignature {
-        reason: "Invalid timestamp in tilled-signature header".to_string(),
-    })?;
+    let ts_unix: i64 = timestamp
+        .parse()
+        .map_err(|_| SignatureError::InvalidSignature {
+            reason: "Invalid timestamp in tilled-signature header".to_string(),
+        })?;
     let now_unix = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -220,7 +222,9 @@ mod tests {
         let result = validate_webhook_signature(WebhookSource::Stripe, &headers, body, &[]);
         assert_eq!(
             result.unwrap_err(),
-            SignatureError::UnsupportedSource { source: "stripe".to_string() }
+            SignatureError::UnsupportedSource {
+                source: "stripe".to_string()
+            }
         );
     }
 
@@ -228,9 +232,7 @@ mod tests {
     fn test_tilled_missing_header() {
         let headers = HashMap::new();
         let body = b"{}";
-        let result = validate_webhook_signature(
-            WebhookSource::Tilled, &headers, body, &["secret"],
-        );
+        let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &["secret"]);
         assert_eq!(result.unwrap_err(), SignatureError::MissingSignature);
     }
 
@@ -255,9 +257,11 @@ mod tests {
         let sig_header = format!("t={},v1=badbadbadbad", ts);
         let mut headers = HashMap::new();
         headers.insert("tilled-signature".to_string(), sig_header);
-        let result =
-            validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
-        assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignature { .. }));
+        let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
+        assert!(matches!(
+            result.unwrap_err(),
+            SignatureError::InvalidSignature { .. }
+        ));
     }
 
     #[test]
@@ -269,9 +273,10 @@ mod tests {
         let sig_header = make_tilled_sig(secret, ts, body);
         let mut headers = HashMap::new();
         headers.insert("tilled-signature".to_string(), sig_header);
-        let result =
-            validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
-        assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignature { reason } if reason.contains("replay window")));
+        let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[secret]);
+        assert!(
+            matches!(result.unwrap_err(), SignatureError::InvalidSignature { reason } if reason.contains("replay window"))
+        );
     }
 
     #[test]
@@ -280,7 +285,10 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert("tilled-signature".to_string(), "t=123,v1=abc".to_string());
         let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[]);
-        assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignature { .. }));
+        assert!(matches!(
+            result.unwrap_err(),
+            SignatureError::InvalidSignature { .. }
+        ));
     }
 
     #[test]
@@ -294,9 +302,13 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert("tilled-signature".to_string(), sig_header);
         // Both secrets in the slice — should pass via old_secret fallback
-        assert!(
-            validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[new_secret, old_secret]).is_ok()
-        );
+        assert!(validate_webhook_signature(
+            WebhookSource::Tilled,
+            &headers,
+            body,
+            &[new_secret, old_secret]
+        )
+        .is_ok());
     }
 
     #[test]
@@ -309,19 +321,37 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert("tilled-signature".to_string(), sig_header);
         // Neither new nor old match
-        let result = validate_webhook_signature(WebhookSource::Tilled, &headers, body, &[new_secret, old_secret]);
-        assert!(matches!(result.unwrap_err(), SignatureError::InvalidSignature { .. }));
+        let result = validate_webhook_signature(
+            WebhookSource::Tilled,
+            &headers,
+            body,
+            &[new_secret, old_secret],
+        );
+        assert!(matches!(
+            result.unwrap_err(),
+            SignatureError::InvalidSignature { .. }
+        ));
     }
 
     #[test]
     fn test_signature_error_display() {
-        let err = SignatureError::InvalidSignature { reason: "HMAC mismatch".to_string() };
-        assert_eq!(err.to_string(), "Webhook signature verification failed: HMAC mismatch");
+        let err = SignatureError::InvalidSignature {
+            reason: "HMAC mismatch".to_string(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "Webhook signature verification failed: HMAC mismatch"
+        );
 
         let err = SignatureError::MissingSignature;
-        assert_eq!(err.to_string(), "Missing required webhook signature headers");
+        assert_eq!(
+            err.to_string(),
+            "Missing required webhook signature headers"
+        );
 
-        let err = SignatureError::UnsupportedSource { source: "stripe".to_string() };
+        let err = SignatureError::UnsupportedSource {
+            source: "stripe".to_string(),
+        };
         assert_eq!(err.to_string(), "Unsupported webhook source: stripe");
     }
 }

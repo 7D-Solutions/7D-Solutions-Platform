@@ -30,13 +30,12 @@ impl SubmissionRepo {
         }
 
         // Verify template exists and belongs to tenant
-        let tmpl_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM form_templates WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(req.template_id)
-        .bind(req.tenant_id.trim())
-        .fetch_optional(pool)
-        .await?;
+        let tmpl_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM form_templates WHERE id = $1 AND tenant_id = $2")
+                .bind(req.template_id)
+                .bind(req.tenant_id.trim())
+                .fetch_optional(pool)
+                .await?;
         if tmpl_exists.is_none() {
             return Err(SubmissionError::TemplateNotFound);
         }
@@ -112,14 +111,13 @@ impl SubmissionRepo {
         tenant_id: &str,
     ) -> Result<FormSubmission, SubmissionError> {
         // Fetch the submission
-        let sub: FormSubmission = sqlx::query_as(
-            "SELECT * FROM form_submissions WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?
-        .ok_or(SubmissionError::NotFound)?;
+        let sub: FormSubmission =
+            sqlx::query_as("SELECT * FROM form_submissions WHERE id = $1 AND tenant_id = $2")
+                .bind(id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?
+                .ok_or(SubmissionError::NotFound)?;
 
         if sub.status == "submitted" {
             return Err(SubmissionError::AlreadySubmitted);

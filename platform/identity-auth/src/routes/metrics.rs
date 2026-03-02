@@ -11,6 +11,9 @@ pub struct MetricsState {
 pub async fn metrics(State(state): State<Arc<MetricsState>>) -> impl IntoResponse {
     match state.metrics.render() {
         Ok(body) => (StatusCode::OK, body),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, format!("metrics error: {e}")),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("metrics error: {e}"),
+        ),
     }
 }

@@ -27,14 +27,23 @@ pub fn router() -> Router<Arc<AppState>> {
         // Groups — write
         .route("/api/consolidation/groups", post(config::create_group))
         .route("/api/consolidation/groups/{id}", put(config::update_group))
-        .route("/api/consolidation/groups/{id}", delete(config::delete_group))
+        .route(
+            "/api/consolidation/groups/{id}",
+            delete(config::delete_group),
+        )
         // Entities — write
         .route(
             "/api/consolidation/groups/{group_id}/entities",
             post(config::create_entity),
         )
-        .route("/api/consolidation/entities/{id}", put(config::update_entity))
-        .route("/api/consolidation/entities/{id}", delete(config::delete_entity))
+        .route(
+            "/api/consolidation/entities/{id}",
+            put(config::update_entity),
+        )
+        .route(
+            "/api/consolidation/entities/{id}",
+            delete(config::delete_entity),
+        )
         // COA mappings — write
         .route(
             "/api/consolidation/groups/{group_id}/coa-mappings",
@@ -75,7 +84,9 @@ pub fn router() -> Router<Arc<AppState>> {
             "/api/consolidation/groups/{group_id}/eliminations",
             post(intercompany::post_eliminations),
         )
-        .route_layer(RequirePermissionsLayer::new(&[permissions::CONSOLIDATION_MUTATE]));
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::CONSOLIDATION_MUTATE,
+        ]));
 
     let reads: Router<Arc<AppState>> = Router::new()
         // Ops

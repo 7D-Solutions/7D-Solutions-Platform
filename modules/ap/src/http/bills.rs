@@ -24,8 +24,8 @@ use crate::domain::bills::{
 };
 use crate::domain::r#match::{engine, MatchError, MatchOutcome, RunMatchRequest};
 use crate::domain::tax::{self, ApTaxSnapshot, ZeroTaxProvider};
-use crate::http::tenant::extract_tenant;
 use crate::http::admin_types::ErrorBody;
+use crate::http::tenant::extract_tenant;
 use crate::AppState;
 
 // ============================================================================
@@ -44,7 +44,10 @@ fn bill_error_response(e: BillError) -> (StatusCode, Json<ErrorBody>) {
     match e {
         BillError::NotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("bill_not_found", &format!("Bill {} not found", id))),
+            Json(ErrorBody::new(
+                "bill_not_found",
+                &format!("Bill {} not found", id),
+            )),
         ),
         BillError::VendorNotFound(id) => (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -69,7 +72,10 @@ fn bill_error_response(e: BillError) -> (StatusCode, Json<ErrorBody>) {
         ),
         BillError::EmptyLines => (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("empty_lines", "Bill must have at least one line")),
+            Json(ErrorBody::new(
+                "empty_lines",
+                "Bill must have at least one line",
+            )),
         ),
         BillError::Validation(msg) => (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -213,10 +219,16 @@ pub async fn void_bill(
     let correlation_id = correlation_from_headers(&headers);
     let provider = ZeroTaxProvider;
 
-    let bill =
-        void::void_bill(&state.pool, &provider, &tenant_id, bill_id, &req, correlation_id)
-            .await
-            .map_err(bill_error_response)?;
+    let bill = void::void_bill(
+        &state.pool,
+        &provider,
+        &tenant_id,
+        bill_id,
+        &req,
+        correlation_id,
+    )
+    .await
+    .map_err(bill_error_response)?;
 
     Ok(Json(bill))
 }
@@ -252,7 +264,10 @@ pub async fn quote_bill_tax(
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
-                Json(ErrorBody::new("bill_not_found", &format!("Bill {} not found", bill_id))),
+                Json(ErrorBody::new(
+                    "bill_not_found",
+                    &format!("Bill {} not found", bill_id),
+                )),
             )
         })?;
 
@@ -282,14 +297,15 @@ pub async fn quote_bill_tax(
     };
 
     let provider = ZeroTaxProvider;
-    let snapshot = tax::quote_bill_tax(&state.pool, &provider, "zero", &tenant_id, bill_id, tax_req)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::UNPROCESSABLE_ENTITY,
-                Json(ErrorBody::new("tax_error", &e.to_string())),
-            )
-        })?;
+    let snapshot =
+        tax::quote_bill_tax(&state.pool, &provider, "zero", &tenant_id, bill_id, tax_req)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::UNPROCESSABLE_ENTITY,
+                    Json(ErrorBody::new("tax_error", &e.to_string())),
+                )
+            })?;
 
     Ok(Json(snapshot))
 }
@@ -302,17 +318,26 @@ fn match_error_response(e: MatchError) -> (StatusCode, Json<ErrorBody>) {
     match e {
         MatchError::BillNotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("bill_not_found", &format!("Bill {} not found", id))),
+            Json(ErrorBody::new(
+                "bill_not_found",
+                &format!("Bill {} not found", id),
+            )),
         ),
         MatchError::PoNotFound(id) => (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("po_not_found", &format!("PO {} not found", id))),
+            Json(ErrorBody::new(
+                "po_not_found",
+                &format!("PO {} not found", id),
+            )),
         ),
         MatchError::InvalidBillStatus(s) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorBody::new(
                 "invalid_bill_status",
-                &format!("Bill status '{}' cannot be matched; must be 'open' or 'matched'", s),
+                &format!(
+                    "Bill status '{}' cannot be matched; must be 'open' or 'matched'",
+                    s
+                ),
             )),
         ),
         MatchError::NoMatchableLines => (

@@ -27,7 +27,9 @@ pub struct IngestTimer {
 impl IngestTimer {
     /// Start a new timer.
     pub fn start() -> Self {
-        Self { started_at: Instant::now() }
+        Self {
+            started_at: Instant::now(),
+        }
     }
 
     /// Return elapsed time in seconds since [`IngestTimer::start`].
@@ -56,13 +58,15 @@ pub async fn checkpoint_stats(pool: &PgPool) -> Result<CheckpointStats, sqlx::Er
             .fetch_one(pool)
             .await?;
 
-    let distinct_consumers: i64 = sqlx::query_scalar(
-        "SELECT COUNT(DISTINCT consumer_name) FROM rpt_ingestion_checkpoints",
-    )
-    .fetch_one(pool)
-    .await?;
+    let distinct_consumers: i64 =
+        sqlx::query_scalar("SELECT COUNT(DISTINCT consumer_name) FROM rpt_ingestion_checkpoints")
+            .fetch_one(pool)
+            .await?;
 
-    Ok(CheckpointStats { total_checkpoints, distinct_consumers })
+    Ok(CheckpointStats {
+        total_checkpoints,
+        distinct_consumers,
+    })
 }
 
 // ── Unit tests ────────────────────────────────────────────────────────────────
@@ -79,7 +83,10 @@ mod tests {
         sleep(Duration::from_millis(15));
         let elapsed = timer.elapsed_secs();
         assert!(elapsed >= 0.010, "elapsed={elapsed} should be >= 10 ms");
-        assert!(elapsed < 1.0, "elapsed={elapsed} should not be unreasonably large");
+        assert!(
+            elapsed < 1.0,
+            "elapsed={elapsed} should not be unreasonably large"
+        );
     }
 
     #[test]

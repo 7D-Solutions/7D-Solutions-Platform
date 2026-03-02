@@ -1,5 +1,5 @@
-use async_nats::Client;
 use async_nats::jetstream::{self, stream::Config};
+use async_nats::Client;
 use std::time::Duration;
 
 pub async fn ensure_streams(nats: Client) -> Result<(), Box<dyn std::error::Error>> {

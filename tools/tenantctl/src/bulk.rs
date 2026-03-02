@@ -3,8 +3,8 @@
 //! All bulk ops default to dry-run. Destructive actions require `--confirm`.
 //! Tenants are selected by explicit `--status` filter (never "all" by default).
 
-use anyhow::{Context, Result, bail};
-use security::{RbacPolicy, Role, Operation};
+use anyhow::{bail, Context, Result};
+use security::{Operation, RbacPolicy, Role};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -34,7 +34,10 @@ impl BulkAction {
             "suspend" => Ok(BulkAction::Suspend),
             "activate" => Ok(BulkAction::Activate),
             "verify" => Ok(BulkAction::Verify),
-            _ => bail!("Unknown bulk action: '{}'. Valid: suspend, activate, verify", s),
+            _ => bail!(
+                "Unknown bulk action: '{}'. Valid: suspend, activate, verify",
+                s
+            ),
         }
     }
 
@@ -90,10 +93,14 @@ pub async fn run_bulk(
 
     // Safety: destructive actions need --confirm
     if is_destructive && !confirmed && !dry_run {
-        return Ok(CommandOutput::fail("bulk", "-", &format!(
-            "Destructive action '{}' on {} tenants requires --confirm flag",
-            action, count
-        )));
+        return Ok(CommandOutput::fail(
+            "bulk",
+            "-",
+            &format!(
+                "Destructive action '{}' on {} tenants requires --confirm flag",
+                action, count
+            ),
+        ));
     }
 
     if dry_run {
@@ -107,8 +114,10 @@ pub async fn run_bulk(
         });
 
         eprintln!();
-        eprintln!("DRY RUN: {} '{}' on {} tenants (status={})",
-            action, action, count, status_filter);
+        eprintln!(
+            "DRY RUN: {} '{}' on {} tenants (status={})",
+            action, action, count, status_filter
+        );
         for t in &tenants {
             eprintln!("  would {}: {}", action, t.tenant_id);
         }
@@ -149,9 +158,12 @@ pub async fn run_bulk(
     });
 
     if failed > 0 {
-        Ok(CommandOutput::fail("bulk", "-", &format!(
-            "{} of {} tenants failed", failed, count
-        )).with_data(data))
+        Ok(CommandOutput::fail(
+            "bulk",
+            "-",
+            &format!("{} of {} tenants failed", failed, count),
+        )
+        .with_data(data))
     } else {
         Ok(CommandOutput::ok("bulk", "-")
             .with_message(&format!("{} {} tenants", action, succeeded))

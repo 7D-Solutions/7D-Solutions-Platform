@@ -15,7 +15,11 @@ pub struct ClientMeta {
 fn header_ip(headers: &HeaderMap) -> Option<String> {
     // Prefer X-Forwarded-For (first IP), then X-Real-IP
     if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
-        let first = xff.split(',').next().map(|s| s.trim()).filter(|s| !s.is_empty());
+        let first = xff
+            .split(',')
+            .next()
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty());
         if let Some(ip) = first {
             return Some(ip.to_string());
         }
@@ -35,10 +39,7 @@ pub fn extract_ip(headers: &HeaderMap, connect: Option<SocketAddr>) -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
-pub async fn client_meta_middleware(
-    mut req: Request<Body>,
-    next: Next,
-) -> Response {
+pub async fn client_meta_middleware(mut req: Request<Body>, next: Next) -> Response {
     // ConnectInfo is only available if server uses into_make_service_with_connect_info::<SocketAddr>()
     let connect = req.extensions().get::<SocketAddr>().cloned();
 

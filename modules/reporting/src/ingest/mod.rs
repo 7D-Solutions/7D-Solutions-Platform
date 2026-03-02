@@ -114,9 +114,7 @@ impl IngestConsumer {
         let tenant_id = envelope
             .get("tenant_id")
             .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                anyhow::anyhow!("Missing tenant_id in envelope on {}", msg.subject)
-            })?;
+            .ok_or_else(|| anyhow::anyhow!("Missing tenant_id in envelope on {}", msg.subject))?;
 
         // Checkpoint fast-path: skip if this is the last event we processed
         if checkpoints::is_processed(&self.pool, &self.name, tenant_id, event_id).await? {
@@ -171,7 +169,11 @@ impl IngestConsumer {
 /// `consumer.process_message` for every incoming message.
 ///
 /// Errors from individual messages are logged but do not terminate the loop.
-pub fn start_consumer(consumer: IngestConsumer, bus: Arc<dyn EventBus>, subject: impl Into<String>) {
+pub fn start_consumer(
+    consumer: IngestConsumer,
+    bus: Arc<dyn EventBus>,
+    subject: impl Into<String>,
+) {
     let subject = subject.into();
     tokio::spawn(async move {
         tracing::info!(consumer = %consumer.name, subject, "Starting ingestion consumer");
@@ -278,7 +280,9 @@ mod tests {
         cleanup(&pool).await;
 
         let call_count = Arc::new(AtomicU32::new(0));
-        let handler = Arc::new(CountingHandler { call_count: call_count.clone() });
+        let handler = Arc::new(CountingHandler {
+            call_count: call_count.clone(),
+        });
         let consumer = IngestConsumer::new("test-ingest-basic", pool.clone(), handler);
 
         let msg = BusMessage::new(
@@ -286,7 +290,10 @@ mod tests {
             make_envelope("evt-001", "tenant-x"),
         );
 
-        let processed = consumer.process_message(&msg).await.expect("process failed");
+        let processed = consumer
+            .process_message(&msg)
+            .await
+            .expect("process failed");
         assert!(processed, "first call should process the event");
         assert_eq!(call_count.load(Ordering::SeqCst), 1);
 
@@ -300,7 +307,9 @@ mod tests {
         cleanup(&pool).await;
 
         let call_count = Arc::new(AtomicU32::new(0));
-        let handler = Arc::new(CountingHandler { call_count: call_count.clone() });
+        let handler = Arc::new(CountingHandler {
+            call_count: call_count.clone(),
+        });
         let consumer = IngestConsumer::new("test-ingest-dedup", pool.clone(), handler);
 
         let msg = BusMessage::new(
@@ -309,9 +318,15 @@ mod tests {
         );
 
         // First delivery
-        consumer.process_message(&msg).await.expect("first process failed");
+        consumer
+            .process_message(&msg)
+            .await
+            .expect("first process failed");
         // Second delivery (same event_id)
-        let processed = consumer.process_message(&msg).await.expect("second process failed");
+        let processed = consumer
+            .process_message(&msg)
+            .await
+            .expect("second process failed");
 
         assert!(!processed, "duplicate event must be skipped");
         assert_eq!(
@@ -330,7 +345,9 @@ mod tests {
         cleanup(&pool).await;
 
         let call_count = Arc::new(AtomicU32::new(0));
-        let handler = Arc::new(CountingHandler { call_count: call_count.clone() });
+        let handler = Arc::new(CountingHandler {
+            call_count: call_count.clone(),
+        });
         let consumer = IngestConsumer::new("test-ingest-tenants", pool.clone(), handler);
 
         // Same event_id, different tenants → both should be processed
@@ -343,8 +360,14 @@ mod tests {
             make_envelope("evt-same-id", "tenant-b"),
         );
 
-        consumer.process_message(&msg_a).await.expect("msg_a failed");
-        consumer.process_message(&msg_b).await.expect("msg_b failed");
+        consumer
+            .process_message(&msg_a)
+            .await
+            .expect("msg_a failed");
+        consumer
+            .process_message(&msg_b)
+            .await
+            .expect("msg_b failed");
 
         assert_eq!(
             call_count.load(Ordering::SeqCst),
@@ -362,7 +385,9 @@ mod tests {
         cleanup(&pool).await;
 
         let call_count = Arc::new(AtomicU32::new(0));
-        let handler = Arc::new(CountingHandler { call_count: call_count.clone() });
+        let handler = Arc::new(CountingHandler {
+            call_count: call_count.clone(),
+        });
         let consumer = IngestConsumer::new("test-ingest-bus", pool.clone(), handler);
 
         let bus = Arc::new(InMemoryBus::new());

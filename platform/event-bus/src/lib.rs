@@ -51,7 +51,10 @@ mod inmemory_bus;
 mod nats_bus;
 pub mod outbox;
 
-pub use envelope::{validate_envelope_fields, validate_merchant_context_for_financial, EventEnvelope, MerchantContext, TracingContext};
+pub use envelope::{
+    validate_envelope_fields, validate_merchant_context_for_financial, EventEnvelope,
+    MerchantContext, TracingContext,
+};
 pub use inmemory_bus::InMemoryBus;
 pub use nats_bus::NatsBus;
 

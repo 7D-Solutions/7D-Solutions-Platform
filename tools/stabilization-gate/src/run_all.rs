@@ -60,7 +60,13 @@ pub async fn run(cfg: &Config, dry_run: bool) -> Result<Vec<ScenarioResult>> {
         pass_label(isolation_result.passed),
     );
 
-    Ok(vec![eb_result, pr_result, rc_result, dn_result, isolation_result])
+    Ok(vec![
+        eb_result,
+        pr_result,
+        rc_result,
+        dn_result,
+        isolation_result,
+    ])
 }
 
 // ── Cross-tenant isolation invariant check ────────────────────────────────────
@@ -163,5 +169,9 @@ fn isolation_dry() -> ScenarioResult {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn pass_label(passed: bool) -> &'static str {
-    if passed { "PASS" } else { "FAIL" }
+    if passed {
+        "PASS"
+    } else {
+        "FAIL"
+    }
 }

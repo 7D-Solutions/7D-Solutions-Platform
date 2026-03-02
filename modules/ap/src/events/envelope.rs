@@ -20,7 +20,17 @@ pub fn create_ap_envelope<T>(
     mutation_class: String,
     payload: T,
 ) -> EventEnvelope<T> {
-    create_ap_envelope_with_actor(event_id, tenant_id, event_type, correlation_id, causation_id, mutation_class, payload, None, None)
+    create_ap_envelope_with_actor(
+        event_id,
+        tenant_id,
+        event_type,
+        correlation_id,
+        causation_id,
+        mutation_class,
+        payload,
+        None,
+        None,
+    )
 }
 
 /// Helper to create an AP-specific envelope with actor identity.

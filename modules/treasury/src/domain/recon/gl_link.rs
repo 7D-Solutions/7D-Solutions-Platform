@@ -172,12 +172,10 @@ pub async fn link_bank_txn_to_gl(
     tx.commit().await?;
 
     // Return the match row
-    let m = sqlx::query_as::<_, ReconMatch>(
-        "SELECT * FROM treasury_recon_matches WHERE id = $1",
-    )
-    .bind(match_id)
-    .fetch_one(pool)
-    .await?;
+    let m = sqlx::query_as::<_, ReconMatch>("SELECT * FROM treasury_recon_matches WHERE id = $1")
+        .bind(match_id)
+        .fetch_one(pool)
+        .await?;
     Ok(m)
 }
 

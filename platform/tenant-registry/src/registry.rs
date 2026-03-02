@@ -2,7 +2,7 @@
 //!
 //! Core registry logic for tenant lookup, provisioning status, and metadata queries
 
-use crate::schema::{TenantId, TenantRecord, TenantStatus, ProvisioningStep};
+use crate::schema::{ProvisioningStep, TenantId, TenantRecord, TenantStatus};
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -53,12 +53,11 @@ pub async fn get_tenant_entitlements(
     tenant_id: Uuid,
 ) -> Result<Option<EntitlementRow>, sqlx::Error> {
     // Guard: ensure the tenant exists (fail closed — 404 if tenant is unknown)
-    let tenant_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM tenants WHERE tenant_id = $1)",
-    )
-    .bind(tenant_id)
-    .fetch_one(pool)
-    .await?;
+    let tenant_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM tenants WHERE tenant_id = $1)")
+            .bind(tenant_id)
+            .fetch_one(pool)
+            .await?;
 
     if !tenant_exists {
         return Err(sqlx::Error::RowNotFound);
@@ -99,12 +98,10 @@ pub async fn get_tenant_status_row(
     pool: &PgPool,
     tenant_id: Uuid,
 ) -> Result<Option<TenantStatusRow>, sqlx::Error> {
-    let row: Option<(String,)> = sqlx::query_as(
-        "SELECT status FROM tenants WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(String,)> = sqlx::query_as("SELECT status FROM tenants WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await?;
 
     Ok(row.map(|(status,)| TenantStatusRow { tenant_id, status }))
 }
@@ -131,12 +128,11 @@ pub async fn get_tenant_app_id(
     tenant_id: Uuid,
 ) -> Result<Option<TenantAppIdRow>, sqlx::Error> {
     // Guard: ensure the tenant exists first
-    let row: Option<(Option<String>, Option<String>)> = sqlx::query_as(
-        "SELECT app_id, product_code FROM tenants WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(Option<String>, Option<String>)> =
+        sqlx::query_as("SELECT app_id, product_code FROM tenants WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?;
 
     match row {
         None => Err(sqlx::Error::RowNotFound),

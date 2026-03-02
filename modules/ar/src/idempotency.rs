@@ -53,10 +53,7 @@ pub async fn check_idempotency(
 
     // Only apply idempotency to write operations (POST, PUT, DELETE)
     let method = request.method().clone();
-    if !matches!(
-        method.as_str(),
-        "POST" | "PUT" | "DELETE" | "PATCH"
-    ) {
+    if !matches!(method.as_str(), "POST" | "PUT" | "DELETE" | "PATCH") {
         // Read operations don't need idempotency
         return Ok(next.run(request).await);
     }
@@ -100,14 +97,16 @@ pub async fn check_idempotency(
         let bytes = axum::body::to_bytes(body, usize::MAX).await.map_err(|_| {
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorResponse::new("internal_error", "Failed to read response")),
+                Json(ErrorResponse::new(
+                    "internal_error",
+                    "Failed to read response",
+                )),
             )
         })?;
 
         // Parse as JSON to store in database
-        let response_body: JsonValue = serde_json::from_slice(&bytes).unwrap_or_else(|_| {
-            serde_json::json!({"raw": String::from_utf8_lossy(&bytes)})
-        });
+        let response_body: JsonValue = serde_json::from_slice(&bytes)
+            .unwrap_or_else(|_| serde_json::json!({"raw": String::from_utf8_lossy(&bytes)}));
 
         // Hash the request
         let request_hash = format!("{:x}", Sha256::digest(idempotency_key.as_bytes()));

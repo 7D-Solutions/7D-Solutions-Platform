@@ -23,7 +23,7 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::domain::guards::{GuardError, guard_quantity_positive};
+use crate::domain::guards::{guard_quantity_positive, GuardError};
 
 const EVENT_TYPE_RESERVATION_FULFILLED: &str = "inventory.reservation_fulfilled";
 
@@ -172,7 +172,10 @@ pub async fn process_fulfill(
     // Determine actual quantity to fulfill (default: full reserved quantity).
     let qty = req.quantity.unwrap_or(original.quantity);
     if qty > original.quantity {
-        return Err(FulfillError::QuantityExceedsReserved(qty, original.quantity));
+        return Err(FulfillError::QuantityExceedsReserved(
+            qty,
+            original.quantity,
+        ));
     }
 
     let event_id = Uuid::new_v4();

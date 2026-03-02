@@ -67,9 +67,7 @@ mod tests {
                 entry_id: Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap(),
                 employee_id: Uuid::parse_str("00000000-0000-0000-0000-000000000010").unwrap(),
                 employee_name: "Alice Smith".into(),
-                project_id: Some(
-                    Uuid::parse_str("00000000-0000-0000-0000-000000000100").unwrap(),
-                ),
+                project_id: Some(Uuid::parse_str("00000000-0000-0000-0000-000000000100").unwrap()),
                 project_name: Some("Project Alpha".into()),
                 task_id: None,
                 work_date: NaiveDate::from_ymd_opt(2026, 2, 1).unwrap(),

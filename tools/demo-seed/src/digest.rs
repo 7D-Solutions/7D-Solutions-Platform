@@ -85,7 +85,12 @@ impl DigestTracker {
 /// it does NOT know the actual DB IDs, so it hashes the correlation IDs
 /// and amounts directly. This gives a stable "configuration hash" that
 /// verifies the same seed produces the same input parameters.
-pub fn expected_digest(tenant: &str, seed: u64, customers: usize, invoices_per_customer: usize) -> String {
+pub fn expected_digest(
+    tenant: &str,
+    seed: u64,
+    customers: usize,
+    invoices_per_customer: usize,
+) -> String {
     use rand::Rng;
     use rand::SeedableRng;
     use rand_chacha::ChaCha8Rng;
@@ -101,7 +106,12 @@ pub fn expected_digest(tenant: &str, seed: u64, customers: usize, invoices_per_c
         }));
 
         for invoice_idx in 0..invoices_per_customer {
-            let invoice_corr_id = format!("{}-invoice-{}-{}", tenant, seed, customer_idx * 100 + invoice_idx);
+            let invoice_corr_id = format!(
+                "{}-invoice-{}-{}",
+                tenant,
+                seed,
+                customer_idx * 100 + invoice_idx
+            );
             let amount_cents: i32 = rng.gen_range(1000..=50000);
             let _due_days: u32 = rng.gen_range(14..=60);
             entries.push(serde_json::json!({

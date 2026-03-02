@@ -22,10 +22,7 @@ pub async fn health_ready(
     State(state): State<Arc<HealthState>>,
 ) -> Result<Json<Value>, StatusCode> {
     // DB check
-    let db_ok = sqlx::query("SELECT 1")
-        .fetch_one(&state.db)
-        .await
-        .is_ok();
+    let db_ok = sqlx::query("SELECT 1").fetch_one(&state.db).await.is_ok();
 
     state
         .metrics
@@ -101,7 +98,11 @@ pub async fn ready(
     );
 
     state.metrics.dep_up.with_label_values(&["ready"]).set(
-        if resp.status == health::ReadyStatus::Ready { 1 } else { 0 },
+        if resp.status == health::ReadyStatus::Ready {
+            1
+        } else {
+            0
+        },
     );
 
     health::ready_response_to_axum(resp)

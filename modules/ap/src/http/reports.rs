@@ -19,8 +19,8 @@ use serde::Deserialize;
 use std::sync::Arc;
 
 use crate::domain::reports::aging::{compute_aging, AgingError};
-use crate::http::tenant::extract_tenant;
 use crate::http::admin_types::ErrorBody;
+use crate::http::tenant::extract_tenant;
 use crate::AppState;
 
 // ============================================================================
@@ -54,9 +54,7 @@ pub async fn aging_report(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<ErrorBody>)> {
     let tenant_id = extract_tenant(&claims)?;
 
-    let as_of = params
-        .as_of
-        .unwrap_or_else(|| Utc::now().date_naive());
+    let as_of = params.as_of.unwrap_or_else(|| Utc::now().date_naive());
 
     let report = compute_aging(&state.pool, &tenant_id, as_of, params.by_vendor)
         .await
@@ -79,7 +77,10 @@ fn aging_error_response(e: AgingError) -> (StatusCode, Json<ErrorBody>) {
             tracing::error!(error = %e, "Database error in aging report handler");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "An internal error occurred")),
+                Json(ErrorBody::new(
+                    "database_error",
+                    "An internal error occurred",
+                )),
             )
         }
     }

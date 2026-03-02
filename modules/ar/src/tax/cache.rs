@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use super::providers::LocalTaxProvider;
 use tax_core::models::*;
 use tax_core::{TaxProvider, TaxProviderError};
-use super::providers::LocalTaxProvider;
 
 // ============================================================================
 // Cached quote row
@@ -67,20 +67,23 @@ pub async fn find_cached_quote(
     invoice_id: &str,
     request_hash: &str,
 ) -> Result<Option<CachedTaxQuote>, sqlx::Error> {
-    let row = sqlx::query_as::<_, (
-        Uuid,
-        String,
-        String,
-        String,
-        String,
-        String,
-        String,
-        i64,
-        serde_json::Value,
-        serde_json::Value,
-        DateTime<Utc>,
-        Option<DateTime<Utc>>,
-    )>(
+    let row = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            String,
+            String,
+            String,
+            String,
+            String,
+            String,
+            i64,
+            serde_json::Value,
+            serde_json::Value,
+            DateTime<Utc>,
+            Option<DateTime<Utc>>,
+        ),
+    >(
         r#"
         SELECT id, app_id, invoice_id, idempotency_key, request_hash,
                provider, provider_quote_ref, total_tax_minor,
@@ -129,10 +132,9 @@ pub async fn store_quote_cache(
     provider: &str,
     response: &TaxQuoteResponse,
 ) -> Result<Uuid, sqlx::Error> {
-    let response_json = serde_json::to_value(response)
-        .unwrap_or_else(|_| serde_json::json!({}));
-    let tax_by_line_json = serde_json::to_value(&response.tax_by_line)
-        .unwrap_or_else(|_| serde_json::json!([]));
+    let response_json = serde_json::to_value(response).unwrap_or_else(|_| serde_json::json!({}));
+    let tax_by_line_json =
+        serde_json::to_value(&response.tax_by_line).unwrap_or_else(|_| serde_json::json!([]));
 
     let id: Uuid = sqlx::query_scalar(
         r#"
@@ -204,8 +206,10 @@ pub async fn quote_tax_cached(
         );
 
         // Reconstruct response from cached data
-        let tax_by_line: Vec<TaxByLine> = serde_json::from_value(cached.tax_by_line)
-            .map_err(|e| TaxProviderError::Provider(format!("cached tax_by_line corrupt: {}", e)))?;
+        let tax_by_line: Vec<TaxByLine> =
+            serde_json::from_value(cached.tax_by_line).map_err(|e| {
+                TaxProviderError::Provider(format!("cached tax_by_line corrupt: {}", e))
+            })?;
 
         return Ok(TaxQuoteResponse {
             total_tax_minor: cached.total_tax_minor,

@@ -10,8 +10,8 @@ use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::events::envelope::{create_ar_envelope, EventEnvelope};
 use super::{AR_EVENT_SCHEMA_VERSION, MUTATION_CLASS_LIFECYCLE};
+use crate::events::envelope::{create_ar_envelope, EventEnvelope};
 
 // ============================================================================
 // Event Type Constants
@@ -118,7 +118,10 @@ mod tests {
             sample_payload(None),
         );
         assert_eq!(envelope.event_type, EVENT_TYPE_INVOICE_OPENED);
-        assert_eq!(envelope.mutation_class.as_deref(), Some(MUTATION_CLASS_LIFECYCLE));
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_LIFECYCLE)
+        );
         assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
         assert_eq!(envelope.source_module, "ar");
         assert!(envelope.payload.paid_at.is_none());
@@ -135,7 +138,10 @@ mod tests {
             sample_payload(paid_at),
         );
         assert_eq!(envelope.event_type, EVENT_TYPE_INVOICE_PAID);
-        assert_eq!(envelope.mutation_class.as_deref(), Some(MUTATION_CLASS_LIFECYCLE));
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_LIFECYCLE)
+        );
         assert_eq!(envelope.causation_id.as_deref(), Some("cause-1"));
         assert!(envelope.payload.paid_at.is_some());
     }

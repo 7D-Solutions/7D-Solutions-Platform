@@ -193,7 +193,12 @@ impl RateLimiter {
 
     /// Build a rate limit key from tenant ID and path
     fn build_key(tenant_id: &str, path: &str, is_fallback: bool) -> String {
-        format!("{}:{}:{}", tenant_id, path, if is_fallback { "fallback" } else { "normal" })
+        format!(
+            "{}:{}:{}",
+            tenant_id,
+            path,
+            if is_fallback { "fallback" } else { "normal" }
+        )
     }
 
     /// Check if a request is allowed (normal read path)
@@ -203,13 +208,22 @@ impl RateLimiter {
     }
 
     /// Check if a fallback request is allowed (tighter limits)
-    pub fn check_fallback_limit(&self, tenant_id: &str, path: &str) -> Result<(), crate::SecurityError> {
+    pub fn check_fallback_limit(
+        &self,
+        tenant_id: &str,
+        path: &str,
+    ) -> Result<(), crate::SecurityError> {
         self.check_limit_internal(tenant_id, path, true)
             .map_err(|_| crate::SecurityError::RateLimitExceeded)
     }
 
     /// Internal rate limit check
-    fn check_limit_internal(&self, tenant_id: &str, path: &str, is_fallback: bool) -> Result<(), RateLimitError> {
+    fn check_limit_internal(
+        &self,
+        tenant_id: &str,
+        path: &str,
+        is_fallback: bool,
+    ) -> Result<(), RateLimitError> {
         let key = Self::build_key(tenant_id, path, is_fallback);
         let config = if is_fallback {
             &self.fallback_config
@@ -218,9 +232,10 @@ impl RateLimiter {
         };
 
         // Get or create token bucket for this key
-        let mut bucket_ref = self.buckets.entry(key.clone()).or_insert_with(|| {
-            TokenBucket::new(config.max_requests, config.window)
-        });
+        let mut bucket_ref = self
+            .buckets
+            .entry(key.clone())
+            .or_insert_with(|| TokenBucket::new(config.max_requests, config.window));
 
         // Try to consume a token
         if bucket_ref.consume() {
@@ -304,9 +319,10 @@ impl WebhookRateLimiter {
     ///
     /// Returns `Ok(())` if allowed, `Err(SecurityError::RateLimitExceeded)` if not.
     pub fn check_webhook_limit(&self, ip: &str) -> Result<(), crate::SecurityError> {
-        let mut bucket = self.buckets.entry(ip.to_string()).or_insert_with(|| {
-            TokenBucket::new(self.config.max_requests, self.config.window)
-        });
+        let mut bucket = self
+            .buckets
+            .entry(ip.to_string())
+            .or_insert_with(|| TokenBucket::new(self.config.max_requests, self.config.window));
 
         if bucket.consume() {
             Ok(())
@@ -377,7 +393,10 @@ mod tests {
         assert_eq!(limiter.remaining_quota("tenant1", "/api/invoices"), 100);
 
         // Fallback reads have only 10 quota
-        assert_eq!(limiter.remaining_fallback_quota("tenant1", "/api/invoices"), 10);
+        assert_eq!(
+            limiter.remaining_fallback_quota("tenant1", "/api/invoices"),
+            10
+        );
     }
 
     #[test]
@@ -419,7 +438,8 @@ mod tests {
 
     #[test]
     fn test_webhook_ratelimiter_allows_within_quota() {
-        let limiter = WebhookRateLimiter::with_config(RateLimitConfig::new(3, Duration::from_secs(60)));
+        let limiter =
+            WebhookRateLimiter::with_config(RateLimitConfig::new(3, Duration::from_secs(60)));
         assert!(limiter.check_webhook_limit("1.2.3.4").is_ok());
         assert!(limiter.check_webhook_limit("1.2.3.4").is_ok());
         assert!(limiter.check_webhook_limit("1.2.3.4").is_ok());
@@ -428,7 +448,8 @@ mod tests {
 
     #[test]
     fn test_webhook_ratelimiter_ip_isolation() {
-        let limiter = WebhookRateLimiter::with_config(RateLimitConfig::new(2, Duration::from_secs(60)));
+        let limiter =
+            WebhookRateLimiter::with_config(RateLimitConfig::new(2, Duration::from_secs(60)));
         // Exhaust IP 1
         assert!(limiter.check_webhook_limit("10.0.0.1").is_ok());
         assert!(limiter.check_webhook_limit("10.0.0.1").is_ok());

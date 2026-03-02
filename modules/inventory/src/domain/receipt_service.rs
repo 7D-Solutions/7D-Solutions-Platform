@@ -16,14 +16,17 @@ use uuid::Uuid;
 
 use crate::{
     domain::{
-        guards::{GuardError, guard_convert_to_base, guard_cost_present, guard_item_active, guard_quantity_positive},
+        guards::{
+            guard_convert_to_base, guard_cost_present, guard_item_active, guard_quantity_positive,
+            GuardError,
+        },
         items::TrackingMode,
         lots_serials::receipt::{insert_serial_instances, upsert_lot},
         projections::on_hand,
         reorder::evaluator,
     },
     events::{
-        contracts::{ItemReceivedPayload, build_item_received_envelope},
+        contracts::{build_item_received_envelope, ItemReceivedPayload},
         EVENT_TYPE_ITEM_RECEIVED,
     },
 };
@@ -447,7 +450,10 @@ fn validate_tracking_requirements(
             }
         }
         TrackingMode::Serial => {
-            let codes = req.serial_codes.as_ref().ok_or(ReceiptError::SerialCodesRequired)?;
+            let codes = req
+                .serial_codes
+                .as_ref()
+                .ok_or(ReceiptError::SerialCodesRequired)?;
             if codes.len() as i64 != req.quantity {
                 return Err(ReceiptError::SerialCountMismatch {
                     expected: req.quantity,
@@ -576,7 +582,10 @@ mod tests {
         req.serial_codes = Some(vec!["SN-001".to_string(), "SN-002".to_string()]); // len=2 != 10
         assert!(matches!(
             validate_tracking_requirements(TrackingMode::Serial, &req),
-            Err(ReceiptError::SerialCountMismatch { expected: 10, got: 2 })
+            Err(ReceiptError::SerialCountMismatch {
+                expected: 10,
+                got: 2
+            })
         ));
     }
 

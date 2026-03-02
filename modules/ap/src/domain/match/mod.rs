@@ -99,7 +99,9 @@ fn default_price_tolerance() -> f64 {
 impl RunMatchRequest {
     pub fn validate(&self) -> Result<(), MatchError> {
         if self.matched_by.trim().is_empty() {
-            return Err(MatchError::Validation("matched_by cannot be empty".to_string()));
+            return Err(MatchError::Validation(
+                "matched_by cannot be empty".to_string(),
+            ));
         }
         if !(0.0..=1.0).contains(&self.price_tolerance_pct) {
             return Err(MatchError::Validation(
@@ -163,7 +165,10 @@ mod tests {
         assert_eq!(MatchStatus::Matched.as_str(), "matched");
         assert_eq!(MatchStatus::PriceVariance.as_str(), "price_variance");
         assert_eq!(MatchStatus::QtyVariance.as_str(), "qty_variance");
-        assert_eq!(MatchStatus::PriceAndQtyVariance.as_str(), "price_and_qty_variance");
+        assert_eq!(
+            MatchStatus::PriceAndQtyVariance.as_str(),
+            "price_and_qty_variance"
+        );
     }
 
     #[test]

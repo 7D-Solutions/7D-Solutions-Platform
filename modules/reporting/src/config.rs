@@ -71,7 +71,10 @@ mod tests {
     #[serial]
     fn test_config_default_port_is_8096() {
         unsafe {
-            std::env::set_var("DATABASE_URL", "postgres://user:pass@localhost/reporting_test_db");
+            std::env::set_var(
+                "DATABASE_URL",
+                "postgres://user:pass@localhost/reporting_test_db",
+            );
             std::env::remove_var("PORT");
             std::env::set_var("ENV", "development");
             std::env::set_var("CORS_ORIGINS", "*");

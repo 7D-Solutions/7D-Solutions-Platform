@@ -167,8 +167,7 @@ pub async fn create_bill(
     .fetch_optional(pool)
     .await?;
 
-    let (_, payment_terms_days) =
-        vendor_row.ok_or(BillError::VendorNotFound(req.vendor_id))?;
+    let (_, payment_terms_days) = vendor_row.ok_or(BillError::VendorNotFound(req.vendor_id))?;
 
     // Derive due_date deterministically from vendor terms when not provided
     let due_date = match req.due_date {
@@ -237,7 +236,11 @@ pub async fn create_bill(
     for line_req in &req.lines {
         let line_id = Uuid::new_v4();
         let description = line_req.description.as_deref().unwrap_or("").to_string();
-        let gl_account = line_req.gl_account_code.as_deref().unwrap_or("").to_string();
+        let gl_account = line_req
+            .gl_account_code
+            .as_deref()
+            .unwrap_or("")
+            .to_string();
         let line_total = line_req.line_total_minor();
 
         let line: BillLineRecord = sqlx::query_as(
@@ -312,7 +315,10 @@ pub async fn create_bill(
 
     tx.commit().await?;
 
-    Ok(VendorBillWithLines { bill, lines: bill_lines })
+    Ok(VendorBillWithLines {
+        bill,
+        lines: bill_lines,
+    })
 }
 
 // ============================================================================
@@ -476,10 +482,7 @@ mod tests {
             .expect("create_bill with explicit due_date failed");
 
         // Due date must match what was supplied (same day)
-        assert_eq!(
-            result.bill.due_date.date_naive(),
-            explicit_due.date_naive()
-        );
+        assert_eq!(result.bill.due_date.date_naive(), explicit_due.date_naive());
 
         cleanup(&pool).await;
     }
@@ -638,12 +641,22 @@ mod tests {
         let vendor_a = create_test_vendor(&pool, 30).await;
         let vendor_b = create_test_vendor(&pool, 30).await;
 
-        create_bill(&pool, TEST_TENANT, &sample_req(vendor_a, "INV-A-001"), "ca".to_string())
-            .await
-            .expect("vendor A bill failed");
-        create_bill(&pool, TEST_TENANT, &sample_req(vendor_b, "INV-B-001"), "cb".to_string())
-            .await
-            .expect("vendor B bill failed");
+        create_bill(
+            &pool,
+            TEST_TENANT,
+            &sample_req(vendor_a, "INV-A-001"),
+            "ca".to_string(),
+        )
+        .await
+        .expect("vendor A bill failed");
+        create_bill(
+            &pool,
+            TEST_TENANT,
+            &sample_req(vendor_b, "INV-B-001"),
+            "cb".to_string(),
+        )
+        .await
+        .expect("vendor B bill failed");
 
         let a_bills = list_bills(&pool, TEST_TENANT, Some(vendor_a), false)
             .await

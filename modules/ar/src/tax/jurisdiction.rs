@@ -91,17 +91,20 @@ pub async fn resolve_jurisdiction(
     };
 
     // Step 2: Find the best matching rule within this jurisdiction
-    let rule = sqlx::query_as::<_, (
-        Uuid,       // id
-        Option<String>, // tax_code
-        f64,        // rate (as NUMERIC → f64)
-        i64,        // flat_amount_minor
-        bool,       // is_exempt
-        chrono::NaiveDate, // effective_from
-        Option<chrono::NaiveDate>, // effective_to
-        i32,        // priority
-        String,     // tax_type (from jurisdiction)
-    )>(
+    let rule = sqlx::query_as::<
+        _,
+        (
+            Uuid,                      // id
+            Option<String>,            // tax_code
+            f64,                       // rate (as NUMERIC → f64)
+            i64,                       // flat_amount_minor
+            bool,                      // is_exempt
+            chrono::NaiveDate,         // effective_from
+            Option<chrono::NaiveDate>, // effective_to
+            i32,                       // priority
+            String,                    // tax_type (from jurisdiction)
+        ),
+    >(
         r#"
         SELECT r.id, r.tax_code, r.rate::FLOAT8, r.flat_amount_minor, r.is_exempt,
                r.effective_from, r.effective_to, r.priority, j.tax_type
@@ -157,10 +160,10 @@ pub async fn persist_jurisdiction_snapshot(
     invoice_id: &str,
     snapshot: &JurisdictionSnapshot,
 ) -> Result<Uuid, sqlx::Error> {
-    let resolved_rules_json = serde_json::to_value(&snapshot.resolved_rules)
-        .unwrap_or_else(|_| serde_json::json!([]));
-    let ship_to_json = serde_json::to_value(&snapshot.ship_to_address)
-        .unwrap_or_else(|_| serde_json::json!({}));
+    let resolved_rules_json =
+        serde_json::to_value(&snapshot.resolved_rules).unwrap_or_else(|_| serde_json::json!([]));
+    let ship_to_json =
+        serde_json::to_value(&snapshot.ship_to_address).unwrap_or_else(|_| serde_json::json!({}));
 
     let id: Uuid = sqlx::query_scalar(
         r#"
@@ -211,19 +214,22 @@ pub async fn get_jurisdiction_snapshot(
     app_id: &str,
     invoice_id: &str,
 ) -> Result<Option<JurisdictionSnapshot>, sqlx::Error> {
-    let row = sqlx::query_as::<_, (
-        Uuid,           // jurisdiction_id
-        String,         // jurisdiction_name
-        String,         // country_code
-        Option<String>, // state_code
-        serde_json::Value, // ship_to_address
-        serde_json::Value, // resolved_rules
-        i64,            // total_tax_minor
-        Option<String>, // tax_code
-        f64,            // applied_rate (NUMERIC → f64)
-        String,         // resolution_hash
-        chrono::NaiveDate, // resolved_as_of
-    )>(
+    let row = sqlx::query_as::<
+        _,
+        (
+            Uuid,              // jurisdiction_id
+            String,            // jurisdiction_name
+            String,            // country_code
+            Option<String>,    // state_code
+            serde_json::Value, // ship_to_address
+            serde_json::Value, // resolved_rules
+            i64,               // total_tax_minor
+            Option<String>,    // tax_code
+            f64,               // applied_rate (NUMERIC → f64)
+            String,            // resolution_hash
+            chrono::NaiveDate, // resolved_as_of
+        ),
+    >(
         r#"
         SELECT jurisdiction_id, jurisdiction_name, country_code, state_code,
                ship_to_address, resolved_rules, total_tax_minor, tax_code,
@@ -239,17 +245,15 @@ pub async fn get_jurisdiction_snapshot(
 
     match row {
         Some(r) => {
-            let ship_to: TaxAddress = serde_json::from_value(r.4)
-                .unwrap_or(TaxAddress {
-                    line1: String::new(),
-                    line2: None,
-                    city: String::new(),
-                    state: String::new(),
-                    postal_code: String::new(),
-                    country: String::new(),
-                });
-            let resolved_rules: Vec<ResolvedRule> =
-                serde_json::from_value(r.5).unwrap_or_default();
+            let ship_to: TaxAddress = serde_json::from_value(r.4).unwrap_or(TaxAddress {
+                line1: String::new(),
+                line2: None,
+                city: String::new(),
+                state: String::new(),
+                postal_code: String::new(),
+                country: String::new(),
+            });
+            let resolved_rules: Vec<ResolvedRule> = serde_json::from_value(r.5).unwrap_or_default();
 
             Ok(Some(JurisdictionSnapshot {
                 jurisdiction_id: r.0,
@@ -291,7 +295,9 @@ pub async fn resolve_and_persist_tax(
 ) -> Result<Option<JurisdictionSnapshot>, TaxProviderError> {
     let resolution = resolve_jurisdiction(pool, app_id, address, tax_code, as_of)
         .await
-        .map_err(|e| TaxProviderError::Provider(format!("jurisdiction resolution failed: {}", e)))?;
+        .map_err(|e| {
+            TaxProviderError::Provider(format!("jurisdiction resolution failed: {}", e))
+        })?;
 
     let (jurisdiction_id, jurisdiction_name, rule) = match resolution {
         Some(r) => r,
@@ -306,8 +312,8 @@ pub async fn resolve_and_persist_tax(
         if rule.is_exempt {
             continue;
         }
-        let tax = ((item.amount_minor as f64) * applied_rate).round() as i64
-            + rule.flat_amount_minor;
+        let tax =
+            ((item.amount_minor as f64) * applied_rate).round() as i64 + rule.flat_amount_minor;
         total_tax += tax;
     }
 

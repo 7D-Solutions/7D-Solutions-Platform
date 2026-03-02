@@ -118,8 +118,8 @@ pub struct CloseStatusResponse {
     pub tenant_id: String,
 
     /// Period date range
-    pub period_start: String,  // YYYY-MM-DD format
-    pub period_end: String,    // YYYY-MM-DD format
+    pub period_start: String, // YYYY-MM-DD format
+    pub period_end: String, // YYYY-MM-DD format
 
     /// Close status details
     pub close_status: CloseStatus,

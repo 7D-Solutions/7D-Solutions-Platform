@@ -97,13 +97,12 @@ pub async fn get_cash_flow(
     }
 
     // Verify period exists and belongs to tenant
-    let period_exists: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM accounting_periods WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(period_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
+    let period_exists: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM accounting_periods WHERE id = $1 AND tenant_id = $2")
+            .bind(period_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?;
 
     if period_exists.is_none() {
         return Err(CashFlowError::PeriodNotFound {

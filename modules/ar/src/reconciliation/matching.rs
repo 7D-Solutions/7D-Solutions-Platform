@@ -108,8 +108,10 @@ pub(crate) fn match_payments_to_invoices(
                     .iter()
                     .map(|(_, s, _)| *s)
                     .fold(f64::NEG_INFINITY, f64::max);
-                let top_candidates: Vec<_> =
-                    candidates.iter().filter(|(_, s, _)| (*s - top_score).abs() < f64::EPSILON).collect();
+                let top_candidates: Vec<_> = candidates
+                    .iter()
+                    .filter(|(_, s, _)| (*s - top_score).abs() < f64::EPSILON)
+                    .collect();
 
                 if top_candidates.len() == 1 {
                     // One clear winner at the top score.
@@ -167,7 +169,13 @@ pub fn exception_kind_to_str(kind: &ReconExceptionKind) -> &'static str {
 mod tests {
     use super::*;
 
-    fn make_payment(id: i32, customer: i32, amount: i32, currency: &str, ref_id: Option<&str>) -> UnmatchedPayment {
+    fn make_payment(
+        id: i32,
+        customer: i32,
+        amount: i32,
+        currency: &str,
+        ref_id: Option<&str>,
+    ) -> UnmatchedPayment {
         UnmatchedPayment {
             charge_id: id,
             ar_customer_id: customer,
@@ -177,7 +185,13 @@ mod tests {
         }
     }
 
-    fn make_invoice(id: i32, customer: i32, amount: i32, currency: &str, tilled_id: &str) -> OpenInvoice {
+    fn make_invoice(
+        id: i32,
+        customer: i32,
+        amount: i32,
+        currency: &str,
+        tilled_id: &str,
+    ) -> OpenInvoice {
         OpenInvoice {
             invoice_id: id,
             ar_customer_id: customer,
@@ -211,7 +225,10 @@ mod tests {
 
         assert_eq!(matches.len(), 0);
         assert_eq!(exceptions.len(), 1);
-        assert_eq!(exceptions[0].exception_kind, ReconExceptionKind::UnmatchedPayment);
+        assert_eq!(
+            exceptions[0].exception_kind,
+            ReconExceptionKind::UnmatchedPayment
+        );
         assert_eq!(exceptions[0].payment_id, Some("1".to_string()));
     }
 
@@ -240,7 +257,10 @@ mod tests {
 
         assert_eq!(matches.len(), 0);
         assert_eq!(exceptions.len(), 1);
-        assert_eq!(exceptions[0].exception_kind, ReconExceptionKind::AmbiguousMatch);
+        assert_eq!(
+            exceptions[0].exception_kind,
+            ReconExceptionKind::AmbiguousMatch
+        );
     }
 
     #[test]
@@ -275,7 +295,10 @@ mod tests {
 
         assert_eq!(matches.len(), 0);
         assert_eq!(exceptions.len(), 1);
-        assert_eq!(exceptions[0].exception_kind, ReconExceptionKind::UnmatchedPayment);
+        assert_eq!(
+            exceptions[0].exception_kind,
+            ReconExceptionKind::UnmatchedPayment
+        );
     }
 
     #[test]
@@ -326,16 +349,34 @@ mod tests {
         assert_eq!(matches.len(), 1);
         assert_eq!(exceptions.len(), 1);
         assert_eq!(matches[0].payment.charge_id, 1); // first payment wins
-        assert_eq!(exceptions[0].exception_kind, ReconExceptionKind::UnmatchedPayment);
+        assert_eq!(
+            exceptions[0].exception_kind,
+            ReconExceptionKind::UnmatchedPayment
+        );
         assert_eq!(exceptions[0].payment_id, Some("2".to_string()));
     }
 
     #[test]
     fn exception_kind_to_str_roundtrip() {
-        assert_eq!(exception_kind_to_str(&ReconExceptionKind::UnmatchedPayment), "unmatched_payment");
-        assert_eq!(exception_kind_to_str(&ReconExceptionKind::UnmatchedInvoice), "unmatched_invoice");
-        assert_eq!(exception_kind_to_str(&ReconExceptionKind::AmountMismatch), "amount_mismatch");
-        assert_eq!(exception_kind_to_str(&ReconExceptionKind::AmbiguousMatch), "ambiguous_match");
-        assert_eq!(exception_kind_to_str(&ReconExceptionKind::DuplicateReference), "duplicate_reference");
+        assert_eq!(
+            exception_kind_to_str(&ReconExceptionKind::UnmatchedPayment),
+            "unmatched_payment"
+        );
+        assert_eq!(
+            exception_kind_to_str(&ReconExceptionKind::UnmatchedInvoice),
+            "unmatched_invoice"
+        );
+        assert_eq!(
+            exception_kind_to_str(&ReconExceptionKind::AmountMismatch),
+            "amount_mismatch"
+        );
+        assert_eq!(
+            exception_kind_to_str(&ReconExceptionKind::AmbiguousMatch),
+            "ambiguous_match"
+        );
+        assert_eq!(
+            exception_kind_to_str(&ReconExceptionKind::DuplicateReference),
+            "duplicate_reference"
+        );
     }
 }

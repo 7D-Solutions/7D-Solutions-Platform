@@ -57,11 +57,7 @@ struct PlanDueEvent {
 }
 
 /// Determine which trigger fired for a due assignment.
-fn classify_trigger(
-    schedule_type: &str,
-    date_due: bool,
-    meter_due: bool,
-) -> &'static str {
+fn classify_trigger(schedule_type: &str, date_due: bool, meter_due: bool) -> &'static str {
     match schedule_type {
         "both" if date_due && meter_due => "both",
         "both" if date_due => "calendar",
@@ -131,8 +127,7 @@ pub async fn evaluate_due(pool: &PgPool) -> Result<TickResult, sqlx::Error> {
         // Determine if meter threshold is exceeded.
         // For meter-only schedules, the EXISTS sub-query in the finder guarantees it.
         // For "both" schedules, re-check the actual reading to classify the trigger.
-        let meter_due = if assignment.next_due_meter.is_some()
-            && assignment.meter_type_id.is_some()
+        let meter_due = if assignment.next_due_meter.is_some() && assignment.meter_type_id.is_some()
         {
             if assignment.schedule_type == "meter" {
                 true // EXISTS in finder query guarantees it
@@ -155,11 +150,7 @@ pub async fn evaluate_due(pool: &PgPool) -> Result<TickResult, sqlx::Error> {
             false
         };
 
-        let trigger = classify_trigger(
-            &assignment.schedule_type,
-            date_due,
-            meter_due,
-        );
+        let trigger = classify_trigger(&assignment.schedule_type, date_due, meter_due);
 
         let event = PlanDueEvent {
             assignment_id: assignment.id,
@@ -201,11 +192,12 @@ pub async fn evaluate_due(pool: &PgPool) -> Result<TickResult, sqlx::Error> {
             crate::events::subjects::PLAN_DUE.to_string(),
             &event,
         );
-        let env_json = crate::events::envelope::validate_envelope(&env)
-            .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+        let env_json = crate::events::envelope::validate_envelope(&env).map_err(|e| {
+            sqlx::Error::Encode(Box::new(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Envelope validation: {}", e),
-            ))))?;
+            )))
+        })?;
         crate::outbox::enqueue_event_tx(
             &mut tx,
             sched_event_id,
@@ -291,8 +283,7 @@ pub async fn run_scheduler_task(pool: PgPool, interval_secs: u64) {
         "Maintenance: starting scheduler task"
     );
 
-    let mut interval =
-        tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
     let mut tick_count: u64 = 0;
 
     loop {

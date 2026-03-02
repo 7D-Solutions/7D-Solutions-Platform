@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use sqlx::{Postgres, Transaction, PgPool};
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 /// Journal entry with lines (for reading from DB)
@@ -38,18 +38,31 @@ pub async fn fetch_entry_with_lines(
     entry_id: Uuid,
 ) -> Result<Option<(JournalEntry, Vec<JournalLine>)>, sqlx::Error> {
     // Fetch entry header
-    let entry = sqlx::query_as::<_, (
-        Uuid, String, String, Uuid, String, DateTime<Utc>,
-        String, Option<String>, Option<String>, Option<String>,
-        Option<Uuid>, Option<Uuid>, DateTime<Utc>
-    )>(
+    let entry = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            String,
+            String,
+            Uuid,
+            String,
+            DateTime<Utc>,
+            String,
+            Option<String>,
+            Option<String>,
+            Option<String>,
+            Option<Uuid>,
+            Option<Uuid>,
+            DateTime<Utc>,
+        ),
+    >(
         r#"
         SELECT id, tenant_id, source_module, source_event_id, source_subject,
                posted_at, currency, description, reference_type, reference_id,
                reverses_entry_id, correlation_id, created_at
         FROM journal_entries
         WHERE id = $1
-        "#
+        "#,
     )
     .bind(entry_id)
     .fetch_optional(pool)
@@ -82,7 +95,7 @@ pub async fn fetch_entry_with_lines(
         FROM journal_lines
         WHERE journal_entry_id = $1
         ORDER BY line_no
-        "#
+        "#,
     )
     .bind(entry_id)
     .fetch_all(pool)
@@ -161,9 +174,21 @@ pub async fn insert_entry(
     correlation_id: Option<Uuid>, // Phase 16: Audit traceability
 ) -> Result<Uuid, sqlx::Error> {
     insert_entry_with_reversal(
-        tx, entry_id, tenant_id, source_module, source_event_id, source_subject,
-        posted_at, currency, description, reference_type, reference_id, None, correlation_id
-    ).await
+        tx,
+        entry_id,
+        tenant_id,
+        source_module,
+        source_event_id,
+        source_subject,
+        posted_at,
+        currency,
+        description,
+        reference_type,
+        reference_id,
+        None,
+        correlation_id,
+    )
+    .await
 }
 
 /// Bulk insert journal lines for a journal entry
@@ -178,7 +203,7 @@ pub async fn bulk_insert_lines(
             INSERT INTO journal_lines
                 (id, journal_entry_id, line_no, account_ref, debit_minor, credit_minor, memo)
             VALUES ($1, $2, $3, $4, $5, $6, $7)
-            "#
+            "#,
         )
         .bind(line.id)
         .bind(journal_entry_id)

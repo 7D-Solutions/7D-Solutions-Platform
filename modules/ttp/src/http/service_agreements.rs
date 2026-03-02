@@ -95,15 +95,15 @@ pub async fn list_service_agreements(
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<ListServiceAgreementsResponse>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = claims
-        .map(|Extension(c)| c.tenant_id)
-        .ok_or_else(|| (
+    let tenant_id = claims.map(|Extension(c)| c.tenant_id).ok_or_else(|| {
+        (
             StatusCode::UNAUTHORIZED,
             Json(ErrorBody {
                 error: "Missing or invalid authentication".to_string(),
                 code: "unauthorized".to_string(),
             }),
-        ))?;
+        )
+    })?;
 
     // Validate status value
     let status_filter = query.status.as_str();

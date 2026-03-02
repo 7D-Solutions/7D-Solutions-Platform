@@ -1,6 +1,8 @@
 use axum::{extract::State, http::StatusCode};
-use prometheus::{Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge,
-                 IntGaugeVec, Opts, Registry, TextEncoder};
+use prometheus::{
+    Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Opts,
+    Registry, TextEncoder,
+};
 use std::sync::Arc;
 
 /// AP-specific Prometheus metrics
@@ -39,14 +41,14 @@ impl ApMetrics {
             IntCounter::new("ap_bills_approved_total", "Total AP bills approved")?;
         registry.register(Box::new(bills_approved_total.clone()))?;
 
-        let payments_initiated_total = IntCounter::new(
-            "ap_payments_initiated_total",
-            "Total AP payments initiated",
-        )?;
+        let payments_initiated_total =
+            IntCounter::new("ap_payments_initiated_total", "Total AP payments initiated")?;
         registry.register(Box::new(payments_initiated_total.clone()))?;
 
-        let open_bills_count =
-            IntGauge::new("ap_open_bills_count", "Current count of open (unpaid) AP bills")?;
+        let open_bills_count = IntGauge::new(
+            "ap_open_bills_count",
+            "Current count of open (unpaid) AP bills",
+        )?;
         registry.register(Box::new(open_bills_count.clone()))?;
 
         let overdue_bills_count = IntGauge::new(
@@ -79,7 +81,9 @@ impl ApMetrics {
                 "ap_http_request_duration_seconds",
                 "HTTP request duration in seconds",
             )
-            .buckets(vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]),
+            .buckets(vec![
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0,
+            ]),
             &["method", "route", "status"],
         )?;
         registry.register(Box::new(http_request_duration_seconds.clone()))?;
@@ -93,7 +97,10 @@ impl ApMetrics {
 
         // SLO: event consumer lag
         let event_consumer_lag_messages = IntGaugeVec::new(
-            Opts::new("ap_event_consumer_lag_messages", "Event consumer lag in messages"),
+            Opts::new(
+                "ap_event_consumer_lag_messages",
+                "Event consumer lag in messages",
+            ),
             &["consumer_group"],
         )?;
         registry.register(Box::new(event_consumer_lag_messages.clone()))?;
@@ -147,12 +154,16 @@ mod tests {
         let families = m.registry().gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("http_request_duration_seconds")),
-            "request latency histogram missing: {:?}", names
+            names
+                .iter()
+                .any(|n| n.contains("http_request_duration_seconds")),
+            "request latency histogram missing: {:?}",
+            names
         );
         assert!(
             names.iter().any(|n| n.contains("http_requests_total")),
-            "request count counter missing: {:?}", names
+            "request count counter missing: {:?}",
+            names
         );
     }
 
@@ -163,8 +174,11 @@ mod tests {
         let families = m.registry().gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("event_consumer_lag_messages")),
-            "consumer lag metric missing: {:?}", names
+            names
+                .iter()
+                .any(|n| n.contains("event_consumer_lag_messages")),
+            "consumer lag metric missing: {:?}",
+            names
         );
     }
 }

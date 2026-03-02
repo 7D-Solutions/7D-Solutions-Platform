@@ -20,7 +20,17 @@ pub fn create_party_envelope<T>(
     mutation_class: String,
     payload: T,
 ) -> EventEnvelope<T> {
-    create_party_envelope_with_actor(event_id, app_id, event_type, correlation_id, causation_id, mutation_class, payload, None, None)
+    create_party_envelope_with_actor(
+        event_id,
+        app_id,
+        event_type,
+        correlation_id,
+        causation_id,
+        mutation_class,
+        payload,
+        None,
+        None,
+    )
 }
 
 /// Create a party-specific event envelope with actor identity.

@@ -81,23 +81,17 @@ pub enum SummaryError {
 }
 
 /// Fetch schema version from /api/version endpoint
-async fn fetch_schema_version(
-    client: &reqwest::Client,
-    base_url: &str,
-) -> Option<String> {
+async fn fetch_schema_version(client: &reqwest::Client, base_url: &str) -> Option<String> {
     #[derive(Deserialize)]
     struct VersionResponse {
         schema_version: Option<String>,
     }
 
     let url = format!("{}/api/version", base_url);
-    let resp = tokio::time::timeout(
-        MODULE_READINESS_TIMEOUT,
-        client.get(&url).send(),
-    )
-    .await
-    .ok()?
-    .ok()?;
+    let resp = tokio::time::timeout(MODULE_READINESS_TIMEOUT, client.get(&url).send())
+        .await
+        .ok()?
+        .ok()?;
 
     if !resp.status().is_success() {
         return None;
@@ -114,11 +108,8 @@ async fn check_module_readiness_full(
     let start = Instant::now();
     let ready_url = format!("{}/api/ready", module.base_url);
 
-    let ready_result = tokio::time::timeout(
-        MODULE_READINESS_TIMEOUT,
-        client.get(&ready_url).send(),
-    )
-    .await;
+    let ready_result =
+        tokio::time::timeout(MODULE_READINESS_TIMEOUT, client.get(&ready_url).send()).await;
 
     let latency_ms = start.elapsed().as_millis() as u64;
 
@@ -152,7 +143,10 @@ async fn check_module_readiness_full(
             status: ReadinessStatus::Unavailable,
             schema_version: None,
             latency_ms,
-            error: Some(format!("timeout after {}ms", MODULE_READINESS_TIMEOUT.as_millis())),
+            error: Some(format!(
+                "timeout after {}ms",
+                MODULE_READINESS_TIMEOUT.as_millis()
+            )),
         },
     }
 }

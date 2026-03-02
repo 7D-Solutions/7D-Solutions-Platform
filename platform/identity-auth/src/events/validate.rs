@@ -15,8 +15,8 @@ pub fn load_schemas_from_dir(schema_dir: &str) -> Result<(), Box<dyn std::error:
         }
         let raw = fs::read_to_string(&path)?;
         let json: Value = serde_json::from_str(&raw)?;
-        let compiled = JSONSchema::compile(&json)
-            .map_err(|e| format!("Failed to compile schema: {}", e))?;
+        let compiled =
+            JSONSchema::compile(&json).map_err(|e| format!("Failed to compile schema: {}", e))?;
         let name = path
             .file_name()
             .and_then(|s| s.to_str())

@@ -15,8 +15,8 @@ use super::tenant::extract_tenant;
 use crate::{
     domain::projects::{
         models::{
-            CreateProjectRequest, CreateTaskRequest, ProjectError, TaskError,
-            UpdateProjectRequest, UpdateTaskRequest,
+            CreateProjectRequest, CreateTaskRequest, ProjectError, TaskError, UpdateProjectRequest,
+            UpdateTaskRequest,
         },
         service::{ProjectRepo, TaskRepo},
     },

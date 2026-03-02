@@ -187,20 +187,14 @@ impl MeterTypeRepo {
         .map_err(|e| {
             if let sqlx::Error::Database(ref dbe) = e {
                 if dbe.code().as_deref() == Some("23505") {
-                    return MeterError::DuplicateName(
-                        req.name.clone(),
-                        req.tenant_id.clone(),
-                    );
+                    return MeterError::DuplicateName(req.name.clone(), req.tenant_id.clone());
                 }
             }
             MeterError::Database(e)
         })
     }
 
-    pub async fn list(
-        pool: &PgPool,
-        tenant_id: &str,
-    ) -> Result<Vec<MeterType>, MeterError> {
+    pub async fn list(pool: &PgPool, tenant_id: &str) -> Result<Vec<MeterType>, MeterError> {
         sqlx::query_as::<_, MeterType>(
             r#"
             SELECT * FROM meter_types
@@ -242,13 +236,12 @@ impl MeterReadingRepo {
         let mut tx = pool.begin().await?;
 
         // Verify asset exists for tenant
-        let asset_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM maintainable_assets WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(asset_id)
-        .bind(&req.tenant_id)
-        .fetch_optional(&mut *tx)
-        .await?;
+        let asset_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM maintainable_assets WHERE id = $1 AND tenant_id = $2")
+                .bind(asset_id)
+                .bind(&req.tenant_id)
+                .fetch_optional(&mut *tx)
+                .await?;
 
         if asset_exists.is_none() {
             return Err(MeterError::AssetNotFound);

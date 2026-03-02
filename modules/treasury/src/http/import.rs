@@ -9,8 +9,8 @@ use axum::{
     http::{HeaderMap, StatusCode},
     Extension, Json,
 };
-use security::VerifiedClaims;
 use chrono::NaiveDate;
+use security::VerifiedClaims;
 use serde::Serialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -82,15 +82,20 @@ async fn collect_fields(
         match name.as_str() {
             "file" => {
                 filename = field.file_name().map(String::from);
-                csv_data = Some(field.bytes().await.map_err(|e| {
-                    bad_request(&format!("Failed to read file: {}", e))
-                })?.to_vec());
+                csv_data = Some(
+                    field
+                        .bytes()
+                        .await
+                        .map_err(|e| bad_request(&format!("Failed to read file: {}", e)))?
+                        .to_vec(),
+                );
             }
             "account_id" => {
                 let text = field_text(field).await?;
-                account_id = Some(text.parse::<Uuid>().map_err(|_| {
-                    bad_request("account_id must be a valid UUID")
-                })?);
+                account_id = Some(
+                    text.parse::<Uuid>()
+                        .map_err(|_| bad_request("account_id must be a valid UUID"))?,
+                );
             }
             "period_start" => {
                 let text = field_text(field).await?;
@@ -102,25 +107,30 @@ async fn collect_fields(
             }
             "opening_balance_minor" => {
                 let text = field_text(field).await?;
-                opening_balance = Some(text.trim().parse::<i64>().map_err(|_| {
-                    bad_request("opening_balance_minor must be an integer")
-                })?);
+                opening_balance = Some(
+                    text.trim()
+                        .parse::<i64>()
+                        .map_err(|_| bad_request("opening_balance_minor must be an integer"))?,
+                );
             }
             "closing_balance_minor" => {
                 let text = field_text(field).await?;
-                closing_balance = Some(text.trim().parse::<i64>().map_err(|_| {
-                    bad_request("closing_balance_minor must be an integer")
-                })?);
+                closing_balance = Some(
+                    text.trim()
+                        .parse::<i64>()
+                        .map_err(|_| bad_request("closing_balance_minor must be an integer"))?,
+                );
             }
             "format" => {
                 let text = field_text(field).await?;
-                format = Some(serde_json::from_value::<CsvFormat>(
-                    serde_json::Value::String(text.trim().to_string()),
-                ).map_err(|_| {
-                    bad_request(
-                        "format must be one of: generic, chase_credit, amex_credit",
-                    )
-                })?);
+                format = Some(
+                    serde_json::from_value::<CsvFormat>(serde_json::Value::String(
+                        text.trim().to_string(),
+                    ))
+                    .map_err(|_| {
+                        bad_request("format must be one of: generic, chase_credit, amex_credit")
+                    })?,
+                );
             }
             _ => {} // Ignore unknown fields
         }
@@ -154,10 +164,7 @@ async fn field_text(
         .map_err(|e| bad_request(&format!("Failed to read field: {}", e)))
 }
 
-fn parse_date_field(
-    s: &str,
-    name: &str,
-) -> Result<NaiveDate, (StatusCode, Json<ImportErrorBody>)> {
+fn parse_date_field(s: &str, name: &str) -> Result<NaiveDate, (StatusCode, Json<ImportErrorBody>)> {
     NaiveDate::parse_from_str(s.trim(), "%Y-%m-%d")
         .map_err(|_| bad_request(&format!("{} must be YYYY-MM-DD format", name)))
 }
@@ -180,9 +187,8 @@ pub async fn import_statement(
     headers: HeaderMap,
     multipart: Multipart,
 ) -> Result<(StatusCode, Json<ImportResult>), (StatusCode, Json<ImportErrorBody>)> {
-    let app_id = extract_tenant(&claims).map_err(|(status, Json(e))| {
-        (status, Json(ImportErrorBody::new(&e.error, &e.message)))
-    })?;
+    let app_id = extract_tenant(&claims)
+        .map_err(|(status, Json(e))| (status, Json(ImportErrorBody::new(&e.error, &e.message))))?;
 
     let correlation_id = headers
         .get("x-correlation-id")
@@ -264,7 +270,10 @@ fn import_error_response(e: ImportError) -> (StatusCode, Json<ImportErrorBody>) 
             tracing::error!("Statement import DB error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ImportErrorBody::new("database_error", "Internal database error")),
+                Json(ImportErrorBody::new(
+                    "database_error",
+                    "Internal database error",
+                )),
             )
         }
     }

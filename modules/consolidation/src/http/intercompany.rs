@@ -18,9 +18,7 @@ use crate::domain::eliminations::{self, service as elim_service};
 use crate::domain::intercompany::{self, service as ic_service};
 use crate::AppState;
 
-fn extract_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, IntercompanyError> {
+fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, IntercompanyError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
         None => Err(IntercompanyError {

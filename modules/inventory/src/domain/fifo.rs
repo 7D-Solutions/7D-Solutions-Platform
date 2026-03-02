@@ -177,8 +177,16 @@ mod tests {
         let first_id = Uuid::new_v4();
         let second_id = Uuid::new_v4();
         let layers = vec![
-            AvailableLayer { layer_id: first_id, quantity_remaining: 3, unit_cost_minor: 1000 },
-            AvailableLayer { layer_id: second_id, quantity_remaining: 5, unit_cost_minor: 500 },
+            AvailableLayer {
+                layer_id: first_id,
+                quantity_remaining: 3,
+                unit_cost_minor: 1000,
+            },
+            AvailableLayer {
+                layer_id: second_id,
+                quantity_remaining: 5,
+                unit_cost_minor: 500,
+            },
         ];
         let consumed = consume_fifo(&layers, 3).unwrap();
         assert_eq!(consumed.len(), 1);

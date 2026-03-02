@@ -22,7 +22,17 @@ pub fn create_ar_envelope<T>(
     mutation_class: String,
     payload: T,
 ) -> EventEnvelope<T> {
-    create_ar_envelope_with_actor(event_id, tenant_id, event_type, correlation_id, causation_id, mutation_class, payload, None, None)
+    create_ar_envelope_with_actor(
+        event_id,
+        tenant_id,
+        event_type,
+        correlation_id,
+        causation_id,
+        mutation_class,
+        payload,
+        None,
+        None,
+    )
 }
 
 /// Helper function to create an AR-specific envelope with actor identity.

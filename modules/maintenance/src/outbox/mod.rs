@@ -85,22 +85,19 @@ pub async fn fetch_unpublished(db: &PgPool, limit: i64) -> Result<Vec<OutboxEven
 
 /// Count unpublished events (used for metrics scrape).
 pub async fn count_unpublished(db: &PgPool) -> Result<i64, sqlx::Error> {
-    let row: (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM events_outbox WHERE published_at IS NULL",
-    )
-    .fetch_one(db)
-    .await?;
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events_outbox WHERE published_at IS NULL")
+            .fetch_one(db)
+            .await?;
     Ok(row.0)
 }
 
 /// Mark an event as published.
 pub async fn mark_published(db: &PgPool, event_id: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "UPDATE events_outbox SET published_at = NOW() WHERE event_id = $1",
-    )
-    .bind(event_id)
-    .execute(db)
-    .await?;
+    sqlx::query("UPDATE events_outbox SET published_at = NOW() WHERE event_id = $1")
+        .bind(event_id)
+        .execute(db)
+        .await?;
     Ok(())
 }
 

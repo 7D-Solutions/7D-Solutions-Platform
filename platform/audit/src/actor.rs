@@ -79,7 +79,10 @@ mod tests {
     fn test_service_actor_deterministic() {
         let actor1 = Actor::service("billing-scheduler");
         let actor2 = Actor::service("billing-scheduler");
-        assert_eq!(actor1.id, actor2.id, "Service actors should have deterministic IDs");
+        assert_eq!(
+            actor1.id, actor2.id,
+            "Service actors should have deterministic IDs"
+        );
         assert_eq!(actor1.actor_type, ActorType::Service);
         assert_eq!(actor1.actor_type_str(), "Service");
     }
@@ -88,7 +91,10 @@ mod tests {
     fn test_service_actor_unique_per_service() {
         let actor1 = Actor::service("billing-scheduler");
         let actor2 = Actor::service("notification-worker");
-        assert_ne!(actor1.id, actor2.id, "Different services should have different actor IDs");
+        assert_ne!(
+            actor1.id, actor2.id,
+            "Different services should have different actor IDs"
+        );
     }
 
     #[test]

@@ -127,7 +127,10 @@ async fn test_link_creates_gl_only_match() {
     assert_eq!(m.bank_transaction_id, txn_id);
     assert_eq!(m.gl_entry_id, Some(42001));
     assert_eq!(m.status, ReconMatchStatus::Confirmed);
-    assert!(m.statement_line_id.is_none(), "GL-only match has no statement line");
+    assert!(
+        m.statement_line_id.is_none(),
+        "GL-only match has no statement line"
+    );
 
     cleanup(&pool).await;
 }
@@ -255,7 +258,10 @@ async fn test_link_rejects_nonexistent_txn() {
         .unwrap_err();
 
     assert!(
-        matches!(err, crate::domain::recon::ReconError::TransactionNotFound(_)),
+        matches!(
+            err,
+            crate::domain::recon::ReconError::TransactionNotFound(_)
+        ),
         "expected TransactionNotFound, got: {:?}",
         err
     );
@@ -336,9 +342,7 @@ async fn test_unmatched_gl_entries() {
 async fn test_unmatched_gl_entries_empty_input() {
     let pool = test_pool().await;
 
-    let result = unmatched_gl_entries(&pool, TEST_APP, &[])
-        .await
-        .unwrap();
+    let result = unmatched_gl_entries(&pool, TEST_APP, &[]).await.unwrap();
 
     assert_eq!(result.provided, 0);
     assert_eq!(result.linked, 0);

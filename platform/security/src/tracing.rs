@@ -41,14 +41,13 @@ use uuid::Uuid;
 /// request has a trace). If `X-Correlation-Id` is absent, it inherits
 /// the trace_id value (reasonable default for single-hop requests).
 pub fn tracing_context_from_headers(headers: &HeaderMap) -> TracingContext {
-    let trace_id = header_string(headers, "x-trace-id")
-        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    let trace_id =
+        header_string(headers, "x-trace-id").unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    let correlation_id = header_string(headers, "x-correlation-id")
-        .unwrap_or_else(|| trace_id.clone());
+    let correlation_id =
+        header_string(headers, "x-correlation-id").unwrap_or_else(|| trace_id.clone());
 
-    let actor_id = header_string(headers, "x-actor-id")
-        .and_then(|s| Uuid::parse_str(&s).ok());
+    let actor_id = header_string(headers, "x-actor-id").and_then(|s| Uuid::parse_str(&s).ok());
 
     let actor_type = header_string(headers, "x-actor-type");
 
@@ -249,7 +248,10 @@ mod tests {
 
         assert_eq!(resp.headers().get("x-request-id").unwrap(), "trace-resp-1");
         assert_eq!(resp.headers().get("x-trace-id").unwrap(), "trace-resp-1");
-        assert_eq!(resp.headers().get("x-correlation-id").unwrap(), "corr-resp-1");
+        assert_eq!(
+            resp.headers().get("x-correlation-id").unwrap(),
+            "corr-resp-1"
+        );
     }
 
     #[tokio::test]
@@ -265,9 +267,19 @@ mod tests {
         assert_eq!(resp.status(), StatusCode::OK);
 
         // All three headers should be present with auto-generated UUIDs
-        let request_id = resp.headers().get("x-request-id").unwrap().to_str().unwrap();
+        let request_id = resp
+            .headers()
+            .get("x-request-id")
+            .unwrap()
+            .to_str()
+            .unwrap();
         let trace_id = resp.headers().get("x-trace-id").unwrap().to_str().unwrap();
-        let corr_id = resp.headers().get("x-correlation-id").unwrap().to_str().unwrap();
+        let corr_id = resp
+            .headers()
+            .get("x-correlation-id")
+            .unwrap()
+            .to_str()
+            .unwrap();
 
         assert!(Uuid::parse_str(request_id).is_ok());
         // x-request-id and x-trace-id should be identical

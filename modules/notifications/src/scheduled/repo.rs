@@ -1,7 +1,7 @@
 use chrono::{DateTime, Duration, Utc};
+use serde_json::Value;
 use sqlx::PgPool;
 use uuid::Uuid;
-use serde_json::Value;
 
 use super::models::ScheduledNotification;
 
@@ -130,12 +130,10 @@ pub async fn reschedule_or_fail(
         .execute(pool)
         .await?;
     } else {
-        sqlx::query(
-            "UPDATE scheduled_notifications SET status = 'failed' WHERE id = $1",
-        )
-        .bind(id)
-        .execute(pool)
-        .await?;
+        sqlx::query("UPDATE scheduled_notifications SET status = 'failed' WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
     }
 
     Ok(())

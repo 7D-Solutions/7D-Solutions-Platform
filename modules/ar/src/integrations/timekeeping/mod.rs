@@ -72,12 +72,11 @@ pub async fn import_billable_time(
     ensure_import_table(pool).await?;
 
     // Idempotency check
-    let existing: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT export_id FROM ar_tk_billable_imports WHERE export_id = $1 LIMIT 1",
-    )
-    .bind(payload.export_id)
-    .fetch_optional(pool)
-    .await?;
+    let existing: Option<(Uuid,)> =
+        sqlx::query_as("SELECT export_id FROM ar_tk_billable_imports WHERE export_id = $1 LIMIT 1")
+            .bind(payload.export_id)
+            .fetch_optional(pool)
+            .await?;
 
     if existing.is_some() {
         return Ok(BillableTimeImportResult {

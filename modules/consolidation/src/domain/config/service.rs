@@ -52,12 +52,10 @@ pub async fn list_groups(
     include_inactive: bool,
 ) -> Result<Vec<Group>, ConfigError> {
     let rows = if include_inactive {
-        sqlx::query_as::<_, Group>(
-            "SELECT * FROM csl_groups WHERE tenant_id = $1 ORDER BY name",
-        )
-        .bind(tenant_id)
-        .fetch_all(pool)
-        .await?
+        sqlx::query_as::<_, Group>("SELECT * FROM csl_groups WHERE tenant_id = $1 ORDER BY name")
+            .bind(tenant_id)
+            .fetch_all(pool)
+            .await?
     } else {
         sqlx::query_as::<_, Group>(
             "SELECT * FROM csl_groups WHERE tenant_id = $1 AND is_active = TRUE ORDER BY name",
@@ -69,19 +67,13 @@ pub async fn list_groups(
     Ok(rows)
 }
 
-pub async fn get_group(
-    pool: &PgPool,
-    tenant_id: &str,
-    id: Uuid,
-) -> Result<Group, ConfigError> {
-    sqlx::query_as::<_, Group>(
-        "SELECT * FROM csl_groups WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or(ConfigError::GroupNotFound(id))
+pub async fn get_group(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<Group, ConfigError> {
+    sqlx::query_as::<_, Group>("SELECT * FROM csl_groups WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or(ConfigError::GroupNotFound(id))
 }
 
 pub async fn update_group(
@@ -124,18 +116,12 @@ pub async fn update_group(
     Ok(row)
 }
 
-pub async fn delete_group(
-    pool: &PgPool,
-    tenant_id: &str,
-    id: Uuid,
-) -> Result<(), ConfigError> {
-    let result = sqlx::query(
-        "DELETE FROM csl_groups WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(id)
-    .bind(tenant_id)
-    .execute(pool)
-    .await?;
+pub async fn delete_group(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<(), ConfigError> {
+    let result = sqlx::query("DELETE FROM csl_groups WHERE id = $1 AND tenant_id = $2")
+        .bind(id)
+        .bind(tenant_id)
+        .execute(pool)
+        .await?;
     if result.rows_affected() == 0 {
         return Err(ConfigError::GroupNotFound(id));
     }
@@ -265,11 +251,7 @@ pub async fn update_entity(
     Ok(row)
 }
 
-pub async fn delete_entity(
-    pool: &PgPool,
-    tenant_id: &str,
-    id: Uuid,
-) -> Result<(), ConfigError> {
+pub async fn delete_entity(pool: &PgPool, tenant_id: &str, id: Uuid) -> Result<(), ConfigError> {
     let existing = get_entity(pool, id).await?;
     get_group(pool, tenant_id, existing.group_id).await?;
 
@@ -354,13 +336,11 @@ pub async fn delete_coa_mapping(
     tenant_id: &str,
     id: Uuid,
 ) -> Result<(), ConfigError> {
-    let mapping = sqlx::query_as::<_, CoaMapping>(
-        "SELECT * FROM csl_coa_mappings WHERE id = $1",
-    )
-    .bind(id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or(ConfigError::MappingNotFound(id))?;
+    let mapping = sqlx::query_as::<_, CoaMapping>("SELECT * FROM csl_coa_mappings WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or(ConfigError::MappingNotFound(id))?;
 
     get_group(pool, tenant_id, mapping.group_id).await?;
 

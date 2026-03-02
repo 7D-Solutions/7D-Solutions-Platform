@@ -17,10 +17,7 @@ use crate::models::PaymentCollectionRequestedPayload;
 /// 1. Subscribes to AR payment collection events
 /// 2. Processes payments using mock processor
 /// 3. Emits payment succeeded events
-pub async fn start_payment_collection_consumer(
-    bus: Arc<dyn EventBus>,
-    pool: PgPool,
-) {
+pub async fn start_payment_collection_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
     tokio::spawn(async move {
         tracing::info!("Starting payment collection consumer");
 
@@ -124,43 +121,46 @@ async fn process_payment_collection_request(
 ) -> anyhow::Result<()> {
     // Use EventConsumer's idempotent processing
     consumer
-        .process_idempotent(msg, |payload: PaymentCollectionRequestedPayload| async move {
-            // Extract envelope metadata from the message
-            let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
+        .process_idempotent(
+            msg,
+            |payload: PaymentCollectionRequestedPayload| async move {
+                // Extract envelope metadata from the message
+                let envelope: serde_json::Value = serde_json::from_slice(&msg.payload)?;
 
-            // Validate envelope fields first
-            validate_envelope(&envelope)
-                .map_err(|e| anyhow::anyhow!("Envelope validation failed: {}", e))?;
+                // Validate envelope fields first
+                validate_envelope(&envelope)
+                    .map_err(|e| anyhow::anyhow!("Envelope validation failed: {}", e))?;
 
-            // Extract metadata (validation ensures these fields exist and are valid)
-            let event_id = envelope
-                .get("event_id")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| anyhow::anyhow!("Missing event_id"))?;
-            let event_id = uuid::Uuid::parse_str(event_id)?;
+                // Extract metadata (validation ensures these fields exist and are valid)
+                let event_id = envelope
+                    .get("event_id")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow::anyhow!("Missing event_id"))?;
+                let event_id = uuid::Uuid::parse_str(event_id)?;
 
-            let tenant_id = envelope
-                .get("tenant_id")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| anyhow::anyhow!("Missing tenant_id"))?
-                .to_string();
+                let tenant_id = envelope
+                    .get("tenant_id")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| anyhow::anyhow!("Missing tenant_id"))?
+                    .to_string();
 
-            // Accept both "correlation_id" (Payments envelope) and "trace_id" (AR envelope)
-            let correlation_id = envelope
-                .get("correlation_id")
-                .or_else(|| envelope.get("trace_id"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string());
+                // Accept both "correlation_id" (Payments envelope) and "trace_id" (AR envelope)
+                let correlation_id = envelope
+                    .get("correlation_id")
+                    .or_else(|| envelope.get("trace_id"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
 
-            let metadata = EnvelopeMetadata {
-                event_id,
-                tenant_id,
-                correlation_id,
-            };
+                let metadata = EnvelopeMetadata {
+                    event_id,
+                    tenant_id,
+                    correlation_id,
+                };
 
-            // Handle the payment collection request
-            handle_payment_collection_requested(pool, payload, metadata).await
-        })
+                // Handle the payment collection request
+                handle_payment_collection_requested(pool, payload, metadata).await
+            },
+        )
         .await
 }
 

@@ -20,8 +20,7 @@ use super::{INVENTORY_EVENT_SCHEMA_VERSION, MUTATION_CLASS_DATA_MUTATION};
 // ============================================================================
 
 /// A valuation snapshot was created from FIFO layer state.
-pub const EVENT_TYPE_VALUATION_SNAPSHOT_CREATED: &str =
-    "inventory.valuation_snapshot_created";
+pub const EVENT_TYPE_VALUATION_SNAPSHOT_CREATED: &str = "inventory.valuation_snapshot_created";
 
 // ============================================================================
 // Payload

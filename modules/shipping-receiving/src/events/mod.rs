@@ -30,17 +30,12 @@ pub const MUTATION_CLASS_DATA_MUTATION: &str = "DATA_MUTATION";
 // ============================================================================
 
 pub use contracts::{
-    InboundClosedLine, InboundClosedPayload,
-    OutboundDeliveredPayload,
-    OutboundShippedLine, OutboundShippedPayload,
-    ShipmentCreatedPayload,
-    ShipmentStatusChangedPayload,
-    EVENT_TYPE_INBOUND_CLOSED, EVENT_TYPE_OUTBOUND_DELIVERED,
-    EVENT_TYPE_OUTBOUND_SHIPPED, EVENT_TYPE_SHIPMENT_CREATED,
-    EVENT_TYPE_SHIPMENT_STATUS_CHANGED,
     build_inbound_closed_envelope, build_outbound_delivered_envelope,
     build_outbound_shipped_envelope, build_shipment_created_envelope,
-    build_shipment_status_changed_envelope,
+    build_shipment_status_changed_envelope, InboundClosedLine, InboundClosedPayload,
+    OutboundDeliveredPayload, OutboundShippedLine, OutboundShippedPayload, ShipmentCreatedPayload,
+    ShipmentStatusChangedPayload, EVENT_TYPE_INBOUND_CLOSED, EVENT_TYPE_OUTBOUND_DELIVERED,
+    EVENT_TYPE_OUTBOUND_SHIPPED, EVENT_TYPE_SHIPMENT_CREATED, EVENT_TYPE_SHIPMENT_STATUS_CHANGED,
 };
 
 // ============================================================================

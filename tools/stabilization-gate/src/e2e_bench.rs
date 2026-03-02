@@ -68,8 +68,9 @@ pub async fn run_e2e_bench(runs: u32, reports_dir: &Path) -> Result<ScenarioResu
 
     for i in 1..=runs {
         info!("e2e-bench: starting run {}/{}", i, runs);
-        let (duration_secs, exit_ok) =
-            run_cargo_test().await.context(format!("e2e-bench run {}", i))?;
+        let (duration_secs, exit_ok) = run_cargo_test()
+            .await
+            .context(format!("e2e-bench run {}", i))?;
         info!(
             "e2e-bench: run {}/{} finished in {:.1}s (success={})",
             i, runs, duration_secs, exit_ok
@@ -129,9 +130,8 @@ pub async fn run_e2e_bench(runs: u32, reports_dir: &Path) -> Result<ScenarioResu
     let mut violations: Vec<String> = Vec::new();
 
     if !all_tests_passed {
-        violations.push(
-            "one or more e2e test runs exited non-zero — suite has failures".to_string(),
-        );
+        violations
+            .push("one or more e2e test runs exited non-zero — suite has failures".to_string());
     }
     for (i, &secs) in run_durations.iter().enumerate() {
         if secs > max_ceiling {
@@ -179,7 +179,11 @@ pub async fn run_e2e_bench(runs: u32, reports_dir: &Path) -> Result<ScenarioResu
         min_secs,
         max_secs,
         variance_pct,
-        if violations.is_empty() { "PASS" } else { "FAIL" }
+        if violations.is_empty() {
+            "PASS"
+        } else {
+            "FAIL"
+        }
     );
 
     Ok(ScenarioResult {
@@ -215,7 +219,14 @@ async fn run_cargo_test() -> Result<(f64, bool)> {
     let start = Instant::now();
 
     let status = tokio::process::Command::new("cargo")
-        .args(["test", "-p", "e2e-tests", "--no-fail-fast", "--", "--nocapture"])
+        .args([
+            "test",
+            "-p",
+            "e2e-tests",
+            "--no-fail-fast",
+            "--",
+            "--nocapture",
+        ])
         .status()
         .await
         .context("failed to spawn `cargo test -p e2e-tests`")?;

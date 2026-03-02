@@ -62,12 +62,11 @@ pub async fn count_receipt_links_for_line(
     pool: &PgPool,
     po_line_id: Uuid,
 ) -> Result<i64, ReceiptLinkError> {
-    let (count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM po_receipt_links WHERE po_line_id = $1",
-    )
-    .bind(po_line_id)
-    .fetch_one(pool)
-    .await?;
+    let (count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM po_receipt_links WHERE po_line_id = $1")
+            .bind(po_line_id)
+            .fetch_one(pool)
+            .await?;
     Ok(count)
 }
 
@@ -202,7 +201,12 @@ mod tests {
             .ok();
     }
 
-    fn sample_req(vendor_id: Uuid, po_id: Uuid, line_id: Uuid, receipt_id: Uuid) -> IngestReceiptLinkRequest {
+    fn sample_req(
+        vendor_id: Uuid,
+        po_id: Uuid,
+        line_id: Uuid,
+        receipt_id: Uuid,
+    ) -> IngestReceiptLinkRequest {
         IngestReceiptLinkRequest {
             po_id,
             po_line_id: line_id,
@@ -254,8 +258,12 @@ mod tests {
         let receipt_id = Uuid::new_v4();
         let req = sample_req(vendor_id, po_id, line_id, receipt_id);
 
-        ingest_receipt_link(&pool, &req).await.expect("first ingest failed");
-        ingest_receipt_link(&pool, &req).await.expect("second ingest must not error");
+        ingest_receipt_link(&pool, &req)
+            .await
+            .expect("first ingest failed");
+        ingest_receipt_link(&pool, &req)
+            .await
+            .expect("second ingest must not error");
 
         let (count,): (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM po_receipt_links WHERE po_line_id = $1 AND receipt_id = $2",
@@ -277,12 +285,18 @@ mod tests {
         cleanup(&pool).await;
         let (vendor_id, po_id, line_id) = setup_fixtures(&pool).await;
 
-        ingest_receipt_link(&pool, &sample_req(vendor_id, po_id, line_id, Uuid::new_v4()))
-            .await
-            .expect("first ingest failed");
-        ingest_receipt_link(&pool, &sample_req(vendor_id, po_id, line_id, Uuid::new_v4()))
-            .await
-            .expect("second ingest failed");
+        ingest_receipt_link(
+            &pool,
+            &sample_req(vendor_id, po_id, line_id, Uuid::new_v4()),
+        )
+        .await
+        .expect("first ingest failed");
+        ingest_receipt_link(
+            &pool,
+            &sample_req(vendor_id, po_id, line_id, Uuid::new_v4()),
+        )
+        .await
+        .expect("second ingest failed");
 
         let count = count_receipt_links_for_line(&pool, line_id)
             .await
@@ -300,7 +314,9 @@ mod tests {
         let receipt_id = Uuid::new_v4();
         let req = sample_req(vendor_id, po_id, line_id, receipt_id);
 
-        ingest_receipt_link(&pool, &req).await.expect("ingest failed");
+        ingest_receipt_link(&pool, &req)
+            .await
+            .expect("ingest failed");
 
         let row: (Uuid, f64, String, i64, String, String) = sqlx::query_as(
             "SELECT vendor_id, quantity_received::FLOAT8, unit_of_measure, \

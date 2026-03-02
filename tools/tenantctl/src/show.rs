@@ -124,8 +124,7 @@ pub async fn show_tenant(tenant_id: &str) -> Result<CommandOutput> {
                     "status": s.status,
                 });
                 if let Some(ref completed) = s.completed_at {
-                    step["completed_at"] =
-                        serde_json::Value::String(completed.to_rfc3339());
+                    step["completed_at"] = serde_json::Value::String(completed.to_rfc3339());
                 }
                 if let Some(ref err) = s.error_message {
                     step["error_message"] = serde_json::Value::String(err.clone());

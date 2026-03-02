@@ -70,12 +70,17 @@ pub fn create_ttp_envelope<T: Serialize>(
     let corr = correlation_id.into();
     let merchant_ctx = MerchantContext::Tenant(tenant_str.clone());
 
-    EventEnvelope::new(tenant_str.clone(), "ttp".to_string(), event_type.into(), payload)
-        .with_source_version(env!("CARGO_PKG_VERSION").to_string())
-        .with_trace_id(Some(corr.clone()))
-        .with_correlation_id(Some(corr))
-        .with_mutation_class(Some(mutation_class.into()))
-        .with_merchant_context(Some(merchant_ctx))
+    EventEnvelope::new(
+        tenant_str.clone(),
+        "ttp".to_string(),
+        event_type.into(),
+        payload,
+    )
+    .with_source_version(env!("CARGO_PKG_VERSION").to_string())
+    .with_trace_id(Some(corr.clone()))
+    .with_correlation_id(Some(corr))
+    .with_mutation_class(Some(mutation_class.into()))
+    .with_merchant_context(Some(merchant_ctx))
 }
 
 // ---------------------------------------------------------------------------

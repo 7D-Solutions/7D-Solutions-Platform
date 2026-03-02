@@ -55,9 +55,7 @@ pub async fn bench_projections(cfg: &Config, dry_run: bool) -> Result<ScenarioRe
 
     for _ in 0..total {
         let t = Timer::start();
-        let res = sqlx::query("SELECT 1 AS ping")
-            .fetch_one(&pool)
-            .await;
+        let res = sqlx::query("SELECT 1 AS ping").fetch_one(&pool).await;
         match res {
             Ok(_) => samples.record_latency(t.elapsed()),
             Err(_) => samples.record_error(),
@@ -104,7 +102,11 @@ pub async fn bench_tenants(cfg: &Config, dry_run: bool) -> Result<ScenarioResult
     info!("Running scenario: tenants (dry_run={})", dry_run);
 
     let pool = pg_pool(&cfg.database_url, cfg.concurrency as u32).await?;
-    let total = if dry_run { cfg.tenant_count.min(3) } else { cfg.tenant_count };
+    let total = if dry_run {
+        cfg.tenant_count.min(3)
+    } else {
+        cfg.tenant_count
+    };
 
     let mut samples = MetricsSamples::new();
     let wall = Timer::start();
@@ -149,7 +151,10 @@ async fn pg_pool(url: &str, max_conn: u32) -> Result<sqlx::PgPool> {
 
 fn dry_note(dry_run: bool, total: usize, label: &str) -> Option<String> {
     if dry_run {
-        Some(format!("dry-run: {} {} (connectivity check only)", total, label))
+        Some(format!(
+            "dry-run: {} {} (connectivity check only)",
+            total, label
+        ))
     } else {
         None
     }

@@ -1,6 +1,8 @@
 use axum::{extract::State, http::StatusCode};
-use prometheus::{Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge,
-                 IntGaugeVec, Opts, Registry, TextEncoder};
+use prometheus::{
+    Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, IntGaugeVec, Opts,
+    Registry, TextEncoder,
+};
 use std::sync::Arc;
 
 /// Reporting-specific Prometheus metrics
@@ -35,10 +37,8 @@ impl ReportingMetrics {
         )?;
         registry.register(Box::new(queries_executed_total.clone()))?;
 
-        let cache_hits_total = IntCounter::new(
-            "reporting_cache_hits_total",
-            "Total reporting cache hits",
-        )?;
+        let cache_hits_total =
+            IntCounter::new("reporting_cache_hits_total", "Total reporting cache hits")?;
         registry.register(Box::new(cache_hits_total.clone()))?;
 
         let cache_misses_total = IntCounter::new(
@@ -60,7 +60,10 @@ impl ReportingMetrics {
         registry.register(Box::new(ingestion_checkpoints.clone()))?;
 
         let cache_rows_total = IntGaugeVec::new(
-            Opts::new("reporting_cache_rows_total", "Row count per reporting cache table"),
+            Opts::new(
+                "reporting_cache_rows_total",
+                "Row count per reporting cache table",
+            ),
             &["table"],
         )?;
         registry.register(Box::new(cache_rows_total.clone()))?;
@@ -71,7 +74,9 @@ impl ReportingMetrics {
                 "reporting_http_request_duration_seconds",
                 "HTTP request duration in seconds",
             )
-            .buckets(vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]),
+            .buckets(vec![
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0,
+            ]),
             &["method", "route", "status"],
         )?;
         registry.register(Box::new(http_request_duration_seconds.clone()))?;
@@ -85,7 +90,10 @@ impl ReportingMetrics {
 
         // SLO: ingest pipeline consumer lag
         let event_consumer_lag_messages = IntGaugeVec::new(
-            Opts::new("reporting_event_consumer_lag_messages", "Event consumer lag in messages"),
+            Opts::new(
+                "reporting_event_consumer_lag_messages",
+                "Event consumer lag in messages",
+            ),
             &["consumer_group"],
         )?;
         registry.register(Box::new(event_consumer_lag_messages.clone()))?;
@@ -188,12 +196,16 @@ mod tests {
         let families = m.registry().gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("http_request_duration_seconds")),
-            "request latency histogram missing: {:?}", names
+            names
+                .iter()
+                .any(|n| n.contains("http_request_duration_seconds")),
+            "request latency histogram missing: {:?}",
+            names
         );
         assert!(
             names.iter().any(|n| n.contains("http_requests_total")),
-            "request count counter missing: {:?}", names
+            "request count counter missing: {:?}",
+            names
         );
     }
 
@@ -204,8 +216,11 @@ mod tests {
         let families = m.registry().gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("event_consumer_lag_messages")),
-            "consumer lag metric missing: {:?}", names
+            names
+                .iter()
+                .any(|n| n.contains("event_consumer_lag_messages")),
+            "consumer lag metric missing: {:?}",
+            names
         );
     }
 
@@ -218,7 +233,8 @@ mod tests {
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
             names.iter().any(|n| n.contains("ingestion_lag_seconds")),
-            "ingestion_lag_seconds histogram missing: {:?}", names
+            "ingestion_lag_seconds histogram missing: {:?}",
+            names
         );
     }
 
@@ -232,7 +248,8 @@ mod tests {
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
             names.iter().any(|n| n.contains("cache_rows_total")),
-            "cache_rows_total gauge missing: {:?}", names
+            "cache_rows_total gauge missing: {:?}",
+            names
         );
     }
 }
@@ -263,16 +280,18 @@ async fn refresh_gauges(app_state: &Arc<crate::AppState>) -> Result<(), sqlx::Er
             .unwrap_or(0);
 
     app_state.metrics.kpi_cache_size.set(kpi_count);
-    app_state.metrics.ingestion_checkpoints.set(checkpoint_count);
+    app_state
+        .metrics
+        .ingestion_checkpoints
+        .set(checkpoint_count);
 
     // Per-table cache row counts
     for &table in CACHE_TABLES {
-        let count: i64 =
-            sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", table))
-                .fetch_optional(&app_state.pool)
-                .await
-                .unwrap_or(None)
-                .unwrap_or(0);
+        let count: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", table))
+            .fetch_optional(&app_state.pool)
+            .await
+            .unwrap_or(None)
+            .unwrap_or(0);
         app_state.metrics.set_cache_rows(table, count);
     }
 

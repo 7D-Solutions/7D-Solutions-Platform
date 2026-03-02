@@ -25,7 +25,7 @@ use clap::Parser;
 use seed::SimulationSeed;
 use sqlx::PgPool;
 use std::collections::HashMap;
-use tracing::{info, error};
+use tracing::{error, info};
 use uuid::Uuid;
 
 // ============================================================================
@@ -124,22 +124,26 @@ async fn setup_database_pools() -> Result<DatabasePools> {
     let ar_pool = create_pool(
         "AR_DATABASE_URL",
         "postgresql://ar_user:ar_pass@localhost:5434/ar_db",
-    ).await?;
+    )
+    .await?;
 
     let payments_pool = create_pool(
         "PAYMENTS_DATABASE_URL",
         "postgresql://payments_user:payments_pass@localhost:5436/payments_db",
-    ).await?;
+    )
+    .await?;
 
     let subscriptions_pool = create_pool(
         "SUBSCRIPTIONS_DATABASE_URL",
         "postgresql://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db",
-    ).await?;
+    )
+    .await?;
 
     let gl_pool = create_pool(
         "GL_DATABASE_URL",
         "postgresql://gl_user:gl_pass@localhost:5438/gl_db",
-    ).await?;
+    )
+    .await?;
 
     Ok(DatabasePools {
         ar_pool,
@@ -199,13 +203,19 @@ impl SimulationRunner {
         let mut run_digests = Vec::new();
 
         for run_number in 1..=self.config.runs {
-            info!(run = run_number, total_runs = self.config.runs, "Starting run");
+            info!(
+                run = run_number,
+                total_runs = self.config.runs,
+                "Starting run"
+            );
 
             // Reset seed for each run (same seed → identical outcomes)
             let seed = SimulationSeed::new(self.config.seed);
 
             // Run single simulation
-            let digest = self.run_single_simulation(run_number, seed).await
+            let digest = self
+                .run_single_simulation(run_number, seed)
+                .await
                 .context(format!("Run {} failed", run_number))?;
 
             run_digests.push(digest);
@@ -252,11 +262,13 @@ impl SimulationRunner {
             );
 
             // Execute cycle (concurrent)
-            self.execute_cycle(cycle, &tenant_ids, &mut seed).await
+            self.execute_cycle(cycle, &tenant_ids, &mut seed)
+                .await
                 .context(format!("Cycle {} failed", cycle))?;
 
             // Call oracle after each cycle (ChatGPT requirement)
-            self.assert_all_invariants_all_tenants(&tenant_ids).await
+            self.assert_all_invariants_all_tenants(&tenant_ids)
+                .await
                 .context(format!("Oracle failed after cycle {}", cycle))?;
 
             info!(
@@ -295,7 +307,8 @@ impl SimulationRunner {
             2026 + year_offset,
             ((base_date.month() + month_offset) % 12) + 1,
             1,
-        ).context("Failed to calculate execution date")?;
+        )
+        .context("Failed to calculate execution date")?;
 
         info!(
             cycle = cycle,
@@ -338,14 +351,21 @@ impl SimulationRunner {
         let (cycle_start, cycle_end) = calculate_cycle_boundaries(execution_date);
 
         // Get or create subscription for this tenant
-        let subscription_id = self.ensure_subscription_exists(tenant_id, execution_date).await?;
+        let subscription_id = self
+            .ensure_subscription_exists(tenant_id, execution_date)
+            .await?;
 
         // Start transaction for cycle gating
-        let mut tx = self.pools.subscriptions_pool.begin().await
+        let mut tx = self
+            .pools
+            .subscriptions_pool
+            .begin()
+            .await
             .context("Failed to begin subscription transaction")?;
 
         // Acquire advisory lock (prevents concurrent bill runs)
-        acquire_cycle_lock(&mut tx, tenant_id, subscription_id, &cycle_key).await
+        acquire_cycle_lock(&mut tx, tenant_id, subscription_id, &cycle_key)
+            .await
             .context("Failed to acquire cycle lock")?;
 
         // Record cycle attempt (UNIQUE constraint enforces exactly-once)
@@ -357,19 +377,24 @@ impl SimulationRunner {
             cycle_start,
             cycle_end,
             None,
-        ).await {
+        )
+        .await
+        {
             Ok(id) => id,
             Err(_e) => {
                 // Duplicate cycle - replay safety verified
                 tx.rollback().await?;
-                info!(tenant_id = tenant_id, "Cycle already executed (replay safety)");
+                info!(
+                    tenant_id = tenant_id,
+                    "Cycle already executed (replay safety)"
+                );
                 return Ok(());
             }
         };
 
         // Get subscription details
         let subscription: (String, i64, String) = sqlx::query_as(
-            "SELECT ar_customer_id, price_minor, currency FROM subscriptions WHERE id = $1"
+            "SELECT ar_customer_id, price_minor, currency FROM subscriptions WHERE id = $1",
         )
         .bind(subscription_id)
         .fetch_one(&mut *tx)
@@ -377,8 +402,7 @@ impl SimulationRunner {
         .context("Failed to get subscription details")?;
 
         let (ar_customer_id_str, price_minor, currency) = subscription;
-        let ar_customer_id: i32 = ar_customer_id_str.parse()
-            .context("Invalid customer ID")?;
+        let ar_customer_id: i32 = ar_customer_id_str.parse().context("Invalid customer ID")?;
 
         // 2. INVOICE GENERATION (AR)
         let amount_cents = (price_minor / 10) as i32;
@@ -401,11 +425,13 @@ impl SimulationRunner {
         .context("Failed to create AR invoice")?;
 
         // Mark subscription attempt as succeeded
-        mark_attempt_succeeded(&mut tx, attempt_id, invoice_id).await
+        mark_attempt_succeeded(&mut tx, attempt_id, invoice_id)
+            .await
             .context("Failed to mark attempt succeeded")?;
 
         // Commit subscription transaction
-        tx.commit().await
+        tx.commit()
+            .await
             .context("Failed to commit subscription transaction")?;
 
         info!(
@@ -420,12 +446,9 @@ impl SimulationRunner {
             injector.determine_payment_outcome()
         };
 
-        let payment_attempt_id = self.create_payment_attempt(
-            tenant_id,
-            invoice_id,
-            &tilled_invoice_id,
-            &outcome,
-        ).await?;
+        let payment_attempt_id = self
+            .create_payment_attempt(tenant_id, invoice_id, &tilled_invoice_id, &outcome)
+            .await?;
 
         info!(
             tenant_id = tenant_id,
@@ -436,12 +459,8 @@ impl SimulationRunner {
 
         // 4. WEBHOOK DELIVERY + DUPLICATES
         if outcome.is_success() {
-            self.deliver_webhook_with_duplicates(
-                tenant_id,
-                invoice_id,
-                payment_attempt_id,
-                seed,
-            ).await?;
+            self.deliver_webhook_with_duplicates(tenant_id, invoice_id, payment_attempt_id, seed)
+                .await?;
         }
 
         // 5. UNKNOWN RECONCILIATION (if timeout)
@@ -467,12 +486,11 @@ impl SimulationRunner {
         use uuid::Uuid;
 
         // Check if subscription exists
-        let existing: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM subscriptions WHERE tenant_id = $1 LIMIT 1"
-        )
-        .bind(tenant_id)
-        .fetch_optional(&self.pools.subscriptions_pool)
-        .await?;
+        let existing: Option<Uuid> =
+            sqlx::query_scalar("SELECT id FROM subscriptions WHERE tenant_id = $1 LIMIT 1")
+                .bind(tenant_id)
+                .fetch_optional(&self.pools.subscriptions_pool)
+                .await?;
 
         if let Some(id) = existing {
             return Ok(id);
@@ -557,7 +575,7 @@ impl SimulationRunner {
         sqlx::query(
             "INSERT INTO payment_attempts
              (id, app_id, payment_id, invoice_id, attempt_no, status)
-             VALUES ($1, $2, $3, $4::text, $5, $6::payment_attempt_status)"
+             VALUES ($1, $2, $3, $4::text, $5, $6::payment_attempt_status)",
         )
         .bind(attempt_id)
         .bind(app_id)
@@ -583,7 +601,7 @@ impl SimulationRunner {
         // Update invoice to paid status
         sqlx::query(
             "UPDATE ar_invoices SET status = 'paid', paid_at = NOW(), updated_at = NOW()
-             WHERE id = $1"
+             WHERE id = $1",
         )
         .bind(invoice_id)
         .execute(&self.pools.ar_pool)
@@ -623,7 +641,8 @@ impl SimulationRunner {
                 tenant_id,
             };
 
-            assert_cross_module_invariants(&ctx).await
+            assert_cross_module_invariants(&ctx)
+                .await
                 .context(format!("Invariant violation for tenant {}", tenant_id))?;
         }
 
@@ -653,10 +672,11 @@ impl SimulationRunner {
             .context("Failed to count payment attempts")?;
 
         // Count subscription cycle attempts
-        let subscription_attempts: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM subscription_invoice_attempts")
-            .fetch_one(&self.pools.subscriptions_pool)
-            .await
-            .context("Failed to count subscription attempts")?;
+        let subscription_attempts: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM subscription_invoice_attempts")
+                .fetch_one(&self.pools.subscriptions_pool)
+                .await
+                .context("Failed to count subscription attempts")?;
 
         // Count GL journal entries
         let gl_entries: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries")
@@ -665,16 +685,15 @@ impl SimulationRunner {
             .context("Failed to count GL entries")?;
 
         // Get status distributions (AR invoices)
-        let ar_status_rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT status, COUNT(*) as count FROM ar_invoices GROUP BY status"
-        )
-        .fetch_all(&self.pools.ar_pool)
-        .await
-        .context("Failed to get AR status distribution")?;
+        let ar_status_rows: Vec<(String, i64)> =
+            sqlx::query_as("SELECT status, COUNT(*) as count FROM ar_invoices GROUP BY status")
+                .fetch_all(&self.pools.ar_pool)
+                .await
+                .context("Failed to get AR status distribution")?;
 
         // Get payment status distributions
         let payment_status_rows: Vec<(String, i64)> = sqlx::query_as(
-            "SELECT status::TEXT, COUNT(*) as count FROM payment_attempts GROUP BY status"
+            "SELECT status::TEXT, COUNT(*) as count FROM payment_attempts GROUP BY status",
         )
         .fetch_all(&self.pools.payments_pool)
         .await
@@ -724,12 +743,16 @@ impl SimulationRunner {
                     "Determinism violation: run produced different digest"
                 );
                 return Err(anyhow::anyhow!(
-                    "Determinism violation: Run {} digest differs from run 1", i + 1
+                    "Determinism violation: Run {} digest differs from run 1",
+                    i + 1
                 ));
             }
         }
 
-        info!("✅ Determinism verified: all {} runs produced identical digests", digests.len());
+        info!(
+            "✅ Determinism verified: all {} runs produced identical digests",
+            digests.len()
+        );
         Ok(())
     }
 }
@@ -758,7 +781,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .init();
 
@@ -775,7 +798,8 @@ async fn main() -> Result<()> {
     info!("===========================================");
 
     // Setup database pools
-    let pools = setup_database_pools().await
+    let pools = setup_database_pools()
+        .await
         .context("Failed to setup database pools")?;
 
     info!("✅ Database pools initialized");

@@ -55,7 +55,11 @@ pub async fn consolidate(
         });
 
         let tb = gl_client
-            .get_trial_balance(&entity.entity_tenant_id, period_id, &entity.functional_currency)
+            .get_trial_balance(
+                &entity.entity_tenant_id,
+                period_id,
+                &entity.functional_currency,
+            )
             .await?;
 
         let entity_mappings: Vec<&CoaMapping> = coa_mappings
@@ -74,8 +78,12 @@ pub async fn consolidate(
         .await?;
 
         for row in &tb.rows {
-            let (target_code, target_name) =
-                map_account(&entity.entity_tenant_id, &row.account_code, &row.account_name, &entity_mappings)?;
+            let (target_code, target_name) = map_account(
+                &entity.entity_tenant_id,
+                &row.account_code,
+                &row.account_name,
+                &entity_mappings,
+            )?;
 
             let (translated_debit, translated_credit) =
                 translate_fx(row.debit_total_minor, row.credit_total_minor, fx_rate);
@@ -106,7 +114,15 @@ pub async fn consolidate(
     let input_hash = compute_input_hash(group_id, as_of, &mut entity_hashes);
 
     // Step 8: Cache
-    cache_result(pool, group_id, as_of, &group.reporting_currency, &input_hash, &rows).await?;
+    cache_result(
+        pool,
+        group_id,
+        as_of,
+        &group.reporting_currency,
+        &input_hash,
+        &rows,
+    )
+    .await?;
 
     Ok(ConsolidationResult {
         group_id,
@@ -140,7 +156,10 @@ fn map_account(
     source_name: &str,
     mappings: &[&CoaMapping],
 ) -> Result<(String, String), EngineError> {
-    if let Some(m) = mappings.iter().find(|m| m.source_account_code == source_code) {
+    if let Some(m) = mappings
+        .iter()
+        .find(|m| m.source_account_code == source_code)
+    {
         let name = m
             .target_account_name
             .as_deref()
@@ -271,13 +290,11 @@ async fn cache_result(
     let mut tx = pool.begin().await?;
 
     // Clear previous cache for this group+as_of
-    sqlx::query(
-        "DELETE FROM csl_trial_balance_cache WHERE group_id = $1 AND as_of = $2",
-    )
-    .bind(group_id)
-    .bind(as_of)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("DELETE FROM csl_trial_balance_cache WHERE group_id = $1 AND as_of = $2")
+        .bind(group_id)
+        .bind(as_of)
+        .execute(&mut *tx)
+        .await?;
 
     // Insert new rows
     for row in rows {
@@ -389,16 +406,31 @@ mod tests {
         let date = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
 
         let mut hashes1 = vec![
-            EntityHashEntry { entity_tenant_id: "b".into(), close_hash: "hash_b".into() },
-            EntityHashEntry { entity_tenant_id: "a".into(), close_hash: "hash_a".into() },
+            EntityHashEntry {
+                entity_tenant_id: "b".into(),
+                close_hash: "hash_b".into(),
+            },
+            EntityHashEntry {
+                entity_tenant_id: "a".into(),
+                close_hash: "hash_a".into(),
+            },
         ];
         let mut hashes2 = vec![
-            EntityHashEntry { entity_tenant_id: "a".into(), close_hash: "hash_a".into() },
-            EntityHashEntry { entity_tenant_id: "b".into(), close_hash: "hash_b".into() },
+            EntityHashEntry {
+                entity_tenant_id: "a".into(),
+                close_hash: "hash_a".into(),
+            },
+            EntityHashEntry {
+                entity_tenant_id: "b".into(),
+                close_hash: "hash_b".into(),
+            },
         ];
 
         let h1 = compute_input_hash(gid, date, &mut hashes1);
         let h2 = compute_input_hash(gid, date, &mut hashes2);
-        assert_eq!(h1, h2, "Input hash must be deterministic regardless of entity order");
+        assert_eq!(
+            h1, h2,
+            "Input hash must be deterministic regardless of entity order"
+        );
     }
 }

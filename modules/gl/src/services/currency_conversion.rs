@@ -288,7 +288,10 @@ mod tests {
     fn convert_rejects_currency_mismatch() {
         let rate = eur_usd_rate(1.085);
         let result = convert_amount(100, &rate, "GBP", "JPY");
-        assert!(matches!(result, Err(ConversionError::CurrencyMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(ConversionError::CurrencyMismatch { .. })
+        ));
     }
 
     #[test]
@@ -345,7 +348,10 @@ mod tests {
 
         let total_d: i64 = result.iter().map(|l| l.rpt_debit_minor).sum();
         let total_c: i64 = result.iter().map(|l| l.rpt_credit_minor).sum();
-        assert_eq!(total_d, total_c, "Balance invariant must hold after adjustment");
+        assert_eq!(
+            total_d, total_c,
+            "Balance invariant must hold after adjustment"
+        );
     }
 
     #[test]
@@ -397,7 +403,10 @@ mod tests {
     fn resolve_rate_mismatch() {
         let rate = eur_usd_rate(1.085);
         let result = resolve_rate(&rate, "GBP", "JPY");
-        assert!(matches!(result, Err(ConversionError::CurrencyMismatch { .. })));
+        assert!(matches!(
+            result,
+            Err(ConversionError::CurrencyMismatch { .. })
+        ));
     }
 
     #[test]

@@ -11,8 +11,8 @@
 //! - No gaps or duplicates exist in the audit trail
 
 pub mod actor;
-pub mod policy;
 pub mod diff;
+pub mod outbox_bridge;
+pub mod policy;
 pub mod schema;
 pub mod writer;
-pub mod outbox_bridge;

@@ -300,7 +300,11 @@ mod tests {
         let diff = Diff::new(before, after);
 
         // BTreeMap ensures lexicographic ordering
-        let field_names: Vec<&str> = diff.field_changes.iter().map(|c| c.field.as_str()).collect();
+        let field_names: Vec<&str> = diff
+            .field_changes
+            .iter()
+            .map(|c| c.field.as_str())
+            .collect();
         assert_eq!(field_names, vec!["apple", "middle", "zebra"]);
     }
 

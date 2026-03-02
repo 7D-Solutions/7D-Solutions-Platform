@@ -22,15 +22,17 @@ use super::helpers::tenant::extract_tenant;
 
 fn map_error(e: DepreciationError) -> (StatusCode, Json<serde_json::Value>) {
     let (status, code, msg) = match &e {
-        DepreciationError::AssetNotFound(_) => {
-            (StatusCode::NOT_FOUND, "not_found", e.to_string())
-        }
-        DepreciationError::AssetNotInService(_) => {
-            (StatusCode::UNPROCESSABLE_ENTITY, "asset_not_in_service", e.to_string())
-        }
-        DepreciationError::UnsupportedMethod(_) => {
-            (StatusCode::UNPROCESSABLE_ENTITY, "unsupported_method", e.to_string())
-        }
+        DepreciationError::AssetNotFound(_) => (StatusCode::NOT_FOUND, "not_found", e.to_string()),
+        DepreciationError::AssetNotInService(_) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "asset_not_in_service",
+            e.to_string(),
+        ),
+        DepreciationError::UnsupportedMethod(_) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "unsupported_method",
+            e.to_string(),
+        ),
         DepreciationError::Validation(_) => {
             (StatusCode::BAD_REQUEST, "validation_error", e.to_string())
         }
@@ -40,7 +42,10 @@ fn map_error(e: DepreciationError) -> (StatusCode, Json<serde_json::Value>) {
             "Internal error".to_string(),
         ),
     };
-    (status, Json(serde_json::json!({ "error": code, "message": msg })))
+    (
+        status,
+        Json(serde_json::json!({ "error": code, "message": msg })),
+    )
 }
 
 fn map_internal_error<E: std::fmt::Display>(e: E) -> (StatusCode, Json<serde_json::Value>) {
@@ -113,7 +118,9 @@ pub async fn list_runs(
     let runs = DepreciationService::list_runs(&state.pool, &tenant_id)
         .await
         .map_err(map_error)?;
-    Ok(Json(serde_json::to_value(runs).map_err(map_internal_error)?))
+    Ok(Json(
+        serde_json::to_value(runs).map_err(map_internal_error)?,
+    ))
 }
 
 /// GET /api/fixed-assets/depreciation/runs/:id

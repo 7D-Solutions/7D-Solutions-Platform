@@ -9,7 +9,7 @@ use security::VerifiedClaims;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::domain::disposals::{DisposeAssetRequest, DisposalError, DisposalService};
+use crate::domain::disposals::{DisposalError, DisposalService, DisposeAssetRequest};
 use crate::AppState;
 
 use super::helpers::tenant::extract_tenant;
@@ -28,7 +28,10 @@ fn map_error(e: DisposalError) -> (StatusCode, Json<serde_json::Value>) {
             "Internal error".to_string(),
         ),
     };
-    (status, Json(serde_json::json!({ "error": code, "message": msg })))
+    (
+        status,
+        Json(serde_json::json!({ "error": code, "message": msg })),
+    )
 }
 
 fn map_internal_error<E: std::fmt::Display>(e: E) -> (StatusCode, Json<serde_json::Value>) {
@@ -67,7 +70,9 @@ pub async fn list_disposals(
     let disposals = DisposalService::list(&state.pool, &tenant_id)
         .await
         .map_err(map_error)?;
-    Ok(Json(serde_json::to_value(disposals).map_err(map_internal_error)?))
+    Ok(Json(
+        serde_json::to_value(disposals).map_err(map_internal_error)?,
+    ))
 }
 
 /// GET /api/fixed-assets/disposals/:id — Fetch a single disposal.
@@ -82,5 +87,7 @@ pub async fn get_disposal(
         .await
         .map_err(map_error)?
         .ok_or_else(|| map_error(DisposalError::AssetNotFound(id)))?;
-    Ok(Json(serde_json::to_value(disposal).map_err(map_internal_error)?))
+    Ok(Json(
+        serde_json::to_value(disposal).map_err(map_internal_error)?,
+    ))
 }

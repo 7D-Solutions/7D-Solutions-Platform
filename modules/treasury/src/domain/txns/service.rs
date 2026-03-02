@@ -69,12 +69,11 @@ pub async fn record_processed_event_tx(
 
 /// Check whether an event has already been processed (pre-flight guard).
 pub async fn is_event_processed(pool: &PgPool, event_id: Uuid) -> Result<bool, sqlx::Error> {
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM processed_events WHERE event_id = $1",
-    )
-    .bind(event_id)
-    .fetch_one(pool)
-    .await?;
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM processed_events WHERE event_id = $1")
+            .bind(event_id)
+            .fetch_one(pool)
+            .await?;
     Ok(count > 0)
 }
 
@@ -82,10 +81,7 @@ pub async fn is_event_processed(pool: &PgPool, event_id: Uuid) -> Result<bool, s
 ///
 /// Returns `None` if no bank account has been configured yet.
 /// Consumers should warn and skip ingestion if no account is found.
-pub async fn default_account_id(
-    pool: &PgPool,
-    app_id: &str,
-) -> Result<Option<Uuid>, sqlx::Error> {
+pub async fn default_account_id(pool: &PgPool, app_id: &str) -> Result<Option<Uuid>, sqlx::Error> {
     sqlx::query_scalar(
         r#"
         SELECT id FROM treasury_bank_accounts

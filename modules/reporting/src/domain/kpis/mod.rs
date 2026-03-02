@@ -120,8 +120,7 @@ async fn query_cash_collected_ytd(
     tenant_id: &str,
     as_of: NaiveDate,
 ) -> Result<CurrencyMap, anyhow::Error> {
-    let year_start = NaiveDate::from_ymd_opt(as_of.year(), 1, 1)
-        .unwrap_or(as_of);
+    let year_start = NaiveDate::from_ymd_opt(as_of.year(), 1, 1).unwrap_or(as_of);
 
     let rows: Vec<(String, i64)> = sqlx::query_as(
         r#"
@@ -153,8 +152,7 @@ async fn query_burn_ytd(
     tenant_id: &str,
     as_of: NaiveDate,
 ) -> Result<CurrencyMap, anyhow::Error> {
-    let year_start = NaiveDate::from_ymd_opt(as_of.year(), 1, 1)
-        .unwrap_or(as_of);
+    let year_start = NaiveDate::from_ymd_opt(as_of.year(), 1, 1).unwrap_or(as_of);
 
     // Expense accounts: debit-normal, net = debit - credit > 0 = spend
     let rows: Vec<(String, i64)> = sqlx::query_as(
@@ -225,7 +223,10 @@ mod tests {
 
     async fn test_pool() -> PgPool {
         let pool = PgPool::connect(&test_db_url()).await.expect("connect");
-        sqlx::migrate!("./db/migrations").run(&pool).await.expect("migrate");
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("migrate");
         pool
     }
 
@@ -286,7 +287,10 @@ mod tests {
         .expect("insert AR");
 
         let kpis = compute_kpis(&pool, TENANT, today).await.expect("kpis");
-        assert_eq!(kpis.ar_total_outstanding.get("USD").copied().unwrap_or(0), 40000);
+        assert_eq!(
+            kpis.ar_total_outstanding.get("USD").copied().unwrap_or(0),
+            40000
+        );
 
         cleanup(&pool).await;
     }
@@ -311,7 +315,10 @@ mod tests {
         .expect("insert KPI");
 
         let kpis = compute_kpis(&pool, TENANT, today).await.expect("kpis");
-        assert_eq!(kpis.inventory_value.get("USD").copied().unwrap_or(0), 150000);
+        assert_eq!(
+            kpis.inventory_value.get("USD").copied().unwrap_or(0),
+            150000
+        );
 
         cleanup(&pool).await;
     }
@@ -338,7 +345,10 @@ mod tests {
         .expect("insert AP");
 
         let kpis = compute_kpis(&pool, TENANT, today).await.expect("kpis");
-        assert_eq!(kpis.ap_total_outstanding.get("USD").copied().unwrap_or(0), 20000);
+        assert_eq!(
+            kpis.ap_total_outstanding.get("USD").copied().unwrap_or(0),
+            20000
+        );
 
         cleanup(&pool).await;
     }

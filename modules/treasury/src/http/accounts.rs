@@ -58,7 +58,10 @@ fn account_error_response(e: AccountError) -> (StatusCode, Json<ErrorBody>) {
             // Caller inspects the error directly; this branch should not be hit
             (
                 StatusCode::OK,
-                Json(ErrorBody::new("idempotent_replay", "Request already processed")),
+                Json(ErrorBody::new(
+                    "idempotent_replay",
+                    "Request already processed",
+                )),
             )
         }
         AccountError::Database(e) => {
@@ -121,7 +124,10 @@ pub async fn create_bank_account(
             let account: TreasuryAccount = serde_json::from_value(body).map_err(|_| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorBody::new("replay_error", "Failed to deserialize cached response")),
+                    Json(ErrorBody::new(
+                        "replay_error",
+                        "Failed to deserialize cached response",
+                    )),
                 )
             })?;
             let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::OK);
@@ -156,7 +162,10 @@ pub async fn create_credit_card_account(
             let account: TreasuryAccount = serde_json::from_value(body).map_err(|_| {
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(ErrorBody::new("replay_error", "Failed to deserialize cached response")),
+                    Json(ErrorBody::new(
+                        "replay_error",
+                        "Failed to deserialize cached response",
+                    )),
                 )
             })?;
             let status = StatusCode::from_u16(status_code).unwrap_or(StatusCode::OK);

@@ -92,7 +92,10 @@ impl PoStatus {
             "approved" => Ok(PoStatus::Approved),
             "closed" => Ok(PoStatus::Closed),
             "cancelled" => Ok(PoStatus::Cancelled),
-            other => Err(PoError::Validation(format!("Unknown PO status: '{}'", other))),
+            other => Err(PoError::Validation(format!(
+                "Unknown PO status: '{}'",
+                other
+            ))),
         }
     }
 
@@ -185,7 +188,9 @@ fn default_uom() -> String {
 impl CreatePoLineRequest {
     pub fn validate(&self, idx: usize) -> Result<(), PoError> {
         if self.item_id.is_none() {
-            let desc_empty = self.description.as_deref()
+            let desc_empty = self
+                .description
+                .as_deref()
                 .map(|d| d.trim().is_empty())
                 .unwrap_or(true);
             if desc_empty {
@@ -248,7 +253,9 @@ impl CreatePoRequest {
             ));
         }
         if self.created_by.trim().is_empty() {
-            return Err(PoError::Validation("created_by cannot be empty".to_string()));
+            return Err(PoError::Validation(
+                "created_by cannot be empty".to_string(),
+            ));
         }
         if self.lines.is_empty() {
             return Err(PoError::EmptyLines);
@@ -272,7 +279,9 @@ pub struct UpdatePoLinesRequest {
 impl UpdatePoLinesRequest {
     pub fn validate(&self) -> Result<(), PoError> {
         if self.updated_by.trim().is_empty() {
-            return Err(PoError::Validation("updated_by cannot be empty".to_string()));
+            return Err(PoError::Validation(
+                "updated_by cannot be empty".to_string(),
+            ));
         }
         if self.lines.is_empty() {
             return Err(PoError::EmptyLines);
@@ -294,7 +303,9 @@ pub struct ApprovePoRequest {
 impl ApprovePoRequest {
     pub fn validate(&self) -> Result<(), PoError> {
         if self.approved_by.trim().is_empty() {
-            return Err(PoError::Validation("approved_by cannot be empty".to_string()));
+            return Err(PoError::Validation(
+                "approved_by cannot be empty".to_string(),
+            ));
         }
         Ok(())
     }

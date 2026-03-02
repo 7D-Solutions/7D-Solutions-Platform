@@ -171,40 +171,28 @@ mod tests {
     fn create_empty_app_id() {
         let mut r = valid_create();
         r.app_id = "  ".into();
-        assert!(matches!(
-            r.validate(),
-            Err(AllocationError::Validation(_))
-        ));
+        assert!(matches!(r.validate(), Err(AllocationError::Validation(_))));
     }
 
     #[test]
     fn create_zero_minutes() {
         let mut r = valid_create();
         r.allocated_minutes_per_week = 0;
-        assert!(matches!(
-            r.validate(),
-            Err(AllocationError::Validation(_))
-        ));
+        assert!(matches!(r.validate(), Err(AllocationError::Validation(_))));
     }
 
     #[test]
     fn create_negative_minutes() {
         let mut r = valid_create();
         r.allocated_minutes_per_week = -10;
-        assert!(matches!(
-            r.validate(),
-            Err(AllocationError::Validation(_))
-        ));
+        assert!(matches!(r.validate(), Err(AllocationError::Validation(_))));
     }
 
     #[test]
     fn create_end_before_start() {
         let mut r = valid_create();
         r.effective_to = Some(NaiveDate::from_ymd_opt(2025, 12, 31).unwrap());
-        assert!(matches!(
-            r.validate(),
-            Err(AllocationError::Validation(_))
-        ));
+        assert!(matches!(r.validate(), Err(AllocationError::Validation(_))));
     }
 
     #[test]
@@ -231,9 +219,6 @@ mod tests {
             allocated_minutes_per_week: Some(0),
             effective_to: None,
         };
-        assert!(matches!(
-            r.validate(),
-            Err(AllocationError::Validation(_))
-        ));
+        assert!(matches!(r.validate(), Err(AllocationError::Validation(_))));
     }
 }

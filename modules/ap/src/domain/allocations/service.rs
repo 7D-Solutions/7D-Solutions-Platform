@@ -414,8 +414,7 @@ mod tests {
         cleanup_allocations(&db).await;
         let bill_id = make_approved_bill(&db).await;
 
-        let result =
-            apply_allocation(&db, "wrong-tenant", bill_id, &alloc_req(10000)).await;
+        let result = apply_allocation(&db, "wrong-tenant", bill_id, &alloc_req(10000)).await;
 
         assert!(
             matches!(result, Err(AllocationError::BillNotFound(_))),

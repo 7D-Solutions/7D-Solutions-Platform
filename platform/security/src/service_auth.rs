@@ -135,11 +135,11 @@ pub fn verify_service_token(token: &str) -> Result<ServiceAuthClaims, ServiceAut
 
 /// Sign claims using HMAC-SHA256
 fn sign_claims(claims_b64: &str) -> Result<Vec<u8>, ServiceAuthError> {
-    let secret = env::var("SERVICE_AUTH_SECRET")
-        .map_err(|_| ServiceAuthError::MissingSigningKey)?;
+    let secret =
+        env::var("SERVICE_AUTH_SECRET").map_err(|_| ServiceAuthError::MissingSigningKey)?;
 
-    let mut mac = HmacSha256::new_from_slice(secret.as_bytes())
-        .expect("HMAC can take keys of any size");
+    let mut mac =
+        HmacSha256::new_from_slice(secret.as_bytes()).expect("HMAC can take keys of any size");
     mac.update(claims_b64.as_bytes());
 
     Ok(mac.finalize().into_bytes().to_vec())
@@ -207,7 +207,10 @@ mod tests {
         let tampered_token = parts.join(".");
 
         let result = verify_service_token(&tampered_token);
-        assert!(matches!(result, Err(ServiceAuthError::Base64Error(_)) | Err(ServiceAuthError::InvalidSignature)));
+        assert!(matches!(
+            result,
+            Err(ServiceAuthError::Base64Error(_)) | Err(ServiceAuthError::InvalidSignature)
+        ));
     }
 
     #[test]

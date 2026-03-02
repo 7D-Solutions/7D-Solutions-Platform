@@ -12,7 +12,7 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::domain::statements::{TrialBalanceRow, StatementTotals};
+use crate::domain::statements::{StatementTotals, TrialBalanceRow};
 use crate::repos::statement_repo::{self, StatementError};
 
 /// Trial balance response with account balances and totals
@@ -74,7 +74,7 @@ pub async fn get_trial_balance(
     pool: &PgPool,
     tenant_id: &str,
     period_id: Uuid,
-    currency: &str,  // Changed from Option<&str> - currency is now required
+    currency: &str, // Changed from Option<&str> - currency is now required
 ) -> Result<TrialBalanceResponse, TrialBalanceError> {
     // Validate tenant_id
     if tenant_id.is_empty() {
@@ -85,8 +85,8 @@ pub async fn get_trial_balance(
 
     // Query trial balance from statement repository
     // Currency validation happens in statement_repo (ISO 4217 format check)
-    let rows = statement_repo::get_trial_balance_rows(pool, tenant_id, period_id, Some(currency))
-        .await?;
+    let rows =
+        statement_repo::get_trial_balance_rows(pool, tenant_id, period_id, Some(currency)).await?;
 
     // Calculate totals
     let totals = calculate_totals(&rows);

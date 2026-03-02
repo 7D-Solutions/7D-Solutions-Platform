@@ -18,9 +18,7 @@ use crate::integrations::gl::client::GlClient;
 /// Each suggestion reverses an intercompany balance: debits the
 /// credit-side account and credits the debit-side account to
 /// eliminate the intercompany balances from the consolidated view.
-pub fn suggest_eliminations(
-    match_result: &IntercompanyMatchResult,
-) -> Vec<EliminationSuggestion> {
+pub fn suggest_eliminations(match_result: &IntercompanyMatchResult) -> Vec<EliminationSuggestion> {
     let mut suggestions = Vec::new();
 
     for m in &match_result.matches {
@@ -105,8 +103,7 @@ pub async fn post_eliminations(
         });
     }
 
-    let idempotency_key =
-        compute_idempotency_key(group_id, period_id, as_of, suggestions);
+    let idempotency_key = compute_idempotency_key(group_id, period_id, as_of, suggestions);
 
     // Check existing posting (exactly-once guard)
     if let Some(result) =
@@ -120,10 +117,7 @@ pub async fn post_eliminations(
     let total_amount: i64 = suggestions.iter().map(|s| s.amount_minor).sum();
 
     for (idx, suggestion) in suggestions.iter().enumerate() {
-        let source_doc_id = format!(
-            "elim-{}-{}-{}",
-            group_id, period_id, idx
-        );
+        let source_doc_id = format!("elim-{}-{}-{}", group_id, period_id, idx);
 
         let entry_id = gl_client
             .post_elimination_journal(
@@ -188,8 +182,7 @@ async fn check_existing_posting(
 
     match row {
         Some((posted_at, ids_json, as_of_date)) => {
-            let journal_entry_ids: Vec<Uuid> =
-                serde_json::from_value(ids_json).unwrap_or_default();
+            let journal_entry_ids: Vec<Uuid> = serde_json::from_value(ids_json).unwrap_or_default();
             Ok(Some(EliminationPostResult {
                 group_id,
                 period_id,
@@ -216,9 +209,8 @@ async fn record_posting(
     total_amount_minor: i64,
     posted_at: chrono::DateTime<Utc>,
 ) -> Result<(), EngineError> {
-    let ids_json = serde_json::to_value(journal_entry_ids).map_err(|e| {
-        EngineError::Database(sqlx::Error::Protocol(e.to_string()))
-    })?;
+    let ids_json = serde_json::to_value(journal_entry_ids)
+        .map_err(|e| EngineError::Database(sqlx::Error::Protocol(e.to_string())))?;
 
     sqlx::query(
         "INSERT INTO csl_elimination_postings

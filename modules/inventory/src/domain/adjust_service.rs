@@ -26,12 +26,10 @@ use uuid::Uuid;
 
 use crate::{
     domain::{
-        guards::{GuardError, guard_item_active},
+        guards::{guard_item_active, GuardError},
         reorder::evaluator,
     },
-    events::{
-        AdjustedPayload, EVENT_TYPE_ADJUSTED, build_adjusted_envelope,
-    },
+    events::{build_adjusted_envelope, AdjustedPayload, EVENT_TYPE_ADJUSTED},
 };
 
 // ============================================================================
@@ -88,9 +86,7 @@ pub enum AdjustError {
     #[error("Guard failed: {0}")]
     Guard(#[from] GuardError),
 
-    #[error(
-        "Insufficient on-hand stock: have {available}, adjustment would reduce to {would_be}"
-    )]
+    #[error("Insufficient on-hand stock: have {available}, adjustment would reduce to {would_be}")]
     NegativeOnHand { available: i64, would_be: i64 },
 
     #[error("Idempotency key conflict: same key used with a different request body")]
@@ -144,9 +140,7 @@ pub async fn process_adjustment(
     let request_hash = serde_json::to_string(req)?;
 
     // --- Idempotency check (fast path for replays) ---
-    if let Some(record) =
-        find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
-    {
+    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
         if record.request_hash != request_hash {
             return Err(AdjustError::ConflictingIdempotencyKey);
         }
@@ -235,10 +229,26 @@ pub async fn process_adjustment(
     .await?;
 
     // Step 3: Update item_on_hand projection
-    upsert_on_hand(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id, req.location_id, req.quantity_delta, ledger_entry_id).await?;
+    upsert_on_hand(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        req.location_id,
+        req.quantity_delta,
+        ledger_entry_id,
+    )
+    .await?;
 
     // Step 4: Update item_on_hand_by_status available bucket
-    upsert_available_bucket(&mut tx, &req.tenant_id, req.item_id, req.warehouse_id, req.quantity_delta).await?;
+    upsert_available_bucket(
+        &mut tx,
+        &req.tenant_id,
+        req.item_id,
+        req.warehouse_id,
+        req.quantity_delta,
+    )
+    .await?;
 
     // Step 5: Build outbox event
     let payload = AdjustedPayload {

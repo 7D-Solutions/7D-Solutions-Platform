@@ -8,9 +8,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::events::{
-    create_inventory_envelope, MUTATION_CLASS_DATA_MUTATION,
-};
+use crate::events::{create_inventory_envelope, MUTATION_CLASS_DATA_MUTATION};
 use event_bus::EventEnvelope;
 
 /// Canonical event type string for the low-stock signal.
@@ -67,7 +65,10 @@ mod tests {
 
     #[test]
     fn event_type_constant_matches_spec() {
-        assert_eq!(EVENT_TYPE_LOW_STOCK_TRIGGERED, "inventory.low_stock_triggered");
+        assert_eq!(
+            EVENT_TYPE_LOW_STOCK_TRIGGERED,
+            "inventory.low_stock_triggered"
+        );
     }
 
     #[test]

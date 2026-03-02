@@ -411,12 +411,20 @@ mod tests {
         assert_eq!(result.items.len(), 2, "one item per vendor");
 
         // vendor1 has 2 bills → amount = 2 × 50000 = 100000
-        let v1_item = result.items.iter().find(|i| i.vendor_id == vendor1).unwrap();
+        let v1_item = result
+            .items
+            .iter()
+            .find(|i| i.vendor_id == vendor1)
+            .unwrap();
         assert_eq!(v1_item.bill_ids.len(), 2);
         assert_eq!(v1_item.amount_minor, 100000);
 
         // vendor2 has 1 bill → amount = 50000
-        let v2_item = result.items.iter().find(|i| i.vendor_id == vendor2).unwrap();
+        let v2_item = result
+            .items
+            .iter()
+            .find(|i| i.vendor_id == vendor2)
+            .unwrap();
         assert_eq!(v2_item.bill_ids.len(), 1);
         assert_eq!(v2_item.amount_minor, 50000);
 
@@ -448,13 +456,14 @@ mod tests {
         assert_eq!(first.items.len(), second.items.len());
 
         // Only one run record in DB
-        let (count,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM payment_runs WHERE run_id = $1 AND tenant_id = $2")
-                .bind(run_id)
-                .bind(TEST_TENANT)
-                .fetch_one(&db)
-                .await
-                .expect("count runs");
+        let (count,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM payment_runs WHERE run_id = $1 AND tenant_id = $2",
+        )
+        .bind(run_id)
+        .bind(TEST_TENANT)
+        .fetch_one(&db)
+        .await
+        .expect("count runs");
         assert_eq!(count, 1, "idempotent: only one payment_run row");
 
         cleanup_runs(&db).await;
@@ -552,7 +561,10 @@ mod tests {
             .expect("run created");
 
         // Open balance = 50000 - 20000 = 30000
-        assert_eq!(result.run.total_minor, 30000, "run uses open balance not full total");
+        assert_eq!(
+            result.run.total_minor, 30000,
+            "run uses open balance not full total"
+        );
         assert_eq!(result.items[0].amount_minor, 30000);
 
         cleanup_runs(&db).await;

@@ -9,8 +9,9 @@
 
 use axum::http::StatusCode;
 use lazy_static::lazy_static;
-use prometheus::{Encoder, HistogramOpts, HistogramVec, IntCounterVec, IntGaugeVec, Opts,
-                 Registry, TextEncoder};
+use prometheus::{
+    Encoder, HistogramOpts, HistogramVec, IntCounterVec, IntGaugeVec, Opts, Registry, TextEncoder,
+};
 
 lazy_static! {
     /// Shared Prometheus registry for notifications SLO metrics.
@@ -100,12 +101,16 @@ mod tests {
         let families = METRICS_REGISTRY.gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("http_request_duration_seconds")),
-            "request latency histogram missing: {:?}", names
+            names
+                .iter()
+                .any(|n| n.contains("http_request_duration_seconds")),
+            "request latency histogram missing: {:?}",
+            names
         );
         assert!(
             names.iter().any(|n| n.contains("http_requests_total")),
-            "request count counter missing: {:?}", names
+            "request count counter missing: {:?}",
+            names
         );
     }
 
@@ -115,8 +120,11 @@ mod tests {
         let families = METRICS_REGISTRY.gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("event_consumer_lag_messages")),
-            "consumer lag metric missing: {:?}", names
+            names
+                .iter()
+                .any(|n| n.contains("event_consumer_lag_messages")),
+            "consumer lag metric missing: {:?}",
+            names
         );
     }
 

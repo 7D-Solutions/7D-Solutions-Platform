@@ -48,8 +48,8 @@ pub use contract_schedule::{
     ScheduleCreatedPayload,
 };
 pub use recognition_amendment::{
-    build_contract_modified_envelope, build_recognition_posted_envelope,
-    ContractModifiedPayload, RecognitionPostedPayload,
+    build_contract_modified_envelope, build_recognition_posted_envelope, ContractModifiedPayload,
+    RecognitionPostedPayload,
 };
 
 // ============================================================================

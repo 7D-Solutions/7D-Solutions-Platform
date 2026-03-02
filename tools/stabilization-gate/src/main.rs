@@ -25,8 +25,8 @@ mod report;
 mod run_all;
 
 use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
 use chrono::Utc;
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use std::process;
 use tracing::{error, info, warn};
@@ -205,12 +205,24 @@ async fn run() -> Result<()> {
         } => {
             let dry = *dry_run;
             let mut cfg2 = cfg.clone();
-            if let Some(v) = tenant_count { cfg2.tenant_count = *v; }
-            if let Some(v) = events_per_tenant { cfg2.events_per_tenant = *v; }
-            if let Some(v) = recon_rows { cfg2.recon_rows = *v; }
-            if let Some(v) = dunning_rows { cfg2.dunning_rows = *v; }
-            if let Some(v) = concurrency { cfg2.concurrency = *v; }
-            if let Some(v) = duration_secs { cfg2.duration_secs = *v; }
+            if let Some(v) = tenant_count {
+                cfg2.tenant_count = *v;
+            }
+            if let Some(v) = events_per_tenant {
+                cfg2.events_per_tenant = *v;
+            }
+            if let Some(v) = recon_rows {
+                cfg2.recon_rows = *v;
+            }
+            if let Some(v) = dunning_rows {
+                cfg2.dunning_rows = *v;
+            }
+            if let Some(v) = concurrency {
+                cfg2.concurrency = *v;
+            }
+            if let Some(v) = duration_secs {
+                cfg2.duration_secs = *v;
+            }
             let s = run_all::run(&cfg2, dry).await?;
             (s, dry, cfg2)
         }
@@ -266,9 +278,15 @@ async fn run() -> Result<()> {
         } => {
             let dry = *dry_run;
             let mut cfg2 = cfg.clone();
-            if let Some(v) = tenant_count { cfg2.tenant_count = *v; }
-            if let Some(v) = recon_rows { cfg2.recon_rows = *v; }
-            if let Some(v) = concurrency { cfg2.concurrency = *v; }
+            if let Some(v) = tenant_count {
+                cfg2.tenant_count = *v;
+            }
+            if let Some(v) = recon_rows {
+                cfg2.recon_rows = *v;
+            }
+            if let Some(v) = concurrency {
+                cfg2.concurrency = *v;
+            }
             let s = vec![recon::run(&cfg2, dry).await?];
             (s, dry, cfg2)
         }
@@ -280,9 +298,15 @@ async fn run() -> Result<()> {
         } => {
             let dry = *dry_run;
             let mut cfg2 = cfg.clone();
-            if let Some(v) = tenant_count { cfg2.tenant_count = *v; }
-            if let Some(v) = dunning_rows { cfg2.dunning_rows = *v; }
-            if let Some(v) = concurrency { cfg2.concurrency = *v; }
+            if let Some(v) = tenant_count {
+                cfg2.tenant_count = *v;
+            }
+            if let Some(v) = dunning_rows {
+                cfg2.dunning_rows = *v;
+            }
+            if let Some(v) = concurrency {
+                cfg2.concurrency = *v;
+            }
             let s = vec![dunning::run(&cfg2, dry).await?];
             (s, dry, cfg2)
         }
@@ -328,7 +352,10 @@ async fn run() -> Result<()> {
     if passed {
         info!("Gate result: PASS (run_id={})", run_id);
     } else {
-        warn!("Gate result: FAIL (run_id={}) — see report for threshold violations", run_id);
+        warn!(
+            "Gate result: FAIL (run_id={}) — see report for threshold violations",
+            run_id
+        );
         process::exit(2);
     }
 
@@ -349,7 +376,10 @@ async fn verify_connectivity(cfg: &Config) -> Result<()> {
                 extract_host(&cfg.database_url)
             )
         })?;
-    sqlx::query("SELECT 1").execute(&pool).await.context("Postgres ping failed")?;
+    sqlx::query("SELECT 1")
+        .execute(&pool)
+        .await
+        .context("Postgres ping failed")?;
     info!("Postgres OK");
 
     info!("Verifying NATS connectivity…");

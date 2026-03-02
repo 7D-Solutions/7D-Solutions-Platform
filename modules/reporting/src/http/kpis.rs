@@ -18,8 +18,8 @@ use std::sync::Arc;
 
 use crate::domain::kpis::{compute_kpis, KpiSnapshot};
 
-use super::statements::extract_tenant;
 use super::admin_types::ErrorBody;
+use super::statements::extract_tenant;
 
 // ── Query params ─────────────────────────────────────────────────────────────
 
@@ -36,10 +36,9 @@ pub async fn get_kpis(
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<KpiParams>,
 ) -> Result<Json<KpiSnapshot>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
-        (status, Json(ErrorBody::new("unauthorized", &msg)))
-    })?;
-    
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|(status, msg)| (status, Json(ErrorBody::new("unauthorized", &msg))))?;
+
     compute_kpis(&state.pool, &tenant_id, params.as_of)
         .await
         .map(Json)
@@ -50,6 +49,9 @@ pub async fn get_kpis(
                 error = %e,
                 "KPI computation failed"
             );
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::new("internal_error", e.to_string())))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorBody::new("internal_error", e.to_string())),
+            )
         })
 }

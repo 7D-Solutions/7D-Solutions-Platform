@@ -2,7 +2,9 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::events::enqueue_event;
-use crate::models::{PaymentCollectionRequestedPayload, PaymentFailedPayload, PaymentSucceededPayload};
+use crate::models::{
+    PaymentCollectionRequestedPayload, PaymentFailedPayload, PaymentSucceededPayload,
+};
 use crate::processor::MockPaymentProcessor;
 
 /// Handle ar.payment.collection.requested event

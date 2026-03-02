@@ -214,9 +214,16 @@ pub async fn update_external_ref(
 
     let current = existing.ok_or(ExternalRefError::NotFound(ref_id))?;
 
-    let new_label = if req.label.is_some() { req.label.clone() } else { current.label.clone() };
-    let new_meta =
-        if req.metadata.is_some() { req.metadata.clone() } else { current.metadata.clone() };
+    let new_label = if req.label.is_some() {
+        req.label.clone()
+    } else {
+        current.label.clone()
+    };
+    let new_meta = if req.metadata.is_some() {
+        req.metadata.clone()
+    } else {
+        current.metadata.clone()
+    };
 
     // Mutation
     let updated: ExternalRef = sqlx::query_as(
@@ -369,23 +376,24 @@ mod tests {
     }
 
     async fn cleanup(pool: &PgPool) {
-        sqlx::query(
-            "DELETE FROM integrations_outbox WHERE app_id = $1",
-        )
-        .bind(TEST_APP)
-        .execute(pool)
-        .await
-        .ok();
-        sqlx::query(
-            "DELETE FROM integrations_external_refs WHERE app_id = $1",
-        )
-        .bind(TEST_APP)
-        .execute(pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM integrations_outbox WHERE app_id = $1")
+            .bind(TEST_APP)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM integrations_external_refs WHERE app_id = $1")
+            .bind(TEST_APP)
+            .execute(pool)
+            .await
+            .ok();
     }
 
-    fn sample_req(entity_type: &str, entity_id: &str, system: &str, ext_id: &str) -> CreateExternalRefRequest {
+    fn sample_req(
+        entity_type: &str,
+        entity_id: &str,
+        system: &str,
+        ext_id: &str,
+    ) -> CreateExternalRefRequest {
         CreateExternalRefRequest {
             entity_type: entity_type.to_string(),
             entity_id: entity_id.to_string(),
@@ -456,9 +464,15 @@ mod tests {
         let r2 = sample_req("customer", "cust-1", "quickbooks", "QB-222");
         let r3 = sample_req("customer", "cust-2", "stripe", "cus_999");
 
-        create_external_ref(&pool, TEST_APP, &r1, "c1".to_string()).await.expect("create r1");
-        create_external_ref(&pool, TEST_APP, &r2, "c2".to_string()).await.expect("create r2");
-        create_external_ref(&pool, TEST_APP, &r3, "c3".to_string()).await.expect("create r3");
+        create_external_ref(&pool, TEST_APP, &r1, "c1".to_string())
+            .await
+            .expect("create r1");
+        create_external_ref(&pool, TEST_APP, &r2, "c2".to_string())
+            .await
+            .expect("create r2");
+        create_external_ref(&pool, TEST_APP, &r3, "c3".to_string())
+            .await
+            .expect("create r3");
 
         let refs = list_by_entity(&pool, TEST_APP, "customer", "cust-1")
             .await
@@ -512,9 +526,10 @@ mod tests {
             label: Some("Updated Label".to_string()),
             metadata: None,
         };
-        let updated = update_external_ref(&pool, TEST_APP, created.id, &upd_req, "corr-2".to_string())
-            .await
-            .expect("update failed");
+        let updated =
+            update_external_ref(&pool, TEST_APP, created.id, &upd_req, "corr-2".to_string())
+                .await
+                .expect("update failed");
 
         assert_eq!(updated.label.as_deref(), Some("Updated Label"));
         assert_eq!(updated.external_id, "XERO-INV-1");
@@ -588,8 +603,12 @@ mod tests {
         assert!(not_found.is_none());
 
         // Update from wrong tenant should fail
-        let upd_req = UpdateExternalRefRequest { label: Some("Hacked".to_string()), metadata: None };
-        let err = update_external_ref(&pool, "other-tenant", created.id, &upd_req, "c".to_string()).await;
+        let upd_req = UpdateExternalRefRequest {
+            label: Some("Hacked".to_string()),
+            metadata: None,
+        };
+        let err =
+            update_external_ref(&pool, "other-tenant", created.id, &upd_req, "c".to_string()).await;
         assert!(err.is_err());
 
         cleanup(&pool).await;
@@ -606,11 +625,14 @@ mod tests {
             .await
             .expect("create failed");
 
-        let err = delete_external_ref(&pool, "other-tenant", created.id, "corr-2".to_string()).await;
+        let err =
+            delete_external_ref(&pool, "other-tenant", created.id, "corr-2".to_string()).await;
         assert!(err.is_err());
 
         // Still exists for correct tenant
-        let still_there = get_external_ref(&pool, TEST_APP, created.id).await.expect("get failed");
+        let still_there = get_external_ref(&pool, TEST_APP, created.id)
+            .await
+            .expect("get failed");
         assert!(still_there.is_some());
 
         cleanup(&pool).await;

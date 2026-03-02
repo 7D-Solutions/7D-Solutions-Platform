@@ -164,13 +164,12 @@ pub mod test_fixtures {
 
     pub async fn insert_match_record(db: &PgPool, bill_id: Uuid, within_tol: bool) {
         // Fetch the first bill line for this bill
-        let (line_id,): (Uuid,) = sqlx::query_as(
-            "SELECT line_id FROM bill_lines WHERE bill_id = $1 LIMIT 1",
-        )
-        .bind(bill_id)
-        .fetch_one(db)
-        .await
-        .expect("fetch bill_line for match");
+        let (line_id,): (Uuid,) =
+            sqlx::query_as("SELECT line_id FROM bill_lines WHERE bill_id = $1 LIMIT 1")
+                .bind(bill_id)
+                .fetch_one(db)
+                .await
+                .expect("fetch bill_line for match");
 
         sqlx::query(
             "INSERT INTO three_way_match (bill_id, bill_line_id, match_type, matched_quantity, \

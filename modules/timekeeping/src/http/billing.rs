@@ -1,11 +1,6 @@
 //! Billing rates + billing runs HTTP handlers.
 
-use axum::{
-    extract::State,
-    http::StatusCode,
-    response::IntoResponse,
-    Extension, Json,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
 use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;

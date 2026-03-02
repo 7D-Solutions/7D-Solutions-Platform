@@ -126,8 +126,7 @@ pub async fn create_billing_run(
     let line_items: Vec<BillingLineItem> = entries
         .iter()
         .map(|e| {
-            let amount_cents =
-                (e.minutes as i64 * e.rate_cents_per_hour as i64 + 59) / 60;
+            let amount_cents = (e.minutes as i64 * e.rate_cents_per_hour as i64 + 59) / 60;
             BillingLineItem {
                 entry_id: e.entry_id,
                 minutes: e.minutes,
@@ -193,13 +192,11 @@ pub async fn set_invoice_id(
     run_id: Uuid,
     ar_invoice_id: i32,
 ) -> Result<(), BillingError> {
-    sqlx::query(
-        "UPDATE tk_billing_runs SET ar_invoice_id = $1 WHERE id = $2",
-    )
-    .bind(ar_invoice_id)
-    .bind(run_id)
-    .execute(pool)
-    .await?;
+    sqlx::query("UPDATE tk_billing_runs SET ar_invoice_id = $1 WHERE id = $2")
+        .bind(ar_invoice_id)
+        .bind(run_id)
+        .execute(pool)
+        .await?;
     Ok(())
 }
 

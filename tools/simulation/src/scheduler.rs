@@ -25,8 +25,11 @@ impl ConcurrentScheduler {
     ///
     /// **ChatGPT Requirement:** 8-32 workers
     pub fn new(worker_count: usize) -> Self {
-        assert!((8..=32).contains(&worker_count),
-            "Worker count must be 8-32, got {}", worker_count);
+        assert!(
+            (8..=32).contains(&worker_count),
+            "Worker count must be 8-32, got {}",
+            worker_count
+        );
         Self { worker_count }
     }
 
@@ -42,10 +45,7 @@ impl ConcurrentScheduler {
     /// - `tasks`: Vec of async tasks to execute
     ///
     /// **Returns:** Vec of results (in arbitrary order)
-    pub async fn execute_concurrent<F, Fut, T>(
-        &self,
-        tasks: Vec<F>,
-    ) -> Vec<Result<T, String>>
+    pub async fn execute_concurrent<F, Fut, T>(&self, tasks: Vec<F>) -> Vec<Result<T, String>>
     where
         F: FnOnce() -> Fut + Send + 'static,
         Fut: std::future::Future<Output = Result<T, String>> + Send,
@@ -178,14 +178,18 @@ mod tests {
 
         // All tasks should start within a very short window (barrier synchronization)
         let first_time = times[0].1;
-        let max_diff = times.iter()
+        let max_diff = times
+            .iter()
             .map(|(_, t)| t.duration_since(first_time))
             .max()
             .unwrap();
 
         // Should be < 100ms (barrier ensures simultaneous start)
-        assert!(max_diff.as_millis() < 100,
-            "Tasks should start simultaneously, max diff: {:?}", max_diff);
+        assert!(
+            max_diff.as_millis() < 100,
+            "Tasks should start simultaneously, max diff: {:?}",
+            max_diff
+        );
     }
 
     #[test]

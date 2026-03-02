@@ -220,10 +220,7 @@ impl DisposalService {
     }
 
     /// List all disposals for a tenant.
-    pub async fn list(
-        pool: &PgPool,
-        tenant_id: &str,
-    ) -> Result<Vec<Disposal>, DisposalError> {
+    pub async fn list(pool: &PgPool, tenant_id: &str) -> Result<Vec<Disposal>, DisposalError> {
         let disposals = sqlx::query_as::<_, Disposal>(&format!(
             "SELECT {} FROM fa_disposals WHERE tenant_id = $1 ORDER BY disposal_date DESC",
             DISPOSAL_COLUMNS
@@ -365,12 +362,11 @@ mod tests {
         assert_eq!(d.proceeds_minor, 80000);
         assert_eq!(d.gain_loss_minor, 20000);
 
-        let (status,): (String,) =
-            sqlx::query_as("SELECT status FROM fa_assets WHERE id = $1")
-                .bind(asset_id)
-                .fetch_one(&pool)
-                .await
-                .unwrap();
+        let (status,): (String,) = sqlx::query_as("SELECT status FROM fa_assets WHERE id = $1")
+            .bind(asset_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(status, "disposed");
 
         cleanup(&pool).await;
@@ -451,12 +447,11 @@ mod tests {
         assert_eq!(d.disposal_type, "impairment");
         assert_eq!(d.gain_loss_minor, -60000);
 
-        let (status,): (String,) =
-            sqlx::query_as("SELECT status FROM fa_assets WHERE id = $1")
-                .bind(asset_id)
-                .fetch_one(&pool)
-                .await
-                .unwrap();
+        let (status,): (String,) = sqlx::query_as("SELECT status FROM fa_assets WHERE id = $1")
+            .bind(asset_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
         assert_eq!(status, "impaired");
 
         cleanup(&pool).await;

@@ -55,7 +55,10 @@ fn ext_ref_error_response(e: ExternalRefError) -> (StatusCode, Json<ErrorBody>) 
     match e {
         ExternalRefError::NotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("not_found", &format!("External ref {} not found", id))),
+            Json(ErrorBody::new(
+                "not_found",
+                &format!("External ref {} not found", id),
+            )),
         ),
         ExternalRefError::Conflict(msg) => {
             (StatusCode::CONFLICT, Json(ErrorBody::new("conflict", &msg)))
@@ -82,7 +85,10 @@ pub struct ErrorBody {
 
 impl ErrorBody {
     pub fn new(error: &str, message: &str) -> Self {
-        Self { error: error.to_string(), message: message.to_string() }
+        Self {
+            error: error.to_string(),
+            message: message.to_string(),
+        }
     }
 }
 
@@ -154,7 +160,10 @@ pub async fn get_by_external(
                 StatusCode::NOT_FOUND,
                 Json(ErrorBody::new(
                     "not_found",
-                    &format!("No ref found for system={} external_id={}", q.system, q.external_id),
+                    &format!(
+                        "No ref found for system={} external_id={}",
+                        q.system, q.external_id
+                    ),
                 )),
             )
         })?;
@@ -176,7 +185,10 @@ pub async fn get_external_ref(
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
-                Json(ErrorBody::new("not_found", &format!("External ref {} not found", ref_id))),
+                Json(ErrorBody::new(
+                    "not_found",
+                    &format!("External ref {} not found", ref_id),
+                )),
             )
         })?;
 
@@ -194,10 +206,9 @@ pub async fn update_external_ref(
     let app_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
-    let updated =
-        service::update_external_ref(&state.pool, &app_id, ref_id, &req, correlation_id)
-            .await
-            .map_err(ext_ref_error_response)?;
+    let updated = service::update_external_ref(&state.pool, &app_id, ref_id, &req, correlation_id)
+        .await
+        .map_err(ext_ref_error_response)?;
 
     Ok(Json(updated))
 }

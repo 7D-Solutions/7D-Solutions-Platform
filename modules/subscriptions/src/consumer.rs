@@ -89,10 +89,7 @@ pub async fn handle_invoice_suspended(
 }
 
 /// Check if an event has already been processed (idempotency check)
-pub async fn is_event_processed(
-    pool: &PgPool,
-    event_id: &str,
-) -> Result<bool, sqlx::Error> {
+pub async fn is_event_processed(pool: &PgPool, event_id: &str) -> Result<bool, sqlx::Error> {
     let result = sqlx::query!(
         r#"
         SELECT event_id

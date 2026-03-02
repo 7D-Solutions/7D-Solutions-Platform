@@ -165,7 +165,10 @@ mod tests {
 
     async fn test_pool() -> PgPool {
         let pool = PgPool::connect(&test_db_url()).await.expect("connect");
-        sqlx::migrate!("./db/migrations").run(&pool).await.expect("migrate");
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("migrate");
         pool
     }
 
@@ -265,7 +268,8 @@ mod tests {
         let handler = Arc::new(ArAgingHandler);
 
         // First event
-        let consumer1 = IngestConsumer::new("test-ar-aging-replace-1", pool.clone(), handler.clone());
+        let consumer1 =
+            IngestConsumer::new("test-ar-aging-replace-1", pool.clone(), handler.clone());
         let msg1 = BusMessage::new(
             SUBJECT_AR_AGING_UPDATED.to_string(),
             make_aging_envelope("evt-aging-r1", 100000, 50000, 0, 0, 0, "USD"),

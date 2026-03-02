@@ -13,8 +13,8 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
-use serde_json::json;
 use security::VerifiedClaims;
+use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 

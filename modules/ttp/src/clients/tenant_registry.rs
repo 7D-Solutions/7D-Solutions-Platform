@@ -69,10 +69,7 @@ impl TenantRegistryClient {
             }
             404 => Err(TenantRegistryError::TenantNotFound(tenant_id)),
             409 => Err(TenantRegistryError::NoAppId(tenant_id)),
-            status => Err(TenantRegistryError::UnexpectedStatus {
-                tenant_id,
-                status,
-            }),
+            status => Err(TenantRegistryError::UnexpectedStatus { tenant_id, status }),
         }
     }
 }

@@ -102,7 +102,12 @@ pub async fn compute_cashflow(
     let mut financing_lines: Vec<CashflowLine> = Vec::new();
 
     for (activity_type, line_code, line_label, currency, amount_minor) in rows {
-        let line = CashflowLine { line_code, line_label, currency, amount_minor };
+        let line = CashflowLine {
+            line_code,
+            line_label,
+            currency,
+            amount_minor,
+        };
         match activity_type.as_str() {
             "operating" => operating_lines.push(line),
             "investing" => investing_lines.push(line),
@@ -141,7 +146,12 @@ pub async fn compute_cashflow(
         },
     ];
 
-    Ok(CashflowStatement { from, to, sections, net_cash_change_by_currency: net })
+    Ok(CashflowStatement {
+        from,
+        to,
+        sections,
+        net_cash_change_by_currency: net,
+    })
 }
 
 // ── GL-derived cache builder ─────────────────────────────────────────────────
@@ -195,9 +205,13 @@ async fn ensure_gl_lines_cached(
 
     let mut net_income: HashMap<String, i64> = HashMap::new();
     for (account_code, currency, debit_minor, credit_minor) in &rows {
-        let prefix = account_code.chars().next().and_then(|c| c.to_digit(10)).unwrap_or(0);
+        let prefix = account_code
+            .chars()
+            .next()
+            .and_then(|c| c.to_digit(10))
+            .unwrap_or(0);
         let amount = match prefix {
-            4 => credit_minor - debit_minor, // Revenue (credit-normal)
+            4 => credit_minor - debit_minor,    // Revenue (credit-normal)
             5 => -(debit_minor - credit_minor), // COGS (subtract from income)
             6 => -(debit_minor - credit_minor), // Expenses (subtract from income)
             _ => continue,
@@ -259,7 +273,10 @@ mod tests {
 
     async fn test_pool() -> PgPool {
         let pool = PgPool::connect(&test_db_url()).await.expect("connect");
-        sqlx::migrate!("./db/migrations").run(&pool).await.expect("migrate");
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("migrate");
         pool
     }
 
@@ -352,26 +369,48 @@ mod tests {
 
         // Simulate ingested payment collections (daily)
         insert_cashflow_line(
-            &pool, "2026-02-10", "2026-02-10",
-            "operating", "cash_collections", "Customer collections", "USD", 150000,
-        ).await;
+            &pool,
+            "2026-02-10",
+            "2026-02-10",
+            "operating",
+            "cash_collections",
+            "Customer collections",
+            "USD",
+            150000,
+        )
+        .await;
         insert_cashflow_line(
-            &pool, "2026-02-15", "2026-02-15",
-            "operating", "cash_collections", "Customer collections", "USD", 100000,
-        ).await;
+            &pool,
+            "2026-02-15",
+            "2026-02-15",
+            "operating",
+            "cash_collections",
+            "Customer collections",
+            "USD",
+            100000,
+        )
+        .await;
 
         let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
         let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
-        let stmt = compute_cashflow(&pool, TENANT, from, to).await.expect("compute");
+        let stmt = compute_cashflow(&pool, TENANT, from, to)
+            .await
+            .expect("compute");
 
-        let operating = stmt.sections.iter().find(|s| s.activity_type == "operating").unwrap();
+        let operating = stmt
+            .sections
+            .iter()
+            .find(|s| s.activity_type == "operating")
+            .unwrap();
         let usd_total = operating.total_by_currency.get("USD").copied().unwrap_or(0);
 
         // 150000 + 100000 = 250000
         assert_eq!(usd_total, 250000);
 
         // Collections line present
-        let coll: Vec<&CashflowLine> = operating.lines.iter()
+        let coll: Vec<&CashflowLine> = operating
+            .lines
+            .iter()
             .filter(|l| l.line_code == "cash_collections" && l.currency == "USD")
             .collect();
         assert!(!coll.is_empty());
@@ -396,21 +435,37 @@ mod tests {
 
         let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
         let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
-        let stmt = compute_cashflow(&pool, TENANT, from, to).await.expect("compute");
+        let stmt = compute_cashflow(&pool, TENANT, from, to)
+            .await
+            .expect("compute");
 
-        let operating = stmt.sections.iter().find(|s| s.activity_type == "operating").unwrap();
+        let operating = stmt
+            .sections
+            .iter()
+            .find(|s| s.activity_type == "operating")
+            .unwrap();
 
         // Net income = 300000 - 100000 - 50000 = 150000
-        let ni: Vec<&CashflowLine> = operating.lines.iter()
+        let ni: Vec<&CashflowLine> = operating
+            .lines
+            .iter()
             .filter(|l| l.line_code == "net_income" && l.currency == "USD")
             .collect();
         assert_eq!(ni.len(), 1);
         assert_eq!(ni[0].amount_minor, 150000);
 
         // Verify cached (second call should hit cache)
-        let stmt2 = compute_cashflow(&pool, TENANT, from, to).await.expect("compute2");
-        let op2 = stmt2.sections.iter().find(|s| s.activity_type == "operating").unwrap();
-        let ni2: Vec<&CashflowLine> = op2.lines.iter()
+        let stmt2 = compute_cashflow(&pool, TENANT, from, to)
+            .await
+            .expect("compute2");
+        let op2 = stmt2
+            .sections
+            .iter()
+            .find(|s| s.activity_type == "operating")
+            .unwrap();
+        let ni2: Vec<&CashflowLine> = op2
+            .lines
+            .iter()
             .filter(|l| l.line_code == "net_income" && l.currency == "USD")
             .collect();
         assert_eq!(ni2[0].amount_minor, 150000, "cached value must match");
@@ -433,20 +488,42 @@ mod tests {
 
         // Payments collections (daily ingested)
         insert_cashflow_line(
-            &pool, "2026-02-12", "2026-02-12",
-            "operating", "cash_collections", "Customer collections", "USD", 180000,
-        ).await;
+            &pool,
+            "2026-02-12",
+            "2026-02-12",
+            "operating",
+            "cash_collections",
+            "Customer collections",
+            "USD",
+            180000,
+        )
+        .await;
 
         let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
         let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
-        let stmt = compute_cashflow(&pool, TENANT, from, to).await.expect("compute");
+        let stmt = compute_cashflow(&pool, TENANT, from, to)
+            .await
+            .expect("compute");
 
-        let operating = stmt.sections.iter().find(|s| s.activity_type == "operating").unwrap();
+        let operating = stmt
+            .sections
+            .iter()
+            .find(|s| s.activity_type == "operating")
+            .unwrap();
         // Operating total = net_income(150000) + cash_collections(180000) = 330000
-        assert_eq!(operating.total_by_currency.get("USD").copied().unwrap_or(0), 330000);
+        assert_eq!(
+            operating.total_by_currency.get("USD").copied().unwrap_or(0),
+            330000
+        );
 
         // Net cash change = same (investing + financing are zero)
-        assert_eq!(stmt.net_cash_change_by_currency.get("USD").copied().unwrap_or(0), 330000);
+        assert_eq!(
+            stmt.net_cash_change_by_currency
+                .get("USD")
+                .copied()
+                .unwrap_or(0),
+            330000
+        );
 
         cleanup(&pool).await;
     }
@@ -460,21 +537,47 @@ mod tests {
         cleanup(&pool).await;
 
         insert_cashflow_line(
-            &pool, "2026-02-10", "2026-02-10",
-            "operating", "cash_collections", "Customer collections", "USD", 100000,
-        ).await;
+            &pool,
+            "2026-02-10",
+            "2026-02-10",
+            "operating",
+            "cash_collections",
+            "Customer collections",
+            "USD",
+            100000,
+        )
+        .await;
         insert_cashflow_line(
-            &pool, "2026-02-10", "2026-02-10",
-            "operating", "cash_collections", "Customer collections", "EUR", 80000,
-        ).await;
+            &pool,
+            "2026-02-10",
+            "2026-02-10",
+            "operating",
+            "cash_collections",
+            "Customer collections",
+            "EUR",
+            80000,
+        )
+        .await;
 
         let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
         let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
-        let stmt = compute_cashflow(&pool, TENANT, from, to).await.expect("compute");
+        let stmt = compute_cashflow(&pool, TENANT, from, to)
+            .await
+            .expect("compute");
 
-        let operating = stmt.sections.iter().find(|s| s.activity_type == "operating").unwrap();
-        assert_eq!(operating.total_by_currency.get("USD").copied().unwrap_or(0), 100000);
-        assert_eq!(operating.total_by_currency.get("EUR").copied().unwrap_or(0), 80000);
+        let operating = stmt
+            .sections
+            .iter()
+            .find(|s| s.activity_type == "operating")
+            .unwrap();
+        assert_eq!(
+            operating.total_by_currency.get("USD").copied().unwrap_or(0),
+            100000
+        );
+        assert_eq!(
+            operating.total_by_currency.get("EUR").copied().unwrap_or(0),
+            80000
+        );
 
         cleanup(&pool).await;
     }
@@ -489,25 +592,52 @@ mod tests {
 
         // In range
         insert_cashflow_line(
-            &pool, "2026-02-10", "2026-02-10",
-            "operating", "cash_collections", "Customer collections", "USD", 100000,
-        ).await;
+            &pool,
+            "2026-02-10",
+            "2026-02-10",
+            "operating",
+            "cash_collections",
+            "Customer collections",
+            "USD",
+            100000,
+        )
+        .await;
         // Out of range (before)
         insert_cashflow_line(
-            &pool, "2026-01-31", "2026-01-31",
-            "operating", "cash_collections", "Customer collections", "USD", 999999,
-        ).await;
+            &pool,
+            "2026-01-31",
+            "2026-01-31",
+            "operating",
+            "cash_collections",
+            "Customer collections",
+            "USD",
+            999999,
+        )
+        .await;
         // Out of range (after)
         insert_cashflow_line(
-            &pool, "2026-03-01", "2026-03-01",
-            "operating", "cash_collections", "Customer collections", "USD", 888888,
-        ).await;
+            &pool,
+            "2026-03-01",
+            "2026-03-01",
+            "operating",
+            "cash_collections",
+            "Customer collections",
+            "USD",
+            888888,
+        )
+        .await;
 
         let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
         let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
-        let stmt = compute_cashflow(&pool, TENANT, from, to).await.expect("compute");
+        let stmt = compute_cashflow(&pool, TENANT, from, to)
+            .await
+            .expect("compute");
 
-        let operating = stmt.sections.iter().find(|s| s.activity_type == "operating").unwrap();
+        let operating = stmt
+            .sections
+            .iter()
+            .find(|s| s.activity_type == "operating")
+            .unwrap();
         assert_eq!(
             operating.total_by_currency.get("USD").copied().unwrap_or(0),
             100000,

@@ -27,8 +27,7 @@ pub fn load_schema(path: &Path) -> Result<JSONSchema, ContractError> {
     let contents = fs::read_to_string(path)?;
     let schema: Value = serde_json::from_str(&contents)?;
 
-    JSONSchema::compile(&schema)
-        .map_err(|e| ContractError::SchemaError(e.to_string()))
+    JSONSchema::compile(&schema).map_err(|e| ContractError::SchemaError(e.to_string()))
 }
 
 /// Load a JSON example from file
@@ -47,9 +46,7 @@ pub fn validate_example(
     match schema.validate(example) {
         Ok(_) => Ok(()),
         Err(errors) => {
-            let error_messages: Vec<String> = errors
-                .map(|e| format!("  - {}", e))
-                .collect();
+            let error_messages: Vec<String> = errors.map(|e| format!("  - {}", e)).collect();
             Err(ContractError::ValidationError(format!(
                 "Example '{}' failed validation:\n{}",
                 example_name,

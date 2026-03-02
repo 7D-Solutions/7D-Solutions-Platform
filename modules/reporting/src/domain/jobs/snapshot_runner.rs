@@ -57,7 +57,9 @@ pub async fn run_snapshot(
     while current <= to {
         rows_upserted += snapshot_one_day(pool, tenant_id, current).await?;
         // Advance by one day
-        current = current.succ_opt().ok_or_else(|| anyhow::anyhow!("Date overflow"))?;
+        current = current
+            .succ_opt()
+            .ok_or_else(|| anyhow::anyhow!("Date overflow"))?;
     }
 
     Ok(SnapshotRunResult {
@@ -180,7 +182,10 @@ mod tests {
 
     async fn test_pool() -> PgPool {
         let pool = PgPool::connect(&test_db_url()).await.expect("connect");
-        sqlx::migrate!("./db/migrations").run(&pool).await.expect("migrate");
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("migrate");
         pool
     }
 
@@ -251,7 +256,9 @@ mod tests {
         let date = NaiveDate::from_ymd_opt(2026, 5, 1).unwrap();
         seed_trial_balance(&pool, date).await;
 
-        let result = run_snapshot(&pool, TENANT, date, date).await.expect("run_snapshot");
+        let result = run_snapshot(&pool, TENANT, date, date)
+            .await
+            .expect("run_snapshot");
         assert_eq!(result.from, date);
         assert_eq!(result.to, date);
         assert!(result.rows_upserted > 0, "must have upserted rows");
@@ -286,7 +293,10 @@ mod tests {
             count_statement_cache(&pool, "pl", date).await,
         );
         // Second run may report fewer "affected" rows if no changes, but still succeeds
-        assert_eq!(r1.rows_upserted, r2.rows_upserted, "upserted count must match");
+        assert_eq!(
+            r1.rows_upserted, r2.rows_upserted,
+            "upserted count must match"
+        );
 
         cleanup(&pool).await;
     }

@@ -134,7 +134,11 @@ impl VersionedDigest {
 
 impl std::fmt::Display for VersionedDigest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}:{}", self.version, self.row_count, self.content_hash)
+        write!(
+            f,
+            "{}:{}:{}",
+            self.version, self.row_count, self.content_hash
+        )
     }
 }
 
@@ -144,11 +148,7 @@ mod tests {
 
     #[test]
     fn test_versioned_digest_to_string() {
-        let digest = VersionedDigest::new(
-            "v1".to_string(),
-            1000,
-            "abc123def456".to_string(),
-        );
+        let digest = VersionedDigest::new("v1".to_string(), 1000, "abc123def456".to_string());
 
         assert_eq!(digest.to_string(), "v1:1000:abc123def456");
     }
@@ -165,11 +165,7 @@ mod tests {
 
     #[test]
     fn test_versioned_digest_roundtrip() {
-        let original = VersionedDigest::new(
-            "v1".to_string(),
-            5000,
-            "fedcba987654".to_string(),
-        );
+        let original = VersionedDigest::new("v1".to_string(), 5000, "fedcba987654".to_string());
 
         let serialized = original.to_string();
         let deserialized = VersionedDigest::from_string(&serialized).unwrap();
@@ -179,11 +175,7 @@ mod tests {
 
     #[test]
     fn test_versioned_digest_display() {
-        let digest = VersionedDigest::new(
-            "v2".to_string(),
-            42,
-            "hash123".to_string(),
-        );
+        let digest = VersionedDigest::new("v2".to_string(), 42, "hash123".to_string());
 
         assert_eq!(format!("{}", digest), "v2:42:hash123");
     }

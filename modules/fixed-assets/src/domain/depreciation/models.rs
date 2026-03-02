@@ -144,7 +144,10 @@ mod tests {
             tenant_id: "  ".into(),
             asset_id: Uuid::new_v4(),
         };
-        assert!(matches!(req.validate(), Err(DepreciationError::Validation(_))));
+        assert!(matches!(
+            req.validate(),
+            Err(DepreciationError::Validation(_))
+        ));
     }
 
     #[test]
@@ -164,7 +167,10 @@ mod tests {
             currency: None,
             created_by: None,
         };
-        assert!(matches!(req.validate(), Err(DepreciationError::Validation(_))));
+        assert!(matches!(
+            req.validate(),
+            Err(DepreciationError::Validation(_))
+        ));
     }
 
     #[test]
@@ -175,7 +181,10 @@ mod tests {
             currency: Some("123".into()),
             created_by: None,
         };
-        assert!(matches!(req.validate(), Err(DepreciationError::Validation(_))));
+        assert!(matches!(
+            req.validate(),
+            Err(DepreciationError::Validation(_))
+        ));
     }
 
     #[test]
@@ -186,7 +195,10 @@ mod tests {
             currency: Some("US".into()),
             created_by: None,
         };
-        assert!(matches!(req.validate(), Err(DepreciationError::Validation(_))));
+        assert!(matches!(
+            req.validate(),
+            Err(DepreciationError::Validation(_))
+        ));
     }
 
     #[test]

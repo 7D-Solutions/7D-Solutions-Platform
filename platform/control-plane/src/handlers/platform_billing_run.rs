@@ -15,8 +15,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::clients::ar::{
-    create_platform_invoice_idempotent, find_or_create_platform_customer,
-    InvoiceResult, PLATFORM_APP_ID,
+    create_platform_invoice_idempotent, find_or_create_platform_customer, InvoiceResult,
+    PLATFORM_APP_ID,
 };
 use crate::clients::tenant_registry::{fetch_eligible_tenants, fetch_plan_fee_minor};
 use crate::models::ErrorBody;
@@ -109,7 +109,8 @@ pub async fn platform_billing_run(
     for tenant in tenants {
         // Look up monthly fee from cp_plans using the tenant's product tier.
         // Returns 0 if the product_code is not found in cp_plans (logs a warning).
-        let amount_cents: i32 = match fetch_plan_fee_minor(&state.pool, &tenant.product_code).await {
+        let amount_cents: i32 = match fetch_plan_fee_minor(&state.pool, &tenant.product_code).await
+        {
             Ok(Some(fee)) => fee as i32,
             Ok(None) => {
                 tracing::warn!(
@@ -232,7 +233,8 @@ fn is_valid_period(period: &str) -> bool {
         return false;
     }
     let year_ok = parts[0].len() == 4 && parts[0].parse::<i32>().is_ok();
-    let month_ok = parts[1].len() == 2 && matches!(parts[1].parse::<u32>(), Ok(m) if (1..=12).contains(&m));
+    let month_ok =
+        parts[1].len() == 2 && matches!(parts[1].parse::<u32>(), Ok(m) if (1..=12).contains(&m));
     year_ok && month_ok
 }
 
@@ -293,11 +295,11 @@ mod tests {
 
     #[test]
     fn period_validation_rejects_invalid_formats() {
-        assert!(!is_valid_period("2026-2"));    // month must be 2 digits
-        assert!(!is_valid_period("26-02"));     // year must be 4 digits
-        assert!(!is_valid_period("2026-00"));   // month 0 invalid
-        assert!(!is_valid_period("2026-13"));   // month 13 invalid
-        assert!(!is_valid_period("2026"));      // missing month
+        assert!(!is_valid_period("2026-2")); // month must be 2 digits
+        assert!(!is_valid_period("26-02")); // year must be 4 digits
+        assert!(!is_valid_period("2026-00")); // month 0 invalid
+        assert!(!is_valid_period("2026-13")); // month 13 invalid
+        assert!(!is_valid_period("2026")); // missing month
         assert!(!is_valid_period(""));
     }
 
@@ -307,9 +309,8 @@ mod tests {
             "postgres://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
                 .to_string()
         });
-        let ar_db_url = std::env::var("AR_DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://ar_user:ar_pass@localhost:5434/ar_db".to_string()
-        });
+        let ar_db_url = std::env::var("AR_DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://ar_user:ar_pass@localhost:5434/ar_db".to_string());
 
         let tr_pool = match sqlx::PgPool::connect(&tr_db_url).await {
             Ok(p) => p,
@@ -345,7 +346,9 @@ mod tests {
         // First run: should process the tenant
         let result = platform_billing_run(
             State(state.clone()),
-            Json(PlatformBillingRunRequest { period: period.clone() }),
+            Json(PlatformBillingRunRequest {
+                period: period.clone(),
+            }),
         )
         .await
         .expect("billing run should succeed");
@@ -353,15 +356,23 @@ mod tests {
         let (status, Json(resp)) = result;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(resp.merchant_context, "PLATFORM");
-        let entry = resp.processed.iter().find(|e| e.tenant_id == tenant_id)
+        let entry = resp
+            .processed
+            .iter()
+            .find(|e| e.tenant_id == tenant_id)
             .expect("tenant should appear in processed list");
         // Pricing sourced from cp_plans: starter = 2900 minor units
-        assert_eq!(entry.amount_cents, 2900, "starter plan fee should be 2900 (from cp_plans)");
+        assert_eq!(
+            entry.amount_cents, 2900,
+            "starter plan fee should be 2900 (from cp_plans)"
+        );
 
         // Second run (same period): should skip — idempotent
         let result2 = platform_billing_run(
             State(state.clone()),
-            Json(PlatformBillingRunRequest { period: period.clone() }),
+            Json(PlatformBillingRunRequest {
+                period: period.clone(),
+            }),
         )
         .await
         .expect("second billing run should succeed");
@@ -371,22 +382,18 @@ mod tests {
         assert!(resp2.skipped.iter().any(|e| e.reason == "already_billed"));
 
         // Cleanup AR records
-        sqlx::query(
-            "DELETE FROM ar_invoices WHERE app_id = $1 AND correlation_id LIKE $2",
-        )
-        .bind(PLATFORM_APP_ID)
-        .bind(format!("plat-{}-%", tenant_id))
-        .execute(&ar_pool)
-        .await
-        .ok();
-        sqlx::query(
-            "DELETE FROM ar_customers WHERE app_id = $1 AND external_customer_id = $2",
-        )
-        .bind(PLATFORM_APP_ID)
-        .bind(tenant_id.to_string())
-        .execute(&ar_pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM ar_invoices WHERE app_id = $1 AND correlation_id LIKE $2")
+            .bind(PLATFORM_APP_ID)
+            .bind(format!("plat-{}-%", tenant_id))
+            .execute(&ar_pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM ar_customers WHERE app_id = $1 AND external_customer_id = $2")
+            .bind(PLATFORM_APP_ID)
+            .bind(tenant_id.to_string())
+            .execute(&ar_pool)
+            .await
+            .ok();
 
         // Cleanup tenant-registry
         sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")

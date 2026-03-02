@@ -48,12 +48,11 @@ pub async fn fetch_plan_fee_minor(
     pool: &PgPool,
     plan_code: &str,
 ) -> Result<Option<i64>, sqlx::Error> {
-    let row: Option<(i64,)> = sqlx::query_as(
-        "SELECT monthly_fee_minor FROM cp_plans WHERE plan_code = $1",
-    )
-    .bind(plan_code)
-    .fetch_optional(pool)
-    .await?;
+    let row: Option<(i64,)> =
+        sqlx::query_as("SELECT monthly_fee_minor FROM cp_plans WHERE plan_code = $1")
+            .bind(plan_code)
+            .fetch_optional(pool)
+            .await?;
 
     Ok(row.map(|(fee,)| fee))
 }
@@ -78,7 +77,9 @@ mod tests {
         };
 
         // Fetch current eligible tenants — just verify the query runs without error
-        let tenants = fetch_eligible_tenants(&pool).await.expect("query should succeed");
+        let tenants = fetch_eligible_tenants(&pool)
+            .await
+            .expect("query should succeed");
 
         // All returned tenants must have non-empty plan_code
         for t in &tenants {
@@ -100,7 +101,9 @@ mod tests {
         .await
         .expect("insert test tenant");
 
-        let tenants_after = fetch_eligible_tenants(&pool).await.expect("query after insert");
+        let tenants_after = fetch_eligible_tenants(&pool)
+            .await
+            .expect("query after insert");
         assert!(
             tenants_after.iter().any(|t| t.tenant_id == tenant_id),
             "trial tenant should appear in eligible list"
@@ -140,12 +143,20 @@ mod tests {
         let professional = fetch_plan_fee_minor(&pool, "professional")
             .await
             .expect("query should succeed");
-        assert_eq!(professional, Some(7900), "professional should cost 7900 minor units");
+        assert_eq!(
+            professional,
+            Some(7900),
+            "professional should cost 7900 minor units"
+        );
 
         let enterprise = fetch_plan_fee_minor(&pool, "enterprise")
             .await
             .expect("query should succeed");
-        assert_eq!(enterprise, Some(29900), "enterprise should cost 29900 minor units");
+        assert_eq!(
+            enterprise,
+            Some(29900),
+            "enterprise should cost 29900 minor units"
+        );
 
         // Unknown plan returns None
         let unknown = fetch_plan_fee_minor(&pool, "nonexistent-plan")

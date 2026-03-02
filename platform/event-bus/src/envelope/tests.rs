@@ -1,6 +1,6 @@
 use super::*;
-use serde_json::json;
 use crate::envelope::validation::validate_merchant_context_for_financial;
+use serde_json::json;
 
 #[test]
 fn test_envelope_creation() {
@@ -484,9 +484,16 @@ fn test_financial_event_requires_merchant_context() {
     });
 
     let result = validate_merchant_context_for_financial(&envelope);
-    assert!(result.is_err(), "Financial event without merchant_context should be rejected");
+    assert!(
+        result.is_err(),
+        "Financial event without merchant_context should be rejected"
+    );
     let err = result.unwrap_err();
-    assert!(err.contains("merchant_context is required"), "Error was: {}", err);
+    assert!(
+        err.contains("merchant_context is required"),
+        "Error was: {}",
+        err
+    );
 }
 
 #[test]
@@ -604,7 +611,9 @@ fn test_financial_event_rejects_invalid_merchant_context_type() {
 
     let result = validate_merchant_context_for_financial(&envelope);
     assert!(result.is_err());
-    assert!(result.unwrap_err().contains("Invalid merchant_context.type"));
+    assert!(result
+        .unwrap_err()
+        .contains("Invalid merchant_context.type"));
 }
 
 #[test]

@@ -9,11 +9,13 @@
 //! Design principle: Metrics must not mask errors or miscount entries.
 //! All counters are append-only and never decrease.
 
-use prometheus::{Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGaugeVec,
-                 Opts, Registry, TextEncoder};
-use projections::metrics::ProjectionMetrics;
-use std::sync::Arc;
 use axum::{extract::State, http::StatusCode};
+use projections::metrics::ProjectionMetrics;
+use prometheus::{
+    Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGaugeVec, Opts, Registry,
+    TextEncoder,
+};
+use std::sync::Arc;
 
 /// GL metrics registry
 #[derive(Clone)]
@@ -37,20 +39,21 @@ impl GlMetrics {
 
         let journal_entries_total = IntCounter::new(
             "gl_journal_entries_total",
-            "Total number of journal entries created"
+            "Total number of journal entries created",
         )?;
 
         let posting_errors_total = IntCounter::new(
             "gl_posting_errors_total",
-            "Total number of posting errors encountered"
+            "Total number of posting errors encountered",
         )?;
 
         registry.register(Box::new(journal_entries_total.clone()))?;
         registry.register(Box::new(posting_errors_total.clone()))?;
 
         // Initialize projection metrics
-        let projection_metrics = ProjectionMetrics::new()
-            .map_err(|e| prometheus::Error::Msg(format!("Failed to create projection metrics: {}", e)))?;
+        let projection_metrics = ProjectionMetrics::new().map_err(|e| {
+            prometheus::Error::Msg(format!("Failed to create projection metrics: {}", e))
+        })?;
 
         // SLO: request latency
         let http_request_duration_seconds = HistogramVec::new(
@@ -58,7 +61,9 @@ impl GlMetrics {
                 "gl_http_request_duration_seconds",
                 "HTTP request duration in seconds",
             )
-            .buckets(vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]),
+            .buckets(vec![
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0,
+            ]),
             &["method", "route", "status"],
         )
         .map_err(|e| prometheus::Error::Msg(e.to_string()))?;
@@ -74,7 +79,10 @@ impl GlMetrics {
 
         // SLO: event consumer lag
         let event_consumer_lag_messages = IntGaugeVec::new(
-            Opts::new("gl_event_consumer_lag_messages", "Event consumer lag in messages"),
+            Opts::new(
+                "gl_event_consumer_lag_messages",
+                "Event consumer lag in messages",
+            ),
             &["consumer_group"],
         )
         .map_err(|e| prometheus::Error::Msg(e.to_string()))?;
@@ -125,12 +133,16 @@ mod tests {
         let families = m.registry().gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("http_request_duration_seconds")),
-            "request latency histogram missing: {:?}", names
+            names
+                .iter()
+                .any(|n| n.contains("http_request_duration_seconds")),
+            "request latency histogram missing: {:?}",
+            names
         );
         assert!(
             names.iter().any(|n| n.contains("http_requests_total")),
-            "request count counter missing: {:?}", names
+            "request count counter missing: {:?}",
+            names
         );
     }
 
@@ -141,8 +153,11 @@ mod tests {
         let families = m.registry().gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("event_consumer_lag_messages")),
-            "consumer lag metric missing: {:?}", names
+            names
+                .iter()
+                .any(|n| n.contains("event_consumer_lag_messages")),
+            "consumer lag metric missing: {:?}",
+            names
         );
     }
 }
@@ -159,15 +174,17 @@ pub async fn metrics_handler(
     metric_families.extend(projection_metric_families);
 
     let mut buffer = vec![];
-    encoder.encode(&metric_families, &mut buffer)
-        .map_err(|e| (
+    encoder.encode(&metric_families, &mut buffer).map_err(|e| {
+        (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to encode metrics: {}", e)
-        ))?;
+            format!("Failed to encode metrics: {}", e),
+        )
+    })?;
 
-    String::from_utf8(buffer)
-        .map_err(|e| (
+    String::from_utf8(buffer).map_err(|e| {
+        (
             StatusCode::INTERNAL_SERVER_ERROR,
-            format!("Failed to convert metrics to string: {}", e)
-        ))
+            format!("Failed to convert metrics to string: {}", e),
+        )
+    })
 }

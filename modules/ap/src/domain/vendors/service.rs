@@ -10,9 +10,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::events::{
-    build_vendor_created_envelope, build_vendor_updated_envelope,
-    VendorCreatedPayload, VendorUpdatedPayload,
-    EVENT_TYPE_VENDOR_CREATED, EVENT_TYPE_VENDOR_UPDATED,
+    build_vendor_created_envelope, build_vendor_updated_envelope, VendorCreatedPayload,
+    VendorUpdatedPayload, EVENT_TYPE_VENDOR_CREATED, EVENT_TYPE_VENDOR_UPDATED,
 };
 use crate::outbox::enqueue_event_tx;
 
@@ -257,7 +256,11 @@ pub async fn update_vendor(
     } else {
         current.remittance_email.clone()
     };
-    let new_party_id = if req.party_id.is_some() { req.party_id } else { current.party_id };
+    let new_party_id = if req.party_id.is_some() {
+        req.party_id
+    } else {
+        current.party_id
+    };
     let now = Utc::now();
 
     // Mutation
@@ -410,9 +413,8 @@ mod tests {
     const TEST_TENANT: &str = "test-tenant-vendors";
 
     fn test_db_url() -> String {
-        std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://ap_user:ap_pass@localhost:5443/ap_db".to_string()
-        })
+        std::env::var("DATABASE_URL")
+            .unwrap_or_else(|_| "postgres://ap_user:ap_pass@localhost:5443/ap_db".to_string())
     }
 
     async fn test_pool() -> PgPool {

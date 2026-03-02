@@ -149,15 +149,37 @@ pub async fn update_contact(
         clear_primary_contacts(&mut tx, app_id, current.party_id).await?;
     }
 
-    let new_first = req.first_name.as_deref().map(|n| n.trim().to_string())
+    let new_first = req
+        .first_name
+        .as_deref()
+        .map(|n| n.trim().to_string())
         .unwrap_or(current.first_name);
-    let new_last = req.last_name.as_deref().map(|n| n.trim().to_string())
+    let new_last = req
+        .last_name
+        .as_deref()
+        .map(|n| n.trim().to_string())
         .unwrap_or(current.last_name);
-    let new_email = if req.email.is_some() { req.email.clone() } else { current.email };
-    let new_phone = if req.phone.is_some() { req.phone.clone() } else { current.phone };
-    let new_role = if req.role.is_some() { req.role.clone() } else { current.role };
+    let new_email = if req.email.is_some() {
+        req.email.clone()
+    } else {
+        current.email
+    };
+    let new_phone = if req.phone.is_some() {
+        req.phone.clone()
+    } else {
+        current.phone
+    };
+    let new_role = if req.role.is_some() {
+        req.role.clone()
+    } else {
+        current.role
+    };
     let new_primary = req.is_primary.unwrap_or(current.is_primary);
-    let new_metadata = if req.metadata.is_some() { req.metadata.clone() } else { current.metadata };
+    let new_metadata = if req.metadata.is_some() {
+        req.metadata.clone()
+    } else {
+        current.metadata
+    };
 
     let updated: Contact = sqlx::query_as(
         r#"
@@ -192,13 +214,11 @@ pub async fn delete_contact(
     app_id: &str,
     contact_id: Uuid,
 ) -> Result<(), PartyError> {
-    let result = sqlx::query(
-        "DELETE FROM party_contacts WHERE id = $1 AND app_id = $2",
-    )
-    .bind(contact_id)
-    .bind(app_id)
-    .execute(pool)
-    .await?;
+    let result = sqlx::query("DELETE FROM party_contacts WHERE id = $1 AND app_id = $2")
+        .bind(contact_id)
+        .bind(app_id)
+        .execute(pool)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(PartyError::NotFound(contact_id));
@@ -211,13 +231,12 @@ pub async fn delete_contact(
 // ============================================================================
 
 async fn guard_party_exists(pool: &PgPool, app_id: &str, party_id: Uuid) -> Result<(), PartyError> {
-    let exists: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM party_parties WHERE id = $1 AND app_id = $2",
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_optional(pool)
-    .await?;
+    let exists: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM party_parties WHERE id = $1 AND app_id = $2")
+            .bind(party_id)
+            .bind(app_id)
+            .fetch_optional(pool)
+            .await?;
 
     if exists.is_none() {
         return Err(PartyError::NotFound(party_id));
@@ -230,13 +249,12 @@ async fn guard_party_exists_tx(
     app_id: &str,
     party_id: Uuid,
 ) -> Result<(), PartyError> {
-    let exists: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM party_parties WHERE id = $1 AND app_id = $2",
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_optional(&mut **tx)
-    .await?;
+    let exists: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM party_parties WHERE id = $1 AND app_id = $2")
+            .bind(party_id)
+            .bind(app_id)
+            .fetch_optional(&mut **tx)
+            .await?;
 
     if exists.is_none() {
         return Err(PartyError::NotFound(party_id));

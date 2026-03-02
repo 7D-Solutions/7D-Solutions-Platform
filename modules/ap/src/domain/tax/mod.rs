@@ -8,7 +8,9 @@ pub mod reports;
 pub mod service;
 
 pub use models::ApTaxSnapshot;
-pub use service::{ApTaxError, commit_bill_tax, find_active_snapshot, quote_bill_tax, void_bill_tax};
+pub use service::{
+    commit_bill_tax, find_active_snapshot, quote_bill_tax, void_bill_tax, ApTaxError,
+};
 
 // Re-export shared types for convenience
 pub use tax_core::models::TaxAddress;

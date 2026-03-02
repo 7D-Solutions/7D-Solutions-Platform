@@ -11,11 +11,18 @@
 ///   GET  /api/ttp/plans                               — List platform billing plans (plan catalog)
 ///   GET  /api/tenants                                 — Paginated tenant list (BFF-compatible)
 ///   GET  /api/tenants/:tenant_id                      — Tenant detail with derived name and seat_limit
-use axum::{extract::State, http::StatusCode, routing::{get, post}, Json, Router};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    routing::{get, post},
+    Json, Router,
+};
 use std::sync::Arc;
-use tenant_registry::routes::{summary_router, entitlements_router, status_router, app_id_router, SummaryState};
 use tenant_registry::plans_router;
-use tenant_registry::{tenant_list_router, tenant_detail_router};
+use tenant_registry::routes::{
+    app_id_router, entitlements_router, status_router, summary_router, SummaryState,
+};
+use tenant_registry::{tenant_detail_router, tenant_list_router};
 
 use crate::handlers;
 use crate::state::AppState;
@@ -35,7 +42,10 @@ async fn ready(
     let pool_metrics = health::PoolMetrics {
         size: state.pool.size(),
         idle: state.pool.num_idle() as u32,
-        active: state.pool.size().saturating_sub(state.pool.num_idle() as u32),
+        active: state
+            .pool
+            .size()
+            .saturating_sub(state.pool.num_idle() as u32),
     };
 
     let resp = health::build_ready_response(
@@ -51,10 +61,7 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
     Router::new()
         .route("/healthz", get(health::healthz))
         .route("/api/ready", get(ready))
-        .route(
-            "/api/control/tenants",
-            post(handlers::create_tenant),
-        )
+        .route("/api/control/tenants", post(handlers::create_tenant))
         .route(
             "/api/control/tenants/{tenant_id}/retention",
             get(handlers::get_retention).put(handlers::set_retention),
@@ -80,9 +87,6 @@ pub fn build_router(state: Arc<AppState>, summary_state: Arc<SummaryState>) -> R
 /// Build only the provisioning router (for testing without summary state)
 pub fn provisioning_router(state: Arc<AppState>) -> Router {
     Router::new()
-        .route(
-            "/api/control/tenants",
-            post(handlers::create_tenant),
-        )
+        .route("/api/control/tenants", post(handlers::create_tenant))
         .with_state(state)
 }

@@ -88,11 +88,8 @@ pub async fn run(cfg: &Config, dry_run: bool) -> Result<ScenarioResult> {
     let consumer_task = tokio::spawn(async move {
         while let Some(msg) = subscriber.next().await {
             let now_ns = now_nanos();
-            if let Ok(env) =
-                serde_json::from_slice::<EventEnvelope<BenchPayload>>(&msg.payload)
-            {
-                let latency_ms =
-                    now_ns.saturating_sub(env.payload.sent_at_ns) as f64 / 1_000_000.0;
+            if let Ok(env) = serde_json::from_slice::<EventEnvelope<BenchPayload>>(&msg.payload) {
+                let latency_ms = now_ns.saturating_sub(env.payload.sent_at_ns) as f64 / 1_000_000.0;
                 let _ = tx.send((env.payload.idempotency_key, latency_ms));
             }
         }
@@ -106,10 +103,7 @@ pub async fn run(cfg: &Config, dry_run: bool) -> Result<ScenarioResult> {
 
     // Pre-generate idempotency keys so we know exactly what was sent.
     let work: Vec<(usize, usize, String)> = (0..tenant_count)
-        .flat_map(|ti| {
-            (0..events_per_tenant)
-                .map(move |si| (ti, si, Uuid::new_v4().to_string()))
-        })
+        .flat_map(|ti| (0..events_per_tenant).map(move |si| (ti, si, Uuid::new_v4().to_string())))
         .collect();
 
     let work_queue = Arc::new(Mutex::new(work.into_iter()));

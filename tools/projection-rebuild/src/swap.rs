@@ -9,8 +9,8 @@
 
 use chrono::Utc;
 use projections::{
-    compute_digest, create_shadow_cursor_table, create_shadow_table, swap_cursor_tables_atomic, swap_tables_atomic, RebuildResult,
-    RebuildSummary,
+    compute_digest, create_shadow_cursor_table, create_shadow_table, swap_cursor_tables_atomic,
+    swap_tables_atomic, RebuildResult, RebuildSummary,
 };
 use sqlx::PgPool;
 use uuid::Uuid;

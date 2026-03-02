@@ -34,16 +34,13 @@ pub async fn create_fx_rate(
     req: CreateFxRateRequest,
 ) -> Result<CreateFxRateResponse, String> {
     // Validate currencies
-    if req.base_currency.len() != 3
-        || !req.base_currency.chars().all(|c| c.is_ascii_uppercase())
-    {
+    if req.base_currency.len() != 3 || !req.base_currency.chars().all(|c| c.is_ascii_uppercase()) {
         return Err(format!(
             "Invalid base_currency '{}': must be 3 uppercase ASCII letters",
             req.base_currency
         ));
     }
-    if req.quote_currency.len() != 3
-        || !req.quote_currency.chars().all(|c| c.is_ascii_uppercase())
+    if req.quote_currency.len() != 3 || !req.quote_currency.chars().all(|c| c.is_ascii_uppercase())
     {
         return Err(format!(
             "Invalid quote_currency '{}': must be 3 uppercase ASCII letters",

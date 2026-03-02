@@ -31,13 +31,14 @@ impl Config {
     pub fn from_env() -> anyhow::Result<Self> {
         let database_url = env::var("DATABASE_URL")
             .or_else(|_| env::var("AR_DATABASE_URL"))
-            .map_err(|_| anyhow::anyhow!(
-                "Missing DATABASE_URL or AR_DATABASE_URL. \
+            .map_err(|_| {
+                anyhow::anyhow!(
+                    "Missing DATABASE_URL or AR_DATABASE_URL. \
                  Example: DATABASE_URL=postgres://postgres:postgres@localhost:5432/ar_db"
-            ))?;
+                )
+            })?;
 
-        let nats_url = env::var("NATS_URL")
-            .unwrap_or_else(|_| "nats://localhost:4222".to_string());
+        let nats_url = env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
 
         Ok(Self {
             tenant_count: parse_env("TENANT_COUNT", 5)?,
@@ -72,9 +73,9 @@ where
     T::Err: std::fmt::Display,
 {
     match env::var(key) {
-        Ok(val) => val.parse::<T>().map_err(|e| {
-            anyhow::anyhow!("Invalid value for env var {}: {}", key, e)
-        }),
+        Ok(val) => val
+            .parse::<T>()
+            .map_err(|e| anyhow::anyhow!("Invalid value for env var {}: {}", key, e)),
         Err(_) => Ok(default),
     }
 }

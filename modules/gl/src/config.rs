@@ -353,9 +353,15 @@ mod tests {
         // Too long
         assert!(!CurrencyConfig::new("USDD").is_valid());
         // Contains digits
-        assert!(!CurrencyConfig { reporting_currency: "U2D".to_string() }.is_valid());
+        assert!(!CurrencyConfig {
+            reporting_currency: "U2D".to_string()
+        }
+        .is_valid());
         // Empty
-        assert!(!CurrencyConfig { reporting_currency: "".to_string() }.is_valid());
+        assert!(!CurrencyConfig {
+            reporting_currency: "".to_string()
+        }
+        .is_valid());
     }
 
     #[test]

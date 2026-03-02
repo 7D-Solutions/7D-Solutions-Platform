@@ -263,10 +263,7 @@ pub async fn compute_digest(
     order_by: &str,
 ) -> RebuildResult<String> {
     // Query all rows in deterministic order
-    let query = format!(
-        "SELECT * FROM {} ORDER BY {}",
-        table_name, order_by
-    );
+    let query = format!("SELECT * FROM {} ORDER BY {}", table_name, order_by);
 
     let mut rows = sqlx::query(&query).fetch(pool);
 

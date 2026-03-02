@@ -64,15 +64,15 @@ pub async fn ingest_events(
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<IngestEventRequest>,
 ) -> Result<Json<IngestEventResponse>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = claims
-        .map(|Extension(c)| c.tenant_id)
-        .ok_or_else(|| (
+    let tenant_id = claims.map(|Extension(c)| c.tenant_id).ok_or_else(|| {
+        (
             StatusCode::UNAUTHORIZED,
             Json(ErrorBody {
                 error: "Missing or invalid authentication".to_string(),
                 code: "unauthorized".to_string(),
             }),
-        ))?;
+        )
+    })?;
 
     if req.events.is_empty() {
         return Err((
@@ -128,16 +128,18 @@ pub async fn ingest_events(
         })
         .collect();
 
-    let results = metering::ingest_events(&state.pool, &inputs).await.map_err(|e| {
-        tracing::error!("Metering ingestion error: {:?}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody {
-                error: e.to_string(),
-                code: "ingestion_failed".to_string(),
-            }),
-        )
-    })?;
+    let results = metering::ingest_events(&state.pool, &inputs)
+        .await
+        .map_err(|e| {
+            tracing::error!("Metering ingestion error: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorBody {
+                    error: e.to_string(),
+                    code: "ingestion_failed".to_string(),
+                }),
+            )
+        })?;
 
     let mut ingested = 0u32;
     let mut duplicates = 0u32;
@@ -179,15 +181,15 @@ pub async fn get_trace(
     claims: Option<Extension<VerifiedClaims>>,
     Query(query): Query<TraceQuery>,
 ) -> Result<Json<PriceTrace>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = claims
-        .map(|Extension(c)| c.tenant_id)
-        .ok_or_else(|| (
+    let tenant_id = claims.map(|Extension(c)| c.tenant_id).ok_or_else(|| {
+        (
             StatusCode::UNAUTHORIZED,
             Json(ErrorBody {
                 error: "Missing or invalid authentication".to_string(),
                 code: "unauthorized".to_string(),
             }),
-        ))?;
+        )
+    })?;
 
     let trace = metering::compute_price_trace(&state.pool, tenant_id, &query.period)
         .await

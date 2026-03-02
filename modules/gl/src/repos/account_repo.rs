@@ -138,11 +138,7 @@ pub async fn find_active_by_code_tx(
 
 /// Assert that an account exists and is active
 /// This is a convenience function for validation
-pub async fn assert_active(
-    pool: &PgPool,
-    tenant_id: &str,
-    code: &str,
-) -> Result<(), AccountError> {
+pub async fn assert_active(pool: &PgPool, tenant_id: &str, code: &str) -> Result<(), AccountError> {
     find_active_by_code(pool, tenant_id, code).await?;
     Ok(())
 }

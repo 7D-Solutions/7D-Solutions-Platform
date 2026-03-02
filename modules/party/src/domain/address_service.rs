@@ -155,17 +155,47 @@ pub async fn update_address(
     }
 
     let new_type = req.address_type.as_deref().unwrap_or(&current.address_type);
-    let new_label = if req.label.is_some() { req.label.clone() } else { current.label };
-    let new_line1 = req.line1.as_deref().map(|l| l.trim().to_string())
+    let new_label = if req.label.is_some() {
+        req.label.clone()
+    } else {
+        current.label
+    };
+    let new_line1 = req
+        .line1
+        .as_deref()
+        .map(|l| l.trim().to_string())
         .unwrap_or(current.line1);
-    let new_line2 = if req.line2.is_some() { req.line2.clone() } else { current.line2 };
-    let new_city = req.city.as_deref().map(|c| c.trim().to_string())
+    let new_line2 = if req.line2.is_some() {
+        req.line2.clone()
+    } else {
+        current.line2
+    };
+    let new_city = req
+        .city
+        .as_deref()
+        .map(|c| c.trim().to_string())
         .unwrap_or(current.city);
-    let new_state = if req.state.is_some() { req.state.clone() } else { current.state };
-    let new_postal = if req.postal_code.is_some() { req.postal_code.clone() } else { current.postal_code };
-    let new_country = req.country.as_deref().unwrap_or(&current.country).to_string();
+    let new_state = if req.state.is_some() {
+        req.state.clone()
+    } else {
+        current.state
+    };
+    let new_postal = if req.postal_code.is_some() {
+        req.postal_code.clone()
+    } else {
+        current.postal_code
+    };
+    let new_country = req
+        .country
+        .as_deref()
+        .unwrap_or(&current.country)
+        .to_string();
     let new_primary = req.is_primary.unwrap_or(current.is_primary);
-    let new_metadata = if req.metadata.is_some() { req.metadata.clone() } else { current.metadata };
+    let new_metadata = if req.metadata.is_some() {
+        req.metadata.clone()
+    } else {
+        current.metadata
+    };
 
     let updated: Address = sqlx::query_as(
         r#"
@@ -205,13 +235,11 @@ pub async fn delete_address(
     app_id: &str,
     address_id: Uuid,
 ) -> Result<(), PartyError> {
-    let result = sqlx::query(
-        "DELETE FROM party_addresses WHERE id = $1 AND app_id = $2",
-    )
-    .bind(address_id)
-    .bind(app_id)
-    .execute(pool)
-    .await?;
+    let result = sqlx::query("DELETE FROM party_addresses WHERE id = $1 AND app_id = $2")
+        .bind(address_id)
+        .bind(app_id)
+        .execute(pool)
+        .await?;
 
     if result.rows_affected() == 0 {
         return Err(PartyError::NotFound(address_id));
@@ -224,13 +252,12 @@ pub async fn delete_address(
 // ============================================================================
 
 async fn guard_party_exists(pool: &PgPool, app_id: &str, party_id: Uuid) -> Result<(), PartyError> {
-    let exists: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM party_parties WHERE id = $1 AND app_id = $2",
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_optional(pool)
-    .await?;
+    let exists: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM party_parties WHERE id = $1 AND app_id = $2")
+            .bind(party_id)
+            .bind(app_id)
+            .fetch_optional(pool)
+            .await?;
 
     if exists.is_none() {
         return Err(PartyError::NotFound(party_id));
@@ -243,13 +270,12 @@ async fn guard_party_exists_tx(
     app_id: &str,
     party_id: Uuid,
 ) -> Result<(), PartyError> {
-    let exists: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT id FROM party_parties WHERE id = $1 AND app_id = $2",
-    )
-    .bind(party_id)
-    .bind(app_id)
-    .fetch_optional(&mut **tx)
-    .await?;
+    let exists: Option<(Uuid,)> =
+        sqlx::query_as("SELECT id FROM party_parties WHERE id = $1 AND app_id = $2")
+            .bind(party_id)
+            .bind(app_id)
+            .fetch_optional(&mut **tx)
+            .await?;
 
     if exists.is_none() {
         return Err(PartyError::NotFound(party_id));

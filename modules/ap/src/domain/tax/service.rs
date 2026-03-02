@@ -450,7 +450,10 @@ mod tests {
             .await
             .expect("second quote");
 
-        assert_eq!(snap1.id, snap2.id, "idempotent quote must return same snapshot");
+        assert_eq!(
+            snap1.id, snap2.id,
+            "idempotent quote must return same snapshot"
+        );
 
         cleanup(&db).await;
     }
@@ -604,16 +607,9 @@ mod tests {
         let bill_id = create_bill(&db, vendor_id).await;
 
         let provider = ZeroTaxProvider;
-        let result = void_bill_tax(
-            &db,
-            &provider,
-            TEST_TENANT,
-            bill_id,
-            "no tax",
-            "corr-v4",
-        )
-        .await
-        .expect("void should not fail");
+        let result = void_bill_tax(&db, &provider, TEST_TENANT, bill_id, "no tax", "corr-v4")
+            .await
+            .expect("void should not fail");
 
         assert!(result.is_none(), "no snapshot -> None");
 

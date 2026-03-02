@@ -31,7 +31,9 @@ struct ErrorBody {
 fn db_err(e: sqlx::Error) -> (StatusCode, Json<ErrorBody>) {
     (
         StatusCode::INTERNAL_SERVER_ERROR,
-        Json(ErrorBody { error: format!("Database error: {e}") }),
+        Json(ErrorBody {
+            error: format!("Database error: {e}"),
+        }),
     )
 }
 
@@ -328,7 +330,9 @@ mod tenant_list_tests {
             "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
                 .to_string()
         });
-        PgPool::connect(&url).await.expect("connect to tenant-registry DB")
+        PgPool::connect(&url)
+            .await
+            .expect("connect to tenant-registry DB")
     }
 
     fn build_list_app(pool: PgPool) -> axum::Router {
@@ -355,8 +359,16 @@ mod tenant_list_tests {
     }
 
     async fn cleanup(pool: &PgPool, tenant_id: Uuid) {
-        sqlx::query("DELETE FROM cp_entitlements WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
-        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1").bind(tenant_id).execute(pool).await.ok();
+        sqlx::query("DELETE FROM cp_entitlements WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(pool)
+            .await
+            .ok();
     }
 
     #[tokio::test]
@@ -372,7 +384,9 @@ mod tenant_list_tests {
         let resp = app.oneshot(req).await.expect("call list endpoint");
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
         assert!(json["tenants"].is_array(), "tenants must be array");
@@ -395,11 +409,15 @@ mod tenant_list_tests {
         let resp = app.oneshot(req).await.expect("call list endpoint");
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
         let tenants = json["tenants"].as_array().unwrap();
-        let found = tenants.iter().any(|t| t["id"].as_str() == Some(&tenant_id.to_string()));
+        let found = tenants
+            .iter()
+            .any(|t| t["id"].as_str() == Some(&tenant_id.to_string()));
         assert!(found, "seeded tenant should appear in list");
 
         cleanup(&pool, tenant_id).await;
@@ -417,12 +435,19 @@ mod tenant_list_tests {
             .unwrap();
 
         let resp = app.oneshot(req).await.expect("call list endpoint");
-        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
         let tenants = json["tenants"].as_array().unwrap();
-        let t = tenants.iter().find(|t| t["id"].as_str() == Some(&tenant_id.to_string()));
-        assert!(t.is_some(), "seeded tenant should be searchable by tenant_id");
+        let t = tenants
+            .iter()
+            .find(|t| t["id"].as_str() == Some(&tenant_id.to_string()));
+        assert!(
+            t.is_some(),
+            "seeded tenant should be searchable by tenant_id"
+        );
         assert_eq!(t.unwrap()["name"], "my-product");
 
         cleanup(&pool, tenant_id).await;
@@ -442,7 +467,9 @@ mod tenant_list_tests {
         let resp = app.oneshot(req).await.expect("call detail endpoint");
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(json["id"], tenant_id.to_string());
@@ -505,7 +532,9 @@ mod tenant_list_tests {
         let resp = app.oneshot(req).await.expect("call detail endpoint");
         assert_eq!(resp.status(), StatusCode::OK);
 
-        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024).await.unwrap();
+        let body = axum::body::to_bytes(resp.into_body(), 64 * 1024)
+            .await
+            .unwrap();
         let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(json["seat_limit"], 20);

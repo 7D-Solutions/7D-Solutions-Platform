@@ -100,7 +100,11 @@ impl TilledPaymentProcessor {
         if !confirm_resp.status().is_success() {
             let status = confirm_resp.status();
             let text = confirm_resp.text().await.unwrap_or_default();
-            anyhow::bail!("Tilled confirm payment intent failed ({}): {}", status, text);
+            anyhow::bail!(
+                "Tilled confirm payment intent failed ({}): {}",
+                status,
+                text
+            );
         }
 
         let confirmed: serde_json::Value = confirm_resp.json().await?;
@@ -174,7 +178,10 @@ impl TilledPaymentProcessor {
                 PspPaymentStatus::StillUnknown
             }
             other => {
-                tracing::warn!(tilled_status = other, "Unknown Tilled payment intent status");
+                tracing::warn!(
+                    tilled_status = other,
+                    "Unknown Tilled payment intent status"
+                );
                 PspPaymentStatus::StillUnknown
             }
         };

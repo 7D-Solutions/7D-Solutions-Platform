@@ -1,7 +1,9 @@
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::{
-    middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
+    middleware::{
+        default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+    },
     optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 use shipping_receiving_rs::{config::Config, metrics, outbox, routes, AppState};
@@ -72,16 +74,10 @@ async fn main() {
     tracing::info!("Shipping-Receiving: outbox publisher task started");
 
     // Start event consumers
-    shipping_receiving_rs::consumers::start_po_approved_consumer(
-        event_bus.clone(),
-        pool.clone(),
-    )
-    .await;
-    shipping_receiving_rs::consumers::start_so_released_consumer(
-        event_bus.clone(),
-        pool.clone(),
-    )
-    .await;
+    shipping_receiving_rs::consumers::start_po_approved_consumer(event_bus.clone(), pool.clone())
+        .await;
+    shipping_receiving_rs::consumers::start_so_released_consumer(event_bus.clone(), pool.clone())
+        .await;
     tracing::info!("Shipping-Receiving: event consumers started");
 
     let metrics = Arc::new(
@@ -90,7 +86,10 @@ async fn main() {
 
     let inventory = match &config.inventory_url {
         Some(url) => {
-            tracing::info!("Shipping-Receiving: inventory integration HTTP mode → {}", url);
+            tracing::info!(
+                "Shipping-Receiving: inventory integration HTTP mode → {}",
+                url
+            );
             shipping_receiving_rs::InventoryIntegration::http(url)
         }
         None => {
@@ -112,10 +111,9 @@ async fn main() {
         .route("/metrics", get(metrics::metrics_handler))
         .merge(routes::build_router())
         .merge(
-            routes::build_mutation_router()
-                .route_layer(RequirePermissionsLayer::new(&[
-                    permissions::SHIPPING_RECEIVING_MUTATE,
-                ])),
+            routes::build_mutation_router().route_layer(RequirePermissionsLayer::new(&[
+                permissions::SHIPPING_RECEIVING_MUTATE,
+            ])),
         )
         .with_state(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))

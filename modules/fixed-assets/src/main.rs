@@ -1,7 +1,13 @@
-use axum::{extract::DefaultBodyLimit, routing::{get, post, put}, Extension, Router};
+use axum::{
+    extract::DefaultBodyLimit,
+    routing::{get, post, put},
+    Extension, Router,
+};
 use event_bus::{EventBus, InMemoryBus, NatsBus};
 use security::{
-    middleware::{default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT},
+    middleware::{
+        default_rate_limiter, rate_limit_middleware, timeout_middleware, DEFAULT_BODY_LIMIT,
+    },
     optional_claims_mw, permissions, JwtVerifier, RequirePermissionsLayer,
 };
 use std::net::SocketAddr;
@@ -75,11 +81,8 @@ async fn main() {
     tracing::info!("Fixed Assets: outbox publisher task started");
 
     // Spawn AP bill approved consumer (capitalization from AP)
-    consumers::ap_bill_approved::start_ap_bill_approved_consumer(
-        event_bus.clone(),
-        pool.clone(),
-    )
-    .await;
+    consumers::ap_bill_approved::start_ap_bill_approved_consumer(event_bus.clone(), pool.clone())
+        .await;
     tracing::info!("Fixed Assets: AP bill approved consumer started");
 
     // Metrics
@@ -97,17 +100,37 @@ async fn main() {
 
     let fa_mutations = Router::new()
         // Category CRUD — write
-        .route("/api/fixed-assets/categories", post(http::assets::create_category))
-        .route("/api/fixed-assets/categories/{id}", put(http::assets::update_category).delete(http::assets::deactivate_category))
+        .route(
+            "/api/fixed-assets/categories",
+            post(http::assets::create_category),
+        )
+        .route(
+            "/api/fixed-assets/categories/{id}",
+            put(http::assets::update_category).delete(http::assets::deactivate_category),
+        )
         // Asset CRUD — write
         .route("/api/fixed-assets/assets", post(http::assets::create_asset))
-        .route("/api/fixed-assets/assets/{id}", put(http::assets::update_asset).delete(http::assets::deactivate_asset))
+        .route(
+            "/api/fixed-assets/assets/{id}",
+            put(http::assets::update_asset).delete(http::assets::deactivate_asset),
+        )
         // Depreciation — write
-        .route("/api/fixed-assets/depreciation/schedule", post(http::depreciation::generate_schedule))
-        .route("/api/fixed-assets/depreciation/runs", post(http::depreciation::create_run))
+        .route(
+            "/api/fixed-assets/depreciation/schedule",
+            post(http::depreciation::generate_schedule),
+        )
+        .route(
+            "/api/fixed-assets/depreciation/runs",
+            post(http::depreciation::create_run),
+        )
         // Disposals — write
-        .route("/api/fixed-assets/disposals", post(http::disposals::dispose_asset))
-        .route_layer(RequirePermissionsLayer::new(&[permissions::FIXED_ASSETS_MUTATE]))
+        .route(
+            "/api/fixed-assets/disposals",
+            post(http::disposals::dispose_asset),
+        )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::FIXED_ASSETS_MUTATE,
+        ]))
         .with_state(app_state.clone());
 
     let app = Router::new()
@@ -117,26 +140,52 @@ async fn main() {
         .route("/api/version", get(http::version))
         .route("/metrics", get(metrics::metrics_handler))
         // Category CRUD — read
-        .route("/api/fixed-assets/categories/{id}", get(http::assets::get_category))
-        .route("/api/fixed-assets/categories", get(http::assets::list_categories))
+        .route(
+            "/api/fixed-assets/categories/{id}",
+            get(http::assets::get_category),
+        )
+        .route(
+            "/api/fixed-assets/categories",
+            get(http::assets::list_categories),
+        )
         // Asset CRUD — read
-        .route("/api/fixed-assets/assets/{id}", get(http::assets::get_asset))
+        .route(
+            "/api/fixed-assets/assets/{id}",
+            get(http::assets::get_asset),
+        )
         .route("/api/fixed-assets/assets", get(http::assets::list_assets))
         // Depreciation — read
-        .route("/api/fixed-assets/depreciation/runs", get(http::depreciation::list_runs))
-        .route("/api/fixed-assets/depreciation/runs/{id}", get(http::depreciation::get_run))
+        .route(
+            "/api/fixed-assets/depreciation/runs",
+            get(http::depreciation::list_runs),
+        )
+        .route(
+            "/api/fixed-assets/depreciation/runs/{id}",
+            get(http::depreciation::get_run),
+        )
         // Disposals — read
-        .route("/api/fixed-assets/disposals", get(http::disposals::list_disposals))
-        .route("/api/fixed-assets/disposals/{id}", get(http::disposals::get_disposal))
+        .route(
+            "/api/fixed-assets/disposals",
+            get(http::disposals::list_disposals),
+        )
+        .route(
+            "/api/fixed-assets/disposals/{id}",
+            get(http::disposals::get_disposal),
+        )
         .with_state(app_state)
         .merge(fa_mutations)
         .merge(http::admin::admin_router(pool.clone()))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
-        .layer(axum::middleware::from_fn(security::tracing::tracing_context_middleware))
+        .layer(axum::middleware::from_fn(
+            security::tracing::tracing_context_middleware,
+        ))
         .layer(axum::middleware::from_fn(timeout_middleware))
         .layer(axum::middleware::from_fn(rate_limit_middleware))
         .layer(Extension(default_rate_limiter()))
-        .layer(axum::middleware::from_fn_with_state(maybe_verifier, optional_claims_mw))
+        .layer(axum::middleware::from_fn_with_state(
+            maybe_verifier,
+            optional_claims_mw,
+        ))
         .layer(build_cors_layer(&config))
         .into_make_service_with_connect_info::<SocketAddr>();
 
@@ -190,7 +239,9 @@ fn build_cors_layer(config: &Config) -> CorsLayer {
     let is_wildcard = config.cors_origins.len() == 1 && config.cors_origins[0] == "*";
 
     if is_wildcard && config.env != "development" {
-        tracing::warn!("CORS_ORIGINS is set to wildcard — restrict to specific origins in production");
+        tracing::warn!(
+            "CORS_ORIGINS is set to wildcard — restrict to specific origins in production"
+        );
     }
 
     let layer = if is_wildcard {

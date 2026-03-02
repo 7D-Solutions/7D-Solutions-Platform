@@ -14,8 +14,7 @@ use uuid::Uuid;
 
 /// Namespace UUID for deterministic overdue event IDs (UUID v5).
 const OVERDUE_NS: Uuid = Uuid::from_bytes([
-    0x9a, 0x3b, 0x7c, 0x4d, 0xe5, 0xf6, 0x47, 0x8a, 0xb1, 0xc2, 0xd3, 0xe4, 0xf5, 0x06, 0x17,
-    0x28,
+    0x9a, 0x3b, 0x7c, 0x4d, 0xe5, 0xf6, 0x47, 0x8a, 0xb1, 0xc2, 0xd3, 0xe4, 0xf5, 0x06, 0x17, 0x28,
 ]);
 
 /// Result of an overdue detection tick.
@@ -104,11 +103,12 @@ pub async fn evaluate_overdue(pool: &PgPool) -> Result<OverdueResult, sqlx::Erro
             crate::events::subjects::WO_OVERDUE.to_string(),
             event,
         );
-        let env_json = crate::events::envelope::validate_envelope(&env)
-            .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+        let env_json = crate::events::envelope::validate_envelope(&env).map_err(|e| {
+            sqlx::Error::Encode(Box::new(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Envelope validation: {}", e),
-            ))))?;
+            )))
+        })?;
 
         // INSERT with ON CONFLICT DO NOTHING — idempotent dedup per (wo, day).
         let res = sqlx::query(

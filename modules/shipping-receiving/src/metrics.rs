@@ -39,7 +39,9 @@ impl ShippingReceivingMetrics {
                 "shipping_receiving_http_request_duration_seconds",
                 "HTTP request duration in seconds",
             )
-            .buckets(vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]),
+            .buckets(vec![
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0,
+            ]),
             &["method", "route", "status"],
         )?;
         registry.register(Box::new(http_request_duration_seconds.clone()))?;
@@ -71,13 +73,7 @@ impl ShippingReceivingMetrics {
         })
     }
 
-    pub fn record_http_request(
-        &self,
-        method: &str,
-        route: &str,
-        status: &str,
-        duration_secs: f64,
-    ) {
+    pub fn record_http_request(&self, method: &str, route: &str, status: &str, duration_secs: f64) {
         self.http_request_duration_seconds
             .with_label_values(&[method, route, status])
             .observe(duration_secs);
@@ -157,7 +153,12 @@ mod tests {
         m.record_http_request("GET", "/test", "200", 0.01);
         m.record_consumer_lag("test_group", 0);
         let families = m.registry().gather();
-        assert_eq!(families.len(), 4, "Expected 4 metric families, got {}", families.len());
+        assert_eq!(
+            families.len(),
+            4,
+            "Expected 4 metric families, got {}",
+            families.len()
+        );
     }
 }
 
@@ -169,19 +170,23 @@ pub async fn metrics_handler(
     let metric_families = app_state.metrics.registry().gather();
 
     let mut buffer = vec![];
-    encoder
-        .encode(&metric_families, &mut buffer)
-        .map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("internal_error", &format!("Failed to encode metrics: {}", e))),
-            )
-        })?;
+    encoder.encode(&metric_families, &mut buffer).map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorBody::new(
+                "internal_error",
+                &format!("Failed to encode metrics: {}", e),
+            )),
+        )
+    })?;
 
     String::from_utf8(buffer).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new("internal_error", &format!("Failed to convert metrics to string: {}", e))),
+            Json(ErrorBody::new(
+                "internal_error",
+                &format!("Failed to convert metrics to string: {}", e),
+            )),
         )
     })
 }

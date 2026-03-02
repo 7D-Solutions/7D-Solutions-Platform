@@ -4,11 +4,7 @@
 //! All modules should apply these layers for consistent security posture.
 
 use crate::ratelimit::{RateLimitConfig, RateLimiter};
-use axum::{
-    extract::ConnectInfo,
-    http::StatusCode,
-    response::IntoResponse,
-};
+use axum::{extract::ConnectInfo, http::StatusCode, response::IntoResponse};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -63,11 +59,7 @@ pub async fn rate_limit_middleware(
         let path = request.uri().path().to_string();
 
         if limiter.check_limit(&ip, &path).is_err() {
-            return (
-                StatusCode::TOO_MANY_REQUESTS,
-                "Rate limit exceeded\n",
-            )
-                .into_response();
+            return (StatusCode::TOO_MANY_REQUESTS, "Rate limit exceeded\n").into_response();
         }
     }
 
@@ -134,10 +126,7 @@ mod tests {
             .route("/fast", get(|| async { "ok" }))
             .layer(axum::middleware::from_fn(timeout_middleware));
 
-        let req = Request::builder()
-            .uri("/fast")
-            .body(Body::empty())
-            .unwrap();
+        let req = Request::builder().uri("/fast").body(Body::empty()).unwrap();
 
         let resp = app.oneshot(req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::OK);

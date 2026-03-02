@@ -158,10 +158,7 @@ impl AssetRepo {
         .map_err(|e| {
             if let sqlx::Error::Database(ref dbe) = e {
                 if dbe.code().as_deref() == Some("23505") {
-                    return AssetError::DuplicateTag(
-                        req.asset_tag.clone(),
-                        req.tenant_id.clone(),
-                    );
+                    return AssetError::DuplicateTag(req.asset_tag.clone(), req.tenant_id.clone());
                 }
             }
             AssetError::Database(e)
@@ -185,10 +182,7 @@ impl AssetRepo {
         .map_err(AssetError::Database)
     }
 
-    pub async fn list(
-        pool: &PgPool,
-        q: &ListAssetsQuery,
-    ) -> Result<AssetListResponse, AssetError> {
+    pub async fn list(pool: &PgPool, q: &ListAssetsQuery) -> Result<AssetListResponse, AssetError> {
         if q.tenant_id.trim().is_empty() {
             return Err(AssetError::Validation("tenant_id is required".into()));
         }
@@ -197,12 +191,10 @@ impl AssetRepo {
 
         // Validate optional filter values
         if let Some(ref at) = q.asset_type {
-            AssetType::from_str_value(at)
-                .map_err(|e| AssetError::Validation(e.to_string()))?;
+            AssetType::from_str_value(at).map_err(|e| AssetError::Validation(e.to_string()))?;
         }
         if let Some(ref st) = q.status {
-            AssetStatus::from_str_value(st)
-                .map_err(|e| AssetError::Validation(e.to_string()))?;
+            AssetStatus::from_str_value(st).map_err(|e| AssetError::Validation(e.to_string()))?;
         }
 
         let total: (i64,) = sqlx::query_as(
@@ -252,12 +244,10 @@ impl AssetRepo {
         req: &UpdateAssetRequest,
     ) -> Result<Asset, AssetError> {
         if let Some(ref at) = req.asset_type {
-            AssetType::from_str_value(at)
-                .map_err(|e| AssetError::Validation(e.to_string()))?;
+            AssetType::from_str_value(at).map_err(|e| AssetError::Validation(e.to_string()))?;
         }
         if let Some(ref st) = req.status {
-            AssetStatus::from_str_value(st)
-                .map_err(|e| AssetError::Validation(e.to_string()))?;
+            AssetStatus::from_str_value(st).map_err(|e| AssetError::Validation(e.to_string()))?;
         }
         if let Some(ref name) = req.name {
             if name.trim().is_empty() {
@@ -307,15 +297,27 @@ mod tests {
 
     #[test]
     fn asset_type_roundtrip() {
-        assert_eq!(AssetType::from_str_value("vehicle").unwrap(), AssetType::Vehicle);
-        assert_eq!(AssetType::from_str_value("facility").unwrap(), AssetType::Facility);
+        assert_eq!(
+            AssetType::from_str_value("vehicle").unwrap(),
+            AssetType::Vehicle
+        );
+        assert_eq!(
+            AssetType::from_str_value("facility").unwrap(),
+            AssetType::Facility
+        );
         assert!(AssetType::from_str_value("spaceship").is_err());
     }
 
     #[test]
     fn asset_status_roundtrip() {
-        assert_eq!(AssetStatus::from_str_value("active").unwrap(), AssetStatus::Active);
-        assert_eq!(AssetStatus::from_str_value("retired").unwrap(), AssetStatus::Retired);
+        assert_eq!(
+            AssetStatus::from_str_value("active").unwrap(),
+            AssetStatus::Active
+        );
+        assert_eq!(
+            AssetStatus::from_str_value("retired").unwrap(),
+            AssetStatus::Retired
+        );
         assert!(AssetStatus::from_str_value("destroyed").is_err());
     }
 }

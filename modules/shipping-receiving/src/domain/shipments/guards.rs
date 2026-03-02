@@ -116,10 +116,7 @@ fn validate_inbound_arrived(ctx: &InboundGuardContext) -> Result<(), GuardError>
 }
 
 /// Run all inbound guards for the given target status.
-pub fn run_inbound_guards(
-    to: InboundStatus,
-    ctx: &InboundGuardContext,
-) -> Result<(), GuardError> {
+pub fn run_inbound_guards(to: InboundStatus, ctx: &InboundGuardContext) -> Result<(), GuardError> {
     match to {
         InboundStatus::Arrived => validate_inbound_arrived(ctx),
         InboundStatus::Closed => validate_inbound_close(ctx),
@@ -195,7 +192,13 @@ mod tests {
     use chrono::Utc;
     use uuid::Uuid;
 
-    fn make_line(expected: i64, shipped: i64, received: i64, accepted: i64, rejected: i64) -> LineQty {
+    fn make_line(
+        expected: i64,
+        shipped: i64,
+        received: i64,
+        accepted: i64,
+        rejected: i64,
+    ) -> LineQty {
         LineQty {
             line_id: Uuid::new_v4(),
             qty_expected: expected,
@@ -281,7 +284,12 @@ mod tests {
         };
         let err = run_inbound_guards(InboundStatus::Closed, &ctx).unwrap_err();
         match err {
-            GuardError::InboundQtyMismatch { accepted, rejected, received, .. } => {
+            GuardError::InboundQtyMismatch {
+                accepted,
+                rejected,
+                received,
+                ..
+            } => {
                 assert_eq!(accepted, 7);
                 assert_eq!(rejected, 2);
                 assert_eq!(received, 10);
@@ -301,7 +309,9 @@ mod tests {
         let err = run_inbound_guards(InboundStatus::Closed, &ctx).unwrap_err();
         match err {
             GuardError::InboundQtyMismatch { .. } => {} // mismatch fires first (9+2=11!=11 wait, 9+2=11==11)
-            GuardError::InboundReceivedExceedsExpected { received, expected, .. } => {
+            GuardError::InboundReceivedExceedsExpected {
+                received, expected, ..
+            } => {
                 assert_eq!(received, 11);
                 assert_eq!(expected, 10);
             }
@@ -314,8 +324,8 @@ mod tests {
         let ctx = InboundGuardContext {
             closed_at: Some(Utc::now()),
             lines: vec![
-                make_line(10, 0, 10, 8, 2),  // 8 + 2 = 10 ✓, 10 <= 10 ✓
-                make_line(5, 0, 3, 3, 0),     // 3 + 0 = 3 ✓, 3 <= 5 ✓
+                make_line(10, 0, 10, 8, 2), // 8 + 2 = 10 ✓, 10 <= 10 ✓
+                make_line(5, 0, 3, 3, 0),   // 3 + 0 = 3 ✓, 3 <= 5 ✓
             ],
             ..empty_inbound_ctx()
         };
@@ -411,7 +421,9 @@ mod tests {
         };
         let err = run_outbound_guards(OutboundStatus::Shipped, &ctx).unwrap_err();
         match err {
-            GuardError::OutboundShippedExceedsExpected { shipped, expected, .. } => {
+            GuardError::OutboundShippedExceedsExpected {
+                shipped, expected, ..
+            } => {
                 assert_eq!(shipped, 11);
                 assert_eq!(expected, 10);
             }

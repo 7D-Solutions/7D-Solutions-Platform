@@ -14,16 +14,15 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::events::{
-    build_party_created_envelope, build_party_deactivated_envelope,
-    build_party_updated_envelope, PartyCreatedPayload, PartyDeactivatedPayload,
-    PartyUpdatedPayload, EVENT_TYPE_PARTY_CREATED, EVENT_TYPE_PARTY_DEACTIVATED,
-    EVENT_TYPE_PARTY_UPDATED,
+    build_party_created_envelope, build_party_deactivated_envelope, build_party_updated_envelope,
+    PartyCreatedPayload, PartyDeactivatedPayload, PartyUpdatedPayload, EVENT_TYPE_PARTY_CREATED,
+    EVENT_TYPE_PARTY_DEACTIVATED, EVENT_TYPE_PARTY_UPDATED,
 };
 use crate::outbox::enqueue_event_tx;
 
 use super::models::{
-    CreateCompanyRequest, CreateIndividualRequest, ExternalRef, Party, PartyCompany,
-    PartyError, PartyIndividual, PartyView, SearchQuery, UpdatePartyRequest,
+    CreateCompanyRequest, CreateIndividualRequest, ExternalRef, Party, PartyCompany, PartyError,
+    PartyIndividual, PartyView, SearchQuery, UpdatePartyRequest,
 };
 
 // ============================================================================
@@ -315,13 +314,8 @@ pub async fn create_company(
         created_at: party.created_at,
     };
 
-    let envelope = build_party_created_envelope(
-        event_id,
-        app_id.to_string(),
-        correlation_id,
-        None,
-        payload,
-    );
+    let envelope =
+        build_party_created_envelope(event_id, app_id.to_string(), correlation_id, None, payload);
 
     enqueue_event_tx(
         &mut tx,
@@ -429,13 +423,8 @@ pub async fn create_individual(
         created_at: party.created_at,
     };
 
-    let envelope = build_party_created_envelope(
-        event_id,
-        app_id.to_string(),
-        correlation_id,
-        None,
-        payload,
-    );
+    let envelope =
+        build_party_created_envelope(event_id, app_id.to_string(), correlation_id, None, payload);
 
     enqueue_event_tx(
         &mut tx,
@@ -509,8 +498,14 @@ pub async fn update_party(
     let new_email = req.email.as_ref().or(current.email.as_ref());
     let new_phone = req.phone.as_ref().or(current.phone.as_ref());
     let new_website = req.website.as_ref().or(current.website.as_ref());
-    let new_addr1 = req.address_line1.as_ref().or(current.address_line1.as_ref());
-    let new_addr2 = req.address_line2.as_ref().or(current.address_line2.as_ref());
+    let new_addr1 = req
+        .address_line1
+        .as_ref()
+        .or(current.address_line1.as_ref());
+    let new_addr2 = req
+        .address_line2
+        .as_ref()
+        .or(current.address_line2.as_ref());
     let new_city = req.city.as_ref().or(current.city.as_ref());
     let new_state = req.state.as_ref().or(current.state.as_ref());
     let new_postal = req.postal_code.as_ref().or(current.postal_code.as_ref());
@@ -558,13 +553,8 @@ pub async fn update_party(
         updated_at: now,
     };
 
-    let envelope = build_party_updated_envelope(
-        event_id,
-        app_id.to_string(),
-        correlation_id,
-        None,
-        payload,
-    );
+    let envelope =
+        build_party_updated_envelope(event_id, app_id.to_string(), correlation_id, None, payload);
 
     enqueue_event_tx(
         &mut tx,
@@ -580,7 +570,9 @@ pub async fn update_party(
     tx.commit().await?;
 
     // Fetch full view (extension + refs) after commit
-    let view = get_party(pool, app_id, party_id).await?.ok_or(PartyError::NotFound(party_id))?;
+    let view = get_party(pool, app_id, party_id)
+        .await?
+        .ok_or(PartyError::NotFound(party_id))?;
     Ok(view)
 }
 
@@ -684,20 +676,16 @@ mod tests {
     }
 
     async fn cleanup(pool: &PgPool) {
-        sqlx::query(
-            "DELETE FROM party_outbox WHERE app_id = $1"
-        )
-        .bind(TEST_APP)
-        .execute(pool)
-        .await
-        .ok();
-        sqlx::query(
-            "DELETE FROM party_parties WHERE app_id = $1"
-        )
-        .bind(TEST_APP)
-        .execute(pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM party_outbox WHERE app_id = $1")
+            .bind(TEST_APP)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM party_parties WHERE app_id = $1")
+            .bind(TEST_APP)
+            .execute(pool)
+            .await
+            .ok();
     }
 
     fn sample_company_req(name: &str) -> CreateCompanyRequest {
@@ -737,7 +725,11 @@ mod tests {
             nationality: Some("US".to_string()),
             job_title: Some("Engineer".to_string()),
             department: None,
-            email: Some(format!("{}.{}@example.com", first.to_lowercase(), last.to_lowercase())),
+            email: Some(format!(
+                "{}.{}@example.com",
+                first.to_lowercase(),
+                last.to_lowercase()
+            )),
             phone: None,
             address_line1: None,
             address_line2: None,
@@ -755,9 +747,14 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let view = create_company(&pool, TEST_APP, &sample_company_req("Acme Corp"), "corr-1".to_string())
-            .await
-            .expect("create_company failed");
+        let view = create_company(
+            &pool,
+            TEST_APP,
+            &sample_company_req("Acme Corp"),
+            "corr-1".to_string(),
+        )
+        .await
+        .expect("create_company failed");
 
         assert_eq!(view.party.display_name, "Acme Corp");
         assert_eq!(view.party.party_type, "company");
@@ -781,7 +778,10 @@ mod tests {
         cleanup(&pool).await;
 
         let view = create_individual(
-            &pool, TEST_APP, &sample_individual_req("Alice", "Smith"), "corr-1".to_string(),
+            &pool,
+            TEST_APP,
+            &sample_individual_req("Alice", "Smith"),
+            "corr-1".to_string(),
         )
         .await
         .expect("create_individual failed");
@@ -801,7 +801,10 @@ mod tests {
         cleanup(&pool).await;
 
         let created = create_company(
-            &pool, TEST_APP, &sample_company_req("Beta Corp"), "corr-1".to_string(),
+            &pool,
+            TEST_APP,
+            &sample_company_req("Beta Corp"),
+            "corr-1".to_string(),
         )
         .await
         .expect("create failed");
@@ -821,9 +824,15 @@ mod tests {
             updated_by: Some("user-42".to_string()),
         };
 
-        let updated = update_party(&pool, TEST_APP, created.party.id, &req, "corr-2".to_string())
-            .await
-            .expect("update failed");
+        let updated = update_party(
+            &pool,
+            TEST_APP,
+            created.party.id,
+            &req,
+            "corr-2".to_string(),
+        )
+        .await
+        .expect("update failed");
 
         assert_eq!(updated.party.display_name, "Beta Corporation");
         assert_eq!(updated.party.email.as_deref(), Some("new@beta.com"));
@@ -838,21 +847,34 @@ mod tests {
         cleanup(&pool).await;
 
         let created = create_company(
-            &pool, TEST_APP, &sample_company_req("Gamma Inc"), "corr-1".to_string(),
+            &pool,
+            TEST_APP,
+            &sample_company_req("Gamma Inc"),
+            "corr-1".to_string(),
         )
         .await
         .expect("create failed");
 
-        deactivate_party(&pool, TEST_APP, created.party.id, "user-1", "corr-3".to_string())
-            .await
-            .expect("deactivate failed");
+        deactivate_party(
+            &pool,
+            TEST_APP,
+            created.party.id,
+            "user-1",
+            "corr-3".to_string(),
+        )
+        .await
+        .expect("deactivate failed");
 
         // Active list excludes it
-        let active = list_parties(&pool, TEST_APP, false).await.expect("list failed");
+        let active = list_parties(&pool, TEST_APP, false)
+            .await
+            .expect("list failed");
         assert!(active.iter().all(|p| p.id != created.party.id));
 
         // Full list includes it as inactive
-        let all = list_parties(&pool, TEST_APP, true).await.expect("list all failed");
+        let all = list_parties(&pool, TEST_APP, true)
+            .await
+            .expect("list all failed");
         let found = all.iter().find(|p| p.id == created.party.id);
         assert!(found.is_some());
         assert_eq!(found.unwrap().status, "inactive");
@@ -866,15 +888,30 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        create_company(&pool, TEST_APP, &sample_company_req("Delta Supplies"), "c1".to_string())
-            .await
-            .expect("create 1 failed");
-        create_company(&pool, TEST_APP, &sample_company_req("Delta Analytics"), "c2".to_string())
-            .await
-            .expect("create 2 failed");
-        create_company(&pool, TEST_APP, &sample_company_req("Epsilon LLC"), "c3".to_string())
-            .await
-            .expect("create 3 failed");
+        create_company(
+            &pool,
+            TEST_APP,
+            &sample_company_req("Delta Supplies"),
+            "c1".to_string(),
+        )
+        .await
+        .expect("create 1 failed");
+        create_company(
+            &pool,
+            TEST_APP,
+            &sample_company_req("Delta Analytics"),
+            "c2".to_string(),
+        )
+        .await
+        .expect("create 2 failed");
+        create_company(
+            &pool,
+            TEST_APP,
+            &sample_company_req("Epsilon LLC"),
+            "c3".to_string(),
+        )
+        .await
+        .expect("create 3 failed");
 
         let results = search_parties(
             &pool,
@@ -892,7 +929,12 @@ mod tests {
         .await
         .expect("search failed");
 
-        assert_eq!(results.len(), 2, "expected 2 Delta parties, got {}", results.len());
+        assert_eq!(
+            results.len(),
+            2,
+            "expected 2 Delta parties, got {}",
+            results.len()
+        );
         assert!(results.iter().all(|p| p.display_name.contains("Delta")));
 
         cleanup(&pool).await;
@@ -905,7 +947,10 @@ mod tests {
         cleanup(&pool).await;
 
         let created = create_company(
-            &pool, TEST_APP, &sample_company_req("Zeta Corp"), "corr-outbox".to_string(),
+            &pool,
+            TEST_APP,
+            &sample_company_req("Zeta Corp"),
+            "corr-outbox".to_string(),
         )
         .await
         .expect("create failed");
@@ -930,7 +975,10 @@ mod tests {
         cleanup(&pool).await;
 
         let created = create_company(
-            &pool, TEST_APP, &sample_company_req("Eta Corp"), "corr-1".to_string(),
+            &pool,
+            TEST_APP,
+            &sample_company_req("Eta Corp"),
+            "corr-1".to_string(),
         )
         .await
         .expect("create failed");

@@ -46,10 +46,7 @@ pub enum InvariantViolation {
         max_allowed: i32,
     },
     /// Payment with status=unknown found in retry queue (UNKNOWN blocks retry)
-    UnknownInRetryQueue {
-        payment_id: Uuid,
-        status: String,
-    },
+    UnknownInRetryQueue { payment_id: Uuid, status: String },
     /// Terminal status payment has new attempts (should be immutable)
     TerminalStatusWithAttempts {
         payment_id: Uuid,
@@ -133,7 +130,7 @@ pub async fn assert_no_duplicate_attempts(
          FROM payment_attempts
          WHERE app_id = $1
          GROUP BY payment_id, attempt_no
-         HAVING COUNT(*) > 1"
+         HAVING COUNT(*) > 1",
     )
     .bind(app_id)
     .fetch_all(pool)
@@ -173,7 +170,7 @@ pub async fn assert_attempt_count_within_limits(
          FROM payment_attempts
          WHERE app_id = $1
          GROUP BY payment_id
-         HAVING COUNT(*) > $2"
+         HAVING COUNT(*) > $2",
     )
     .bind(app_id)
     .bind(MAX_ATTEMPTS as i64)
@@ -220,7 +217,7 @@ pub async fn assert_unknown_protocol_compliance(
                WHERE pa2.app_id = $1
                  AND pa2.payment_id = pa.payment_id
                  AND pa2.status::text IN ('attempting', 'failed_retry')
-           )"
+           )",
     )
     .bind(app_id)
     .fetch_all(pool)
@@ -261,7 +258,7 @@ pub async fn assert_no_attempts_after_terminal(
          WHERE app_id = $1
            AND status::text IN ('succeeded', 'failed_final')
          GROUP BY payment_id, status
-         HAVING COUNT(*) > 1"
+         HAVING COUNT(*) > 1",
     )
     .bind(app_id)
     .fetch_all(pool)

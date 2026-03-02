@@ -4,7 +4,9 @@
 use chrono::Utc;
 use uuid::Uuid;
 
-use crate::events::{build_webhook_routed_envelope, WebhookRoutedPayload, EVENT_TYPE_WEBHOOK_ROUTED};
+use crate::events::{
+    build_webhook_routed_envelope, WebhookRoutedPayload, EVENT_TYPE_WEBHOOK_ROUTED,
+};
 use crate::outbox::enqueue_event_tx;
 
 use super::models::WebhookError;
@@ -18,9 +20,15 @@ pub fn map_to_domain_event(system: &str, source_event_type: Option<&str>) -> Opt
         ("stripe", Some("payment_intent.succeeded")) => Some("payment.received".to_string()),
         ("stripe", Some("payment_intent.payment_failed")) => Some("payment.failed".to_string()),
         ("stripe", Some("invoice.payment_succeeded")) => Some("invoice.paid.external".to_string()),
-        ("stripe", Some("invoice.payment_failed")) => Some("invoice.payment_failed.external".to_string()),
-        ("stripe", Some("customer.subscription.created")) => Some("subscription.created.external".to_string()),
-        ("stripe", Some("customer.subscription.deleted")) => Some("subscription.cancelled.external".to_string()),
+        ("stripe", Some("invoice.payment_failed")) => {
+            Some("invoice.payment_failed.external".to_string())
+        }
+        ("stripe", Some("customer.subscription.created")) => {
+            Some("subscription.created.external".to_string())
+        }
+        ("stripe", Some("customer.subscription.deleted")) => {
+            Some("subscription.cancelled.external".to_string())
+        }
         // GitHub events
         ("github", Some("push")) => Some("repository.push".to_string()),
         ("github", Some("pull_request")) => Some("repository.pull_request".to_string()),

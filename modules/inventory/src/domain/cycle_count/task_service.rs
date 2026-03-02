@@ -246,7 +246,10 @@ mod tests {
     fn validate_rejects_empty_tenant() {
         let mut r = req(TaskScope::Full, vec![]);
         r.tenant_id = "".to_string();
-        assert!(matches!(validate_request(&r), Err(TaskError::MissingTenant)));
+        assert!(matches!(
+            validate_request(&r),
+            Err(TaskError::MissingTenant)
+        ));
     }
 
     #[test]

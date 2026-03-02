@@ -38,7 +38,6 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::AppState;
 use crate::clients::ar::ArClient;
 use crate::clients::tenant_registry::{TenantRegistryClient, TenantRegistryError};
 use crate::domain::billing::{run_billing, BillingError};
@@ -46,6 +45,7 @@ use crate::events::{
     create_ttp_envelope, BillingRunCompleted, BillingRunFailed, BILLING_RUN_COMPLETED,
     BILLING_RUN_FAILED,
 };
+use crate::AppState;
 
 // ---------------------------------------------------------------------------
 // Request / response types
@@ -84,24 +84,23 @@ pub async fn create_billing_run(
     claims: Option<Extension<VerifiedClaims>>,
     tracing_ctx: Option<Extension<TracingContext>>,
     Json(req): Json<BillingRunRequest>,
-) -> Result<Json<BillingRunResponse>, (StatusCode, Json<ErrorBody>)>
-{
+) -> Result<Json<BillingRunResponse>, (StatusCode, Json<ErrorBody>)> {
     let tracing_ctx = tracing_ctx.map(|Extension(c)| c).unwrap_or_default();
-    let tenant_id = claims
-        .map(|Extension(c)| c.tenant_id)
-        .ok_or_else(|| (
+    let tenant_id = claims.map(|Extension(c)| c.tenant_id).ok_or_else(|| {
+        (
             StatusCode::UNAUTHORIZED,
             Json(ErrorBody {
                 error: "Missing or invalid authentication".to_string(),
                 code: "unauthorized".to_string(),
             }),
-        ))?;
+        )
+    })?;
     // Build clients from env — base URLs are resolved at request time from env so
     // they can be overridden in test environments.
     let registry_url = std::env::var("TENANT_REGISTRY_URL")
         .unwrap_or_else(|_| "http://localhost:8092".to_string());
-    let ar_url = std::env::var("AR_BASE_URL")
-        .unwrap_or_else(|_| "http://localhost:8086".to_string());
+    let ar_url =
+        std::env::var("AR_BASE_URL").unwrap_or_else(|_| "http://localhost:8086".to_string());
 
     let registry = TenantRegistryClient::new(registry_url);
     let ar = ArClient::new(ar_url);
@@ -280,8 +279,9 @@ mod tests {
     /// Build a lazy pool that defers the actual TCP connection until first use.
     /// Validation-only tests (400 responses) never touch the DB so no connection is made.
     fn lazy_pool() -> sqlx::PgPool {
-        let url = std::env::var("DATABASE_URL")
-            .unwrap_or_else(|_| "postgres://postgres:postgres@localhost:5450/ttp_default_db".to_string());
+        let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+            "postgres://postgres:postgres@localhost:5450/ttp_default_db".to_string()
+        });
         sqlx::PgPool::connect_lazy(&url).expect("build lazy pool")
     }
 
@@ -308,7 +308,10 @@ mod tests {
         let metrics = Arc::new(TtpMetrics::new().unwrap());
         let state = Arc::new(crate::AppState { pool, metrics });
         axum::Router::new()
-            .route("/api/ttp/billing-runs", axum::routing::post(create_billing_run))
+            .route(
+                "/api/ttp/billing-runs",
+                axum::routing::post(create_billing_run),
+            )
             .layer(Extension(claims))
             .with_state(state)
     }
@@ -317,9 +320,15 @@ mod tests {
     async fn missing_claims_returns_401() {
         use crate::metrics::TtpMetrics;
         let metrics = Arc::new(TtpMetrics::new().unwrap());
-        let state = Arc::new(crate::AppState { pool: lazy_pool(), metrics });
+        let state = Arc::new(crate::AppState {
+            pool: lazy_pool(),
+            metrics,
+        });
         let app = axum::Router::new()
-            .route("/api/ttp/billing-runs", axum::routing::post(create_billing_run))
+            .route(
+                "/api/ttp/billing-runs",
+                axum::routing::post(create_billing_run),
+            )
             .with_state(state);
 
         let body = serde_json::json!({

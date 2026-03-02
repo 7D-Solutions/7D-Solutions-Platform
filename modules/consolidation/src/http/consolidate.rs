@@ -17,9 +17,7 @@ use uuid::Uuid;
 use crate::domain::engine::{self, compute, EngineError};
 use crate::AppState;
 
-fn extract_tenant(
-    claims: &Option<Extension<VerifiedClaims>>,
-) -> Result<String, ConsolidateError> {
+fn extract_tenant(claims: &Option<Extension<VerifiedClaims>>) -> Result<String, ConsolidateError> {
     match claims {
         Some(Extension(c)) => Ok(c.tenant_id.to_string()),
         None => Err(ConsolidateError {

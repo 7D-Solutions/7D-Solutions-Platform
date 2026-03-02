@@ -125,10 +125,11 @@ pub async fn run(cfg: &Config, dry_run: bool) -> Result<ScenarioResult> {
     );
 
     // Phase 5: Threshold enforcement
-    let min_throughput =
-        read_env_f64("DUNNING_MIN_THROUGHPUT_PER_SEC", DEFAULT_DUNNING_MIN_THROUGHPUT);
-    let max_drain_secs =
-        read_env_f64("DUNNING_MAX_DRAIN_SECS", DEFAULT_DUNNING_MAX_DRAIN_SECS);
+    let min_throughput = read_env_f64(
+        "DUNNING_MIN_THROUGHPUT_PER_SEC",
+        DEFAULT_DUNNING_MIN_THROUGHPUT,
+    );
+    let max_drain_secs = read_env_f64("DUNNING_MAX_DRAIN_SECS", DEFAULT_DUNNING_MAX_DRAIN_SECS);
 
     let mut violations: Vec<String> = Vec::new();
 
@@ -257,8 +258,7 @@ async fn seed_tenants(
         let mut invoice_ids = Vec::with_capacity(rows_per_tenant);
 
         for j in 0..rows_per_tenant {
-            let tilled_invoice_id =
-                format!("bench-dn-inv-{}-{:04}-{:06}", run_prefix, i, j);
+            let tilled_invoice_id = format!("bench-dn-inv-{}-{:04}-{:06}", run_prefix, i, j);
             let invoice_id: i32 = sqlx::query_scalar(
                 r#"
                 INSERT INTO ar_invoices (
@@ -296,10 +296,7 @@ async fn seed_tenants(
 ///
 /// Invariant: after exactly 1 init + 1 transition, version = 2.
 /// version > 2 indicates a row was transitioned more than once.
-async fn check_no_duplicate_processing(
-    pool: &PgPool,
-    run_prefix: &str,
-) -> Result<(i64, bool)> {
+async fn check_no_duplicate_processing(pool: &PgPool, run_prefix: &str) -> Result<(i64, bool)> {
     let over_processed: i64 = sqlx::query_scalar(
         r#"
         SELECT COUNT(*)

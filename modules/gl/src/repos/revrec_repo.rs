@@ -47,12 +47,11 @@ pub enum RevrecRepoError {
 
 /// Check if a contract already exists (idempotency check)
 pub async fn contract_exists(pool: &PgPool, contract_id: Uuid) -> Result<bool, RevrecRepoError> {
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM revrec_contracts WHERE contract_id = $1)",
-    )
-    .bind(contract_id)
-    .fetch_one(pool)
-    .await?;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM revrec_contracts WHERE contract_id = $1)")
+            .bind(contract_id)
+            .fetch_one(pool)
+            .await?;
     Ok(exists)
 }
 
@@ -87,12 +86,11 @@ pub async fn create_contract(
     let mut tx = pool.begin().await?;
 
     // Idempotency: check if contract already exists within transaction (serializable)
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM revrec_contracts WHERE contract_id = $1)",
-    )
-    .bind(payload.contract_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM revrec_contracts WHERE contract_id = $1)")
+            .bind(payload.contract_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     if exists {
         tx.rollback().await?;
@@ -175,8 +173,8 @@ pub async fn create_contract(
     }
 
     // Insert outbox event atomically
-    let outbox_payload = serde_json::to_value(payload)
-        .map_err(|e| RevrecRepoError::Serialization(e.to_string()))?;
+    let outbox_payload =
+        serde_json::to_value(payload).map_err(|e| RevrecRepoError::Serialization(e.to_string()))?;
 
     outbox_repo::insert_outbox_event(
         &mut tx,
@@ -305,12 +303,11 @@ pub async fn create_schedule(
     let mut tx = pool.begin().await?;
 
     // Idempotency check
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM revrec_schedules WHERE schedule_id = $1)",
-    )
-    .bind(payload.schedule_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM revrec_schedules WHERE schedule_id = $1)")
+            .bind(payload.schedule_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     if exists {
         tx.rollback().await?;
@@ -318,12 +315,11 @@ pub async fn create_schedule(
     }
 
     // Determine version: max existing + 1
-    let current_max: Option<i32> = sqlx::query_scalar(
-        "SELECT MAX(version) FROM revrec_schedules WHERE obligation_id = $1",
-    )
-    .bind(payload.obligation_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let current_max: Option<i32> =
+        sqlx::query_scalar("SELECT MAX(version) FROM revrec_schedules WHERE obligation_id = $1")
+            .bind(payload.obligation_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     let version = current_max.unwrap_or(0) + 1;
 
@@ -389,8 +385,8 @@ pub async fn create_schedule(
     }
 
     // Insert outbox event atomically
-    let outbox_payload = serde_json::to_value(payload)
-        .map_err(|e| RevrecRepoError::Serialization(e.to_string()))?;
+    let outbox_payload =
+        serde_json::to_value(payload).map_err(|e| RevrecRepoError::Serialization(e.to_string()))?;
 
     outbox_repo::insert_outbox_event(
         &mut tx,
@@ -649,7 +645,9 @@ pub async fn create_amendment(
 
     if exists {
         tx.rollback().await?;
-        return Err(RevrecRepoError::DuplicateModification(payload.modification_id));
+        return Err(RevrecRepoError::DuplicateModification(
+            payload.modification_id,
+        ));
     }
 
     let effective_date = NaiveDate::parse_from_str(&payload.effective_date, "%Y-%m-%d")
@@ -675,8 +673,8 @@ pub async fn create_amendment(
     .execute(&mut *tx)
     .await?;
 
-    let outbox_payload = serde_json::to_value(payload)
-        .map_err(|e| RevrecRepoError::Serialization(e.to_string()))?;
+    let outbox_payload =
+        serde_json::to_value(payload).map_err(|e| RevrecRepoError::Serialization(e.to_string()))?;
 
     outbox_repo::insert_outbox_event(
         &mut tx,
@@ -710,11 +708,13 @@ pub async fn get_modifications_for_contract(
     .fetch_all(pool)
     .await?
     .into_iter()
-    .map(|(modification_id, modification_type, effective_date)| ModificationRow {
-        modification_id,
-        modification_type,
-        effective_date,
-    })
+    .map(
+        |(modification_id, modification_type, effective_date)| ModificationRow {
+            modification_id,
+            modification_type,
+            effective_date,
+        },
+    )
     .collect();
 
     Ok(rows)
@@ -751,7 +751,11 @@ pub async fn create_schedule_with_supersession(
     payload: &ScheduleCreatedPayload,
     supersedes_event_id: Option<Uuid>,
 ) -> Result<Uuid, RevrecRepoError> {
-    let lines_sum: i64 = payload.lines.iter().map(|l| l.amount_to_recognize_minor).sum();
+    let lines_sum: i64 = payload
+        .lines
+        .iter()
+        .map(|l| l.amount_to_recognize_minor)
+        .sum();
     if lines_sum != payload.total_to_recognize_minor {
         return Err(RevrecRepoError::ScheduleSumMismatch {
             sum: lines_sum,
@@ -761,24 +765,22 @@ pub async fn create_schedule_with_supersession(
 
     let mut tx = pool.begin().await?;
 
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM revrec_schedules WHERE schedule_id = $1)",
-    )
-    .bind(payload.schedule_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM revrec_schedules WHERE schedule_id = $1)")
+            .bind(payload.schedule_id)
+            .fetch_one(&mut *tx)
+            .await?;
 
     if exists {
         tx.rollback().await?;
         return Err(RevrecRepoError::DuplicateSchedule(payload.schedule_id));
     }
 
-    let current_max: Option<i32> = sqlx::query_scalar(
-        "SELECT MAX(version) FROM revrec_schedules WHERE obligation_id = $1",
-    )
-    .bind(payload.obligation_id)
-    .fetch_one(&mut *tx)
-    .await?;
+    let current_max: Option<i32> =
+        sqlx::query_scalar("SELECT MAX(version) FROM revrec_schedules WHERE obligation_id = $1")
+            .bind(payload.obligation_id)
+            .fetch_one(&mut *tx)
+            .await?;
     let version = current_max.unwrap_or(0) + 1;
 
     let previous_schedule_id: Option<Uuid> = if version > 1 {
@@ -834,8 +836,8 @@ pub async fn create_schedule_with_supersession(
         .await?;
     }
 
-    let outbox_payload = serde_json::to_value(payload)
-        .map_err(|e| RevrecRepoError::Serialization(e.to_string()))?;
+    let outbox_payload =
+        serde_json::to_value(payload).map_err(|e| RevrecRepoError::Serialization(e.to_string()))?;
 
     outbox_repo::insert_outbox_event_with_linkage(
         &mut tx,

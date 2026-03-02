@@ -130,9 +130,7 @@ pub async fn create_valuation_snapshot(
     validate_request(req)?;
 
     let request_hash = serde_json::to_string(req)?;
-    if let Some(record) =
-        find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await?
-    {
+    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
         if record.request_hash != request_hash {
             return Err(SnapshotError::ConflictingIdempotencyKey);
         }
@@ -152,11 +150,10 @@ pub async fn create_valuation_snapshot(
 
     // --- Advisory lock: one snapshot writer per tenant at a time ---
     let lock_key = fnv_key(&req.tenant_id);
-    let acquired: bool =
-        sqlx::query_scalar("SELECT pg_try_advisory_xact_lock($1)")
-            .bind(lock_key)
-            .fetch_one(&mut *tx)
-            .await?;
+    let acquired: bool = sqlx::query_scalar("SELECT pg_try_advisory_xact_lock($1)")
+        .bind(lock_key)
+        .fetch_one(&mut *tx)
+        .await?;
     if !acquired {
         return Err(SnapshotError::ConcurrentSnapshot);
     }
@@ -190,8 +187,12 @@ pub async fn create_valuation_snapshot(
     .await?;
 
     // --- Aggregate by item: weighted-average cost ---
-    let lines =
-        aggregate_lines(&layer_rows, req.warehouse_id, req.location_id, &req.currency);
+    let lines = aggregate_lines(
+        &layer_rows,
+        req.warehouse_id,
+        req.location_id,
+        &req.currency,
+    );
     let total_value_minor: i64 = lines.iter().map(|l| l.total_value_minor).sum();
 
     // --- Mutation: insert snapshot header ---
@@ -429,7 +430,10 @@ mod tests {
             correlation_id: None,
             causation_id: None,
         };
-        assert!(matches!(validate_request(&req), Err(SnapshotError::MissingTenant)));
+        assert!(matches!(
+            validate_request(&req),
+            Err(SnapshotError::MissingTenant)
+        ));
     }
 
     #[test]
@@ -463,7 +467,7 @@ mod tests {
         let l = &lines[0];
         assert_eq!(l.quantity_on_hand, 15);
         assert_eq!(l.total_value_minor, 2000); // 10*100 + 5*200
-        assert_eq!(l.unit_cost_minor, 133);    // 2000 / 15 (integer division)
+        assert_eq!(l.unit_cost_minor, 133); // 2000 / 15 (integer division)
     }
 
     #[test]

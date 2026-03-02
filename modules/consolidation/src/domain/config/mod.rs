@@ -98,7 +98,10 @@ pub fn validate_rule_type(rt: &str) -> Result<(), ConfigError> {
 
 pub fn validate_not_blank(value: &str, field: &str) -> Result<(), ConfigError> {
     if value.trim().is_empty() {
-        return Err(ConfigError::Validation(format!("{} cannot be blank", field)));
+        return Err(ConfigError::Validation(format!(
+            "{} cannot be blank",
+            field
+        )));
     }
     Ok(())
 }

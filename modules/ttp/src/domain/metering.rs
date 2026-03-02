@@ -164,8 +164,7 @@ pub async fn compute_price_trace(
         metering_db::aggregate_by_dimension(pool, tenant_id, period_start, period_end).await?;
 
     // 2. Look up pricing rules effective at the period start date
-    let pricing =
-        metering_db::get_pricing_rules(pool, tenant_id, period_start).await?;
+    let pricing = metering_db::get_pricing_rules(pool, tenant_id, period_start).await?;
 
     // 3. Apply pricing to aggregates (integer arithmetic, no rounding)
     let mut line_items = Vec::new();

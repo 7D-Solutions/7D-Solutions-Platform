@@ -71,15 +71,17 @@ pub async fn query_ap_aging(
         std::collections::BTreeMap::new();
 
     for v in &vendors {
-        let entry = summary_map.entry(v.currency.clone()).or_insert_with(|| CurrencySummary {
-            currency: v.currency.clone(),
-            current_minor: 0,
-            bucket_1_30_minor: 0,
-            bucket_31_60_minor: 0,
-            bucket_61_90_minor: 0,
-            bucket_over_90_minor: 0,
-            total_minor: 0,
-        });
+        let entry = summary_map
+            .entry(v.currency.clone())
+            .or_insert_with(|| CurrencySummary {
+                currency: v.currency.clone(),
+                current_minor: 0,
+                bucket_1_30_minor: 0,
+                bucket_31_60_minor: 0,
+                bucket_61_90_minor: 0,
+                bucket_over_90_minor: 0,
+                total_minor: 0,
+            });
         entry.current_minor += v.current_minor;
         entry.bucket_1_30_minor += v.bucket_1_30_minor;
         entry.bucket_31_60_minor += v.bucket_31_60_minor;
@@ -112,7 +114,10 @@ mod tests {
 
     async fn test_pool() -> PgPool {
         let pool = PgPool::connect(&test_db_url()).await.expect("connect");
-        sqlx::migrate!("./db/migrations").run(&pool).await.expect("migrate");
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("migrate");
         pool
     }
 
@@ -124,7 +129,17 @@ mod tests {
             .ok();
     }
 
-    async fn insert_aging(pool: &PgPool, vendor_id: &str, currency: &str, as_of: NaiveDate, current: i64, b30: i64, b60: i64, b90: i64, over90: i64) {
+    async fn insert_aging(
+        pool: &PgPool,
+        vendor_id: &str,
+        currency: &str,
+        as_of: NaiveDate,
+        current: i64,
+        b30: i64,
+        b60: i64,
+        b90: i64,
+        over90: i64,
+    ) {
         let total = current + b30 + b60 + b90 + over90;
         sqlx::query(
             r#"
@@ -202,10 +217,18 @@ mod tests {
         assert_eq!(report.vendors.len(), 2);
         assert_eq!(report.summary_by_currency.len(), 2);
 
-        let eur = report.summary_by_currency.iter().find(|s| s.currency == "EUR").expect("EUR");
+        let eur = report
+            .summary_by_currency
+            .iter()
+            .find(|s| s.currency == "EUR")
+            .expect("EUR");
         assert_eq!(eur.total_minor, 5000);
 
-        let usd = report.summary_by_currency.iter().find(|s| s.currency == "USD").expect("USD");
+        let usd = report
+            .summary_by_currency
+            .iter()
+            .find(|s| s.currency == "USD")
+            .expect("USD");
         assert_eq!(usd.total_minor, 10000);
 
         cleanup(&pool).await;

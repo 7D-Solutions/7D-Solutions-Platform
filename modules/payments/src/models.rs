@@ -77,7 +77,7 @@ pub enum PaymentAttemptStatus {
     Succeeded,
     FailedRetry,
     FailedFinal,
-    Unknown,  // Phase 15 UNKNOWN protocol: blocks retries and subscription suspension
+    Unknown, // Phase 15 UNKNOWN protocol: blocks retries and subscription suspension
 }
 
 /// Payment attempt record from payment_attempts table

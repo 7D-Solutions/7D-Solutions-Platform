@@ -28,9 +28,11 @@ fn map_error(e: AssetError) -> (StatusCode, Json<serde_json::Value>) {
         AssetError::CategoryNotFound(_) => (StatusCode::NOT_FOUND, "not_found", e.to_string()),
         AssetError::Validation(_) => (StatusCode::BAD_REQUEST, "validation_error", e.to_string()),
         AssetError::DuplicateTag(_, _) => (StatusCode::CONFLICT, "duplicate_tag", e.to_string()),
-        AssetError::DuplicateCategoryCode(_, _) => {
-            (StatusCode::CONFLICT, "duplicate_category_code", e.to_string())
-        }
+        AssetError::DuplicateCategoryCode(_, _) => (
+            StatusCode::CONFLICT,
+            "duplicate_category_code",
+            e.to_string(),
+        ),
         AssetError::InvalidTransition(_) => {
             (StatusCode::CONFLICT, "invalid_transition", e.to_string())
         }
@@ -40,7 +42,10 @@ fn map_error(e: AssetError) -> (StatusCode, Json<serde_json::Value>) {
             "Internal error".to_string(),
         ),
     };
-    (status, Json(serde_json::json!({ "error": code, "message": msg })))
+    (
+        status,
+        Json(serde_json::json!({ "error": code, "message": msg })),
+    )
 }
 
 fn map_internal_error<E: std::fmt::Display>(e: E) -> (StatusCode, Json<serde_json::Value>) {
@@ -123,7 +128,9 @@ pub async fn list_categories(
     let cats = CategoryRepo::list(&state.pool, &tenant_id)
         .await
         .map_err(map_error)?;
-    Ok(Json(serde_json::to_value(cats).map_err(map_internal_error)?))
+    Ok(Json(
+        serde_json::to_value(cats).map_err(map_internal_error)?,
+    ))
 }
 
 // ============================================================================
@@ -143,7 +150,9 @@ pub async fn create_asset(
     let tenant_id = extract_tenant(&claims)?;
     req.tenant_id = tenant_id;
 
-    let asset = AssetRepo::create(&state.pool, &req).await.map_err(map_error)?;
+    let asset = AssetRepo::create(&state.pool, &req)
+        .await
+        .map_err(map_error)?;
     Ok((
         StatusCode::CREATED,
         Json(serde_json::to_value(asset).map_err(map_internal_error)?),
@@ -162,7 +171,9 @@ pub async fn update_asset(
     let asset = AssetRepo::update(&state.pool, id, &req)
         .await
         .map_err(map_error)?;
-    Ok(Json(serde_json::to_value(asset).map_err(map_internal_error)?))
+    Ok(Json(
+        serde_json::to_value(asset).map_err(map_internal_error)?,
+    ))
 }
 
 pub async fn deactivate_asset(
@@ -175,7 +186,9 @@ pub async fn deactivate_asset(
     let asset = AssetRepo::deactivate(&state.pool, id, &tenant_id)
         .await
         .map_err(map_error)?;
-    Ok(Json(serde_json::to_value(asset).map_err(map_internal_error)?))
+    Ok(Json(
+        serde_json::to_value(asset).map_err(map_internal_error)?,
+    ))
 }
 
 pub async fn get_asset(
@@ -189,7 +202,9 @@ pub async fn get_asset(
         .await
         .map_err(map_error)?
         .ok_or_else(|| map_error(AssetError::NotFound))?;
-    Ok(Json(serde_json::to_value(asset).map_err(map_internal_error)?))
+    Ok(Json(
+        serde_json::to_value(asset).map_err(map_internal_error)?,
+    ))
 }
 
 pub async fn list_assets(
@@ -202,5 +217,7 @@ pub async fn list_assets(
     let assets = AssetRepo::list(&state.pool, &tenant_id, query.status.as_deref())
         .await
         .map_err(map_error)?;
-    Ok(Json(serde_json::to_value(assets).map_err(map_internal_error)?))
+    Ok(Json(
+        serde_json::to_value(assets).map_err(map_internal_error)?,
+    ))
 }

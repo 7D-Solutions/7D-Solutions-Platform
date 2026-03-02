@@ -17,7 +17,7 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use compliance_export::export_compliance_data;
-use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 // ============================================================================
 // CLI Definition
@@ -87,8 +87,7 @@ async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::registry()
         .with(fmt::layer())
-        .with(EnvFilter::from_default_env()
-            .add_directive(tracing::Level::INFO.into()))
+        .with(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();
 
     let cli = Cli::parse();
@@ -110,7 +109,9 @@ async fn main() -> Result<()> {
 
             // Date range filtering is not yet implemented
             if from.is_some() || to.is_some() {
-                tracing::warn!("Date range filtering (--from/--to) is not yet implemented and will be ignored");
+                tracing::warn!(
+                    "Date range filtering (--from/--to) is not yet implemented and will be ignored"
+                );
             }
 
             export_compliance_data(&tenant, &output, &format).await?;
@@ -130,12 +131,14 @@ async fn main() -> Result<()> {
                 "Evidence pack command invoked"
             );
 
-            let period_uuid: uuid::Uuid = period_id.parse()
+            let period_uuid: uuid::Uuid = period_id
+                .parse()
                 .map_err(|e| anyhow::anyhow!("Invalid period UUID: {}", e))?;
 
             let gl_url = std::env::var("GL_DATABASE_URL")
                 .map_err(|_| anyhow::anyhow!("GL_DATABASE_URL not set"))?;
-            let gl_pool = sqlx::PgPool::connect(&gl_url).await
+            let gl_pool = sqlx::PgPool::connect(&gl_url)
+                .await
                 .map_err(|e| anyhow::anyhow!("Failed to connect to GL database: {}", e))?;
 
             let pack = compliance_export::generate_evidence_pack(

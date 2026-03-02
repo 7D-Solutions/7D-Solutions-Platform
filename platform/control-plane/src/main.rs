@@ -46,9 +46,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("Migrations applied");
 
     // AR pool is optional — billing runs will fail gracefully if unavailable.
-    let ar_db_url = std::env::var("AR_DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://ar_user:ar_pass@localhost:5434/ar_db".to_string()
-    });
+    let ar_db_url = std::env::var("AR_DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://ar_user:ar_pass@localhost:5434/ar_db".to_string());
     let ar_pool = match PgPoolOptions::new()
         .max_connections(5)
         .connect(&ar_db_url)
@@ -59,7 +58,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Some(p)
         }
         Err(e) => {
-            tracing::warn!("AR database unavailable — platform billing runs will be disabled: {}", e);
+            tracing::warn!(
+                "AR database unavailable — platform billing runs will be disabled: {}",
+                e
+            );
             None
         }
     };

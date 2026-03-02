@@ -64,11 +64,7 @@ async fn publish_pending_events(
                 // Mark as published in database
                 mark_as_published(pool, event_id).await?;
                 published_count += 1;
-                tracing::trace!(
-                    "Published event {} to subject {}",
-                    event_id,
-                    nats_subject
-                );
+                tracing::trace!("Published event {} to subject {}", event_id, nats_subject);
             }
             Err(e) => {
                 tracing::error!(

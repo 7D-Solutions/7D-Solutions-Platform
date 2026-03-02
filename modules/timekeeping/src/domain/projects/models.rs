@@ -129,8 +129,7 @@ fn require_non_empty(value: &str, field: &str) -> Result<(), String> {
 impl CreateProjectRequest {
     pub fn validate(&self) -> Result<(), ProjectError> {
         require_non_empty(&self.app_id, "app_id").map_err(ProjectError::Validation)?;
-        require_non_empty(&self.project_code, "project_code")
-            .map_err(ProjectError::Validation)?;
+        require_non_empty(&self.project_code, "project_code").map_err(ProjectError::Validation)?;
         require_non_empty(&self.name, "name").map_err(ProjectError::Validation)?;
         Ok(())
     }

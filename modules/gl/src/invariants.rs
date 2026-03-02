@@ -39,10 +39,7 @@ pub enum InvariantViolation {
         difference: i64,
     },
     /// Duplicate posting for same source event (source_event_id duplicate)
-    DuplicatePosting {
-        source_event_id: Uuid,
-        count: i64,
-    },
+    DuplicatePosting { source_event_id: Uuid, count: i64 },
     /// Journal line references non-existent or inactive account
     InvalidAccountReference {
         line_id: Uuid,
@@ -169,7 +166,7 @@ pub async fn assert_all_entries_balanced(
          LEFT JOIN journal_lines jl ON jl.journal_entry_id = je.id
          WHERE je.tenant_id = $1
          GROUP BY je.id
-         HAVING COALESCE(SUM(jl.debit_minor), 0) != COALESCE(SUM(jl.credit_minor), 0)"
+         HAVING COALESCE(SUM(jl.debit_minor), 0) != COALESCE(SUM(jl.credit_minor), 0)",
     )
     .bind(tenant_id)
     .fetch_all(pool)
@@ -208,7 +205,7 @@ pub async fn assert_no_duplicate_postings(
          FROM journal_entries
          WHERE tenant_id = $1
          GROUP BY source_event_id
-         HAVING COUNT(*) > 1"
+         HAVING COUNT(*) > 1",
     )
     .bind(tenant_id)
     .fetch_all(pool)
@@ -245,7 +242,7 @@ pub async fn assert_valid_account_references(
          JOIN journal_entries je ON je.id = jl.journal_entry_id
          LEFT JOIN accounts a ON a.tenant_id = je.tenant_id AND a.code = jl.account_ref
          WHERE je.tenant_id = $1
-           AND (a.id IS NULL OR a.is_active = false)"
+           AND (a.id IS NULL OR a.is_active = false)",
     )
     .bind(tenant_id)
     .fetch_all(pool)
@@ -284,7 +281,7 @@ pub async fn assert_no_closed_period_postings(
          WHERE je.tenant_id = $1
            AND je.posted_at::date >= ap.period_start
            AND je.posted_at::date <= ap.period_end
-           AND ap.is_closed = true"
+           AND ap.is_closed = true",
     )
     .bind(tenant_id)
     .fetch_all(pool)
@@ -322,7 +319,7 @@ pub async fn assert_unique_line_numbers(
          JOIN journal_entries je ON je.id = jl.journal_entry_id
          WHERE je.tenant_id = $1
          GROUP BY jl.journal_entry_id, jl.line_no
-         HAVING COUNT(*) > 1"
+         HAVING COUNT(*) > 1",
     )
     .bind(tenant_id)
     .fetch_all(pool)
@@ -369,13 +366,15 @@ pub async fn assert_max_reversal_chain_depth(
          WHERE reversal.tenant_id = $1
            AND original.tenant_id = $1
            AND reversal.reverses_entry_id IS NOT NULL
-           AND original.reverses_entry_id IS NOT NULL"
+           AND original.reverses_entry_id IS NOT NULL",
     )
     .bind(tenant_id)
     .fetch_all(pool)
     .await?;
 
-    if let Some((reversal_entry_id, original_entry_id, original_reverses_id)) = excessive_chains.first() {
+    if let Some((reversal_entry_id, original_entry_id, original_reverses_id)) =
+        excessive_chains.first()
+    {
         return Err(InvariantViolation::ExcessiveReversalChainDepth {
             reversal_entry_id: *reversal_entry_id,
             original_entry_id: *original_entry_id,
@@ -386,7 +385,10 @@ pub async fn assert_max_reversal_chain_depth(
     Ok(())
 }
 
-pub async fn assert_all_invariants(pool: &PgPool, tenant_id: &str) -> Result<(), InvariantViolation> {
+pub async fn assert_all_invariants(
+    pool: &PgPool,
+    tenant_id: &str,
+) -> Result<(), InvariantViolation> {
     assert_all_entries_balanced(pool, tenant_id).await?;
     assert_no_duplicate_postings(pool, tenant_id).await?;
     assert_valid_account_references(pool, tenant_id).await?;

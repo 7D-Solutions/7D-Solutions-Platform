@@ -20,7 +20,9 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::domain::receipts_link::{service::ingest_receipt_link, IngestReceiptLinkRequest, ReceiptLinkError};
+use crate::domain::receipts_link::{
+    service::ingest_receipt_link, IngestReceiptLinkRequest, ReceiptLinkError,
+};
 
 // ============================================================================
 // Local payload mirror (anti-corruption layer)
@@ -185,9 +187,8 @@ async fn process_item_received_message(
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let envelope: EventEnvelope<InventoryItemReceivedPayload> =
-        serde_json::from_slice(&msg.payload).map_err(|e| {
-            format!("Failed to parse inventory.item_received envelope: {}", e)
-        })?;
+        serde_json::from_slice(&msg.payload)
+            .map_err(|e| format!("Failed to parse inventory.item_received envelope: {}", e))?;
 
     tracing::info!(
         event_id = %envelope.event_id,

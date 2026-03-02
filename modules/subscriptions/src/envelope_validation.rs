@@ -30,8 +30,12 @@ pub fn validate_envelope(envelope: &Value) -> Result<(), String> {
         .and_then(|v| v.as_str())
         .ok_or("Missing required field: occurred_at")?;
 
-    DateTime::parse_from_rfc3339(occurred_at)
-        .map_err(|_| format!("Invalid occurred_at: must be ISO 8601 timestamp, got '{}'", occurred_at))?;
+    DateTime::parse_from_rfc3339(occurred_at).map_err(|_| {
+        format!(
+            "Invalid occurred_at: must be ISO 8601 timestamp, got '{}'",
+            occurred_at
+        )
+    })?;
 
     // Validate tenant_id (required non-empty string)
     let tenant_id = envelope
@@ -164,7 +168,9 @@ mod tests {
         });
 
         assert!(validate_envelope(&envelope).is_err());
-        assert!(validate_envelope(&envelope).unwrap_err().contains("Invalid event_id"));
+        assert!(validate_envelope(&envelope)
+            .unwrap_err()
+            .contains("Invalid event_id"));
     }
 
     #[test]
@@ -179,7 +185,9 @@ mod tests {
         });
 
         assert!(validate_envelope(&envelope).is_err());
-        assert!(validate_envelope(&envelope).unwrap_err().contains("Invalid occurred_at"));
+        assert!(validate_envelope(&envelope)
+            .unwrap_err()
+            .contains("Invalid occurred_at"));
     }
 
     #[test]

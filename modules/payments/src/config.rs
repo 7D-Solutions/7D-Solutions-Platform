@@ -111,8 +111,8 @@ impl Config {
         // Conditional: NATS_URL (required if BUS_TYPE=nats)
         let nats_url = match bus_type {
             BusType::Nats => {
-                let url = env::var("NATS_URL")
-                    .unwrap_or_else(|_| "nats://localhost:4222".to_string());
+                let url =
+                    env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
 
                 if url.trim().is_empty() {
                     return Err("NATS_URL cannot be empty when BUS_TYPE=nats".to_string());
@@ -195,17 +195,30 @@ impl Config {
         }
 
         if self.payments_provider == PaymentsProvider::Tilled {
-            if self.tilled_api_key.as_deref().map(str::is_empty).unwrap_or(true) {
-                return Err(
-                    "TILLED_API_KEY is required when PAYMENTS_PROVIDER=tilled".to_string(),
-                );
+            if self
+                .tilled_api_key
+                .as_deref()
+                .map(str::is_empty)
+                .unwrap_or(true)
+            {
+                return Err("TILLED_API_KEY is required when PAYMENTS_PROVIDER=tilled".to_string());
             }
-            if self.tilled_account_id.as_deref().map(str::is_empty).unwrap_or(true) {
+            if self
+                .tilled_account_id
+                .as_deref()
+                .map(str::is_empty)
+                .unwrap_or(true)
+            {
                 return Err(
                     "TILLED_ACCOUNT_ID is required when PAYMENTS_PROVIDER=tilled".to_string(),
                 );
             }
-            if self.tilled_webhook_secret.as_deref().map(str::is_empty).unwrap_or(true) {
+            if self
+                .tilled_webhook_secret
+                .as_deref()
+                .map(str::is_empty)
+                .unwrap_or(true)
+            {
                 return Err(
                     "TILLED_WEBHOOK_SECRET is required when PAYMENTS_PROVIDER=tilled".to_string(),
                 );
@@ -287,9 +300,18 @@ mod tests {
 
     #[test]
     fn test_payments_provider_from_str() {
-        assert_eq!(PaymentsProvider::from_str("mock").unwrap(), PaymentsProvider::Mock);
-        assert_eq!(PaymentsProvider::from_str("tilled").unwrap(), PaymentsProvider::Tilled);
-        assert_eq!(PaymentsProvider::from_str("MOCK").unwrap(), PaymentsProvider::Mock);
+        assert_eq!(
+            PaymentsProvider::from_str("mock").unwrap(),
+            PaymentsProvider::Mock
+        );
+        assert_eq!(
+            PaymentsProvider::from_str("tilled").unwrap(),
+            PaymentsProvider::Tilled
+        );
+        assert_eq!(
+            PaymentsProvider::from_str("MOCK").unwrap(),
+            PaymentsProvider::Mock
+        );
         assert!(PaymentsProvider::from_str("stripe").is_err());
     }
 

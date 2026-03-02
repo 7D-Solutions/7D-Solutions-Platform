@@ -1,13 +1,13 @@
+mod auth;
 mod clients;
 mod config;
 mod db;
-mod middleware;
-mod routes;
-mod auth;
 mod events;
-mod metrics;
-mod rate_limit;
 mod jetstream_setup;
+mod metrics;
+mod middleware;
+mod rate_limit;
+mod routes;
 
 use axum::{middleware::from_fn_with_state, routing::get, Router};
 use std::sync::Arc;
@@ -175,9 +175,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             middleware::metrics::metrics_middleware,
         ))
         // client IP and user agent extraction
-        .layer(axum::middleware::from_fn(middleware::client_ip::client_meta_middleware))
+        .layer(axum::middleware::from_fn(
+            middleware::client_ip::client_meta_middleware,
+        ))
         // trace id propagation
-        .layer(axum::middleware::from_fn(middleware::tracing::trace_id_middleware))
+        .layer(axum::middleware::from_fn(
+            middleware::tracing::trace_id_middleware,
+        ))
         // per-IP limiter - TODO: re-enable when tower_governor works with axum 0.7
         // .layer(governor_layer)
         .layer(TraceLayer::new_for_http());

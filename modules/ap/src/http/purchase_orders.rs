@@ -20,8 +20,8 @@ use crate::domain::po::{
     approve, service, ApprovePoRequest, CreatePoRequest, PoError, PurchaseOrder,
     PurchaseOrderWithLines, UpdatePoLinesRequest,
 };
-use crate::http::tenant::extract_tenant;
 use crate::http::admin_types::ErrorBody;
+use crate::http::tenant::extract_tenant;
 use crate::AppState;
 
 // ============================================================================
@@ -40,7 +40,10 @@ fn po_error_response(e: PoError) -> (StatusCode, Json<ErrorBody>) {
     match e {
         PoError::NotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("po_not_found", &format!("PO {} not found", id))),
+            Json(ErrorBody::new(
+                "po_not_found",
+                &format!("PO {} not found", id),
+            )),
         ),
         PoError::VendorNotFound(id) => (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -65,7 +68,10 @@ fn po_error_response(e: PoError) -> (StatusCode, Json<ErrorBody>) {
         ),
         PoError::EmptyLines => (
             StatusCode::UNPROCESSABLE_ENTITY,
-            Json(ErrorBody::new("empty_lines", "PO must have at least one line")),
+            Json(ErrorBody::new(
+                "empty_lines",
+                "PO must have at least one line",
+            )),
         ),
         PoError::Validation(msg) => (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -128,7 +134,10 @@ pub async fn get_po(
         .ok_or_else(|| {
             (
                 StatusCode::NOT_FOUND,
-                Json(ErrorBody::new("po_not_found", &format!("PO {} not found", po_id))),
+                Json(ErrorBody::new(
+                    "po_not_found",
+                    &format!("PO {} not found", po_id),
+                )),
             )
         })?;
 

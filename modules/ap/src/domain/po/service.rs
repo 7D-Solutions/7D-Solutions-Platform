@@ -66,8 +66,11 @@ pub async fn list_pos(
                    WHERE tenant_id = $1 AND vendor_id = $2 AND status = $3
                    ORDER BY created_at DESC"#,
             )
-            .bind(tenant_id).bind(vid).bind(s)
-            .fetch_all(pool).await?
+            .bind(tenant_id)
+            .bind(vid)
+            .bind(s)
+            .fetch_all(pool)
+            .await?
         }
         (Some(vid), None) => {
             sqlx::query_as::<_, PurchaseOrder>(
@@ -77,8 +80,10 @@ pub async fn list_pos(
                    WHERE tenant_id = $1 AND vendor_id = $2
                    ORDER BY created_at DESC"#,
             )
-            .bind(tenant_id).bind(vid)
-            .fetch_all(pool).await?
+            .bind(tenant_id)
+            .bind(vid)
+            .fetch_all(pool)
+            .await?
         }
         (None, Some(s)) => {
             sqlx::query_as::<_, PurchaseOrder>(
@@ -88,8 +93,10 @@ pub async fn list_pos(
                    WHERE tenant_id = $1 AND status = $2
                    ORDER BY created_at DESC"#,
             )
-            .bind(tenant_id).bind(s)
-            .fetch_all(pool).await?
+            .bind(tenant_id)
+            .bind(s)
+            .fetch_all(pool)
+            .await?
         }
         (None, None) => {
             sqlx::query_as::<_, PurchaseOrder>(
@@ -100,7 +107,8 @@ pub async fn list_pos(
                    ORDER BY created_at DESC"#,
             )
             .bind(tenant_id)
-            .fetch_all(pool).await?
+            .fetch_all(pool)
+            .await?
         }
     };
     Ok(pos)
@@ -229,12 +237,22 @@ pub async fn create_po(
         payload,
     );
 
-    enqueue_event_tx(&mut tx, event_id, EVENT_TYPE_PO_CREATED, "po", &po_id.to_string(), &envelope)
-        .await?;
+    enqueue_event_tx(
+        &mut tx,
+        event_id,
+        EVENT_TYPE_PO_CREATED,
+        "po",
+        &po_id.to_string(),
+        &envelope,
+    )
+    .await?;
 
     tx.commit().await?;
 
-    Ok(PurchaseOrderWithLines { po, lines: po_lines })
+    Ok(PurchaseOrderWithLines {
+        po,
+        lines: po_lines,
+    })
 }
 
 /// Replace all lines on a draft PO (idempotent full replacement).
@@ -302,7 +320,10 @@ pub async fn update_po_lines(
 
     tx.commit().await?;
 
-    Ok(PurchaseOrderWithLines { po: updated_po, lines: new_lines })
+    Ok(PurchaseOrderWithLines {
+        po: updated_po,
+        lines: new_lines,
+    })
 }
 
 // ============================================================================
@@ -408,31 +429,49 @@ mod tests {
             "DELETE FROM events_outbox WHERE aggregate_type = 'po' \
              AND aggregate_id IN (SELECT po_id::TEXT FROM purchase_orders WHERE tenant_id = $1)",
         )
-        .bind(TEST_TENANT).execute(pool).await.ok();
+        .bind(TEST_TENANT)
+        .execute(pool)
+        .await
+        .ok();
 
         sqlx::query(
             "DELETE FROM po_status WHERE po_id IN \
              (SELECT po_id FROM purchase_orders WHERE tenant_id = $1)",
         )
-        .bind(TEST_TENANT).execute(pool).await.ok();
+        .bind(TEST_TENANT)
+        .execute(pool)
+        .await
+        .ok();
 
         sqlx::query(
             "DELETE FROM po_lines WHERE po_id IN \
              (SELECT po_id FROM purchase_orders WHERE tenant_id = $1)",
         )
-        .bind(TEST_TENANT).execute(pool).await.ok();
+        .bind(TEST_TENANT)
+        .execute(pool)
+        .await
+        .ok();
 
         sqlx::query("DELETE FROM purchase_orders WHERE tenant_id = $1")
-            .bind(TEST_TENANT).execute(pool).await.ok();
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
 
         sqlx::query(
             "DELETE FROM events_outbox WHERE aggregate_type = 'vendor' \
              AND aggregate_id IN (SELECT vendor_id::TEXT FROM vendors WHERE tenant_id = $1)",
         )
-        .bind(TEST_TENANT).execute(pool).await.ok();
+        .bind(TEST_TENANT)
+        .execute(pool)
+        .await
+        .ok();
 
         sqlx::query("DELETE FROM vendors WHERE tenant_id = $1")
-            .bind(TEST_TENANT).execute(pool).await.ok();
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
     }
 
     fn sample_req(vendor_id: Uuid) -> CreatePoRequest {
@@ -510,9 +549,14 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_req(vendor_id), "corr-2".to_string())
-            .await
-            .expect("create failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_req(vendor_id),
+            "corr-2".to_string(),
+        )
+        .await
+        .expect("create failed");
 
         let fetched = get_po(&pool, TEST_TENANT, created.po.po_id)
             .await
@@ -533,9 +577,14 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_req(vendor_id), "corr-3".to_string())
-            .await
-            .expect("create failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_req(vendor_id),
+            "corr-3".to_string(),
+        )
+        .await
+        .expect("create failed");
 
         let result = get_po(&pool, "other-tenant", created.po.po_id)
             .await
@@ -552,9 +601,14 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_req(vendor_id), "corr-4".to_string())
-            .await
-            .expect("create failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_req(vendor_id),
+            "corr-4".to_string(),
+        )
+        .await
+        .expect("create failed");
 
         let update_req = UpdatePoLinesRequest {
             updated_by: "user-ap".to_string(),
@@ -593,9 +647,14 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_req(vendor_id), "corr-5".to_string())
-            .await
-            .expect("create failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_req(vendor_id),
+            "corr-5".to_string(),
+        )
+        .await
+        .expect("create failed");
 
         // Manually advance status to approved
         sqlx::query("UPDATE purchase_orders SET status = 'approved' WHERE po_id = $1")
@@ -633,9 +692,14 @@ mod tests {
         cleanup(&pool).await;
         let vendor_id = create_test_vendor(&pool).await;
 
-        let created = create_po(&pool, TEST_TENANT, &sample_req(vendor_id), "corr-outbox".to_string())
-            .await
-            .expect("create failed");
+        let created = create_po(
+            &pool,
+            TEST_TENANT,
+            &sample_req(vendor_id),
+            "corr-outbox".to_string(),
+        )
+        .await
+        .expect("create failed");
 
         let count: (i64,) = sqlx::query_as(
             "SELECT COUNT(*) FROM events_outbox WHERE aggregate_type = 'po' AND aggregate_id = $1",

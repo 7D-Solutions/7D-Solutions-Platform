@@ -61,7 +61,10 @@ impl CommandOutput {
 /// Render output and exit with appropriate code.
 pub fn render_and_exit(output: CommandOutput, json: bool) -> ! {
     if json {
-        println!("{}", serde_json::to_string_pretty(&output).expect("serialize"));
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&output).expect("serialize")
+        );
     } else {
         render_human(&output);
     }
@@ -76,7 +79,10 @@ pub fn render_and_exit(output: CommandOutput, json: bool) -> ! {
 /// Render output without exiting (for commands that return Ok).
 pub fn render(output: &CommandOutput, json: bool) {
     if json {
-        println!("{}", serde_json::to_string_pretty(output).expect("serialize"));
+        println!(
+            "{}",
+            serde_json::to_string_pretty(output).expect("serialize")
+        );
     } else {
         render_human(output);
     }

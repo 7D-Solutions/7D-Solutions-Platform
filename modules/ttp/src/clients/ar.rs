@@ -22,7 +22,11 @@ pub enum ArClientError {
     Http(#[from] reqwest::Error),
 
     #[error("AR returned unexpected status {status} for {operation}")]
-    UnexpectedStatus { operation: String, status: u16, body: String },
+    UnexpectedStatus {
+        operation: String,
+        status: u16,
+        body: String,
+    },
 }
 
 // ---------------------------------------------------------------------------
@@ -107,9 +111,10 @@ impl ArClient {
 
         if resp.status().as_u16() == 200 {
             let customers: Vec<ArCustomer> = resp.json().await?;
-            if let Some(customer) = customers.into_iter().find(|c| {
-                c.external_customer_id.as_deref() == Some(&party_id.to_string())
-            }) {
+            if let Some(customer) = customers
+                .into_iter()
+                .find(|c| c.external_customer_id.as_deref() == Some(&party_id.to_string()))
+            {
                 return Ok(customer.id);
             }
         }

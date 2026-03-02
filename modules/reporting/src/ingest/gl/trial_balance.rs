@@ -62,8 +62,9 @@ impl StreamHandler for TrialBalanceHandler {
         let posting = GlPostingPayload::deserialize(payload)
             .map_err(|e| anyhow::anyhow!("Failed to parse GL posting payload: {}", e))?;
 
-        let as_of = NaiveDate::parse_from_str(&posting.posting_date, "%Y-%m-%d")
-            .map_err(|e| anyhow::anyhow!("Invalid posting_date '{}': {}", posting.posting_date, e))?;
+        let as_of = NaiveDate::parse_from_str(&posting.posting_date, "%Y-%m-%d").map_err(|e| {
+            anyhow::anyhow!("Invalid posting_date '{}': {}", posting.posting_date, e)
+        })?;
 
         for line in &posting.lines {
             // Convert major units (e.g. USD dollars) → minor units (cents)
@@ -135,20 +136,16 @@ mod tests {
     }
 
     async fn cleanup(pool: &PgPool) {
-        sqlx::query(
-            "DELETE FROM rpt_trial_balance_cache WHERE tenant_id = $1",
-        )
-        .bind(TENANT)
-        .execute(pool)
-        .await
-        .ok();
-        sqlx::query(
-            "DELETE FROM rpt_ingestion_checkpoints WHERE tenant_id = $1",
-        )
-        .bind(TENANT)
-        .execute(pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM rpt_trial_balance_cache WHERE tenant_id = $1")
+            .bind(TENANT)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM rpt_ingestion_checkpoints WHERE tenant_id = $1")
+            .bind(TENANT)
+            .execute(pool)
+            .await
+            .ok();
     }
 
     fn make_posting_envelope(
@@ -232,18 +229,27 @@ mod tests {
             ),
         );
 
-        let processed = consumer.process_message(&msg).await.expect("process failed");
+        let processed = consumer
+            .process_message(&msg)
+            .await
+            .expect("process failed");
         assert!(processed, "first delivery must be processed");
 
         let rows = fetch_cache(&pool, "2026-01-31", "USD").await;
         assert_eq!(rows.len(), 2, "two account rows must be created");
 
-        let ar = rows.iter().find(|(acct, ..)| acct == "1100").expect("AR row");
+        let ar = rows
+            .iter()
+            .find(|(acct, ..)| acct == "1100")
+            .expect("AR row");
         assert_eq!(ar.1, 259900, "AR debit_minor = 2599.00 * 100");
         assert_eq!(ar.2, 0, "AR credit_minor = 0");
         assert_eq!(ar.3, 259900, "AR net_minor = debit - credit");
 
-        let rev = rows.iter().find(|(acct, ..)| acct == "4000").expect("Revenue row");
+        let rev = rows
+            .iter()
+            .find(|(acct, ..)| acct == "4000")
+            .expect("Revenue row");
         assert_eq!(rev.1, 0, "Revenue debit_minor = 0");
         assert_eq!(rev.2, 259900, "Revenue credit_minor = 2599.00 * 100");
         assert_eq!(rev.3, -259900, "Revenue net_minor = 0 - 259900");
@@ -273,7 +279,10 @@ mod tests {
                 &[("1100", 1000.00, 0.0), ("4000", 0.0, 1000.00)],
             ),
         );
-        consumer_a.process_message(&msg_a).await.expect("msg_a failed");
+        consumer_a
+            .process_message(&msg_a)
+            .await
+            .expect("msg_a failed");
 
         // Second posting (different event): AR 500.00 / Revenue 500.00 same date
         let msg_b = BusMessage::new(
@@ -285,16 +294,31 @@ mod tests {
                 &[("1100", 500.00, 0.0), ("4000", 0.0, 500.00)],
             ),
         );
-        consumer_b.process_message(&msg_b).await.expect("msg_b failed");
+        consumer_b
+            .process_message(&msg_b)
+            .await
+            .expect("msg_b failed");
 
         let rows = fetch_cache(&pool, "2026-02-01", "USD").await;
         assert_eq!(rows.len(), 2);
 
-        let ar = rows.iter().find(|(acct, ..)| acct == "1100").expect("AR row");
-        assert_eq!(ar.1, 150000, "AR debit: 1000.00 + 500.00 = 1500.00 = 150000 minor");
+        let ar = rows
+            .iter()
+            .find(|(acct, ..)| acct == "1100")
+            .expect("AR row");
+        assert_eq!(
+            ar.1, 150000,
+            "AR debit: 1000.00 + 500.00 = 1500.00 = 150000 minor"
+        );
 
-        let rev = rows.iter().find(|(acct, ..)| acct == "4000").expect("Revenue row");
-        assert_eq!(rev.2, 150000, "Revenue credit: 1000.00 + 500.00 = 150000 minor");
+        let rev = rows
+            .iter()
+            .find(|(acct, ..)| acct == "4000")
+            .expect("Revenue row");
+        assert_eq!(
+            rev.2, 150000,
+            "Revenue credit: 1000.00 + 500.00 = 150000 minor"
+        );
 
         cleanup(&pool).await;
     }
@@ -329,7 +353,10 @@ mod tests {
         assert!(!second, "re-delivery must be skipped by checkpoint gate");
 
         let rows = fetch_cache(&pool, "2026-02-05", "USD").await;
-        let ar = rows.iter().find(|(acct, ..)| acct == "1100").expect("AR row");
+        let ar = rows
+            .iter()
+            .find(|(acct, ..)| acct == "1100")
+            .expect("AR row");
         assert_eq!(ar.1, 80000, "debit must not be doubled by re-delivery");
 
         cleanup(&pool).await;
@@ -347,33 +374,39 @@ mod tests {
 
         // Post three balanced transactions on the same date
         let postings = vec![
-            ("evt-tb-rec-001", "2026-02-10", "USD", vec![
-                ("1100", 3000.00, 0.0),
-                ("4000", 0.0, 3000.00),
-            ]),
-            ("evt-tb-rec-002", "2026-02-10", "USD", vec![
-                ("1000", 500.00, 0.0),
-                ("2000", 0.0, 500.00),
-            ]),
-            ("evt-tb-rec-003", "2026-02-10", "USD", vec![
-                ("5000", 250.00, 0.0),
-                ("1000", 0.0, 250.00),
-            ]),
+            (
+                "evt-tb-rec-001",
+                "2026-02-10",
+                "USD",
+                vec![("1100", 3000.00, 0.0), ("4000", 0.0, 3000.00)],
+            ),
+            (
+                "evt-tb-rec-002",
+                "2026-02-10",
+                "USD",
+                vec![("1000", 500.00, 0.0), ("2000", 0.0, 500.00)],
+            ),
+            (
+                "evt-tb-rec-003",
+                "2026-02-10",
+                "USD",
+                vec![("5000", 250.00, 0.0), ("1000", 0.0, 250.00)],
+            ),
         ];
 
         for (i, (event_id, date, currency, lines)) in postings.iter().enumerate() {
-            let consumer = IngestConsumer::new(
-                format!("test-tb-rec-{}", i),
-                pool.clone(),
-                handler.clone(),
-            );
+            let consumer =
+                IngestConsumer::new(format!("test-tb-rec-{}", i), pool.clone(), handler.clone());
             let line_refs: Vec<(&str, f64, f64)> =
                 lines.iter().map(|(a, d, c)| (*a, *d, *c)).collect();
             let msg = BusMessage::new(
                 "gl.events.posting.requested".to_string(),
                 make_posting_envelope(event_id, date, currency, &line_refs),
             );
-            consumer.process_message(&msg).await.expect("posting failed");
+            consumer
+                .process_message(&msg)
+                .await
+                .expect("posting failed");
         }
 
         // Reconciliation: SUM(debit_minor) must equal SUM(credit_minor)
@@ -415,11 +448,8 @@ mod tests {
         let currencies = [("evt-tb-cur-usd", "USD"), ("evt-tb-cur-eur", "EUR")];
 
         for (i, (event_id, currency)) in currencies.iter().enumerate() {
-            let consumer = IngestConsumer::new(
-                format!("test-tb-cur-{}", i),
-                pool.clone(),
-                handler.clone(),
-            );
+            let consumer =
+                IngestConsumer::new(format!("test-tb-cur-{}", i), pool.clone(), handler.clone());
             let msg = BusMessage::new(
                 "gl.events.posting.requested".to_string(),
                 make_posting_envelope(
@@ -429,7 +459,10 @@ mod tests {
                     &[("1100", 100.00, 0.0), ("4000", 0.0, 100.00)],
                 ),
             );
-            consumer.process_message(&msg).await.expect("posting failed");
+            consumer
+                .process_message(&msg)
+                .await
+                .expect("posting failed");
         }
 
         // Each currency should have its own rows

@@ -117,7 +117,12 @@ impl EventConsumer {
         let data_value = envelope
             .get("payload")
             .or_else(|| envelope.get("data"))
-            .ok_or_else(|| anyhow::anyhow!("Missing 'payload' or 'data' field in event envelope for {}", msg.subject))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Missing 'payload' or 'data' field in event envelope for {}",
+                    msg.subject
+                )
+            })?;
         let payload: T = serde_json::from_value(data_value.clone())?;
 
         // Call handler

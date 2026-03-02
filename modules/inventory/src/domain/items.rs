@@ -152,7 +152,10 @@ pub enum ItemError {
 
 fn require_non_empty(value: &str, field: &str) -> Result<(), ItemError> {
     if value.trim().is_empty() {
-        return Err(ItemError::Validation(format!("{} must not be empty", field)));
+        return Err(ItemError::Validation(format!(
+            "{} must not be empty",
+            field
+        )));
     }
     Ok(())
 }
@@ -240,10 +243,7 @@ impl ItemRepo {
             if let sqlx::Error::Database(ref dbe) = e {
                 // PostgreSQL unique violation = code 23505
                 if dbe.code().as_deref() == Some("23505") {
-                    return ItemError::DuplicateSku(
-                        req.sku.clone(),
-                        req.tenant_id.clone(),
-                    );
+                    return ItemError::DuplicateSku(req.sku.clone(), req.tenant_id.clone());
                 }
             }
             ItemError::Database(e)
@@ -298,11 +298,7 @@ impl ItemRepo {
     ///
     /// Idempotent: already-inactive items are returned without error.
     /// Scoped to tenant_id to prevent cross-tenant mutation.
-    pub async fn deactivate(
-        pool: &PgPool,
-        id: Uuid,
-        tenant_id: &str,
-    ) -> Result<Item, ItemError> {
+    pub async fn deactivate(pool: &PgPool, id: Uuid, tenant_id: &str) -> Result<Item, ItemError> {
         let item = sqlx::query_as::<_, Item>(
             r#"
             UPDATE items
@@ -326,13 +322,12 @@ impl ItemRepo {
         id: Uuid,
         tenant_id: &str,
     ) -> Result<Option<Item>, ItemError> {
-        let item = sqlx::query_as::<_, Item>(
-            "SELECT * FROM items WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let item =
+            sqlx::query_as::<_, Item>("SELECT * FROM items WHERE id = $1 AND tenant_id = $2")
+                .bind(id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?;
 
         Ok(item)
     }
@@ -423,9 +418,18 @@ mod tests {
 
     #[test]
     fn tracking_mode_roundtrip() {
-        assert_eq!(TrackingMode::try_from("none".to_string()), Ok(TrackingMode::None));
-        assert_eq!(TrackingMode::try_from("lot".to_string()), Ok(TrackingMode::Lot));
-        assert_eq!(TrackingMode::try_from("serial".to_string()), Ok(TrackingMode::Serial));
+        assert_eq!(
+            TrackingMode::try_from("none".to_string()),
+            Ok(TrackingMode::None)
+        );
+        assert_eq!(
+            TrackingMode::try_from("lot".to_string()),
+            Ok(TrackingMode::Lot)
+        );
+        assert_eq!(
+            TrackingMode::try_from("serial".to_string()),
+            Ok(TrackingMode::Serial)
+        );
         assert!(TrackingMode::try_from("unknown".to_string()).is_err());
     }
 

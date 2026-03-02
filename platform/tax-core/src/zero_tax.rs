@@ -13,10 +13,7 @@ use chrono::Utc;
 pub struct ZeroTaxProvider;
 
 impl TaxProvider for ZeroTaxProvider {
-    async fn quote_tax(
-        &self,
-        req: TaxQuoteRequest,
-    ) -> Result<TaxQuoteResponse, TaxProviderError> {
+    async fn quote_tax(&self, req: TaxQuoteRequest) -> Result<TaxQuoteResponse, TaxProviderError> {
         let tax_by_line = req
             .line_items
             .iter()
@@ -49,10 +46,7 @@ impl TaxProvider for ZeroTaxProvider {
         })
     }
 
-    async fn void_tax(
-        &self,
-        _req: TaxVoidRequest,
-    ) -> Result<TaxVoidResponse, TaxProviderError> {
+    async fn void_tax(&self, _req: TaxVoidRequest) -> Result<TaxVoidResponse, TaxProviderError> {
         Ok(TaxVoidResponse {
             voided: true,
             voided_at: Utc::now(),
@@ -104,12 +98,17 @@ mod tests {
     #[tokio::test]
     async fn single_line_returns_zero() {
         let p = ZeroTaxProvider;
-        let resp = p.quote_tax(quote_req(vec![line("l1", 10000)])).await.unwrap();
+        let resp = p
+            .quote_tax(quote_req(vec![line("l1", 10000)]))
+            .await
+            .unwrap();
         assert_eq!(resp.total_tax_minor, 0);
         assert_eq!(resp.tax_by_line.len(), 1);
         assert_eq!(resp.tax_by_line[0].tax_minor, 0);
         assert_eq!(resp.tax_by_line[0].jurisdiction, "not_configured");
-        assert!(resp.warnings.contains(&"jurisdiction_not_configured".to_string()));
+        assert!(resp
+            .warnings
+            .contains(&"jurisdiction_not_configured".to_string()));
     }
 
     #[tokio::test]

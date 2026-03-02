@@ -82,13 +82,19 @@ impl Metrics {
         .expect("metric");
 
         let auth_refresh_replay_total = IntCounterVec::new(
-            Opts::new("auth_refresh_replay_total", "Refresh replay attempts (revoked token reuse)"),
+            Opts::new(
+                "auth_refresh_replay_total",
+                "Refresh replay attempts (revoked token reuse)",
+            ),
             &["tenant_id"],
         )
         .expect("metric");
 
         let http_request_duration_seconds = HistogramVec::new(
-            HistogramOpts::new("http_request_duration_seconds", "HTTP request duration seconds"),
+            HistogramOpts::new(
+                "http_request_duration_seconds",
+                "HTTP request duration seconds",
+            ),
             &["path", "method", "status"],
         )
         .expect("metric");
@@ -228,9 +234,7 @@ impl Metrics {
         let encoder = TextEncoder::new();
         let mf = self.registry.gather();
         let mut buf = Vec::new();
-        encoder
-            .encode(&mf, &mut buf)
-            .map_err(|e| e.to_string())?;
+        encoder.encode(&mf, &mut buf).map_err(|e| e.to_string())?;
         String::from_utf8(buf).map_err(|e| e.to_string())
     }
 

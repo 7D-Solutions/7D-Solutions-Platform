@@ -138,7 +138,10 @@ pub async fn compute_consolidated_pl(
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn account_prefix(code: &str) -> u32 {
-    code.chars().next().and_then(|c| c.to_digit(10)).unwrap_or(0)
+    code.chars()
+        .next()
+        .and_then(|c| c.to_digit(10))
+        .unwrap_or(0)
 }
 
 fn sum_by_currency(lines: &[PlAccountLine]) -> HashMap<String, i64> {

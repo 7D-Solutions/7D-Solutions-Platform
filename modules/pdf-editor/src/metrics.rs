@@ -8,30 +8,34 @@
 
 use axum::{http::StatusCode, Json};
 use lazy_static::lazy_static;
-use prometheus::{Encoder, HistogramOpts, HistogramVec, IntCounterVec, Opts, Registry, TextEncoder};
+use prometheus::{
+    Encoder, HistogramOpts, HistogramVec, IntCounterVec, Opts, Registry, TextEncoder,
+};
 
 use crate::routes::ErrorBody;
 
 lazy_static! {
     pub static ref METRICS_REGISTRY: Registry = {
         let registry = Registry::new();
-        registry.register(Box::new(HTTP_REQUEST_DURATION_SECONDS.clone()))
+        registry
+            .register(Box::new(HTTP_REQUEST_DURATION_SECONDS.clone()))
             .expect("register pdf_editor_http_request_duration_seconds");
-        registry.register(Box::new(HTTP_REQUESTS_TOTAL.clone()))
+        registry
+            .register(Box::new(HTTP_REQUESTS_TOTAL.clone()))
             .expect("register pdf_editor_http_requests_total");
         registry
     };
-
     pub static ref HTTP_REQUEST_DURATION_SECONDS: HistogramVec = HistogramVec::new(
         HistogramOpts::new(
             "pdf_editor_http_request_duration_seconds",
             "HTTP request duration in seconds",
         )
-        .buckets(vec![0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0]),
+        .buckets(vec![
+            0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0
+        ]),
         &["method", "route", "status"],
     )
     .expect("create pdf_editor_http_request_duration_seconds");
-
     pub static ref HTTP_REQUESTS_TOTAL: IntCounterVec = IntCounterVec::new(
         Opts::new("pdf_editor_http_requests_total", "Total HTTP requests"),
         &["method", "route", "status"],
@@ -57,13 +61,19 @@ pub async fn metrics_handler() -> Result<String, (StatusCode, Json<ErrorBody>)> 
     encoder.encode(&families, &mut buffer).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new("internal_error", &format!("Failed to encode metrics: {}", e))),
+            Json(ErrorBody::new(
+                "internal_error",
+                &format!("Failed to encode metrics: {}", e),
+            )),
         )
     })?;
     String::from_utf8(buffer).map_err(|e| {
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new("internal_error", &format!("Failed to convert metrics to UTF-8: {}", e))),
+            Json(ErrorBody::new(
+                "internal_error",
+                &format!("Failed to convert metrics to UTF-8: {}", e),
+            )),
         )
     })
 }
@@ -78,12 +88,16 @@ mod tests {
         let families = METRICS_REGISTRY.gather();
         let names: Vec<_> = families.iter().map(|f| f.get_name()).collect();
         assert!(
-            names.iter().any(|n| n.contains("http_request_duration_seconds")),
-            "request latency histogram missing: {:?}", names
+            names
+                .iter()
+                .any(|n| n.contains("http_request_duration_seconds")),
+            "request latency histogram missing: {:?}",
+            names
         );
         assert!(
             names.iter().any(|n| n.contains("http_requests_total")),
-            "request count counter missing: {:?}", names
+            "request count counter missing: {:?}",
+            names
         );
     }
 }

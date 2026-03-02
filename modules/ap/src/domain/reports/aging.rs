@@ -94,8 +94,13 @@ pub async fn compute_aging(
     by_vendor: bool,
 ) -> Result<AgingReport, AgingError> {
     // Convert to midnight UTC so TIMESTAMPTZ comparisons are deterministic.
-    let as_of_dt = as_of.and_hms_opt(0, 0, 0)
-        .ok_or_else(|| AgingError::Database(sqlx::Error::Protocol("invalid date for midnight conversion".into())))?
+    let as_of_dt = as_of
+        .and_hms_opt(0, 0, 0)
+        .ok_or_else(|| {
+            AgingError::Database(sqlx::Error::Protocol(
+                "invalid date for midnight conversion".into(),
+            ))
+        })?
         .and_utc();
 
     let buckets_by_currency = query_currency_buckets(pool, tenant_id, as_of_dt).await?;
@@ -341,8 +346,16 @@ mod tests {
         .fetch_one(db)
         .await
         .expect("fetch already allocated");
-        let alloc_type = if already + amount_minor >= total { "full" } else { "partial" };
-        let new_status = if already + amount_minor >= total { "paid" } else { "partially_paid" };
+        let alloc_type = if already + amount_minor >= total {
+            "full"
+        } else {
+            "partial"
+        };
+        let new_status = if already + amount_minor >= total {
+            "paid"
+        } else {
+            "partially_paid"
+        };
 
         sqlx::query(
             "INSERT INTO ap_allocations \

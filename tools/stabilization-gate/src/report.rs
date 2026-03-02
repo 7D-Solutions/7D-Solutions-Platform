@@ -93,7 +93,11 @@ impl BenchmarkReport {
     fn to_markdown(&self) -> String {
         let mut md = String::new();
 
-        let status = if self.overall_passed { "✅ PASSED" } else { "❌ FAILED" };
+        let status = if self.overall_passed {
+            "✅ PASSED"
+        } else {
+            "❌ FAILED"
+        };
         md.push_str(&format!("# Stabilization Gate Report — {}\n\n", status));
         md.push_str(&format!("**Run ID:** `{}`  \n", self.run_id));
         md.push_str(&format!("**Git SHA:** `{}`  \n", self.git_sha));
@@ -112,18 +116,12 @@ impl BenchmarkReport {
         md.push('\n');
 
         md.push_str("## Environment\n\n```json\n");
-        md.push_str(
-            &serde_json::to_string_pretty(&self.env_snapshot).unwrap_or_default()
-        );
+        md.push_str(&serde_json::to_string_pretty(&self.env_snapshot).unwrap_or_default());
         md.push_str("\n```\n\n");
 
         md.push_str("## Scenario Results\n\n");
-        md.push_str(
-            "| Scenario | Status | Ops | P50 ms | P95 ms | P99 ms | ops/s |\n"
-        );
-        md.push_str(
-            "|----------|--------|-----|--------|--------|--------|-------|\n"
-        );
+        md.push_str("| Scenario | Status | Ops | P50 ms | P95 ms | P99 ms | ops/s |\n");
+        md.push_str("|----------|--------|-----|--------|--------|--------|-------|\n");
 
         for s in &self.scenarios {
             let icon = if s.passed { "✅" } else { "❌" };
@@ -132,7 +130,10 @@ impl BenchmarkReport {
             let p50 = m.get("p50_ms").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let p95 = m.get("p95_ms").and_then(|v| v.as_f64()).unwrap_or(0.0);
             let p99 = m.get("p99_ms").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let tps = m.get("throughput_ops_per_sec").and_then(|v| v.as_f64()).unwrap_or(0.0);
+            let tps = m
+                .get("throughput_ops_per_sec")
+                .and_then(|v| v.as_f64())
+                .unwrap_or(0.0);
             md.push_str(&format!(
                 "| {} | {} | {} | {:.1} | {:.1} | {:.1} | {:.1} |\n",
                 s.name, icon, ops, p50, p95, p99, tps

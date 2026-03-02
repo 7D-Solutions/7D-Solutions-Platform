@@ -16,12 +16,11 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::payment_runs::{
-    builder::create_payment_run,
-    execute::execute_payment_run,
-    CreatePaymentRunRequest, PaymentRunError,
+    builder::create_payment_run, execute::execute_payment_run, CreatePaymentRunRequest,
+    PaymentRunError,
 };
-use crate::http::tenant::extract_tenant;
 use crate::http::admin_types::ErrorBody;
+use crate::http::tenant::extract_tenant;
 use crate::AppState;
 
 // ============================================================================
@@ -80,7 +79,10 @@ fn run_error_response(e: PaymentRunError) -> (StatusCode, Json<ErrorBody>) {
             tracing::error!(error = %e, "Database error in payment run handler");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "An internal error occurred")),
+                Json(ErrorBody::new(
+                    "database_error",
+                    "An internal error occurred",
+                )),
             )
         }
     }
@@ -172,7 +174,10 @@ pub async fn get_run(
         tracing::error!(error = %e, "DB error fetching payment run");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new("database_error", "An internal error occurred")),
+            Json(ErrorBody::new(
+                "database_error",
+                "An internal error occurred",
+            )),
         )
     })?;
 
@@ -201,7 +206,10 @@ pub async fn get_run(
         tracing::error!(error = %e, "DB error fetching payment run items");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody::new("database_error", "An internal error occurred")),
+            Json(ErrorBody::new(
+                "database_error",
+                "An internal error occurred",
+            )),
         )
     })?;
 

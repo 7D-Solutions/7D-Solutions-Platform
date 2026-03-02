@@ -19,25 +19,82 @@ pub struct ServiceEndpoint {
 
 /// All known services in the platform (matches docker-compose + verify script).
 pub const SERVICES: &[ServiceEndpoint] = &[
-    ServiceEndpoint { name: "ar", port: 8086 },
-    ServiceEndpoint { name: "ap", port: 8093 },
-    ServiceEndpoint { name: "gl", port: 8090 },
-    ServiceEndpoint { name: "inventory", port: 8092 },
-    ServiceEndpoint { name: "subscriptions", port: 8087 },
-    ServiceEndpoint { name: "payments", port: 8088 },
-    ServiceEndpoint { name: "notifications", port: 8089 },
-    ServiceEndpoint { name: "treasury", port: 8094 },
-    ServiceEndpoint { name: "fixed-assets", port: 8104 },
-    ServiceEndpoint { name: "consolidation", port: 8105 },
-    ServiceEndpoint { name: "timekeeping", port: 8097 },
-    ServiceEndpoint { name: "party", port: 8098 },
-    ServiceEndpoint { name: "integrations", port: 8099 },
-    ServiceEndpoint { name: "ttp", port: 8100 },
-    ServiceEndpoint { name: "reporting", port: 8096 },
-    ServiceEndpoint { name: "maintenance", port: 8101 },
-    ServiceEndpoint { name: "shipping-receiving", port: 8103 },
-    ServiceEndpoint { name: "pdf-editor", port: 8102 },
-    ServiceEndpoint { name: "identity-auth", port: 8080 },
+    ServiceEndpoint {
+        name: "ar",
+        port: 8086,
+    },
+    ServiceEndpoint {
+        name: "ap",
+        port: 8093,
+    },
+    ServiceEndpoint {
+        name: "gl",
+        port: 8090,
+    },
+    ServiceEndpoint {
+        name: "inventory",
+        port: 8092,
+    },
+    ServiceEndpoint {
+        name: "subscriptions",
+        port: 8087,
+    },
+    ServiceEndpoint {
+        name: "payments",
+        port: 8088,
+    },
+    ServiceEndpoint {
+        name: "notifications",
+        port: 8089,
+    },
+    ServiceEndpoint {
+        name: "treasury",
+        port: 8094,
+    },
+    ServiceEndpoint {
+        name: "fixed-assets",
+        port: 8104,
+    },
+    ServiceEndpoint {
+        name: "consolidation",
+        port: 8105,
+    },
+    ServiceEndpoint {
+        name: "timekeeping",
+        port: 8097,
+    },
+    ServiceEndpoint {
+        name: "party",
+        port: 8098,
+    },
+    ServiceEndpoint {
+        name: "integrations",
+        port: 8099,
+    },
+    ServiceEndpoint {
+        name: "ttp",
+        port: 8100,
+    },
+    ServiceEndpoint {
+        name: "reporting",
+        port: 8096,
+    },
+    ServiceEndpoint {
+        name: "maintenance",
+        port: 8101,
+    },
+    ServiceEndpoint {
+        name: "shipping-receiving",
+        port: 8103,
+    },
+    ServiceEndpoint {
+        name: "pdf-editor",
+        port: 8102,
+    },
+    ServiceEndpoint {
+        name: "identity-auth",
+        port: 8080,
+    },
 ];
 
 /// Mirrors the canonical /api/ready response from HEALTH-CONTRACT.md.
@@ -118,10 +175,14 @@ pub async fn fleet_health() -> Result<CommandOutput> {
             .with_state(overall)
             .with_data(data)
     } else {
-        CommandOutput::fail("fleet-health", "-", &format!(
-            "{} down, {} unreachable of {} services",
-            down, unreachable, total
-        ))
+        CommandOutput::fail(
+            "fleet-health",
+            "-",
+            &format!(
+                "{} down, {} unreachable of {} services",
+                down, unreachable, total
+            ),
+        )
         .with_state(overall)
         .with_data(data)
     };
@@ -174,7 +235,10 @@ async fn probe_service(client: &reqwest::Client, svc: &ServiceEndpoint) -> Servi
 
 fn print_health_table(results: &[ServiceHealthResult]) {
     eprintln!();
-    eprintln!("{:<18} {:>5}  {:<12} {:>6}  VERSION", "SERVICE", "PORT", "STATUS", "MS");
+    eprintln!(
+        "{:<18} {:>5}  {:<12} {:>6}  VERSION",
+        "SERVICE", "PORT", "STATUS", "MS"
+    );
     eprintln!("{}", "-".repeat(65));
 
     for r in results {

@@ -44,7 +44,9 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/api/integrations/connectors/{id}/test",
             post(connectors::run_connector_test),
         )
-        .route_layer(RequirePermissionsLayer::new(&[permissions::INTEGRATIONS_MUTATE]))
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::INTEGRATIONS_MUTATE,
+        ]))
         .with_state(state.clone());
 
     let reads = Router::new()

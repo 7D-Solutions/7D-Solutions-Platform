@@ -111,8 +111,8 @@ pub async fn get_balance_sheet(
 
     // Query balance sheet from statement repository
     // Currency validation happens in statement_repo (ISO 4217 format check)
-    let raw_rows = statement_repo::get_balance_sheet_rows(pool, tenant_id, period_id, currency)
-        .await?;
+    let raw_rows =
+        statement_repo::get_balance_sheet_rows(pool, tenant_id, period_id, currency).await?;
 
     // Apply normal balance presentation logic to each row
     // This converts negative net_balance for liabilities/equity to positive presentation values
@@ -158,10 +158,8 @@ fn apply_presentation_to_rows(rows: Vec<BalanceSheetRow>) -> Vec<BalanceSheetRow
             };
 
             // Apply normal balance presentation logic
-            row.amount_minor = normal_balance::apply_balance_sheet_presentation(
-                &account_type,
-                row.amount_minor,
-            );
+            row.amount_minor =
+                normal_balance::apply_balance_sheet_presentation(&account_type, row.amount_minor);
 
             row
         })
@@ -237,8 +235,14 @@ mod tests {
         assert_eq!(totals.total_assets, 100000);
         assert_eq!(totals.total_liabilities, 30000);
         assert_eq!(totals.total_equity, 70000);
-        assert!(totals.is_balanced, "Assets (100000) should equal Liabilities (30000) + Equity (70000)");
-        assert_eq!(totals.total_assets, totals.total_liabilities + totals.total_equity);
+        assert!(
+            totals.is_balanced,
+            "Assets (100000) should equal Liabilities (30000) + Equity (70000)"
+        );
+        assert_eq!(
+            totals.total_assets,
+            totals.total_liabilities + totals.total_equity
+        );
     }
 
     #[test]
@@ -271,7 +275,10 @@ mod tests {
         assert_eq!(totals.total_assets, 150000);
         assert_eq!(totals.total_liabilities, 30000);
         assert_eq!(totals.total_equity, 70000);
-        assert!(!totals.is_balanced, "Assets (150000) should NOT equal Liabilities (30000) + Equity (70000)");
+        assert!(
+            !totals.is_balanced,
+            "Assets (150000) should NOT equal Liabilities (30000) + Equity (70000)"
+        );
     }
 
     #[test]
@@ -281,7 +288,10 @@ mod tests {
         assert_eq!(totals.total_assets, 0);
         assert_eq!(totals.total_liabilities, 0);
         assert_eq!(totals.total_equity, 0);
-        assert!(totals.is_balanced, "Empty balance sheet should be balanced (0 = 0 + 0)");
+        assert!(
+            totals.is_balanced,
+            "Empty balance sheet should be balanced (0 = 0 + 0)"
+        );
     }
 
     #[test]
@@ -339,7 +349,10 @@ mod tests {
         assert_eq!(totals.total_liabilities, 30000); // 20000 + 10000
         assert_eq!(totals.total_equity, 50000); // 40000 + 10000
         assert!(totals.is_balanced);
-        assert_eq!(totals.total_assets, totals.total_liabilities + totals.total_equity);
+        assert_eq!(
+            totals.total_assets,
+            totals.total_liabilities + totals.total_equity
+        );
     }
 
     #[test]
@@ -397,7 +410,10 @@ mod tests {
         let totals1 = calculate_totals(&rows1);
         let totals2 = calculate_totals(&rows2);
 
-        assert_eq!(totals1, totals2, "Totals should be deterministic regardless of row order");
+        assert_eq!(
+            totals1, totals2,
+            "Totals should be deterministic regardless of row order"
+        );
     }
 
     #[test]

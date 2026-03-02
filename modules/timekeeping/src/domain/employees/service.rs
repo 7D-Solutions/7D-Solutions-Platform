@@ -119,14 +119,12 @@ impl EmployeeRepo {
         id: Uuid,
         app_id: &str,
     ) -> Result<Option<Employee>, EmployeeError> {
-        sqlx::query_as::<_, Employee>(
-            "SELECT * FROM tk_employees WHERE id = $1 AND app_id = $2",
-        )
-        .bind(id)
-        .bind(app_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(EmployeeError::Database)
+        sqlx::query_as::<_, Employee>("SELECT * FROM tk_employees WHERE id = $1 AND app_id = $2")
+            .bind(id)
+            .bind(app_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(EmployeeError::Database)
     }
 
     /// List employees for a tenant, ordered by last_name, first_name.

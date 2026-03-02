@@ -32,7 +32,10 @@ pub struct TenantConfigRepo;
 
 impl TenantConfigRepo {
     /// Get tenant config, returning defaults if no row exists.
-    pub async fn get_or_default(pool: &PgPool, tenant_id: &str) -> Result<TenantConfig, sqlx::Error> {
+    pub async fn get_or_default(
+        pool: &PgPool,
+        tenant_id: &str,
+    ) -> Result<TenantConfig, sqlx::Error> {
         let row = sqlx::query_as::<_, TenantConfig>(
             "SELECT tenant_id, auto_create_on_due, approvals_required FROM maintenance_tenant_config WHERE tenant_id = $1",
         )

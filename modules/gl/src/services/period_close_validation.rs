@@ -141,10 +141,7 @@ pub async fn validate_period_can_close(
             issues.push(ValidationIssue {
                 severity: ValidationSeverity::Error,
                 code: "PERIOD_NOT_FOUND".to_string(),
-                message: format!(
-                    "Period {} not found for tenant {}",
-                    period_id, tenant_id
-                ),
+                message: format!("Period {} not found for tenant {}", period_id, tenant_id),
                 metadata: None,
             });
 
@@ -316,7 +313,9 @@ pub async fn check_close_checklist_gate(
         issues.push(ValidationIssue {
             severity: ValidationSeverity::Error,
             code: "APPROVAL_MISSING".to_string(),
-            message: "No approval signoffs recorded — at least one required when checklist is configured".to_string(),
+            message:
+                "No approval signoffs recorded — at least one required when checklist is configured"
+                    .to_string(),
             metadata: None,
         });
     }

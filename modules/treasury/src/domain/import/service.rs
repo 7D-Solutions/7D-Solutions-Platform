@@ -17,8 +17,7 @@ use crate::outbox::enqueue_event_tx;
 
 /// UUID v5 namespace for statement content hashing.
 const STATEMENT_HASH_NS: Uuid = Uuid::from_bytes([
-    0x7d, 0x50, 0x1a, 0x71, 0xba, 0x4c, 0x4e, 0x2a, 0x8f, 0x01, 0xc3, 0xee, 0xd4, 0xa1, 0xb7,
-    0x09,
+    0x7d, 0x50, 0x1a, 0x71, 0xba, 0x4c, 0x4e, 0x2a, 0x8f, 0x01, 0xc3, 0xee, 0xd4, 0xa1, 0xb7, 0x09,
 ]);
 
 const EVT_STATEMENT_IMPORTED: &str = "bank_statement.imported";
@@ -187,18 +186,13 @@ pub async fn import_statement(
 // Helpers
 // ============================================================================
 
-async fn verify_account(
-    pool: &PgPool,
-    app_id: &str,
-    account_id: Uuid,
-) -> Result<(), ImportError> {
-    let row: Option<(AccountStatus,)> = sqlx::query_as(
-        "SELECT status FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2",
-    )
-    .bind(account_id)
-    .bind(app_id)
-    .fetch_optional(pool)
-    .await?;
+async fn verify_account(pool: &PgPool, app_id: &str, account_id: Uuid) -> Result<(), ImportError> {
+    let row: Option<(AccountStatus,)> =
+        sqlx::query_as("SELECT status FROM treasury_bank_accounts WHERE id = $1 AND app_id = $2")
+            .bind(account_id)
+            .bind(app_id)
+            .fetch_optional(pool)
+            .await?;
 
     match row {
         None => Err(ImportError::AccountNotFound(account_id)),
@@ -334,13 +328,12 @@ mod tests {
         assert!(result.errors.is_empty());
 
         // Verify statement exists
-        let stmt_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM treasury_bank_statements WHERE id = $1",
-        )
-        .bind(result.statement_id)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let stmt_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM treasury_bank_statements WHERE id = $1")
+                .bind(result.statement_id)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(stmt_count, 1);
 
         // Verify transaction lines
@@ -398,13 +391,12 @@ mod tests {
         );
 
         // Verify no extra lines were created
-        let txn_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM treasury_bank_transactions WHERE app_id = $1",
-        )
-        .bind(TEST_APP)
-        .fetch_one(&pool)
-        .await
-        .unwrap();
+        let txn_count: i64 =
+            sqlx::query_scalar("SELECT COUNT(*) FROM treasury_bank_transactions WHERE app_id = $1")
+                .bind(TEST_APP)
+                .fetch_one(&pool)
+                .await
+                .unwrap();
         assert_eq!(txn_count, 3);
 
         cleanup(&pool).await;
@@ -472,9 +464,7 @@ mod tests {
     // ================================================================
 
     async fn create_test_cc_account(pool: &PgPool) -> Uuid {
-        use crate::domain::accounts::{
-            service as acct_svc, CreateCreditCardAccountRequest,
-        };
+        use crate::domain::accounts::{service as acct_svc, CreateCreditCardAccountRequest};
         let req = CreateCreditCardAccountRequest {
             account_name: "CC Import Test".to_string(),
             institution: Some("Test Issuer".to_string()),
@@ -531,9 +521,9 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(amounts[0].0, -450);   // charge
-        assert_eq!(amounts[1].0, -8999);  // charge
-        assert_eq!(amounts[2].0, 25000);  // payment
+        assert_eq!(amounts[0].0, -450); // charge
+        assert_eq!(amounts[1].0, -8999); // charge
+        assert_eq!(amounts[2].0, 25000); // payment
 
         cleanup(&pool).await;
     }
@@ -579,9 +569,9 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(amounts[0].0, -450);   // charge (was +4.50)
-        assert_eq!(amounts[1].0, -8999);  // charge (was +89.99)
-        assert_eq!(amounts[2].0, 25000);  // payment (was -250.00)
+        assert_eq!(amounts[0].0, -450); // charge (was +4.50)
+        assert_eq!(amounts[1].0, -8999); // charge (was +89.99)
+        assert_eq!(amounts[2].0, 25000); // payment (was -250.00)
 
         cleanup(&pool).await;
     }

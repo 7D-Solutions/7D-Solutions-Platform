@@ -40,9 +40,9 @@ fn invalid_transitions() {
         (Resolved, Suspended),
         (WrittenOff, Resolved),
         (WrittenOff, Pending),
-        (Warned, Pending),       // no backwards
-        (Escalated, Warned),     // no backwards
-        (Suspended, Escalated),  // no backwards
+        (Warned, Pending),      // no backwards
+        (Escalated, Warned),    // no backwards
+        (Suspended, Escalated), // no backwards
     ];
     for (from, to) in invalid {
         assert!(

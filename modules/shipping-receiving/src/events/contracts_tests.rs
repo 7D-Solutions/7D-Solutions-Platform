@@ -25,8 +25,14 @@ fn shipment_created_envelope_has_correct_metadata() {
         payload,
     );
     assert_eq!(envelope.event_type, EVENT_TYPE_SHIPMENT_CREATED);
-    assert_eq!(envelope.mutation_class.as_deref(), Some(MUTATION_CLASS_DATA_MUTATION));
-    assert_eq!(envelope.schema_version, SHIPPING_RECEIVING_EVENT_SCHEMA_VERSION);
+    assert_eq!(
+        envelope.mutation_class.as_deref(),
+        Some(MUTATION_CLASS_DATA_MUTATION)
+    );
+    assert_eq!(
+        envelope.schema_version,
+        SHIPPING_RECEIVING_EVENT_SCHEMA_VERSION
+    );
     assert_eq!(envelope.source_module, "shipping-receiving");
     assert!(envelope.replay_safe);
 }
@@ -71,7 +77,10 @@ fn status_changed_envelope_has_correct_metadata() {
         payload,
     );
     assert_eq!(envelope.event_type, EVENT_TYPE_SHIPMENT_STATUS_CHANGED);
-    assert_eq!(envelope.mutation_class.as_deref(), Some(MUTATION_CLASS_DATA_MUTATION));
+    assert_eq!(
+        envelope.mutation_class.as_deref(),
+        Some(MUTATION_CLASS_DATA_MUTATION)
+    );
     assert_eq!(envelope.source_module, "shipping-receiving");
     assert_eq!(envelope.causation_id.as_deref(), Some("cause-1"));
     assert!(envelope.replay_safe);

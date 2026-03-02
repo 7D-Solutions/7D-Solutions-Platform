@@ -227,7 +227,7 @@ mod tests {
             tenant_id: "tenant-1".to_string(),
             reversal_period: "2026-02".to_string(),
             reversal_date: "2026-02-01".to_string(),
-            debit_account: "CASH".to_string(),   // swapped from original credit
+            debit_account: "CASH".to_string(), // swapped from original credit
             credit_account: "PREPAID".to_string(), // swapped from original debit
             amount_minor: 120000,
             currency: "USD".to_string(),
@@ -280,10 +280,7 @@ mod tests {
             Some("cause-template-run".to_string()),
             sample_accrual_created(),
         );
-        assert_eq!(
-            envelope.causation_id.as_deref(),
-            Some("cause-template-run")
-        );
+        assert_eq!(envelope.causation_id.as_deref(), Some("cause-template-run"));
     }
 
     #[test]
@@ -421,16 +418,16 @@ mod tests {
         // These are the canonical account → CashFlowClass mappings.
         // This test serves as living documentation of the classification rules.
         let classifications = vec![
-            ("AR", CashFlowClass::Operating),        // Working capital: receivable
-            ("AP", CashFlowClass::Operating),         // Working capital: payable
-            ("PREPAID", CashFlowClass::Operating),    // Prepaid expense amortization
+            ("AR", CashFlowClass::Operating),      // Working capital: receivable
+            ("AP", CashFlowClass::Operating),      // Working capital: payable
+            ("PREPAID", CashFlowClass::Operating), // Prepaid expense amortization
             ("ACCRUED_LIAB", CashFlowClass::Operating), // Accrued liabilities
-            ("PPE", CashFlowClass::Investing),         // Capital expenditure
-            ("INVEST", CashFlowClass::Investing),      // Investment purchase
-            ("DEBT", CashFlowClass::Financing),        // Debt repayment
-            ("EQUITY", CashFlowClass::Financing),      // Equity issuance
-            ("DEPR", CashFlowClass::NonCash),          // Depreciation add-back
-            ("AMORT", CashFlowClass::NonCash),         // Amortization add-back
+            ("PPE", CashFlowClass::Investing),     // Capital expenditure
+            ("INVEST", CashFlowClass::Investing),  // Investment purchase
+            ("DEBT", CashFlowClass::Financing),    // Debt repayment
+            ("EQUITY", CashFlowClass::Financing),  // Equity issuance
+            ("DEPR", CashFlowClass::NonCash),      // Depreciation add-back
+            ("AMORT", CashFlowClass::NonCash),     // Amortization add-back
         ];
 
         for (account, class) in classifications {

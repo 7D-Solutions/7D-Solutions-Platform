@@ -68,9 +68,18 @@ mod tests {
 
     #[test]
     fn status_roundtrip() {
-        assert_eq!(InvItemStatus::try_from("available".to_string()), Ok(InvItemStatus::Available));
-        assert_eq!(InvItemStatus::try_from("quarantine".to_string()), Ok(InvItemStatus::Quarantine));
-        assert_eq!(InvItemStatus::try_from("damaged".to_string()), Ok(InvItemStatus::Damaged));
+        assert_eq!(
+            InvItemStatus::try_from("available".to_string()),
+            Ok(InvItemStatus::Available)
+        );
+        assert_eq!(
+            InvItemStatus::try_from("quarantine".to_string()),
+            Ok(InvItemStatus::Quarantine)
+        );
+        assert_eq!(
+            InvItemStatus::try_from("damaged".to_string()),
+            Ok(InvItemStatus::Damaged)
+        );
         assert!(InvItemStatus::try_from("unknown".to_string()).is_err());
     }
 

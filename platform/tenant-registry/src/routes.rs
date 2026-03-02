@@ -19,8 +19,11 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use crate::registry::{
+    get_tenant_app_id, get_tenant_entitlements, get_tenant_status_row, EntitlementRow,
+    TenantAppIdRow, TenantStatusRow,
+};
 use crate::summary::{fetch_tenant_summary, ModuleUrl, SummaryError, TenantSummary};
-use crate::registry::{get_tenant_app_id, get_tenant_entitlements, get_tenant_status_row, EntitlementRow, TenantAppIdRow, TenantStatusRow};
 
 /// Shared application state for summary routes
 #[derive(Clone)]
@@ -271,7 +274,9 @@ mod app_id_tests {
             "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
                 .to_string()
         });
-        PgPool::connect(&url).await.expect("connect to tenant-registry DB")
+        PgPool::connect(&url)
+            .await
+            .expect("connect to tenant-registry DB")
     }
 
     fn build_app(pool: PgPool) -> axum::Router {
@@ -311,7 +316,10 @@ mod app_id_tests {
     #[tokio::test]
     async fn app_id_found_returns_200_with_app_id() {
         let pool = test_pool().await;
-        let app_id = format!("app_{}", Uuid::new_v4().to_string().replace('-', "")[..8].to_string());
+        let app_id = format!(
+            "app_{}",
+            Uuid::new_v4().to_string().replace('-', "")[..8].to_string()
+        );
         let tenant_id = seed_tenant_with_app_id(&pool, &app_id).await;
         let app = build_app(pool.clone());
 
@@ -321,7 +329,11 @@ mod app_id_tests {
             .unwrap();
 
         let resp = app.oneshot(req).await.expect("call app-id endpoint");
-        assert_eq!(resp.status(), StatusCode::OK, "expected 200 for tenant with app_id");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "expected 200 for tenant with app_id"
+        );
 
         let body = axum::body::to_bytes(resp.into_body(), 16 * 1024)
             .await
@@ -331,7 +343,11 @@ mod app_id_tests {
         assert_eq!(json["product_code"], "starter");
 
         // Cleanup
-        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
+        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(&pool)
+            .await
+            .ok();
     }
 
     #[tokio::test]
@@ -346,7 +362,11 @@ mod app_id_tests {
             .unwrap();
 
         let resp = app.oneshot(req).await.expect("call app-id endpoint");
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "expected 404 for missing tenant");
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "expected 404 for missing tenant"
+        );
     }
 
     #[tokio::test]
@@ -361,7 +381,11 @@ mod app_id_tests {
             .unwrap();
 
         let resp = app.oneshot(req).await.expect("call app-id endpoint");
-        assert_eq!(resp.status(), StatusCode::CONFLICT, "expected 409 when app_id is NULL");
+        assert_eq!(
+            resp.status(),
+            StatusCode::CONFLICT,
+            "expected 409 when app_id is NULL"
+        );
 
         let body = axum::body::to_bytes(resp.into_body(), 16 * 1024)
             .await
@@ -370,7 +394,11 @@ mod app_id_tests {
         assert!(json["error"].as_str().unwrap().contains("no app_id"));
 
         // Cleanup
-        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
+        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(&pool)
+            .await
+            .ok();
     }
 }
 
@@ -411,7 +439,9 @@ mod entitlement_tests {
             "postgresql://tenant_registry_user:tenant_registry_pass@localhost:5441/tenant_registry_db"
                 .to_string()
         });
-        let pool = PgPool::connect(&url).await.expect("connect to tenant-registry DB");
+        let pool = PgPool::connect(&url)
+            .await
+            .expect("connect to tenant-registry DB");
 
         // Ensure cp_entitlements exists (idempotent — other tables exist from prior setup).
         // We don't run the full migrator because the base schema was created outside sqlx tracking.
@@ -488,7 +518,11 @@ mod entitlement_tests {
             .unwrap();
 
         let resp = app.oneshot(req).await.expect("call entitlements endpoint");
-        assert_eq!(resp.status(), StatusCode::OK, "expected 200 for tenant with entitlements");
+        assert_eq!(
+            resp.status(),
+            StatusCode::OK,
+            "expected 200 for tenant with entitlements"
+        );
 
         let body = axum::body::to_bytes(resp.into_body(), 16 * 1024)
             .await
@@ -498,8 +532,16 @@ mod entitlement_tests {
         assert_eq!(json["plan_code"], "monthly");
 
         // Cleanup
-        sqlx::query("DELETE FROM cp_entitlements WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
-        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
+        sqlx::query("DELETE FROM cp_entitlements WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(&pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(&pool)
+            .await
+            .ok();
     }
 
     #[tokio::test]
@@ -514,10 +556,18 @@ mod entitlement_tests {
             .unwrap();
 
         let resp = app.oneshot(req).await.expect("call entitlements endpoint");
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "expected 404 when no entitlements row");
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "expected 404 when no entitlements row"
+        );
 
         // Cleanup
-        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1").bind(tenant_id).execute(&pool).await.ok();
+        sqlx::query("DELETE FROM tenants WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .execute(&pool)
+            .await
+            .ok();
     }
 
     #[tokio::test]
@@ -532,6 +582,10 @@ mod entitlement_tests {
             .unwrap();
 
         let resp = app.oneshot(req).await.expect("call entitlements endpoint");
-        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "expected 404 for missing tenant");
+        assert_eq!(
+            resp.status(),
+            StatusCode::NOT_FOUND,
+            "expected 404 for missing tenant"
+        );
     }
 }

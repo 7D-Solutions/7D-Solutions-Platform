@@ -159,10 +159,14 @@ pub struct CreateCompanyRequest {
 impl CreateCompanyRequest {
     pub fn validate(&self) -> Result<(), PartyError> {
         if self.display_name.trim().is_empty() {
-            return Err(PartyError::Validation("display_name cannot be empty".to_string()));
+            return Err(PartyError::Validation(
+                "display_name cannot be empty".to_string(),
+            ));
         }
         if self.legal_name.trim().is_empty() {
-            return Err(PartyError::Validation("legal_name cannot be empty".to_string()));
+            return Err(PartyError::Validation(
+                "legal_name cannot be empty".to_string(),
+            ));
         }
         Ok(())
     }
@@ -193,13 +197,19 @@ pub struct CreateIndividualRequest {
 impl CreateIndividualRequest {
     pub fn validate(&self) -> Result<(), PartyError> {
         if self.display_name.trim().is_empty() {
-            return Err(PartyError::Validation("display_name cannot be empty".to_string()));
+            return Err(PartyError::Validation(
+                "display_name cannot be empty".to_string(),
+            ));
         }
         if self.first_name.trim().is_empty() {
-            return Err(PartyError::Validation("first_name cannot be empty".to_string()));
+            return Err(PartyError::Validation(
+                "first_name cannot be empty".to_string(),
+            ));
         }
         if self.last_name.trim().is_empty() {
-            return Err(PartyError::Validation("last_name cannot be empty".to_string()));
+            return Err(PartyError::Validation(
+                "last_name cannot be empty".to_string(),
+            ));
         }
         Ok(())
     }
@@ -229,7 +239,9 @@ impl UpdatePartyRequest {
     pub fn validate(&self) -> Result<(), PartyError> {
         if let Some(ref name) = self.display_name {
             if name.trim().is_empty() {
-                return Err(PartyError::Validation("display_name cannot be empty".to_string()));
+                return Err(PartyError::Validation(
+                    "display_name cannot be empty".to_string(),
+                ));
             }
         }
         Ok(())

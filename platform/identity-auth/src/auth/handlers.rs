@@ -67,10 +67,17 @@ pub(super) fn err(code: StatusCode, msg: impl Into<String>) -> ApiErr {
     (code, HeaderMap::new(), msg.into())
 }
 
-pub(super) fn err_retry_after(code: StatusCode, wait: std::time::Duration, msg: impl Into<String>) -> ApiErr {
+pub(super) fn err_retry_after(
+    code: StatusCode,
+    wait: std::time::Duration,
+    msg: impl Into<String>,
+) -> ApiErr {
     let mut headers = HeaderMap::new();
     let secs = wait.as_secs().max(1).to_string();
-    headers.insert("Retry-After", HeaderValue::from_str(&secs).unwrap_or(HeaderValue::from_static("1")));
+    headers.insert(
+        "Retry-After",
+        HeaderValue::from_str(&secs).unwrap_or(HeaderValue::from_static("1")),
+    );
     (code, headers, msg.into())
 }
 
@@ -111,14 +118,22 @@ pub async fn register(
 
     let email = req.email.trim().to_lowercase();
     if email.is_empty() || !email.contains('@') {
-        state.metrics.auth_register_total.with_label_values(&["failure", "invalid_email"]).inc();
+        state
+            .metrics
+            .auth_register_total
+            .with_label_values(&["failure", "invalid_email"])
+            .inc();
         return Err(err(StatusCode::BAD_REQUEST, "invalid email"));
     }
 
     // Password policy validation FIRST (before rate limit, before hash)
     let rules = PasswordRules::default();
     if let Err(e) = validate_password(&rules, &req.password) {
-        state.metrics.auth_register_total.with_label_values(&["failure", "weak_password"]).inc();
+        state
+            .metrics
+            .auth_register_total
+            .with_label_values(&["failure", "weak_password"])
+            .inc();
         return Err(err(StatusCode::BAD_REQUEST, e.to_string()));
     }
 
@@ -128,8 +143,16 @@ pub async fn register(
         &email,
         state.register_per_min_per_email,
     ) {
-        state.metrics.auth_rate_limited_total.with_label_values(&["email"]).inc();
-        state.metrics.auth_register_total.with_label_values(&["failure", "rate_limited"]).inc();
+        state
+            .metrics
+            .auth_rate_limited_total
+            .with_label_values(&["email"])
+            .inc();
+        state
+            .metrics
+            .auth_register_total
+            .with_label_values(&["failure", "rate_limited"])
+            .inc();
         return Err(err_retry_after(
             StatusCode::TOO_MANY_REQUESTS,
             wait,
@@ -141,14 +164,18 @@ pub async fn register(
     let _permit = match state.hash_limiter.acquire().await {
         Ok(p) => p,
         Err(_) => {
-            state.metrics.auth_register_total.with_label_values(&["failure", "hash_busy"]).inc();
+            state
+                .metrics
+                .auth_register_total
+                .with_label_values(&["failure", "hash_busy"])
+                .inc();
             tracing::warn!(tenant_id=%req.tenant_id, trace_id=%trace_id, "auth.hash_busy");
             return Err(err(StatusCode::SERVICE_UNAVAILABLE, "auth busy"));
         }
     };
 
-    let hash = hash_password(&state.pwd, &req.password)
-        .map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
+    let hash =
+        hash_password(&state.pwd, &req.password).map_err(|e| err(StatusCode::BAD_REQUEST, e))?;
 
     let res = sqlx::query(
         r#"
@@ -165,10 +192,17 @@ pub async fn register(
 
     match res {
         Ok(_) => {
-            state.metrics.auth_register_total.with_label_values(&["success", "ok"]).inc();
+            state
+                .metrics
+                .auth_register_total
+                .with_label_values(&["success", "ok"])
+                .inc();
 
             #[derive(Serialize)]
-            struct Data { user_id: String, email: String }
+            struct Data {
+                user_id: String,
+                email: String,
+            }
 
             let env = EventEnvelope {
                 event_id: Uuid::new_v4(),
@@ -181,27 +215,46 @@ pub async fn register(
                 aggregate_id: req.user_id,
                 trace_id,
                 causation_id: None,
-                data: Data { user_id: req.user_id.to_string(), email: email.clone() },
+                data: Data {
+                    user_id: req.user_id.to_string(),
+                    email: email.clone(),
+                },
             };
 
-            if state.events.publish(
-                "auth.events.user.registered",
-                "auth.user.registered.v1.json",
-                &env
-            ).await.is_err() {
-                state.metrics.auth_nats_publish_fail_total.with_label_values(&["auth.user.registered"]).inc();
+            if state
+                .events
+                .publish(
+                    "auth.events.user.registered",
+                    "auth.user.registered.v1.json",
+                    &env,
+                )
+                .await
+                .is_err()
+            {
+                state
+                    .metrics
+                    .auth_nats_publish_fail_total
+                    .with_label_values(&["auth.user.registered"])
+                    .inc();
             }
 
             Ok((StatusCode::OK, Json(OkResponse { ok: true })))
         }
         Err(e) => {
-            state.metrics.auth_register_total.with_label_values(&["failure", "db_error"]).inc();
+            state
+                .metrics
+                .auth_register_total
+                .with_label_values(&["failure", "db_error"])
+                .inc();
             if let Some(db_err) = e.as_database_error() {
                 if db_err.code().as_deref() == Some("23505") {
                     return Err(err(StatusCode::CONFLICT, "credential already exists"));
                 }
             }
-            Err(err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}")))
+            Err(err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("db error: {e}"),
+            ))
         }
     }
 }
@@ -215,7 +268,11 @@ pub async fn login(
 
     let email = req.email.trim().to_lowercase();
     if email.is_empty() || !email.contains('@') {
-        state.metrics.auth_login_total.with_label_values(&["failure", "invalid_email"]).inc();
+        state
+            .metrics
+            .auth_login_total
+            .with_label_values(&["failure", "invalid_email"])
+            .inc();
         return Err(err(StatusCode::BAD_REQUEST, "invalid email"));
     }
 
@@ -225,9 +282,21 @@ pub async fn login(
         &email,
         state.login_per_min_per_email,
     ) {
-        state.metrics.auth_rate_limited_total.with_label_values(&["email"]).inc();
-        state.metrics.auth_login_total.with_label_values(&["failure", "rate_limited"]).inc();
-        return Err(err_retry_after(StatusCode::TOO_MANY_REQUESTS, wait, "rate limited"));
+        state
+            .metrics
+            .auth_rate_limited_total
+            .with_label_values(&["email"])
+            .inc();
+        state
+            .metrics
+            .auth_login_total
+            .with_label_values(&["failure", "rate_limited"])
+            .inc();
+        return Err(err_retry_after(
+            StatusCode::TOO_MANY_REQUESTS,
+            wait,
+            "rate limited",
+        ));
     }
 
     let row = sqlx::query(
@@ -242,14 +311,22 @@ pub async fn login(
     .fetch_optional(&state.db)
     .await
     .map_err(|e| {
-        state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
+        state
+            .metrics
+            .auth_login_total
+            .with_label_values(&["failure", "db_error"])
+            .inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?;
 
     let row = match row {
         Some(r) => r,
         None => {
-            state.metrics.auth_login_total.with_label_values(&["failure", "not_found"]).inc();
+            state
+                .metrics
+                .auth_login_total
+                .with_label_values(&["failure", "not_found"])
+                .inc();
             return Err(err(StatusCode::UNAUTHORIZED, "invalid credentials"));
         }
     };
@@ -260,13 +337,21 @@ pub async fn login(
     let lock_until: Option<chrono::DateTime<Utc>> = row.get("lock_until");
 
     if !is_active {
-        state.metrics.auth_login_total.with_label_values(&["failure", "inactive"]).inc();
+        state
+            .metrics
+            .auth_login_total
+            .with_label_values(&["failure", "inactive"])
+            .inc();
         return Err(err(StatusCode::FORBIDDEN, "account inactive"));
     }
 
     if let Some(lu) = lock_until {
         if lu > Utc::now() {
-            state.metrics.auth_login_total.with_label_values(&["failure", "locked"]).inc();
+            state
+                .metrics
+                .auth_login_total
+                .with_label_values(&["failure", "locked"])
+                .inc();
             return Err(err(StatusCode::LOCKED, "account temporarily locked"));
         }
     }
@@ -275,25 +360,42 @@ pub async fn login(
     let _permit = match state.hash_limiter.acquire().await {
         Ok(p) => p,
         Err(_) => {
-            state.metrics.auth_login_total.with_label_values(&["failure", "hash_busy"]).inc();
+            state
+                .metrics
+                .auth_login_total
+                .with_label_values(&["failure", "hash_busy"])
+                .inc();
             tracing::warn!(tenant_id=%req.tenant_id, email=%email, trace_id=%trace_id, "auth.hash_busy");
             return Err(err(StatusCode::SERVICE_UNAVAILABLE, "auth busy"));
         }
     };
 
     let t = Metrics::timer();
-    let ok = verify_password(&state.pwd, &req.password, &password_hash)
-        .map_err(|e| {
-            state.metrics.auth_password_verify_duration_seconds.with_label_values(&["error"])
-                .observe(t.elapsed().as_secs_f64());
-            state.metrics.auth_login_total.with_label_values(&["failure", "verify_error"]).inc();
-            err(StatusCode::INTERNAL_SERVER_ERROR, e)
-        })?;
+    let ok = verify_password(&state.pwd, &req.password, &password_hash).map_err(|e| {
+        state
+            .metrics
+            .auth_password_verify_duration_seconds
+            .with_label_values(&["error"])
+            .observe(t.elapsed().as_secs_f64());
+        state
+            .metrics
+            .auth_login_total
+            .with_label_values(&["failure", "verify_error"])
+            .inc();
+        err(StatusCode::INTERNAL_SERVER_ERROR, e)
+    })?;
 
     if !ok {
-        state.metrics.auth_password_verify_duration_seconds.with_label_values(&["fail"])
+        state
+            .metrics
+            .auth_password_verify_duration_seconds
+            .with_label_values(&["fail"])
             .observe(t.elapsed().as_secs_f64());
-        state.metrics.auth_login_total.with_label_values(&["failure", "invalid_password"]).inc();
+        state
+            .metrics
+            .auth_login_total
+            .with_label_values(&["failure", "invalid_password"])
+            .inc();
 
         let _ = sqlx::query(
             r#"
@@ -319,7 +421,10 @@ pub async fn login(
         return Err(err(StatusCode::UNAUTHORIZED, "invalid credentials"));
     }
 
-    state.metrics.auth_password_verify_duration_seconds.with_label_values(&["ok"])
+    state
+        .metrics
+        .auth_password_verify_duration_seconds
+        .with_label_values(&["ok"])
         .observe(t.elapsed().as_secs_f64());
 
     let _ = sqlx::query(
@@ -340,8 +445,15 @@ pub async fn login(
     let roles = crate::db::rbac::list_roles_for_user(&state.db, req.tenant_id, user_id)
         .await
         .map_err(|e| {
-            state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
-            err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac roles: {e}"))
+            state
+                .metrics
+                .auth_login_total
+                .with_label_values(&["failure", "db_error"])
+                .inc();
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("rbac roles: {e}"),
+            )
         })?
         .into_iter()
         .map(|r| r.name)
@@ -350,11 +462,19 @@ pub async fn login(
     let perms = crate::db::rbac::effective_permissions_for_user(&state.db, req.tenant_id, user_id)
         .await
         .map_err(|e| {
-            state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
-            err(StatusCode::INTERNAL_SERVER_ERROR, format!("rbac perms: {e}"))
+            state
+                .metrics
+                .auth_login_total
+                .with_label_values(&["failure", "db_error"])
+                .inc();
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("rbac perms: {e}"),
+            )
         })?;
 
-    let access = state.jwt
+    let access = state
+        .jwt
         .sign_access_token(
             req.tenant_id,
             user_id,
@@ -364,7 +484,11 @@ pub async fn login(
             state.access_ttl_minutes,
         )
         .map_err(|e| {
-            state.metrics.auth_login_total.with_label_values(&["failure", "token_sign_error"]).inc();
+            state
+                .metrics
+                .auth_login_total
+                .with_label_values(&["failure", "token_sign_error"])
+                .inc();
             err(StatusCode::INTERNAL_SERVER_ERROR, e)
         })?;
 
@@ -374,15 +498,26 @@ pub async fn login(
 
     // Atomic seat-limit enforcement: advisory lock + count + insert in one transaction.
     let mut tx = state.db.begin().await.map_err(|e| {
-        state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
+        state
+            .metrics
+            .auth_login_total
+            .with_label_values(&["failure", "db_error"])
+            .inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?;
 
     super::concurrency::acquire_tenant_xact_lock(&mut tx, req.tenant_id)
         .await
         .map_err(|e| {
-            state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
-            err(StatusCode::INTERNAL_SERVER_ERROR, format!("advisory lock: {e}"))
+            state
+                .metrics
+                .auth_login_total
+                .with_label_values(&["failure", "db_error"])
+                .inc();
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("advisory lock: {e}"),
+            )
         })?;
 
     // Tenant lifecycle gate: deny login for suspended/canceled tenants; deny new login for past_due.
@@ -390,7 +525,11 @@ pub async fn login(
         match client.get_tenant_gate(req.tenant_id, &state.metrics).await {
             Ok(TenantGate::Allow) => {}
             Ok(TenantGate::DenyNewLogin { status }) => {
-                state.metrics.auth_tenant_status_denied_total.with_label_values(&[&status]).inc();
+                state
+                    .metrics
+                    .auth_tenant_status_denied_total
+                    .with_label_values(&[&status])
+                    .inc();
                 tracing::warn!(
                     tenant_id = %req.tenant_id,
                     user_id = %user_id,
@@ -402,7 +541,11 @@ pub async fn login(
                 return Err(err(StatusCode::FORBIDDEN, "tenant account past due"));
             }
             Ok(TenantGate::Deny { status }) => {
-                state.metrics.auth_tenant_status_denied_total.with_label_values(&[&status]).inc();
+                state
+                    .metrics
+                    .auth_tenant_status_denied_total
+                    .with_label_values(&[&status])
+                    .inc();
                 tracing::warn!(
                     tenant_id = %req.tenant_id,
                     user_id = %user_id,
@@ -414,7 +557,11 @@ pub async fn login(
                 return Err(err(StatusCode::FORBIDDEN, "tenant account inactive"));
             }
             Err(_) => {
-                state.metrics.auth_tenant_status_denied_total.with_label_values(&["unavailable"]).inc();
+                state
+                    .metrics
+                    .auth_tenant_status_denied_total
+                    .with_label_values(&["unavailable"])
+                    .inc();
                 tracing::warn!(
                     tenant_id = %req.tenant_id,
                     user_id = %user_id,
@@ -422,7 +569,10 @@ pub async fn login(
                     "auth.tenant_status_unavailable_deny"
                 );
                 let _ = tx.rollback().await;
-                return Err(err(StatusCode::SERVICE_UNAVAILABLE, "tenant status service unavailable"));
+                return Err(err(
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    "tenant status service unavailable",
+                ));
             }
         }
     }
@@ -430,8 +580,15 @@ pub async fn login(
     let active = super::concurrency::count_active_leases_in_tx(&mut tx, req.tenant_id)
         .await
         .map_err(|e| {
-            state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
-            err(StatusCode::INTERNAL_SERVER_ERROR, format!("seat count: {e}"))
+            state
+                .metrics
+                .auth_login_total
+                .with_label_values(&["failure", "db_error"])
+                .inc();
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("seat count: {e}"),
+            )
         })?;
 
     // Resolve the per-tenant concurrent session limit from the entitlement client
@@ -440,10 +597,17 @@ pub async fn login(
     // has no usable cached value, deny the login.
     let seat_limit = match &state.tenant_registry {
         Some(client) => {
-            match client.get_concurrent_user_limit(req.tenant_id, &state.metrics).await {
+            match client
+                .get_concurrent_user_limit(req.tenant_id, &state.metrics)
+                .await
+            {
                 Ok(limit) => limit,
                 Err(_) => {
-                    state.metrics.auth_login_total.with_label_values(&["failure", "entitlement_unavailable"]).inc();
+                    state
+                        .metrics
+                        .auth_login_total
+                        .with_label_values(&["failure", "entitlement_unavailable"])
+                        .inc();
                     tracing::warn!(
                         tenant_id = %req.tenant_id,
                         user_id = %user_id,
@@ -451,7 +615,10 @@ pub async fn login(
                         "auth.entitlement_unavailable_deny"
                     );
                     let _ = tx.rollback().await;
-                    return Err(err(StatusCode::SERVICE_UNAVAILABLE, "entitlement service unavailable"));
+                    return Err(err(
+                        StatusCode::SERVICE_UNAVAILABLE,
+                        "entitlement service unavailable",
+                    ));
                 }
             }
         }
@@ -459,7 +626,11 @@ pub async fn login(
     };
 
     if active >= seat_limit {
-        state.metrics.auth_login_total.with_label_values(&["failure", "seat_limit"]).inc();
+        state
+            .metrics
+            .auth_login_total
+            .with_label_values(&["failure", "seat_limit"])
+            .inc();
         tracing::warn!(
             tenant_id = %req.tenant_id,
             user_id = %user_id,
@@ -469,7 +640,10 @@ pub async fn login(
             "auth.seat_limit_exceeded"
         );
         let _ = tx.rollback().await;
-        return Err(err(StatusCode::TOO_MANY_REQUESTS, "concurrent session limit reached"));
+        return Err(err(
+            StatusCode::TOO_MANY_REQUESTS,
+            "concurrent session limit reached",
+        ));
     }
 
     let new_token_id: Uuid = sqlx::query(
@@ -486,7 +660,11 @@ pub async fn login(
     .fetch_one(&mut *tx)
     .await
     .map_err(|e| {
-        state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
+        state
+            .metrics
+            .auth_login_total
+            .with_label_values(&["failure", "db_error"])
+            .inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("db error: {e}"))
     })?
     .get("id");
@@ -494,19 +672,36 @@ pub async fn login(
     super::concurrency::create_lease_in_tx(&mut tx, req.tenant_id, user_id, new_token_id)
         .await
         .map_err(|e| {
-            state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
-            err(StatusCode::INTERNAL_SERVER_ERROR, format!("create lease: {e}"))
+            state
+                .metrics
+                .auth_login_total
+                .with_label_values(&["failure", "db_error"])
+                .inc();
+            err(
+                StatusCode::INTERNAL_SERVER_ERROR,
+                format!("create lease: {e}"),
+            )
         })?;
 
     tx.commit().await.map_err(|e| {
-        state.metrics.auth_login_total.with_label_values(&["failure", "db_error"]).inc();
+        state
+            .metrics
+            .auth_login_total
+            .with_label_values(&["failure", "db_error"])
+            .inc();
         err(StatusCode::INTERNAL_SERVER_ERROR, format!("tx commit: {e}"))
     })?;
 
-    state.metrics.auth_login_total.with_label_values(&["success", "ok"]).inc();
+    state
+        .metrics
+        .auth_login_total
+        .with_label_values(&["success", "ok"])
+        .inc();
 
     #[derive(Serialize)]
-    struct Data { user_id: String }
+    struct Data {
+        user_id: String,
+    }
     let env = EventEnvelope {
         event_id: Uuid::new_v4(),
         event_type: "auth.user.logged_in".to_string(),
@@ -518,15 +713,26 @@ pub async fn login(
         aggregate_id: user_id,
         trace_id,
         causation_id: None,
-        data: Data { user_id: user_id.to_string() },
+        data: Data {
+            user_id: user_id.to_string(),
+        },
     };
 
-    if state.events.publish(
-        "auth.events.user.logged_in",
-        "auth.user.logged_in.v1.json",
-        &env
-    ).await.is_err() {
-        state.metrics.auth_nats_publish_fail_total.with_label_values(&["auth.user.logged_in"]).inc();
+    if state
+        .events
+        .publish(
+            "auth.events.user.logged_in",
+            "auth.user.logged_in.v1.json",
+            &env,
+        )
+        .await
+        .is_err()
+    {
+        state
+            .metrics
+            .auth_nats_publish_fail_total
+            .with_label_values(&["auth.user.logged_in"])
+            .inc();
     }
 
     Ok((

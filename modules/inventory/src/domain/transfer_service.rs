@@ -18,11 +18,11 @@ use uuid::Uuid;
 use crate::{
     domain::{
         fifo::{self, AvailableLayer, FifoError},
-        guards::{GuardError, guard_item_active, guard_quantity_positive},
+        guards::{guard_item_active, guard_quantity_positive, GuardError},
         projections::on_hand,
     },
     events::{
-        contracts::{ConsumedLayer, TransferCompletedPayload, build_transfer_completed_envelope},
+        contracts::{build_transfer_completed_envelope, ConsumedLayer, TransferCompletedPayload},
         EVENT_TYPE_TRANSFER_COMPLETED,
     },
 };
@@ -603,7 +603,10 @@ mod tests {
     fn rejects_same_warehouse() {
         let mut r = valid_req();
         r.to_warehouse_id = r.from_warehouse_id;
-        assert!(matches!(validate_request(&r), Err(TransferError::SameWarehouse)));
+        assert!(matches!(
+            validate_request(&r),
+            Err(TransferError::SameWarehouse)
+        ));
     }
 
     #[test]

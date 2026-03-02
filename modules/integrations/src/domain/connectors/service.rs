@@ -11,8 +11,8 @@ use uuid::Uuid;
 use crate::outbox::enqueue_event_tx;
 
 use super::{
-    get_connector, ConnectorConfig, ConnectorError, RegisterConnectorRequest, TestActionResult,
-    RunTestActionRequest,
+    get_connector, ConnectorConfig, ConnectorError, RegisterConnectorRequest, RunTestActionRequest,
+    TestActionResult,
 };
 
 // ============================================================================
@@ -94,10 +94,15 @@ pub async fn register_connector(
         .ok_or_else(|| ConnectorError::UnknownType(req.connector_type.clone()))?;
 
     if req.name.trim().is_empty() {
-        return Err(ConnectorError::InvalidConfig("name cannot be empty".to_string()));
+        return Err(ConnectorError::InvalidConfig(
+            "name cannot be empty".to_string(),
+        ));
     }
 
-    let config = req.config.clone().unwrap_or(serde_json::Value::Object(Default::default()));
+    let config = req
+        .config
+        .clone()
+        .unwrap_or(serde_json::Value::Object(Default::default()));
 
     // Guard: validate config against connector schema
     connector.validate_config(&config)?;

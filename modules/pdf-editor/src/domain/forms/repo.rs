@@ -134,24 +134,22 @@ impl FieldRepo {
         validate_field_type(&req.field_type)?;
 
         // Verify template exists and belongs to this tenant
-        let tmpl_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM form_templates WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(template_id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let tmpl_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM form_templates WHERE id = $1 AND tenant_id = $2")
+                .bind(template_id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?;
         if tmpl_exists.is_none() {
             return Err(FormError::TemplateNotFound);
         }
 
         // Compute next display_order (max + 1, or 0 if none)
-        let max_order: Option<i32> = sqlx::query_scalar(
-            "SELECT MAX(display_order) FROM form_fields WHERE template_id = $1",
-        )
-        .bind(template_id)
-        .fetch_one(pool)
-        .await?;
+        let max_order: Option<i32> =
+            sqlx::query_scalar("SELECT MAX(display_order) FROM form_fields WHERE template_id = $1")
+                .bind(template_id)
+                .fetch_one(pool)
+                .await?;
         let next_order = max_order.map(|m| m + 1).unwrap_or(0);
 
         sqlx::query_as::<_, FormField>(
@@ -167,7 +165,11 @@ impl FieldRepo {
         .bind(req.field_key.trim())
         .bind(req.field_label.trim())
         .bind(&req.field_type)
-        .bind(req.validation_rules.as_ref().unwrap_or(&serde_json::json!({})))
+        .bind(
+            req.validation_rules
+                .as_ref()
+                .unwrap_or(&serde_json::json!({})),
+        )
         .bind(req.pdf_position.as_ref().unwrap_or(&serde_json::json!({})))
         .bind(next_order)
         .fetch_one(pool)
@@ -189,13 +191,12 @@ impl FieldRepo {
         tenant_id: &str,
     ) -> Result<Vec<FormField>, FormError> {
         // Verify template belongs to tenant
-        let tmpl_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM form_templates WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(template_id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let tmpl_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM form_templates WHERE id = $1 AND tenant_id = $2")
+                .bind(template_id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?;
         if tmpl_exists.is_none() {
             return Err(FormError::TemplateNotFound);
         }
@@ -243,18 +244,19 @@ impl FieldRepo {
         }
         if let Some(ref label) = req.field_label {
             if label.trim().is_empty() {
-                return Err(FormError::Validation("field_label must not be empty".into()));
+                return Err(FormError::Validation(
+                    "field_label must not be empty".into(),
+                ));
             }
         }
 
         // Verify template belongs to tenant
-        let tmpl_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM form_templates WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(template_id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let tmpl_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM form_templates WHERE id = $1 AND tenant_id = $2")
+                .bind(template_id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?;
         if tmpl_exists.is_none() {
             return Err(FormError::TemplateNotFound);
         }
@@ -294,13 +296,12 @@ impl FieldRepo {
         }
 
         // Verify template belongs to tenant
-        let tmpl_exists: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM form_templates WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(template_id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let tmpl_exists: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM form_templates WHERE id = $1 AND tenant_id = $2")
+                .bind(template_id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?;
         if tmpl_exists.is_none() {
             return Err(FormError::TemplateNotFound);
         }

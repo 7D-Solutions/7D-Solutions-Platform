@@ -68,12 +68,10 @@ pub async fn fetch_unpublished(db: &PgPool, limit: i64) -> Result<Vec<OutboxEven
 
 /// Mark an event as published.
 pub async fn mark_published(db: &PgPool, event_id: Uuid) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        "UPDATE events_outbox SET published_at = NOW() WHERE event_id = $1",
-    )
-    .bind(event_id)
-    .execute(db)
-    .await?;
+    sqlx::query("UPDATE events_outbox SET published_at = NOW() WHERE event_id = $1")
+        .bind(event_id)
+        .execute(db)
+        .await?;
     Ok(())
 }
 

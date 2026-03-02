@@ -10,7 +10,9 @@ use uuid::Uuid;
 use crate::contracts::gl_posting_request_v1::GlPostingRequestV1;
 use crate::repos::{balance_repo, journal_repo, period_repo, processed_repo};
 use crate::services::{balance_deltas::JournalLineInput, balance_updater};
-use crate::validation::{validate_accounts_against_coa, validate_gl_posting_request, ValidationError};
+use crate::validation::{
+    validate_accounts_against_coa, validate_gl_posting_request, ValidationError,
+};
 
 /// Errors that can occur during journal entry processing
 #[derive(Debug, thiserror::Error)]
@@ -88,20 +90,20 @@ pub async fn process_gl_posting_request(
         // This validates that the period exists and is open
         let period = period_repo::find_by_date_tx(&mut tx, tenant_id, posting_date)
             .await?
-            .ok_or_else(|| {
-                period_repo::PeriodError::NoPeriodForDate {
-                    tenant_id: tenant_id.to_string(),
-                    date: posting_date,
-                }
+            .ok_or_else(|| period_repo::PeriodError::NoPeriodForDate {
+                tenant_id: tenant_id.to_string(),
+                date: posting_date,
             })?;
 
         // Verify period is not closed (Phase 13: use closed_at semantics)
         if period.closed_at.is_some() {
-            return Err(JournalError::Period(period_repo::PeriodError::PeriodClosed {
-                tenant_id: tenant_id.to_string(),
-                date: posting_date,
-                period_id: period.id,
-            }));
+            return Err(JournalError::Period(
+                period_repo::PeriodError::PeriodClosed {
+                    tenant_id: tenant_id.to_string(),
+                    date: posting_date,
+                    period_id: period.id,
+                },
+            ));
         }
 
         let period_id = period.id;
@@ -167,8 +169,13 @@ pub async fn process_gl_posting_request(
         .await?;
 
         // Mark event as processed
-        processed_repo::insert(&mut tx, event_id, "gl.events.posting.requested", "gl-consumer")
-            .await?;
+        processed_repo::insert(
+            &mut tx,
+            event_id,
+            "gl.events.posting.requested",
+            "gl-consumer",
+        )
+        .await?;
 
         Ok(entry_id)
     })

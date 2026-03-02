@@ -18,7 +18,9 @@ pub fn validate_create(req: &CreateExternalRefRequest) -> Result<(), ExternalRef
         ));
     }
     if req.system.trim().is_empty() {
-        return Err(ExternalRefError::Validation("system is required".to_string()));
+        return Err(ExternalRefError::Validation(
+            "system is required".to_string(),
+        ));
     }
     if req.external_id.trim().is_empty() {
         return Err(ExternalRefError::Validation(

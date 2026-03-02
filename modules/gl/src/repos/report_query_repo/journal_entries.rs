@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
-use crate::repos::account_repo::AccountType;
 use super::ReportQueryError;
+use crate::repos::account_repo::AccountType;
 
 /// GL detail entry header (for multi-account reporting)
 #[derive(Debug, Clone, FromRow)]

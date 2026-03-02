@@ -112,14 +112,12 @@ impl ProjectRepo {
         id: Uuid,
         app_id: &str,
     ) -> Result<Option<Project>, ProjectError> {
-        sqlx::query_as::<_, Project>(
-            "SELECT * FROM tk_projects WHERE id = $1 AND app_id = $2",
-        )
-        .bind(id)
-        .bind(app_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(ProjectError::Database)
+        sqlx::query_as::<_, Project>("SELECT * FROM tk_projects WHERE id = $1 AND app_id = $2")
+            .bind(id)
+            .bind(app_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(ProjectError::Database)
     }
 
     /// List projects for a tenant.
@@ -199,10 +197,7 @@ impl TaskRepo {
         .map_err(|e| {
             if let sqlx::Error::Database(ref dbe) = e {
                 if dbe.code().as_deref() == Some("23505") {
-                    return TaskError::DuplicateCode(
-                        req.task_code.clone(),
-                        req.project_id,
-                    );
+                    return TaskError::DuplicateCode(req.task_code.clone(), req.project_id);
                 }
             }
             TaskError::Database(e)
@@ -256,14 +251,12 @@ impl TaskRepo {
         id: Uuid,
         app_id: &str,
     ) -> Result<Option<Task>, TaskError> {
-        sqlx::query_as::<_, Task>(
-            "SELECT * FROM tk_tasks WHERE id = $1 AND app_id = $2",
-        )
-        .bind(id)
-        .bind(app_id)
-        .fetch_optional(pool)
-        .await
-        .map_err(TaskError::Database)
+        sqlx::query_as::<_, Task>("SELECT * FROM tk_tasks WHERE id = $1 AND app_id = $2")
+            .bind(id)
+            .bind(app_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(TaskError::Database)
     }
 
     /// List tasks for a project.

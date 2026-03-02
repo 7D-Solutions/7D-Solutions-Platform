@@ -291,27 +291,21 @@ mod tests {
     const TEST_TENANT: &str = "test-depr-svc";
 
     async fn cleanup(pool: &PgPool) {
-        sqlx::query(
-            "DELETE FROM fa_depreciation_schedules WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .execute(pool)
-        .await
-        .ok();
-        sqlx::query(
-            "DELETE FROM fa_depreciation_runs WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .execute(pool)
-        .await
-        .ok();
-        sqlx::query(
-            "DELETE FROM fa_events_outbox WHERE tenant_id = $1",
-        )
-        .bind(TEST_TENANT)
-        .execute(pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM fa_depreciation_schedules WHERE tenant_id = $1")
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM fa_depreciation_runs WHERE tenant_id = $1")
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
+        sqlx::query("DELETE FROM fa_events_outbox WHERE tenant_id = $1")
+            .bind(TEST_TENANT)
+            .execute(pool)
+            .await
+            .ok();
         sqlx::query("DELETE FROM fa_assets WHERE tenant_id = $1")
             .bind(TEST_TENANT)
             .execute(pool)
@@ -391,10 +385,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(schedules.len(), 12);
-        let total: i64 = schedules
-            .iter()
-            .map(|s| s.depreciation_amount_minor)
-            .sum();
+        let total: i64 = schedules.iter().map(|s| s.depreciation_amount_minor).sum();
         assert_eq!(total, 120_000);
         assert_eq!(schedules[0].period_number, 1);
         assert_eq!(schedules[11].period_number, 12);

@@ -31,9 +31,9 @@ mod verify;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use output::{CommandOutput, render, render_and_exit};
+use output::{render, render_and_exit, CommandOutput};
 use security::Role;
-use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 // ============================================================================
 // CLI Definition
@@ -178,19 +178,17 @@ enum FleetOperation {
 async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(fmt::layer())
-        .with(EnvFilter::from_default_env()
-            .add_directive(tracing::Level::INFO.into()))
+        .with(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();
 
     let cli = Cli::parse();
     let json_output = cli.json;
 
     let role = if let Some(role_str) = &cli.role {
-        Role::from_str(role_str)
-            .context(format!(
-                "Invalid role: '{}'. Valid roles: admin, operator, auditor",
-                role_str
-            ))?
+        Role::from_str(role_str).context(format!(
+            "Invalid role: '{}'. Valid roles: admin, operator, auditor",
+            role_str
+        ))?
     } else {
         Role::Admin
     };
@@ -218,8 +216,7 @@ async fn main() -> Result<()> {
             }
             TenantOperation::Activate { tenant } => {
                 provision::activate_tenant(&tenant).await?;
-                let out =
-                    CommandOutput::ok("activated", &tenant).with_state("active");
+                let out = CommandOutput::ok("activated", &tenant).with_state("active");
                 render(&out, json_output);
                 Ok(())
             }
@@ -248,15 +245,13 @@ async fn main() -> Result<()> {
             }
             TenantOperation::Suspend { tenant } => {
                 lifecycle::suspend_tenant(role, actor, &tenant).await?;
-                let out = CommandOutput::ok("suspended", &tenant)
-                    .with_state("suspended");
+                let out = CommandOutput::ok("suspended", &tenant).with_state("suspended");
                 render(&out, json_output);
                 Ok(())
             }
             TenantOperation::Deprovision { tenant } => {
                 lifecycle::deprovision_tenant(role, actor, &tenant).await?;
-                let out = CommandOutput::ok("deprovisioned", &tenant)
-                    .with_state("deleted");
+                let out = CommandOutput::ok("deprovisioned", &tenant).with_state("deleted");
                 render(&out, json_output);
                 Ok(())
             }
@@ -265,28 +260,22 @@ async fn main() -> Result<()> {
                 seed,
                 ar_url,
             } => {
-                let result =
-                    lifecycle::demo_reset_tenant(&tenant, seed, &ar_url).await?;
-                let out = CommandOutput::ok("demo-reset", &tenant).with_data(
-                    serde_json::json!({
-                        "tenant_uuid": result.tenant_id,
-                        "dataset_digest": result.dataset_digest,
-                        "seed": seed,
-                    }),
-                );
+                let result = lifecycle::demo_reset_tenant(&tenant, seed, &ar_url).await?;
+                let out = CommandOutput::ok("demo-reset", &tenant).with_data(serde_json::json!({
+                    "tenant_uuid": result.tenant_id,
+                    "dataset_digest": result.dataset_digest,
+                    "seed": seed,
+                }));
                 render(&out, json_output);
                 Ok(())
             }
             TenantOperation::Export { tenant, output } => {
-                let result =
-                    retention::export_tenant(&tenant, output.as_deref()).await?;
-                let out = CommandOutput::ok("exported", &tenant).with_data(
-                    serde_json::json!({
-                        "artifact": result.artifact_path,
-                        "sha256": result.sha256_digest,
-                        "lines": result.line_count,
-                    }),
-                );
+                let result = retention::export_tenant(&tenant, output.as_deref()).await?;
+                let out = CommandOutput::ok("exported", &tenant).with_data(serde_json::json!({
+                    "artifact": result.artifact_path,
+                    "sha256": result.sha256_digest,
+                    "lines": result.line_count,
+                }));
                 render(&out, json_output);
                 Ok(())
             }
@@ -328,8 +317,7 @@ async fn main() -> Result<()> {
                 Ok(())
             }
             FleetOperation::Migrate { tenants, parallel } => {
-                fleet_migrate::run_fleet_migration(role, actor, tenants, parallel)
-                    .await?;
+                fleet_migrate::run_fleet_migration(role, actor, tenants, parallel).await?;
                 Ok(())
             }
         },

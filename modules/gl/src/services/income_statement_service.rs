@@ -111,8 +111,8 @@ pub async fn get_income_statement(
     // Currency validation happens in statement_repo (ISO 4217 format check)
     // Rows are already filtered to revenue/expense accounts only
     // Amount signs are already correct: revenue positive, expenses negative
-    let rows = statement_repo::get_income_statement_rows(pool, tenant_id, period_id, currency)
-        .await?;
+    let rows =
+        statement_repo::get_income_statement_rows(pool, tenant_id, period_id, currency).await?;
 
     // Calculate totals
     let totals = calculate_totals(&rows)?;
@@ -135,7 +135,9 @@ pub async fn get_income_statement(
 /// - Revenue rows have positive amounts (credit balance)
 /// - Expense rows have negative amounts (debit balance inverted)
 /// - Net income = sum of all amounts = revenue + expenses (expenses are negative)
-fn calculate_totals(rows: &[IncomeStatementRow]) -> Result<IncomeStatementTotals, IncomeStatementError> {
+fn calculate_totals(
+    rows: &[IncomeStatementRow],
+) -> Result<IncomeStatementTotals, IncomeStatementError> {
     // Separate revenue and expense rows
     let revenue_rows: Vec<_> = rows
         .iter()

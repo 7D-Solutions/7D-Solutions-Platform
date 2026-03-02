@@ -59,8 +59,7 @@ pub fn auto_match_with_strategy(
     let mut result = Vec::new();
 
     for c in candidates {
-        if used_lines.contains(&c.statement_line.id) || used_txns.contains(&c.bank_transaction.id)
-        {
+        if used_lines.contains(&c.statement_line.id) || used_txns.contains(&c.bank_transaction.id) {
             continue;
         }
         used_lines.insert(c.statement_line.id);
@@ -132,9 +131,7 @@ fn reference_similarity(a: Option<&str>, b: Option<&str>) -> Decimal {
             let rb = rb.trim().to_lowercase();
             if ra == rb && !ra.is_empty() {
                 Decimal::new(2000, 4)
-            } else if (!ra.is_empty() && rb.contains(&ra))
-                || (!rb.is_empty() && ra.contains(&rb))
-            {
+            } else if (!ra.is_empty() && rb.contains(&ra)) || (!rb.is_empty() && ra.contains(&rb)) {
                 Decimal::new(1000, 4)
             } else {
                 Decimal::ZERO
@@ -188,10 +185,7 @@ mod tests {
 
         let matches = auto_match(&[sl], &[pt]);
         assert_eq!(matches.len(), 1);
-        assert_eq!(
-            matches[0].confidence,
-            Decimal::from_str("1.0000").unwrap()
-        );
+        assert_eq!(matches[0].confidence, Decimal::from_str("1.0000").unwrap());
     }
 
     #[test]
@@ -261,8 +255,7 @@ mod tests {
         };
 
         let bank_result = auto_match_with_strategy(&[sl.clone()], &[pt.clone()], &BankStrategy);
-        let cc_result =
-            auto_match_with_strategy(&[sl.clone()], &[pt.clone()], &CreditCardStrategy);
+        let cc_result = auto_match_with_strategy(&[sl.clone()], &[pt.clone()], &CreditCardStrategy);
 
         assert_eq!(bank_result.len(), 1);
         assert_eq!(cc_result.len(), 1);

@@ -118,18 +118,38 @@ pub async fn compute_pl(
     }
 
     let sections = vec![
-        PlSection { section: "revenue".into(), total_by_currency: rev_totals, accounts: revenue },
-        PlSection { section: "cogs".into(), total_by_currency: cogs_totals, accounts: cogs },
-        PlSection { section: "expenses".into(), total_by_currency: exp_totals, accounts: expenses },
+        PlSection {
+            section: "revenue".into(),
+            total_by_currency: rev_totals,
+            accounts: revenue,
+        },
+        PlSection {
+            section: "cogs".into(),
+            total_by_currency: cogs_totals,
+            accounts: cogs,
+        },
+        PlSection {
+            section: "expenses".into(),
+            total_by_currency: exp_totals,
+            accounts: expenses,
+        },
     ];
 
-    Ok(PlStatement { from, to, sections, net_income_by_currency: net })
+    Ok(PlStatement {
+        from,
+        to,
+        sections,
+        net_income_by_currency: net,
+    })
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 fn account_prefix(code: &str) -> u32 {
-    code.chars().next().and_then(|c| c.to_digit(10)).unwrap_or(0)
+    code.chars()
+        .next()
+        .and_then(|c| c.to_digit(10))
+        .unwrap_or(0)
 }
 
 fn sum_by_currency(lines: &[PlAccountLine]) -> HashMap<String, i64> {
@@ -156,7 +176,10 @@ mod tests {
 
     async fn test_pool() -> PgPool {
         let pool = PgPool::connect(&test_db_url()).await.expect("connect");
-        sqlx::migrate!("./db/migrations").run(&pool).await.expect("migrate");
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("migrate");
         pool
     }
 
@@ -217,16 +240,31 @@ mod tests {
 
         let from = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
         let to = NaiveDate::from_ymd_opt(2026, 1, 31).unwrap();
-        let stmt = compute_pl(&pool, TENANT, from, to).await.expect("compute_pl failed");
+        let stmt = compute_pl(&pool, TENANT, from, to)
+            .await
+            .expect("compute_pl failed");
 
-        let rev = stmt.sections.iter().find(|s| s.section == "revenue").unwrap();
-        assert_eq!(rev.total_by_currency.get("USD").copied().unwrap_or(0), 259900);
+        let rev = stmt
+            .sections
+            .iter()
+            .find(|s| s.section == "revenue")
+            .unwrap();
+        assert_eq!(
+            rev.total_by_currency.get("USD").copied().unwrap_or(0),
+            259900
+        );
 
         let cogs = stmt.sections.iter().find(|s| s.section == "cogs").unwrap();
-        assert_eq!(cogs.total_by_currency.get("USD").copied().unwrap_or(0), 50000);
+        assert_eq!(
+            cogs.total_by_currency.get("USD").copied().unwrap_or(0),
+            50000
+        );
 
         // net income = 259900 − 50000 = 209900
-        assert_eq!(stmt.net_income_by_currency.get("USD").copied().unwrap_or(0), 209900);
+        assert_eq!(
+            stmt.net_income_by_currency.get("USD").copied().unwrap_or(0),
+            209900
+        );
 
         cleanup(&pool).await;
     }
@@ -248,11 +286,20 @@ mod tests {
 
         let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
         let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
-        let stmt = compute_pl(&pool, TENANT, from, to).await.expect("compute_pl");
+        let stmt = compute_pl(&pool, TENANT, from, to)
+            .await
+            .expect("compute_pl");
 
-        let rev = stmt.sections.iter().find(|s| s.section == "revenue").unwrap();
-        assert_eq!(rev.total_by_currency.get("USD").copied().unwrap_or(0), 100000,
-            "only in-range rows should be included");
+        let rev = stmt
+            .sections
+            .iter()
+            .find(|s| s.section == "revenue")
+            .unwrap();
+        assert_eq!(
+            rev.total_by_currency.get("USD").copied().unwrap_or(0),
+            100000,
+            "only in-range rows should be included"
+        );
 
         cleanup(&pool).await;
     }
@@ -272,11 +319,20 @@ mod tests {
 
         let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
         let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
-        let stmt = compute_pl(&pool, TENANT, from, to).await.expect("compute_pl");
+        let stmt = compute_pl(&pool, TENANT, from, to)
+            .await
+            .expect("compute_pl");
 
-        let rev = stmt.sections.iter().find(|s| s.section == "revenue").unwrap();
+        let rev = stmt
+            .sections
+            .iter()
+            .find(|s| s.section == "revenue")
+            .unwrap();
         assert_eq!(rev.accounts.len(), 1, "only 4xxx in revenue section");
-        assert_eq!(rev.total_by_currency.get("USD").copied().unwrap_or(0), 10000);
+        assert_eq!(
+            rev.total_by_currency.get("USD").copied().unwrap_or(0),
+            10000
+        );
 
         let cogs = stmt.sections.iter().find(|s| s.section == "cogs").unwrap();
         assert!(cogs.accounts.is_empty(), "no 5xxx accounts posted");
@@ -297,13 +353,31 @@ mod tests {
 
         let from = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
         let to = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
-        let stmt = compute_pl(&pool, TENANT, from, to).await.expect("compute_pl");
+        let stmt = compute_pl(&pool, TENANT, from, to)
+            .await
+            .expect("compute_pl");
 
-        let rev = stmt.sections.iter().find(|s| s.section == "revenue").unwrap();
-        assert_eq!(rev.total_by_currency.get("USD").copied().unwrap_or(0), 100000);
-        assert_eq!(rev.total_by_currency.get("EUR").copied().unwrap_or(0), 80000);
-        assert_eq!(stmt.net_income_by_currency.get("USD").copied().unwrap_or(0), 100000);
-        assert_eq!(stmt.net_income_by_currency.get("EUR").copied().unwrap_or(0), 80000);
+        let rev = stmt
+            .sections
+            .iter()
+            .find(|s| s.section == "revenue")
+            .unwrap();
+        assert_eq!(
+            rev.total_by_currency.get("USD").copied().unwrap_or(0),
+            100000
+        );
+        assert_eq!(
+            rev.total_by_currency.get("EUR").copied().unwrap_or(0),
+            80000
+        );
+        assert_eq!(
+            stmt.net_income_by_currency.get("USD").copied().unwrap_or(0),
+            100000
+        );
+        assert_eq!(
+            stmt.net_income_by_currency.get("EUR").copied().unwrap_or(0),
+            80000
+        );
 
         cleanup(&pool).await;
     }

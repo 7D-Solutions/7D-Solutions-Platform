@@ -164,17 +164,38 @@ mod tests {
     #[test]
     fn test_pattern_matching() {
         // Exact match
-        assert!(InMemoryBus::matches_pattern("auth.events.user.created", "auth.events.user.created"));
+        assert!(InMemoryBus::matches_pattern(
+            "auth.events.user.created",
+            "auth.events.user.created"
+        ));
 
         // Single wildcard
-        assert!(InMemoryBus::matches_pattern("auth.events.user.created", "auth.*.user.created"));
-        assert!(InMemoryBus::matches_pattern("auth.events.user.created", "auth.events.*.created"));
-        assert!(!InMemoryBus::matches_pattern("auth.events.user.created", "auth.*.created"));
+        assert!(InMemoryBus::matches_pattern(
+            "auth.events.user.created",
+            "auth.*.user.created"
+        ));
+        assert!(InMemoryBus::matches_pattern(
+            "auth.events.user.created",
+            "auth.events.*.created"
+        ));
+        assert!(!InMemoryBus::matches_pattern(
+            "auth.events.user.created",
+            "auth.*.created"
+        ));
 
         // Multi-level wildcard
-        assert!(InMemoryBus::matches_pattern("auth.events.user.created", "auth.>"));
-        assert!(InMemoryBus::matches_pattern("auth.events.user.created", "auth.events.>"));
-        assert!(!InMemoryBus::matches_pattern("auth.events.user.created", "billing.>"));
+        assert!(InMemoryBus::matches_pattern(
+            "auth.events.user.created",
+            "auth.>"
+        ));
+        assert!(InMemoryBus::matches_pattern(
+            "auth.events.user.created",
+            "auth.events.>"
+        ));
+        assert!(!InMemoryBus::matches_pattern(
+            "auth.events.user.created",
+            "billing.>"
+        ));
 
         // Edge cases
         assert!(InMemoryBus::matches_pattern("single", "single"));

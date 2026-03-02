@@ -60,10 +60,7 @@ fn compute_line_tax(line: &TaxLineItem, rules: &[ResolvedRule]) -> (i64, Vec<Tax
 }
 
 impl TaxProvider for LocalTaxProvider {
-    async fn quote_tax(
-        &self,
-        req: TaxQuoteRequest,
-    ) -> Result<TaxQuoteResponse, TaxProviderError> {
+    async fn quote_tax(&self, req: TaxQuoteRequest) -> Result<TaxQuoteResponse, TaxProviderError> {
         let as_of = req.invoice_date.date_naive();
         let mut total_tax = 0i64;
         let mut all_breakdowns = Vec::new();
@@ -104,10 +101,7 @@ impl TaxProvider for LocalTaxProvider {
         Ok(TaxQuoteResponse {
             total_tax_minor: total_tax,
             tax_by_line: all_breakdowns,
-            provider_quote_ref: format!(
-                "local-{}-v{}",
-                req.invoice_id, self.config.version
-            ),
+            provider_quote_ref: format!("local-{}-v{}", req.invoice_id, self.config.version),
             expires_at: None,
             quoted_at: Utc::now(),
             warnings,
@@ -124,10 +118,7 @@ impl TaxProvider for LocalTaxProvider {
         })
     }
 
-    async fn void_tax(
-        &self,
-        _req: TaxVoidRequest,
-    ) -> Result<TaxVoidResponse, TaxProviderError> {
+    async fn void_tax(&self, _req: TaxVoidRequest) -> Result<TaxVoidResponse, TaxProviderError> {
         Ok(TaxVoidResponse {
             voided: true,
             voided_at: Utc::now(),

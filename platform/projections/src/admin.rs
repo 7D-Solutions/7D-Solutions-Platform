@@ -115,7 +115,17 @@ pub async fn query_projection_status(
     }
 
     let cursors = if let Some(tid) = &req.tenant_id {
-        sqlx::query_as::<_, (String, String, i64, uuid::Uuid, DateTime<Utc>, DateTime<Utc>)>(
+        sqlx::query_as::<
+            _,
+            (
+                String,
+                String,
+                i64,
+                uuid::Uuid,
+                DateTime<Utc>,
+                DateTime<Utc>,
+            ),
+        >(
             "SELECT projection_name, tenant_id, events_processed, \
                     last_event_id, last_event_occurred_at, updated_at \
              FROM projection_cursors \
@@ -128,7 +138,17 @@ pub async fn query_projection_status(
         .await
         .map_err(|e| format!("DB error: {e}"))?
     } else {
-        sqlx::query_as::<_, (String, String, i64, uuid::Uuid, DateTime<Utc>, DateTime<Utc>)>(
+        sqlx::query_as::<
+            _,
+            (
+                String,
+                String,
+                i64,
+                uuid::Uuid,
+                DateTime<Utc>,
+                DateTime<Utc>,
+            ),
+        >(
             "SELECT projection_name, tenant_id, events_processed, \
                     last_event_id, last_event_occurred_at, updated_at \
              FROM projection_cursors \
@@ -199,11 +219,10 @@ pub async fn query_consistency_check(
     let order = crate::validate::validate_order_column(&req.order_by)
         .map_err(|e| format!("Validation error: {e}"))?;
 
-    let row_count: i64 =
-        sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", table))
-            .fetch_one(pool)
-            .await
-            .map_err(|e| format!("DB error: {e}"))?;
+    let row_count: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", table))
+        .fetch_one(pool)
+        .await
+        .map_err(|e| format!("DB error: {e}"))?;
 
     let versioned = crate::digest::compute_versioned_digest(pool, table, order)
         .await

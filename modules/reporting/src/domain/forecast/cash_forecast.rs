@@ -62,22 +62,14 @@ pub async fn compute_cash_forecast(
     // 3. Group invoices by currency
     let mut by_currency: BTreeMap<&str, Vec<&OpenInvoice>> = BTreeMap::new();
     for inv in &invoices {
-        by_currency
-            .entry(&inv.currency)
-            .or_default()
-            .push(inv);
+        by_currency.entry(&inv.currency).or_default().push(inv);
     }
 
     // 4. Compute forecast per currency
     let mut results = Vec::new();
     for (currency, currency_invoices) in &by_currency {
-        let forecast = compute_currency_forecast(
-            currency,
-            currency_invoices,
-            &profiles,
-            horizons,
-            now,
-        );
+        let forecast =
+            compute_currency_forecast(currency, currency_invoices, &profiles, horizons, now);
         results.push(forecast);
     }
 
@@ -182,7 +174,10 @@ mod tests {
 
     async fn test_pool() -> PgPool {
         let pool = PgPool::connect(&test_db_url()).await.expect("connect");
-        sqlx::migrate!("./db/migrations").run(&pool).await.expect("migrate");
+        sqlx::migrate!("./db/migrations")
+            .run(&pool)
+            .await
+            .expect("migrate");
         pool
     }
 
@@ -261,7 +256,9 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let result = compute_cash_forecast(&pool, TENANT, &[7, 30]).await.unwrap();
+        let result = compute_cash_forecast(&pool, TENANT, &[7, 30])
+            .await
+            .unwrap();
         assert!(result.results.is_empty());
 
         cleanup(&pool).await;

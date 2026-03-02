@@ -115,13 +115,10 @@ pub async fn create_template(
     }
 
     let template_id = Uuid::new_v4();
-    let reversal_policy = req
-        .reversal_policy
-        .clone()
-        .unwrap_or(ReversalPolicy {
-            auto_reverse_next_period: true,
-            reverse_on_date: None,
-        });
+    let reversal_policy = req.reversal_policy.clone().unwrap_or(ReversalPolicy {
+        auto_reverse_next_period: true,
+        reverse_on_date: None,
+    });
     let cashflow_class = req.cashflow_class.as_deref().unwrap_or("operating");
     let reversal_json =
         serde_json::to_value(&reversal_policy).map_err(AccrualError::Serialization)?;
@@ -221,9 +218,7 @@ pub async fn create_accrual_instance(
 
     let active: bool = template.get("active");
     if !active {
-        return Err(AccrualError::Validation(
-            "Template is inactive".to_string(),
-        ));
+        return Err(AccrualError::Validation("Template is inactive".to_string()));
     }
 
     let debit_account: String = template.get("debit_account");
@@ -234,8 +229,8 @@ pub async fn create_accrual_instance(
     let cashflow_str: String = template.get("cashflow_class");
     let template_name: String = template.get("name");
 
-    let reversal_policy: ReversalPolicy = serde_json::from_value(reversal_json.clone())
-        .map_err(AccrualError::Serialization)?;
+    let reversal_policy: ReversalPolicy =
+        serde_json::from_value(reversal_json.clone()).map_err(AccrualError::Serialization)?;
     let cashflow_class = parse_cashflow_class(&cashflow_str);
 
     // Deterministic IDs
@@ -266,10 +261,7 @@ pub async fn create_accrual_instance(
 
     // 1. Post balanced journal entry (debit + credit)
     let journal_entry_id = Uuid::new_v4();
-    let posted_at = posting_date
-        .and_hms_opt(0, 0, 0)
-        .unwrap()
-        .and_utc();
+    let posted_at = posting_date.and_hms_opt(0, 0, 0).unwrap().and_utc();
 
     sqlx::query(
         r#"
@@ -389,8 +381,7 @@ pub async fn create_accrual_instance(
         created_at: Utc::now(),
     };
 
-    let event_payload =
-        serde_json::to_value(&payload).map_err(AccrualError::Serialization)?;
+    let event_payload = serde_json::to_value(&payload).map_err(AccrualError::Serialization)?;
 
     outbox_repo::insert_outbox_event(
         &mut tx,
@@ -452,8 +443,9 @@ pub async fn execute_auto_reversals(
     // - has status = 'posted'
     // - has NOT already been reversed (no row in gl_accrual_reversals)
     // - the accrual period is the period immediately before target_period
-    let prior_period = compute_prior_period(&req.target_period)
-        .ok_or_else(|| AccrualError::Validation(format!("Invalid target_period: {}", req.target_period)))?;
+    let prior_period = compute_prior_period(&req.target_period).ok_or_else(|| {
+        AccrualError::Validation(format!("Invalid target_period: {}", req.target_period))
+    })?;
 
     let candidates = sqlx::query(
         r#"
@@ -532,13 +524,12 @@ pub async fn execute_auto_reversals(
         }
 
         // Check processed_events for this event_id (replay dedupe)
-        let already_processed: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM processed_events WHERE event_id = $1)",
-        )
-        .bind(event_id)
-        .fetch_one(db)
-        .await
-        .map_err(AccrualError::Database)?;
+        let already_processed: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM processed_events WHERE event_id = $1)")
+                .bind(event_id)
+                .fetch_one(db)
+                .await
+                .map_err(AccrualError::Database)?;
 
         if already_processed {
             reversals_skipped += 1;
@@ -549,10 +540,7 @@ pub async fn execute_auto_reversals(
         let rev_debit = original_credit.clone();
         let rev_credit = original_debit.clone();
 
-        let posted_at = reversal_date
-            .and_hms_opt(0, 0, 0)
-            .unwrap()
-            .and_utc();
+        let posted_at = reversal_date.and_hms_opt(0, 0, 0).unwrap().and_utc();
 
         let reversal_name = format!("Reversal of accrual {}", accrual_id);
         let cashflow_class = parse_cashflow_class(&cashflow_str);
@@ -661,13 +649,11 @@ pub async fn execute_auto_reversals(
         .map_err(AccrualError::Database)?;
 
         // 4. Update accrual instance status to 'reversed'
-        sqlx::query(
-            "UPDATE gl_accrual_instances SET status = 'reversed' WHERE instance_id = $1",
-        )
-        .bind(instance_id)
-        .execute(&mut *tx)
-        .await
-        .map_err(AccrualError::Database)?;
+        sqlx::query("UPDATE gl_accrual_instances SET status = 'reversed' WHERE instance_id = $1")
+            .bind(instance_id)
+            .execute(&mut *tx)
+            .await
+            .map_err(AccrualError::Database)?;
 
         // 5. Emit gl.accrual_reversed outbox event
         let payload = AccrualReversedPayload {
@@ -687,8 +673,7 @@ pub async fn execute_auto_reversals(
             reversed_at: Utc::now(),
         };
 
-        let event_payload =
-            serde_json::to_value(&payload).map_err(AccrualError::Serialization)?;
+        let event_payload = serde_json::to_value(&payload).map_err(AccrualError::Serialization)?;
 
         outbox_repo::insert_outbox_event_with_linkage(
             &mut tx,

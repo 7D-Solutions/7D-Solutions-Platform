@@ -8,7 +8,7 @@
 //! Unauthorized attempts are rejected and audited.
 
 use serde::{Deserialize, Serialize};
-use tracing::{warn, info};
+use tracing::{info, warn};
 
 /// Roles for operator actions
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -183,40 +183,94 @@ mod tests {
 
     #[test]
     fn test_admin_has_all_permissions() {
-        assert!(RbacPolicy::has_permission(Role::Admin, Operation::TenantSuspend));
-        assert!(RbacPolicy::has_permission(Role::Admin, Operation::TenantDeprovision));
-        assert!(RbacPolicy::has_permission(Role::Admin, Operation::ProjectionRebuild));
-        assert!(RbacPolicy::has_permission(Role::Admin, Operation::ProjectionVerify));
-        assert!(RbacPolicy::has_permission(Role::Admin, Operation::FleetMigrate));
+        assert!(RbacPolicy::has_permission(
+            Role::Admin,
+            Operation::TenantSuspend
+        ));
+        assert!(RbacPolicy::has_permission(
+            Role::Admin,
+            Operation::TenantDeprovision
+        ));
+        assert!(RbacPolicy::has_permission(
+            Role::Admin,
+            Operation::ProjectionRebuild
+        ));
+        assert!(RbacPolicy::has_permission(
+            Role::Admin,
+            Operation::ProjectionVerify
+        ));
+        assert!(RbacPolicy::has_permission(
+            Role::Admin,
+            Operation::FleetMigrate
+        ));
     }
 
     #[test]
     fn test_operator_limited_permissions() {
         // Operator can suspend
-        assert!(RbacPolicy::has_permission(Role::Operator, Operation::TenantSuspend));
+        assert!(RbacPolicy::has_permission(
+            Role::Operator,
+            Operation::TenantSuspend
+        ));
         // Operator can rebuild and verify projections
-        assert!(RbacPolicy::has_permission(Role::Operator, Operation::ProjectionRebuild));
-        assert!(RbacPolicy::has_permission(Role::Operator, Operation::ProjectionVerify));
-        assert!(RbacPolicy::has_permission(Role::Operator, Operation::ProjectionStatus));
+        assert!(RbacPolicy::has_permission(
+            Role::Operator,
+            Operation::ProjectionRebuild
+        ));
+        assert!(RbacPolicy::has_permission(
+            Role::Operator,
+            Operation::ProjectionVerify
+        ));
+        assert!(RbacPolicy::has_permission(
+            Role::Operator,
+            Operation::ProjectionStatus
+        ));
 
         // Operator CANNOT deprovision
-        assert!(!RbacPolicy::has_permission(Role::Operator, Operation::TenantDeprovision));
+        assert!(!RbacPolicy::has_permission(
+            Role::Operator,
+            Operation::TenantDeprovision
+        ));
         // Operator CANNOT fleet migrate
-        assert!(!RbacPolicy::has_permission(Role::Operator, Operation::FleetMigrate));
+        assert!(!RbacPolicy::has_permission(
+            Role::Operator,
+            Operation::FleetMigrate
+        ));
     }
 
     #[test]
     fn test_auditor_read_only() {
         // Auditor can verify and check status
-        assert!(RbacPolicy::has_permission(Role::Auditor, Operation::ProjectionVerify));
-        assert!(RbacPolicy::has_permission(Role::Auditor, Operation::ProjectionStatus));
-        assert!(RbacPolicy::has_permission(Role::Auditor, Operation::ProjectionList));
+        assert!(RbacPolicy::has_permission(
+            Role::Auditor,
+            Operation::ProjectionVerify
+        ));
+        assert!(RbacPolicy::has_permission(
+            Role::Auditor,
+            Operation::ProjectionStatus
+        ));
+        assert!(RbacPolicy::has_permission(
+            Role::Auditor,
+            Operation::ProjectionList
+        ));
 
         // Auditor CANNOT perform any write operations
-        assert!(!RbacPolicy::has_permission(Role::Auditor, Operation::TenantSuspend));
-        assert!(!RbacPolicy::has_permission(Role::Auditor, Operation::TenantDeprovision));
-        assert!(!RbacPolicy::has_permission(Role::Auditor, Operation::ProjectionRebuild));
-        assert!(!RbacPolicy::has_permission(Role::Auditor, Operation::FleetMigrate));
+        assert!(!RbacPolicy::has_permission(
+            Role::Auditor,
+            Operation::TenantSuspend
+        ));
+        assert!(!RbacPolicy::has_permission(
+            Role::Auditor,
+            Operation::TenantDeprovision
+        ));
+        assert!(!RbacPolicy::has_permission(
+            Role::Auditor,
+            Operation::ProjectionRebuild
+        ));
+        assert!(!RbacPolicy::has_permission(
+            Role::Auditor,
+            Operation::FleetMigrate
+        ));
     }
 
     #[test]
@@ -240,7 +294,10 @@ mod tests {
         );
         assert!(result.is_err());
 
-        if let Err(RbacError::InsufficientPermissions { role, operation, .. }) = result {
+        if let Err(RbacError::InsufficientPermissions {
+            role, operation, ..
+        }) = result
+        {
             assert_eq!(role, Role::Auditor);
             assert_eq!(operation, Operation::TenantSuspend);
         } else {

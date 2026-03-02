@@ -230,8 +230,7 @@ pub async fn approve_bill(
 mod tests {
     use super::*;
     use crate::domain::bills::models::test_fixtures::{
-        approve_req, cleanup, create_bill_with_line, create_vendor, insert_match_record,
-        make_pool,
+        approve_req, cleanup, create_bill_with_line, create_vendor, insert_match_record, make_pool,
     };
     use crate::domain::tax::ZeroTaxProvider;
     use serial_test::serial;
@@ -247,9 +246,16 @@ mod tests {
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "matched").await;
         insert_match_record(&db, bill_id, true).await;
 
-        let result = approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-1".to_string())
-            .await
-            .expect("approve failed");
+        let result = approve_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &approve_req(None),
+            "corr-1".to_string(),
+        )
+        .await
+        .expect("approve failed");
 
         assert_eq!(result.status, "approved");
 
@@ -276,9 +282,16 @@ mod tests {
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "matched").await;
         insert_match_record(&db, bill_id, true).await;
 
-        approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-gllines".to_string())
-            .await
-            .expect("approve failed");
+        approve_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &approve_req(None),
+            "corr-gllines".to_string(),
+        )
+        .await
+        .expect("approve failed");
 
         // Verify the outbox event payload contains gl_lines
         let (payload_json,): (serde_json::Value,) = sqlx::query_as(
@@ -291,7 +304,9 @@ mod tests {
         .await
         .expect("outbox payload");
 
-        let gl_lines = payload_json["payload"]["gl_lines"].as_array().expect("gl_lines field");
+        let gl_lines = payload_json["payload"]["gl_lines"]
+            .as_array()
+            .expect("gl_lines field");
         // We inserted one line in create_bill_with_line (50000 minor, '6100')
         assert_eq!(gl_lines.len(), 1, "one GL line expected");
         assert_eq!(gl_lines[0]["gl_account_code"].as_str(), Some("6100"));
@@ -308,7 +323,15 @@ mod tests {
         let vendor_id = create_vendor(&db, TEST_TENANT).await;
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "open").await;
 
-        let result = approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-2".to_string()).await;
+        let result = approve_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &approve_req(None),
+            "corr-2".to_string(),
+        )
+        .await;
 
         assert!(
             matches!(result, Err(BillError::MatchPolicyViolation(_))),
@@ -352,7 +375,15 @@ mod tests {
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "matched").await;
         insert_match_record(&db, bill_id, false).await; // within_tolerance = false
 
-        let result = approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-4".to_string()).await;
+        let result = approve_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &approve_req(None),
+            "corr-4".to_string(),
+        )
+        .await;
 
         assert!(
             matches!(result, Err(BillError::MatchPolicyViolation(_))),
@@ -397,13 +428,27 @@ mod tests {
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "matched").await;
         insert_match_record(&db, bill_id, true).await;
 
-        approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-6a".to_string())
-            .await
-            .expect("first approve");
+        approve_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &approve_req(None),
+            "corr-6a".to_string(),
+        )
+        .await
+        .expect("first approve");
 
-        let second = approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-6b".to_string())
-            .await
-            .expect("second approve must succeed (idempotent)");
+        let second = approve_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &approve_req(None),
+            "corr-6b".to_string(),
+        )
+        .await
+        .expect("second approve must succeed (idempotent)");
 
         assert_eq!(second.status, "approved");
 
@@ -416,7 +461,10 @@ mod tests {
         .fetch_one(&db)
         .await
         .expect("outbox count");
-        assert_eq!(count, 1, "idempotent second approve must not produce a second event");
+        assert_eq!(
+            count, 1,
+            "idempotent second approve must not produce a second event"
+        );
 
         cleanup(&db, TEST_TENANT).await;
     }
@@ -429,7 +477,15 @@ mod tests {
         let vendor_id = create_vendor(&db, TEST_TENANT).await;
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "paid").await;
 
-        let result = approve_bill(&db, &ZeroTaxProvider, TEST_TENANT, bill_id, &approve_req(None), "corr-7".to_string()).await;
+        let result = approve_bill(
+            &db,
+            &ZeroTaxProvider,
+            TEST_TENANT,
+            bill_id,
+            &approve_req(None),
+            "corr-7".to_string(),
+        )
+        .await;
 
         assert!(
             matches!(result, Err(BillError::InvalidTransition { .. })),
@@ -449,7 +505,15 @@ mod tests {
         let bill_id = create_bill_with_line(&db, TEST_TENANT, vendor_id, "matched").await;
         insert_match_record(&db, bill_id, true).await;
 
-        let result = approve_bill(&db, &ZeroTaxProvider, "wrong-tenant", bill_id, &approve_req(None), "corr-8".to_string()).await;
+        let result = approve_bill(
+            &db,
+            &ZeroTaxProvider,
+            "wrong-tenant",
+            bill_id,
+            &approve_req(None),
+            "corr-8".to_string(),
+        )
+        .await;
 
         assert!(
             matches!(result, Err(BillError::NotFound(_))),

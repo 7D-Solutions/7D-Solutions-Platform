@@ -5,8 +5,8 @@
 //! - CompensatingRequired: Must emit reversal/supersession linkage
 //! - MutableWithAudit: Must emit field-level diff audit
 
-use serde::{Deserialize, Serialize};
 use chrono::Duration;
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 // ============================================================================
@@ -94,9 +94,7 @@ pub enum PolicyViolation {
     },
 
     #[error("Delete operation not allowed for policy: {policy:?}")]
-    DeleteNotAllowed {
-        policy: AuditPolicy,
-    },
+    DeleteNotAllowed { policy: AuditPolicy },
 }
 
 // ============================================================================

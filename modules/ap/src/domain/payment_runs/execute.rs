@@ -18,8 +18,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::events::{
-    build_ap_payment_executed_envelope, ApPaymentExecutedPayload,
-    EVENT_TYPE_AP_PAYMENT_EXECUTED,
+    build_ap_payment_executed_envelope, ApPaymentExecutedPayload, EVENT_TYPE_AP_PAYMENT_EXECUTED,
 };
 use crate::integrations::payments::{submit_payment, PaymentInstruction};
 use crate::outbox::enqueue_event_tx;
@@ -148,8 +147,7 @@ pub async fn execute_payment_run(
 
             // Derive stable allocation_id from run_id + bill_id (UUID v5)
             let alloc_key = format!("{}:{}", run_id, bill_id);
-            let allocation_id =
-                Uuid::new_v5(&Uuid::NAMESPACE_OID, alloc_key.as_bytes());
+            let allocation_id = Uuid::new_v5(&Uuid::NAMESPACE_OID, alloc_key.as_bytes());
 
             // Allocate the full open balance to this bill
             sqlx::query(
@@ -429,7 +427,11 @@ mod tests {
         .await
         .expect("fetch allocation");
 
-        assert_eq!(payment_run_id, Some(run_id), "allocation must reference run_id");
+        assert_eq!(
+            payment_run_id,
+            Some(run_id),
+            "allocation must reference run_id"
+        );
 
         cleanup_all(&db).await;
     }
@@ -478,19 +480,17 @@ mod tests {
         assert_eq!(r1.run.status, r2.run.status);
         assert_eq!(r1.executions.len(), r2.executions.len());
         assert_eq!(
-            r1.executions[0].payment_id,
-            r2.executions[0].payment_id,
+            r1.executions[0].payment_id, r2.executions[0].payment_id,
             "same payment_id on retry"
         );
 
         // Only one allocation per bill
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM ap_allocations WHERE payment_run_id = $1",
-        )
-        .bind(run_id)
-        .fetch_one(&db)
-        .await
-        .expect("count allocs");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM ap_allocations WHERE payment_run_id = $1")
+                .bind(run_id)
+                .fetch_one(&db)
+                .await
+                .expect("count allocs");
         assert_eq!(count, 1, "idempotent: only one allocation per bill");
 
         cleanup_all(&db).await;
@@ -516,13 +516,11 @@ mod tests {
         .execute(&db)
         .await
         .expect("pre-alloc");
-        sqlx::query(
-            "UPDATE vendor_bills SET status = 'partially_paid' WHERE bill_id = $1",
-        )
-        .bind(bill_id)
-        .execute(&db)
-        .await
-        .expect("update status");
+        sqlx::query("UPDATE vendor_bills SET status = 'partially_paid' WHERE bill_id = $1")
+            .bind(bill_id)
+            .execute(&db)
+            .await
+            .expect("update status");
 
         // Create run — open balance = 30000
         let run_id = Uuid::new_v4();
@@ -543,7 +541,10 @@ mod tests {
         .fetch_one(&db)
         .await
         .expect("fetch alloc");
-        assert_eq!(alloc_amount, 30000, "must allocate only the remaining open balance");
+        assert_eq!(
+            alloc_amount, 30000,
+            "must allocate only the remaining open balance"
+        );
 
         cleanup_all(&db).await;
     }

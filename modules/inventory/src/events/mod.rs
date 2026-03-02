@@ -67,36 +67,33 @@ pub const MUTATION_CLASS_DATA_MUTATION: &str = "DATA_MUTATION";
 // ============================================================================
 
 pub use contracts::{
-    AdjustedPayload, ConsumedLayer, ItemIssuedPayload, ItemReceivedPayload,
-    SourceRef, TransferCompletedPayload,
-    EVENT_TYPE_ADJUSTED, EVENT_TYPE_ITEM_ISSUED, EVENT_TYPE_ITEM_RECEIVED,
-    EVENT_TYPE_TRANSFER_COMPLETED,
     build_adjusted_envelope, build_item_issued_envelope, build_item_received_envelope,
-    build_transfer_completed_envelope,
+    build_transfer_completed_envelope, AdjustedPayload, ConsumedLayer, ItemIssuedPayload,
+    ItemReceivedPayload, SourceRef, TransferCompletedPayload, EVENT_TYPE_ADJUSTED,
+    EVENT_TYPE_ITEM_ISSUED, EVENT_TYPE_ITEM_RECEIVED, EVENT_TYPE_TRANSFER_COMPLETED,
 };
 
 pub use cycle_count_approved::{
-    CycleCountApprovedLine, CycleCountApprovedPayload,
-    EVENT_TYPE_CYCLE_COUNT_APPROVED, build_cycle_count_approved_envelope,
+    build_cycle_count_approved_envelope, CycleCountApprovedLine, CycleCountApprovedPayload,
+    EVENT_TYPE_CYCLE_COUNT_APPROVED,
 };
 
 pub use cycle_count_submitted::{
-    CycleCountSubmittedLine, CycleCountSubmittedPayload,
-    EVENT_TYPE_CYCLE_COUNT_SUBMITTED, build_cycle_count_submitted_envelope,
+    build_cycle_count_submitted_envelope, CycleCountSubmittedLine, CycleCountSubmittedPayload,
+    EVENT_TYPE_CYCLE_COUNT_SUBMITTED,
 };
 
 pub use low_stock_triggered::{
-    LowStockTriggeredPayload,
-    EVENT_TYPE_LOW_STOCK_TRIGGERED, build_low_stock_triggered_envelope,
+    build_low_stock_triggered_envelope, LowStockTriggeredPayload, EVENT_TYPE_LOW_STOCK_TRIGGERED,
 };
 
 pub use status_changed::{
-    StatusChangedPayload, EVENT_TYPE_STATUS_CHANGED, build_status_changed_envelope,
+    build_status_changed_envelope, StatusChangedPayload, EVENT_TYPE_STATUS_CHANGED,
 };
 
 pub use valuation_snapshot_created::{
-    ValuationSnapshotCreatedLine, ValuationSnapshotCreatedPayload,
-    EVENT_TYPE_VALUATION_SNAPSHOT_CREATED, build_valuation_snapshot_created_envelope,
+    build_valuation_snapshot_created_envelope, ValuationSnapshotCreatedLine,
+    ValuationSnapshotCreatedPayload, EVENT_TYPE_VALUATION_SNAPSHOT_CREATED,
 };
 
 // ============================================================================
@@ -118,7 +115,17 @@ pub fn create_inventory_envelope<T>(
     mutation_class: String,
     payload: T,
 ) -> event_bus::EventEnvelope<T> {
-    create_inventory_envelope_with_actor(event_id, tenant_id, event_type, correlation_id, causation_id, mutation_class, payload, None, None)
+    create_inventory_envelope_with_actor(
+        event_id,
+        tenant_id,
+        event_type,
+        correlation_id,
+        causation_id,
+        mutation_class,
+        payload,
+        None,
+        None,
+    )
 }
 
 /// Create an inventory-scoped EventEnvelope with actor identity.

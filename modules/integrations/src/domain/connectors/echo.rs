@@ -20,7 +20,8 @@ use chrono::Utc;
 use serde_json::json;
 
 use super::{
-    ConfigField, ConfigFieldType, Connector, ConnectorCapabilities, ConnectorError, TestActionResult,
+    ConfigField, ConfigFieldType, Connector, ConnectorCapabilities, ConnectorError,
+    TestActionResult,
 };
 
 /// Echo connector implementation.

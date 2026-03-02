@@ -252,7 +252,10 @@ pub enum AssetError {
 
 fn require_non_empty(value: &str, field: &str) -> Result<(), AssetError> {
     if value.trim().is_empty() {
-        return Err(AssetError::Validation(format!("{} must not be empty", field)));
+        return Err(AssetError::Validation(format!(
+            "{} must not be empty",
+            field
+        )));
     }
     Ok(())
 }
@@ -270,7 +273,9 @@ fn validate_currency(currency: &str) -> Result<(), AssetError> {
 fn validate_life_months(months: Option<i32>) -> Result<(), AssetError> {
     if let Some(m) = months {
         if m <= 0 {
-            return Err(AssetError::Validation("useful_life_months must be positive".into()));
+            return Err(AssetError::Validation(
+                "useful_life_months must be positive".into(),
+            ));
         }
     }
     Ok(())
@@ -279,7 +284,9 @@ fn validate_life_months(months: Option<i32>) -> Result<(), AssetError> {
 fn validate_salvage_bp(bp: Option<i32>) -> Result<(), AssetError> {
     if let Some(b) = bp {
         if !(0..=10000).contains(&b) {
-            return Err(AssetError::Validation("salvage_pct_bp must be 0-10000".into()));
+            return Err(AssetError::Validation(
+                "salvage_pct_bp must be 0-10000".into(),
+            ));
         }
     }
     Ok(())
@@ -301,10 +308,18 @@ impl CreateCategoryRequest {
 impl UpdateCategoryRequest {
     pub fn validate(&self) -> Result<(), AssetError> {
         require_non_empty(&self.tenant_id, "tenant_id")?;
-        if let Some(ref n) = self.name { require_non_empty(n, "name")?; }
-        if let Some(ref r) = self.asset_account_ref { require_non_empty(r, "asset_account_ref")?; }
-        if let Some(ref r) = self.depreciation_expense_ref { require_non_empty(r, "depreciation_expense_ref")?; }
-        if let Some(ref r) = self.accum_depreciation_ref { require_non_empty(r, "accum_depreciation_ref")?; }
+        if let Some(ref n) = self.name {
+            require_non_empty(n, "name")?;
+        }
+        if let Some(ref r) = self.asset_account_ref {
+            require_non_empty(r, "asset_account_ref")?;
+        }
+        if let Some(ref r) = self.depreciation_expense_ref {
+            require_non_empty(r, "depreciation_expense_ref")?;
+        }
+        if let Some(ref r) = self.accum_depreciation_ref {
+            require_non_empty(r, "accum_depreciation_ref")?;
+        }
         validate_life_months(self.default_useful_life_months)?;
         validate_salvage_bp(self.default_salvage_pct_bp)
     }
@@ -319,11 +334,15 @@ impl CreateAssetRequest {
             validate_currency(c)?;
         }
         if self.acquisition_cost_minor < 0 {
-            return Err(AssetError::Validation("acquisition_cost_minor must be non-negative".into()));
+            return Err(AssetError::Validation(
+                "acquisition_cost_minor must be non-negative".into(),
+            ));
         }
         if let Some(s) = self.salvage_value_minor {
             if s < 0 {
-                return Err(AssetError::Validation("salvage_value_minor must be non-negative".into()));
+                return Err(AssetError::Validation(
+                    "salvage_value_minor must be non-negative".into(),
+                ));
             }
         }
         validate_life_months(self.useful_life_months)
@@ -333,7 +352,9 @@ impl CreateAssetRequest {
 impl UpdateAssetRequest {
     pub fn validate(&self) -> Result<(), AssetError> {
         require_non_empty(&self.tenant_id, "tenant_id")?;
-        if let Some(ref n) = self.name { require_non_empty(n, "name")?; }
+        if let Some(ref n) = self.name {
+            require_non_empty(n, "name")?;
+        }
         Ok(())
     }
 }
@@ -344,53 +365,79 @@ mod tests {
 
     fn valid_create_category() -> CreateCategoryRequest {
         CreateCategoryRequest {
-            tenant_id: "t1".into(), code: "FURN".into(), name: "Furniture".into(),
-            description: None, default_method: None,
-            default_useful_life_months: Some(60), default_salvage_pct_bp: Some(500),
-            asset_account_ref: "1500".into(), depreciation_expense_ref: "6100".into(),
-            accum_depreciation_ref: "1510".into(), gain_loss_account_ref: None,
+            tenant_id: "t1".into(),
+            code: "FURN".into(),
+            name: "Furniture".into(),
+            description: None,
+            default_method: None,
+            default_useful_life_months: Some(60),
+            default_salvage_pct_bp: Some(500),
+            asset_account_ref: "1500".into(),
+            depreciation_expense_ref: "6100".into(),
+            accum_depreciation_ref: "1510".into(),
+            gain_loss_account_ref: None,
         }
     }
 
     fn valid_create_asset() -> CreateAssetRequest {
         CreateAssetRequest {
-            tenant_id: "t1".into(), category_id: Uuid::new_v4(),
-            asset_tag: "FA-001".into(), name: "Office Desk".into(), description: None,
+            tenant_id: "t1".into(),
+            category_id: Uuid::new_v4(),
+            asset_tag: "FA-001".into(),
+            name: "Office Desk".into(),
+            description: None,
             acquisition_date: NaiveDate::from_ymd_opt(2026, 1, 15).unwrap(),
-            in_service_date: None, acquisition_cost_minor: 50000, currency: None,
-            depreciation_method: None, useful_life_months: None, salvage_value_minor: None,
-            location: None, department: None, responsible_person: None,
-            serial_number: None, vendor: None, purchase_order_ref: None, notes: None,
+            in_service_date: None,
+            acquisition_cost_minor: 50000,
+            currency: None,
+            depreciation_method: None,
+            useful_life_months: None,
+            salvage_value_minor: None,
+            location: None,
+            department: None,
+            responsible_person: None,
+            serial_number: None,
+            vendor: None,
+            purchase_order_ref: None,
+            notes: None,
         }
     }
 
     #[test]
-    fn category_create_valid() { assert!(valid_create_category().validate().is_ok()); }
+    fn category_create_valid() {
+        assert!(valid_create_category().validate().is_ok());
+    }
 
     #[test]
     fn category_empty_code_rejected() {
-        let mut r = valid_create_category(); r.code = "  ".into();
+        let mut r = valid_create_category();
+        r.code = "  ".into();
         assert!(matches!(r.validate(), Err(AssetError::Validation(_))));
     }
 
     #[test]
     fn category_negative_life_rejected() {
-        let mut r = valid_create_category(); r.default_useful_life_months = Some(-1);
+        let mut r = valid_create_category();
+        r.default_useful_life_months = Some(-1);
         assert!(matches!(r.validate(), Err(AssetError::Validation(_))));
     }
 
     #[test]
     fn category_salvage_bp_overflow_rejected() {
-        let mut r = valid_create_category(); r.default_salvage_pct_bp = Some(10001);
+        let mut r = valid_create_category();
+        r.default_salvage_pct_bp = Some(10001);
         assert!(matches!(r.validate(), Err(AssetError::Validation(_))));
     }
 
     #[test]
-    fn asset_create_valid() { assert!(valid_create_asset().validate().is_ok()); }
+    fn asset_create_valid() {
+        assert!(valid_create_asset().validate().is_ok());
+    }
 
     #[test]
     fn asset_negative_cost_rejected() {
-        let mut r = valid_create_asset(); r.acquisition_cost_minor = -100;
+        let mut r = valid_create_asset();
+        r.acquisition_cost_minor = -100;
         assert!(matches!(r.validate(), Err(AssetError::Validation(_))));
     }
 
@@ -417,33 +464,58 @@ mod tests {
 
     #[test]
     fn asset_empty_tag_rejected() {
-        let mut r = valid_create_asset(); r.asset_tag = "".into();
+        let mut r = valid_create_asset();
+        r.asset_tag = "".into();
         assert!(matches!(r.validate(), Err(AssetError::Validation(_))));
     }
 
     #[test]
     fn depreciation_method_roundtrip() {
-        assert_eq!(DepreciationMethod::try_from("straight_line".to_string()), Ok(DepreciationMethod::StraightLine));
-        assert_eq!(DepreciationMethod::try_from("declining_balance".to_string()), Ok(DepreciationMethod::DecliningBalance));
-        assert_eq!(DepreciationMethod::try_from("none".to_string()), Ok(DepreciationMethod::None));
+        assert_eq!(
+            DepreciationMethod::try_from("straight_line".to_string()),
+            Ok(DepreciationMethod::StraightLine)
+        );
+        assert_eq!(
+            DepreciationMethod::try_from("declining_balance".to_string()),
+            Ok(DepreciationMethod::DecliningBalance)
+        );
+        assert_eq!(
+            DepreciationMethod::try_from("none".to_string()),
+            Ok(DepreciationMethod::None)
+        );
         assert!(DepreciationMethod::try_from("invalid".to_string()).is_err());
     }
 
     #[test]
     fn asset_status_roundtrip() {
-        assert_eq!(AssetStatus::try_from("draft".to_string()), Ok(AssetStatus::Draft));
-        assert_eq!(AssetStatus::try_from("active".to_string()), Ok(AssetStatus::Active));
-        assert_eq!(AssetStatus::try_from("disposed".to_string()), Ok(AssetStatus::Disposed));
+        assert_eq!(
+            AssetStatus::try_from("draft".to_string()),
+            Ok(AssetStatus::Draft)
+        );
+        assert_eq!(
+            AssetStatus::try_from("active".to_string()),
+            Ok(AssetStatus::Active)
+        );
+        assert_eq!(
+            AssetStatus::try_from("disposed".to_string()),
+            Ok(AssetStatus::Disposed)
+        );
         assert!(AssetStatus::try_from("invalid".to_string()).is_err());
     }
 
     #[test]
     fn update_category_valid_empty() {
         let r = UpdateCategoryRequest {
-            tenant_id: "t1".into(), name: None, description: None, default_method: None,
-            default_useful_life_months: None, default_salvage_pct_bp: None,
-            asset_account_ref: None, depreciation_expense_ref: None,
-            accum_depreciation_ref: None, gain_loss_account_ref: None,
+            tenant_id: "t1".into(),
+            name: None,
+            description: None,
+            default_method: None,
+            default_useful_life_months: None,
+            default_salvage_pct_bp: None,
+            asset_account_ref: None,
+            depreciation_expense_ref: None,
+            accum_depreciation_ref: None,
+            gain_loss_account_ref: None,
         };
         assert!(r.validate().is_ok());
     }
@@ -451,8 +523,13 @@ mod tests {
     #[test]
     fn update_asset_valid_empty() {
         let r = UpdateAssetRequest {
-            tenant_id: "t1".into(), name: None, description: None,
-            location: None, department: None, responsible_person: None, notes: None,
+            tenant_id: "t1".into(),
+            name: None,
+            description: None,
+            location: None,
+            department: None,
+            responsible_person: None,
+            notes: None,
         };
         assert!(r.validate().is_ok());
     }

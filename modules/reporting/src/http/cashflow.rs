@@ -18,8 +18,8 @@ use std::sync::Arc;
 
 use crate::domain::statements::cashflow;
 
-use super::statements::extract_tenant;
 use super::admin_types::ErrorBody;
+use super::statements::extract_tenant;
 
 // ── Query parameters ─────────────────────────────────────────────────────────
 
@@ -37,10 +37,9 @@ pub async fn get_cashflow(
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<CashflowParams>,
 ) -> Result<Json<cashflow::CashflowStatement>, (StatusCode, Json<ErrorBody>)> {
-    let tenant_id = extract_tenant(&claims).map_err(|(status, msg)| {
-        (status, Json(ErrorBody::new("unauthorized", &msg)))
-    })?;
-    
+    let tenant_id = extract_tenant(&claims)
+        .map_err(|(status, msg)| (status, Json(ErrorBody::new("unauthorized", &msg))))?;
+
     cashflow::compute_cashflow(&state.pool, &tenant_id, params.from, params.to)
         .await
         .map(Json)
@@ -50,6 +49,9 @@ pub async fn get_cashflow(
                 error = %e,
                 "Cash flow computation failed"
             );
-            (StatusCode::INTERNAL_SERVER_ERROR, Json(ErrorBody::new("internal_error", e.to_string())))
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ErrorBody::new("internal_error", e.to_string())),
+            )
         })
 }

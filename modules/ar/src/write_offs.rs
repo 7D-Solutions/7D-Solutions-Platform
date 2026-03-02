@@ -186,12 +186,11 @@ pub async fn write_off_invoice(
     }
 
     // 2. Idempotency check: has this exact write_off_id been applied before?
-    let existing_by_id: Option<i32> = sqlx::query_scalar(
-        "SELECT id FROM ar_invoice_write_offs WHERE write_off_id = $1",
-    )
-    .bind(req.write_off_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let existing_by_id: Option<i32> =
+        sqlx::query_scalar("SELECT id FROM ar_invoice_write_offs WHERE write_off_id = $1")
+            .bind(req.write_off_id)
+            .fetch_optional(&mut *tx)
+            .await?;
 
     if let Some(existing_row_id) = existing_by_id {
         tx.rollback().await?;
@@ -202,12 +201,11 @@ pub async fn write_off_invoice(
     }
 
     // 3. Check if this invoice already has a write-off (different write_off_id)
-    let existing_by_invoice: Option<i32> = sqlx::query_scalar(
-        "SELECT id FROM ar_invoice_write_offs WHERE invoice_id = $1",
-    )
-    .bind(req.invoice_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let existing_by_invoice: Option<i32> =
+        sqlx::query_scalar("SELECT id FROM ar_invoice_write_offs WHERE invoice_id = $1")
+            .bind(req.invoice_id)
+            .fetch_optional(&mut *tx)
+            .await?;
 
     if existing_by_invoice.is_some() {
         tx.rollback().await?;
@@ -263,8 +261,8 @@ pub async fn write_off_invoice(
         payload,
     );
 
-    let payload_json = serde_json::to_value(&envelope)
-        .map_err(|e| WriteOffError::DatabaseError(e.to_string()))?;
+    let payload_json =
+        serde_json::to_value(&envelope).map_err(|e| WriteOffError::DatabaseError(e.to_string()))?;
 
     sqlx::query(
         r#"
@@ -340,13 +338,19 @@ mod tests {
             write_off_id: Uuid::new_v4(),
             written_off_at: Utc::now(),
         };
-        assert!(matches!(written_off, WriteOffInvoiceResult::WrittenOff { .. }));
+        assert!(matches!(
+            written_off,
+            WriteOffInvoiceResult::WrittenOff { .. }
+        ));
 
         let dup = WriteOffInvoiceResult::AlreadyProcessed {
             existing_row_id: 1,
             write_off_id: Uuid::new_v4(),
         };
-        assert!(matches!(dup, WriteOffInvoiceResult::AlreadyProcessed { .. }));
+        assert!(matches!(
+            dup,
+            WriteOffInvoiceResult::AlreadyProcessed { .. }
+        ));
 
         let already = WriteOffInvoiceResult::AlreadyWrittenOff { invoice_id: 99 };
         assert!(matches!(

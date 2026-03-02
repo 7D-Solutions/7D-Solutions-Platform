@@ -25,7 +25,10 @@ fn test_db_url() -> String {
 
 async fn test_pool() -> PgPool {
     let pool = PgPool::connect(&test_db_url()).await.expect("connect");
-    sqlx::migrate!("./db/migrations").run(&pool).await.expect("migrate");
+    sqlx::migrate!("./db/migrations")
+        .run(&pool)
+        .await
+        .expect("migrate");
     pool
 }
 
@@ -42,7 +45,11 @@ async fn cleanup(pool: &PgPool) {
         .ok();
 }
 
-async fn fetch_aging(pool: &PgPool, vendor_id: &str, currency: &str) -> Option<(i64, i64, i64, i64, i64, i64)> {
+async fn fetch_aging(
+    pool: &PgPool,
+    vendor_id: &str,
+    currency: &str,
+) -> Option<(i64, i64, i64, i64, i64, i64)> {
     sqlx::query_as::<_, (i64, i64, i64, i64, i64, i64)>(
         r#"
         SELECT current_minor, bucket_1_30_minor, bucket_31_60_minor,
@@ -198,7 +205,10 @@ async fn test_bill_voided_subtracts_from_aging() {
         SUBJECT_BILL_CREATED.to_string(),
         make_bill_created_envelope("evt-ap-void-bill", "v-300", 80000, "USD", due),
     );
-    consumer1.process_message(&msg1).await.expect("process bill");
+    consumer1
+        .process_message(&msg1)
+        .await
+        .expect("process bill");
 
     // Void it
     let consumer2 = IngestConsumer::new("test-ap-void-2", pool.clone(), handler_void);
@@ -206,7 +216,10 @@ async fn test_bill_voided_subtracts_from_aging() {
         SUBJECT_BILL_VOIDED.to_string(),
         make_bill_voided_envelope("evt-ap-void-void", "v-300", 80000, "USD"),
     );
-    consumer2.process_message(&msg2).await.expect("process void");
+    consumer2
+        .process_message(&msg2)
+        .await
+        .expect("process void");
 
     let row = fetch_aging(&pool, "v-300", "USD").await.expect("row");
     assert_eq!(row.0, 0, "current_minor after void");
@@ -231,7 +244,10 @@ async fn test_payment_subtracts_from_aging() {
         SUBJECT_BILL_CREATED.to_string(),
         make_bill_created_envelope("evt-ap-pay-bill", "v-400", 100000, "USD", due),
     );
-    consumer1.process_message(&msg1).await.expect("process bill");
+    consumer1
+        .process_message(&msg1)
+        .await
+        .expect("process bill");
 
     // Partial payment
     let consumer2 = IngestConsumer::new("test-ap-pay-2", pool.clone(), handler_pay);
@@ -239,7 +255,10 @@ async fn test_payment_subtracts_from_aging() {
         SUBJECT_PAYMENT_EXECUTED.to_string(),
         make_payment_envelope("evt-ap-pay-pay", "v-400", 40000, "USD"),
     );
-    consumer2.process_message(&msg2).await.expect("process payment");
+    consumer2
+        .process_message(&msg2)
+        .await
+        .expect("process payment");
 
     let row = fetch_aging(&pool, "v-400", "USD").await.expect("row");
     assert_eq!(row.0, 60000, "current_minor after partial payment");

@@ -15,8 +15,8 @@
 use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use std::collections::HashMap;
-use thiserror::Error;
 use std::time::{SystemTime, UNIX_EPOCH};
+use thiserror::Error;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -64,7 +64,8 @@ pub trait WebhookVerifier: Send + Sync {
     /// # Arguments
     /// * `headers` — HTTP request headers (lowercase names).
     /// * `raw_body` — Raw request body bytes (pre-JSON-parse).
-    fn verify(&self, headers: &HashMap<String, String>, raw_body: &[u8]) -> Result<(), VerifyError>;
+    fn verify(&self, headers: &HashMap<String, String>, raw_body: &[u8])
+        -> Result<(), VerifyError>;
 }
 
 // ============================================================================
@@ -96,7 +97,11 @@ impl StripeVerifier {
 }
 
 impl WebhookVerifier for StripeVerifier {
-    fn verify(&self, headers: &HashMap<String, String>, raw_body: &[u8]) -> Result<(), VerifyError> {
+    fn verify(
+        &self,
+        headers: &HashMap<String, String>,
+        raw_body: &[u8],
+    ) -> Result<(), VerifyError> {
         let sig_header = headers
             .get("stripe-signature")
             .ok_or(VerifyError::MissingHeader {
@@ -126,8 +131,8 @@ impl WebhookVerifier for StripeVerifier {
         };
 
         // Compute HMAC-SHA256
-        let mut mac = HmacSha256::new_from_slice(&self.secret)
-            .map_err(|_| VerifyError::InvalidSecret)?;
+        let mut mac =
+            HmacSha256::new_from_slice(&self.secret).map_err(|_| VerifyError::InvalidSecret)?;
         mac.update(&signed_payload);
         let computed = mac.finalize().into_bytes();
 
@@ -189,10 +194,16 @@ impl GenericHmacVerifier {
 }
 
 impl WebhookVerifier for GenericHmacVerifier {
-    fn verify(&self, headers: &HashMap<String, String>, raw_body: &[u8]) -> Result<(), VerifyError> {
-        let raw_value = headers.get(&self.header_name).ok_or(VerifyError::MissingHeader {
-            header: self.header_name.clone(),
-        })?;
+    fn verify(
+        &self,
+        headers: &HashMap<String, String>,
+        raw_body: &[u8],
+    ) -> Result<(), VerifyError> {
+        let raw_value = headers
+            .get(&self.header_name)
+            .ok_or(VerifyError::MissingHeader {
+                header: self.header_name.clone(),
+            })?;
 
         let hex_sig = if let Some(prefix) = &self.prefix {
             raw_value
@@ -204,8 +215,8 @@ impl WebhookVerifier for GenericHmacVerifier {
 
         let provided = decode_hex(hex_sig)?;
 
-        let mut mac = HmacSha256::new_from_slice(&self.secret)
-            .map_err(|_| VerifyError::InvalidSecret)?;
+        let mut mac =
+            HmacSha256::new_from_slice(&self.secret).map_err(|_| VerifyError::InvalidSecret)?;
         mac.update(raw_body);
         let computed = mac.finalize().into_bytes();
 
@@ -228,7 +239,11 @@ impl WebhookVerifier for GenericHmacVerifier {
 pub struct NoopVerifier;
 
 impl WebhookVerifier for NoopVerifier {
-    fn verify(&self, _headers: &HashMap<String, String>, _raw_body: &[u8]) -> Result<(), VerifyError> {
+    fn verify(
+        &self,
+        _headers: &HashMap<String, String>,
+        _raw_body: &[u8],
+    ) -> Result<(), VerifyError> {
         Ok(())
     }
 }
@@ -252,7 +267,10 @@ fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
         return false;
     }
-    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 // ============================================================================
@@ -307,9 +325,15 @@ mod tests {
         let mut headers = HashMap::new();
         headers.insert(
             "stripe-signature".to_string(),
-            format!("t={},v1={}", now, "deadbeef00000000000000000000000000000000000000000000000000000000"),
+            format!(
+                "t={},v1={}",
+                now, "deadbeef00000000000000000000000000000000000000000000000000000000"
+            ),
         );
-        assert_eq!(verifier.verify(&headers, body), Err(VerifyError::SignatureMismatch));
+        assert_eq!(
+            verifier.verify(&headers, body),
+            Err(VerifyError::SignatureMismatch)
+        );
     }
 
     #[test]
@@ -332,7 +356,10 @@ mod tests {
             "stripe-signature".to_string(),
             format!("t={},v1={}", old_timestamp, sig),
         );
-        assert_eq!(verifier.verify(&headers, b"{}"), Err(VerifyError::TimestampExpired));
+        assert_eq!(
+            verifier.verify(&headers, b"{}"),
+            Err(VerifyError::TimestampExpired)
+        );
     }
 
     #[test]
@@ -352,8 +379,14 @@ mod tests {
     fn test_generic_hmac_verifier_bad_sig() {
         let verifier = GenericHmacVerifier::new("secret", "x-signature", None);
         let mut headers = HashMap::new();
-        headers.insert("x-signature".to_string(), "0000000000000000000000000000000000000000000000000000000000000000".to_string());
-        assert_eq!(verifier.verify(&headers, b"body"), Err(VerifyError::SignatureMismatch));
+        headers.insert(
+            "x-signature".to_string(),
+            "0000000000000000000000000000000000000000000000000000000000000000".to_string(),
+        );
+        assert_eq!(
+            verifier.verify(&headers, b"body"),
+            Err(VerifyError::SignatureMismatch)
+        );
     }
 
     #[test]

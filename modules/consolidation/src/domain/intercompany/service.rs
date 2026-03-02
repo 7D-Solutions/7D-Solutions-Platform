@@ -29,8 +29,7 @@ pub async fn match_intercompany_for_group(
     let entities = config::service::list_entities(pool, tenant_id, group_id, false).await?;
     let elim_rules =
         config::service_rules::list_elimination_rules(pool, tenant_id, group_id, false).await?;
-    let coa_mappings =
-        config::service::list_coa_mappings(pool, tenant_id, group_id, None).await?;
+    let coa_mappings = config::service::list_coa_mappings(pool, tenant_id, group_id, None).await?;
 
     let target_accounts = collect_target_accounts(&elim_rules);
     let mut all_balances: Vec<EntityAccountBalance> = Vec::new();

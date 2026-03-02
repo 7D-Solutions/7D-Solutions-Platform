@@ -188,9 +188,7 @@ pub fn recompute_due(
 
     let compute_meter = || -> Option<i64> {
         let interval = meter_interval?;
-        let base = last_meter_reading
-            .or(latest_reading)
-            .unwrap_or(0);
+        let base = last_meter_reading.or(latest_reading).unwrap_or(0);
         Some(base + interval)
     };
 
@@ -278,15 +276,8 @@ mod tests {
     #[test]
     fn meter_recompute_no_readings() {
         let now = Utc::now();
-        let (date, meter) = recompute_due(
-            ScheduleType::Meter,
-            None,
-            Some(5000),
-            None,
-            None,
-            None,
-            now,
-        );
+        let (date, meter) =
+            recompute_due(ScheduleType::Meter, None, Some(5000), None, None, None, now);
         assert_eq!(date, None);
         assert_eq!(meter, Some(5000));
     }

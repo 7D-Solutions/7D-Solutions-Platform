@@ -204,7 +204,9 @@ async fn fetch_ar_invoices(pool: &PgPool, tenant_id: &str) -> Result<Vec<ArInvoi
             Ok(ArInvoice {
                 id: row.try_get("id").context("id")?,
                 app_id: row.try_get("app_id").context("app_id")?,
-                tilled_invoice_id: row.try_get("tilled_invoice_id").context("tilled_invoice_id")?,
+                tilled_invoice_id: row
+                    .try_get("tilled_invoice_id")
+                    .context("tilled_invoice_id")?,
                 ar_customer_id: row.try_get("ar_customer_id").context("ar_customer_id")?,
                 subscription_id: row.try_get("subscription_id").context("subscription_id")?,
                 status: row.try_get("status").context("status")?,
@@ -214,8 +216,12 @@ async fn fetch_ar_invoices(pool: &PgPool, tenant_id: &str) -> Result<Vec<ArInvoi
                 paid_at: row.try_get("paid_at").context("paid_at")?,
                 created_at: row.try_get("created_at").context("created_at")?,
                 updated_at: row.try_get("updated_at").context("updated_at")?,
-                billing_period_start: row.try_get("billing_period_start").context("billing_period_start")?,
-                billing_period_end: row.try_get("billing_period_end").context("billing_period_end")?,
+                billing_period_start: row
+                    .try_get("billing_period_start")
+                    .context("billing_period_start")?,
+                billing_period_end: row
+                    .try_get("billing_period_end")
+                    .context("billing_period_end")?,
             })
         })
         .collect::<Result<Vec<_>>>()?;
@@ -265,8 +271,12 @@ async fn fetch_payment_attempts(pool: &PgPool, tenant_id: &str) -> Result<Vec<Pa
                 status: row.try_get("status").context("status")?,
                 attempted_at: row.try_get("attempted_at").context("attempted_at")?,
                 completed_at: row.try_get("completed_at").context("completed_at")?,
-                processor_payment_id: row.try_get("processor_payment_id").context("processor_payment_id")?,
-                payment_method_ref: row.try_get("payment_method_ref").context("payment_method_ref")?,
+                processor_payment_id: row
+                    .try_get("processor_payment_id")
+                    .context("processor_payment_id")?,
+                payment_method_ref: row
+                    .try_get("payment_method_ref")
+                    .context("payment_method_ref")?,
                 failure_code: row.try_get("failure_code").context("failure_code")?,
                 failure_message: row.try_get("failure_message").context("failure_message")?,
                 created_at: row.try_get("created_at").context("created_at")?,
@@ -380,11 +390,7 @@ fn export_manifest(manifest: &ExportManifest, path: &Path) -> Result<()> {
 }
 
 /// Main export function
-pub async fn export_compliance_data(
-    tenant_id: &str,
-    output_dir: &str,
-    format: &str,
-) -> Result<()> {
+pub async fn export_compliance_data(tenant_id: &str, output_dir: &str, format: &str) -> Result<()> {
     tracing::info!(
         tenant_id = %tenant_id,
         output_dir = %output_dir,
@@ -398,21 +404,23 @@ pub async fn export_compliance_data(
     // Connect to databases
     let audit_url = std::env::var("PLATFORM_AUDIT_DATABASE_URL")
         .context("PLATFORM_AUDIT_DATABASE_URL not set")?;
-    let ar_url = std::env::var("AR_DATABASE_URL")
-        .context("AR_DATABASE_URL not set")?;
-    let payments_url = std::env::var("PAYMENTS_DATABASE_URL")
-        .context("PAYMENTS_DATABASE_URL not set")?;
-    let gl_url = std::env::var("GL_DATABASE_URL")
-        .context("GL_DATABASE_URL not set")?;
+    let ar_url = std::env::var("AR_DATABASE_URL").context("AR_DATABASE_URL not set")?;
+    let payments_url =
+        std::env::var("PAYMENTS_DATABASE_URL").context("PAYMENTS_DATABASE_URL not set")?;
+    let gl_url = std::env::var("GL_DATABASE_URL").context("GL_DATABASE_URL not set")?;
 
     tracing::info!("Connecting to databases");
-    let audit_pool = PgPool::connect(&audit_url).await
+    let audit_pool = PgPool::connect(&audit_url)
+        .await
         .context("Failed to connect to audit database")?;
-    let ar_pool = PgPool::connect(&ar_url).await
+    let ar_pool = PgPool::connect(&ar_url)
+        .await
         .context("Failed to connect to AR database")?;
-    let payments_pool = PgPool::connect(&payments_url).await
+    let payments_pool = PgPool::connect(&payments_url)
+        .await
         .context("Failed to connect to payments database")?;
-    let gl_pool = PgPool::connect(&gl_url).await
+    let gl_pool = PgPool::connect(&gl_url)
+        .await
         .context("Failed to connect to GL database")?;
 
     // Fetch data
@@ -508,14 +516,26 @@ pub async fn export_compliance_data(
     println!("  Output directory: {}", output_dir);
     println!("  Format: {}", format);
     println!();
-    println!("  Audit events:     {} records (checksum: {})",
-        manifest.audit_events_count, &manifest.audit_events_checksum[..16]);
-    println!("  AR invoices:      {} records (checksum: {})",
-        manifest.ar_invoices_count, &manifest.ar_invoices_checksum[..16]);
-    println!("  Payment attempts: {} records (checksum: {})",
-        manifest.payment_attempts_count, &manifest.payment_attempts_checksum[..16]);
-    println!("  Journal entries:  {} records (checksum: {})",
-        manifest.journal_entries_count, &manifest.journal_entries_checksum[..16]);
+    println!(
+        "  Audit events:     {} records (checksum: {})",
+        manifest.audit_events_count,
+        &manifest.audit_events_checksum[..16]
+    );
+    println!(
+        "  AR invoices:      {} records (checksum: {})",
+        manifest.ar_invoices_count,
+        &manifest.ar_invoices_checksum[..16]
+    );
+    println!(
+        "  Payment attempts: {} records (checksum: {})",
+        manifest.payment_attempts_count,
+        &manifest.payment_attempts_checksum[..16]
+    );
+    println!(
+        "  Journal entries:  {} records (checksum: {})",
+        manifest.journal_entries_count,
+        &manifest.journal_entries_checksum[..16]
+    );
     println!();
     println!("  Manifest: {}/manifest.json", output_dir);
 

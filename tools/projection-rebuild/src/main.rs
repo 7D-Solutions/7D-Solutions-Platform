@@ -22,9 +22,9 @@ mod swap;
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
-use security::{RbacPolicy, Role, Operation};
+use security::{Operation, RbacPolicy, Role};
 use sqlx::postgres::PgPoolOptions;
-use tracing_subscriber::{EnvFilter, fmt, prelude::*};
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 // ============================================================================
 // CLI Definition
@@ -89,8 +89,7 @@ async fn main() -> Result<()> {
     // Initialize tracing
     tracing_subscriber::registry()
         .with(fmt::layer())
-        .with(EnvFilter::from_default_env()
-            .add_directive(tracing::Level::INFO.into()))
+        .with(EnvFilter::from_default_env().add_directive(tracing::Level::INFO.into()))
         .init();
 
     let cli = Cli::parse();
@@ -98,8 +97,10 @@ async fn main() -> Result<()> {
     // Parse role for operations that require authorization
     // Default to Admin if not specified
     let role = if let Some(role_str) = &cli.role {
-        Role::from_str(role_str)
-            .context(format!("Invalid role: '{}'. Valid roles: admin, operator, auditor", role_str))?
+        Role::from_str(role_str).context(format!(
+            "Invalid role: '{}'. Valid roles: admin, operator, auditor",
+            role_str
+        ))?
     } else {
         Role::Admin
     };
@@ -107,7 +108,10 @@ async fn main() -> Result<()> {
     let actor = &cli.actor;
 
     match cli.command {
-        Commands::Rebuild { projection, tenant_id } => {
+        Commands::Rebuild {
+            projection,
+            tenant_id,
+        } => {
             let resource = format!("projection:{}", projection);
             RbacPolicy::authorize(role, Operation::ProjectionRebuild, actor, &resource)?;
 
@@ -123,29 +127,32 @@ async fn main() -> Result<()> {
                 .context("DATABASE_URL env var required for rebuild command")?;
             let pool = PgPoolOptions::new()
                 .max_connections(5)
-                .connect(&db_url).await
+                .connect(&db_url)
+                .await
                 .context("Failed to connect to database")?;
 
             // Ensure projection cursor tables are initialized
-            projections::create_shadow_cursor_table(&pool).await
+            projections::create_shadow_cursor_table(&pool)
+                .await
                 .unwrap_or_else(|e| tracing::debug!("Shadow cursor table already exists: {}", e));
 
             // Compute digest of current projection state
-            let row_count: i64 = sqlx::query_scalar(
-                &format!("SELECT COUNT(*) FROM {}", projection)
-            )
-            .fetch_one(&pool).await
-            .context(format!("Table '{}' not found or query failed", projection))?;
+            let row_count: i64 =
+                sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", projection))
+                    .fetch_one(&pool)
+                    .await
+                    .context(format!("Table '{}' not found or query failed", projection))?;
 
             let digest = projections::compute_digest(&pool, &projection, "tenant_id")
                 .await
                 .context("Failed to compute digest")?;
 
             let cursor_count: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM projection_cursors WHERE projection_name = $1"
+                "SELECT COUNT(*) FROM projection_cursors WHERE projection_name = $1",
             )
             .bind(&projection)
-            .fetch_one(&pool).await
+            .fetch_one(&pool)
+            .await
             .unwrap_or(0);
 
             println!(
@@ -171,7 +178,8 @@ async fn main() -> Result<()> {
                 .context("DATABASE_URL env var required for status command")?;
             let pool = PgPoolOptions::new()
                 .max_connections(3)
-                .connect(&db_url).await
+                .connect(&db_url)
+                .await
                 .context("Failed to connect to database")?;
 
             // Query cursor table for latest position
@@ -180,17 +188,21 @@ async fn main() -> Result<()> {
                  FROM projection_cursors
                  WHERE projection_name = $1
                  ORDER BY updated_at DESC
-                 LIMIT 1"
+                 LIMIT 1",
             )
             .bind(&projection)
-            .fetch_optional(&pool).await
+            .fetch_optional(&pool)
+            .await
             .context("Failed to query projection_cursors")?;
 
             match cursor {
                 Some((proj_name, tenant_id, events, updated)) => {
                     println!(
                         r#"{{"command":"status","projection":"{}","tenant_id":"{}","events_processed":{},"updated_at":"{}","status":"ok"}}"#,
-                        proj_name, tenant_id, events, updated.to_rfc3339()
+                        proj_name,
+                        tenant_id,
+                        events,
+                        updated.to_rfc3339()
                     );
                 }
                 None => {
@@ -204,7 +216,11 @@ async fn main() -> Result<()> {
             Ok(())
         }
 
-        Commands::Verify { projection, order_by, tenant_id } => {
+        Commands::Verify {
+            projection,
+            order_by,
+            tenant_id,
+        } => {
             let resource = format!("projection:{}", projection);
             RbacPolicy::authorize(role, Operation::ProjectionVerify, actor, &resource)?;
 
@@ -220,7 +236,8 @@ async fn main() -> Result<()> {
                 .context("DATABASE_URL env var required for verify command")?;
             let pool = PgPoolOptions::new()
                 .max_connections(3)
-                .connect(&db_url).await
+                .connect(&db_url)
+                .await
                 .context("Failed to connect to database")?;
 
             // Check if table exists
@@ -238,11 +255,11 @@ async fn main() -> Result<()> {
                 );
             }
 
-            let row_count: i64 = sqlx::query_scalar(
-                &format!("SELECT COUNT(*) FROM {}", projection)
-            )
-            .fetch_one(&pool).await
-            .context("Failed to get row count")?;
+            let row_count: i64 =
+                sqlx::query_scalar(&format!("SELECT COUNT(*) FROM {}", projection))
+                    .fetch_one(&pool)
+                    .await
+                    .context("Failed to get row count")?;
 
             let digest = projections::compute_digest(&pool, &projection, &order_by)
                 .await
@@ -271,7 +288,8 @@ async fn main() -> Result<()> {
                 .context("DATABASE_URL env var required for list command")?;
             let pool = PgPoolOptions::new()
                 .max_connections(3)
-                .connect(&db_url).await
+                .connect(&db_url)
+                .await
                 .context("Failed to connect to database")?;
 
             // List projections from cursor table
@@ -290,9 +308,10 @@ async fn main() -> Result<()> {
                 "SELECT projection_name, COUNT(*) as tenant_count, MAX(updated_at) as last_updated
                  FROM projection_cursors
                  GROUP BY projection_name
-                 ORDER BY projection_name"
+                 ORDER BY projection_name",
             )
-            .fetch_all(&pool).await
+            .fetch_all(&pool)
+            .await
             .context("Failed to query projection_cursors")?;
 
             print!(r#"{{"command":"list","projections":["#);

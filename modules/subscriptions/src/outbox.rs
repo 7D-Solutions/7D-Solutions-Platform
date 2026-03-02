@@ -48,11 +48,12 @@ pub async fn enqueue_event<T: Serialize>(
     envelope: &event_bus::EventEnvelope<T>,
 ) -> Result<i64, sqlx::Error> {
     // Validate envelope at boundary - reject invalid envelopes before insert
-    let payload = validate_and_serialize_envelope(envelope)
-        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+    let payload = validate_and_serialize_envelope(envelope).map_err(|e| {
+        sqlx::Error::Encode(Box::new(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("Envelope validation failed: {}", e),
-        ))))?;
+        )))
+    })?;
 
     let record = sqlx::query!(
         r#"
@@ -108,7 +109,7 @@ pub async fn fetch_unpublished_events(
         WHERE published_at IS NULL
         ORDER BY created_at ASC
         LIMIT $1
-        "#
+        "#,
     )
     .bind(limit)
     .fetch_all(pool)
@@ -156,11 +157,12 @@ pub async fn enqueue_event_tx<T: Serialize>(
     envelope: &event_bus::EventEnvelope<T>,
 ) -> Result<i64, sqlx::Error> {
     // Validate envelope at boundary - reject invalid envelopes before insert
-    let payload = validate_and_serialize_envelope(envelope)
-        .map_err(|e| sqlx::Error::Encode(Box::new(std::io::Error::new(
+    let payload = validate_and_serialize_envelope(envelope).map_err(|e| {
+        sqlx::Error::Encode(Box::new(std::io::Error::new(
             std::io::ErrorKind::InvalidData,
             format!("Envelope validation failed: {}", e),
-        ))))?;
+        )))
+    })?;
 
     // Use manual query instead of query! macro for transaction support
     let record = sqlx::query_scalar::<_, i64>(
@@ -173,7 +175,7 @@ pub async fn enqueue_event_tx<T: Serialize>(
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         RETURNING id
-        "#
+        "#,
     )
     .bind(event_type)
     .bind(&payload)
@@ -195,7 +197,11 @@ pub async fn enqueue_event_tx<T: Serialize>(
     .fetch_one(&mut **tx)
     .await?;
 
-    tracing::debug!("Enqueued event {} to subject {} (in transaction)", record, event_type);
+    tracing::debug!(
+        "Enqueued event {} to subject {} (in transaction)",
+        record,
+        event_type
+    );
 
     Ok(record)
 }

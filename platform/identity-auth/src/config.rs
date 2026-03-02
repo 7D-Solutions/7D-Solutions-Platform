@@ -69,12 +69,16 @@ impl Config {
             nats_url: env::var("NATS_URL")?,
 
             host: env::var("HOST").unwrap_or_else(|_| "0.0.0.0".to_string()),
-            port: env::var("PORT").unwrap_or_else(|_| "8080".to_string()).parse()?,
+            port: env::var("PORT")
+                .unwrap_or_else(|_| "8080".to_string())
+                .parse()?,
 
             jwt_private_key_pem: env::var("JWT_PRIVATE_KEY_PEM")?,
             jwt_public_key_pem: env::var("JWT_PUBLIC_KEY_PEM")?,
             jwt_kid: env::var("JWT_KID").unwrap_or_else(|_| "auth-key-1".to_string()),
-            jwt_prev_public_key_pem: env::var("JWT_PREV_PUBLIC_KEY_PEM").ok().filter(|s| !s.is_empty()),
+            jwt_prev_public_key_pem: env::var("JWT_PREV_PUBLIC_KEY_PEM")
+                .ok()
+                .filter(|s| !s.is_empty()),
             jwt_prev_kid: env::var("JWT_PREV_KID").ok().filter(|s| !s.is_empty()),
 
             access_token_ttl_minutes: env::var("ACCESS_TOKEN_TTL_MINUTES")
@@ -84,32 +88,70 @@ impl Config {
                 .unwrap_or_else(|_| "14".to_string())
                 .parse()?,
 
-            argon_memory_kb: env::var("ARGON_MEMORY_KB").unwrap_or_else(|_| "65536".to_string()).parse()?,
-            argon_iterations: env::var("ARGON_ITERATIONS").unwrap_or_else(|_| "3".to_string()).parse()?,
-            argon_parallelism: env::var("ARGON_PARALLELISM").unwrap_or_else(|_| "1".to_string()).parse()?,
+            argon_memory_kb: env::var("ARGON_MEMORY_KB")
+                .unwrap_or_else(|_| "65536".to_string())
+                .parse()?,
+            argon_iterations: env::var("ARGON_ITERATIONS")
+                .unwrap_or_else(|_| "3".to_string())
+                .parse()?,
+            argon_parallelism: env::var("ARGON_PARALLELISM")
+                .unwrap_or_else(|_| "1".to_string())
+                .parse()?,
 
-            lockout_threshold: env::var("LOCKOUT_THRESHOLD").unwrap_or_else(|_| "10".to_string()).parse()?,
-            lockout_minutes: env::var("LOCKOUT_MINUTES").unwrap_or_else(|_| "15".to_string()).parse()?,
+            lockout_threshold: env::var("LOCKOUT_THRESHOLD")
+                .unwrap_or_else(|_| "10".to_string())
+                .parse()?,
+            lockout_minutes: env::var("LOCKOUT_MINUTES")
+                .unwrap_or_else(|_| "15".to_string())
+                .parse()?,
 
-            login_per_min_per_email: env::var("LOGIN_PER_MIN_PER_EMAIL").unwrap_or_else(|_| "5".to_string()).parse()?,
-            register_per_min_per_email: env::var("REGISTER_PER_MIN_PER_EMAIL").unwrap_or_else(|_| "5".to_string()).parse()?,
-            refresh_per_min_per_token: env::var("REFRESH_PER_MIN_PER_TOKEN").unwrap_or_else(|_| "20".to_string()).parse()?,
+            login_per_min_per_email: env::var("LOGIN_PER_MIN_PER_EMAIL")
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()?,
+            register_per_min_per_email: env::var("REGISTER_PER_MIN_PER_EMAIL")
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()?,
+            refresh_per_min_per_token: env::var("REFRESH_PER_MIN_PER_TOKEN")
+                .unwrap_or_else(|_| "20".to_string())
+                .parse()?,
 
-            ip_rl_per_second: env::var("IP_RL_PER_SECOND").unwrap_or_else(|_| "10".to_string()).parse()?,
-            ip_rl_burst: env::var("IP_RL_BURST").unwrap_or_else(|_| "20".to_string()).parse()?,
+            ip_rl_per_second: env::var("IP_RL_PER_SECOND")
+                .unwrap_or_else(|_| "10".to_string())
+                .parse()?,
+            ip_rl_burst: env::var("IP_RL_BURST")
+                .unwrap_or_else(|_| "20".to_string())
+                .parse()?,
 
-            max_concurrent_hashes: env::var("MAX_CONCURRENT_HASHES").unwrap_or_else(|_| "50".to_string()).parse()?,
-            hash_acquire_timeout_ms: env::var("HASH_ACQUIRE_TIMEOUT_MS").unwrap_or_else(|_| "5000".to_string()).parse()?,
+            max_concurrent_hashes: env::var("MAX_CONCURRENT_HASHES")
+                .unwrap_or_else(|_| "50".to_string())
+                .parse()?,
+            hash_acquire_timeout_ms: env::var("HASH_ACQUIRE_TIMEOUT_MS")
+                .unwrap_or_else(|_| "5000".to_string())
+                .parse()?,
 
-            max_concurrent_sessions: env::var("MAX_CONCURRENT_SESSIONS").unwrap_or_else(|_| "5".to_string()).parse()?,
+            max_concurrent_sessions: env::var("MAX_CONCURRENT_SESSIONS")
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()?,
 
-            tenant_registry_url: env::var("TENANT_REGISTRY_URL").ok().filter(|s| !s.is_empty()),
-            entitlement_ttl_secs: env::var("ENTITLEMENT_TTL_SECS").unwrap_or_else(|_| "60".to_string()).parse()?,
+            tenant_registry_url: env::var("TENANT_REGISTRY_URL")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            entitlement_ttl_secs: env::var("ENTITLEMENT_TTL_SECS")
+                .unwrap_or_else(|_| "60".to_string())
+                .parse()?,
 
-            password_reset_ttl_minutes: env::var("PASSWORD_RESET_TTL_MINUTES").unwrap_or_else(|_| "30".to_string()).parse()?,
-            forgot_per_min_per_email: env::var("FORGOT_PER_MIN_PER_EMAIL").unwrap_or_else(|_| "3".to_string()).parse()?,
-            forgot_per_min_per_ip: env::var("FORGOT_PER_MIN_PER_IP").unwrap_or_else(|_| "10".to_string()).parse()?,
-            reset_per_min_per_ip: env::var("RESET_PER_MIN_PER_IP").unwrap_or_else(|_| "5".to_string()).parse()?,
+            password_reset_ttl_minutes: env::var("PASSWORD_RESET_TTL_MINUTES")
+                .unwrap_or_else(|_| "30".to_string())
+                .parse()?,
+            forgot_per_min_per_email: env::var("FORGOT_PER_MIN_PER_EMAIL")
+                .unwrap_or_else(|_| "3".to_string())
+                .parse()?,
+            forgot_per_min_per_ip: env::var("FORGOT_PER_MIN_PER_IP")
+                .unwrap_or_else(|_| "10".to_string())
+                .parse()?,
+            reset_per_min_per_ip: env::var("RESET_PER_MIN_PER_IP")
+                .unwrap_or_else(|_| "5".to_string())
+                .parse()?,
         })
     }
 }

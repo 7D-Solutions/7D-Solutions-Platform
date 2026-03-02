@@ -108,7 +108,10 @@ pub async fn generate_evidence_pack(
     .fetch_optional(gl_pool)
     .await
     .context("Failed to query period")?
-    .context(format!("Period {} not found for tenant {}", period_id, tenant_id))?;
+    .context(format!(
+        "Period {} not found for tenant {}",
+        period_id, tenant_id
+    ))?;
 
     let period_start: chrono::NaiveDate = period_row.get("period_start");
     let period_end: chrono::NaiveDate = period_row.get("period_end");
@@ -203,8 +206,7 @@ pub async fn generate_evidence_pack(
     let export_manifest_ref = if let Some(path) = manifest_path {
         let manifest_file = Path::new(path);
         if manifest_file.exists() {
-            let content = std::fs::read(manifest_file)
-                .context("Failed to read manifest file")?;
+            let content = std::fs::read(manifest_file).context("Failed to read manifest file")?;
             let mut hasher = Sha256::new();
             hasher.update(&content);
             let checksum = hex::encode(hasher.finalize());

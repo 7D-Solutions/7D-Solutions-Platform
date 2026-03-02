@@ -131,12 +131,8 @@ pub async fn process_payment_succeeded(
     }
 
     // Extract the payload
-    let payload: PaymentSucceededPayload = serde_json::from_value(
-        envelope
-            .get("payload")
-            .ok_or("Missing payload")?
-            .clone(),
-    )?;
+    let payload: PaymentSucceededPayload =
+        serde_json::from_value(envelope.get("payload").ok_or("Missing payload")?.clone())?;
 
     tracing::info!(
         event_id = %event_id,
@@ -150,7 +146,13 @@ pub async fn process_payment_succeeded(
     handle_payment_succeeded(pool, &payload).await?;
 
     // Mark event as processed
-    mark_event_processed(pool, event_id, "payments.payment.succeeded", "ar-payment-consumer").await?;
+    mark_event_processed(
+        pool,
+        event_id,
+        "payments.payment.succeeded",
+        "ar-payment-consumer",
+    )
+    .await?;
 
     tracing::info!(
         event_id = %event_id,
@@ -170,7 +172,9 @@ pub async fn handle_payment_succeeded(
     pool: &PgPool,
     payload: &PaymentSucceededPayload,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let invoice_id: i32 = payload.invoice_id.parse()
+    let invoice_id: i32 = payload
+        .invoice_id
+        .parse()
         .map_err(|e| format!("Failed to parse invoice_id '{}': {}", payload.invoice_id, e))?;
 
     let mut tx = pool.begin().await?;

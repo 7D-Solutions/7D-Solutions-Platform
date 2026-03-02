@@ -171,10 +171,7 @@ impl AuditWriter {
     }
 
     /// Query audit events by correlation ID
-    pub async fn get_by_correlation(
-        &self,
-        correlation_id: Uuid,
-    ) -> Result<Vec<AuditEvent>> {
+    pub async fn get_by_correlation(&self, correlation_id: Uuid) -> Result<Vec<AuditEvent>> {
         let events = sqlx::query_as::<_, AuditEvent>(
             r#"
             SELECT

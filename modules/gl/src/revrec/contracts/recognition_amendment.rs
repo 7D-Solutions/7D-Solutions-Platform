@@ -7,9 +7,8 @@ use uuid::Uuid;
 use crate::events::envelope::{create_gl_envelope, EventEnvelope};
 
 use super::{
-    AllocationChange, ModificationType, PerformanceObligation,
-    EVENT_TYPE_CONTRACT_MODIFIED, EVENT_TYPE_RECOGNITION_POSTED,
-    MUTATION_CLASS_DATA_MUTATION, REVREC_SCHEMA_VERSION,
+    AllocationChange, ModificationType, PerformanceObligation, EVENT_TYPE_CONTRACT_MODIFIED,
+    EVENT_TYPE_RECOGNITION_POSTED, MUTATION_CLASS_DATA_MUTATION, REVREC_SCHEMA_VERSION,
 };
 
 // ============================================================================
@@ -247,11 +246,7 @@ mod tests {
 
     #[test]
     fn recognition_posted_cumulative_plus_remaining_equals_total() {
-        let payload = sample_recognition_posted(
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-            Uuid::new_v4(),
-        );
+        let payload = sample_recognition_posted(Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
         // After month 1: 10,000 recognized + 110,000 remaining = 120,000 total
         assert_eq!(
             payload.cumulative_recognized_minor + payload.remaining_deferred_minor,

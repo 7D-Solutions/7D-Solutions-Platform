@@ -198,10 +198,7 @@ mod tests {
 
     #[test]
     fn ready_response_serializes_correctly() {
-        let checks = vec![
-            db_check(3, None),
-            nats_check(true, 1),
-        ];
+        let checks = vec![db_check(3, None), nats_check(true, 1)];
         let resp = build_ready_response("identity-auth", "1.2.0", checks);
         let json = serde_json::to_value(&resp).unwrap();
         assert_eq!(json["service_name"], "identity-auth");
@@ -220,7 +217,11 @@ mod tests {
 
     #[test]
     fn db_check_with_pool_includes_metrics() {
-        let metrics = PoolMetrics { size: 10, idle: 7, active: 3 };
+        let metrics = PoolMetrics {
+            size: 10,
+            idle: 7,
+            active: 3,
+        };
         let c = db_check_with_pool(5, None, metrics);
         let json = serde_json::to_value(&c).unwrap();
         let pool = json.get("pool").expect("pool field must be present");

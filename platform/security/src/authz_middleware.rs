@@ -107,8 +107,7 @@ where
         let mut ready_svc = std::mem::replace(&mut self.inner, cloned);
 
         Box::pin(async move {
-            let claims = extract_bearer(&req)
-                .and_then(|token| verifier.verify(token).ok());
+            let claims = extract_bearer(&req).and_then(|token| verifier.verify(token).ok());
 
             if let Some(verified) = claims {
                 req.extensions_mut().insert(verified);

@@ -120,11 +120,7 @@ impl WriteAuditRequest {
     }
 
     /// Add hash values for integrity verification
-    pub fn with_hashes(
-        mut self,
-        before_hash: Option<String>,
-        after_hash: Option<String>,
-    ) -> Self {
+    pub fn with_hashes(mut self, before_hash: Option<String>, after_hash: Option<String>) -> Self {
         self.before_hash = before_hash;
         self.after_hash = after_hash;
         self

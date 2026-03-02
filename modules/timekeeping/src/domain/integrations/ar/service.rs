@@ -79,8 +79,7 @@ const EVT_BILLABLE_TIME_EXPORT: &str = "timekeeping.billable_time";
 
 /// UUID namespace for deterministic export IDs.
 const BILLABLE_TIME_NS: Uuid = Uuid::from_bytes([
-    0x7d, 0x50, 0x2b, 0xc1, 0xdd, 0x02, 0x4f, 0x3a, 0x9b, 0x22, 0x4d, 0xe5, 0xf6, 0x07, 0xb8,
-    0xc9,
+    0x7d, 0x50, 0x2b, 0xc1, 0xdd, 0x02, 0x4f, 0x3a, 0x9b, 0x22, 0x4d, 0xe5, 0xf6, 0x07, 0xb8, 0xc9,
 ]);
 
 /// Export billable time for a period as AR draft invoice lines.
@@ -130,10 +129,7 @@ pub async fn export_billable_time(
                 hourly_rate_minor: r.hourly_rate_minor,
                 currency: r.currency.clone(),
                 amount_minor,
-                description: format!(
-                    "{:.1}h — {} on {}",
-                    hours, r.employee_name, r.project_name
-                ),
+                description: format!("{:.1}h — {} on {}", hours, r.employee_name, r.project_name),
             }
         })
         .collect();

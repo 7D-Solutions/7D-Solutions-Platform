@@ -365,10 +365,7 @@ async fn find_idempotency_key(
 /// Lines not in the submit request retain counted_qty = 0 and
 /// variance = -expected_qty (all missing = shrinkage).
 /// This makes the result deterministic from inputs alone.
-fn build_result_lines(
-    existing: &[LineRow],
-    inputs: &[SubmitLineInput],
-) -> Vec<SubmittedLine> {
+fn build_result_lines(existing: &[LineRow], inputs: &[SubmitLineInput]) -> Vec<SubmittedLine> {
     existing
         .iter()
         .map(|line| {
@@ -412,7 +409,10 @@ mod tests {
     fn validate_rejects_empty_tenant() {
         let mut r = make_req();
         r.tenant_id = "".to_string();
-        assert!(matches!(validate_request(&r), Err(SubmitError::MissingTenant)));
+        assert!(matches!(
+            validate_request(&r),
+            Err(SubmitError::MissingTenant)
+        ));
     }
 
     #[test]

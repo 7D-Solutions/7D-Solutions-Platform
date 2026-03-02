@@ -67,9 +67,10 @@ pub async fn create_reversal_entry(
     }
 
     // Load original entry with lines
-    let (original_entry, original_lines) = journal_repo::fetch_entry_with_lines(pool, original_entry_id)
-        .await?
-        .ok_or(ReversalError::EntryNotFound(original_entry_id))?;
+    let (original_entry, original_lines) =
+        journal_repo::fetch_entry_with_lines(pool, original_entry_id)
+            .await?
+            .ok_or(ReversalError::EntryNotFound(original_entry_id))?;
 
     // Check if entry is already a reversal
     if original_entry.reverses_entry_id.is_some() {
@@ -83,14 +84,13 @@ pub async fn create_reversal_entry(
     // Phase 13: Check if original entry's period is closed
     // If the original transaction's period is closed, we cannot reverse it
     let original_entry_date = original_entry.posted_at.date_naive();
-    let original_period = period_repo::find_by_date(pool, &original_entry.tenant_id, original_entry_date)
-        .await?
-        .ok_or_else(|| {
-            period_repo::PeriodError::NoPeriodForDate {
+    let original_period =
+        period_repo::find_by_date(pool, &original_entry.tenant_id, original_entry_date)
+            .await?
+            .ok_or_else(|| period_repo::PeriodError::NoPeriodForDate {
                 tenant_id: original_entry.tenant_id.clone(),
                 date: original_entry_date,
-            }
-        })?;
+            })?;
 
     if original_period.closed_at.is_some() {
         tracing::warn!(
@@ -111,22 +111,23 @@ pub async fn create_reversal_entry(
     let tx_result: ReversalResult<Uuid> = (async {
         // Get the accounting period for the reversal date
         let reversal_date = Utc::now().date_naive();
-        let period = period_repo::find_by_date_tx(&mut tx, &original_entry.tenant_id, reversal_date)
-            .await?
-            .ok_or_else(|| {
-                period_repo::PeriodError::NoPeriodForDate {
+        let period =
+            period_repo::find_by_date_tx(&mut tx, &original_entry.tenant_id, reversal_date)
+                .await?
+                .ok_or_else(|| period_repo::PeriodError::NoPeriodForDate {
                     tenant_id: original_entry.tenant_id.clone(),
                     date: reversal_date,
-                }
-            })?;
+                })?;
 
         // Verify reversal period is not closed (Phase 13: use closed_at semantics)
         if period.closed_at.is_some() {
-            return Err(ReversalError::Period(period_repo::PeriodError::PeriodClosed {
-                tenant_id: original_entry.tenant_id.clone(),
-                date: reversal_date,
-                period_id: period.id,
-            }));
+            return Err(ReversalError::Period(
+                period_repo::PeriodError::PeriodClosed {
+                    tenant_id: original_entry.tenant_id.clone(),
+                    date: reversal_date,
+                    period_id: period.id,
+                },
+            ));
         }
 
         let period_id = period.id;
@@ -144,13 +145,10 @@ pub async fn create_reversal_entry(
             &format!("REVERSAL: {}", original_entry.source_subject),
             Utc::now(), // Use current timestamp for reversal
             &original_entry.currency,
-            Some(&format!(
-                "Reversal of journal entry {}",
-                original_entry_id
-            )),
+            Some(&format!("Reversal of journal entry {}", original_entry_id)),
             original_entry.reference_type.as_deref(),
             original_entry.reference_id.as_deref(),
-            Some(original_entry_id), // Link back to original
+            Some(original_entry_id),       // Link back to original
             original_entry.correlation_id, // Phase 16: Propagate correlation_id from original entry
         )
         .await?;
@@ -163,7 +161,7 @@ pub async fn create_reversal_entry(
                 line_no: line.line_no,
                 account_ref: line.account_ref.clone(),
                 debit_minor: line.credit_minor, // Swap: credit becomes debit
-                credit_minor: line.debit_minor,  // Swap: debit becomes credit
+                credit_minor: line.debit_minor, // Swap: debit becomes credit
                 memo: line.memo.as_ref().map(|m| format!("REVERSAL: {}", m)),
             })
             .collect();
@@ -221,7 +219,7 @@ pub async fn create_reversal_entry(
             serde_json::to_value(&reversed_event)
                 .map_err(|e| sqlx::Error::Protocol(format!("JSON serialization failed: {}", e)))?,
             Some(original_entry.source_event_id), // reverses_event_id: link to original posting event
-            None, // supersedes_event_id: not applicable for reversals
+            None,       // supersedes_event_id: not applicable for reversals
             "REVERSAL", // Phase 16: GL entry reversal is a compensating transaction
         )
         .await?;

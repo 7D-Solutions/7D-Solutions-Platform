@@ -46,15 +46,28 @@ struct ColumnMap {
 fn map_columns(headers: &csv::StringRecord) -> Result<ColumnMap, String> {
     let lower: Vec<String> = headers.iter().map(|h| h.trim().to_lowercase()).collect();
 
-    let date = lower.iter().position(|h| h == "date" || h == "transaction_date")
+    let date = lower
+        .iter()
+        .position(|h| h == "date" || h == "transaction_date")
         .ok_or("Missing required column: date")?;
-    let description = lower.iter().position(|h| h == "description" || h == "memo" || h == "payee")
+    let description = lower
+        .iter()
+        .position(|h| h == "description" || h == "memo" || h == "payee")
         .ok_or("Missing required column: description")?;
-    let amount = lower.iter().position(|h| h == "amount")
+    let amount = lower
+        .iter()
+        .position(|h| h == "amount")
         .ok_or("Missing required column: amount")?;
-    let reference = lower.iter().position(|h| h == "reference" || h == "ref" || h == "check_number");
+    let reference = lower
+        .iter()
+        .position(|h| h == "reference" || h == "ref" || h == "check_number");
 
-    Ok(ColumnMap { date, description, amount, reference })
+    Ok(ColumnMap {
+        date,
+        description,
+        amount,
+        reference,
+    })
 }
 
 // ============================================================================
@@ -71,7 +84,8 @@ fn parse_amount(raw: &str) -> Result<i64, String> {
     }
 
     // Strip currency symbol and commas
-    let cleaned: String = s.chars()
+    let cleaned: String = s
+        .chars()
         .filter(|c| *c != '$' && *c != ',' && *c != ' ')
         .collect();
 
@@ -80,7 +94,8 @@ fn parse_amount(raw: &str) -> Result<i64, String> {
     }
 
     // Parse as f64 then convert to minor units
-    let value: f64 = cleaned.parse()
+    let value: f64 = cleaned
+        .parse()
         .map_err(|_| format!("cannot parse amount: '{}'", raw.trim()))?;
 
     // Round to nearest cent to avoid float precision issues
@@ -146,7 +161,10 @@ pub fn parse_csv(data: &[u8]) -> ParseOutput {
         Err(msg) => {
             return ParseOutput {
                 lines: vec![],
-                errors: vec![LineError { line: 1, reason: msg }],
+                errors: vec![LineError {
+                    line: 1,
+                    reason: msg,
+                }],
             };
         }
     };
@@ -182,7 +200,10 @@ pub fn parse_csv(data: &[u8]) -> ParseOutput {
         let date = match parse_date(date_raw) {
             Ok(d) => d,
             Err(reason) => {
-                errors.push(LineError { line: line_num, reason });
+                errors.push(LineError {
+                    line: line_num,
+                    reason,
+                });
                 continue;
             }
         };
@@ -191,7 +212,10 @@ pub fn parse_csv(data: &[u8]) -> ParseOutput {
         let amount_minor = match parse_amount(amount_raw) {
             Ok(a) => a,
             Err(reason) => {
-                errors.push(LineError { line: line_num, reason });
+                errors.push(LineError {
+                    line: line_num,
+                    reason,
+                });
                 continue;
             }
         };
@@ -230,9 +254,8 @@ pub fn parse_csv_with_format(
 ) -> ParseOutput {
     use super::adapters::{self, CsvFormat};
 
-    let resolved = format.unwrap_or_else(|| {
-        adapters::detect_format(data).unwrap_or(CsvFormat::Generic)
-    });
+    let resolved =
+        format.unwrap_or_else(|| adapters::detect_format(data).unwrap_or(CsvFormat::Generic));
 
     adapters::parse_with_format(data, resolved)
 }
@@ -326,6 +349,9 @@ mod tests {
         let csv = b"date,description,amount\n01/15/2024,Purchase,-25.00\n";
         let result = parse_csv(csv);
         assert_eq!(result.lines.len(), 1);
-        assert_eq!(result.lines[0].date, NaiveDate::from_ymd_opt(2024, 1, 15).unwrap());
+        assert_eq!(
+            result.lines[0].date,
+            NaiveDate::from_ymd_opt(2024, 1, 15).unwrap()
+        );
     }
 }

@@ -20,7 +20,17 @@ pub fn create_gl_envelope<T>(
     mutation_class: String,
     payload: T,
 ) -> EventEnvelope<T> {
-    create_gl_envelope_with_actor(event_id, tenant_id, event_type, correlation_id, causation_id, mutation_class, payload, None, None)
+    create_gl_envelope_with_actor(
+        event_id,
+        tenant_id,
+        event_type,
+        correlation_id,
+        causation_id,
+        mutation_class,
+        payload,
+        None,
+        None,
+    )
 }
 
 /// Helper function to create a GL-specific envelope with actor identity.

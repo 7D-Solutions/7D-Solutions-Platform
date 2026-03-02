@@ -82,8 +82,7 @@ pub fn calculate_cycle_boundaries(date: NaiveDate) -> (NaiveDate, NaiveDate) {
     let month = date.month();
 
     // First day of month
-    let cycle_start = NaiveDate::from_ymd_opt(year, month, 1)
-        .expect("Invalid cycle start date");
+    let cycle_start = NaiveDate::from_ymd_opt(year, month, 1).expect("Invalid cycle start date");
 
     // Last day of month
     let cycle_end = if month == 12 {
@@ -110,11 +109,7 @@ pub fn calculate_cycle_boundaries(date: NaiveDate) -> (NaiveDate, NaiveDate) {
 /// **Scope:** Transaction-scoped (pg_advisory_xact_lock)
 ///
 /// **Collision:** Minimal (64-bit hash space)
-fn generate_advisory_lock_key(
-    tenant_id: &str,
-    subscription_id: Uuid,
-    cycle_key: &str,
-) -> i64 {
+fn generate_advisory_lock_key(tenant_id: &str, subscription_id: Uuid, cycle_key: &str) -> i64 {
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
 
@@ -186,7 +181,7 @@ pub async fn cycle_attempt_exists(
 ) -> Result<bool, CycleGatingError> {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM subscription_invoice_attempts
-         WHERE tenant_id = $1 AND subscription_id = $2 AND cycle_key = $3"
+         WHERE tenant_id = $1 AND subscription_id = $2 AND cycle_key = $3",
     )
     .bind(tenant_id)
     .bind(subscription_id)
@@ -218,7 +213,7 @@ pub async fn record_cycle_attempt(
             status, idempotency_key
          )
          VALUES ($1, $2, $3, $4, $5, 'attempting', $6)
-         RETURNING id"
+         RETURNING id",
     )
     .bind(tenant_id)
     .bind(subscription_id)
@@ -261,7 +256,7 @@ pub async fn mark_attempt_succeeded(
     sqlx::query(
         "UPDATE subscription_invoice_attempts
          SET status = 'succeeded', ar_invoice_id = $2, completed_at = NOW(), updated_at = NOW()
-         WHERE id = $1"
+         WHERE id = $1",
     )
     .bind(attempt_id)
     .bind(ar_invoice_id)
@@ -288,7 +283,7 @@ pub async fn mark_attempt_failed(
         "UPDATE subscription_invoice_attempts
          SET status = 'failed_final', failure_code = $2, failure_message = $3,
              completed_at = NOW(), updated_at = NOW()
-         WHERE id = $1"
+         WHERE id = $1",
     )
     .bind(attempt_id)
     .bind(failure_code)

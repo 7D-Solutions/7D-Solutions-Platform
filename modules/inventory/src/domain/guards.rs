@@ -51,14 +51,12 @@ pub async fn guard_item_active(
     item_id: Uuid,
     tenant_id: &str,
 ) -> Result<Item, GuardError> {
-    let item = sqlx::query_as::<_, Item>(
-        "SELECT * FROM items WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(item_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?
-    .ok_or(GuardError::ItemNotFound)?;
+    let item = sqlx::query_as::<_, Item>("SELECT * FROM items WHERE id = $1 AND tenant_id = $2")
+        .bind(item_id)
+        .bind(tenant_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or(GuardError::ItemNotFound)?;
 
     if !item.active {
         return Err(GuardError::ItemInactive);
@@ -129,8 +127,7 @@ pub async fn guard_convert_to_base(
 
     // Load item-level conversion table and convert.
     let conversions = load_item_conversions(pool, item_id, tenant_id).await?;
-    convert::to_base_uom(quantity, from, base, &conversions)
-        .map_err(GuardError::UomConversion)
+    convert::to_base_uom(quantity, from, base, &conversions).map_err(GuardError::UomConversion)
 }
 
 async fn load_item_conversions(

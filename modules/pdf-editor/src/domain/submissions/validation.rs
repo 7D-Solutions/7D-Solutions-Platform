@@ -15,10 +15,7 @@ use serde_json::Value;
 
 /// Validate all fields against the submission's field_data.
 /// Returns Ok(()) or a list of all validation errors.
-pub fn validate_submission(
-    fields: &[FormField],
-    field_data: &Value,
-) -> Result<(), Vec<String>> {
+pub fn validate_submission(fields: &[FormField], field_data: &Value) -> Result<(), Vec<String>> {
     let data = field_data.as_object();
     let mut errors = Vec::new();
 
@@ -27,7 +24,10 @@ pub fn validate_submission(
         let value = data.and_then(|d| d.get(&field.field_key));
 
         // Check required
-        let is_required = rules.get("required").and_then(|v| v.as_bool()).unwrap_or(false);
+        let is_required = rules
+            .get("required")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         if is_required && is_empty_value(value) {
             errors.push(format!("'{}' is required", field.field_key));
             continue; // Skip further checks on missing required field
@@ -65,12 +65,7 @@ fn is_empty_value(value: Option<&Value>) -> bool {
     }
 }
 
-fn validate_text(
-    field: &FormField,
-    rules: &Value,
-    value: &Value,
-    errors: &mut Vec<String>,
-) {
+fn validate_text(field: &FormField, rules: &Value, value: &Value, errors: &mut Vec<String>) {
     let Some(s) = value.as_str() else {
         errors.push(format!("'{}' must be a string", field.field_key));
         return;
@@ -96,12 +91,7 @@ fn validate_text(
     }
 }
 
-fn validate_number(
-    field: &FormField,
-    rules: &Value,
-    value: &Value,
-    errors: &mut Vec<String>,
-) {
+fn validate_number(field: &FormField, rules: &Value, value: &Value, errors: &mut Vec<String>) {
     let Some(n) = value.as_f64() else {
         errors.push(format!("'{}' must be a number", field.field_key));
         return;
@@ -119,11 +109,7 @@ fn validate_number(
     }
 }
 
-fn validate_date(
-    field: &FormField,
-    value: &Value,
-    errors: &mut Vec<String>,
-) {
+fn validate_date(field: &FormField, value: &Value, errors: &mut Vec<String>) {
     let Some(s) = value.as_str() else {
         errors.push(format!("'{}' must be a date string", field.field_key));
         return;
@@ -138,12 +124,7 @@ fn validate_date(
     }
 }
 
-fn validate_dropdown(
-    field: &FormField,
-    rules: &Value,
-    value: &Value,
-    errors: &mut Vec<String>,
-) {
+fn validate_dropdown(field: &FormField, rules: &Value, value: &Value, errors: &mut Vec<String>) {
     let Some(s) = value.as_str() else {
         errors.push(format!("'{}' must be a string", field.field_key));
         return;
@@ -161,11 +142,7 @@ fn validate_dropdown(
     }
 }
 
-fn validate_checkbox(
-    field: &FormField,
-    value: &Value,
-    errors: &mut Vec<String>,
-) {
+fn validate_checkbox(field: &FormField, value: &Value, errors: &mut Vec<String>) {
     if !value.is_boolean() {
         errors.push(format!("'{}' must be a boolean", field.field_key));
     }

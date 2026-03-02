@@ -83,10 +83,9 @@ impl BackfillRunner {
 
     /// Count total checkpoint rows (across all consumers and tenants).
     pub async fn checkpoint_count(&self) -> Result<i64, anyhow::Error> {
-        let count: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM rpt_ingestion_checkpoints")
-                .fetch_one(&self.pool)
-                .await?;
+        let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM rpt_ingestion_checkpoints")
+            .fetch_one(&self.pool)
+            .await?;
         Ok(count)
     }
 }
@@ -139,7 +138,10 @@ mod tests {
             .expect("seed save");
 
         let runner = BackfillRunner::new(pool.clone());
-        let existed = runner.reset_tenant(CONSUMER, "tenant-a").await.expect("reset");
+        let existed = runner
+            .reset_tenant(CONSUMER, "tenant-a")
+            .await
+            .expect("reset");
         assert!(existed, "should report that checkpoint existed");
 
         let cp = checkpoints::load(&pool, CONSUMER, "tenant-a")
@@ -172,9 +174,15 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        checkpoints::save(&pool, CONSUMER, "tenant-x", 1, "e1").await.ok();
-        checkpoints::save(&pool, CONSUMER, "tenant-y", 2, "e2").await.ok();
-        checkpoints::save(&pool, CONSUMER, "tenant-z", 3, "e3").await.ok();
+        checkpoints::save(&pool, CONSUMER, "tenant-x", 1, "e1")
+            .await
+            .ok();
+        checkpoints::save(&pool, CONSUMER, "tenant-y", 2, "e2")
+            .await
+            .ok();
+        checkpoints::save(&pool, CONSUMER, "tenant-z", 3, "e3")
+            .await
+            .ok();
 
         let runner = BackfillRunner::new(pool.clone());
         let deleted = runner.reset_all(CONSUMER).await.expect("reset_all");
@@ -195,8 +203,12 @@ mod tests {
         cleanup(&pool).await;
 
         let other_consumer = "test-runner-other";
-        checkpoints::save(&pool, CONSUMER, "tenant-a", 1, "e1").await.ok();
-        checkpoints::save(&pool, other_consumer, "tenant-a", 2, "e2").await.ok();
+        checkpoints::save(&pool, CONSUMER, "tenant-a", 1, "e1")
+            .await
+            .ok();
+        checkpoints::save(&pool, other_consumer, "tenant-a", 2, "e2")
+            .await
+            .ok();
 
         let runner = BackfillRunner::new(pool.clone());
         runner.reset_all(CONSUMER).await.expect("reset_all");
@@ -205,16 +217,17 @@ mod tests {
         let cp = checkpoints::load(&pool, other_consumer, "tenant-a")
             .await
             .expect("load other");
-        assert!(cp.is_some(), "other consumer's checkpoint must not be deleted");
+        assert!(
+            cp.is_some(),
+            "other consumer's checkpoint must not be deleted"
+        );
 
         // Cleanup other consumer too
-        sqlx::query(
-            "DELETE FROM rpt_ingestion_checkpoints WHERE consumer_name = $1",
-        )
-        .bind(other_consumer)
-        .execute(&pool)
-        .await
-        .ok();
+        sqlx::query("DELETE FROM rpt_ingestion_checkpoints WHERE consumer_name = $1")
+            .bind(other_consumer)
+            .execute(&pool)
+            .await
+            .ok();
 
         cleanup(&pool).await;
     }
@@ -230,8 +243,12 @@ mod tests {
         let initial_count = runner.checkpoint_count().await.expect("count");
         let initial_consumers = runner.list_consumers().await.expect("list");
 
-        checkpoints::save(&pool, CONSUMER, "tenant-m", 1, "e1").await.ok();
-        checkpoints::save(&pool, CONSUMER, "tenant-n", 2, "e2").await.ok();
+        checkpoints::save(&pool, CONSUMER, "tenant-m", 1, "e1")
+            .await
+            .ok();
+        checkpoints::save(&pool, CONSUMER, "tenant-n", 2, "e2")
+            .await
+            .ok();
 
         let new_count = runner.checkpoint_count().await.expect("count2");
         assert_eq!(new_count, initial_count + 2);

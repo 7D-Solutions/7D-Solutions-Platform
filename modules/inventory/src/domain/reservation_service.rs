@@ -19,7 +19,7 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
-use crate::domain::guards::{GuardError, guard_item_active, guard_quantity_positive};
+use crate::domain::guards::{guard_item_active, guard_quantity_positive, GuardError};
 
 // Internal event type strings — not shared with external consumers yet.
 const EVENT_TYPE_ITEM_RESERVED: &str = "inventory.item_reserved";
@@ -542,28 +542,40 @@ mod tests {
     fn reserve_rejects_empty_idempotency_key() {
         let mut r = valid_reserve();
         r.idempotency_key = "  ".to_string();
-        assert!(matches!(validate_reserve(&r), Err(ReservationError::Guard(_))));
+        assert!(matches!(
+            validate_reserve(&r),
+            Err(ReservationError::Guard(_))
+        ));
     }
 
     #[test]
     fn reserve_rejects_empty_tenant() {
         let mut r = valid_reserve();
         r.tenant_id = "".to_string();
-        assert!(matches!(validate_reserve(&r), Err(ReservationError::Guard(_))));
+        assert!(matches!(
+            validate_reserve(&r),
+            Err(ReservationError::Guard(_))
+        ));
     }
 
     #[test]
     fn reserve_rejects_zero_quantity() {
         let mut r = valid_reserve();
         r.quantity = 0;
-        assert!(matches!(validate_reserve(&r), Err(ReservationError::Guard(_))));
+        assert!(matches!(
+            validate_reserve(&r),
+            Err(ReservationError::Guard(_))
+        ));
     }
 
     #[test]
     fn reserve_rejects_negative_quantity() {
         let mut r = valid_reserve();
         r.quantity = -5;
-        assert!(matches!(validate_reserve(&r), Err(ReservationError::Guard(_))));
+        assert!(matches!(
+            validate_reserve(&r),
+            Err(ReservationError::Guard(_))
+        ));
     }
 
     #[test]
@@ -575,14 +587,20 @@ mod tests {
     fn release_rejects_empty_idempotency_key() {
         let mut r = valid_release();
         r.idempotency_key = "".to_string();
-        assert!(matches!(validate_release(&r), Err(ReservationError::Guard(_))));
+        assert!(matches!(
+            validate_release(&r),
+            Err(ReservationError::Guard(_))
+        ));
     }
 
     #[test]
     fn release_rejects_empty_tenant() {
         let mut r = valid_release();
         r.tenant_id = "".to_string();
-        assert!(matches!(validate_release(&r), Err(ReservationError::Guard(_))));
+        assert!(matches!(
+            validate_release(&r),
+            Err(ReservationError::Guard(_))
+        ));
     }
 
     #[test]

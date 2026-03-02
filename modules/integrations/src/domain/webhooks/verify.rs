@@ -14,10 +14,8 @@
 //!
 //! Unknown system names return `WebhookError::UnsupportedSystem`.
 
+use security::{GenericHmacVerifier, NoopVerifier, StripeVerifier, VerifyError, WebhookVerifier};
 use std::collections::HashMap;
-use security::{
-    GenericHmacVerifier, NoopVerifier, StripeVerifier, VerifyError, WebhookVerifier,
-};
 
 use super::models::WebhookError;
 
@@ -77,6 +75,9 @@ mod tests {
     fn test_unknown_system_rejected() {
         let headers = HashMap::new();
         let result = verify_signature("acme-payments", &headers, b"{}");
-        assert!(matches!(result, Err(WebhookError::UnsupportedSystem { .. })));
+        assert!(matches!(
+            result,
+            Err(WebhookError::UnsupportedSystem { .. })
+        ));
     }
 }

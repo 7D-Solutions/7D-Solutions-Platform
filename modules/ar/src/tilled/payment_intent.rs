@@ -106,11 +106,8 @@ impl TilledClient {
         &self,
         payment_intent_id: &str,
     ) -> Result<PaymentIntent, TilledError> {
-        self.get(
-            &format!("/v1/payment-intents/{payment_intent_id}"),
-            None,
-        )
-        .await
+        self.get(&format!("/v1/payment-intents/{payment_intent_id}"), None)
+            .await
     }
 
     /// Update a payment intent (amount, metadata, etc)

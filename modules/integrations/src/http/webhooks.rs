@@ -46,19 +46,16 @@ pub async fn inbound_webhook(
     let app_id = match &claims {
         Some(Extension(c)) => c.tenant_id.to_string(),
         None => extract_app_id_from_webhook(&system, &headers, &body)
-            .map_err(|msg| {
-                (
-                    StatusCode::BAD_REQUEST,
-                    Json(json!({ "error": msg })),
-                )
-            })?,
+            .map_err(|msg| (StatusCode::BAD_REQUEST, Json(json!({ "error": msg }))))?,
     };
 
     // ── Convert headers to HashMap<String, String> (lowercase) ────────────
     let header_map: std::collections::HashMap<String, String> = headers
         .iter()
         .filter_map(|(k, v)| {
-            v.to_str().ok().map(|val| (k.as_str().to_lowercase(), val.to_string()))
+            v.to_str()
+                .ok()
+                .map(|val| (k.as_str().to_lowercase(), val.to_string()))
         })
         .collect();
 
@@ -90,7 +87,11 @@ pub async fn inbound_webhook(
     let svc = WebhookService::new(state.pool.clone());
     match svc.ingest(req, &body).await {
         Ok(result) => {
-            let status = if result.is_duplicate { "duplicate" } else { "accepted" };
+            let status = if result.is_duplicate {
+                "duplicate"
+            } else {
+                "accepted"
+            };
             Ok(Json(json!({
                 "status": status,
                 "ingest_id": result.ingest_id,
@@ -104,10 +105,9 @@ pub async fn inbound_webhook(
             StatusCode::NOT_FOUND,
             Json(json!({ "error": format!("Unknown webhook system: {}", system) })),
         )),
-        Err(WebhookError::MalformedPayload(msg)) => Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "error": msg })),
-        )),
+        Err(WebhookError::MalformedPayload(msg)) => {
+            Err((StatusCode::BAD_REQUEST, Json(json!({ "error": msg }))))
+        }
         Err(e) => {
             tracing::error!(system = %system, error = %e, "Webhook ingest error");
             Err((
@@ -147,9 +147,7 @@ fn extract_app_id_from_webhook(
                 .get("x-tilled-account")
                 .and_then(|v| v.to_str().ok())
                 .map(str::to_string)
-                .ok_or_else(|| {
-                    "Tilled webhook missing x-tilled-account header".to_string()
-                })
+                .ok_or_else(|| "Tilled webhook missing x-tilled-account header".to_string())
         }
         "github" => {
             // GitHub App webhooks include installation.account.id in the payload
@@ -189,7 +187,8 @@ fn extract_event_type(payload: &Value, system: &str) -> Option<String> {
     match system {
         "stripe" => payload.get("type")?.as_str().map(str::to_string),
         "github" => None, // GitHub uses X-GitHub-Event header — captured in headers map
-        _ => payload.get("event_type")
+        _ => payload
+            .get("event_type")
             .or_else(|| payload.get("type"))
             .and_then(|v| v.as_str())
             .map(str::to_string),

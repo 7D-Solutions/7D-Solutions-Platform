@@ -48,10 +48,26 @@ pub async fn fleet_status() -> Result<CommandOutput> {
     .context("Querying tenant counts")?;
 
     let total: i64 = counts.iter().map(|c| c.count).sum();
-    let active = counts.iter().find(|c| c.status == "active").map(|c| c.count).unwrap_or(0);
-    let suspended = counts.iter().find(|c| c.status == "suspended").map(|c| c.count).unwrap_or(0);
-    let provisioning = counts.iter().find(|c| c.status == "provisioning").map(|c| c.count).unwrap_or(0);
-    let deleted = counts.iter().find(|c| c.status == "deleted").map(|c| c.count).unwrap_or(0);
+    let active = counts
+        .iter()
+        .find(|c| c.status == "active")
+        .map(|c| c.count)
+        .unwrap_or(0);
+    let suspended = counts
+        .iter()
+        .find(|c| c.status == "suspended")
+        .map(|c| c.count)
+        .unwrap_or(0);
+    let provisioning = counts
+        .iter()
+        .find(|c| c.status == "provisioning")
+        .map(|c| c.count)
+        .unwrap_or(0);
+    let deleted = counts
+        .iter()
+        .find(|c| c.status == "deleted")
+        .map(|c| c.count)
+        .unwrap_or(0);
 
     // Print human-readable summary
     eprintln!();
@@ -128,8 +144,7 @@ pub async fn fleet_list() -> Result<CommandOutput> {
         "tenants": tenant_data,
     });
 
-    Ok(CommandOutput::ok("fleet-list", "-")
-        .with_data(data))
+    Ok(CommandOutput::ok("fleet-list", "-").with_data(data))
 }
 
 #[cfg(test)]

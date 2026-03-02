@@ -247,13 +247,12 @@ async fn test_manual_rematch_supersedes_old() {
     assert_eq!(old.status, ReconMatchStatus::Rejected);
 
     // Old transaction should be unmatched again
-    let old_txn_status: String = sqlx::query_scalar(
-        "SELECT status::text FROM treasury_bank_transactions WHERE id = $1",
-    )
-    .bind(pt1_id)
-    .fetch_one(&pool)
-    .await
-    .unwrap();
+    let old_txn_status: String =
+        sqlx::query_scalar("SELECT status::text FROM treasury_bank_transactions WHERE id = $1")
+            .bind(pt1_id)
+            .fetch_one(&pool)
+            .await
+            .unwrap();
     assert_eq!(old_txn_status, "unmatched");
 
     cleanup(&pool).await;

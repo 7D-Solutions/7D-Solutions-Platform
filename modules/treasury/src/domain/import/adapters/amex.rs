@@ -60,7 +60,10 @@ fn parse_amount(raw: &str) -> Result<i64, String> {
     if s.is_empty() {
         return Err("amount is empty".to_string());
     }
-    let cleaned: String = s.chars().filter(|c| *c != '$' && *c != ',' && *c != ' ').collect();
+    let cleaned: String = s
+        .chars()
+        .filter(|c| *c != '$' && *c != ',' && *c != ' ')
+        .collect();
     if cleaned.is_empty() {
         return Err("amount is empty after cleanup".to_string());
     }
@@ -118,7 +121,10 @@ pub fn parse_amex_csv(data: &[u8]) -> ParseOutput {
         Err(msg) => {
             return ParseOutput {
                 lines: vec![],
-                errors: vec![LineError { line: 1, reason: msg }],
+                errors: vec![LineError {
+                    line: 1,
+                    reason: msg,
+                }],
             };
         }
     };
@@ -152,7 +158,10 @@ pub fn parse_amex_csv(data: &[u8]) -> ParseOutput {
         let date = match parse_date(date_raw) {
             Ok(d) => d,
             Err(reason) => {
-                errors.push(LineError { line: line_num, reason });
+                errors.push(LineError {
+                    line: line_num,
+                    reason,
+                });
                 continue;
             }
         };
@@ -160,7 +169,10 @@ pub fn parse_amex_csv(data: &[u8]) -> ParseOutput {
         let amount_minor = match parse_amount(amount_raw) {
             Ok(a) => a,
             Err(reason) => {
-                errors.push(LineError { line: line_num, reason });
+                errors.push(LineError {
+                    line: line_num,
+                    reason,
+                });
                 continue;
             }
         };

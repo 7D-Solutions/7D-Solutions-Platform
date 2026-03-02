@@ -96,13 +96,12 @@ pub async fn run_match(
     }
 
     // Guard: verify PO belongs to this tenant
-    let po_exists: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT po_id FROM purchase_orders WHERE po_id = $1 AND tenant_id = $2",
-    )
-    .bind(req.po_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
+    let po_exists: Option<(Uuid,)> =
+        sqlx::query_as("SELECT po_id FROM purchase_orders WHERE po_id = $1 AND tenant_id = $2")
+            .bind(req.po_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?;
 
     if po_exists.is_none() {
         return Err(MatchError::PoNotFound(req.po_id));
@@ -194,7 +193,11 @@ pub async fn run_match(
         )
         .bind(bill_id)
         .bind(line.bill_line_id)
-        .bind(if line.po_line_id.is_some() { Some(req.po_id) } else { None::<Uuid> })
+        .bind(if line.po_line_id.is_some() {
+            Some(req.po_id)
+        } else {
+            None::<Uuid>
+        })
         .bind(line.po_line_id)
         .bind(line.receipt_id)
         .bind(&line.match_type)
@@ -288,7 +291,11 @@ async fn load_receipt_aggs(
         .await?;
 
         if let Some((total_received, first_receipt_id)) = row {
-            aggs.push(ReceiptAgg { po_line_id, total_received, first_receipt_id });
+            aggs.push(ReceiptAgg {
+                po_line_id,
+                total_received,
+                first_receipt_id,
+            });
         }
     }
     Ok(aggs)
@@ -348,8 +355,7 @@ fn compute_line_match(
         ((bl.unit_price_minor - po_line.unit_price_minor) as f64 * matched_qty).round() as i64;
 
     // Amount matched valued at PO price
-    let matched_amount_minor =
-        (po_line.unit_price_minor as f64 * matched_qty).round() as i64;
+    let matched_amount_minor = (po_line.unit_price_minor as f64 * matched_qty).round() as i64;
 
     // Tolerance checks
     let price_tolerance_minor =
@@ -406,8 +412,12 @@ mod tests {
             "INSERT INTO vendors (vendor_id, tenant_id, name, currency, payment_terms_days, \
              is_active, created_at, updated_at) VALUES ($1, $2, $3, 'USD', 30, TRUE, NOW(), NOW())",
         )
-        .bind(vendor_id).bind(TEST_TENANT).bind(format!("V-{}", vendor_id))
-        .execute(db).await.expect("insert vendor");
+        .bind(vendor_id)
+        .bind(TEST_TENANT)
+        .bind(format!("V-{}", vendor_id))
+        .execute(db)
+        .await
+        .expect("insert vendor");
 
         let po_id = Uuid::new_v4();
         sqlx::query(
@@ -415,10 +425,14 @@ mod tests {
              total_minor, status, created_by, created_at) \
              VALUES ($1, $2, $3, $4, 'USD', $5, 'approved', 'system', NOW())",
         )
-        .bind(po_id).bind(TEST_TENANT).bind(vendor_id)
+        .bind(po_id)
+        .bind(TEST_TENANT)
+        .bind(vendor_id)
         .bind(format!("PO-{}", &po_id.to_string()[..8]))
         .bind(10 * po_unit_price)
-        .execute(db).await.expect("insert PO");
+        .execute(db)
+        .await
+        .expect("insert PO");
 
         let line_id = Uuid::new_v4();
         sqlx::query(
@@ -426,8 +440,13 @@ mod tests {
              unit_price_minor, line_total_minor, gl_account_code, created_at) \
              VALUES ($1, $2, 'Widgets', 10.0, 'each', $3, $4, '6100', NOW())",
         )
-        .bind(line_id).bind(po_id).bind(po_unit_price).bind(10 * po_unit_price)
-        .execute(db).await.expect("insert PO line");
+        .bind(line_id)
+        .bind(po_id)
+        .bind(po_unit_price)
+        .bind(10 * po_unit_price)
+        .execute(db)
+        .await
+        .expect("insert PO line");
 
         (vendor_id, po_id, line_id)
     }
@@ -447,10 +466,14 @@ mod tests {
              VALUES ($1, $2, $3, $4, 'USD', $5, NOW(), NOW() + interval '30 days', \
              'open', 'system', NOW())",
         )
-        .bind(bill_id).bind(TEST_TENANT).bind(vendor_id)
+        .bind(bill_id)
+        .bind(TEST_TENANT)
+        .bind(vendor_id)
         .bind(format!("INV-{}", &bill_id.to_string()[..8]))
         .bind((bill_qty * bill_unit_price as f64).round() as i64)
-        .execute(db).await.expect("insert bill");
+        .execute(db)
+        .await
+        .expect("insert bill");
 
         let line_id = Uuid::new_v4();
         sqlx::query(
@@ -458,16 +481,27 @@ mod tests {
              line_total_minor, gl_account_code, po_line_id, created_at) \
              VALUES ($1, $2, 'Widgets', $3, $4, $5, '6100', $6, NOW())",
         )
-        .bind(line_id).bind(bill_id).bind(bill_qty).bind(bill_unit_price)
+        .bind(line_id)
+        .bind(bill_id)
+        .bind(bill_qty)
+        .bind(bill_unit_price)
         .bind((bill_qty * bill_unit_price as f64).round() as i64)
         .bind(po_line_id)
-        .execute(db).await.expect("insert bill line");
+        .execute(db)
+        .await
+        .expect("insert bill line");
 
         (bill_id, line_id)
     }
 
     /// Insert a receipt link for a PO line; returns receipt_id.
-    async fn setup_receipt(db: &PgPool, po_id: Uuid, po_line_id: Uuid, vendor_id: Uuid, qty: f64) -> Uuid {
+    async fn setup_receipt(
+        db: &PgPool,
+        po_id: Uuid,
+        po_line_id: Uuid,
+        vendor_id: Uuid,
+        qty: f64,
+    ) -> Uuid {
         let receipt_id = Uuid::new_v4();
         sqlx::query(
             "INSERT INTO po_receipt_links (po_id, po_line_id, vendor_id, receipt_id, \
@@ -475,8 +509,14 @@ mod tests {
              gl_account_code, received_at, received_by) \
              VALUES ($1, $2, $3, $4, $5, 'each', 1000, 'USD', '6100', NOW(), 'system')",
         )
-        .bind(po_id).bind(po_line_id).bind(vendor_id).bind(receipt_id).bind(qty)
-        .execute(db).await.expect("insert receipt");
+        .bind(po_id)
+        .bind(po_line_id)
+        .bind(vendor_id)
+        .bind(receipt_id)
+        .bind(qty)
+        .execute(db)
+        .await
+        .expect("insert receipt");
         receipt_id
     }
 
@@ -508,7 +548,11 @@ mod tests {
     }
 
     fn match_req(po_id: Uuid) -> RunMatchRequest {
-        RunMatchRequest { po_id, matched_by: "ap-user".to_string(), price_tolerance_pct: 0.05 }
+        RunMatchRequest {
+            po_id,
+            matched_by: "ap-user".to_string(),
+            price_tolerance_pct: 0.05,
+        }
     }
 
     #[tokio::test]
@@ -520,9 +564,15 @@ mod tests {
         let (vendor_id, po_id, po_line_id) = setup_po(&db, 1000).await;
         let (bill_id, bill_line_id) = setup_bill(&db, vendor_id, po_line_id, 10.0, 1000).await;
 
-        let outcome = run_match(&db, TEST_TENANT, bill_id, &match_req(po_id), "corr-1".to_string())
-            .await
-            .expect("match failed");
+        let outcome = run_match(
+            &db,
+            TEST_TENANT,
+            bill_id,
+            &match_req(po_id),
+            "corr-1".to_string(),
+        )
+        .await
+        .expect("match failed");
 
         assert!(outcome.fully_matched);
         assert_eq!(outcome.lines.len(), 1);
@@ -534,17 +584,21 @@ mod tests {
         assert!(line.qty_variance.abs() < 1e-6);
 
         // Verify match record persisted
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM three_way_match WHERE bill_id = $1",
-        )
-        .bind(bill_id).fetch_one(&db).await.expect("count");
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM three_way_match WHERE bill_id = $1")
+                .bind(bill_id)
+                .fetch_one(&db)
+                .await
+                .expect("count");
         assert_eq!(count, 1);
 
         // Verify bill status updated to 'matched'
-        let (status,): (String,) = sqlx::query_as(
-            "SELECT status FROM vendor_bills WHERE bill_id = $1",
-        )
-        .bind(bill_id).fetch_one(&db).await.expect("status");
+        let (status,): (String,) =
+            sqlx::query_as("SELECT status FROM vendor_bills WHERE bill_id = $1")
+                .bind(bill_id)
+                .fetch_one(&db)
+                .await
+                .expect("status");
         assert_eq!(status, "matched");
 
         // Verify outbox event enqueued
@@ -567,9 +621,15 @@ mod tests {
         setup_receipt(&db, po_id, po_line_id, vendor_id, 10.0).await;
         let (bill_id, _) = setup_bill(&db, vendor_id, po_line_id, 10.0, 1000).await;
 
-        let outcome = run_match(&db, TEST_TENANT, bill_id, &match_req(po_id), "corr-2".to_string())
-            .await
-            .expect("three_way match failed");
+        let outcome = run_match(
+            &db,
+            TEST_TENANT,
+            bill_id,
+            &match_req(po_id),
+            "corr-2".to_string(),
+        )
+        .await
+        .expect("three_way match failed");
 
         assert!(outcome.fully_matched);
         let line = &outcome.lines[0];
@@ -589,15 +649,31 @@ mod tests {
         let (vendor_id, po_id, po_line_id) = setup_po(&db, 1000).await;
         let (bill_id, _) = setup_bill(&db, vendor_id, po_line_id, 10.0, 1000).await;
 
-        run_match(&db, TEST_TENANT, bill_id, &match_req(po_id), "corr-3a".to_string())
-            .await.expect("first run failed");
-        run_match(&db, TEST_TENANT, bill_id, &match_req(po_id), "corr-3b".to_string())
-            .await.expect("second run must not error");
-
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM three_way_match WHERE bill_id = $1",
+        run_match(
+            &db,
+            TEST_TENANT,
+            bill_id,
+            &match_req(po_id),
+            "corr-3a".to_string(),
         )
-        .bind(bill_id).fetch_one(&db).await.expect("count");
+        .await
+        .expect("first run failed");
+        run_match(
+            &db,
+            TEST_TENANT,
+            bill_id,
+            &match_req(po_id),
+            "corr-3b".to_string(),
+        )
+        .await
+        .expect("second run must not error");
+
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM three_way_match WHERE bill_id = $1")
+                .bind(bill_id)
+                .fetch_one(&db)
+                .await
+                .expect("count");
         assert_eq!(count, 1, "re-run must not create duplicate match records");
 
         cleanup(&db).await;
@@ -613,9 +689,15 @@ mod tests {
         let (vendor_id, po_id, po_line_id) = setup_po(&db, 1000).await;
         let (bill_id, _) = setup_bill(&db, vendor_id, po_line_id, 10.0, 1200).await;
 
-        let outcome = run_match(&db, TEST_TENANT, bill_id, &match_req(po_id), "corr-4".to_string())
-            .await
-            .expect("match failed");
+        let outcome = run_match(
+            &db,
+            TEST_TENANT,
+            bill_id,
+            &match_req(po_id),
+            "corr-4".to_string(),
+        )
+        .await
+        .expect("match failed");
 
         assert!(!outcome.fully_matched);
         let line = &outcome.lines[0];

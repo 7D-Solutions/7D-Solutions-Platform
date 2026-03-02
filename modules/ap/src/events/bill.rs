@@ -6,9 +6,9 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use super::{AP_EVENT_SCHEMA_VERSION, MUTATION_CLASS_DATA_MUTATION, MUTATION_CLASS_REVERSAL};
 use crate::events::envelope::{create_ap_envelope, EventEnvelope};
 use crate::events::vendor_bill_approved::ApprovedGlLine;
-use super::{AP_EVENT_SCHEMA_VERSION, MUTATION_CLASS_DATA_MUTATION, MUTATION_CLASS_REVERSAL};
 
 // ============================================================================
 // Event Type Constants
@@ -298,7 +298,10 @@ mod tests {
             payload,
         );
         assert_eq!(envelope.event_type, EVENT_TYPE_VENDOR_BILL_CREATED);
-        assert_eq!(envelope.mutation_class.as_deref(), Some(MUTATION_CLASS_DATA_MUTATION));
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
         assert_eq!(envelope.source_module, "ap");
         assert!(envelope.replay_safe);
     }
@@ -326,7 +329,10 @@ mod tests {
             payload,
         );
         assert_eq!(envelope.event_type, EVENT_TYPE_VENDOR_BILL_VOIDED);
-        assert_eq!(envelope.mutation_class.as_deref(), Some(MUTATION_CLASS_REVERSAL));
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_REVERSAL)
+        );
         assert_eq!(envelope.reverses_event_id, Some(original_id));
     }
 

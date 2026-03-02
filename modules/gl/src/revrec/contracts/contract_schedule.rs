@@ -7,8 +7,8 @@ use uuid::Uuid;
 use crate::events::envelope::{create_gl_envelope, EventEnvelope};
 
 use super::{
-    PerformanceObligation, ScheduleLine, EVENT_TYPE_CONTRACT_CREATED,
-    EVENT_TYPE_SCHEDULE_CREATED, MUTATION_CLASS_DATA_MUTATION, REVREC_SCHEMA_VERSION,
+    PerformanceObligation, ScheduleLine, EVENT_TYPE_CONTRACT_CREATED, EVENT_TYPE_SCHEDULE_CREATED,
+    MUTATION_CLASS_DATA_MUTATION, REVREC_SCHEMA_VERSION,
 };
 
 // ============================================================================
@@ -289,7 +289,11 @@ mod tests {
         let contract_id = Uuid::new_v4();
         let obligation_id = Uuid::new_v4();
         let payload = sample_schedule_created(contract_id, obligation_id);
-        let lines_sum: i64 = payload.lines.iter().map(|l| l.amount_to_recognize_minor).sum();
+        let lines_sum: i64 = payload
+            .lines
+            .iter()
+            .map(|l| l.amount_to_recognize_minor)
+            .sum();
         assert_eq!(lines_sum, payload.total_to_recognize_minor);
     }
 

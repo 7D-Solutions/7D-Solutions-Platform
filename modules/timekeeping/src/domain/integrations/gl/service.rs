@@ -86,8 +86,7 @@ const EVT_LABOR_COST_POSTING: &str = "timekeeping.labor_cost";
 
 /// UUID namespace for deterministic posting IDs.
 const LABOR_COST_NS: Uuid = Uuid::from_bytes([
-    0x7d, 0x50, 0x1a, 0xb0, 0xcc, 0x01, 0x4e, 0x2f, 0x8a, 0x11, 0x3c, 0xd4, 0xe5, 0xf6, 0xa7,
-    0xb8,
+    0x7d, 0x50, 0x1a, 0xb0, 0xcc, 0x01, 0x4e, 0x2f, 0x8a, 0x11, 0x3c, 0xd4, 0xe5, 0xf6, 0xa7, 0xb8,
 ]);
 
 /// Generate GL labor cost postings for approved time in a period.
@@ -131,9 +130,7 @@ pub async fn generate_labor_cost_postings(
             "{}:{}:{}:{}:{}",
             app_id,
             row.employee_id,
-            row.project_id
-                .map(|p| p.to_string())
-                .unwrap_or_default(),
+            row.project_id.map(|p| p.to_string()).unwrap_or_default(),
             period_start,
             period_end,
         );

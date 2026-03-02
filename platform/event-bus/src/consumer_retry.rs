@@ -117,12 +117,8 @@ mod tests {
     #[tokio::test]
     async fn test_retry_succeeds_first_attempt() {
         let config = RetryConfig::default();
-        let result = retry_with_backoff(
-            || async { Ok::<_, String>(42) },
-            &config,
-            "test_operation",
-        )
-        .await;
+        let result =
+            retry_with_backoff(|| async { Ok::<_, String>(42) }, &config, "test_operation").await;
 
         assert_eq!(result, Ok(42));
     }

@@ -57,7 +57,10 @@ pub enum RetryError {
     /// Payment attempt not found
     AttemptNotFound(Uuid),
     /// Payment has no due date set (AR invoice missing due_at)
-    NoDueDate { payment_id: Uuid, invoice_id: String },
+    NoDueDate {
+        payment_id: Uuid,
+        invoice_id: String,
+    },
     /// Payment not eligible for retry (wrong status)
     NotEligible {
         payment_id: Uuid,
@@ -131,7 +134,7 @@ impl From<sqlx::Error> for RetryError {
 /// ```
 pub fn calculate_retry_windows(due_date: NaiveDate) -> [NaiveDate; 3] {
     [
-        due_date, // Attempt 0: immediate
+        due_date,                                                            // Attempt 0: immediate
         due_date + chrono::Days::new(windows::ATTEMPT_1_OFFSET_DAYS as u64), // Attempt 1: +3 days
         due_date + chrono::Days::new(windows::ATTEMPT_2_OFFSET_DAYS as u64), // Attempt 2: +7 days
     ]
@@ -228,7 +231,7 @@ pub async fn get_payments_for_retry(
                  AND status::text IN ('attempting', 'failed_retry')
                  AND status::text != 'unknown'  -- UNKNOWN blocking protocol
            )
-         ORDER BY payment_id, attempted_at ASC"
+         ORDER BY payment_id, attempted_at ASC",
     )
     .bind(app_id)
     .fetch_all(pool)
@@ -249,7 +252,7 @@ pub async fn get_payments_for_retry(
             "SELECT EXISTS(
                 SELECT 1 FROM payment_attempts
                 WHERE app_id = $1 AND payment_id = $2 AND attempt_no = $3
-            )"
+            )",
         )
         .bind(app_id)
         .bind(payment_id)
@@ -355,7 +358,10 @@ mod tests {
     fn test_retry_error_display() {
         let id = Uuid::nil();
         let err = RetryError::AttemptNotFound(id);
-        assert_eq!(err.to_string(), format!("Payment attempt not found: {}", id));
+        assert_eq!(
+            err.to_string(),
+            format!("Payment attempt not found: {}", id)
+        );
 
         let err = RetryError::NoDueDate {
             payment_id: id,

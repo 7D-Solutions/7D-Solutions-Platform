@@ -65,7 +65,9 @@ pub enum ConversionError {
     #[error("Amount must be non-negative (minor units), got {0}")]
     NegativeAmount(i64),
 
-    #[error("Currency mismatch: rate is {rate_base}/{rate_quote} but conversion requested {from}/{to}")]
+    #[error(
+        "Currency mismatch: rate is {rate_base}/{rate_quote} but conversion requested {from}/{to}"
+    )]
     CurrencyMismatch {
         rate_base: String,
         rate_quote: String,

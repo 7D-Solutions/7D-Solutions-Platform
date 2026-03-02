@@ -99,7 +99,10 @@ mod tests {
         let instr = sample_instruction();
         let r1 = submit_payment(&instr);
         let r2 = submit_payment(&instr);
-        assert_eq!(r1.payment_id, r2.payment_id, "same instruction → same payment_id");
+        assert_eq!(
+            r1.payment_id, r2.payment_id,
+            "same instruction → same payment_id"
+        );
     }
 
     #[test]

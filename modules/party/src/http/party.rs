@@ -66,12 +66,12 @@ fn party_error_response(e: PartyError) -> (StatusCode, Json<ErrorBody>) {
     match e {
         PartyError::NotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("party_not_found", &format!("Party {} not found", id))),
+            Json(ErrorBody::new(
+                "party_not_found",
+                &format!("Party {} not found", id),
+            )),
         ),
-        PartyError::Conflict(msg) => (
-            StatusCode::CONFLICT,
-            Json(ErrorBody::new("conflict", &msg)),
-        ),
+        PartyError::Conflict(msg) => (StatusCode::CONFLICT, Json(ErrorBody::new("conflict", &msg))),
         PartyError::Validation(msg) => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorBody::new("validation_error", &msg)),

@@ -15,15 +15,18 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::domain::allocations::{service, AllocationError, CreateAllocationRequest};
-use crate::http::tenant::extract_tenant;
 use crate::http::admin_types::ErrorBody;
+use crate::http::tenant::extract_tenant;
 use crate::AppState;
 
 fn allocation_error_response(e: AllocationError) -> (StatusCode, Json<ErrorBody>) {
     match e {
         AllocationError::BillNotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("bill_not_found", &format!("Bill {} not found", id))),
+            Json(ErrorBody::new(
+                "bill_not_found",
+                &format!("Bill {} not found", id),
+            )),
         ),
         AllocationError::InvalidBillStatus(status) => (
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -36,7 +39,10 @@ fn allocation_error_response(e: AllocationError) -> (StatusCode, Json<ErrorBody>
                 ),
             )),
         ),
-        AllocationError::OverAllocation { available, requested } => (
+        AllocationError::OverAllocation {
+            available,
+            requested,
+        } => (
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ErrorBody::new(
                 "over_allocation",
@@ -54,7 +60,10 @@ fn allocation_error_response(e: AllocationError) -> (StatusCode, Json<ErrorBody>
             tracing::error!(error = %e, "Database error in allocation handler");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody::new("database_error", "An internal error occurred")),
+                Json(ErrorBody::new(
+                    "database_error",
+                    "An internal error occurred",
+                )),
             )
         }
     }
@@ -125,7 +134,10 @@ pub async fn get_balance(
     match summary {
         None => Err((
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("bill_not_found", &format!("Bill {} not found", bill_id))),
+            Json(ErrorBody::new(
+                "bill_not_found",
+                &format!("Bill {} not found", bill_id),
+            )),
         )),
         Some(s) => Ok(Json(json!({
             "bill_id": s.bill_id,

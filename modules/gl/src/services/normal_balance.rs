@@ -90,10 +90,7 @@ pub fn apply_income_statement_presentation(
 /// let amount = apply_balance_sheet_presentation(&AccountType::Liability, -10000);
 /// assert_eq!(amount, 10000); // Positive (inverted from credit)
 /// ```
-pub fn apply_balance_sheet_presentation(
-    account_type: &AccountType,
-    net_balance_minor: i64,
-) -> i64 {
+pub fn apply_balance_sheet_presentation(account_type: &AccountType, net_balance_minor: i64) -> i64 {
     match account_type {
         // Asset: debit normal → keep sign (positive when debit balance)
         AccountType::Asset => net_balance_minor,
@@ -138,28 +135,40 @@ mod tests {
     fn test_income_statement_revenue_credit_balance() {
         // Revenue with $100 credit balance (net_balance = -10000 cents)
         let amount = apply_income_statement_presentation(&AccountType::Revenue, -10000);
-        assert_eq!(amount, 10000, "Revenue credit balance should be positive in P&L");
+        assert_eq!(
+            amount, 10000,
+            "Revenue credit balance should be positive in P&L"
+        );
     }
 
     #[test]
     fn test_income_statement_revenue_debit_balance() {
         // Revenue with $50 debit balance (net_balance = 5000 cents) - unusual but valid
         let amount = apply_income_statement_presentation(&AccountType::Revenue, 5000);
-        assert_eq!(amount, -5000, "Revenue debit balance should be negative in P&L");
+        assert_eq!(
+            amount, -5000,
+            "Revenue debit balance should be negative in P&L"
+        );
     }
 
     #[test]
     fn test_income_statement_expense_debit_balance() {
         // Expense with $75 debit balance (net_balance = 7500 cents)
         let amount = apply_income_statement_presentation(&AccountType::Expense, 7500);
-        assert_eq!(amount, -7500, "Expense debit balance should be negative in P&L");
+        assert_eq!(
+            amount, -7500,
+            "Expense debit balance should be negative in P&L"
+        );
     }
 
     #[test]
     fn test_income_statement_expense_credit_balance() {
         // Expense with $25 credit balance (net_balance = -2500 cents) - unusual but valid
         let amount = apply_income_statement_presentation(&AccountType::Expense, -2500);
-        assert_eq!(amount, 2500, "Expense credit balance should be positive in P&L");
+        assert_eq!(
+            amount, 2500,
+            "Expense credit balance should be positive in P&L"
+        );
     }
 
     #[test]
@@ -254,7 +263,11 @@ mod tests {
         // Both should have opposite signs but same absolute value
         assert_eq!(revenue_amount, 10000, "Revenue should be positive");
         assert_eq!(expense_amount, -10000, "Expense should be negative");
-        assert_eq!(revenue_amount.abs(), expense_amount.abs(), "Absolute values should match");
+        assert_eq!(
+            revenue_amount.abs(),
+            expense_amount.abs(),
+            "Absolute values should match"
+        );
     }
 
     #[test]
@@ -264,8 +277,14 @@ mod tests {
         let liability_amount = apply_balance_sheet_presentation(&AccountType::Liability, -20000);
 
         // Both should be positive (normal balances)
-        assert_eq!(asset_amount, 20000, "Asset debit balance should be positive");
-        assert_eq!(liability_amount, 20000, "Liability credit balance should be positive");
+        assert_eq!(
+            asset_amount, 20000,
+            "Asset debit balance should be positive"
+        );
+        assert_eq!(
+            liability_amount, 20000,
+            "Liability credit balance should be positive"
+        );
     }
 
     #[test]
@@ -308,7 +327,11 @@ mod tests {
         let equity = apply_balance_sheet_presentation(&AccountType::Equity, -30000);
 
         // Assets should equal Liabilities + Equity
-        assert_eq!(assets, liabilities + equity, "Accounting equation must hold");
+        assert_eq!(
+            assets,
+            liabilities + equity,
+            "Accounting equation must hold"
+        );
         assert_eq!(assets, 50000);
         assert_eq!(liabilities, 20000);
         assert_eq!(equity, 30000);
@@ -319,13 +342,13 @@ mod tests {
     fn test_zero_drift_multi_currency_income_statement() {
         // Revenue in multiple currencies
         let revenue_usd = apply_income_statement_presentation(&AccountType::Revenue, -10000); // $100
-        let revenue_eur = apply_income_statement_presentation(&AccountType::Revenue, -5000);  // €50
-        let revenue_gbp = apply_income_statement_presentation(&AccountType::Revenue, -7500);  // £75
+        let revenue_eur = apply_income_statement_presentation(&AccountType::Revenue, -5000); // €50
+        let revenue_gbp = apply_income_statement_presentation(&AccountType::Revenue, -7500); // £75
 
         // Expenses in multiple currencies
-        let expense_usd = apply_income_statement_presentation(&AccountType::Expense, 6000);   // $60
-        let expense_eur = apply_income_statement_presentation(&AccountType::Expense, 3000);   // €30
-        let expense_gbp = apply_income_statement_presentation(&AccountType::Expense, 4500);   // £45
+        let expense_usd = apply_income_statement_presentation(&AccountType::Expense, 6000); // $60
+        let expense_eur = apply_income_statement_presentation(&AccountType::Expense, 3000); // €30
+        let expense_gbp = apply_income_statement_presentation(&AccountType::Expense, 4500); // £45
 
         // Per-currency profit
         let profit_usd = revenue_usd + expense_usd;
@@ -371,20 +394,50 @@ mod tests {
 
     #[test]
     fn test_is_debit_normal() {
-        assert!(is_debit_normal(&AccountType::Asset), "Asset should be debit normal");
-        assert!(is_debit_normal(&AccountType::Expense), "Expense should be debit normal");
-        assert!(!is_debit_normal(&AccountType::Liability), "Liability should not be debit normal");
-        assert!(!is_debit_normal(&AccountType::Equity), "Equity should not be debit normal");
-        assert!(!is_debit_normal(&AccountType::Revenue), "Revenue should not be debit normal");
+        assert!(
+            is_debit_normal(&AccountType::Asset),
+            "Asset should be debit normal"
+        );
+        assert!(
+            is_debit_normal(&AccountType::Expense),
+            "Expense should be debit normal"
+        );
+        assert!(
+            !is_debit_normal(&AccountType::Liability),
+            "Liability should not be debit normal"
+        );
+        assert!(
+            !is_debit_normal(&AccountType::Equity),
+            "Equity should not be debit normal"
+        );
+        assert!(
+            !is_debit_normal(&AccountType::Revenue),
+            "Revenue should not be debit normal"
+        );
     }
 
     #[test]
     fn test_is_credit_normal() {
-        assert!(is_credit_normal(&AccountType::Liability), "Liability should be credit normal");
-        assert!(is_credit_normal(&AccountType::Equity), "Equity should be credit normal");
-        assert!(is_credit_normal(&AccountType::Revenue), "Revenue should be credit normal");
-        assert!(!is_credit_normal(&AccountType::Asset), "Asset should not be credit normal");
-        assert!(!is_credit_normal(&AccountType::Expense), "Expense should not be credit normal");
+        assert!(
+            is_credit_normal(&AccountType::Liability),
+            "Liability should be credit normal"
+        );
+        assert!(
+            is_credit_normal(&AccountType::Equity),
+            "Equity should be credit normal"
+        );
+        assert!(
+            is_credit_normal(&AccountType::Revenue),
+            "Revenue should be credit normal"
+        );
+        assert!(
+            !is_credit_normal(&AccountType::Asset),
+            "Asset should not be credit normal"
+        );
+        assert!(
+            !is_credit_normal(&AccountType::Expense),
+            "Expense should not be credit normal"
+        );
     }
 
     #[test]

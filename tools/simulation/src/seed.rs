@@ -30,9 +30,7 @@ impl SimulationSeed {
     ///
     /// **ChatGPT Requirement:** 10-20 tenants (deterministic)
     pub fn generate_tenant_ids(&mut self, count: usize) -> Vec<String> {
-        (0..count)
-            .map(|i| format!("sim-tenant-{:04}", i))
-            .collect()
+        (0..count).map(|i| format!("sim-tenant-{:04}", i)).collect()
     }
 
     /// Decide if this operation should fail (for failure injection)
@@ -127,11 +125,12 @@ mod tests {
         let fail2 = seed2.should_fail(0.5);
 
         // Very unlikely to be the same across multiple calls
-        let results_match = (0..10).all(|_| {
-            seed1.should_fail(0.5) == seed2.should_fail(0.5)
-        });
+        let results_match = (0..10).all(|_| seed1.should_fail(0.5) == seed2.should_fail(0.5));
 
-        assert!(!results_match, "Different seeds should produce different outcomes");
+        assert!(
+            !results_match,
+            "Different seeds should produce different outcomes"
+        );
     }
 
     #[test]
@@ -150,7 +149,11 @@ mod tests {
 
         for _ in 0..100 {
             let count = seed.generate_worker_count();
-            assert!(count >= 8 && count <= 32, "Worker count {} out of range", count);
+            assert!(
+                count >= 8 && count <= 32,
+                "Worker count {} out of range",
+                count
+            );
         }
     }
 }

@@ -49,9 +49,11 @@ pub async fn run(cfg: &Config, dry_run: bool) -> Result<ScenarioResult> {
         return run_dry(cfg).await;
     }
 
-    let proj_url = std::env::var("PROJECTIONS_DATABASE_URL")
-        .unwrap_or_else(|_| cfg.database_url.clone());
-    let pool = pg_pool(&proj_url, 8).await.context("projections DB connect")?;
+    let proj_url =
+        std::env::var("PROJECTIONS_DATABASE_URL").unwrap_or_else(|_| cfg.database_url.clone());
+    let pool = pg_pool(&proj_url, 8)
+        .await
+        .context("projections DB connect")?;
 
     let tenant_count = cfg.tenant_count;
     let events_per_tenant = cfg.events_per_tenant;
@@ -305,8 +307,7 @@ async fn measure_lag(
     let consumer = tokio::spawn(async move {
         while let Some(msg) = subscriber.next().await {
             let recv_ns = now_nanos();
-            if let Ok(env) =
-                serde_json::from_slice::<EventEnvelope<ProjBenchPayload>>(&msg.payload)
+            if let Ok(env) = serde_json::from_slice::<EventEnvelope<ProjBenchPayload>>(&msg.payload)
             {
                 let sent_ns = env.payload.sent_at_ns;
                 let lag_ms = recv_ns.saturating_sub(sent_ns) as f64 / 1_000_000.0;
@@ -348,7 +349,10 @@ async fn measure_lag(
     'publish: for ti in 0..tenant_count {
         for si in 0..events_per_tenant {
             if Instant::now() >= pub_deadline {
-                info!("projections: lag publish deadline reached at event {}", pub_count);
+                info!(
+                    "projections: lag publish deadline reached at event {}",
+                    pub_count
+                );
                 break 'publish;
             }
             let tenant_id = format!("bench-tenant-{:04}", ti);
@@ -371,7 +375,10 @@ async fn measure_lag(
         }
     }
     let _ = pub_nc.flush().await;
-    info!("projections: lag phase published {} events, draining…", pub_count);
+    info!(
+        "projections: lag phase published {} events, draining…",
+        pub_count
+    );
 
     let mut lag_values: Vec<f64> = Vec::with_capacity(pub_count);
     let drain_end = Instant::now() + Duration::from_secs(duration_secs);
@@ -407,9 +414,11 @@ async fn measure_lag(
 }
 
 async fn run_dry(cfg: &Config) -> Result<ScenarioResult> {
-    let proj_url = std::env::var("PROJECTIONS_DATABASE_URL")
-        .unwrap_or_else(|_| cfg.database_url.clone());
-    let pool = pg_pool(&proj_url, 2).await.context("dry-run: projections DB")?;
+    let proj_url =
+        std::env::var("PROJECTIONS_DATABASE_URL").unwrap_or_else(|_| cfg.database_url.clone());
+    let pool = pg_pool(&proj_url, 2)
+        .await
+        .context("dry-run: projections DB")?;
 
     let mut samples = MetricsSamples::new();
     let wall = Timer::start();
@@ -428,9 +437,7 @@ async fn run_dry(cfg: &Config) -> Result<ScenarioResult> {
         passed: true,
         metrics: samples.to_json(),
         threshold_violations: vec![],
-        notes: Some(
-            "dry-run: 5 projections-DB pings (connectivity check only)".to_string(),
-        ),
+        notes: Some("dry-run: 5 projections-DB pings (connectivity check only)".to_string()),
     })
 }
 

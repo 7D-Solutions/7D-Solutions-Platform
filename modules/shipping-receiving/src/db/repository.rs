@@ -102,13 +102,11 @@ impl ShipmentRepository {
         id: Uuid,
         tenant_id: Uuid,
     ) -> Result<Option<Shipment>, sqlx::Error> {
-        sqlx::query_as::<_, Shipment>(
-            "SELECT * FROM shipments WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await
+        sqlx::query_as::<_, Shipment>("SELECT * FROM shipments WHERE id = $1 AND tenant_id = $2")
+            .bind(id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await
     }
 
     pub async fn get_shipment_for_update(
@@ -396,16 +394,12 @@ impl ShipmentRepository {
     // ── Idempotency ──────────────────────────────────────────
 
     /// Check if an event has already been processed. Returns true if so.
-    pub async fn is_event_processed(
-        pool: &PgPool,
-        event_id: Uuid,
-    ) -> Result<bool, sqlx::Error> {
-        let row: Option<(i32,)> = sqlx::query_as(
-            "SELECT 1 as x FROM sr_processed_events WHERE event_id = $1",
-        )
-        .bind(event_id)
-        .fetch_optional(pool)
-        .await?;
+    pub async fn is_event_processed(pool: &PgPool, event_id: Uuid) -> Result<bool, sqlx::Error> {
+        let row: Option<(i32,)> =
+            sqlx::query_as("SELECT 1 as x FROM sr_processed_events WHERE event_id = $1")
+                .bind(event_id)
+                .fetch_optional(pool)
+                .await?;
         Ok(row.is_some())
     }
 

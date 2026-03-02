@@ -68,14 +68,10 @@ pub struct CreateAddressRequest {
 impl CreateAddressRequest {
     pub fn validate(&self) -> Result<(), PartyError> {
         if self.line1.trim().is_empty() {
-            return Err(PartyError::Validation(
-                "line1 cannot be empty".to_string(),
-            ));
+            return Err(PartyError::Validation("line1 cannot be empty".to_string()));
         }
         if self.city.trim().is_empty() {
-            return Err(PartyError::Validation(
-                "city cannot be empty".to_string(),
-            ));
+            return Err(PartyError::Validation("city cannot be empty".to_string()));
         }
         if let Some(ref t) = self.address_type {
             validate_address_type(t)?;
@@ -106,16 +102,12 @@ impl UpdateAddressRequest {
     pub fn validate(&self) -> Result<(), PartyError> {
         if let Some(ref line) = self.line1 {
             if line.trim().is_empty() {
-                return Err(PartyError::Validation(
-                    "line1 cannot be empty".to_string(),
-                ));
+                return Err(PartyError::Validation("line1 cannot be empty".to_string()));
             }
         }
         if let Some(ref city) = self.city {
             if city.trim().is_empty() {
-                return Err(PartyError::Validation(
-                    "city cannot be empty".to_string(),
-                ));
+                return Err(PartyError::Validation("city cannot be empty".to_string()));
             }
         }
         if let Some(ref t) = self.address_type {

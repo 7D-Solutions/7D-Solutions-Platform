@@ -32,8 +32,7 @@ use super::{MUTATION_CLASS_DATA_MUTATION, SHIPPING_RECEIVING_EVENT_SCHEMA_VERSIO
 pub const EVENT_TYPE_SHIPMENT_CREATED: &str = "shipping_receiving.shipment_created";
 
 /// A shipment transitioned from one status to another
-pub const EVENT_TYPE_SHIPMENT_STATUS_CHANGED: &str =
-    "shipping_receiving.shipment_status_changed";
+pub const EVENT_TYPE_SHIPMENT_STATUS_CHANGED: &str = "shipping_receiving.shipment_status_changed";
 
 /// An inbound shipment was fully received and closed
 pub const EVENT_TYPE_INBOUND_CLOSED: &str = "shipping_receiving.inbound_closed";

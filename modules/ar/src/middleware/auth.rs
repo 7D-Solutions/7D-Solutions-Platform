@@ -32,11 +32,7 @@ use tracing::{debug, warn};
 ///     .route("/api/version", get(health::version))
 ///     .layer(middleware::from_fn(service_auth_middleware));
 /// ```
-pub async fn service_auth_middleware(
-    headers: HeaderMap,
-    request: Request,
-    next: Next,
-) -> Response {
+pub async fn service_auth_middleware(headers: HeaderMap, request: Request, next: Next) -> Response {
     // Extract Authorization header
     let auth_header = match headers.get("authorization") {
         Some(value) => value,
@@ -88,7 +84,10 @@ pub async fn service_auth_middleware(
     // Verify token
     match verify_service_token(token) {
         Ok(claims) => {
-            debug!("Authenticated service request from: {}", claims.service_name);
+            debug!(
+                "Authenticated service request from: {}",
+                claims.service_name
+            );
             next.run(request).await
         }
         Err(e) => {

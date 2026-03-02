@@ -29,7 +29,9 @@ use uuid::Uuid;
 
 use crate::domain::txns::{
     models::InsertBankTxnRequest,
-    service::{default_account_id, insert_bank_txn_tx, is_event_processed, record_processed_event_tx},
+    service::{
+        default_account_id, insert_bank_txn_tx, is_event_processed, record_processed_event_tx,
+    },
 };
 
 // ============================================================================
@@ -84,7 +86,13 @@ pub async fn handle_payment_succeeded(
 
     let mut tx = pool.begin().await?;
 
-    record_processed_event_tx(&mut tx, event_id, "payment.succeeded", "treasury:payments-consumer").await?;
+    record_processed_event_tx(
+        &mut tx,
+        event_id,
+        "payment.succeeded",
+        "treasury:payments-consumer",
+    )
+    .await?;
 
     let inserted = match account_id {
         None => {
@@ -150,7 +158,13 @@ pub async fn handle_ap_payment_executed(
 
     let mut tx = pool.begin().await?;
 
-    record_processed_event_tx(&mut tx, event_id, "ap.payment_executed", "treasury:payments-consumer").await?;
+    record_processed_event_tx(
+        &mut tx,
+        event_id,
+        "ap.payment_executed",
+        "treasury:payments-consumer",
+    )
+    .await?;
 
     let inserted = match account_id {
         None => {
@@ -173,9 +187,10 @@ pub async fn handle_ap_payment_executed(
                     "AP payment — vendor {} via {}",
                     payload.vendor_id, payload.payment_method
                 )),
-                reference: payload.bank_reference.clone().or_else(|| {
-                    Some(payload.payment_id.to_string())
-                }),
+                reference: payload
+                    .bank_reference
+                    .clone()
+                    .or_else(|| Some(payload.payment_id.to_string())),
                 external_id: event_id.to_string(),
                 auth_date: None,
                 settle_date: None,
@@ -261,9 +276,8 @@ async fn process_payment_succeeded_msg(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let envelope: EventEnvelope<PaymentSucceededPayload> =
-        serde_json::from_slice(&msg.payload)
-            .map_err(|e| format!("parse payment.succeeded envelope: {e}"))?;
+    let envelope: EventEnvelope<PaymentSucceededPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| format!("parse payment.succeeded envelope: {e}"))?;
 
     tracing::info!(
         event_id = %envelope.event_id,
@@ -271,7 +285,13 @@ async fn process_payment_succeeded_msg(
         "treasury: processing payment.succeeded"
     );
 
-    handle_payment_succeeded(pool, envelope.event_id, &envelope.tenant_id, &envelope.payload).await?;
+    handle_payment_succeeded(
+        pool,
+        envelope.event_id,
+        &envelope.tenant_id,
+        &envelope.payload,
+    )
+    .await?;
     Ok(())
 }
 
@@ -279,9 +299,8 @@ async fn process_ap_payment_executed_msg(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let envelope: EventEnvelope<ApPaymentExecutedPayload> =
-        serde_json::from_slice(&msg.payload)
-            .map_err(|e| format!("parse ap.payment_executed envelope: {e}"))?;
+    let envelope: EventEnvelope<ApPaymentExecutedPayload> = serde_json::from_slice(&msg.payload)
+        .map_err(|e| format!("parse ap.payment_executed envelope: {e}"))?;
 
     tracing::info!(
         event_id = %envelope.event_id,
@@ -289,7 +308,13 @@ async fn process_ap_payment_executed_msg(
         "treasury: processing ap.payment_executed"
     );
 
-    handle_ap_payment_executed(pool, envelope.event_id, &envelope.tenant_id, &envelope.payload).await?;
+    handle_ap_payment_executed(
+        pool,
+        envelope.event_id,
+        &envelope.tenant_id,
+        &envelope.payload,
+    )
+    .await?;
     Ok(())
 }
 

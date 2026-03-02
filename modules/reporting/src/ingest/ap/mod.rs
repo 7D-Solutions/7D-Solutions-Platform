@@ -118,8 +118,17 @@ impl StreamHandler for ApBillCreatedHandler {
         };
 
         upsert_aging_add(
-            pool, tenant_id, as_of, &p.vendor_id, &p.currency,
-            current, b1_30, b31_60, b61_90, over_90, p.total_minor,
+            pool,
+            tenant_id,
+            as_of,
+            &p.vendor_id,
+            &p.currency,
+            current,
+            b1_30,
+            b31_60,
+            b61_90,
+            over_90,
+            p.total_minor,
         )
         .await
     }
@@ -142,8 +151,15 @@ impl StreamHandler for ApBillVoidedHandler {
             .map_err(|e| anyhow::anyhow!("Failed to parse bill voided payload: {}", e))?;
 
         let as_of = Utc::now().date_naive();
-        upsert_aging_subtract(pool, tenant_id, as_of, &p.vendor_id, &p.currency, p.original_total_minor)
-            .await
+        upsert_aging_subtract(
+            pool,
+            tenant_id,
+            as_of,
+            &p.vendor_id,
+            &p.currency,
+            p.original_total_minor,
+        )
+        .await
     }
 }
 
@@ -164,8 +180,15 @@ impl StreamHandler for ApPaymentExecutedHandler {
             .map_err(|e| anyhow::anyhow!("Failed to parse payment executed payload: {}", e))?;
 
         let as_of = Utc::now().date_naive();
-        upsert_aging_subtract(pool, tenant_id, as_of, &p.vendor_id, &p.currency, p.amount_minor)
-            .await
+        upsert_aging_subtract(
+            pool,
+            tenant_id,
+            as_of,
+            &p.vendor_id,
+            &p.currency,
+            p.amount_minor,
+        )
+        .await
     }
 }
 
@@ -251,7 +274,9 @@ async fn upsert_aging_subtract(
 
     if result.rows_affected() == 0 {
         tracing::debug!(
-            tenant_id, vendor_id, currency,
+            tenant_id,
+            vendor_id,
+            currency,
             "No AP aging row for today to subtract from; skipping"
         );
     }

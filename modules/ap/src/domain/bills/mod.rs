@@ -100,7 +100,10 @@ impl BillStatus {
             "partially_paid" => Ok(BillStatus::PartiallyPaid),
             "paid" => Ok(BillStatus::Paid),
             "voided" => Ok(BillStatus::Voided),
-            other => Err(BillError::Validation(format!("Unknown bill status: '{}'", other))),
+            other => Err(BillError::Validation(format!(
+                "Unknown bill status: '{}'",
+                other
+            ))),
         }
     }
 
@@ -231,7 +234,9 @@ pub struct ApproveBillRequest {
 impl ApproveBillRequest {
     pub fn validate(&self) -> Result<(), BillError> {
         if self.approved_by.trim().is_empty() {
-            return Err(BillError::Validation("approved_by cannot be empty".to_string()));
+            return Err(BillError::Validation(
+                "approved_by cannot be empty".to_string(),
+            ));
         }
         Ok(())
     }
@@ -253,10 +258,14 @@ pub struct VoidBillRequest {
 impl VoidBillRequest {
     pub fn validate(&self) -> Result<(), BillError> {
         if self.voided_by.trim().is_empty() {
-            return Err(BillError::Validation("voided_by cannot be empty".to_string()));
+            return Err(BillError::Validation(
+                "voided_by cannot be empty".to_string(),
+            ));
         }
         if self.void_reason.trim().is_empty() {
-            return Err(BillError::Validation("void_reason cannot be empty".to_string()));
+            return Err(BillError::Validation(
+                "void_reason cannot be empty".to_string(),
+            ));
         }
         Ok(())
     }
@@ -275,7 +284,9 @@ impl CreateBillRequest {
         }
         validate_currency_code(&self.currency)?;
         if self.entered_by.trim().is_empty() {
-            return Err(BillError::Validation("entered_by cannot be empty".to_string()));
+            return Err(BillError::Validation(
+                "entered_by cannot be empty".to_string(),
+            ));
         }
         if self.lines.is_empty() {
             return Err(BillError::EmptyLines);
@@ -397,7 +408,14 @@ mod tests {
 
     #[test]
     fn status_from_str_roundtrips() {
-        for s in ["open", "matched", "approved", "partially_paid", "paid", "voided"] {
+        for s in [
+            "open",
+            "matched",
+            "approved",
+            "partially_paid",
+            "paid",
+            "voided",
+        ] {
             let status = BillStatus::from_str(s).expect(s);
             assert_eq!(status.as_str(), s);
         }
@@ -478,7 +496,10 @@ mod tests {
 
     #[test]
     fn approve_request_rejects_empty_approved_by() {
-        let req = ApproveBillRequest { approved_by: "  ".to_string(), override_reason: None };
+        let req = ApproveBillRequest {
+            approved_by: "  ".to_string(),
+            override_reason: None,
+        };
         assert!(req.validate().is_err());
     }
 

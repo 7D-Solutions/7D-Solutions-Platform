@@ -4,8 +4,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::events::envelope::{create_ar_envelope, EventEnvelope};
 use super::{AR_EVENT_SCHEMA_VERSION, MUTATION_CLASS_DATA_MUTATION};
+use crate::events::envelope::{create_ar_envelope, EventEnvelope};
 
 // ============================================================================
 // Event Type Constants

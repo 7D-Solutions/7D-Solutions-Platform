@@ -21,7 +21,7 @@ pub struct PeriodSummaryResponse {
     pub total_debits_minor: i64,
     pub total_credits_minor: i64,
     pub is_balanced: bool,
-    pub data_source: String, // "snapshot" or "computed"
+    pub data_source: String,                 // "snapshot" or "computed"
     pub snapshot_created_at: Option<String>, // ISO 8601 timestamp if from snapshot
 }
 
@@ -76,8 +76,8 @@ pub async fn get_period_summary(
     }
 
     // Query period summary from repository
-    let summary = period_summary_repo::find_period_summary(pool, tenant_id, period_id, currency)
-        .await?;
+    let summary =
+        period_summary_repo::find_period_summary(pool, tenant_id, period_id, currency).await?;
 
     // Check if balanced
     let is_balanced = summary.total_debits_minor == summary.total_credits_minor;
@@ -90,9 +90,7 @@ pub async fn get_period_summary(
     };
 
     // Format snapshot timestamp if present
-    let snapshot_created_at = summary
-        .snapshot_created_at
-        .map(|dt| dt.to_rfc3339());
+    let snapshot_created_at = summary.snapshot_created_at.map(|dt| dt.to_rfc3339());
 
     Ok(PeriodSummaryResponse {
         tenant_id: summary.tenant_id,

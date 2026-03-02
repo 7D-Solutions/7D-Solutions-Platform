@@ -207,11 +207,28 @@ mod tests {
             SHIPPING_RECEIVING_MUTATE,
         ];
         for perm in &mutate_perms {
-            assert!(perm.contains('.'), "Permission '{}' must contain a dot", perm);
+            assert!(
+                perm.contains('.'),
+                "Permission '{}' must contain a dot",
+                perm
+            );
             let parts: Vec<&str> = perm.splitn(2, '.').collect();
-            assert_eq!(parts.len(), 2, "Permission '{}' must have exactly one dot", perm);
-            assert!(!parts[0].is_empty(), "Module prefix in '{}' must not be empty", perm);
-            assert!(!parts[1].is_empty(), "Action in '{}' must not be empty", perm);
+            assert_eq!(
+                parts.len(),
+                2,
+                "Permission '{}' must have exactly one dot",
+                perm
+            );
+            assert!(
+                !parts[0].is_empty(),
+                "Module prefix in '{}' must not be empty",
+                perm
+            );
+            assert!(
+                !parts[1].is_empty(),
+                "Action in '{}' must not be empty",
+                perm
+            );
         }
     }
 

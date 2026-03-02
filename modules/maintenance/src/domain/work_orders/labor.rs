@@ -61,11 +61,8 @@ pub enum WoLaborError {
 
 // ── Lifecycle guard ───────────────────────────────────────────
 
-const IMMUTABLE_STATUSES: &[WoStatus] = &[
-    WoStatus::Completed,
-    WoStatus::Closed,
-    WoStatus::Cancelled,
-];
+const IMMUTABLE_STATUSES: &[WoStatus] =
+    &[WoStatus::Completed, WoStatus::Closed, WoStatus::Cancelled];
 
 fn check_modifiable(status: WoStatus) -> Result<(), WoLaborError> {
     if IMMUTABLE_STATUSES.contains(&status) {
@@ -84,17 +81,17 @@ impl WoLaborRepo {
         wo_id: Uuid,
         tenant_id: &str,
     ) -> Result<WoStatus, WoLaborError> {
-        let row: Option<(String,)> = sqlx::query_as(
-            "SELECT status FROM work_orders WHERE id = $1 AND tenant_id = $2",
-        )
-        .bind(wo_id)
-        .bind(tenant_id)
-        .fetch_optional(pool)
-        .await?;
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT status FROM work_orders WHERE id = $1 AND tenant_id = $2")
+                .bind(wo_id)
+                .bind(tenant_id)
+                .fetch_optional(pool)
+                .await?;
 
         match row {
-            Some((s,)) => WoStatus::from_str_value(&s)
-                .map_err(|e| WoLaborError::Validation(e.to_string())),
+            Some((s,)) => {
+                WoStatus::from_str_value(&s).map_err(|e| WoLaborError::Validation(e.to_string()))
+            }
             None => Err(WoLaborError::WoNotFound),
         }
     }
@@ -125,9 +122,7 @@ impl WoLaborRepo {
             ));
         }
         if req.rate_minor < 0 {
-            return Err(WoLaborError::Validation(
-                "rate_minor must be >= 0".into(),
-            ));
+            return Err(WoLaborError::Validation("rate_minor must be >= 0".into()));
         }
 
         let status = Self::wo_status(pool, wo_id, &req.tenant_id).await?;

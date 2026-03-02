@@ -219,12 +219,12 @@ pub fn validate_merchant_context_for_financial(envelope: &serde_json::Value) -> 
     }
 
     // merchant_context is required for financial events
-    let ctx = envelope
-        .get("merchant_context")
-        .ok_or_else(|| format!(
+    let ctx = envelope.get("merchant_context").ok_or_else(|| {
+        format!(
             "merchant_context is required for financial module '{}' with mutation_class '{}'",
             source_module, mutation_class
-        ))?;
+        )
+    })?;
 
     // Must have a "type" field
     let ctx_type = ctx

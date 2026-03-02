@@ -96,10 +96,7 @@ pub fn outbound_transitions(from: OutboundStatus) -> &'static [OutboundStatus] {
 }
 
 /// Validate that transitioning from `from` to `to` is allowed for outbound shipments.
-pub fn validate_outbound(
-    from: OutboundStatus,
-    to: OutboundStatus,
-) -> Result<(), TransitionError> {
+pub fn validate_outbound(from: OutboundStatus, to: OutboundStatus) -> Result<(), TransitionError> {
     if from == to {
         return Err(TransitionError::OutboundNoOp { status: from });
     }
@@ -123,14 +120,22 @@ mod tests {
     fn inbound_allowed_transitions() {
         use InboundStatus::*;
         let allowed = [
-            (Draft, Confirmed), (Draft, Cancelled),
-            (Confirmed, InTransit), (Confirmed, Cancelled),
-            (InTransit, Arrived), (InTransit, Cancelled),
-            (Arrived, Receiving), (Arrived, Cancelled),
-            (Receiving, Closed), (Receiving, Cancelled),
+            (Draft, Confirmed),
+            (Draft, Cancelled),
+            (Confirmed, InTransit),
+            (Confirmed, Cancelled),
+            (InTransit, Arrived),
+            (InTransit, Cancelled),
+            (Arrived, Receiving),
+            (Arrived, Cancelled),
+            (Receiving, Closed),
+            (Receiving, Cancelled),
         ];
         for (from, to) in &allowed {
-            assert!(validate_inbound(*from, *to).is_ok(), "{from} → {to} should be allowed");
+            assert!(
+                validate_inbound(*from, *to).is_ok(),
+                "{from} → {to} should be allowed"
+            );
         }
     }
 
@@ -140,7 +145,9 @@ mod tests {
     fn inbound_closed_is_terminal() {
         assert_eq!(
             validate_inbound(InboundStatus::Closed, InboundStatus::Draft).unwrap_err(),
-            TransitionError::InboundFromTerminal { from: InboundStatus::Closed },
+            TransitionError::InboundFromTerminal {
+                from: InboundStatus::Closed
+            },
         );
     }
 
@@ -148,7 +155,9 @@ mod tests {
     fn inbound_cancelled_is_terminal() {
         assert_eq!(
             validate_inbound(InboundStatus::Cancelled, InboundStatus::Draft).unwrap_err(),
-            TransitionError::InboundFromTerminal { from: InboundStatus::Cancelled },
+            TransitionError::InboundFromTerminal {
+                from: InboundStatus::Cancelled
+            },
         );
     }
 
@@ -156,7 +165,9 @@ mod tests {
     fn inbound_no_op_same_status() {
         assert_eq!(
             validate_inbound(InboundStatus::Draft, InboundStatus::Draft).unwrap_err(),
-            TransitionError::InboundNoOp { status: InboundStatus::Draft },
+            TransitionError::InboundNoOp {
+                status: InboundStatus::Draft
+            },
         );
     }
 
@@ -167,7 +178,10 @@ mod tests {
         for (from, to) in &forbidden {
             assert_eq!(
                 validate_inbound(*from, *to).unwrap_err(),
-                TransitionError::InboundNotAllowed { from: *from, to: *to },
+                TransitionError::InboundNotAllowed {
+                    from: *from,
+                    to: *to
+                },
                 "{from} → {to} should be forbidden",
             );
         }
@@ -207,15 +221,24 @@ mod tests {
     fn outbound_allowed_transitions() {
         use OutboundStatus::*;
         let allowed = [
-            (Draft, Confirmed), (Draft, Cancelled),
-            (Confirmed, Picking), (Confirmed, Cancelled),
-            (Picking, Packed), (Picking, Cancelled),
-            (Packed, Shipped), (Packed, Cancelled),
-            (Shipped, Delivered), (Shipped, Cancelled),
-            (Delivered, Closed), (Delivered, Cancelled),
+            (Draft, Confirmed),
+            (Draft, Cancelled),
+            (Confirmed, Picking),
+            (Confirmed, Cancelled),
+            (Picking, Packed),
+            (Picking, Cancelled),
+            (Packed, Shipped),
+            (Packed, Cancelled),
+            (Shipped, Delivered),
+            (Shipped, Cancelled),
+            (Delivered, Closed),
+            (Delivered, Cancelled),
         ];
         for (from, to) in &allowed {
-            assert!(validate_outbound(*from, *to).is_ok(), "{from} → {to} should be allowed");
+            assert!(
+                validate_outbound(*from, *to).is_ok(),
+                "{from} → {to} should be allowed"
+            );
         }
     }
 
@@ -225,7 +248,9 @@ mod tests {
     fn outbound_closed_is_terminal() {
         assert_eq!(
             validate_outbound(OutboundStatus::Closed, OutboundStatus::Draft).unwrap_err(),
-            TransitionError::OutboundFromTerminal { from: OutboundStatus::Closed },
+            TransitionError::OutboundFromTerminal {
+                from: OutboundStatus::Closed
+            },
         );
     }
 
@@ -233,7 +258,9 @@ mod tests {
     fn outbound_cancelled_is_terminal() {
         assert_eq!(
             validate_outbound(OutboundStatus::Cancelled, OutboundStatus::Draft).unwrap_err(),
-            TransitionError::OutboundFromTerminal { from: OutboundStatus::Cancelled },
+            TransitionError::OutboundFromTerminal {
+                from: OutboundStatus::Cancelled
+            },
         );
     }
 
@@ -241,7 +268,9 @@ mod tests {
     fn outbound_no_op_same_status() {
         assert_eq!(
             validate_outbound(OutboundStatus::Draft, OutboundStatus::Draft).unwrap_err(),
-            TransitionError::OutboundNoOp { status: OutboundStatus::Draft },
+            TransitionError::OutboundNoOp {
+                status: OutboundStatus::Draft
+            },
         );
     }
 
@@ -249,13 +278,18 @@ mod tests {
     fn outbound_forbidden_skips() {
         use OutboundStatus::*;
         let forbidden = [
-            (Draft, Shipped), (Draft, Closed),
-            (Packed, Delivered), (Shipped, Closed),
+            (Draft, Shipped),
+            (Draft, Closed),
+            (Packed, Delivered),
+            (Shipped, Closed),
         ];
         for (from, to) in &forbidden {
             assert_eq!(
                 validate_outbound(*from, *to).unwrap_err(),
-                TransitionError::OutboundNotAllowed { from: *from, to: *to },
+                TransitionError::OutboundNotAllowed {
+                    from: *from,
+                    to: *to
+                },
                 "{from} → {to} should be forbidden",
             );
         }

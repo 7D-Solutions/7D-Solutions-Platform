@@ -71,7 +71,9 @@ pub struct GlCloseStatusResponse {
 #[serde(tag = "type")]
 pub enum GlCloseStatus {
     Open,
-    CloseRequested { requested_at: String },
+    CloseRequested {
+        requested_at: String,
+    },
     Closed {
         closed_at: String,
         closed_by: String,
@@ -130,7 +132,10 @@ impl GlClient {
         tenant_id: &str,
         period_id: Uuid,
     ) -> Result<GlCloseStatusResponse, GlClientError> {
-        let url = format!("{}/api/gl/periods/{}/close-status", self.base_url, period_id);
+        let url = format!(
+            "{}/api/gl/periods/{}/close-status",
+            self.base_url, period_id
+        );
         let resp = self
             .client
             .get(&url)
@@ -240,12 +245,7 @@ impl GlClient {
         });
 
         let url = format!("{}/api/gl/journal-entries", self.base_url);
-        let resp = self
-            .client
-            .post(&url)
-            .json(&body)
-            .send()
-            .await?;
+        let resp = self.client.post(&url).json(&body).send().await?;
 
         if !resp.status().is_success() {
             let status = resp.status().as_u16();

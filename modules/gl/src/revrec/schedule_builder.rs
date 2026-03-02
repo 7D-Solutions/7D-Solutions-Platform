@@ -102,10 +102,8 @@ fn generate_ratable_lines(
         return Err(ScheduleBuildError::InvalidPeriodMonths(period_months));
     }
 
-    let start_date =
-        NaiveDate::parse_from_str(&obligation.satisfaction_start, "%Y-%m-%d").map_err(|_| {
-            ScheduleBuildError::InvalidStartDate(obligation.satisfaction_start.clone())
-        })?;
+    let start_date = NaiveDate::parse_from_str(&obligation.satisfaction_start, "%Y-%m-%d")
+        .map_err(|_| ScheduleBuildError::InvalidStartDate(obligation.satisfaction_start.clone()))?;
 
     let total = obligation.allocated_amount_minor;
     let n = period_months as i64;
@@ -151,10 +149,8 @@ fn generate_ratable_lines(
 fn generate_point_in_time_lines(
     obligation: &PerformanceObligation,
 ) -> Result<Vec<ScheduleLine>, ScheduleBuildError> {
-    let start_date =
-        NaiveDate::parse_from_str(&obligation.satisfaction_start, "%Y-%m-%d").map_err(|_| {
-            ScheduleBuildError::InvalidStartDate(obligation.satisfaction_start.clone())
-        })?;
+    let start_date = NaiveDate::parse_from_str(&obligation.satisfaction_start, "%Y-%m-%d")
+        .map_err(|_| ScheduleBuildError::InvalidStartDate(obligation.satisfaction_start.clone()))?;
 
     let period = format!("{:04}-{:02}", start_date.year(), start_date.month());
 
@@ -224,7 +220,11 @@ mod tests {
         }
 
         // Sum must equal total
-        let sum: i64 = payload.lines.iter().map(|l| l.amount_to_recognize_minor).sum();
+        let sum: i64 = payload
+            .lines
+            .iter()
+            .map(|l| l.amount_to_recognize_minor)
+            .sum();
         assert_eq!(sum, 120000_00);
     }
 
@@ -248,7 +248,11 @@ mod tests {
         assert_eq!(payload.lines[1].amount_to_recognize_minor, 3333);
         assert_eq!(payload.lines[2].amount_to_recognize_minor, 3333);
 
-        let sum: i64 = payload.lines.iter().map(|l| l.amount_to_recognize_minor).sum();
+        let sum: i64 = payload
+            .lines
+            .iter()
+            .map(|l| l.amount_to_recognize_minor)
+            .sum();
         assert_eq!(sum, 10000);
     }
 
@@ -275,7 +279,11 @@ mod tests {
             assert_eq!(payload.lines[i].amount_to_recognize_minor, 1428);
         }
 
-        let sum: i64 = payload.lines.iter().map(|l| l.amount_to_recognize_minor).sum();
+        let sum: i64 = payload
+            .lines
+            .iter()
+            .map(|l| l.amount_to_recognize_minor)
+            .sum();
         assert_eq!(sum, 10000);
     }
 

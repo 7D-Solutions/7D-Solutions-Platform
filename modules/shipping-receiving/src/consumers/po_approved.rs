@@ -62,8 +62,7 @@ pub async fn handle_po_approved(
     // Idempotency: skip if already processed
     let mut tx = pool.begin().await?;
     let is_new =
-        ShipmentRepository::mark_event_processed_tx(&mut tx, event_id, "ap.po.approved")
-            .await?;
+        ShipmentRepository::mark_event_processed_tx(&mut tx, event_id, "ap.po.approved").await?;
     if !is_new {
         tracing::info!(event_id = %event_id, "PO_APPROVED already processed, skipping");
         tx.rollback().await?;
@@ -170,8 +169,7 @@ async fn process_po_approved_message(
     pool: &PgPool,
     msg: &BusMessage,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let envelope: EventEnvelope<PoApprovedPayload> =
-        serde_json::from_slice(&msg.payload)?;
+    let envelope: EventEnvelope<PoApprovedPayload> = serde_json::from_slice(&msg.payload)?;
 
     tracing::info!(
         event_id = %envelope.event_id,
@@ -269,20 +267,17 @@ mod tests {
             .expect("handle failed");
 
         // Verify shipment created
-        let shipments = ShipmentRepository::list_shipments(
-            &pool, tid, Some("inbound"), None, 10, 0,
-        )
-        .await
-        .expect("list failed");
+        let shipments =
+            ShipmentRepository::list_shipments(&pool, tid, Some("inbound"), None, 10, 0)
+                .await
+                .expect("list failed");
         assert_eq!(shipments.len(), 1);
         assert_eq!(shipments[0].status, "draft");
 
         // Verify lines created
-        let lines = ShipmentRepository::get_lines_for_shipment(
-            &pool, shipments[0].id, tid,
-        )
-        .await
-        .expect("get lines failed");
+        let lines = ShipmentRepository::get_lines_for_shipment(&pool, shipments[0].id, tid)
+            .await
+            .expect("get lines failed");
         assert_eq!(lines.len(), 2);
         assert_eq!(lines[0].po_id, Some(payload.po_id));
 
@@ -306,11 +301,10 @@ mod tests {
             .await
             .expect("second handle must not error");
 
-        let shipments = ShipmentRepository::list_shipments(
-            &pool, tid, Some("inbound"), None, 10, 0,
-        )
-        .await
-        .expect("list failed");
+        let shipments =
+            ShipmentRepository::list_shipments(&pool, tid, Some("inbound"), None, 10, 0)
+                .await
+                .expect("list failed");
         assert_eq!(
             shipments.len(),
             1,

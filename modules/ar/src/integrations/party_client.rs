@@ -31,7 +31,11 @@ impl std::fmt::Display for PartyClientError {
         match self {
             Self::NotFound(id) => write!(f, "Party {} not found in Party Master", id),
             Self::TenantMismatch { expected, got } => {
-                write!(f, "Party tenant mismatch: expected {}, got {}", expected, got)
+                write!(
+                    f,
+                    "Party tenant mismatch: expected {}, got {}",
+                    expected, got
+                )
             }
             Self::ServiceUnavailable(msg) => {
                 write!(f, "Party Master unavailable: {}", msg)

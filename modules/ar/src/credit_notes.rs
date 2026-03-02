@@ -130,12 +130,20 @@ impl fmt::Display for CreditNoteError {
             }
             Self::InvalidAmount(n) => write!(f, "Amount must be > 0, got {}", n),
             Self::InvalidCurrency => write!(f, "Currency must not be empty"),
-            Self::OverCreditBalance { invoice_id, invoice_amount_cents, existing_credits, requested } => {
+            Self::OverCreditBalance {
+                invoice_id,
+                invoice_amount_cents,
+                existing_credits,
+                requested,
+            } => {
                 write!(
                     f,
                     "Credit of {} exceeds remaining balance ({} - {} = {}) on invoice {}",
-                    requested, invoice_amount_cents, existing_credits,
-                    invoice_amount_cents - existing_credits, invoice_id
+                    requested,
+                    invoice_amount_cents,
+                    existing_credits,
+                    invoice_amount_cents - existing_credits,
+                    invoice_id
                 )
             }
             Self::DatabaseError(msg) => write!(f, "Database error: {}", msg),
@@ -197,12 +205,11 @@ pub async fn issue_credit_note(
     };
 
     // 2. Idempotency check: try to insert, skip if credit_note_id already exists
-    let existing: Option<i32> = sqlx::query_scalar(
-        "SELECT id FROM ar_credit_notes WHERE credit_note_id = $1",
-    )
-    .bind(req.credit_note_id)
-    .fetch_optional(&mut *tx)
-    .await?;
+    let existing: Option<i32> =
+        sqlx::query_scalar("SELECT id FROM ar_credit_notes WHERE credit_note_id = $1")
+            .bind(req.credit_note_id)
+            .fetch_optional(&mut *tx)
+            .await?;
 
     if let Some(existing_row_id) = existing {
         tx.rollback().await?;
@@ -364,6 +371,9 @@ mod tests {
             existing_row_id: 1,
             credit_note_id: Uuid::new_v4(),
         };
-        assert!(matches!(dup, IssueCreditNoteResult::AlreadyProcessed { .. }));
+        assert!(matches!(
+            dup,
+            IssueCreditNoteResult::AlreadyProcessed { .. }
+        ));
     }
 }

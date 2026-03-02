@@ -11,11 +11,11 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use crate::{
-    domain::guards::{GuardError, guard_item_active, guard_quantity_positive},
+    domain::guards::{guard_item_active, guard_quantity_positive, GuardError},
     domain::status::models::InvItemStatus,
     events::{
+        status_changed::{build_status_changed_envelope, StatusChangedPayload},
         EVENT_TYPE_STATUS_CHANGED,
-        status_changed::{StatusChangedPayload, build_status_changed_envelope},
     },
 };
 
@@ -458,28 +458,40 @@ mod tests {
         let mut r = valid_req();
         r.from_status = InvItemStatus::Quarantine;
         r.to_status = InvItemStatus::Quarantine;
-        assert!(matches!(validate_request(&r), Err(StatusTransferError::SameStatus)));
+        assert!(matches!(
+            validate_request(&r),
+            Err(StatusTransferError::SameStatus)
+        ));
     }
 
     #[test]
     fn validate_rejects_empty_idempotency_key() {
         let mut r = valid_req();
         r.idempotency_key = "  ".to_string();
-        assert!(matches!(validate_request(&r), Err(StatusTransferError::Guard(_))));
+        assert!(matches!(
+            validate_request(&r),
+            Err(StatusTransferError::Guard(_))
+        ));
     }
 
     #[test]
     fn validate_rejects_empty_tenant() {
         let mut r = valid_req();
         r.tenant_id = "".to_string();
-        assert!(matches!(validate_request(&r), Err(StatusTransferError::Guard(_))));
+        assert!(matches!(
+            validate_request(&r),
+            Err(StatusTransferError::Guard(_))
+        ));
     }
 
     #[test]
     fn validate_rejects_zero_quantity() {
         let mut r = valid_req();
         r.quantity = 0;
-        assert!(matches!(validate_request(&r), Err(StatusTransferError::Guard(_))));
+        assert!(matches!(
+            validate_request(&r),
+            Err(StatusTransferError::Guard(_))
+        ));
     }
 
     #[test]

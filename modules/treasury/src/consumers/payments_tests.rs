@@ -155,7 +155,10 @@ async fn test_payment_succeeded_no_account_skips_gracefully() {
     let processed = is_event_processed(&pool, event_id)
         .await
         .expect("check failed");
-    assert!(processed, "event must be marked processed even without account");
+    assert!(
+        processed,
+        "event must be marked processed even without account"
+    );
 
     cleanup(&pool).await;
 }
@@ -175,13 +178,12 @@ async fn test_ap_payment_executed_creates_debit_txn() {
         .expect("handle failed");
     assert!(inserted, "expected row to be inserted");
 
-    let (amount,): (i64,) = sqlx::query_as(
-        "SELECT amount_minor FROM treasury_bank_transactions WHERE app_id = $1",
-    )
-    .bind(TEST_TENANT)
-    .fetch_one(&pool)
-    .await
-    .expect("row not found");
+    let (amount,): (i64,) =
+        sqlx::query_as("SELECT amount_minor FROM treasury_bank_transactions WHERE app_id = $1")
+            .bind(TEST_TENANT)
+            .fetch_one(&pool)
+            .await
+            .expect("row not found");
 
     assert_eq!(amount, -120000, "debit should be negative");
 
@@ -236,13 +238,12 @@ async fn test_tenant_isolation() {
         .expect("handle failed");
 
     // Other tenant sees no transactions
-    let (count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM treasury_bank_transactions WHERE app_id = $1",
-    )
-    .bind(other_tenant)
-    .fetch_one(&pool)
-    .await
-    .expect("count failed");
+    let (count,): (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM treasury_bank_transactions WHERE app_id = $1")
+            .bind(other_tenant)
+            .fetch_one(&pool)
+            .await
+            .expect("count failed");
     assert_eq!(count, 0, "other tenant must see zero transactions");
 
     cleanup(&pool).await;

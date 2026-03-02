@@ -20,8 +20,9 @@
 
 use crate::dunning::{DunningError, DunningStateValue};
 use crate::events::{
-    build_dunning_state_changed_envelope, build_invoice_suspended_envelope, DunningStateChangedPayload, InvoiceSuspendedPayload,
-    EVENT_TYPE_DUNNING_STATE_CHANGED, EVENT_TYPE_INVOICE_SUSPENDED,
+    build_dunning_state_changed_envelope, build_invoice_suspended_envelope,
+    DunningStateChangedPayload, InvoiceSuspendedPayload, EVENT_TYPE_DUNNING_STATE_CHANGED,
+    EVENT_TYPE_INVOICE_SUSPENDED,
 };
 use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
@@ -281,8 +282,8 @@ pub async fn claim_and_execute_one(
         payload,
     );
 
-    let payload_json = serde_json::to_value(&envelope)
-        .map_err(|e| DunningError::DatabaseError(e.to_string()))?;
+    let payload_json =
+        serde_json::to_value(&envelope).map_err(|e| DunningError::DatabaseError(e.to_string()))?;
 
     sqlx::query(
         r#"
@@ -356,13 +357,11 @@ pub async fn claim_and_execute_one(
     }
 
     // 6. Update outbox_event_id on the dunning record for correlation
-    sqlx::query(
-        "UPDATE ar_dunning_states SET outbox_event_id = $1 WHERE id = $2",
-    )
-    .bind(outbox_event_id)
-    .bind(row.id)
-    .execute(&mut *tx)
-    .await?;
+    sqlx::query("UPDATE ar_dunning_states SET outbox_event_id = $1 WHERE id = $2")
+        .bind(outbox_event_id)
+        .bind(row.id)
+        .execute(&mut *tx)
+        .await?;
 
     // 7. Commit the entire transaction atomically
     tx.commit().await?;

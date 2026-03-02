@@ -19,9 +19,7 @@ use serde_json::json;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::models::{
-    ErrorBody, RetentionConfig, SetRetentionRequest, TombstoneResponse,
-};
+use crate::models::{ErrorBody, RetentionConfig, SetRetentionRequest, TombstoneResponse};
 use crate::state::AppState;
 
 // ============================================================================
@@ -38,13 +36,12 @@ pub async fn get_retention(
     let mut conn = state.pool.acquire().await.map_err(db_err)?;
 
     // Verify tenant exists
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM tenants WHERE tenant_id = $1)",
-    )
-    .bind(tenant_id)
-    .fetch_one(&mut *conn)
-    .await
-    .map_err(db_err)?;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM tenants WHERE tenant_id = $1)")
+            .bind(tenant_id)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(db_err)?;
 
     if !exists {
         return Err((
@@ -131,13 +128,12 @@ pub async fn set_retention(
     let mut conn = state.pool.acquire().await.map_err(db_err)?;
 
     // Verify tenant exists
-    let exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM tenants WHERE tenant_id = $1)",
-    )
-    .bind(tenant_id)
-    .fetch_one(&mut *conn)
-    .await
-    .map_err(db_err)?;
+    let exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM tenants WHERE tenant_id = $1)")
+            .bind(tenant_id)
+            .fetch_one(&mut *conn)
+            .await
+            .map_err(db_err)?;
 
     if !exists {
         return Err((
@@ -200,13 +196,12 @@ pub async fn tombstone_tenant(
     let mut conn = state.pool.acquire().await.map_err(db_err)?;
 
     // Fetch tenant status
-    let status: Option<String> = sqlx::query_scalar(
-        "SELECT status FROM tenants WHERE tenant_id = $1",
-    )
-    .bind(tenant_id)
-    .fetch_optional(&mut *conn)
-    .await
-    .map_err(db_err)?;
+    let status: Option<String> =
+        sqlx::query_scalar("SELECT status FROM tenants WHERE tenant_id = $1")
+            .bind(tenant_id)
+            .fetch_optional(&mut *conn)
+            .await
+            .map_err(db_err)?;
 
     let status = match status {
         Some(s) => s,
@@ -403,7 +398,10 @@ mod retention_tests {
                 .await
                 .unwrap_or(None);
         // Unknown tenant has no row → tombstone precondition (tenant must exist) fails
-        assert!(status.is_none(), "Random UUID should not exist in tenants table");
+        assert!(
+            status.is_none(),
+            "Random UUID should not exist in tenants table"
+        );
     }
 
     /// GET retention for unknown tenant shows no policy row.

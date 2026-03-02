@@ -79,10 +79,7 @@ fn recon_error_response(e: ReconError) -> (StatusCode, Json<ReconErrorBody>) {
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(ReconErrorBody::new(
                 "currency_mismatch",
-                &format!(
-                    "Currency mismatch: {} vs {}",
-                    stmt_currency, txn_currency
-                ),
+                &format!("Currency mismatch: {} vs {}", stmt_currency, txn_currency),
             )),
         ),
         ReconError::Validation(msg) => (
@@ -93,7 +90,10 @@ fn recon_error_response(e: ReconError) -> (StatusCode, Json<ReconErrorBody>) {
             tracing::error!("Recon DB error: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ReconErrorBody::new("database_error", "Internal database error")),
+                Json(ReconErrorBody::new(
+                    "database_error",
+                    "Internal database error",
+                )),
             )
         }
     }
@@ -106,9 +106,8 @@ fn recon_error_response(e: ReconError) -> (StatusCode, Json<ReconErrorBody>) {
 fn tenant_from_claims(
     claims: &Option<Extension<VerifiedClaims>>,
 ) -> Result<String, (StatusCode, Json<ReconErrorBody>)> {
-    extract_tenant(claims).map_err(|(status, Json(e))| {
-        (status, Json(ReconErrorBody::new(&e.error, &e.message)))
-    })
+    extract_tenant(claims)
+        .map_err(|(status, Json(e))| (status, Json(ReconErrorBody::new(&e.error, &e.message))))
 }
 
 fn correlation(headers: &HeaderMap) -> String {
@@ -167,10 +166,15 @@ pub async fn list_matches(
 ) -> Result<Json<Vec<ReconMatch>>, (StatusCode, Json<ReconErrorBody>)> {
     let app_id = tenant_from_claims(&claims)?;
 
-    service::list_matches(&state.pool, &app_id, query.account_id, query.include_superseded)
-        .await
-        .map(Json)
-        .map_err(recon_error_response)
+    service::list_matches(
+        &state.pool,
+        &app_id,
+        query.account_id,
+        query.include_superseded,
+    )
+    .await
+    .map(Json)
+    .map_err(recon_error_response)
 }
 
 /// Unmatched query params — just account_id

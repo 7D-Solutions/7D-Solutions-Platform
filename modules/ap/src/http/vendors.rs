@@ -36,7 +36,10 @@ fn vendor_error_response(e: VendorError) -> (StatusCode, Json<ErrorBody>) {
     match e {
         VendorError::NotFound(id) => (
             StatusCode::NOT_FOUND,
-            Json(ErrorBody::new("vendor_not_found", &format!("Vendor {} not found", id))),
+            Json(ErrorBody::new(
+                "vendor_not_found",
+                &format!("Vendor {} not found", id),
+            )),
         ),
         VendorError::DuplicateName(name) => (
             StatusCode::CONFLICT,
@@ -99,10 +102,9 @@ pub async fn list_vendors(
 ) -> Result<Json<Vec<Vendor>>, (StatusCode, Json<ErrorBody>)> {
     let tenant_id = extract_tenant(&claims)?;
 
-    let vendors =
-        service::list_vendors(&state.pool, &tenant_id, query.include_inactive)
-            .await
-            .map_err(vendor_error_response)?;
+    let vendors = service::list_vendors(&state.pool, &tenant_id, query.include_inactive)
+        .await
+        .map_err(vendor_error_response)?;
 
     Ok(Json(vendors))
 }
@@ -142,10 +144,9 @@ pub async fn update_vendor(
     let tenant_id = extract_tenant(&claims)?;
     let correlation_id = correlation_from_headers(&headers);
 
-    let vendor =
-        service::update_vendor(&state.pool, &tenant_id, vendor_id, &req, correlation_id)
-            .await
-            .map_err(vendor_error_response)?;
+    let vendor = service::update_vendor(&state.pool, &tenant_id, vendor_id, &req, correlation_id)
+        .await
+        .map_err(vendor_error_response)?;
 
     Ok(Json(vendor))
 }
