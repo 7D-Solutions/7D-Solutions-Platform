@@ -47,14 +47,52 @@ for file in $STAGED_FILES; do
     done
 done
 
+# ============================================
+# Gate: Service Catalog Freshness
+# ============================================
+# If any Cargo.toml or docker-compose file is staged, regenerate the catalog
+# and check whether docs/PLATFORM-SERVICE-CATALOG.md needs updating.
+CATALOG_TRIGGER=false
+for file in $STAGED_FILES; do
+    case "$file" in
+        modules/*/Cargo.toml|platform/*/Cargo.toml|tools/*/Cargo.toml|\
+        docker-compose.services.yml|docker-compose.data.yml)
+            CATALOG_TRIGGER=true
+            break
+            ;;
+    esac
+done
+
+if [ "$CATALOG_TRIGGER" = true ]; then
+    REPO_ROOT="$(git rev-parse --show-toplevel)"
+    CATALOG="$REPO_ROOT/docs/PLATFORM-SERVICE-CATALOG.md"
+    GENERATOR="$REPO_ROOT/scripts/generate-service-catalog.sh"
+
+    if [ -x "$GENERATOR" ]; then
+        # Save current catalog, regenerate, compare
+        BEFORE=$(cat "$CATALOG" 2>/dev/null || true)
+        bash "$GENERATOR" >/dev/null 2>&1
+        AFTER=$(cat "$CATALOG" 2>/dev/null || true)
+
+        if [ "$BEFORE" != "$AFTER" ]; then
+            echo "" >&2
+            echo "❌ Service catalog is stale." >&2
+            echo "   The catalog has been regenerated for you." >&2
+            echo "   Stage it:  git add docs/PLATFORM-SERVICE-CATALOG.md" >&2
+            echo "" >&2
+            exit 1
+        fi
+    fi
+fi
+
+# ============================================
+# Gate 1: Version Bump Enforcement
+# ============================================
 # shellcheck disable=SC2128
 if [ -z "${TOUCHED_MODULES[*]:-}" ]; then
     exit 0
 fi
 
-# ============================================
-# Check each touched module
-# ============================================
 ERRORS=()
 
 for module_root in "${!TOUCHED_MODULES[@]}"; do
