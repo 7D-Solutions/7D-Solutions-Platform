@@ -9,6 +9,7 @@ members = [
   "platform/security",
   "platform/tax-core",
   "platform/health",
+  "platform/platform-contracts",
   "modules/ar",
   "modules/subscriptions",
   "modules/payments",

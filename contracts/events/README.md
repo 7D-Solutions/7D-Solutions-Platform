@@ -1,5 +1,8 @@
 # Event Contracts — 7D Solutions Platform
 
+> **Canonical conventions:** [ADR-016](../../docs/architecture/decisions/ADR-016-event-contract-conventions.md)
+> and the `platform_contracts` crate (`platform/platform-contracts/`).
+
 ## Transport Model
 
 Events are published over the platform event bus (e.g., NATS or equivalent).

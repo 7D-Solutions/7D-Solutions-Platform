@@ -4,6 +4,9 @@
 Define naming conventions and semantics for events across the platform.
 This standard complements the event envelope spec in `contracts/events/README.md`.
 
+> **Canonical reference:** [ADR-016](decisions/ADR-016-event-contract-conventions.md)
+> and the `platform_contracts` crate (`platform/platform-contracts/`).
+
 ---
 
 ## Event Name Format

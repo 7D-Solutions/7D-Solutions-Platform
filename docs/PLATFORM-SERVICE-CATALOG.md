@@ -54,6 +54,7 @@ Shared crates used by services. Not independently deployed.
 | audit | audit | 0.1.0 | Append-only audit trail with field-level diffs and policy enforcement |  |
 | event-bus | event-bus | 0.1.0 | NATS JetStream event bus with outbox relay, DLQ routing, and consumer retry |  |
 | health | health | 0.1.0 | Shared health and readiness check endpoints for all services |  |
+| platform-contracts | platform_contracts | 0.1.0 | Platform-wide event and command contract conventions — canonical types and constants |  |
 | projections | projections | 0.1.0 | Event projection framework with cursor tracking, rebuild, and blue-green swap |  |
 | security | security | 0.1.0 | Shared security middleware: RBAC, JWT verification, rate limiting, and service auth |  |
 | tax-core | tax-core | 0.1.0 | Shared tax models, TaxProvider trait, and error types for 7D platform modules |  |
