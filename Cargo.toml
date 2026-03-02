@@ -28,6 +28,7 @@ members = [
   "modules/shipping-receiving",
   "modules/reporting",
   "modules/pdf-editor",
+  "platform/doc-mgmt",
   "tools/contract-tests",
   "tools/simulation",
   "tools/tenantctl",

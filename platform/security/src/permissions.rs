@@ -101,6 +101,11 @@ pub const TRASHTECH_READ: &str = "trashtech.read";
 pub const SHIPPING_RECEIVING_MUTATE: &str = "shipping_receiving.mutate";
 pub const SHIPPING_RECEIVING_READ: &str = "shipping_receiving.read";
 
+// ── Document Management ─────────────────────────────────────────────────
+
+pub const DOC_MGMT_MUTATE: &str = "doc_mgmt.mutate";
+pub const DOC_MGMT_READ: &str = "doc_mgmt.read";
+
 #[cfg(test)]
 mod tests {
     use super::*;
