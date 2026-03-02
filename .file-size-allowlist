@@ -31,3 +31,4 @@ modules/payments/src/routes/checkout_sessions.rs       # 549 LOC — checkout se
 modules/maintenance/src/domain/work_orders/service.rs  # 532 LOC — WO service + GL cost payload (split in future bead)
 platform/doc-mgmt/src/handlers.rs                      # 1019 LOC — doc lifecycle handlers (pre-existing, split in future bead)
 platform/doc-mgmt/tests/real_e2e.rs                    # ~1400 LOC — doc-mgmt E2E integration tests (growing with each DOC bead)
+modules/numbering/tests/real_e2e.rs                    # ~1040 LOC — numbering E2E tests (gap-free + standard mode)
