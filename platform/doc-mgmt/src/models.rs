@@ -12,6 +12,7 @@ pub struct Document {
     pub title: String,
     pub doc_type: String,
     pub status: String,
+    pub superseded_by: Option<Uuid>,
     pub created_by: Uuid,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -25,6 +26,7 @@ pub struct Revision {
     pub revision_number: i32,
     pub body: serde_json::Value,
     pub change_summary: String,
+    pub status: String,
     pub created_by: Uuid,
     pub created_at: DateTime<Utc>,
 }
@@ -67,4 +69,19 @@ pub struct DocumentReleasedPayload {
     pub document_id: Uuid,
     pub doc_number: String,
     pub revision_number: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentSupersededPayload {
+    pub old_document_id: Uuid,
+    pub new_document_id: Uuid,
+    pub new_doc_number: String,
+    pub old_doc_number: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SupersedeRequest {
+    pub new_doc_number: String,
+    pub new_title: Option<String>,
+    pub change_summary: Option<String>,
 }

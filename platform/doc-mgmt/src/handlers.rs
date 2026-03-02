@@ -263,7 +263,7 @@ pub async fn release_document(
 
     // ── Guard: fetch document, verify tenant and status ──────────────
     let doc: Option<Document> = sqlx::query_as::<_, Document>(
-        "SELECT id, tenant_id, doc_number, title, doc_type, status, created_by, created_at, updated_at
+        "SELECT id, tenant_id, doc_number, title, doc_type, status, superseded_by, created_by, created_at, updated_at
          FROM documents WHERE id = $1 AND tenant_id = $2",
     )
     .bind(doc_id)
@@ -370,6 +370,23 @@ pub async fn release_document(
         Ok(_) => {}
     }
 
+    // Mark all revisions for this document as released (DB-enforced immutability)
+    if let Err(e) = sqlx::query(
+        "UPDATE revisions SET status = 'released' WHERE document_id = $1 AND tenant_id = $2 AND status = 'draft'",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await
+    {
+        let _ = tx.rollback().await;
+        tracing::error!(error = %e, "mark revisions released failed");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "internal error"})),
+        );
+    }
+
     if let Err(e) = sqlx::query(
         "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
     )
@@ -410,6 +427,269 @@ pub async fn release_document(
     (StatusCode::OK, Json(response_body))
 }
 
+// ── Supersede Document ───────────────────────────────────────────────
+//
+// Guard: document must exist, belong to tenant, be in 'released' state
+// Mutation: mark old doc as 'superseded', create new doc (draft) with linkage
+// Outbox: enqueue document.superseded event
+
+pub async fn supersede_document(
+    State(state): State<std::sync::Arc<AppState>>,
+    claims: Option<axum::Extension<security::VerifiedClaims>>,
+    headers: HeaderMap,
+    Path(doc_id): Path<Uuid>,
+    Json(req): Json<SupersedeRequest>,
+) -> impl IntoResponse {
+    let claims = match claims {
+        Some(axum::Extension(c)) => c,
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "unauthorized"})),
+            )
+        }
+    };
+
+    let tenant_id = claims.tenant_id;
+    let actor_id = claims.user_id;
+
+    if req.new_doc_number.is_empty() {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "new_doc_number is required"})),
+        );
+    }
+
+    // ── Idempotency check ────────────────────────────────────────────
+    let idem_key = extract_idem_key(&headers);
+    if let Some(ref key) = idem_key {
+        if let Ok(Some(cached)) = check_idempotency(&state.db, &tenant_id.to_string(), key).await
+        {
+            return (
+                StatusCode::from_u16(cached.status_code as u16).unwrap_or(StatusCode::OK),
+                Json(cached.response_body),
+            );
+        }
+    }
+
+    // ── Guard: fetch document, verify tenant and released status ──────
+    let mut tx = match state.db.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            tracing::error!(error = %e, "begin transaction failed");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "internal error"})),
+            );
+        }
+    };
+
+    let doc: Option<Document> = sqlx::query_as::<_, Document>(
+        "SELECT id, tenant_id, doc_number, title, doc_type, status, superseded_by, created_by, created_at, updated_at
+         FROM documents WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .unwrap_or(None);
+
+    let doc = match doc {
+        Some(d) => d,
+        None => {
+            let _ = tx.rollback().await;
+            return (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "document not found"})),
+            );
+        }
+    };
+
+    if doc.status != "released" {
+        let _ = tx.rollback().await;
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({"error": format!("document must be in 'released' state to supersede (current: {})", doc.status)})),
+        );
+    }
+
+    if doc.superseded_by.is_some() {
+        let _ = tx.rollback().await;
+        return (
+            StatusCode::CONFLICT,
+            Json(serde_json::json!({"error": "document has already been superseded"})),
+        );
+    }
+
+    // ── Mutation: create new doc + initial revision, mark old as superseded ──
+    let new_doc_id = Uuid::new_v4();
+    let new_rev_id = Uuid::new_v4();
+    let now = Utc::now();
+    let new_title = req.new_title.unwrap_or_else(|| doc.title.clone());
+    let change_summary = req.change_summary.unwrap_or_else(|| format!("Supersedes {}", doc.doc_number));
+
+    // Copy body from latest released revision of old document
+    let latest_body: Option<serde_json::Value> = sqlx::query_scalar(
+        "SELECT body FROM revisions WHERE document_id = $1 AND tenant_id = $2
+         ORDER BY revision_number DESC LIMIT 1",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .fetch_optional(&mut *tx)
+    .await
+    .unwrap_or(None);
+    let body = latest_body.unwrap_or(serde_json::json!({}));
+
+    // Insert new document (draft)
+    if let Err(e) = sqlx::query(
+        "INSERT INTO documents (id, tenant_id, doc_number, title, doc_type, status, created_by, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, 'draft', $6, $7, $7)",
+    )
+    .bind(new_doc_id)
+    .bind(tenant_id)
+    .bind(&req.new_doc_number)
+    .bind(&new_title)
+    .bind(&doc.doc_type)
+    .bind(actor_id)
+    .bind(now)
+    .execute(&mut *tx)
+    .await
+    {
+        let _ = tx.rollback().await;
+        if is_unique_violation(&e) {
+            return (
+                StatusCode::CONFLICT,
+                Json(serde_json::json!({"error": "a document with this doc_number already exists for tenant"})),
+            );
+        }
+        tracing::error!(error = %e, "insert new document failed");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "internal error"})),
+        );
+    }
+
+    // Insert initial revision for new document
+    if let Err(e) = sqlx::query(
+        "INSERT INTO revisions (id, document_id, tenant_id, revision_number, body, change_summary, status, created_by, created_at)
+         VALUES ($1, $2, $3, 1, $4, $5, 'draft', $6, $7)",
+    )
+    .bind(new_rev_id)
+    .bind(new_doc_id)
+    .bind(tenant_id)
+    .bind(&body)
+    .bind(&change_summary)
+    .bind(actor_id)
+    .bind(now)
+    .execute(&mut *tx)
+    .await
+    {
+        let _ = tx.rollback().await;
+        tracing::error!(error = %e, "insert new revision failed");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "internal error"})),
+        );
+    }
+
+    // Mark old document as superseded
+    if let Err(e) = sqlx::query(
+        "UPDATE documents SET status = 'superseded', superseded_by = $1, updated_at = $2
+         WHERE id = $3 AND tenant_id = $4",
+    )
+    .bind(new_doc_id)
+    .bind(now)
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await
+    {
+        let _ = tx.rollback().await;
+        tracing::error!(error = %e, "mark old document superseded failed");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "internal error"})),
+        );
+    }
+
+    // ── Outbox event ─────────────────────────────────────────────────
+    let envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "document.superseded".to_string(),
+        DocumentSupersededPayload {
+            old_document_id: doc_id,
+            new_document_id: new_doc_id,
+            new_doc_number: req.new_doc_number.clone(),
+            old_doc_number: doc.doc_number.clone(),
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
+    .with_actor(actor_id, capitalize_actor_type(claims.actor_type));
+
+    let event_payload = match validate_and_serialize_envelope(&envelope) {
+        Ok(p) => p,
+        Err(e) => {
+            let _ = tx.rollback().await;
+            tracing::error!(error = %e, "envelope validation failed");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "internal error"})),
+            );
+        }
+    };
+
+    let subject = nats_subject("doc_mgmt", "document.superseded");
+
+    if let Err(e) = sqlx::query(
+        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
+    )
+    .bind("document.superseded")
+    .bind(&subject)
+    .bind(&event_payload)
+    .execute(&mut *tx)
+    .await
+    {
+        let _ = tx.rollback().await;
+        tracing::error!(error = %e, "outbox insert failed");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "internal error"})),
+        );
+    }
+
+    let response_body = serde_json::json!({
+        "old_document_id": doc_id,
+        "old_doc_number": doc.doc_number,
+        "old_status": "superseded",
+        "new_document": {
+            "id": new_doc_id,
+            "doc_number": req.new_doc_number,
+            "title": new_title,
+            "status": "draft",
+        },
+        "new_revision": {
+            "id": new_rev_id,
+            "revision_number": 1,
+        },
+    });
+
+    if let Some(ref key) = idem_key {
+        let _ =
+            store_idempotency(&mut tx, &tenant_id.to_string(), key, &response_body, 201).await;
+    }
+
+    if let Err(e) = tx.commit().await {
+        tracing::error!(error = %e, "commit failed");
+        return (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(serde_json::json!({"error": "internal error"})),
+        );
+    }
+
+    (StatusCode::CREATED, Json(response_body))
+}
+
 // ── Get Document ─────────────────────────────────────────────────────
 
 pub async fn get_document(
@@ -430,7 +710,7 @@ pub async fn get_document(
     let tenant_id = claims.tenant_id;
 
     let doc: Option<Document> = sqlx::query_as::<_, Document>(
-        "SELECT id, tenant_id, doc_number, title, doc_type, status, created_by, created_at, updated_at
+        "SELECT id, tenant_id, doc_number, title, doc_type, status, superseded_by, created_by, created_at, updated_at
          FROM documents WHERE id = $1 AND tenant_id = $2",
     )
     .bind(doc_id)
@@ -450,7 +730,7 @@ pub async fn get_document(
     };
 
     let latest_rev: Option<Revision> = sqlx::query_as::<_, Revision>(
-        "SELECT id, document_id, tenant_id, revision_number, body, change_summary, created_by, created_at
+        "SELECT id, document_id, tenant_id, revision_number, body, change_summary, status, created_by, created_at
          FROM revisions WHERE document_id = $1 AND tenant_id = $2
          ORDER BY revision_number DESC LIMIT 1",
     )
@@ -488,7 +768,7 @@ pub async fn list_documents(
     let tenant_id = claims.tenant_id;
 
     let docs: Vec<Document> = sqlx::query_as::<_, Document>(
-        "SELECT id, tenant_id, doc_number, title, doc_type, status, created_by, created_at, updated_at
+        "SELECT id, tenant_id, doc_number, title, doc_type, status, superseded_by, created_by, created_at, updated_at
          FROM documents WHERE tenant_id = $1
          ORDER BY created_at DESC",
     )
@@ -526,7 +806,7 @@ pub async fn create_revision(
 
     // Guard: document must be in draft and belong to tenant
     let doc: Option<Document> = sqlx::query_as::<_, Document>(
-        "SELECT id, tenant_id, doc_number, title, doc_type, status, created_by, created_at, updated_at
+        "SELECT id, tenant_id, doc_number, title, doc_type, status, superseded_by, created_by, created_at, updated_at
          FROM documents WHERE id = $1 AND tenant_id = $2",
     )
     .bind(doc_id)

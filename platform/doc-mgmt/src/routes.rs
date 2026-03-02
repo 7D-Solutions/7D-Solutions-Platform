@@ -16,6 +16,10 @@ pub fn api_router(state: Arc<AppState>) -> Router {
             post(crate::handlers::release_document),
         )
         .route(
+            "/api/documents/{id}/supersede",
+            post(crate::handlers::supersede_document),
+        )
+        .route(
             "/api/documents/{id}/revisions",
             post(crate::handlers::create_revision),
         )

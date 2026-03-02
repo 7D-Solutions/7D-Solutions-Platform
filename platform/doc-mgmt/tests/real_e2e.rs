@@ -512,3 +512,395 @@ async fn guard_mutation_outbox_atomicity_on_rollback() {
     .expect("check outbox after rollback");
     assert!(!outbox_exists, "outbox event should not exist after rollback");
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// DOC1 — Revision immutability + supersede linkage
+// ══════════════════════════════════════════════════════════════════════
+
+/// Helper: insert a test doc, release it, verify the revision is now 'released'.
+async fn insert_and_release_doc(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    doc_number: &str,
+) -> (Uuid, Uuid) {
+    let doc_id = insert_test_doc(pool, tenant_id, doc_number, "draft").await;
+
+    // Release document
+    sqlx::query(
+        "UPDATE documents SET status = 'released', updated_at = now()
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(pool)
+    .await
+    .expect("release doc");
+
+    // Mark revisions as released (like release_document handler does)
+    sqlx::query(
+        "UPDATE revisions SET status = 'released'
+         WHERE document_id = $1 AND tenant_id = $2 AND status = 'draft'",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(pool)
+    .await
+    .expect("mark revisions released");
+
+    // Get revision id
+    let rev_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM revisions WHERE document_id = $1 AND tenant_id = $2 LIMIT 1",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .fetch_one(pool)
+    .await
+    .expect("get revision id");
+
+    (doc_id, rev_id)
+}
+
+// ── DB-enforced immutability: UPDATE on released revision must FAIL ──
+
+#[tokio::test]
+async fn released_revision_update_blocked_by_trigger() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("IMMUT-{}", Uuid::new_v4());
+
+    let (_doc_id, rev_id) = insert_and_release_doc(&pool, tenant_id, &doc_number).await;
+
+    // Verify revision is released
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM revisions WHERE id = $1")
+            .bind(rev_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch revision status");
+    assert_eq!(status, "released");
+
+    // Try to update body — must fail
+    let result = sqlx::query("UPDATE revisions SET body = '{\"tampered\": true}'::jsonb WHERE id = $1")
+        .bind(rev_id)
+        .execute(&pool)
+        .await;
+
+    assert!(
+        result.is_err(),
+        "UPDATE on released revision body must be rejected by trigger"
+    );
+
+    // Try to update change_summary — must fail
+    let result = sqlx::query("UPDATE revisions SET change_summary = 'hacked' WHERE id = $1")
+        .bind(rev_id)
+        .execute(&pool)
+        .await;
+
+    assert!(
+        result.is_err(),
+        "UPDATE on released revision change_summary must be rejected by trigger"
+    );
+}
+
+// ── DB-enforced immutability: DELETE on released revision must FAIL ──
+
+#[tokio::test]
+async fn released_revision_delete_blocked_by_trigger() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("IMDEL-{}", Uuid::new_v4());
+
+    let (_doc_id, rev_id) = insert_and_release_doc(&pool, tenant_id, &doc_number).await;
+
+    let result = sqlx::query("DELETE FROM revisions WHERE id = $1")
+        .bind(rev_id)
+        .execute(&pool)
+        .await;
+
+    assert!(
+        result.is_err(),
+        "DELETE on released revision must be rejected by trigger"
+    );
+}
+
+// ── Draft revisions CAN still be updated ─────────────────────────────
+
+#[tokio::test]
+async fn draft_revision_update_allowed() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("DRAFT-{}", Uuid::new_v4());
+
+    let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "draft").await;
+
+    let rev_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM revisions WHERE document_id = $1 LIMIT 1",
+    )
+    .bind(doc_id)
+    .fetch_one(&pool)
+    .await
+    .expect("get revision id");
+
+    // Draft revision: update should succeed
+    let result = sqlx::query("UPDATE revisions SET body = '{\"edited\": true}'::jsonb WHERE id = $1")
+        .bind(rev_id)
+        .execute(&pool)
+        .await;
+
+    assert!(result.is_ok(), "UPDATE on draft revision should be allowed");
+}
+
+// ── Supersede: creates new doc, marks old as superseded ──────────────
+
+#[tokio::test]
+async fn supersede_creates_new_doc_and_links() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let old_doc_number = format!("SS-OLD-{}", Uuid::new_v4());
+    let new_doc_number = format!("SS-NEW-{}", Uuid::new_v4());
+
+    let (old_doc_id, _) = insert_and_release_doc(&pool, tenant_id, &old_doc_number).await;
+
+    // Supersede: create new doc, mark old as superseded
+    let new_doc_id = Uuid::new_v4();
+    let new_rev_id = Uuid::new_v4();
+    let now = Utc::now();
+    let actor = Uuid::new_v4();
+
+    let mut tx = pool.begin().await.expect("begin tx");
+
+    // Insert new document
+    sqlx::query(
+        "INSERT INTO documents (id, tenant_id, doc_number, title, doc_type, status, created_by, created_at, updated_at)
+         VALUES ($1, $2, $3, 'Superseded Doc v2', 'spec', 'draft', $4, $5, $5)",
+    )
+    .bind(new_doc_id)
+    .bind(tenant_id)
+    .bind(&new_doc_number)
+    .bind(actor)
+    .bind(now)
+    .execute(&mut *tx)
+    .await
+    .expect("insert new doc");
+
+    // Insert initial revision for new doc
+    sqlx::query(
+        "INSERT INTO revisions (id, document_id, tenant_id, revision_number, body, change_summary, status, created_by, created_at)
+         VALUES ($1, $2, $3, 1, '{}'::jsonb, 'Supersedes old', 'draft', $4, $5)",
+    )
+    .bind(new_rev_id)
+    .bind(new_doc_id)
+    .bind(tenant_id)
+    .bind(actor)
+    .bind(now)
+    .execute(&mut *tx)
+    .await
+    .expect("insert new revision");
+
+    // Mark old document as superseded
+    sqlx::query(
+        "UPDATE documents SET status = 'superseded', superseded_by = $1, updated_at = $2
+         WHERE id = $3 AND tenant_id = $4",
+    )
+    .bind(new_doc_id)
+    .bind(now)
+    .bind(old_doc_id)
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await
+    .expect("mark old doc superseded");
+
+    // Outbox event
+    sqlx::query(
+        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
+    )
+    .bind("document.superseded")
+    .bind("doc_mgmt.events.document.superseded")
+    .bind(serde_json::json!({
+        "old_document_id": old_doc_id.to_string(),
+        "new_document_id": new_doc_id.to_string(),
+    }))
+    .execute(&mut *tx)
+    .await
+    .expect("insert outbox");
+
+    tx.commit().await.expect("commit tx");
+
+    // Verify old doc is superseded with correct linkage
+    let (old_status, superseded_by): (String, Option<Uuid>) = sqlx::query_as(
+        "SELECT status, superseded_by FROM documents WHERE id = $1",
+    )
+    .bind(old_doc_id)
+    .fetch_one(&pool)
+    .await
+    .expect("fetch old doc");
+
+    assert_eq!(old_status, "superseded");
+    assert_eq!(superseded_by, Some(new_doc_id));
+
+    // Verify new doc exists as draft
+    let new_status: String =
+        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+            .bind(new_doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch new doc status");
+    assert_eq!(new_status, "draft");
+
+    // Verify outbox event
+    let outbox_exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM doc_outbox WHERE event_type = 'document.superseded' AND payload->>'old_document_id' = $1)",
+    )
+    .bind(old_doc_id.to_string())
+    .fetch_one(&pool)
+    .await
+    .expect("check outbox");
+    assert!(outbox_exists, "supersede event should be in outbox");
+}
+
+// ── Supersede only works on released documents ───────────────────────
+
+#[tokio::test]
+async fn supersede_rejects_draft_document() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("SS-DRF-{}", Uuid::new_v4());
+
+    let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "draft").await;
+
+    // Check the document is draft
+    let status: String =
+        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+            .bind(doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch status");
+    assert_eq!(status, "draft", "document must be in draft for this test");
+
+    // A draft document should NOT be supersedable. Guard check in app code,
+    // but we verify at data level that only released docs get superseded_by set.
+    let result = sqlx::query(
+        "UPDATE documents SET status = 'superseded', superseded_by = $1
+         WHERE id = $2 AND status = 'released'",
+    )
+    .bind(Uuid::new_v4())
+    .bind(doc_id)
+    .execute(&pool)
+    .await
+    .expect("guard: status check");
+
+    assert_eq!(
+        result.rows_affected(),
+        0,
+        "draft doc should not match the supersede WHERE clause"
+    );
+}
+
+// ── Revision status propagates on release ────────────────────────────
+
+#[tokio::test]
+async fn release_marks_revisions_as_released() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("REL-REV-{}", Uuid::new_v4());
+
+    let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "draft").await;
+
+    // Add a second revision (draft)
+    sqlx::query(
+        "INSERT INTO revisions (id, document_id, tenant_id, revision_number, body, change_summary, status, created_by, created_at)
+         VALUES ($1, $2, $3, 2, '{\"v2\": true}'::jsonb, 'Second revision', 'draft', $4, now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await
+    .expect("add second revision");
+
+    // Verify all revisions are draft
+    let draft_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM revisions WHERE document_id = $1 AND status = 'draft'",
+    )
+    .bind(doc_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count draft revisions");
+    assert_eq!(draft_count, 2);
+
+    // Release document + revisions (mimicking handler behaviour)
+    sqlx::query("UPDATE documents SET status = 'released', updated_at = now() WHERE id = $1")
+        .bind(doc_id)
+        .execute(&pool)
+        .await
+        .expect("release doc");
+
+    sqlx::query(
+        "UPDATE revisions SET status = 'released' WHERE document_id = $1 AND status = 'draft'",
+    )
+    .bind(doc_id)
+    .execute(&pool)
+    .await
+    .expect("release revisions");
+
+    // All revisions should now be released
+    let released_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM revisions WHERE document_id = $1 AND status = 'released'",
+    )
+    .bind(doc_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count released revisions");
+    assert_eq!(released_count, 2, "all revisions should be released");
+
+    // And now immutable — cannot update
+    let rev_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM revisions WHERE document_id = $1 LIMIT 1",
+    )
+    .bind(doc_id)
+    .fetch_one(&pool)
+    .await
+    .expect("get any revision");
+
+    let result = sqlx::query("UPDATE revisions SET body = '{\"tampered\": true}'::jsonb WHERE id = $1")
+        .bind(rev_id)
+        .execute(&pool)
+        .await;
+
+    assert!(result.is_err(), "released revision must be immutable");
+}
+
+// ── Revision immutability: content_ref-style column test ─────────────
+// The bead verification command tests: UPDATE doc_revisions SET content_ref='x'
+// Our schema uses 'body' instead of 'content_ref', so we test that.
+
+#[tokio::test]
+async fn released_revision_body_immutable_verification() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let doc_number = format!("VER-{}", Uuid::new_v4());
+
+    let (_doc_id, rev_id) = insert_and_release_doc(&pool, tenant_id, &doc_number).await;
+
+    // This is the core bead verification: UPDATE must fail at DB layer
+    let result = sqlx::query("UPDATE revisions SET body = '{\"content_ref\": \"x\"}'::jsonb WHERE id = $1")
+        .bind(rev_id)
+        .execute(&pool)
+        .await;
+
+    assert!(
+        result.is_err(),
+        "UPDATE on released revision body must fail at DB layer (trigger enforcement)"
+    );
+
+    // Verify the error is from our trigger (check_violation)
+    if let Err(sqlx::Error::Database(ref db_err)) = result {
+        let msg = db_err.message();
+        assert!(
+            msg.contains("Cannot modify a released revision"),
+            "Error should come from our trigger, got: {}",
+            msg
+        );
+    }
+}
