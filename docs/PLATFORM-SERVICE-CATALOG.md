@@ -45,7 +45,7 @@ No version bump discipline required yet.
 | subscriptions | subscriptions-rs | 0.1.0 | 8087 | 5435 | Subscription lifecycle management, billing cycles, and usage gating | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | timekeeping | timekeeping | 0.1.0 | 8097 | 5447 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md) |
 | treasury | treasury | 0.1.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md) |
-| workflow | workflow | 0.1.0 |  |  | Workflow engine: definitions, templates, and durable instance execution |  |
+| workflow | workflow | 0.1.0 |  | 5457 | Workflow engine: definitions, templates, and durable instance execution |  |
 
 ## Platform Libraries
 

@@ -590,6 +590,84 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  numbering-postgres:
+    container_name: 7d-numbering-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5456:5432"
+    environment:
+      POSTGRES_DB: ${NUMBERING_POSTGRES_DB:-numbering_db}
+      POSTGRES_USER: ${NUMBERING_POSTGRES_USER:-numbering_user}
+      POSTGRES_PASSWORD: ${NUMBERING_POSTGRES_PASSWORD:-numbering_pass}
+    volumes:
+      - numbering_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${NUMBERING_POSTGRES_USER:-numbering_user} -d ${NUMBERING_POSTGRES_DB:-numbering_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "numbering-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  doc-mgmt-postgres:
+    container_name: 7d-doc-mgmt-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5455:5432"
+    environment:
+      POSTGRES_DB: ${DOC_MGMT_POSTGRES_DB:-doc_mgmt_db}
+      POSTGRES_USER: ${DOC_MGMT_POSTGRES_USER:-doc_mgmt_user}
+      POSTGRES_PASSWORD: ${DOC_MGMT_POSTGRES_PASSWORD:-doc_mgmt_pass}
+    volumes:
+      - doc_mgmt_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DOC_MGMT_POSTGRES_USER:-doc_mgmt_user} -d ${DOC_MGMT_POSTGRES_DB:-doc_mgmt_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "doc-mgmt-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  workflow-postgres:
+    container_name: 7d-workflow-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5457:5432"
+    environment:
+      POSTGRES_DB: ${WORKFLOW_POSTGRES_DB:-workflow_db}
+      POSTGRES_USER: ${WORKFLOW_POSTGRES_USER:-workflow_user}
+      POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:-workflow_pass}
+    volumes:
+      - workflow_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${WORKFLOW_POSTGRES_USER:-workflow_user} -d ${WORKFLOW_POSTGRES_DB:-workflow_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "workflow-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
@@ -661,4 +739,13 @@ volumes:
     external: true
   shipping_receiving_pgdata:
     name: 7d-shipping-receiving-pgdata
+    external: true
+  numbering_pgdata:
+    name: 7d-numbering-pgdata
+    external: true
+  doc_mgmt_pgdata:
+    name: 7d-doc-mgmt-pgdata
+    external: true
+  workflow_pgdata:
+    name: 7d-workflow-pgdata
     external: true
