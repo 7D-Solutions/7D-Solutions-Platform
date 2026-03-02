@@ -106,6 +106,16 @@ pub const SHIPPING_RECEIVING_READ: &str = "shipping_receiving.read";
 pub const DOC_MGMT_MUTATE: &str = "doc_mgmt.mutate";
 pub const DOC_MGMT_READ: &str = "doc_mgmt.read";
 
+// ── Workflow ───────────────────────────────────────────────────────────
+
+pub const WORKFLOW_MUTATE: &str = "workflow.mutate";
+pub const WORKFLOW_READ: &str = "workflow.read";
+
+// ── Numbering ──────────────────────────────────────────────────────────
+
+pub const NUMBERING_ALLOCATE: &str = "numbering.allocate";
+pub const NUMBERING_READ: &str = "numbering.read";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -210,6 +220,7 @@ mod tests {
             TTP_MUTATE,
             PDF_EDITOR_MUTATE,
             SHIPPING_RECEIVING_MUTATE,
+            WORKFLOW_MUTATE,
         ];
         for perm in &mutate_perms {
             assert!(
@@ -254,11 +265,18 @@ mod tests {
         assert_ne!(TTP_MUTATE, TTP_READ);
         assert_ne!(PDF_EDITOR_MUTATE, PDF_EDITOR_READ);
         assert_ne!(SHIPPING_RECEIVING_MUTATE, SHIPPING_RECEIVING_READ);
+        assert_ne!(WORKFLOW_MUTATE, WORKFLOW_READ);
     }
 
     #[test]
     fn test_permissions_shipping_receiving_constants_are_non_empty() {
         assert!(!SHIPPING_RECEIVING_MUTATE.is_empty());
         assert!(!SHIPPING_RECEIVING_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_workflow_constants_are_non_empty() {
+        assert!(!WORKFLOW_MUTATE.is_empty());
+        assert!(!WORKFLOW_READ.is_empty());
     }
 }

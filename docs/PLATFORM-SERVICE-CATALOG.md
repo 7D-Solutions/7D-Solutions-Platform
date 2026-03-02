@@ -37,7 +37,7 @@ No version bump discipline required yet.
 | inventory | inventory-rs | 0.1.0 | 8092 | 5442 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md) |
 | maintenance | maintenance-rs | 0.1.0 | 8101 | 5452 | Maintenance management: work orders, preventive plans, meters, and labor tracking | [Vision](docs/architecture/MAINTENANCE-VISION.md) |
 | notifications | notifications-rs | 0.1.0 | 8089 | 5437 | Event-driven notification delivery with scheduled dispatch and retry |  |
-| numbering | numbering | 0.1.0 |  |  | Numbering service: tenant-scoped, idempotent, atomic sequence allocation |  |
+| numbering | numbering | 0.1.0 |  | 5456 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation |  |
 | party | party-rs | 0.1.0 | 8098 | 5448 | Party master: companies, individuals, contacts, and addresses | [Vision](docs/architecture/PARTY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | pdf-editor | pdf-editor-rs | 0.1.0 | 8102 | 5453 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md) |
 | reporting | reporting | 0.1.0 |  |  | Financial reporting: aging, KPIs, statements, and cash flow forecasts | [Vision](docs/architecture/REPORTING-VISION.md) |
