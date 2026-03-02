@@ -3,9 +3,11 @@
 //! Tenant-scoped, idempotent, atomic sequence allocation service.
 
 pub mod config;
+pub mod format;
 pub mod http;
 pub mod metrics;
 pub mod outbox;
+pub mod policy;
 
 pub use config::Config;
 

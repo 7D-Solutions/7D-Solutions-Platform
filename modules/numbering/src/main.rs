@@ -1,6 +1,6 @@
 use axum::{
     extract::DefaultBodyLimit,
-    routing::{get, post},
+    routing::{get, post, put},
     Extension, Router,
 };
 use event_bus::{EventBus, InMemoryBus, NatsBus};
@@ -97,6 +97,16 @@ async fn main() {
         .merge(
             Router::new()
                 .route("/allocate", post(http::allocate::allocate))
+                .route_layer(RequirePermissionsLayer::new(&[
+                    permissions::NUMBERING_ALLOCATE,
+                ])),
+        )
+        .merge(
+            Router::new()
+                .route(
+                    "/policies/{entity}",
+                    put(http::policy::upsert_policy).get(http::policy::get_policy),
+                )
                 .route_layer(RequirePermissionsLayer::new(&[
                     permissions::NUMBERING_ALLOCATE,
                 ])),

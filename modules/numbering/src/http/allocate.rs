@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::outbox;
+use crate::{format, outbox, policy};
 
 #[derive(Debug, Deserialize)]
 pub struct AllocateRequest {
@@ -22,6 +22,8 @@ pub struct AllocateResponse {
     pub tenant_id: String,
     pub entity: String,
     pub number_value: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub formatted_number: Option<String>,
     pub idempotency_key: String,
     pub replay: bool,
 }
@@ -110,12 +112,14 @@ pub async fn allocate(
             .replays_total
             .with_label_values(&[&req.entity])
             .inc();
+        let formatted = format_if_policy(&state.pool, tenant_id, &req.entity, row.number_value).await;
         return Ok((
             StatusCode::OK,
             Json(AllocateResponse {
                 tenant_id: tenant_id.to_string(),
                 entity: req.entity,
                 number_value: row.number_value,
+                formatted_number: formatted,
                 idempotency_key: req.idempotency_key,
                 replay: true,
             }),
@@ -217,10 +221,15 @@ pub async fn allocate(
         .with_label_values(&[&req.entity])
         .inc();
 
+    // Formatting is a pure decoration applied *after* the atomic allocation.
+    // Reading the policy here keeps the lock window minimal.
+    let formatted = format_if_policy(&state.pool, tenant_id, &req.entity, next_value).await;
+
     tracing::info!(
         tenant_id = %tenant_id,
         entity = %req.entity,
         number = next_value,
+        formatted = ?formatted,
         "Numbering: allocated"
     );
 
@@ -230,6 +239,7 @@ pub async fn allocate(
             tenant_id: tenant_id.to_string(),
             entity: req.entity,
             number_value: next_value,
+            formatted_number: formatted,
             idempotency_key: req.idempotency_key,
             replay: false,
         }),
@@ -244,6 +254,39 @@ struct IssuedRow {
 #[derive(Debug, sqlx::FromRow)]
 struct SequenceRow {
     current_value: i64,
+}
+
+/// Look up a formatting policy and apply it. Returns None if no policy exists.
+///
+/// This is intentionally outside the allocation transaction — formatting is
+/// a read-only decoration that must not extend lock duration.
+async fn format_if_policy(
+    pool: &sqlx::PgPool,
+    tenant_id: Uuid,
+    entity: &str,
+    number: i64,
+) -> Option<String> {
+    match policy::get_policy(pool, tenant_id, entity).await {
+        Ok(Some(row)) => {
+            let fp = format::FormatPolicy {
+                pattern: row.pattern,
+                prefix: row.prefix,
+                padding: row.padding as u32,
+            };
+            let today = chrono::Utc::now().date_naive();
+            Some(format::format_number(&fp, number, today))
+        }
+        Ok(None) => None,
+        Err(e) => {
+            tracing::warn!(
+                tenant_id = %tenant_id,
+                entity = %entity,
+                "Numbering: failed to read policy for formatting: {}",
+                e
+            );
+            None
+        }
+    }
 }
 
 /// Atomically allocate the next value for a tenant+entity sequence.

@@ -47,7 +47,7 @@ pub async fn ready(
 
 /// GET /api/version — module identity and schema version
 pub async fn version() -> Json<serde_json::Value> {
-    const SCHEMA_VERSION: &str = "20260302000002";
+    const SCHEMA_VERSION: &str = "20260302000003";
 
     Json(serde_json::json!({
         "module_name": "numbering",
