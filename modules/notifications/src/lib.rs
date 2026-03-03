@@ -9,6 +9,7 @@ pub mod consumer_tasks;
 pub mod db;
 pub mod dlq;
 pub mod envelope_validation;
+pub mod escalation;
 pub mod event_bus;
 pub mod handlers;
 pub mod inbox;
