@@ -71,13 +71,8 @@ async fn main() {
         ]))
         .with_state(app_state.clone());
 
-    let app = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(http::health))
-        .route("/api/ready", get(http::ready))
-        .route("/api/version", get(http::version))
-        .route("/metrics", get(metrics::metrics_handler))
-        // Reports — read
+    let reporting_reads = Router::new()
+        // Reports — read (RBAC-gated)
         .route("/api/reporting/pl", get(http::statements::get_pl))
         .route(
             "/api/reporting/balance-sheet",
@@ -88,7 +83,19 @@ async fn main() {
         .route("/api/reporting/ap-aging", get(http::aging::get_ap_aging))
         .route("/api/reporting/kpis", get(http::kpis::get_kpis))
         .route("/api/reporting/forecast", get(http::forecast::get_forecast))
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::REPORTING_READ,
+        ]))
+        .with_state(app_state.clone());
+
+    let app = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route("/api/health", get(http::health))
+        .route("/api/ready", get(http::ready))
+        .route("/api/version", get(http::version))
+        .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state)
+        .merge(reporting_reads)
         .merge(reporting_mutations)
         .merge(http::admin::admin_router(pool.clone()))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))

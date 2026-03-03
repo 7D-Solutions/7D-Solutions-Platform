@@ -46,6 +46,7 @@ pub const INVENTORY_READ: &str = "inventory.read";
 // ── Reporting / Analytics ─────────────────────────────────────────────────────
 
 pub const REPORTING_MUTATE: &str = "reporting.mutate";
+pub const REPORTING_READ: &str = "reporting.read";
 
 // ── Treasury / Cash Management ────────────────────────────────────────────────
 
@@ -285,6 +286,13 @@ mod tests {
         assert_ne!(SHIPPING_RECEIVING_MUTATE, SHIPPING_RECEIVING_READ);
         assert_ne!(WORKFLOW_MUTATE, WORKFLOW_READ);
         assert_ne!(WORKFORCE_COMPETENCE_MUTATE, WORKFORCE_COMPETENCE_READ);
+        assert_ne!(REPORTING_MUTATE, REPORTING_READ);
+    }
+
+    #[test]
+    fn test_permissions_reporting_constants_are_non_empty() {
+        assert!(!REPORTING_MUTATE.is_empty());
+        assert!(!REPORTING_READ.is_empty());
     }
 
     #[test]
