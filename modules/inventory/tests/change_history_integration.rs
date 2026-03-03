@@ -11,7 +11,7 @@
 //! 5. Outbox event: verify audit event in outbox with correct envelope
 //! 6. Ordering: multiple changes → chronological order preserved
 
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use inventory_rs::domain::{
     history::change_history::{list_change_history, record_change, RecordChangeRequest},
     items::{CreateItemRequest, ItemRepo, TrackingMode},
@@ -401,11 +401,11 @@ async fn change_history_outbox_event_emitted() {
     assert_eq!(payload["source_module"], "inventory");
     assert_eq!(payload["tenant_id"], tenant);
 
-    // Verify nested payload data
-    let data = &payload["data"];
-    assert_eq!(data["change_type"], "revision_created");
-    assert_eq!(data["actor_id"], "user-alice");
-    assert_eq!(data["item_id"], item.id.to_string());
+    // Verify nested payload data (EventEnvelope stores payload under "payload" key)
+    let inner = &payload["payload"];
+    assert_eq!(inner["change_type"], "revision_created");
+    assert_eq!(inner["actor_id"], "user-alice");
+    assert_eq!(inner["item_id"], item.id.to_string());
 
     cleanup(&pool, &tenant).await;
 }

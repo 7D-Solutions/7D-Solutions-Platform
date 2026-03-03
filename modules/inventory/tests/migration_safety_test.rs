@@ -69,6 +69,10 @@ async fn migrations_apply_cleanly() {
         "inv_labels",
         "inv_lot_expiry_alert_state",
         "inv_lot_genealogy",
+        "item_change_history",
+        "item_valuation_configs",
+        "valuation_runs",
+        "valuation_run_lines",
     ];
 
     for table in &expected_tables {
@@ -117,6 +121,10 @@ async fn forward_fix_rollback_and_reapply() {
         DROP TABLE IF EXISTS inv_labels CASCADE;
         DROP TABLE IF EXISTS inv_lot_expiry_alert_state CASCADE;
         DROP TABLE IF EXISTS inv_low_stock_state CASCADE;
+        DROP TABLE IF EXISTS valuation_run_lines CASCADE;
+        DROP TABLE IF EXISTS valuation_runs CASCADE;
+        DROP TABLE IF EXISTS item_valuation_configs CASCADE;
+        DROP TABLE IF EXISTS item_change_history CASCADE;
         DROP TABLE IF EXISTS item_revisions CASCADE;
         DROP TABLE IF EXISTS inventory_valuation_lines CASCADE;
         DROP TABLE IF EXISTS inventory_valuation_snapshots CASCADE;
@@ -241,6 +249,9 @@ async fn all_data_tables_have_tenant_id() {
         "inv_labels",
         "inv_lot_expiry_alert_state",
         "inv_lot_genealogy",
+        "item_change_history",
+        "item_valuation_configs",
+        "valuation_runs",
     ];
 
     for table in &tenant_tables {
