@@ -65,6 +65,8 @@ async fn test_create_and_get_asset() {
         serial_number: Some("1FTFW1E50MFC00001".into()),
         fixed_asset_ref: None,
         metadata: Some(serde_json::json!({"color": "white"})),
+        maintenance_schedule: None,
+        idempotency_key: None,
     };
 
     let asset = AssetRepo::create(&pool, &req).await.unwrap();
@@ -101,6 +103,8 @@ async fn test_duplicate_asset_tag_rejected() {
         serial_number: None,
         fixed_asset_ref: None,
         metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
     };
 
     AssetRepo::create(&pool, &req).await.unwrap();
@@ -117,6 +121,8 @@ async fn test_duplicate_asset_tag_rejected() {
         serial_number: None,
         fixed_asset_ref: None,
         metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
     };
     let err = AssetRepo::create(&pool, &dup).await.unwrap_err();
     assert!(
@@ -158,6 +164,8 @@ async fn test_list_assets_with_filters() {
                 serial_number: None,
                 fixed_asset_ref: None,
                 metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
             },
         )
         .await
@@ -220,6 +228,8 @@ async fn test_tenant_isolation_assets() {
             serial_number: None,
             fixed_asset_ref: None,
             metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
         },
     )
     .await
@@ -271,6 +281,8 @@ async fn test_update_asset() {
             serial_number: None,
             fixed_asset_ref: None,
             metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
         },
     )
     .await
@@ -291,6 +303,7 @@ async fn test_update_asset() {
             serial_number: None,
             fixed_asset_ref: None,
             metadata: None,
+            maintenance_schedule: None,
         },
     )
     .await
@@ -409,6 +422,8 @@ async fn test_meter_readings_monotonic_increasing() {
             serial_number: None,
             fixed_asset_ref: None,
             metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
         },
     )
     .await
@@ -498,6 +513,8 @@ async fn test_meter_reading_decrease_rejected() {
             serial_number: None,
             fixed_asset_ref: None,
             metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
         },
     )
     .await
@@ -580,6 +597,8 @@ async fn test_meter_reading_rollover_accepted() {
             serial_number: None,
             fixed_asset_ref: None,
             metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
         },
     )
     .await
@@ -654,6 +673,8 @@ async fn test_meter_reading_invalid_rollover_rejected() {
             serial_number: None,
             fixed_asset_ref: None,
             metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
         },
     )
     .await
@@ -734,6 +755,8 @@ async fn test_list_readings_for_asset() {
             serial_number: None,
             fixed_asset_ref: None,
             metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
         },
     )
     .await
@@ -808,6 +831,8 @@ async fn test_tenant_isolation_meter_readings() {
             serial_number: None,
             fixed_asset_ref: None,
             metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
         },
     )
     .await
