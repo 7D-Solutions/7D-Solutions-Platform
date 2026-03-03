@@ -140,7 +140,7 @@ async fn test_validate_unbalanced_entries() {
     .bind(entry_id)
     .bind(tenant_id)
     .bind(source_event_id)
-    .bind(Utc::now())
+    .bind(period_start.and_hms_opt(12, 0, 0).unwrap().and_utc())
     .execute(&mut *tx)
     .await
     .unwrap();
