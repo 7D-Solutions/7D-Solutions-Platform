@@ -8,6 +8,7 @@
 
 pub mod envelope;
 pub mod party;
+pub mod vendor;
 
 // ============================================================================
 // Shared Constants
@@ -25,4 +26,16 @@ pub use party::{
     build_party_created_envelope, build_party_deactivated_envelope, build_party_updated_envelope,
     PartyCreatedPayload, PartyDeactivatedPayload, PartyUpdatedPayload, EVENT_TYPE_PARTY_CREATED,
     EVENT_TYPE_PARTY_DEACTIVATED, EVENT_TYPE_PARTY_UPDATED,
+};
+
+pub use vendor::{
+    build_contact_role_created_envelope, build_contact_role_updated_envelope,
+    build_credit_terms_created_envelope, build_credit_terms_updated_envelope,
+    build_scorecard_created_envelope, build_scorecard_updated_envelope,
+    build_vendor_qualification_created_envelope, build_vendor_qualification_updated_envelope,
+    ContactRolePayload, CreditTermsPayload, ScorecardPayload, VendorQualificationPayload,
+    EVENT_TYPE_CONTACT_ROLE_CREATED, EVENT_TYPE_CONTACT_ROLE_UPDATED,
+    EVENT_TYPE_CREDIT_TERMS_CREATED, EVENT_TYPE_CREDIT_TERMS_UPDATED,
+    EVENT_TYPE_SCORECARD_CREATED, EVENT_TYPE_SCORECARD_UPDATED,
+    EVENT_TYPE_VENDOR_QUALIFICATION_CREATED, EVENT_TYPE_VENDOR_QUALIFICATION_UPDATED,
 };
