@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/integrations-webhook-received.v1.json",
+  "title": "webhook.received",
+  "description": "Event emitted when a raw webhook payload is persisted to the ingest table",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "webhook.received" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "source_module": { "type": "string", "const": "integrations" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "const": "DATA_MUTATION" },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "trace_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": [
+        "ingest_id",
+        "system",
+        "received_at"
+      ],
+      "properties": {
+        "ingest_id": { "type": "integer" },
+        "system": { "type": "string", "minLength": 1 },
+        "event_type": { "type": ["string", "null"] },
+        "idempotency_key": { "type": ["string", "null"] },
+        "received_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

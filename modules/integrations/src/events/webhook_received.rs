@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::envelope::{create_integrations_envelope, EventEnvelope};
+use super::MUTATION_CLASS_DATA_MUTATION;
 
 pub const EVENT_TYPE_WEBHOOK_RECEIVED: &str = "webhook.received";
 pub const SCHEMA_VERSION: &str = "1.0.0";
@@ -40,7 +41,7 @@ pub fn build_webhook_received_envelope(
         EVENT_TYPE_WEBHOOK_RECEIVED.to_string(),
         correlation_id,
         causation_id,
-        "INGEST".to_string(),
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
         payload,
     )
     .with_schema_version(SCHEMA_VERSION.to_string())

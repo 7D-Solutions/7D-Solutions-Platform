@@ -1878,3 +1878,379 @@ fn financial_modules_require_merchant_context() {
         );
     }
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// INTEGRATIONS
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Integrations Event Payloads ───────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ExternalRefCreatedPayload {
+    ref_id: i64,
+    app_id: String,
+    entity_type: String,
+    entity_id: String,
+    system: String,
+    external_id: String,
+    label: Option<String>,
+    created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ExternalRefUpdatedPayload {
+    ref_id: i64,
+    app_id: String,
+    entity_type: String,
+    entity_id: String,
+    system: String,
+    external_id: String,
+    label: Option<String>,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ExternalRefDeletedPayload {
+    ref_id: i64,
+    app_id: String,
+    entity_type: String,
+    entity_id: String,
+    system: String,
+    external_id: String,
+    deleted_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct WebhookReceivedPayload {
+    ingest_id: i64,
+    system: String,
+    event_type: Option<String>,
+    idempotency_key: Option<String>,
+    received_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct WebhookRoutedPayload {
+    ingest_id: i64,
+    system: String,
+    source_event_type: Option<String>,
+    domain_event_type: String,
+    outbox_event_id: Uuid,
+    routed_at: String,
+}
+
+// ── Integrations: Envelope Completeness ───────────────────────────────
+
+#[test]
+fn integrations_external_ref_created_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "integrations",
+        "external_ref.created",
+        mutation_classes::DATA_MUTATION,
+        ExternalRefCreatedPayload {
+            ref_id: 1,
+            app_id: "tenant-001".into(),
+            entity_type: "invoice".into(),
+            entity_id: "inv-001".into(),
+            system: "stripe".into(),
+            external_id: "in_abc123".into(),
+            label: Some("Stripe Invoice".into()),
+            created_at: "2026-03-01T00:00:00Z".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "integrations/external_ref.created");
+}
+
+#[test]
+fn integrations_external_ref_created_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "integrations",
+        "external_ref.created",
+        mutation_classes::DATA_MUTATION,
+        ExternalRefCreatedPayload {
+            ref_id: 42,
+            app_id: "tenant-001".into(),
+            entity_type: "customer".into(),
+            entity_id: "cust-55".into(),
+            system: "quickbooks".into(),
+            external_id: "QB-999".into(),
+            label: None,
+            created_at: "2026-03-02T12:00:00Z".into(),
+        },
+    );
+    validate_against_schema(&json, "integrations-external-ref-created.v1.json");
+}
+
+#[test]
+fn integrations_external_ref_updated_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "integrations",
+        "external_ref.updated",
+        mutation_classes::DATA_MUTATION,
+        ExternalRefUpdatedPayload {
+            ref_id: 1,
+            app_id: "tenant-001".into(),
+            entity_type: "invoice".into(),
+            entity_id: "inv-001".into(),
+            system: "stripe".into(),
+            external_id: "in_abc123".into(),
+            label: Some("Updated Label".into()),
+            updated_at: "2026-03-01T01:00:00Z".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "integrations/external_ref.updated");
+}
+
+#[test]
+fn integrations_external_ref_updated_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "integrations",
+        "external_ref.updated",
+        mutation_classes::DATA_MUTATION,
+        ExternalRefUpdatedPayload {
+            ref_id: 7,
+            app_id: "tenant-001".into(),
+            entity_type: "order".into(),
+            entity_id: "ord-10".into(),
+            system: "salesforce".into(),
+            external_id: "SF-LEAD-1".into(),
+            label: None,
+            updated_at: "2026-03-02T15:30:00Z".into(),
+        },
+    );
+    validate_against_schema(&json, "integrations-external-ref-updated.v1.json");
+}
+
+#[test]
+fn integrations_external_ref_deleted_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "integrations",
+        "external_ref.deleted",
+        mutation_classes::LIFECYCLE,
+        ExternalRefDeletedPayload {
+            ref_id: 1,
+            app_id: "tenant-001".into(),
+            entity_type: "invoice".into(),
+            entity_id: "inv-001".into(),
+            system: "stripe".into(),
+            external_id: "in_abc123".into(),
+            deleted_at: "2026-03-01T02:00:00Z".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "integrations/external_ref.deleted");
+}
+
+#[test]
+fn integrations_external_ref_deleted_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "integrations",
+        "external_ref.deleted",
+        mutation_classes::LIFECYCLE,
+        ExternalRefDeletedPayload {
+            ref_id: 3,
+            app_id: "tenant-001".into(),
+            entity_type: "customer".into(),
+            entity_id: "cust-99".into(),
+            system: "hubspot".into(),
+            external_id: "HS-CONTACT-99".into(),
+            deleted_at: "2026-03-02T18:00:00Z".into(),
+        },
+    );
+    validate_against_schema(&json, "integrations-external-ref-deleted.v1.json");
+}
+
+#[test]
+fn integrations_webhook_received_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "integrations",
+        "webhook.received",
+        mutation_classes::DATA_MUTATION,
+        WebhookReceivedPayload {
+            ingest_id: 101,
+            system: "stripe".into(),
+            event_type: Some("invoice.payment_succeeded".into()),
+            idempotency_key: Some("evt_123abc".into()),
+            received_at: "2026-03-01T00:00:00Z".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "integrations/webhook.received");
+}
+
+#[test]
+fn integrations_webhook_received_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "integrations",
+        "webhook.received",
+        mutation_classes::DATA_MUTATION,
+        WebhookReceivedPayload {
+            ingest_id: 202,
+            system: "github".into(),
+            event_type: None,
+            idempotency_key: None,
+            received_at: "2026-03-02T10:00:00Z".into(),
+        },
+    );
+    validate_against_schema(&json, "integrations-webhook-received.v1.json");
+}
+
+#[test]
+fn integrations_webhook_routed_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "integrations",
+        "webhook.routed",
+        mutation_classes::LIFECYCLE,
+        WebhookRoutedPayload {
+            ingest_id: 101,
+            system: "stripe".into(),
+            source_event_type: Some("invoice.payment_succeeded".into()),
+            domain_event_type: "payment.received".into(),
+            outbox_event_id: Uuid::new_v4(),
+            routed_at: "2026-03-01T00:00:01Z".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "integrations/webhook.routed");
+}
+
+#[test]
+fn integrations_webhook_routed_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "integrations",
+        "webhook.routed",
+        mutation_classes::LIFECYCLE,
+        WebhookRoutedPayload {
+            ingest_id: 303,
+            system: "tilled".into(),
+            source_event_type: None,
+            domain_event_type: "merchant.onboarded".into(),
+            outbox_event_id: Uuid::new_v4(),
+            routed_at: "2026-03-02T20:00:00Z".into(),
+        },
+    );
+    validate_against_schema(&json, "integrations-webhook-routed.v1.json");
+}
+
+// ── Integrations: Schema & Naming Cross-Checks ───────────────────────
+
+#[test]
+fn integrations_gate_b_schemas_exist_on_disk() {
+    let schemas = [
+        "integrations-external-ref-created.v1.json",
+        "integrations-external-ref-updated.v1.json",
+        "integrations-external-ref-deleted.v1.json",
+        "integrations-webhook-received.v1.json",
+        "integrations-webhook-routed.v1.json",
+    ];
+
+    let events_dir = contracts_dir().join("events");
+    for schema_name in &schemas {
+        let path = events_dir.join(schema_name);
+        assert!(path.exists(), "Schema file missing: {}", path.display());
+
+        let content = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("Cannot read {}: {}", schema_name, e));
+        let _: serde_json::Value = serde_json::from_str(&content)
+            .unwrap_or_else(|e| panic!("Invalid JSON in {}: {}", schema_name, e));
+    }
+}
+
+#[test]
+fn integrations_gate_b_schemas_require_envelope_fields() {
+    let schemas = [
+        "integrations-external-ref-created.v1.json",
+        "integrations-external-ref-updated.v1.json",
+        "integrations-external-ref-deleted.v1.json",
+        "integrations-webhook-received.v1.json",
+        "integrations-webhook-routed.v1.json",
+    ];
+
+    for schema_name in &schemas {
+        let schema = load_schema(schema_name);
+        let required = schema["required"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{} has no 'required' array", schema_name));
+        let required_strs: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
+
+        for field in [
+            "event_id",
+            "event_type",
+            "occurred_at",
+            "tenant_id",
+            "source_module",
+            "source_version",
+            "schema_version",
+            "replay_safe",
+            "mutation_class",
+            "payload",
+        ] {
+            assert!(
+                required_strs.contains(&field),
+                "{} missing required envelope field '{}'",
+                schema_name,
+                field
+            );
+        }
+    }
+}
+
+#[test]
+fn integrations_event_types_follow_naming_convention() {
+    let event_types = [
+        "external_ref.created",
+        "external_ref.updated",
+        "external_ref.deleted",
+        "webhook.received",
+        "webhook.routed",
+    ];
+
+    for et in &event_types {
+        assert!(
+            event_naming::validate_event_type(et).is_ok(),
+            "Integrations event type '{}' does not follow naming convention",
+            et
+        );
+    }
+}
+
+#[test]
+fn integrations_nats_subjects_have_correct_prefix() {
+    let events = [
+        "external_ref.created",
+        "external_ref.updated",
+        "external_ref.deleted",
+        "webhook.received",
+        "webhook.routed",
+    ];
+
+    for event_type in &events {
+        let subject = event_naming::nats_subject("integrations", event_type);
+        assert!(
+            subject.starts_with("integrations.events."),
+            "NATS subject '{}' should start with 'integrations.events.'",
+            subject
+        );
+        assert!(
+            subject.ends_with(event_type),
+            "NATS subject '{}' should end with '{}'",
+            subject,
+            event_type
+        );
+    }
+}
+
+#[test]
+fn integrations_is_not_financial_module() {
+    assert!(
+        !mutation_classes::FINANCIAL_MODULES.contains(&"integrations"),
+        "integrations should NOT be in FINANCIAL_MODULES list"
+    );
+}
