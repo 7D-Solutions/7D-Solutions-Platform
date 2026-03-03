@@ -14,7 +14,9 @@ use crate::{metrics, ops, AppState};
 /// Build the Integrations HTTP router with all endpoints.
 ///
 /// Mutation routes (POST / PUT / DELETE) require the `integrations.mutate`
-/// permission in the caller's JWT.  Read routes are unenforced at this stage.
+/// permission in the caller's JWT.  Business read routes require the
+/// `integrations.read` permission.  Ops endpoints (health, ready, version,
+/// metrics) and the inbound webhook endpoint are unauthenticated.
 pub fn router(state: Arc<AppState>) -> Router {
     let webhook_inbound = Router::new()
         // Inbound webhooks — unauthenticated (gated by signature verification in handler)
@@ -49,13 +51,15 @@ pub fn router(state: Arc<AppState>) -> Router {
         ]))
         .with_state(state.clone());
 
-    let reads = Router::new()
-        // Ops
+    let ops = Router::new()
         .route("/healthz", get(health::healthz))
         .route("/api/health", get(ops::health::health))
         .route("/api/ready", get(ops::ready::ready))
         .route("/api/version", get(ops::version::version))
         .route("/metrics", get(metrics::metrics_handler))
+        .with_state(state.clone());
+
+    let reads = Router::new()
         // External refs — read
         .route(
             "/api/integrations/external-refs/by-entity",
@@ -82,10 +86,14 @@ pub fn router(state: Arc<AppState>) -> Router {
             "/api/integrations/connectors/{id}",
             get(connectors::get_connector),
         )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::INTEGRATIONS_READ,
+        ]))
         .with_state(state);
 
     Router::new()
         .merge(mutations)
         .merge(reads)
+        .merge(ops)
         .merge(webhook_inbound)
 }
