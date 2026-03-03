@@ -37,8 +37,8 @@ ssh -L 9091:localhost:9091 deploy@prod.7dsolutions.example.com
 # → open http://localhost:9091
 
 # Alertmanager UI
-ssh -L 9093:localhost:9093 deploy@prod.7dsolutions.example.com
-# → open http://localhost:9093
+ssh -L 9094:localhost:9094 deploy@prod.7dsolutions.example.com
+# → open http://localhost:9094
 
 # Grafana UI
 ssh -L 3002:localhost:3002 deploy@prod.7dsolutions.example.com
@@ -140,7 +140,7 @@ The default receiver is `ops-webhook`, configured to POST alert payloads to a we
 
 1. Edit `infra/monitoring/alertmanager.yml`
 2. Replace the `receivers` section with your preferred channel (Slack, email, PagerDuty)
-3. Reload Alertmanager: `curl -X POST http://localhost:9093/-/reload`
+3. Reload Alertmanager: `curl -X POST http://localhost:9094/-/reload`
 
 Example Slack receiver:
 ```yaml
@@ -158,16 +158,16 @@ receivers:
 
 ```bash
 # Health check
-curl -s http://localhost:9093/-/healthy
+curl -s http://localhost:9094/-/healthy
 
 # View active alerts
-curl -s http://localhost:9093/api/v2/alerts | jq .
+curl -s http://localhost:9094/api/v2/alerts | jq .
 
 # View silences
-curl -s http://localhost:9093/api/v2/silences | jq .
+curl -s http://localhost:9094/api/v2/silences | jq .
 
 # Reload config after editing alertmanager.yml
-curl -X POST http://localhost:9093/-/reload
+curl -X POST http://localhost:9094/-/reload
 ```
 
 ### Critical Alerts — Immediate Action Required
@@ -260,5 +260,5 @@ After provisioning a new VPS:
 6. Run the health audit: `bash scripts/production/health_audit.sh`
 7. Run the smoke suite: `bash scripts/production/smoke.sh --host <VPS> --dry-run` then without `--dry-run`.
 8. Alertmanager starts automatically with the monitoring stack. Edit `infra/monitoring/alertmanager.yml` to set your notification channel (Slack, email, PagerDuty).
-9. Verify Alertmanager is healthy: `curl -s http://localhost:9093/-/healthy`
+9. Verify Alertmanager is healthy: `curl -s http://localhost:9094/-/healthy`
 10. Verify Prometheus is connected: Prometheus → Status → Alertmanagers (should show `7d-alertmanager:9093`).

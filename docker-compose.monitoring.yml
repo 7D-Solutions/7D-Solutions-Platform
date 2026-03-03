@@ -8,7 +8,7 @@ name: 7d-monitoring
 # In production, all ports are firewalled by UFW (bound to 127.0.0.1).
 # Access via SSH tunnel:
 #   ssh -L 9091:localhost:9091 deploy@prod.7dsolutions.example.com   # Prometheus
-#   ssh -L 9093:localhost:9093 deploy@prod.7dsolutions.example.com   # Alertmanager
+#   ssh -L 9094:localhost:9094 deploy@prod.7dsolutions.example.com   # Alertmanager
 #   ssh -L 3002:localhost:3002 deploy@prod.7dsolutions.example.com   # Grafana
 #
 # Prometheus scrapes /metrics from all platform services on the 7d-platform network.
@@ -29,7 +29,7 @@ services:
       - ./infra/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
       - alertmanager_data:/alertmanager
     ports:
-      - "127.0.0.1:9093:9093"
+      - "127.0.0.1:9094:9093"
     networks:
       - 7d-platform
     labels:
