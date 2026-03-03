@@ -17,6 +17,7 @@ use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
 
+use crate::domain::history::change_history::{record_change_in_tx, RecordChangeRequest};
 use crate::events::{
     build_item_revision_activated_envelope, build_item_revision_created_envelope,
     build_item_revision_policy_updated_envelope, ItemRevisionActivatedPayload,
@@ -79,6 +80,9 @@ pub struct CreateRevisionRequest {
     pub idempotency_key: String,
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
+    /// Identity of the actor performing this change (for audit trail).
+    #[serde(default)]
+    pub actor_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -89,6 +93,9 @@ pub struct ActivateRevisionRequest {
     pub idempotency_key: String,
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
+    /// Identity of the actor performing this change (for audit trail).
+    #[serde(default)]
+    pub actor_id: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -101,6 +108,9 @@ pub struct UpdateRevisionPolicyRequest {
     pub idempotency_key: String,
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
+    /// Identity of the actor performing this change (for audit trail).
+    #[serde(default)]
+    pub actor_id: Option<String>,
 }
 
 // ============================================================================
@@ -291,6 +301,38 @@ pub async fn create_revision(
     .execute(&mut *tx)
     .await?;
 
+    // Change history: record revision creation
+    let actor = req
+        .actor_id
+        .clone()
+        .unwrap_or_else(|| "system".to_string());
+    let diff = serde_json::json!({
+        "name": { "after": revision.name },
+        "uom": { "after": revision.uom },
+        "inventory_account_ref": { "after": revision.inventory_account_ref },
+        "cogs_account_ref": { "after": revision.cogs_account_ref },
+        "variance_account_ref": { "after": revision.variance_account_ref },
+        "traceability_level": { "after": revision.traceability_level },
+        "inspection_required": { "after": revision.inspection_required },
+        "shelf_life_days": { "after": revision.shelf_life_days },
+        "shelf_life_enforced": { "after": revision.shelf_life_enforced },
+    });
+    let change_req = RecordChangeRequest {
+        tenant_id: req.tenant_id.clone(),
+        item_id: req.item_id,
+        revision_id: Some(revision.id),
+        change_type: "revision_created".to_string(),
+        actor_id: actor,
+        diff,
+        reason: Some(req.change_reason.clone()),
+        idempotency_key: format!("ch-{}", req.idempotency_key),
+        correlation_id: Some(correlation_id.clone()),
+        causation_id: req.causation_id.clone(),
+    };
+    record_change_in_tx(&mut tx, &change_req)
+        .await
+        .map_err(|e| RevisionError::Database(sqlx::Error::Protocol(e.to_string())))?;
+
     // Idempotency key
     let response_json = serde_json::to_string(&revision)?;
     let expires_at = now + Duration::days(7);
@@ -462,6 +504,32 @@ pub async fn activate_revision(
     .execute(&mut *tx)
     .await?;
 
+    // Change history: record revision activation
+    let actor = req
+        .actor_id
+        .clone()
+        .unwrap_or_else(|| "system".to_string());
+    let diff = serde_json::json!({
+        "effective_from": { "before": null, "after": req.effective_from },
+        "effective_to": { "before": null, "after": req.effective_to },
+        "superseded_revision_id": { "after": superseded_id },
+    });
+    let change_req = RecordChangeRequest {
+        tenant_id: req.tenant_id.clone(),
+        item_id,
+        revision_id: Some(activated.id),
+        change_type: "revision_activated".to_string(),
+        actor_id: actor,
+        diff,
+        reason: None,
+        idempotency_key: format!("ch-{}", req.idempotency_key),
+        correlation_id: Some(correlation_id.clone()),
+        causation_id: req.causation_id.clone(),
+    };
+    record_change_in_tx(&mut tx, &change_req)
+        .await
+        .map_err(|e| RevisionError::Database(sqlx::Error::Protocol(e.to_string())))?;
+
     // Idempotency key
     let response_json = serde_json::to_string(&activated)?;
     let expires_at = now + Duration::days(7);
@@ -470,7 +538,7 @@ pub async fn activate_revision(
         r#"
         INSERT INTO inv_idempotency_keys
             (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
-        VALUES ($1, $2, $3, $4::JSONB, 200, $5)
+        Values ($1, $2, $3, $4::JSONB, 200, $5)
         "#,
     )
     .bind(&req.tenant_id)
@@ -593,6 +661,45 @@ pub async fn update_revision_policy(
     .bind(&req.causation_id)
     .execute(&mut *tx)
     .await?;
+
+    // Change history: record policy update with before/after diff
+    let actor = req
+        .actor_id
+        .clone()
+        .unwrap_or_else(|| "system".to_string());
+    let diff = serde_json::json!({
+        "traceability_level": {
+            "before": current.traceability_level,
+            "after": updated.traceability_level,
+        },
+        "inspection_required": {
+            "before": current.inspection_required,
+            "after": updated.inspection_required,
+        },
+        "shelf_life_days": {
+            "before": current.shelf_life_days,
+            "after": updated.shelf_life_days,
+        },
+        "shelf_life_enforced": {
+            "before": current.shelf_life_enforced,
+            "after": updated.shelf_life_enforced,
+        },
+    });
+    let change_req = RecordChangeRequest {
+        tenant_id: req.tenant_id.clone(),
+        item_id,
+        revision_id: Some(updated.id),
+        change_type: "policy_updated".to_string(),
+        actor_id: actor,
+        diff,
+        reason: None,
+        idempotency_key: format!("ch-{}", req.idempotency_key),
+        correlation_id: Some(correlation_id.clone()),
+        causation_id: req.causation_id.clone(),
+    };
+    record_change_in_tx(&mut tx, &change_req)
+        .await
+        .map_err(|e| RevisionError::Database(sqlx::Error::Protocol(e.to_string())))?;
 
     let response_json = serde_json::to_string(&updated)?;
     let expires_at = now + Duration::days(7);
@@ -812,6 +919,7 @@ mod tests {
             idempotency_key: "idem-1".to_string(),
             correlation_id: None,
             causation_id: None,
+            actor_id: None,
         }
     }
 
@@ -859,6 +967,7 @@ mod tests {
             idempotency_key: "act-1".to_string(),
             correlation_id: None,
             causation_id: None,
+            actor_id: None,
         };
         assert!(validate_activate_request(&req).is_ok());
     }
@@ -873,6 +982,7 @@ mod tests {
             idempotency_key: "act-2".to_string(),
             correlation_id: None,
             causation_id: None,
+            actor_id: None,
         };
         assert!(matches!(
             validate_activate_request(&req),

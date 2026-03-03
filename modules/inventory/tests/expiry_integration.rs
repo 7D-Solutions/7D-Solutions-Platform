@@ -120,6 +120,7 @@ async fn receipt_computes_expiry_from_active_revision_policy() {
             idempotency_key: format!("idem-rev-{}", Uuid::new_v4()),
             correlation_id: None,
             causation_id: None,
+            actor_id: None,
         },
     )
     .await
@@ -135,6 +136,7 @@ async fn receipt_computes_expiry_from_active_revision_policy() {
             idempotency_key: format!("idem-act-{}", Uuid::new_v4()),
             correlation_id: None,
             causation_id: None,
+            actor_id: None,
         },
     )
     .await

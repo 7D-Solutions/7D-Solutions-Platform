@@ -79,6 +79,7 @@ fn make_create_rev(tenant_id: &str, item_id: Uuid, idem: &str) -> CreateRevision
         idempotency_key: idem.to_string(),
         correlation_id: Some("corr-test".to_string()),
         causation_id: None,
+        actor_id: None,
     }
 }
 
@@ -99,6 +100,7 @@ fn make_update_policy(
         idempotency_key: idem.to_string(),
         correlation_id: Some("corr-policy".to_string()),
         causation_id: None,
+        actor_id: None,
     }
 }
 
@@ -115,6 +117,7 @@ fn make_activate(
         idempotency_key: idem.to_string(),
         correlation_id: Some("corr-test".to_string()),
         causation_id: None,
+        actor_id: None,
     }
 }
 
@@ -125,6 +128,11 @@ async fn cleanup(pool: &sqlx::PgPool, tenant_id: &str) {
         .await
         .ok();
     sqlx::query("DELETE FROM inv_idempotency_keys WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+    sqlx::query("DELETE FROM item_change_history WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(pool)
         .await

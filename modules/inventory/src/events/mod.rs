@@ -50,6 +50,7 @@ pub mod cycle_count_approved;
 pub mod cycle_count_submitted;
 pub mod expiry_alert;
 pub mod expiry_set;
+pub mod item_change_recorded;
 pub mod label_generated;
 pub mod lot_merged;
 pub mod lot_split;
@@ -133,6 +134,11 @@ pub use lot_split::{
 
 pub use lot_merged::{
     build_lot_merged_envelope, LotMergedPayload, MergeParentEdge, EVENT_TYPE_LOT_MERGED,
+};
+
+pub use item_change_recorded::{
+    build_item_change_recorded_envelope, ItemChangeRecordedPayload,
+    EVENT_TYPE_ITEM_CHANGE_RECORDED,
 };
 
 // ============================================================================

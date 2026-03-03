@@ -78,6 +78,7 @@ fn make_revision(tenant_id: &str, item_id: Uuid) -> CreateRevisionRequest {
         idempotency_key: format!("idem-rev-{}", Uuid::new_v4()),
         correlation_id: Some("corr-test".to_string()),
         causation_id: None,
+        actor_id: None,
     }
 }
 
@@ -220,7 +221,10 @@ async fn label_payload_is_deterministic() {
 
     // Different label IDs but same payload content
     assert_ne!(label1.id, label2.id);
-    assert_eq!(label1.payload, label2.payload, "same inputs must produce same payload");
+    assert_eq!(
+        label1.payload, label2.payload,
+        "same inputs must produce same payload"
+    );
 
     cleanup(&pool, &tenant).await;
 }
@@ -251,14 +255,13 @@ async fn label_idempotent_replay() {
     assert_eq!(label1.payload, label2.payload);
 
     // Only one label row in DB
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM inv_labels WHERE tenant_id = $1 AND item_id = $2",
-    )
-    .bind(&tenant)
-    .bind(item_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count query");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM inv_labels WHERE tenant_id = $1 AND item_id = $2")
+            .bind(&tenant)
+            .bind(item_id)
+            .fetch_one(&pool)
+            .await
+            .expect("count query");
     assert_eq!(count, 1);
 
     cleanup(&pool, &tenant).await;
@@ -366,12 +369,8 @@ async fn label_event_emitted_to_outbox() {
     .await
     .expect("outbox payload");
 
-    let envelope: serde_json::Value =
-        serde_json::from_str(&payload_json).expect("parse envelope");
-    assert_eq!(
-        envelope["payload"]["label_id"],
-        label.id.to_string()
-    );
+    let envelope: serde_json::Value = serde_json::from_str(&payload_json).expect("parse envelope");
+    assert_eq!(envelope["payload"]["label_id"], label.id.to_string());
     assert_eq!(envelope["event_type"], "inventory.label_generated.v1");
     assert_eq!(envelope["source_module"], "inventory");
 
@@ -459,7 +458,9 @@ async fn label_lot_with_extra_data() {
         "expiry_date": "2026-09-01"
     }));
 
-    let (label, _) = generate_label(&pool, &req).await.expect("generate lot label");
+    let (label, _) = generate_label(&pool, &req)
+        .await
+        .expect("generate lot label");
 
     assert_eq!(label.label_type, "lot_label");
     assert_eq!(label.payload["lot_code"], "LOT-2026-001");
