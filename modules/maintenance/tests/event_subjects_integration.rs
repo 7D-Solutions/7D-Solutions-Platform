@@ -59,6 +59,8 @@ async fn create_test_asset(pool: &sqlx::PgPool, tid: &str, tag: &str) -> Uuid {
             serial_number: None,
             fixed_asset_ref: None,
             metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
         },
     )
     .await
@@ -253,8 +255,8 @@ fn all_subjects_are_stable_and_prefixed() {
             subject
         );
     }
-    // Exactly 9 stable subjects
-    assert_eq!(subjects::ALL_SUBJECTS.len(), 9);
+    // Exactly 14 stable subjects
+    assert_eq!(subjects::ALL_SUBJECTS.len(), 14);
 }
 
 // ============================================================================
