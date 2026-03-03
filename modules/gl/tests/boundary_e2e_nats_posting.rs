@@ -136,7 +136,7 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
         .await
         .expect("Failed to cleanup balances");
 
-    sqlx::query("DELETE FROM journal_lines WHERE entry_id IN (SELECT id FROM journal_entries WHERE tenant_id = $1)")
+    sqlx::query("DELETE FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE tenant_id = $1)")
         .bind(tenant_id)
         .execute(pool)
         .await
@@ -282,7 +282,7 @@ async fn test_boundary_nats_posting_creates_journal_and_balances() {
 
     // Assert: Journal lines were created
     let line_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM journal_lines WHERE entry_id IN (SELECT id FROM journal_entries WHERE source_event_id = $1)",
+        "SELECT COUNT(*) FROM journal_lines WHERE journal_entry_id IN (SELECT id FROM journal_entries WHERE source_event_id = $1)",
     )
     .bind(event_id)
     .fetch_one(&pool)
