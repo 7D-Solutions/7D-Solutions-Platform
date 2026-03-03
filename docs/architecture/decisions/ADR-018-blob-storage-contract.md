@@ -1,4 +1,4 @@
-# ADR-017: Blob Storage Contract for Document Artifacts
+# ADR-018: Blob Storage Contract for Document Artifacts
 
 **Date:** 2026-03-03
 **Status:** Accepted
@@ -127,4 +127,3 @@ No blob operation may bypass audit logging.
 - `bd-3i1aa` — Phase 58 Gate B: doc-mgmt perf+contracts+ops readiness
 
 `doc-mgmt` ongoing work must align to this contract as well.
-
