@@ -100,7 +100,7 @@ pub async fn run_export(
         event_payload,
     )
     .with_source_version(env!("CARGO_PKG_VERSION").to_string())
-    .with_mutation_class(Some("DATA_EXPORT".to_string()));
+    .with_mutation_class(Some("SIDE_EFFECT".to_string()));
 
     let payload_json = validate_and_serialize_envelope(&envelope).map_err(|e| {
         anyhow::anyhow!("Envelope validation failed: {}", e)
