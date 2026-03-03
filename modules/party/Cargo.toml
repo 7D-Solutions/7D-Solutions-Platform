@@ -8,6 +8,14 @@ description = "Party master: companies, individuals, contacts, and addresses"
 name = "party"
 path = "src/main.rs"
 
+[[bin]]
+name = "party_bench"
+path = "src/bin/bench.rs"
+
+[[bin]]
+name = "dlq_replay_drill"
+path = "src/bin/dlq_replay_drill.rs"
+
 [dependencies]
 axum = "0.8"
 security = { path = "../../platform/security" }

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/party-updated.v1.json",
+  "title": "party.updated",
+  "description": "Event emitted when a party's base fields are updated",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant/app identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "party",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "party_id",
+        "app_id",
+        "updated_by",
+        "updated_at"
+      ],
+      "properties": {
+        "party_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique identifier for the updated party"
+        },
+        "app_id": {
+          "type": "string",
+          "description": "Application/tenant identifier"
+        },
+        "display_name": {
+          "type": ["string", "null"],
+          "description": "Updated display name (null if unchanged)"
+        },
+        "email": {
+          "type": ["string", "null"],
+          "description": "Updated email (null if unchanged)"
+        },
+        "updated_by": {
+          "type": "string",
+          "description": "Actor who performed the update"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when the update occurred"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

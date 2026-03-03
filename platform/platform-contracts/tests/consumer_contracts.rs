@@ -2965,3 +2965,583 @@ fn pdf_editor_is_not_financial_module() {
         "pdf-editor should not be listed as a financial module"
     );
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// TIMEKEEPING
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Timekeeping Entry Event Payloads ──────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TimesheetEntryCreatedPayload {
+    entry_id: Uuid,
+    app_id: String,
+    employee_id: Uuid,
+    work_date: String,
+    minutes: i32,
+    version: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TimesheetEntryCorrectedPayload {
+    entry_id: Uuid,
+    app_id: String,
+    employee_id: Uuid,
+    work_date: String,
+    old_minutes: i32,
+    new_minutes: i32,
+    version: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TimesheetEntryVoidedPayload {
+    entry_id: Uuid,
+    app_id: String,
+    employee_id: Uuid,
+    work_date: String,
+    voided_minutes: i32,
+    version: i32,
+}
+
+// ── Timekeeping Approval Event Payloads ──────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TimesheetSubmittedPayload {
+    approval_id: Uuid,
+    app_id: String,
+    employee_id: Uuid,
+    period_start: String,
+    period_end: String,
+    total_minutes: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TimesheetApprovedPayload {
+    approval_id: Uuid,
+    app_id: String,
+    employee_id: Uuid,
+    period_start: String,
+    period_end: String,
+    reviewer_id: Uuid,
+    total_minutes: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TimesheetRejectedPayload {
+    approval_id: Uuid,
+    app_id: String,
+    employee_id: Uuid,
+    period_start: String,
+    period_end: String,
+    reviewer_id: Uuid,
+    notes: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TimesheetRecalledPayload {
+    approval_id: Uuid,
+    app_id: String,
+    employee_id: Uuid,
+    period_start: String,
+    period_end: String,
+}
+
+// ── Entry Created ────────────────────────────────────────────────────
+
+#[test]
+fn timekeeping_entry_created_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet_entry.created",
+        mutation_classes::DATA_MUTATION,
+        TimesheetEntryCreatedPayload {
+            entry_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            work_date: "2026-03-01".into(),
+            minutes: 480,
+            version: 1,
+        },
+    );
+    assert_envelope_completeness(&json, "timekeeping/timesheet_entry.created");
+}
+
+#[test]
+fn timekeeping_entry_created_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet_entry.created",
+        mutation_classes::DATA_MUTATION,
+        TimesheetEntryCreatedPayload {
+            entry_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            work_date: "2026-03-01".into(),
+            minutes: 480,
+            version: 1,
+        },
+    );
+    validate_against_schema(&json, "timekeeping-entry-created.v1.json");
+}
+
+// ── Entry Corrected ──────────────────────────────────────────────────
+
+#[test]
+fn timekeeping_entry_corrected_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet_entry.corrected",
+        mutation_classes::DATA_MUTATION,
+        TimesheetEntryCorrectedPayload {
+            entry_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            work_date: "2026-03-01".into(),
+            old_minutes: 480,
+            new_minutes: 360,
+            version: 2,
+        },
+    );
+    assert_envelope_completeness(&json, "timekeeping/timesheet_entry.corrected");
+}
+
+#[test]
+fn timekeeping_entry_corrected_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet_entry.corrected",
+        mutation_classes::DATA_MUTATION,
+        TimesheetEntryCorrectedPayload {
+            entry_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            work_date: "2026-03-01".into(),
+            old_minutes: 480,
+            new_minutes: 360,
+            version: 2,
+        },
+    );
+    validate_against_schema(&json, "timekeeping-entry-corrected.v1.json");
+}
+
+// ── Entry Voided ─────────────────────────────────────────────────────
+
+#[test]
+fn timekeeping_entry_voided_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet_entry.voided",
+        mutation_classes::DATA_MUTATION,
+        TimesheetEntryVoidedPayload {
+            entry_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            work_date: "2026-03-01".into(),
+            voided_minutes: 480,
+            version: 2,
+        },
+    );
+    assert_envelope_completeness(&json, "timekeeping/timesheet_entry.voided");
+}
+
+#[test]
+fn timekeeping_entry_voided_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet_entry.voided",
+        mutation_classes::DATA_MUTATION,
+        TimesheetEntryVoidedPayload {
+            entry_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            work_date: "2026-03-01".into(),
+            voided_minutes: 480,
+            version: 2,
+        },
+    );
+    validate_against_schema(&json, "timekeeping-entry-voided.v1.json");
+}
+
+// ── Timesheet Submitted ──────────────────────────────────────────────
+
+#[test]
+fn timekeeping_timesheet_submitted_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet.submitted",
+        mutation_classes::DATA_MUTATION,
+        TimesheetSubmittedPayload {
+            approval_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            period_start: "2026-03-01".into(),
+            period_end: "2026-03-07".into(),
+            total_minutes: 2400,
+        },
+    );
+    assert_envelope_completeness(&json, "timekeeping/timesheet.submitted");
+}
+
+#[test]
+fn timekeeping_timesheet_submitted_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet.submitted",
+        mutation_classes::DATA_MUTATION,
+        TimesheetSubmittedPayload {
+            approval_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            period_start: "2026-03-01".into(),
+            period_end: "2026-03-07".into(),
+            total_minutes: 2400,
+        },
+    );
+    validate_against_schema(&json, "timekeeping-timesheet-submitted.v1.json");
+}
+
+// ── Timesheet Approved ───────────────────────────────────────────────
+
+#[test]
+fn timekeeping_timesheet_approved_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet.approved",
+        mutation_classes::DATA_MUTATION,
+        TimesheetApprovedPayload {
+            approval_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            period_start: "2026-03-01".into(),
+            period_end: "2026-03-07".into(),
+            reviewer_id: Uuid::new_v4(),
+            total_minutes: 2400,
+        },
+    );
+    assert_envelope_completeness(&json, "timekeeping/timesheet.approved");
+}
+
+#[test]
+fn timekeeping_timesheet_approved_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet.approved",
+        mutation_classes::DATA_MUTATION,
+        TimesheetApprovedPayload {
+            approval_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            period_start: "2026-03-01".into(),
+            period_end: "2026-03-07".into(),
+            reviewer_id: Uuid::new_v4(),
+            total_minutes: 2400,
+        },
+    );
+    validate_against_schema(&json, "timekeeping-timesheet-approved.v1.json");
+}
+
+// ── Timesheet Rejected ───────────────────────────────────────────────
+
+#[test]
+fn timekeeping_timesheet_rejected_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet.rejected",
+        mutation_classes::DATA_MUTATION,
+        TimesheetRejectedPayload {
+            approval_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            period_start: "2026-03-01".into(),
+            period_end: "2026-03-07".into(),
+            reviewer_id: Uuid::new_v4(),
+            notes: Some("Hours seem too high for Monday".into()),
+        },
+    );
+    assert_envelope_completeness(&json, "timekeeping/timesheet.rejected");
+}
+
+#[test]
+fn timekeeping_timesheet_rejected_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet.rejected",
+        mutation_classes::DATA_MUTATION,
+        TimesheetRejectedPayload {
+            approval_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            period_start: "2026-03-01".into(),
+            period_end: "2026-03-07".into(),
+            reviewer_id: Uuid::new_v4(),
+            notes: Some("Please correct Friday hours".into()),
+        },
+    );
+    validate_against_schema(&json, "timekeeping-timesheet-rejected.v1.json");
+}
+
+// ── Timesheet Recalled ───────────────────────────────────────────────
+
+#[test]
+fn timekeeping_timesheet_recalled_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet.recalled",
+        mutation_classes::DATA_MUTATION,
+        TimesheetRecalledPayload {
+            approval_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            period_start: "2026-03-01".into(),
+            period_end: "2026-03-07".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "timekeeping/timesheet.recalled");
+}
+
+#[test]
+fn timekeeping_timesheet_recalled_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "timekeeping",
+        "timesheet.recalled",
+        mutation_classes::DATA_MUTATION,
+        TimesheetRecalledPayload {
+            approval_id: Uuid::new_v4(),
+            app_id: "tenant-001".into(),
+            employee_id: Uuid::new_v4(),
+            period_start: "2026-03-01".into(),
+            period_end: "2026-03-07".into(),
+        },
+    );
+    validate_against_schema(&json, "timekeeping-timesheet-recalled.v1.json");
+}
+
+// ── Coverage guard ───────────────────────────────────────────────────
+
+#[test]
+fn timekeeping_all_subjects_have_contract_tests() {
+    let tested_event_types = [
+        "timesheet_entry.created",
+        "timesheet_entry.corrected",
+        "timesheet_entry.voided",
+        "timesheet.submitted",
+        "timesheet.approved",
+        "timesheet.rejected",
+        "timesheet.recalled",
+    ];
+    assert_eq!(
+        tested_event_types.len(),
+        7,
+        "Must have contract tests for all 7 timekeeping event types"
+    );
+    for et in &tested_event_types {
+        assert!(
+            event_naming::validate_event_type(et).is_ok(),
+            "Event type '{}' does not follow entity.action convention",
+            et
+        );
+    }
+}
+
+#[test]
+fn timekeeping_is_not_financial_module() {
+    assert!(
+        !mutation_classes::FINANCIAL_MODULES.contains(&"timekeeping"),
+        "timekeeping should not be listed as a financial module"
+    );
+}
+
+// ════════════════════════════════════════════════════════════════════════
+// Party Module Events
+// ════════════════════════════════════════════════════════════════════════
+
+// ── Party Payloads ──────────────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PartyCreatedPayload {
+    party_id: Uuid,
+    app_id: String,
+    party_type: String,
+    display_name: String,
+    email: Option<String>,
+    created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PartyUpdatedPayload {
+    party_id: Uuid,
+    app_id: String,
+    display_name: Option<String>,
+    email: Option<String>,
+    updated_by: String,
+    updated_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PartyDeactivatedPayload {
+    party_id: Uuid,
+    app_id: String,
+    deactivated_by: String,
+    deactivated_at: String,
+}
+
+// ── party.created ───────────────────────────────────────────────────────
+
+#[test]
+fn party_created_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-party-test",
+        "party",
+        "party.created",
+        mutation_classes::DATA_MUTATION,
+        PartyCreatedPayload {
+            party_id: Uuid::new_v4(),
+            app_id: "tenant-party-test".to_string(),
+            party_type: "company".to_string(),
+            display_name: "Acme Corp".to_string(),
+            email: Some("info@acme.com".to_string()),
+            created_at: "2026-03-01T00:00:00Z".to_string(),
+        },
+    );
+    assert_envelope_completeness(&json, "party.created");
+}
+
+#[test]
+fn party_created_schema_validation() {
+    let json = build_envelope(
+        "tenant-party-test",
+        "party",
+        "party.created",
+        mutation_classes::DATA_MUTATION,
+        PartyCreatedPayload {
+            party_id: Uuid::new_v4(),
+            app_id: "tenant-party-test".to_string(),
+            party_type: "individual".to_string(),
+            display_name: "Jane Doe".to_string(),
+            email: None,
+            created_at: "2026-03-01T00:00:00Z".to_string(),
+        },
+    );
+    validate_against_schema(&json, "party-created.v1.json");
+}
+
+// ── party.updated ───────────────────────────────────────────────────────
+
+#[test]
+fn party_updated_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-party-test",
+        "party",
+        "party.updated",
+        mutation_classes::DATA_MUTATION,
+        PartyUpdatedPayload {
+            party_id: Uuid::new_v4(),
+            app_id: "tenant-party-test".to_string(),
+            display_name: Some("Acme Corporation".to_string()),
+            email: Some("new@acme.com".to_string()),
+            updated_by: "user-42".to_string(),
+            updated_at: "2026-03-01T01:00:00Z".to_string(),
+        },
+    );
+    assert_envelope_completeness(&json, "party.updated");
+}
+
+#[test]
+fn party_updated_schema_validation() {
+    let json = build_envelope(
+        "tenant-party-test",
+        "party",
+        "party.updated",
+        mutation_classes::DATA_MUTATION,
+        PartyUpdatedPayload {
+            party_id: Uuid::new_v4(),
+            app_id: "tenant-party-test".to_string(),
+            display_name: None,
+            email: None,
+            updated_by: "system".to_string(),
+            updated_at: "2026-03-01T01:00:00Z".to_string(),
+        },
+    );
+    validate_against_schema(&json, "party-updated.v1.json");
+}
+
+// ── party.deactivated ───────────────────────────────────────────────────
+
+#[test]
+fn party_deactivated_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-party-test",
+        "party",
+        "party.deactivated",
+        mutation_classes::LIFECYCLE,
+        PartyDeactivatedPayload {
+            party_id: Uuid::new_v4(),
+            app_id: "tenant-party-test".to_string(),
+            deactivated_by: "admin-1".to_string(),
+            deactivated_at: "2026-03-01T02:00:00Z".to_string(),
+        },
+    );
+    assert_envelope_completeness(&json, "party.deactivated");
+}
+
+#[test]
+fn party_deactivated_schema_validation() {
+    let json = build_envelope(
+        "tenant-party-test",
+        "party",
+        "party.deactivated",
+        mutation_classes::LIFECYCLE,
+        PartyDeactivatedPayload {
+            party_id: Uuid::new_v4(),
+            app_id: "tenant-party-test".to_string(),
+            deactivated_by: "user-99".to_string(),
+            deactivated_at: "2026-03-01T02:00:00Z".to_string(),
+        },
+    );
+    validate_against_schema(&json, "party-deactivated.v1.json");
+}
+
+// ── Coverage guard ──────────────────────────────────────────────────────
+
+#[test]
+fn party_all_subjects_have_contract_tests() {
+    let tested_event_types = [
+        "party.created",
+        "party.updated",
+        "party.deactivated",
+    ];
+    assert_eq!(
+        tested_event_types.len(),
+        3,
+        "Must have contract tests for all 3 party event types"
+    );
+    for et in &tested_event_types {
+        assert!(
+            event_naming::validate_event_type(et).is_ok(),
+            "Event type '{}' does not follow entity.action convention",
+            et
+        );
+    }
+}
+
+#[test]
+fn party_is_not_financial_module() {
+    assert!(
+        !mutation_classes::FINANCIAL_MODULES.contains(&"party"),
+        "party should not be listed as a financial module"
+    );
+}
