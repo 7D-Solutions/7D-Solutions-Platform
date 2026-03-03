@@ -2254,3 +2254,87 @@ fn integrations_is_not_financial_module() {
         "integrations should NOT be in FINANCIAL_MODULES list"
     );
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// REPORTING (consumer-only module)
+// ══════════════════════════════════════════════════════════════════════
+//
+// The reporting module is a read-model that consumes domain events from
+// AR, GL, and Payments to populate cache tables. It does NOT publish
+// events itself. These tests assert that no reporting event schemas
+// have been introduced (the "(if published)" AC guard) and verify that
+// the consumed event schemas remain loadable and structurally valid.
+
+#[test]
+fn reporting_has_no_published_event_schemas() {
+    let events_dir = contracts_dir().join("events");
+    let reporting_schemas: Vec<_> = std::fs::read_dir(&events_dir)
+        .expect("contracts/events/ must exist")
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.file_name()
+                .to_string_lossy()
+                .starts_with("reporting-")
+        })
+        .collect();
+
+    assert!(
+        reporting_schemas.is_empty(),
+        "Reporting is a consumer-only module and should not have event schemas, \
+         but found: {:?}",
+        reporting_schemas
+            .iter()
+            .map(|e| e.file_name())
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn reporting_consumed_gl_posting_request_schema_valid() {
+    let schema = load_schema("gl-posting-request.v1.json");
+    assert_eq!(
+        schema["title"], "GL Posting Request Event",
+        "GL posting request schema must have expected title"
+    );
+    let required = schema["properties"]["payload"]["required"]
+        .as_array()
+        .expect("payload.required must be an array");
+    let required_names: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
+    assert!(
+        required_names.contains(&"posting_date"),
+        "GL posting request payload must require posting_date (reporting trial balance depends on it)"
+    );
+    assert!(
+        required_names.contains(&"currency"),
+        "GL posting request payload must require currency (reporting trial balance depends on it)"
+    );
+    assert!(
+        required_names.contains(&"lines"),
+        "GL posting request payload must require lines (reporting accumulates debit/credit from them)"
+    );
+}
+
+#[test]
+fn reporting_consumed_payment_succeeded_schema_valid() {
+    let schema = load_schema("payments-payment-succeeded.v1.json");
+    let required = schema["properties"]["payload"]["required"]
+        .as_array()
+        .expect("payload.required must be an array");
+    let required_names: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
+    assert!(
+        required_names.contains(&"payment_id"),
+        "Payment succeeded payload must require payment_id (reporting cashflow depends on it)"
+    );
+    assert!(
+        required_names.contains(&"amount_minor"),
+        "Payment succeeded payload must require amount_minor (reporting cashflow depends on it)"
+    );
+    assert!(
+        required_names.contains(&"currency"),
+        "Payment succeeded payload must require currency (reporting cashflow depends on it)"
+    );
+    assert!(
+        required_names.contains(&"invoice_id"),
+        "Payment succeeded payload must require invoice_id (reporting payment history depends on it)"
+    );
+}
