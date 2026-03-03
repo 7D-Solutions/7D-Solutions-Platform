@@ -1,0 +1,4 @@
+# HELP maintenance_events_enqueued_total Total events enqueued to outbox (all time)
+# HELP maintenance_outbox_queue_depth Number of unpublished events in outbox
+# TYPE maintenance_outbox_queue_depth gauge
+maintenance_outbox_queue_depth 0

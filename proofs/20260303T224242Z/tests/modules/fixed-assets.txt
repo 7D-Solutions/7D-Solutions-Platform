@@ -1,0 +1,136 @@
+## crate test: fixed-assets
+## started_at_utc=2026-03-03T22:50:28Z
+## cmd=bash -lc DATABASE_URL=postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db?sslmode=disable&connect_timeout=5 "./scripts/cargo-slot.sh" test -p "fixed-assets" -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.43s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/fixed_assets-f2bc7e52e0b3103a)
+
+running 63 tests
+test config::tests::test_bus_type_case_insensitive ... ok
+test config::tests::test_bus_type_from_str ... ok
+test db::tests::test_database_url_for_app ... ok
+test db::tests::test_database_url_trailing_slash ... ok
+test db::tests::test_database_url_sanitizes_app_id ... ok
+test domain::assets::models::tests::asset_create_valid ... ok
+test domain::assets::models::tests::asset_empty_tag_rejected ... ok
+test domain::assets::models::tests::asset_negative_cost_rejected ... ok
+test domain::assets::models::tests::asset_status_roundtrip ... ok
+test domain::assets::models::tests::asset_validation_accepts_valid_currency ... ok
+test domain::assets::models::tests::asset_validation_rejects_numeric_currency ... ok
+test domain::assets::models::tests::asset_validation_rejects_short_currency ... ok
+test domain::assets::models::tests::category_create_valid ... ok
+test domain::assets::models::tests::category_empty_code_rejected ... ok
+test domain::assets::models::tests::category_negative_life_rejected ... ok
+test domain::assets::models::tests::category_salvage_bp_overflow_rejected ... ok
+test domain::assets::models::tests::depreciation_method_roundtrip ... ok
+test domain::assets::models::tests::update_asset_valid_empty ... ok
+test domain::assets::models::tests::update_category_valid_empty ... ok
+test domain::depreciation::engine::tests::correct_period_count ... ok
+test domain::depreciation::engine::tests::cumulative_equals_depreciable ... ok
+test domain::depreciation::engine::tests::empty_when_zero_depreciable ... ok
+test domain::depreciation::engine::tests::empty_when_zero_life ... ok
+test domain::depreciation::engine::tests::period_dates_anchored_to_month_start ... ok
+test domain::depreciation::engine::tests::period_end_leap_year ... ok
+test domain::depreciation::engine::tests::period_numbers_sequential ... ok
+test domain::depreciation::engine::tests::remainder_absorbed_in_last_period ... ok
+test domain::depreciation::engine::tests::salvage_respected ... ok
+test domain::depreciation::engine::tests::year_crossing ... ok
+test domain::depreciation::models::tests::create_run_validation_accepts_no_currency ... ok
+test domain::depreciation::models::tests::create_run_validation_accepts_valid ... ok
+test domain::depreciation::models::tests::create_run_validation_rejects_empty_tenant ... ok
+test domain::depreciation::models::tests::create_run_validation_rejects_numeric_currency ... ok
+test domain::depreciation::models::tests::create_run_validation_rejects_short_currency ... ok
+test domain::depreciation::models::tests::generate_schedule_validation_accepts_valid ... ok
+test domain::depreciation::models::tests::generate_schedule_validation_rejects_empty_tenant ... ok
+test consumers::ap_bill_approved::tests::test_idempotent_on_replay ... ok
+test consumers::ap_bill_approved::tests::test_multi_capex_lines_all_capitalized ... ok
+test consumers::ap_bill_approved::tests::test_mixed_lines_only_capex_capitalized ... ok
+test consumers::ap_bill_approved::tests::test_expense_line_skipped ... ok
+test consumers::ap_bill_approved::tests::test_capex_line_creates_asset ... ok
+test domain::capitalize::service::tests::test_capex_line_creates_asset_and_linkage ... ok
+test domain::disposals::tests::disposal_type_roundtrip ... ok
+test domain::disposals::tests::target_status_correct ... ok
+test domain::disposals::tests::validation_accepts_valid ... ok
+test domain::disposals::tests::validation_rejects_empty_tenant ... ok
+test domain::disposals::tests::validation_rejects_negative_proceeds ... ok
+test http::admin::tests::test_admin_router_builds ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test domain::capitalize::service::tests::test_idempotent_on_replay ... ok
+test domain::capitalize::service::tests::test_non_capex_line_returns_none ... ok
+test domain::capitalize::service::tests::test_source_ref_stored_correctly ... ok
+test domain::capitalize::service::tests::test_zero_amount_returns_none ... ok
+test domain::depreciation::gl_entries::tests::query_returns_entries_with_account_refs ... ok
+test domain::depreciation::service::tests::run_respects_as_of_date_boundary ... ok
+test domain::disposals::service::tests::dispose_is_idempotent ... ok
+test domain::disposals::service::tests::dispose_sale_computes_gain ... ok
+test domain::disposals::service::tests::dispose_scrap_computes_loss ... ok
+test domain::disposals::service::tests::impairment_sets_impaired_status ... ok
+test domain::depreciation::service::tests::run_posts_periods_and_is_idempotent ... ok
+test domain::depreciation::service::tests::generate_schedule_creates_12_periods ... ok
+test domain::depreciation::service::tests::generate_schedule_is_idempotent ... ok
+
+test result: ok. 63 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.84s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/fixed_assets-925bec182055bebf)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/assets_integration.rs (target-slot-1/debug/deps/assets_integration-578bc8543938cd50)
+
+running 6 tests
+test test_asset_create ... ok
+test test_asset_duplicate_tag_rejected ... ok
+test test_asset_tenant_isolation ... ok
+test test_asset_list_with_status_filter ... ok
+test test_asset_update ... ok
+test test_asset_unknown_category_rejected ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+     Running tests/categories_integration.rs (target-slot-1/debug/deps/categories_integration-a1e464b9387299cf)
+
+running 5 tests
+test test_category_update ... ok
+test test_category_tenant_isolation ... ok
+test test_category_create ... ok
+test test_category_deactivate ... ok
+test test_category_duplicate_code_rejected ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running tests/depreciation_integration.rs (target-slot-1/debug/deps/depreciation_integration-bff8c9bea7e8d99a)
+
+running 6 tests
+test test_depreciation_tenant_isolation ... ok
+test test_depreciation_run_posts_correct_periods ... ok
+test test_schedule_idempotent ... ok
+test test_schedule_generates_12_periods ... ok
+test test_depreciation_run_idempotent ... ok
+test test_depreciation_blocked_after_disposal ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+     Running tests/disposals_integration.rs (target-slot-1/debug/deps/disposals_integration-dcb55e7d624ae5c8)
+
+running 5 tests
+test test_disposal_scrap_loss ... ok
+test test_double_dispose_idempotent ... ok
+test test_impairment_sets_impaired_status ... ok
+test test_disposal_sale_gain ... ok
+test test_disposal_sets_asset_status ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+   Doc-tests fixed_assets
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T22:50:47Z

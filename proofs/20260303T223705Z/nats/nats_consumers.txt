@@ -1,0 +1,34 @@
+## nats: consumer listing (http://localhost:8222)
+## started_at_utc=2026-03-03T22:37:57Z
+## cmd=bash -c 
+        curl -sS --max-time 5 'http://localhost:8222/jsz?streams=true&consumers=true&config=true'           | jq '[.account_details[]?.stream_detail[]? | {stream: .name, consumers: [.consumer_detail[]? | {name: .name, config: {durable_name: .config.durable_name, deliver_subject: .config.deliver_subject, ack_policy: .config.ack_policy}, num_pending: .num_pending, num_ack_pending: .num_ack_pending}]}]'
+      
+
+[
+  {
+    "stream": "DRILL_JS_TEST_1772574985",
+    "consumers": [
+      {
+        "name": "DRILL_C_1772574985",
+        "config": {
+          "durable_name": "DRILL_C_1772574985",
+          "deliver_subject": null,
+          "ack_policy": "explicit"
+        },
+        "num_pending": 1,
+        "num_ack_pending": 0
+      }
+    ]
+  },
+  {
+    "stream": "AUTH_DLQ",
+    "consumers": []
+  },
+  {
+    "stream": "AUTH_EVENTS",
+    "consumers": []
+  }
+]
+
+## exit_code=0
+## finished_at_utc=2026-03-03T22:37:57Z

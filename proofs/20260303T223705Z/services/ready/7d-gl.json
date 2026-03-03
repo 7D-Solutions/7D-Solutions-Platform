@@ -1,0 +1,19 @@
+{
+  "service_name": "gl",
+  "version": "0.1.0",
+  "status": "ready",
+  "degraded": false,
+  "checks": [
+    {
+      "name": "database",
+      "status": "up",
+      "latency_ms": 15,
+      "pool": {
+        "size": 1,
+        "idle": 0,
+        "active": 1
+      }
+    }
+  ],
+  "timestamp": "2026-03-03T22:37:05.429446260+00:00"
+}

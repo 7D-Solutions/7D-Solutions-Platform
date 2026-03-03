@@ -1,0 +1,19 @@
+{
+  "service_name": "ar",
+  "version": "1.0.55",
+  "status": "ready",
+  "degraded": false,
+  "checks": [
+    {
+      "name": "database",
+      "status": "up",
+      "latency_ms": 3,
+      "pool": {
+        "size": 1,
+        "idle": 0,
+        "active": 1
+      }
+    }
+  ],
+  "timestamp": "2026-03-03T22:37:07.394474803+00:00"
+}

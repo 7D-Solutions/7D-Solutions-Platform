@@ -1,0 +1,183 @@
+## crate test: security
+## started_at_utc=2026-03-03T23:00:04Z
+## cmd=./scripts/cargo-slot.sh test -p security -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.29s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/security-5655490d928a6c3c)
+
+running 87 tests
+test claims::tests::actor_type_roundtrip ... ok
+test authz_middleware::tests::authz_permissive_ignores_invalid_token ... ok
+test authz_middleware::tests::authz_require_perms_exact_match ... ok
+test middleware::tests::test_default_rate_limiter_creates_valid_instance ... ok
+test middleware::tests::test_default_rate_limiter_ip_isolation ... ok
+test middleware::tests::test_rate_limit_middleware_rejects_over_quota ... ok
+test middleware::tests::test_security_constants_are_sane ... ok
+test middleware::tests::test_timeout_middleware_passes_fast_requests ... ok
+test permissions::tests::test_permissions_ap_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_ar_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_consolidation_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_fixed_assets_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_follow_dot_convention ... ok
+test permissions::tests::test_permissions_gl_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_integrations_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_inventory_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_mutate_distinct_from_read ... ok
+test permissions::tests::test_permissions_notifications_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_notifications_mutate_distinct_from_read ... ok
+test permissions::tests::test_permissions_party_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_payments_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_pdf_editor_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_reporting_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_shipping_receiving_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_timekeeping_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_treasury_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_ttp_constants_are_non_empty ... ok
+test permissions::tests::test_permissions_workflow_constants_are_non_empty ... ok
+test ratelimit::tests::test_fallback_has_tighter_limits ... ok
+test ratelimit::tests::test_ratelimit_allows_within_quota ... ok
+test ratelimit::tests::test_ratelimit_tenant_isolation ... ok
+test ratelimit::tests::test_remaining_quota ... ok
+test ratelimit::tests::test_token_refill_over_time ... ok
+test ratelimit::tests::test_webhook_ratelimiter_allows_within_quota ... ok
+test ratelimit::tests::test_webhook_ratelimiter_ip_isolation ... ok
+test rbac::tests::test_admin_has_all_permissions ... ok
+test rbac::tests::test_auditor_read_only ... ok
+test rbac::tests::test_authorize_denial ... ok
+test rbac::tests::test_authorize_success ... ok
+test rbac::tests::test_operator_limited_permissions ... ok
+test rbac::tests::test_role_parsing ... ok
+test redaction::tests::redact_email_invalid_falls_back ... ok
+test redaction::tests::redact_email_no_pii_in_output ... ok
+test redaction::tests::redact_email_preserves_domain ... ok
+test redaction::tests::redact_name_empty_falls_back ... ok
+test redaction::tests::redact_name_shows_initials ... ok
+test redaction::tests::redact_partial_masks_prefix ... ok
+test redaction::tests::redact_partial_short_string_all_masked ... ok
+test redaction::tests::redaction_safe_in_tracing_field ... ok
+test redaction::tests::redaction_wrapper_clone ... ok
+test redaction::tests::redaction_wrapper_hides_value_in_debug ... ok
+test redaction::tests::redaction_wrapper_hides_value_in_display ... ok
+test redaction::tests::redaction_wrapper_inner_accessible ... ok
+test service_auth::tests::test_custom_validity ... ok
+test service_auth::tests::test_expired_token ... ok
+test service_auth::tests::test_generate_and_verify_token ... ok
+test service_auth::tests::test_invalid_signature ... ok
+test service_auth::tests::test_invalid_token_format ... ok
+test tracing::tests::test_actor_requires_both_id_and_type ... ok
+test tracing::tests::test_auto_generates_trace_id_when_missing ... ok
+test tracing::tests::test_correlation_id_falls_back_to_trace_id ... ok
+test tracing::tests::test_extracts_all_headers ... ok
+test tracing::tests::test_ignores_empty_headers ... ok
+test tracing::tests::test_middleware_auto_generates_ids_in_response ... ok
+test tracing::tests::test_middleware_sets_response_headers_from_request ... ok
+test tracing::tests::test_roundtrip_headers_to_envelope ... ok
+test webhook_verify::tests::test_constant_time_eq ... ok
+test webhook_verify::tests::test_generic_hmac_verifier_bad_sig ... ok
+test webhook_verify::tests::test_generic_hmac_verifier_valid ... ok
+test webhook_verify::tests::test_noop_verifier_always_ok ... ok
+test webhook_verify::tests::test_stripe_verifier_bad_signature ... ok
+test webhook_verify::tests::test_stripe_verifier_expired_timestamp ... ok
+test webhook_verify::tests::test_stripe_verifier_missing_header ... ok
+test webhook_verify::tests::test_stripe_verifier_valid ... ok
+test authz_middleware::tests::authz_strict_rejects_without_token ... ok
+test authz_middleware::tests::authz_strict_accepts_valid_token ... ok
+test claims::tests::verify_expired_token ... ok
+test authz_middleware::tests::authz_require_perms_grants_with_all_perms ... ok
+test claims::tests::verify_valid_token ... ok
+test authz_middleware::tests::authz_require_perms_denies_with_missing_perm ... ok
+test authz_middleware::tests::authz_require_perms_denies_without_claims ... ok
+test authz_middleware::tests::authz_permissive_passes_without_token ... ok
+test claims::tests::verify_with_app_id ... ok
+test authz_middleware::tests::authz_strict_rejects_invalid_token ... ok
+test claims::tests::verify_wrong_key_rejected ... ok
+test claims::tests::rotation_overlap_ends_old_token_rejected ... ok
+test claims::tests::rotation_overlap_accepts_token_from_prev_key ... ok
+
+test result: ok. 87 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.34s
+
+     Running tests/jwt_verification.rs (target-slot-1/debug/deps/jwt_verification-bc7b82d63cd6c500)
+
+running 20 tests
+test invalid_pem_returns_error ... ok
+test invalid_uuid_in_sub_rejected ... ok
+test invalid_prev_pem_returns_error ... ok
+test token_carries_many_permissions ... ok
+test expired_token_returns_token_expired ... ok
+test valid_token_system_actor ... ok
+test invalid_actor_type_rejected ... ok
+test valid_token_service_actor ... ok
+test different_tokens_have_different_jti ... ok
+test empty_token_rejected ... ok
+test valid_token_returns_correct_claims ... ok
+test garbage_token_rejected ... ok
+test rotation_ended_old_key_rejected ... ok
+test rotation_overlap_accepts_old_key_token ... ok
+test wrong_issuer_rejected ... ok
+test valid_token_with_app_id ... ok
+test rotation_third_party_key_rejected ... ok
+test wrong_audience_rejected ... ok
+test rotation_overlap_accepts_new_key_token ... ok
+test wrong_signing_key_rejected ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.98s
+
+     Running tests/rbac_enforcement.rs (target-slot-1/debug/deps/rbac_enforcement-098f94762b7c44cc)
+
+running 16 tests
+test auditor_read_only ... ok
+test operator_denied_deprovision_and_fleet_migrate ... ok
+test admin_can_do_everything ... ok
+test operator_allowed_suspend_and_projections ... ok
+test role_parsing_case_insensitive ... ok
+test authorize_success_returns_ok ... ok
+test authorize_returns_error_with_context ... ok
+test denies_with_no_token ... ok
+test denies_with_expired_token ... ok
+test denies_with_missing_permission ... ok
+test strict_mode_accepts_valid_token ... ok
+test empty_perms_denied_when_route_requires_perms ... ok
+test grants_access_with_all_required_permissions ... ok
+test superset_permissions_grants_access ... ok
+test strict_mode_rejects_missing_token ... ok
+test denies_with_invalid_token ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.82s
+
+     Running tests/service_auth.rs (target-slot-1/debug/deps/service_auth-47061e11940c885e)
+
+running 13 tests
+test invalid_format_no_dot ... ok
+test generate_and_verify_roundtrip ... ok
+test default_validity_is_15_minutes ... ok
+test wrong_secret_rejects_token ... ok
+test claims_part_is_valid_base64_json ... ok
+test invalid_format_too_many_dots ... ok
+test token_has_two_dot_separated_parts ... ok
+test expired_token_rejected ... ok
+test missing_secret_returns_error ... ok
+test future_issued_token_rejected ... ok
+test various_service_names_preserved ... ok
+test tampered_claims_rejected ... ok
+test custom_validity_applied ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests security
+
+running 8 tests
+test platform/security/src/authz_middleware.rs - authz_middleware (line 12) ... ignored
+test platform/security/src/authz_middleware.rs - authz_middleware::optional_claims_mw (line 148) ... ignored
+test platform/security/src/lib.rs - (line 10) ... ignored
+test platform/security/src/middleware.rs - middleware::rate_limit_middleware (line 38) ... ignored
+test platform/security/src/tracing.rs - tracing::tracing_context_middleware (line 68) ... ignored
+test platform/security/src/tracing.rs - tracing::tracing_context_middleware (line 78) - compile ... ok
+test platform/security/src/redaction.rs - redaction::Redacted (line 47) ... ok
+test platform/security/src/redaction.rs - redaction (line 11) ... ok
+
+test result: ok. 3 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 3.42s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T23:00:53Z
