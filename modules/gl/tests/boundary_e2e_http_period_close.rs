@@ -54,7 +54,7 @@ fn sign_test_jwt(tenant_id: &str) -> String {
         jti: Uuid::new_v4().to_string(),
         tenant_id: tenant_id.to_string(),
         roles: vec!["operator".into()],
-        perms: vec!["gl.read".into(), "gl.write".into()],
+        perms: vec!["gl.read".into(), "gl.post".into()],
         actor_type: "user".to_string(),
         ver: "1".to_string(),
     };
