@@ -66,6 +66,7 @@ async fn migrations_apply_cleanly() {
         "inventory_valuation_lines",
         "inv_low_stock_state",
         "item_revisions",
+        "inv_labels",
     ];
 
     for table in &expected_tables {
@@ -110,6 +111,7 @@ async fn forward_fix_rollback_and_reapply() {
 
     // Execute full rollback (reverse dependency order)
     let rollback_sql = r#"
+        DROP TABLE IF EXISTS inv_labels CASCADE;
         DROP TABLE IF EXISTS inv_low_stock_state CASCADE;
         DROP TABLE IF EXISTS item_revisions CASCADE;
         DROP TABLE IF EXISTS inventory_valuation_lines CASCADE;
@@ -232,6 +234,7 @@ async fn all_data_tables_have_tenant_id() {
         "inventory_valuation_snapshots",
         "inv_low_stock_state",
         "item_revisions",
+        "inv_labels",
     ];
 
     for table in &tenant_tables {
