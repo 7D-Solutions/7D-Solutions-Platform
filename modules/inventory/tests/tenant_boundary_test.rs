@@ -26,7 +26,7 @@ use uuid::Uuid;
 async fn setup_db() -> PgPool {
     dotenvy::dotenv().ok();
     let url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db".to_string());
 
     let pool = PgPoolOptions::new()
         .max_connections(10)
@@ -163,21 +163,19 @@ async fn concurrent_receipts_are_tenant_isolated() {
     }
 
     // Verify tenant A sees only their own items
-    let a_items: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM items WHERE tenant_id = $1")
-            .bind(&tenant_a)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let a_items: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM items WHERE tenant_id = $1")
+        .bind(&tenant_a)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(a_items, 1, "Tenant A should have exactly 1 item");
 
     // Verify tenant B sees only their own items
-    let b_items: i64 =
-        sqlx::query_scalar("SELECT COUNT(*) FROM items WHERE tenant_id = $1")
-            .bind(&tenant_b)
-            .fetch_one(&pool)
-            .await
-            .unwrap();
+    let b_items: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM items WHERE tenant_id = $1")
+        .bind(&tenant_b)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
     assert_eq!(b_items, 1, "Tenant B should have exactly 1 item");
 
     // Verify ledger rows are tenant-scoped
@@ -242,7 +240,10 @@ async fn concurrent_receipts_are_tenant_isolated() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(cross_leak, 0, "Tenant B must not have Tenant A's item in ledger");
+    assert_eq!(
+        cross_leak, 0,
+        "Tenant B must not have Tenant A's item in ledger"
+    );
 
     let cross_leak_rev: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM inventory_ledger WHERE tenant_id = $1 AND item_id = $2",
@@ -252,7 +253,10 @@ async fn concurrent_receipts_are_tenant_isolated() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(cross_leak_rev, 0, "Tenant A must not have Tenant B's item in ledger");
+    assert_eq!(
+        cross_leak_rev, 0,
+        "Tenant A must not have Tenant B's item in ledger"
+    );
 
     // Cleanup
     cleanup_tenant(&pool, &tenant_a).await;
@@ -312,14 +316,13 @@ async fn reads_during_writes_are_tenant_isolated() {
             assert_eq!(count, 0, "Tenant B must never see Tenant A's ledger rows");
 
             // Tenant B queries items — must not find item A
-            let item_count: i64 = sqlx::query_scalar(
-                "SELECT COUNT(*) FROM items WHERE tenant_id = $1 AND id = $2",
-            )
-            .bind(&tb)
-            .bind(ia)
-            .fetch_one(&p)
-            .await
-            .unwrap();
+            let item_count: i64 =
+                sqlx::query_scalar("SELECT COUNT(*) FROM items WHERE tenant_id = $1 AND id = $2")
+                    .bind(&tb)
+                    .bind(ia)
+                    .fetch_one(&p)
+                    .await
+                    .unwrap();
             assert_eq!(item_count, 0, "Tenant B must not find Tenant A's items");
         }));
     }
@@ -409,10 +412,7 @@ async fn all_core_tables_scope_queries_by_tenant() {
 
     for table in &tables_with_tenant {
         // Tenant A count
-        let query_a = format!(
-            "SELECT COUNT(*) FROM {} WHERE tenant_id = $1",
-            table
-        );
+        let query_a = format!("SELECT COUNT(*) FROM {} WHERE tenant_id = $1", table);
         let count_a: i64 = sqlx::query_scalar(&query_a)
             .bind(&tenant_a)
             .fetch_one(&pool)
@@ -438,10 +438,7 @@ async fn all_core_tables_scope_queries_by_tenant() {
         );
 
         // Verify actual isolation: rows for A don't appear under B
-        let query_b = format!(
-            "SELECT COUNT(*) FROM {} WHERE tenant_id = $1",
-            table
-        );
+        let query_b = format!("SELECT COUNT(*) FROM {} WHERE tenant_id = $1", table);
         let count_b: i64 = sqlx::query_scalar(&query_b)
             .bind(&tenant_b)
             .fetch_one(&pool)
@@ -468,25 +465,23 @@ async fn all_core_tables_scope_queries_by_tenant() {
     }
 
     // Verify on-hand projection scoping
-    let a_oh: Vec<sqlx::postgres::PgRow> = sqlx::query(
-        "SELECT tenant_id, item_id FROM item_on_hand WHERE tenant_id = $1",
-    )
-    .bind(&tenant_a)
-    .fetch_all(&pool)
-    .await
-    .unwrap();
+    let a_oh: Vec<sqlx::postgres::PgRow> =
+        sqlx::query("SELECT tenant_id, item_id FROM item_on_hand WHERE tenant_id = $1")
+            .bind(&tenant_a)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
     for row in &a_oh {
         let tid: &str = row.get("tenant_id");
         assert_eq!(tid, tenant_a, "on-hand row must belong to tenant A");
     }
 
-    let b_oh: Vec<sqlx::postgres::PgRow> = sqlx::query(
-        "SELECT tenant_id, item_id FROM item_on_hand WHERE tenant_id = $1",
-    )
-    .bind(&tenant_b)
-    .fetch_all(&pool)
-    .await
-    .unwrap();
+    let b_oh: Vec<sqlx::postgres::PgRow> =
+        sqlx::query("SELECT tenant_id, item_id FROM item_on_hand WHERE tenant_id = $1")
+            .bind(&tenant_b)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
     for row in &b_oh {
         let tid: &str = row.get("tenant_id");
         assert_eq!(tid, tenant_b, "on-hand row must belong to tenant B");

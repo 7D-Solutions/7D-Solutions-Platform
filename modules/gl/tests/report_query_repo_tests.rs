@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 async fn setup_test_pool() -> PgPool {
     let database_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://gl_user:gl_pass@localhost:5438/gl_test".to_string());
+        .unwrap_or_else(|_| "postgres://gl_user:gl_pass@localhost:5438/gl_db".to_string());
 
     init_pool(&database_url)
         .await

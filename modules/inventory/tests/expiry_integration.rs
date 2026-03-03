@@ -19,7 +19,7 @@ use uuid::Uuid;
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+        std::env::var("DATABASE_URL").unwrap_or_else(|_| "postgres://inventory_user:inventory_pass@localhost:5442/inventory_db".to_string());
 
     let pool = PgPoolOptions::new()
         .max_connections(5)
