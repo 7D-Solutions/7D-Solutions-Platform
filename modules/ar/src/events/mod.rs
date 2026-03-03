@@ -74,6 +74,10 @@ pub use contracts::{
     EVENT_TYPE_TAX_VOIDED,
     EVENT_TYPE_USAGE_CAPTURED,
     EVENT_TYPE_USAGE_INVOICED,
+    // Phase 63 progress billing types
+    MilestoneInvoiceCreatedPayload,
+    build_milestone_invoice_created_envelope,
+    EVENT_TYPE_MILESTONE_INVOICE_CREATED,
     MUTATION_CLASS_DATA_MUTATION,
     MUTATION_CLASS_LIFECYCLE,
     MUTATION_CLASS_REVERSAL,
