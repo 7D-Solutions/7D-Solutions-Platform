@@ -2031,6 +2031,14 @@ async fn test_escalation_timer_fires_once_when_due() {
     let pool = setup_db().await;
     let tid = unique_tenant();
 
+    // Cancel stale unfired timers from prior test runs so tick() only sees ours
+    sqlx::query(
+        "UPDATE workflow_escalation_timers SET cancelled_at = now() WHERE fired_at IS NULL AND cancelled_at IS NULL",
+    )
+    .execute(&pool)
+    .await
+    .expect("cleanup stale timers");
+
     // Create definition with a review step
     let def = create_test_definition(&pool, &tid).await;
 
