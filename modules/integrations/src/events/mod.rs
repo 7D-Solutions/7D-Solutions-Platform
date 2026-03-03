@@ -6,6 +6,8 @@
 //! - mutation_class: DATA_MUTATION or LIFECYCLE
 //! - replay_safe: true
 
+pub mod edi_transaction_created;
+pub mod edi_transaction_status_changed;
 pub mod envelope;
 pub mod external_ref_created;
 pub mod external_ref_deleted;
@@ -30,6 +32,14 @@ pub const MUTATION_CLASS_LIFECYCLE: &str = "LIFECYCLE";
 // Re-exports
 // ============================================================================
 
+pub use edi_transaction_created::{
+    build_edi_transaction_created_envelope, EdiTransactionCreatedPayload,
+    EVENT_TYPE_EDI_TRANSACTION_CREATED,
+};
+pub use edi_transaction_status_changed::{
+    build_edi_transaction_status_changed_envelope, EdiTransactionStatusChangedPayload,
+    EVENT_TYPE_EDI_TRANSACTION_STATUS_CHANGED,
+};
 pub use file_job_created::{
     build_file_job_created_envelope, FileJobCreatedPayload, EVENT_TYPE_FILE_JOB_CREATED,
 };
