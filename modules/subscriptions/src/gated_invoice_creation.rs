@@ -4,7 +4,7 @@
 //! exactly-once invoice per subscription cycle.
 //!
 //! # Flow
-//! ```
+//! ```text
 //! Gate → Lock → Check → Execute → Record
 //! ```
 

@@ -4,7 +4,7 @@
 //! All status updates MUST route through this module's functions.
 //!
 //! # State Machine
-//! ```
+//! ```text
 //! ACTIVE ──> PAST_DUE ──> SUSPENDED
 //!   ^    └───────────────────┘  |
 //!   └───────────────────────────┘

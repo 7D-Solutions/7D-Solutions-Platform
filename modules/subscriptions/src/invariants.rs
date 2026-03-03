@@ -10,14 +10,19 @@
 //! 4. No mutation on invalid inputs (guard validation blocks illegal changes)
 //!
 //! **Usage:**
-//! ```rust
+//! ```rust,no_run
+//! # use sqlx::PgPool;
+//! # async fn example(pool: PgPool) -> Result<(), Box<dyn std::error::Error>> {
 //! use subscriptions_rs::invariants::*;
+//! let tenant_id = "test-tenant";
 //!
 //! // Check subscription cycle attempt ledger integrity
 //! assert_no_duplicate_cycle_attempts(&pool, tenant_id).await?;
 //!
 //! // Check exactly-once per cycle
 //! assert_one_invoice_per_cycle(&pool, tenant_id).await?;
+//! # Ok(())
+//! # }
 //! ```
 
 use sqlx::PgPool;

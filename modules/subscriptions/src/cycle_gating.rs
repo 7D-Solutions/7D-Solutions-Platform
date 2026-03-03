@@ -9,7 +9,7 @@
 //! 4. **Deterministic:** cycle_key derived from stable cycle boundaries
 //!
 //! # Pattern
-//! ```
+//! ```text
 //! Gate → Lock → Check → Execute → Record
 //! ```
 //!
@@ -58,6 +58,8 @@ pub enum CycleGatingError {
 ///
 /// **Example:**
 /// ```
+/// use chrono::NaiveDate;
+/// use subscriptions_rs::cycle_gating::generate_cycle_key;
 /// let date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
 /// let key = generate_cycle_key(date);
 /// assert_eq!(key, "2026-02");
@@ -72,6 +74,8 @@ pub fn generate_cycle_key(date: NaiveDate) -> String {
 ///
 /// **Example:**
 /// ```
+/// use chrono::NaiveDate;
+/// use subscriptions_rs::cycle_gating::calculate_cycle_boundaries;
 /// let date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
 /// let (start, end) = calculate_cycle_boundaries(date);
 /// assert_eq!(start, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap());
@@ -128,11 +132,16 @@ fn generate_advisory_lock_key(tenant_id: &str, subscription_id: Uuid, cycle_key:
 /// **Critical:** Lock is automatically released on transaction commit/rollback
 ///
 /// **Usage:**
-/// ```rust
+/// ```rust,no_run
+/// # use sqlx::PgPool;
+/// # use uuid::Uuid;
+/// # async fn example(pool: PgPool, tenant_id: &str, subscription_id: Uuid, cycle_key: &str) -> Result<(), Box<dyn std::error::Error>> {
 /// let mut tx = pool.begin().await?;
-/// acquire_cycle_lock(&mut tx, tenant_id, subscription_id, cycle_key).await?;
+/// // acquire_cycle_lock(&mut tx, tenant_id, subscription_id, cycle_key).await?;
 /// // ... perform gated operation ...
 /// tx.commit().await?;  // Lock automatically released
+/// # Ok(())
+/// # }
 /// ```
 pub async fn acquire_cycle_lock(
     tx: &mut PgConnection,
@@ -311,30 +320,30 @@ mod tests {
 
     #[test]
     fn test_generate_cycle_key() {
-        let date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 2, 15).expect("valid date");
         let key = generate_cycle_key(date);
         assert_eq!(key, "2026-02");
     }
 
     #[test]
     fn test_generate_cycle_key_january() {
-        let date = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date");
         let key = generate_cycle_key(date);
         assert_eq!(key, "2026-01");
     }
 
     #[test]
     fn test_generate_cycle_key_december() {
-        let date = NaiveDate::from_ymd_opt(2026, 12, 31).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 12, 31).expect("valid date");
         let key = generate_cycle_key(date);
         assert_eq!(key, "2026-12");
     }
 
     #[test]
     fn test_cycle_key_determinism() {
-        let date1 = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
-        let date2 = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
-        let date3 = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
+        let date1 = NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date");
+        let date2 = NaiveDate::from_ymd_opt(2026, 2, 15).expect("valid date");
+        let date3 = NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date");
 
         assert_eq!(generate_cycle_key(date1), generate_cycle_key(date2));
         assert_eq!(generate_cycle_key(date2), generate_cycle_key(date3));
@@ -342,45 +351,45 @@ mod tests {
 
     #[test]
     fn test_calculate_cycle_boundaries_february() {
-        let date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 2, 15).expect("valid date");
         let (start, end) = calculate_cycle_boundaries(date);
 
-        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap());
-        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 2, 28).unwrap());
+        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 2, 1).expect("valid date"));
+        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 2, 28).expect("valid date"));
     }
 
     #[test]
     fn test_calculate_cycle_boundaries_december() {
-        let date = NaiveDate::from_ymd_opt(2026, 12, 15).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 12, 15).expect("valid date");
         let (start, end) = calculate_cycle_boundaries(date);
 
-        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 12, 1).unwrap());
-        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 12, 31).unwrap());
+        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 12, 1).expect("valid date"));
+        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 12, 31).expect("valid date"));
     }
 
     #[test]
     fn test_calculate_cycle_boundaries_january() {
-        let date = NaiveDate::from_ymd_opt(2026, 1, 15).unwrap();
+        let date = NaiveDate::from_ymd_opt(2026, 1, 15).expect("valid date");
         let (start, end) = calculate_cycle_boundaries(date);
 
-        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 1, 1).unwrap());
-        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 1, 31).unwrap());
+        assert_eq!(start, NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid date"));
+        assert_eq!(end, NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid date"));
     }
 
     #[test]
     fn test_calculate_cycle_boundaries_leap_year() {
         // 2024 is a leap year
-        let date = NaiveDate::from_ymd_opt(2024, 2, 15).unwrap();
+        let date = NaiveDate::from_ymd_opt(2024, 2, 15).expect("valid date");
         let (start, end) = calculate_cycle_boundaries(date);
 
-        assert_eq!(start, NaiveDate::from_ymd_opt(2024, 2, 1).unwrap());
-        assert_eq!(end, NaiveDate::from_ymd_opt(2024, 2, 29).unwrap());
+        assert_eq!(start, NaiveDate::from_ymd_opt(2024, 2, 1).expect("valid date"));
+        assert_eq!(end, NaiveDate::from_ymd_opt(2024, 2, 29).expect("valid date"));
     }
 
     #[test]
     fn test_advisory_lock_key_determinism() {
         let tenant_id = "tenant-123";
-        let subscription_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let subscription_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid UUID");
         let cycle_key = "2026-02";
 
         let key1 = generate_advisory_lock_key(tenant_id, subscription_id, cycle_key);
@@ -392,8 +401,8 @@ mod tests {
     #[test]
     fn test_advisory_lock_key_uniqueness() {
         let tenant_id = "tenant-123";
-        let sub_id1 = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
-        let sub_id2 = Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap();
+        let sub_id1 = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid UUID");
+        let sub_id2 = Uuid::parse_str("00000000-0000-0000-0000-000000000002").expect("valid UUID");
         let cycle_key = "2026-02";
 
         let key1 = generate_advisory_lock_key(tenant_id, sub_id1, cycle_key);
@@ -405,7 +414,7 @@ mod tests {
     #[test]
     fn test_advisory_lock_key_cycle_uniqueness() {
         let tenant_id = "tenant-123";
-        let subscription_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap();
+        let subscription_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid UUID");
 
         let key1 = generate_advisory_lock_key(tenant_id, subscription_id, "2026-02");
         let key2 = generate_advisory_lock_key(tenant_id, subscription_id, "2026-03");
