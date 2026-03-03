@@ -475,3 +475,162 @@ async fn tenant_isolation_ar_aging() {
     let json_b = body_json(resp_b).await;
     assert!(json_b["aging"].as_array().unwrap().is_empty());
 }
+
+#[tokio::test]
+#[serial]
+async fn tenant_isolation_balance_sheet() {
+    let pool = setup_db().await;
+    let tenant_a = unique_tenant();
+    let tenant_b = unique_tenant();
+
+    seed_trial_balance(
+        &pool,
+        &tenant_a.to_string(),
+        "2026-01-31",
+        "1000",
+        "Cash",
+        "USD",
+        300_000,
+        0,
+    )
+    .await;
+
+    let app = build_test_app(pool);
+
+    // Tenant A sees assets
+    let resp_a = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/reporting/balance-sheet?as_of=2026-01-31")
+                .header("x-tenant-id", tenant_a.to_string())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp_a.status(), 200);
+    let json_a = body_json(resp_a).await;
+    let assets_a = json_a["sections"][0]["accounts"].as_array().unwrap();
+    assert!(!assets_a.is_empty(), "Tenant A should see assets");
+
+    // Tenant B sees nothing
+    let resp_b = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/reporting/balance-sheet?as_of=2026-01-31")
+                .header("x-tenant-id", tenant_b.to_string())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp_b.status(), 200);
+    let json_b = body_json(resp_b).await;
+    let assets_b = json_b["sections"][0]["accounts"].as_array().unwrap();
+    assert!(
+        assets_b.is_empty(),
+        "Tenant B must not see A's balance sheet"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn tenant_isolation_cashflow() {
+    let pool = setup_db().await;
+    let tenant_a = unique_tenant();
+    let tenant_b = unique_tenant();
+
+    seed_cashflow(&pool, &tenant_a.to_string(), "2026-01-01", "2026-01-31").await;
+
+    let app = build_test_app(pool);
+
+    // Tenant A sees operating lines
+    let resp_a = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/reporting/cashflow?from=2026-01-01&to=2026-01-31")
+                .header("x-tenant-id", tenant_a.to_string())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp_a.status(), 200);
+    let json_a = body_json(resp_a).await;
+    let operating_a = &json_a["sections"][0];
+    assert!(
+        !operating_a["lines"].as_array().unwrap().is_empty(),
+        "Tenant A should see cashflow lines"
+    );
+
+    // Tenant B sees empty sections
+    let resp_b = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/reporting/cashflow?from=2026-01-01&to=2026-01-31")
+                .header("x-tenant-id", tenant_b.to_string())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp_b.status(), 200);
+    let json_b = body_json(resp_b).await;
+    let operating_b = &json_b["sections"][0];
+    assert!(
+        operating_b["lines"].as_array().unwrap().is_empty(),
+        "Tenant B must not see A's cashflow"
+    );
+}
+
+#[tokio::test]
+#[serial]
+async fn tenant_isolation_ap_aging() {
+    let pool = setup_db().await;
+    let tenant_a = unique_tenant();
+    let tenant_b = unique_tenant();
+
+    let vendor = format!("vendor-{}", Uuid::new_v4().simple());
+    seed_ap_aging(&pool, &tenant_a.to_string(), "2026-01-31", &vendor).await;
+
+    let app = build_test_app(pool);
+
+    // Tenant A sees AP aging
+    let resp_a = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/api/reporting/ap-aging?as_of=2026-01-31")
+                .header("x-tenant-id", tenant_a.to_string())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp_a.status(), 200);
+    let json_a = body_json(resp_a).await;
+    assert!(
+        !json_a["vendors"].as_array().unwrap().is_empty(),
+        "Tenant A should see AP aging vendors"
+    );
+
+    // Tenant B sees empty
+    let resp_b = app
+        .oneshot(
+            Request::builder()
+                .uri("/api/reporting/ap-aging?as_of=2026-01-31")
+                .header("x-tenant-id", tenant_b.to_string())
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp_b.status(), 200);
+    let json_b = body_json(resp_b).await;
+    assert!(
+        json_b["vendors"].as_array().unwrap().is_empty(),
+        "Tenant B must not see A's AP aging"
+    );
+}
