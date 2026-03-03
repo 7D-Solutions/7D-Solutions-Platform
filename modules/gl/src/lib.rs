@@ -6,6 +6,7 @@ pub mod db;
 pub mod dlq;
 pub mod domain;
 pub mod events;
+pub mod exports;
 pub mod health;
 pub mod invariants;
 pub mod metrics;

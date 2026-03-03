@@ -3,6 +3,7 @@
 //! Exposes public modules so E2E tests and integration consumers can call
 //! handler functions directly without going through NATS.
 
+pub mod broadcast;
 pub mod config;
 pub mod consumers;
 pub mod consumer_tasks;

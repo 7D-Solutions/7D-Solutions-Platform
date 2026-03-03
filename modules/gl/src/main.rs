@@ -48,6 +48,7 @@ use gl_rs::{
     http::revrec::{
         amend_contract, create_contract, generate_schedule_handler, run_recognition_handler,
     },
+    http::exports::create_export,
     http::trial_balance::get_trial_balance,
     start_gl_posting_consumer, start_gl_reversal_consumer, AppState,
 };
@@ -229,6 +230,7 @@ async fn main() {
             "/api/gl/accruals/reversals/execute",
             post(execute_reversals_handler),
         )
+        .route("/api/gl/exports", post(create_export))
         .route_layer(RequirePermissionsLayer::new(&[permissions::GL_POST]))
         .with_state(app_state.clone());
 

@@ -6,6 +6,7 @@ pub mod auth;
 pub mod balance_sheet;
 pub mod cashflow;
 pub mod close_checklist;
+pub mod exports;
 pub mod fx_rates;
 pub mod gl_detail;
 pub mod health;
