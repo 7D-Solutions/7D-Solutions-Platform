@@ -2266,3 +2266,544 @@ async fn full_lifecycle_outbox_events_atomic() {
     .expect("count unpublished");
     assert_eq!(unpublished, 2, "both events should be pending relay");
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// DOC3 — Template engine: template storage + render pipeline
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Template helpers ────────────────────────────────────────────────
+
+async fn insert_test_template(
+    pool: &PgPool,
+    tenant_id: Uuid,
+    name: &str,
+    doc_type: &str,
+    body_template: serde_json::Value,
+) -> Uuid {
+    let template_id = Uuid::new_v4();
+    let actor = Uuid::new_v4();
+    let now = Utc::now();
+
+    sqlx::query(
+        "INSERT INTO doc_templates (id, tenant_id, name, doc_type, body_template, version, created_by, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, 1, $6, $7, $7)",
+    )
+    .bind(template_id)
+    .bind(tenant_id)
+    .bind(name)
+    .bind(doc_type)
+    .bind(&body_template)
+    .bind(actor)
+    .bind(now)
+    .execute(pool)
+    .await
+    .expect("insert test template");
+
+    template_id
+}
+
+// ── Schema: template tables exist ───────────────────────────────────
+
+#[tokio::test]
+async fn template_tables_exist() {
+    let pool = get_pool().await;
+
+    let tables: Vec<String> = sqlx::query_scalar(
+        "SELECT table_name::text FROM information_schema.tables
+         WHERE table_schema = 'public'
+         AND table_name IN ('doc_templates', 'render_artifacts')
+         ORDER BY table_name",
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("query tables");
+
+    assert_eq!(tables, vec!["doc_templates", "render_artifacts"]);
+}
+
+// ── Template CRUD ───────────────────────────────────────────────────
+
+#[tokio::test]
+async fn template_create_and_query() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let body_template = serde_json::json!({
+        "header": "Work Order: {{wo_number}}",
+        "description": "{{description}}",
+        "priority": "{{priority}}"
+    });
+
+    let template_id = insert_test_template(
+        &pool,
+        tenant_id,
+        "work-order-v1",
+        "work_order",
+        body_template.clone(),
+    )
+    .await;
+
+    // Query it back
+    let row: (Uuid, String, String, serde_json::Value, i32) = sqlx::query_as(
+        "SELECT id, name, doc_type, body_template, version FROM doc_templates
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(template_id)
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("fetch template");
+
+    assert_eq!(row.0, template_id);
+    assert_eq!(row.1, "work-order-v1");
+    assert_eq!(row.2, "work_order");
+    assert_eq!(row.3, body_template);
+    assert_eq!(row.4, 1);
+}
+
+// ── Template version uniqueness ─────────────────────────────────────
+
+#[tokio::test]
+async fn template_unique_name_version_per_tenant() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+
+    insert_test_template(
+        &pool,
+        tenant_id,
+        "dup-template",
+        "spec",
+        serde_json::json!({}),
+    )
+    .await;
+
+    // Same name + version + tenant should fail
+    let result = sqlx::query(
+        "INSERT INTO doc_templates (id, tenant_id, name, doc_type, body_template, version, created_by, created_at, updated_at)
+         VALUES ($1, $2, 'dup-template', 'spec', '{}'::jsonb, 1, $3, now(), now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await;
+
+    assert!(result.is_err(), "duplicate template name+version should fail");
+}
+
+#[tokio::test]
+async fn template_same_name_different_version_allowed() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+
+    insert_test_template(
+        &pool,
+        tenant_id,
+        "versioned-tmpl",
+        "spec",
+        serde_json::json!({"v": 1}),
+    )
+    .await;
+
+    // Version 2 of same name should succeed
+    let result = sqlx::query(
+        "INSERT INTO doc_templates (id, tenant_id, name, doc_type, body_template, version, created_by, created_at, updated_at)
+         VALUES ($1, $2, 'versioned-tmpl', 'spec', '{\"v\": 2}'::jsonb, 2, $3, now(), now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await;
+
+    assert!(result.is_ok(), "different version of same template should succeed");
+}
+
+// ── Render pipeline: template → artifact ────────────────────────────
+
+#[tokio::test]
+async fn render_produces_artifact_with_hashes() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor = Uuid::new_v4();
+
+    let body_template = serde_json::json!({
+        "title": "WO-{{number}}",
+        "body": "Priority: {{priority}}, Assigned: {{assignee}}"
+    });
+
+    let template_id = insert_test_template(
+        &pool,
+        tenant_id,
+        "render-test-tmpl",
+        "work_order",
+        body_template,
+    )
+    .await;
+
+    // Simulate render: apply template + insert artifact
+    let input_data = serde_json::json!({
+        "number": "1001",
+        "priority": "HIGH",
+        "assignee": "Alice"
+    });
+
+    let output = doc_mgmt::render::apply_template(
+        &serde_json::json!({
+            "title": "WO-{{number}}",
+            "body": "Priority: {{priority}}, Assigned: {{assignee}}"
+        }),
+        &input_data,
+    );
+
+    let input_hash = doc_mgmt::render::compute_hash(&input_data);
+    let output_hash = doc_mgmt::render::compute_hash(&output);
+
+    let artifact_id = Uuid::new_v4();
+    let now = Utc::now();
+
+    sqlx::query(
+        "INSERT INTO render_artifacts (id, tenant_id, template_id, input_hash, output_hash, output, rendered_by, rendered_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+    )
+    .bind(artifact_id)
+    .bind(tenant_id)
+    .bind(template_id)
+    .bind(&input_hash)
+    .bind(&output_hash)
+    .bind(&output)
+    .bind(actor)
+    .bind(now)
+    .execute(&pool)
+    .await
+    .expect("insert artifact");
+
+    // Query artifact back
+    let row: (Uuid, String, String, serde_json::Value) = sqlx::query_as(
+        "SELECT id, input_hash, output_hash, output FROM render_artifacts
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(artifact_id)
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("fetch artifact");
+
+    assert_eq!(row.0, artifact_id);
+    assert_eq!(row.1, input_hash, "input hash persisted");
+    assert_eq!(row.2, output_hash, "output hash persisted");
+    assert_eq!(row.3["title"], "WO-1001");
+    assert_eq!(row.3["body"], "Priority: HIGH, Assigned: Alice");
+}
+
+// ── Deterministic rendering: same inputs → same output hash ─────────
+
+#[tokio::test]
+async fn render_deterministic_same_inputs_same_hash() {
+    let template_body = serde_json::json!({
+        "doc": "{{doc_id}}",
+        "rev": "{{rev}}"
+    });
+    let input = serde_json::json!({
+        "doc_id": "DOC-42",
+        "rev": "3"
+    });
+
+    let output1 = doc_mgmt::render::apply_template(&template_body, &input);
+    let output2 = doc_mgmt::render::apply_template(&template_body, &input);
+
+    let hash1 = doc_mgmt::render::compute_hash(&output1);
+    let hash2 = doc_mgmt::render::compute_hash(&output2);
+
+    assert_eq!(hash1, hash2, "same inputs must produce same output hash");
+    assert_eq!(output1, output2, "same inputs must produce identical output");
+}
+
+// ── Idempotency: duplicate render key rejected ──────────────────────
+
+#[tokio::test]
+async fn render_idempotency_key_prevents_duplicates() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor = Uuid::new_v4();
+
+    let template_id = insert_test_template(
+        &pool,
+        tenant_id,
+        "idem-tmpl",
+        "spec",
+        serde_json::json!({"x": "{{val}}"}),
+    )
+    .await;
+
+    let idem_key = format!("render-{}", Uuid::new_v4());
+    let now = Utc::now();
+
+    // First render
+    sqlx::query(
+        "INSERT INTO render_artifacts (id, tenant_id, template_id, idempotency_key, input_hash, output_hash, output, rendered_by, rendered_at)
+         VALUES ($1, $2, $3, $4, 'h1', 'h2', '{}'::jsonb, $5, $6)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(template_id)
+    .bind(&idem_key)
+    .bind(actor)
+    .bind(now)
+    .execute(&pool)
+    .await
+    .expect("first render");
+
+    // Duplicate idempotency key should fail
+    let result = sqlx::query(
+        "INSERT INTO render_artifacts (id, tenant_id, template_id, idempotency_key, input_hash, output_hash, output, rendered_by, rendered_at)
+         VALUES ($1, $2, $3, $4, 'h1', 'h2', '{}'::jsonb, $5, $6)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(template_id)
+    .bind(&idem_key)
+    .bind(actor)
+    .bind(now)
+    .execute(&pool)
+    .await;
+
+    assert!(result.is_err(), "duplicate idempotency key must be rejected");
+}
+
+// ── Render emits outbox event ───────────────────────────────────────
+
+#[tokio::test]
+async fn render_writes_outbox_event() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor = Uuid::new_v4();
+
+    let template_id = insert_test_template(
+        &pool,
+        tenant_id,
+        "outbox-tmpl",
+        "work_order",
+        serde_json::json!({"label": "{{name}}"}),
+    )
+    .await;
+
+    let input_data = serde_json::json!({"name": "Test"});
+    let output = doc_mgmt::render::apply_template(
+        &serde_json::json!({"label": "{{name}}"}),
+        &input_data,
+    );
+    let input_hash = doc_mgmt::render::compute_hash(&input_data);
+    let output_hash = doc_mgmt::render::compute_hash(&output);
+
+    let artifact_id = Uuid::new_v4();
+    let now = Utc::now();
+
+    // Simulate the atomic transaction: artifact + outbox
+    let mut tx = pool.begin().await.expect("begin tx");
+
+    sqlx::query(
+        "INSERT INTO render_artifacts (id, tenant_id, template_id, input_hash, output_hash, output, rendered_by, rendered_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)",
+    )
+    .bind(artifact_id)
+    .bind(tenant_id)
+    .bind(template_id)
+    .bind(&input_hash)
+    .bind(&output_hash)
+    .bind(&output)
+    .bind(actor)
+    .bind(now)
+    .execute(&mut *tx)
+    .await
+    .expect("insert artifact");
+
+    // Build and insert outbox event
+    let envelope = platform_contracts::EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "document.rendered".to_string(),
+        serde_json::json!({
+            "artifact_id": artifact_id,
+            "template_id": template_id,
+            "output_hash": output_hash,
+        }),
+    )
+    .with_mutation_class(Some(platform_contracts::mutation_classes::DATA_MUTATION.to_string()))
+    .with_actor(actor, "User".to_string());
+
+    let event_payload = event_bus::outbox::validate_and_serialize_envelope(&envelope)
+        .expect("serialize envelope");
+    let subject = platform_contracts::event_naming::nats_subject("doc_mgmt", "document.rendered");
+
+    sqlx::query(
+        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
+    )
+    .bind("document.rendered")
+    .bind(&subject)
+    .bind(&event_payload)
+    .execute(&mut *tx)
+    .await
+    .expect("outbox insert");
+
+    tx.commit().await.expect("commit");
+
+    // Verify outbox event exists with correct payload
+    let outbox_payload: serde_json::Value = sqlx::query_scalar(
+        "SELECT payload FROM doc_outbox WHERE event_type = 'document.rendered' ORDER BY id DESC LIMIT 1",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("fetch outbox event");
+
+    assert_eq!(outbox_payload["event_type"], "document.rendered");
+    assert_eq!(outbox_payload["source_module"], "doc_mgmt");
+    assert!(outbox_payload["event_id"].as_str().is_some(), "event_id present");
+    assert!(outbox_payload["tenant_id"].as_str().is_some(), "tenant_id present");
+    assert!(outbox_payload["mutation_class"].as_str().is_some(), "mutation_class present");
+}
+
+// ── Full E2E: create template → render → query artifact ─────────────
+
+#[tokio::test]
+async fn template_full_e2e_create_render_query() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor = Uuid::new_v4();
+
+    // 1. Create template
+    let body_template = serde_json::json!({
+        "work_order": {
+            "number": "WO-{{wo_number}}",
+            "description": "{{description}}",
+            "parts": ["{{part1}}", "{{part2}}"]
+        }
+    });
+
+    let template_id = insert_test_template(
+        &pool,
+        tenant_id,
+        "full-e2e-tmpl",
+        "work_order",
+        body_template.clone(),
+    )
+    .await;
+
+    // 2. Render with sample payload
+    let input_data = serde_json::json!({
+        "wo_number": "2024-001",
+        "description": "Replace turbine blade",
+        "part1": "TB-100A",
+        "part2": "BOLT-M8"
+    });
+
+    let output = doc_mgmt::render::apply_template(&body_template, &input_data);
+    let input_hash = doc_mgmt::render::compute_hash(&input_data);
+    let output_hash = doc_mgmt::render::compute_hash(&output);
+
+    let artifact_id = Uuid::new_v4();
+    let idem_key = format!("e2e-render-{}", Uuid::new_v4());
+    let now = Utc::now();
+
+    sqlx::query(
+        "INSERT INTO render_artifacts (id, tenant_id, template_id, idempotency_key, input_hash, output_hash, output, rendered_by, rendered_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
+    )
+    .bind(artifact_id)
+    .bind(tenant_id)
+    .bind(template_id)
+    .bind(&idem_key)
+    .bind(&input_hash)
+    .bind(&output_hash)
+    .bind(&output)
+    .bind(actor)
+    .bind(now)
+    .execute(&pool)
+    .await
+    .expect("insert artifact");
+
+    // 3. Query artifact back — verify content
+    let row: (Uuid, Uuid, String, String, serde_json::Value) = sqlx::query_as(
+        "SELECT id, template_id, input_hash, output_hash, output FROM render_artifacts
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(artifact_id)
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("fetch artifact");
+
+    assert_eq!(row.0, artifact_id);
+    assert_eq!(row.1, template_id);
+    assert_eq!(row.2, input_hash);
+    assert_eq!(row.3, output_hash);
+
+    // Verify rendered output correctness
+    let wo = &row.4["work_order"];
+    assert_eq!(wo["number"], "WO-2024-001");
+    assert_eq!(wo["description"], "Replace turbine blade");
+    assert_eq!(wo["parts"][0], "TB-100A");
+    assert_eq!(wo["parts"][1], "BOLT-M8");
+
+    // 4. Verify idempotency key is queryable
+    let idem_artifact: Option<Uuid> = sqlx::query_scalar(
+        "SELECT id FROM render_artifacts WHERE tenant_id = $1 AND idempotency_key = $2",
+    )
+    .bind(tenant_id)
+    .bind(&idem_key)
+    .fetch_optional(&pool)
+    .await
+    .expect("idem query");
+
+    assert_eq!(idem_artifact, Some(artifact_id), "artifact queryable by idempotency key");
+}
+
+// ── Tenant isolation: different tenants see different templates ──────
+
+#[tokio::test]
+async fn template_tenant_isolation() {
+    let pool = get_pool().await;
+    let tenant_a = Uuid::new_v4();
+    let tenant_b = Uuid::new_v4();
+
+    insert_test_template(
+        &pool,
+        tenant_a,
+        "isolated-tmpl",
+        "spec",
+        serde_json::json!({}),
+    )
+    .await;
+
+    // Tenant B should not see tenant A's template
+    let count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM doc_templates WHERE tenant_id = $1 AND name = 'isolated-tmpl'",
+    )
+    .bind(tenant_b)
+    .fetch_one(&pool)
+    .await
+    .expect("count");
+
+    assert_eq!(count, 0, "tenant B must not see tenant A's template");
+}
+
+// ── Artifact FK: artifact must reference valid template ─────────────
+
+#[tokio::test]
+async fn artifact_requires_valid_template() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let fake_template = Uuid::new_v4();
+
+    let result = sqlx::query(
+        "INSERT INTO render_artifacts (id, tenant_id, template_id, input_hash, output_hash, output, rendered_by, rendered_at)
+         VALUES ($1, $2, $3, 'h', 'h', '{}'::jsonb, $4, now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(fake_template)
+    .bind(Uuid::new_v4())
+    .execute(&pool)
+    .await;
+
+    assert!(result.is_err(), "artifact with non-existent template must fail FK check");
+}
