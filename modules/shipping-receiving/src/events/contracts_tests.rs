@@ -262,3 +262,71 @@ fn event_type_constants_are_unique() {
         }
     }
 }
+
+// ---- platform contract validation ----
+
+#[test]
+fn all_event_types_conform_to_platform_naming() {
+    let types = [
+        EVENT_TYPE_SHIPMENT_CREATED,
+        EVENT_TYPE_SHIPMENT_STATUS_CHANGED,
+        EVENT_TYPE_INBOUND_CLOSED,
+        EVENT_TYPE_OUTBOUND_SHIPPED,
+        EVENT_TYPE_OUTBOUND_DELIVERED,
+    ];
+    for event_type in &types {
+        platform_contracts::event_naming::validate_event_type(event_type)
+            .unwrap_or_else(|e| panic!("event type '{}' fails platform naming: {}", event_type, e));
+    }
+}
+
+#[test]
+fn mutation_class_is_valid_platform_class() {
+    assert!(
+        platform_contracts::mutation_classes::is_valid(MUTATION_CLASS_DATA_MUTATION),
+        "mutation class '{}' is not a valid platform class",
+        MUTATION_CLASS_DATA_MUTATION,
+    );
+}
+
+#[test]
+fn all_envelopes_have_required_contract_fields() {
+    let payload = ShipmentCreatedPayload {
+        tenant_id: "tenant-contract".to_string(),
+        shipment_id: Uuid::new_v4(),
+        direction: Direction::Inbound,
+        status: "draft".to_string(),
+        carrier_party_id: None,
+        tracking_number: None,
+        line_count: 1,
+        created_at: Utc::now(),
+    };
+    let envelope = build_shipment_created_envelope(
+        Uuid::new_v4(),
+        "tenant-contract".to_string(),
+        "corr-contract".to_string(),
+        Some("cause-contract".to_string()),
+        payload,
+    );
+
+    // Required fields per platform contract
+    assert!(!envelope.event_type.is_empty(), "event_type must not be empty");
+    assert!(!envelope.source_module.is_empty(), "source_module must not be empty");
+    assert!(
+        envelope.schema_version == SHIPPING_RECEIVING_EVENT_SCHEMA_VERSION,
+        "schema_version mismatch"
+    );
+    assert!(
+        envelope.mutation_class.is_some(),
+        "mutation_class must be set"
+    );
+    assert!(envelope.replay_safe, "replay_safe must be true");
+    assert!(
+        envelope.correlation_id.is_some(),
+        "correlation_id must be set"
+    );
+    assert!(
+        envelope.causation_id.is_some(),
+        "causation_id must propagate when provided"
+    );
+}
