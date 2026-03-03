@@ -1,0 +1,324 @@
+use axum::{extract::State, Json};
+use chrono::{Duration, Utc};
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use uuid::Uuid;
+
+use crate::{auth::hash_refresh_token, outbox::enqueue_portal_event};
+
+#[derive(sqlx::FromRow)]
+struct PortalUserRow {
+    id: Uuid,
+    tenant_id: Uuid,
+    party_id: Uuid,
+    password_hash: String,
+    is_active: bool,
+    lock_until: Option<chrono::DateTime<Utc>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub tenant_id: Uuid,
+    pub email: String,
+    pub password: String,
+    #[serde(default)]
+    pub idempotency_key: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RefreshRequest {
+    pub refresh_token: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct LogoutRequest {
+    pub refresh_token: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AuthResponse {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub token_type: String,
+}
+
+pub async fn login(
+    State(state): State<Arc<crate::AppState>>,
+    Json(req): Json<LoginRequest>,
+) -> Result<Json<AuthResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    if req.email.trim().is_empty() || req.password.is_empty() {
+        return Err(invalid_credentials());
+    }
+
+    if let Some(key) = req.idempotency_key.as_ref() {
+        if !key.trim().is_empty() {
+            let existing = sqlx::query_scalar::<_, serde_json::Value>(
+                "SELECT response FROM portal_idempotency WHERE tenant_id=$1 AND operation='login' AND idempotency_key=$2",
+            )
+            .bind(req.tenant_id)
+            .bind(key)
+            .fetch_optional(&state.pool)
+            .await
+            .map_err(internal_err)?;
+
+            if let Some(response) = existing {
+                let access_token = response
+                    .get("access_token")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                let refresh_token = response
+                    .get("refresh_token")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .to_string();
+                if !access_token.is_empty() && !refresh_token.is_empty() {
+                    return Ok(Json(AuthResponse {
+                        access_token,
+                        refresh_token,
+                        token_type: "Bearer".to_string(),
+                    }));
+                }
+            }
+        }
+    }
+
+    let user = sqlx::query_as::<_, PortalUserRow>(
+        "SELECT id, tenant_id, party_id, password_hash, is_active, lock_until \
+         FROM portal_users WHERE tenant_id=$1 AND email=$2",
+    )
+    .bind(req.tenant_id)
+    .bind(req.email.to_lowercase())
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(internal_err)?
+    .ok_or_else(invalid_credentials)?;
+
+    if !user.is_active {
+        return Err((
+            axum::http::StatusCode::FORBIDDEN,
+            Json(serde_json::json!({"error": "account_disabled"})),
+        ));
+    }
+
+    if user.lock_until.is_some_and(|until| until > Utc::now()) {
+        return Err((
+            axum::http::StatusCode::LOCKED,
+            Json(serde_json::json!({"error": "account_locked"})),
+        ));
+    }
+
+    if !crate::verify_password(&user.password_hash, &req.password) {
+        return Err(invalid_credentials());
+    }
+
+    let access_token = state
+        .portal_jwt
+        .issue_access_token(
+            user.id,
+            user.tenant_id,
+            user.party_id,
+            vec![platform_contracts::portal_identity::scopes::DOCUMENTS_READ.to_string()],
+            state.config.access_token_ttl_minutes,
+        )
+        .map_err(internal_err_str)?;
+
+    let refresh_raw = crate::auth::generate_refresh_token();
+    let refresh_hash = hash_refresh_token(&refresh_raw);
+    let refresh_expires_at = Utc::now() + Duration::days(state.config.refresh_token_ttl_days);
+
+    let mut tx = state.pool.begin().await.map_err(internal_err)?;
+
+    sqlx::query(
+        "INSERT INTO portal_refresh_tokens (id, tenant_id, user_id, token_hash, expires_at) \
+         VALUES ($1,$2,$3,$4,$5)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(user.tenant_id)
+    .bind(user.id)
+    .bind(&refresh_hash)
+    .bind(refresh_expires_at)
+    .execute(&mut *tx)
+    .await
+    .map_err(internal_err)?;
+
+    sqlx::query("UPDATE portal_users SET last_login_at = NOW() WHERE id = $1")
+        .bind(user.id)
+        .execute(&mut *tx)
+        .await
+        .map_err(internal_err)?;
+
+    if let Some(key) = req.idempotency_key.as_ref() {
+        if !key.trim().is_empty() {
+            sqlx::query(
+                "INSERT INTO portal_idempotency (tenant_id, operation, idempotency_key, response) VALUES ($1,'login',$2,$3) \
+                 ON CONFLICT (tenant_id, operation, idempotency_key) DO NOTHING",
+            )
+            .bind(user.tenant_id)
+            .bind(key)
+            .bind(serde_json::json!({
+                "access_token": access_token,
+                "refresh_token": refresh_raw,
+            }))
+            .execute(&mut *tx)
+            .await
+            .map_err(internal_err)?;
+        }
+    }
+
+    enqueue_portal_event(
+        &mut tx,
+        user.tenant_id,
+        Some(user.id),
+        platform_contracts::portal_identity::events::USER_LOGIN,
+        serde_json::json!({"user_id": user.id, "tenant_id": user.tenant_id, "party_id": user.party_id}),
+    )
+    .await
+    .map_err(internal_err)?;
+
+    tx.commit().await.map_err(internal_err)?;
+
+    Ok(Json(AuthResponse {
+        access_token,
+        refresh_token: refresh_raw,
+        token_type: "Bearer".to_string(),
+    }))
+}
+
+pub async fn refresh(
+    State(state): State<Arc<crate::AppState>>,
+    Json(req): Json<RefreshRequest>,
+) -> Result<Json<AuthResponse>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    let old_hash = hash_refresh_token(&req.refresh_token);
+
+    let row = sqlx::query_as::<_, (Uuid, Uuid, Uuid, chrono::DateTime<Utc>, Option<chrono::DateTime<Utc>>)>(
+        "SELECT rt.user_id, rt.tenant_id, u.party_id, rt.expires_at, rt.revoked_at \
+         FROM portal_refresh_tokens rt \
+         JOIN portal_users u ON u.id = rt.user_id \
+         WHERE rt.token_hash = $1",
+    )
+    .bind(old_hash)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(internal_err)?
+    .ok_or_else(invalid_credentials)?;
+
+    let (user_id, tenant_id, party_id, expires_at, revoked_at) = row;
+    if revoked_at.is_some() || expires_at < Utc::now() {
+        return Err(invalid_credentials());
+    }
+
+    let new_access = state
+        .portal_jwt
+        .issue_access_token(
+            user_id,
+            tenant_id,
+            party_id,
+            vec![platform_contracts::portal_identity::scopes::DOCUMENTS_READ.to_string()],
+            state.config.access_token_ttl_minutes,
+        )
+        .map_err(internal_err_str)?;
+
+    let new_refresh = crate::auth::generate_refresh_token();
+    let new_refresh_hash = hash_refresh_token(&new_refresh);
+    let new_exp = Utc::now() + Duration::days(state.config.refresh_token_ttl_days);
+
+    let mut tx = state.pool.begin().await.map_err(internal_err)?;
+    sqlx::query("UPDATE portal_refresh_tokens SET revoked_at = NOW() WHERE token_hash = $1")
+        .bind(hash_refresh_token(&req.refresh_token))
+        .execute(&mut *tx)
+        .await
+        .map_err(internal_err)?;
+
+    sqlx::query(
+        "INSERT INTO portal_refresh_tokens (id, tenant_id, user_id, token_hash, expires_at) VALUES ($1,$2,$3,$4,$5)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(user_id)
+    .bind(new_refresh_hash)
+    .bind(new_exp)
+    .execute(&mut *tx)
+    .await
+    .map_err(internal_err)?;
+
+    enqueue_portal_event(
+        &mut tx,
+        tenant_id,
+        Some(user_id),
+        platform_contracts::portal_identity::events::TOKEN_REFRESHED,
+        serde_json::json!({"user_id": user_id, "tenant_id": tenant_id}),
+    )
+    .await
+    .map_err(internal_err)?;
+
+    tx.commit().await.map_err(internal_err)?;
+
+    Ok(Json(AuthResponse {
+        access_token: new_access,
+        refresh_token: new_refresh,
+        token_type: "Bearer".to_string(),
+    }))
+}
+
+pub async fn logout(
+    State(state): State<Arc<crate::AppState>>,
+    Json(req): Json<LogoutRequest>,
+) -> Result<Json<serde_json::Value>, (axum::http::StatusCode, Json<serde_json::Value>)> {
+    let hash = hash_refresh_token(&req.refresh_token);
+
+    let row = sqlx::query_as::<_, (Uuid, Uuid)>(
+        "SELECT user_id, tenant_id FROM portal_refresh_tokens WHERE token_hash=$1 AND revoked_at IS NULL",
+    )
+    .bind(&hash)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(internal_err)?
+    .ok_or_else(invalid_credentials)?;
+
+    let (user_id, tenant_id) = row;
+    let mut tx = state.pool.begin().await.map_err(internal_err)?;
+
+    sqlx::query("UPDATE portal_refresh_tokens SET revoked_at=NOW() WHERE token_hash=$1")
+        .bind(hash)
+        .execute(&mut *tx)
+        .await
+        .map_err(internal_err)?;
+
+    enqueue_portal_event(
+        &mut tx,
+        tenant_id,
+        Some(user_id),
+        platform_contracts::portal_identity::events::USER_LOGOUT,
+        serde_json::json!({"user_id": user_id, "tenant_id": tenant_id}),
+    )
+    .await
+    .map_err(internal_err)?;
+
+    tx.commit().await.map_err(internal_err)?;
+
+    Ok(Json(serde_json::json!({"status": "ok"})))
+}
+
+fn invalid_credentials() -> (axum::http::StatusCode, Json<serde_json::Value>) {
+    (
+        axum::http::StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({"error": "unauthorized"})),
+    )
+}
+
+fn internal_err(err: sqlx::Error) -> (axum::http::StatusCode, Json<serde_json::Value>) {
+    tracing::error!("portal auth db error: {err}");
+    (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({"error": "internal_error"})),
+    )
+}
+
+fn internal_err_str(err: String) -> (axum::http::StatusCode, Json<serde_json::Value>) {
+    tracing::error!("portal auth error: {err}");
+    (
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+        Json(serde_json::json!({"error": "internal_error"})),
+    )
+}
