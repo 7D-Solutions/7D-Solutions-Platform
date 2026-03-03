@@ -22,6 +22,10 @@ pub fn build_router() -> Router<Arc<AppState>> {
             get(http::shipments::get_shipment),
         )
         .route(
+            "/api/shipping-receiving/shipments/{id}/routings",
+            get(http::inspection_routing::list_routings),
+        )
+        .route(
             "/api/shipping-receiving/po/{po_id}/shipments",
             get(http::refs::shipments_by_po),
         )
@@ -73,5 +77,9 @@ pub fn build_mutation_router() -> Router<Arc<AppState>> {
         .route(
             "/api/shipping-receiving/shipments/{id}/deliver",
             post(http::shipments::deliver_shipment),
+        )
+        .route(
+            "/api/shipping-receiving/shipments/{id}/lines/{line_id}/route",
+            post(http::inspection_routing::route_line),
         )
 }

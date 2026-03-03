@@ -43,6 +43,12 @@ pub const EVENT_TYPE_OUTBOUND_SHIPPED: &str = "shipping_receiving.outbound_shipp
 /// An outbound shipment was confirmed delivered
 pub const EVENT_TYPE_OUTBOUND_DELIVERED: &str = "shipping_receiving.outbound_delivered";
 
+/// A receipt line was routed to inspection
+pub const EVENT_TYPE_RECEIPT_ROUTED_TO_INSPECTION: &str = "sr.receipt_routed_to_inspection.v1";
+
+/// A receipt line was routed direct to stock
+pub const EVENT_TYPE_RECEIPT_ROUTED_TO_STOCK: &str = "sr.receipt_routed_to_stock.v1";
+
 // ============================================================================
 // Payload: shipping_receiving.shipment_created
 // ============================================================================
@@ -251,6 +257,47 @@ pub fn build_outbound_delivered_envelope(
         event_id,
         tenant_id,
         EVENT_TYPE_OUTBOUND_DELIVERED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(SHIPPING_RECEIVING_EVENT_SCHEMA_VERSION.to_string())
+}
+
+// ============================================================================
+// Payload: sr.receipt_routed_to_inspection.v1 / sr.receipt_routed_to_stock.v1
+// ============================================================================
+
+/// Payload for inspection routing events.
+///
+/// Emitted when a receiving line is routed to either stock or inspection.
+/// The event_type distinguishes the routing decision.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ReceiptRoutedPayload {
+    pub tenant_id: String,
+    pub routing_id: Uuid,
+    pub shipment_id: Uuid,
+    pub shipment_line_id: Uuid,
+    pub route_decision: String,
+    pub reason: Option<String>,
+    pub routed_by: Option<Uuid>,
+    pub routed_at: DateTime<Utc>,
+}
+
+/// Build an envelope for a receipt routing event.
+pub fn build_receipt_routed_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    event_type: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: ReceiptRoutedPayload,
+) -> EventEnvelope<ReceiptRoutedPayload> {
+    create_shipping_receiving_envelope(
+        event_id,
+        tenant_id,
+        event_type,
         correlation_id,
         causation_id,
         MUTATION_CLASS_DATA_MUTATION.to_string(),
