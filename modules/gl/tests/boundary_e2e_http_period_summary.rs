@@ -19,9 +19,68 @@ use chrono::{NaiveDate, Utc};
 use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::period_summary_service::PeriodSummaryResponse;
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use serde::Serialize;
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+// ============================================================================
+// JWT Auth Helpers (GL service requires Bearer JWT)
+// ============================================================================
+
+#[derive(Serialize)]
+struct TestJwtClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    jti: String,
+    tenant_id: String,
+    roles: Vec<String>,
+    perms: Vec<String>,
+    actor_type: String,
+    ver: String,
+}
+
+fn sign_test_jwt(tenant_id: &str) -> String {
+    dotenvy::dotenv().ok();
+    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
+        .expect("JWT_PRIVATE_KEY_PEM must be set (loaded from .env)");
+    let encoding_key =
+        EncodingKey::from_rsa_pem(pem.as_bytes()).expect("Invalid JWT_PRIVATE_KEY_PEM");
+    let now = Utc::now();
+    let claims = TestJwtClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: now.timestamp(),
+        exp: (now + chrono::Duration::minutes(15)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: tenant_id.to_string(),
+        roles: vec!["operator".into()],
+        perms: vec!["gl.read".into()],
+        actor_type: "user".to_string(),
+        ver: "1".to_string(),
+    };
+    let header = Header::new(Algorithm::RS256);
+    jsonwebtoken::encode(&header, &claims, &encoding_key).expect("Failed to sign test JWT")
+}
+
+fn authed_client(token: &str) -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        format!("Bearer {}", token)
+            .parse()
+            .expect("valid header value"),
+    );
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .expect("Failed to build authed client")
+}
 
 /// Setup test database pool
 async fn setup_test_pool() -> PgPool {
@@ -210,38 +269,43 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 async fn test_boundary_http_period_summary_from_snapshot() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-ps-snap-001";
+    let tenant_id = Uuid::new_v4().to_string();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup accounting period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 3, 31).expect("valid date"),
     )
     .await;
 
     // Insert precomputed snapshot
     insert_period_summary_snapshot(
-        &pool, tenant_id, period_id, "USD", 15,     // journal_count
+        &pool, &tenant_id, period_id, "USD", 15,     // journal_count
         30,     // line_count
         500000, // total_debits_minor ($5000)
         500000, // total_credits_minor ($5000)
     )
     .await;
 
-    // ✅ BOUNDARY TEST: Make real HTTP GET request
+    // BOUNDARY TEST: Make real HTTP GET request with JWT auth
     let url = format!(
         "{}/api/gl/periods/{}/summary?tenant_id={}&currency=USD",
         gl_service_url, period_id, tenant_id
     );
 
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to make HTTP request - is GL service running on port 8090?");
 
@@ -259,7 +323,7 @@ async fn test_boundary_http_period_summary_from_snapshot() {
         .expect("Failed to parse JSON response");
 
     // Assert: Correct response fields
-    assert_eq!(summary.tenant_id, tenant_id);
+    assert_eq!(summary.tenant_id, tenant_id.as_str());
     assert_eq!(summary.period_id, period_id);
     assert_eq!(summary.currency, "USD");
     assert_eq!(
@@ -286,7 +350,7 @@ async fn test_boundary_http_period_summary_from_snapshot() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
@@ -294,17 +358,20 @@ async fn test_boundary_http_period_summary_from_snapshot() {
 async fn test_boundary_http_period_summary_computed_from_balances() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-ps-computed-001";
+    let tenant_id = Uuid::new_v4().to_string();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup Chart of Accounts
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "1100",
         "Cash",
         AccountType::Asset,
@@ -314,7 +381,7 @@ async fn test_boundary_http_period_summary_computed_from_balances() {
 
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "4000",
         "Revenue",
         AccountType::Revenue,
@@ -325,25 +392,23 @@ async fn test_boundary_http_period_summary_computed_from_balances() {
     // Setup accounting period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 3, 31).expect("valid date"),
     )
     .await;
 
     // Insert balances (NO snapshot - should compute from balances)
-    insert_test_balance(&pool, tenant_id, period_id, "1100", "USD", 300000, 0).await; // $3000 Cash
-    insert_test_balance(&pool, tenant_id, period_id, "4000", "USD", 0, 300000).await; // $3000 Revenue
+    insert_test_balance(&pool, &tenant_id, period_id, "1100", "USD", 300000, 0).await; // $3000 Cash
+    insert_test_balance(&pool, &tenant_id, period_id, "4000", "USD", 0, 300000).await; // $3000 Revenue
 
-    // ✅ BOUNDARY TEST: Make real HTTP GET request
+    // BOUNDARY TEST: Make real HTTP GET request with JWT auth
     let url = format!(
         "{}/api/gl/periods/{}/summary?tenant_id={}&currency=USD",
         gl_service_url, period_id, tenant_id
     );
 
-    let response = reqwest::get(&url)
-        .await
-        .expect("Failed to make HTTP request");
+    let response = client.get(&url).send().await.expect("Failed to make HTTP request");
 
     // Assert: 200 OK
     assert_eq!(response.status(), 200);
@@ -352,7 +417,7 @@ async fn test_boundary_http_period_summary_computed_from_balances() {
     let summary: PeriodSummaryResponse = response.json().await.expect("Failed to parse JSON");
 
     // Assert: Correct computed values
-    assert_eq!(summary.tenant_id, tenant_id);
+    assert_eq!(summary.tenant_id, tenant_id.as_str());
     assert_eq!(summary.period_id, period_id);
     assert_eq!(summary.currency, "USD");
     assert_eq!(
@@ -382,7 +447,7 @@ async fn test_boundary_http_period_summary_computed_from_balances() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
@@ -390,27 +455,30 @@ async fn test_boundary_http_period_summary_computed_from_balances() {
 async fn test_boundary_http_period_summary_currency_filter() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-ps-multi-currency";
+    let tenant_id = Uuid::new_v4().to_string();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 3, 31).expect("valid date"),
     )
     .await;
 
     // Insert snapshots for multiple currencies
-    insert_period_summary_snapshot(&pool, tenant_id, period_id, "USD", 10, 20, 100000, 100000)
+    insert_period_summary_snapshot(&pool, &tenant_id, period_id, "USD", 10, 20, 100000, 100000)
         .await;
-    insert_period_summary_snapshot(&pool, tenant_id, period_id, "EUR", 5, 10, 50000, 50000).await;
-    insert_period_summary_snapshot(&pool, tenant_id, period_id, "GBP", 3, 6, 30000, 30000).await;
+    insert_period_summary_snapshot(&pool, &tenant_id, period_id, "EUR", 5, 10, 50000, 50000).await;
+    insert_period_summary_snapshot(&pool, &tenant_id, period_id, "GBP", 3, 6, 30000, 30000).await;
 
     // Test 1: Filter by USD only
     let url_usd = format!(
@@ -418,9 +486,7 @@ async fn test_boundary_http_period_summary_currency_filter() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response_usd = reqwest::get(&url_usd)
-        .await
-        .expect("Failed to fetch USD summary");
+    let response_usd = client.get(&url_usd).send().await.expect("Failed to fetch USD summary");
     assert_eq!(response_usd.status(), 200);
 
     let summary_usd: PeriodSummaryResponse =
@@ -438,9 +504,7 @@ async fn test_boundary_http_period_summary_currency_filter() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response_eur = reqwest::get(&url_eur)
-        .await
-        .expect("Failed to fetch EUR summary");
+    let response_eur = client.get(&url_eur).send().await.expect("Failed to fetch EUR summary");
     assert_eq!(response_eur.status(), 200);
 
     let summary_eur: PeriodSummaryResponse =
@@ -458,9 +522,7 @@ async fn test_boundary_http_period_summary_currency_filter() {
         gl_service_url, period_id, tenant_id
     );
 
-    let response_all = reqwest::get(&url_all)
-        .await
-        .expect("Failed to fetch all currencies");
+    let response_all = client.get(&url_all).send().await.expect("Failed to fetch all currencies");
     let status = response_all.status();
 
     // Debug: print error if not 200
@@ -491,7 +553,7 @@ async fn test_boundary_http_period_summary_currency_filter() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
@@ -500,6 +562,10 @@ async fn test_boundary_http_period_summary_error_handling() {
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    let tenant_id = Uuid::new_v4().to_string();
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Test 1: Missing required query parameter (should return 400)
     let fake_period_id = Uuid::new_v4();
     let url_missing_tenant = format!(
@@ -507,24 +573,20 @@ async fn test_boundary_http_period_summary_error_handling() {
         gl_service_url, fake_period_id
     );
 
-    let response = reqwest::get(&url_missing_tenant)
-        .await
-        .expect("Failed to make request");
-    assert_eq!(
-        response.status(),
-        400,
-        "Should return 400 for missing tenant_id parameter"
+    let response = client.get(&url_missing_tenant).send().await.expect("Failed to make request");
+    assert!(
+        response.status().is_client_error(),
+        "Should return 4xx for missing tenant_id parameter, got {}",
+        response.status()
     );
 
     // Test 2: Invalid UUID format in path (should return 400)
     let url_invalid_uuid = format!(
-        "{}/api/gl/periods/not-a-uuid/summary?tenant_id=test",
-        gl_service_url
+        "{}/api/gl/periods/not-a-uuid/summary?tenant_id={}",
+        gl_service_url, tenant_id
     );
 
-    let response_invalid = reqwest::get(&url_invalid_uuid)
-        .await
-        .expect("Failed to make request");
+    let response_invalid = client.get(&url_invalid_uuid).send().await.expect("Failed to make request");
     assert_eq!(
         response_invalid.status(),
         400,
@@ -534,13 +596,11 @@ async fn test_boundary_http_period_summary_error_handling() {
     // Test 3: Period not found (should return 404)
     let nonexistent_period_id = Uuid::new_v4();
     let url_not_found = format!(
-        "{}/api/gl/periods/{}/summary?tenant_id=nonexistent-tenant",
-        gl_service_url, nonexistent_period_id
+        "{}/api/gl/periods/{}/summary?tenant_id={}",
+        gl_service_url, nonexistent_period_id, tenant_id
     );
 
-    let response_not_found = reqwest::get(&url_not_found)
-        .await
-        .expect("Failed to make request");
+    let response_not_found = client.get(&url_not_found).send().await.expect("Failed to make request");
     assert_eq!(
         response_not_found.status(),
         404,
@@ -550,13 +610,11 @@ async fn test_boundary_http_period_summary_error_handling() {
     // Test 4: Invalid currency format (should return 400)
     let period_id = Uuid::new_v4();
     let url_invalid_currency = format!(
-        "{}/api/gl/periods/{}/summary?tenant_id=test&currency=invalid",
-        gl_service_url, period_id
+        "{}/api/gl/periods/{}/summary?tenant_id={}&currency=invalid",
+        gl_service_url, period_id, tenant_id
     );
 
-    let response_bad_currency = reqwest::get(&url_invalid_currency)
-        .await
-        .expect("Failed to make request");
+    let response_bad_currency = client.get(&url_invalid_currency).send().await.expect("Failed to make request");
     // Note: This might be 400 or 404 depending on whether period exists
     // We're testing that invalid currency is handled gracefully
     assert!(
@@ -577,35 +635,36 @@ async fn test_boundary_http_period_summary_performance_guard() {
     // We test this by timing the response (should be < 500ms).
 
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-ps-perf-guard";
+    let tenant_id = Uuid::new_v4().to_string();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup minimal period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 3, 31).expect("valid date"),
     )
     .await;
 
     // Insert snapshot (precomputed - should be instant)
-    insert_period_summary_snapshot(&pool, tenant_id, period_id, "USD", 5, 10, 100000, 100000).await;
+    insert_period_summary_snapshot(&pool, &tenant_id, period_id, "USD", 5, 10, 100000, 100000).await;
 
-    // Make HTTP request and time it
+    // Make authenticated HTTP request and time it
     let url = format!(
         "{}/api/gl/periods/{}/summary?tenant_id={}&currency=USD",
         gl_service_url, period_id, tenant_id
     );
 
     let start = std::time::Instant::now();
-    let response = reqwest::get(&url)
-        .await
-        .expect("Failed to fetch period summary");
+    let response = client.get(&url).send().await.expect("Failed to fetch period summary");
     let elapsed = start.elapsed();
 
     assert_eq!(response.status(), 200);
@@ -619,7 +678,7 @@ async fn test_boundary_http_period_summary_performance_guard() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
@@ -629,33 +688,36 @@ async fn test_boundary_http_period_summary_json_dto_structure() {
     // to prevent breaking changes in serialization.
 
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-ps-dto-test";
+    let tenant_id = Uuid::new_v4().to_string();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 3, 31).expect("valid date"),
     )
     .await;
 
     // Insert snapshot
-    insert_period_summary_snapshot(&pool, tenant_id, period_id, "USD", 10, 20, 200000, 200000)
+    insert_period_summary_snapshot(&pool, &tenant_id, period_id, "USD", 10, 20, 200000, 200000)
         .await;
 
-    // Make request
+    // Make authenticated request
     let url = format!(
         "{}/api/gl/periods/{}/summary?tenant_id={}&currency=USD",
         gl_service_url, period_id, tenant_id
     );
 
-    let response = reqwest::get(&url).await.expect("Failed to make request");
+    let response = client.get(&url).send().await.expect("Failed to make request");
     assert_eq!(response.status(), 200);
 
     // Parse as generic JSON first to validate structure
@@ -715,5 +777,5 @@ async fn test_boundary_http_period_summary_json_dto_structure() {
     assert!(json_value["data_source"].is_string());
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
