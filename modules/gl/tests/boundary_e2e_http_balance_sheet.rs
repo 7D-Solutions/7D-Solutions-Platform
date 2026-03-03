@@ -20,9 +20,70 @@ use chrono::{NaiveDate, Utc};
 use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::balance_sheet_service::BalanceSheetResponse;
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use serde::Serialize;
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+// ── JWT test helper ──────────────────────────────────────────────────
+
+/// JWT claims matching the platform's RawAccessClaims structure.
+#[derive(Serialize)]
+struct TestJwtClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    jti: String,
+    tenant_id: String,
+    roles: Vec<String>,
+    perms: Vec<String>,
+    actor_type: String,
+    ver: String,
+}
+
+/// Sign a test JWT for the given tenant_id using the dev private key.
+fn sign_test_jwt(tenant_id: &str) -> String {
+    dotenvy::dotenv().ok();
+    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
+        .expect("JWT_PRIVATE_KEY_PEM must be set (loaded from .env)");
+    let encoding_key = EncodingKey::from_rsa_pem(pem.as_bytes())
+        .expect("Invalid JWT_PRIVATE_KEY_PEM");
+
+    let now = Utc::now();
+    let claims = TestJwtClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: now.timestamp(),
+        exp: (now + chrono::Duration::minutes(15)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: tenant_id.to_string(),
+        roles: vec!["operator".into()],
+        perms: vec!["gl.read".into()],
+        actor_type: "user".to_string(),
+        ver: "1".to_string(),
+    };
+
+    let header = Header::new(Algorithm::RS256);
+    jsonwebtoken::encode(&header, &claims, &encoding_key)
+        .expect("Failed to sign test JWT")
+}
+
+/// Build a reqwest Client that sends the Bearer token on every request.
+fn authed_client(token: &str) -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        format!("Bearer {}", token).parse().unwrap(),
+    );
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .unwrap()
+}
 
 /// Setup test database pool
 async fn setup_test_pool() -> PgPool {
@@ -163,7 +224,9 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 async fn test_boundary_http_balance_sheet_returns_correct_json() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-http-bs-001";
+    let tenant_uuid = Uuid::new_v4();
+    let tenant_id = tenant_uuid.to_string();
+    let tenant_id = tenant_id.as_str();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
@@ -215,13 +278,18 @@ async fn test_boundary_http_balance_sheet_returns_correct_json() {
     insert_test_balance(&pool, tenant_id, period_id, "2000", "USD", 0, 40000).await; // $400 liability
     insert_test_balance(&pool, tenant_id, period_id, "3000", "USD", 0, 60000).await; // $600 equity
 
-    // ✅ BOUNDARY TEST: Make real HTTP GET request
+    // ✅ BOUNDARY TEST: Make real HTTP GET request (with JWT auth)
+    let token = sign_test_jwt(tenant_id);
+    let client = authed_client(&token);
+
     let url = format!(
         "{}/api/gl/balance-sheet?tenant_id={}&period_id={}&currency=USD",
         gl_service_url, tenant_id, period_id
     );
 
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to make HTTP request - is GL service running on port 8090?");
 
@@ -285,10 +353,15 @@ async fn test_boundary_http_balance_sheet_error_handling() {
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    let token = sign_test_jwt("tenant-error-test");
+    let client = authed_client(&token);
+
     // Test: Missing required query parameter (should return 400)
     let url_missing_params = format!("{}/api/gl/balance-sheet", gl_service_url);
 
-    let response = reqwest::get(&url_missing_params)
+    let response = client
+        .get(&url_missing_params)
+        .send()
         .await
         .expect("Failed to make request");
 
@@ -305,7 +378,9 @@ async fn test_boundary_http_balance_sheet_error_handling() {
         gl_service_url
     );
 
-    let response_invalid = reqwest::get(&url_invalid_uuid)
+    let response_invalid = client
+        .get(&url_invalid_uuid)
+        .send()
         .await
         .expect("Failed to make request");
     assert_eq!(
@@ -320,7 +395,9 @@ async fn test_boundary_http_balance_sheet_error_handling() {
 async fn test_boundary_http_balance_sheet_schema_validation() {
     // This test verifies the JSON schema matches expectations (deterministic serialization)
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-http-bs-schema";
+    let tenant_uuid = Uuid::new_v4();
+    let tenant_id = tenant_uuid.to_string();
+    let tenant_id = tenant_id.as_str();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
@@ -359,13 +436,18 @@ async fn test_boundary_http_balance_sheet_schema_validation() {
     insert_test_balance(&pool, tenant_id, period_id, "1000", "USD", 50000, 0).await; // $500 asset
     insert_test_balance(&pool, tenant_id, period_id, "3000", "USD", 0, 50000).await; // $500 equity
 
-    // Make HTTP request
+    // Make HTTP request (with JWT auth)
+    let token = sign_test_jwt(tenant_id);
+    let client = authed_client(&token);
+
     let url = format!(
         "{}/api/gl/balance-sheet?tenant_id={}&period_id={}&currency=USD",
         gl_service_url, tenant_id, period_id
     );
 
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to fetch balance sheet");
     assert_eq!(response.status(), 200);
