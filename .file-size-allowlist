@@ -34,3 +34,4 @@ platform/doc-mgmt/tests/real_e2e.rs                    # ~2268 LOC — doc-mgmt 
 modules/numbering/tests/real_e2e.rs                    # ~1040 LOC — numbering E2E tests (gap-free + standard mode)
 modules/workflow/tests/real_e2e.rs                     # ~2600 LOC — workflow E2E tests (growing with each WF bead)
 modules/notifications/tests/real_e2e.rs                # ~647 LOC — notifications E2E tests (growing with DLQ tests)
+modules/inventory/tests/genealogy_integration.rs       # ~637 LOC — lot genealogy split/merge E2E tests

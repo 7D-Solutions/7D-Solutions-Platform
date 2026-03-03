@@ -4,19 +4,26 @@
 -- Alert dedupe state ensures replay-safe scans that do not emit duplicate alerts.
 
 ALTER TABLE inventory_lots
-    ADD COLUMN expires_on DATE,
-    ADD COLUMN expiry_source TEXT,
-    ADD COLUMN expiry_set_at TIMESTAMP WITH TIME ZONE;
+    ADD COLUMN IF NOT EXISTS expires_on DATE,
+    ADD COLUMN IF NOT EXISTS expiry_source TEXT,
+    ADD COLUMN IF NOT EXISTS expiry_set_at TIMESTAMP WITH TIME ZONE;
 
-ALTER TABLE inventory_lots
-    ADD CONSTRAINT inventory_lots_expiry_source_check_v2
-    CHECK (expiry_source IS NULL OR expiry_source IN ('manual', 'policy'));
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'inventory_lots_expiry_source_check_v2'
+    ) THEN
+        ALTER TABLE inventory_lots
+            ADD CONSTRAINT inventory_lots_expiry_source_check_v2
+            CHECK (expiry_source IS NULL OR expiry_source IN ('manual', 'policy'));
+    END IF;
+END $$;
 
-CREATE INDEX idx_lots_tenant_expiry
+CREATE INDEX IF NOT EXISTS idx_lots_tenant_expiry
     ON inventory_lots (tenant_id, expires_on)
     WHERE expires_on IS NOT NULL;
 
-CREATE TABLE inv_lot_expiry_alert_state (
+CREATE TABLE IF NOT EXISTS inv_lot_expiry_alert_state (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id        TEXT NOT NULL,
     lot_id           UUID NOT NULL REFERENCES inventory_lots(id) ON DELETE CASCADE,
@@ -35,5 +42,5 @@ CREATE TABLE inv_lot_expiry_alert_state (
         UNIQUE (tenant_id, lot_id, alert_type, alert_date, window_days)
 );
 
-CREATE INDEX idx_inv_lot_expiry_alert_tenant_date
+CREATE INDEX IF NOT EXISTS idx_inv_lot_expiry_alert_tenant_date
     ON inv_lot_expiry_alert_state (tenant_id, alert_date);
