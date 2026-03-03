@@ -32,6 +32,7 @@ use inventory_rs::{
         reorder::{
             get_reorder_policy, list_reorder_policies, post_reorder_policy, put_reorder_policy,
         },
+        labels::{get_label_by_id, get_list_labels, post_generate_label},
         revisions::{
             get_list_revisions, get_revision_at, post_activate_revision, post_create_revision,
             put_revision_policy,
@@ -166,6 +167,11 @@ async fn main() {
             "/api/inventory/items/{item_id}/revisions/{revision_id}/policy-flags",
             axum::routing::put(put_revision_policy),
         )
+        // Labels — write
+        .route(
+            "/api/inventory/items/{item_id}/labels",
+            axum::routing::post(post_generate_label),
+        )
         // Locations — write
         .route(
             "/api/inventory/locations",
@@ -223,6 +229,15 @@ async fn main() {
         .route(
             "/api/inventory/items/{item_id}/revisions",
             axum::routing::get(get_list_revisions),
+        )
+        // Labels — read
+        .route(
+            "/api/inventory/items/{item_id}/labels",
+            axum::routing::get(get_list_labels),
+        )
+        .route(
+            "/api/inventory/labels/{label_id}",
+            axum::routing::get(get_label_by_id),
         )
         // Reorder policies — read
         .route(

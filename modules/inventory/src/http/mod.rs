@@ -6,6 +6,7 @@ pub mod health;
 pub mod history;
 pub mod issues;
 pub mod items;
+pub mod labels;
 pub mod locations;
 pub mod lots;
 pub mod receipts;

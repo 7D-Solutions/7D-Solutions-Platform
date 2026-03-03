@@ -6,6 +6,7 @@ pub mod guards;
 pub mod history;
 pub mod issue_service;
 pub mod items;
+pub mod labels;
 pub mod locations;
 pub mod lots_serials;
 pub mod projections;

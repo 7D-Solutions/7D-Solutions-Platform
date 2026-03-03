@@ -48,6 +48,7 @@
 pub mod contracts;
 pub mod cycle_count_approved;
 pub mod cycle_count_submitted;
+pub mod label_generated;
 pub mod low_stock_triggered;
 pub mod revision_activated;
 pub mod revision_created;
@@ -112,6 +113,10 @@ pub use revision_activated::{
 pub use revision_policy_updated::{
     build_item_revision_policy_updated_envelope, ItemRevisionPolicyUpdatedPayload,
     EVENT_TYPE_ITEM_REVISION_POLICY_UPDATED,
+};
+
+pub use label_generated::{
+    build_label_generated_envelope, LabelGeneratedPayload, EVENT_TYPE_LABEL_GENERATED,
 };
 
 // ============================================================================
