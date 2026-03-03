@@ -55,14 +55,37 @@ pub async fn dispatch_once(
 
     result.claimed_count = batch.len();
 
-    // 3. Attempt delivery for each claimed notification.
+    // 3. Render template + attempt delivery for each claimed notification.
     for notif in &batch {
         let idempotency_key = format!("notif:{}:attempt:{}", notif.id, notif.retry_count + 1);
-        let send_result = sender.send(notif).await;
 
-        let applied = record_delivery_attempt_and_mutate(pool, notif, &idempotency_key, send_result)
-            .await
-            .map_err(|e| anyhow::anyhow!("record_delivery_attempt_and_mutate failed for {}: {e}", notif.id))?;
+        // Render template (pure, deterministic step).
+        let rendered = crate::templates::render(&notif.template_key, &notif.payload_json);
+
+        let (send_result, rendered_msg) = match rendered {
+            Ok(msg) => {
+                let send_result = sender.send(notif).await;
+                (send_result, Some(msg))
+            }
+            Err(render_err) => {
+                tracing::warn!(
+                    id = %notif.id,
+                    template = %notif.template_key,
+                    error_class = render_err.class(),
+                    "template render failed — recording permanent failure"
+                );
+                let err = super::sender::NotificationError::RenderFailure(
+                    render_err.to_string(),
+                );
+                (Err(err), None)
+            }
+        };
+
+        let applied = record_delivery_attempt_and_mutate(
+            pool, notif, &idempotency_key, send_result, rendered_msg.as_ref(),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("record_delivery_attempt_and_mutate failed for {}: {e}", notif.id))?;
 
         match applied {
             AttemptApplyOutcome::Succeeded => result.sent_count += 1,

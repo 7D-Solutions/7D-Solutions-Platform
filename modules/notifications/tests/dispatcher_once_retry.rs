@@ -77,8 +77,8 @@ async fn test_dispatch_once_retry_backoff() {
         &pool,
         &recipient_ref,
         "email",
-        "test_retry_tpl",
-        serde_json::json!({}),
+        "payment_retry",
+        serde_json::json!({"invoice_id": "INV-RETRY", "payment_id": "PAY-001", "failure_code": "card_declined"}),
         deliver_at,
     )
     .await

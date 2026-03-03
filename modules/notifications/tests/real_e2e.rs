@@ -6,6 +6,7 @@ use notifications_rs::scheduled::{
     claim_due_batch, dispatch_once, insert_pending, record_delivery_attempt_and_mutate,
     AttemptApplyOutcome, HttpEmailSender, NotificationError,
 };
+use serial_test::serial;
 use sqlx::PgPool;
 use tokio::net::TcpListener;
 
@@ -48,6 +49,7 @@ struct StatusRow {
 }
 
 #[tokio::test]
+#[serial]
 async fn e2e_http_sender_success_and_invalid_recipient_classification() {
     let pool = get_pool().await;
     let base = start_stub_server().await;
@@ -60,7 +62,7 @@ async fn e2e_http_sender_success_and_invalid_recipient_classification() {
         "user-success@example.com",
         "email",
         "invoice_due_soon",
-        serde_json::json!({"email":"user-success@example.com"}),
+        serde_json::json!({"email":"user-success@example.com", "invoice_id":"INV-S1", "amount":1000, "due_date":"2026-04-01"}),
         due,
     )
     .await
@@ -101,7 +103,7 @@ async fn e2e_http_sender_success_and_invalid_recipient_classification() {
         "user-fail@example.com",
         "email",
         "payment_retry",
-        serde_json::json!({"email":"user-fail@example.com"}),
+        serde_json::json!({"email":"user-fail@example.com", "invoice_id":"INV-F1", "payment_id":"PAY-F1", "failure_code":"card_declined"}),
         due,
     )
     .await
@@ -141,6 +143,7 @@ async fn e2e_http_sender_success_and_invalid_recipient_classification() {
 }
 
 #[tokio::test]
+#[serial]
 async fn e2e_idempotency_key_reuses_stored_outcome() {
     let pool = get_pool().await;
     let due = Utc::now() - chrono::Duration::seconds(1);
@@ -149,7 +152,7 @@ async fn e2e_idempotency_key_reuses_stored_outcome() {
         "idempotency@example.com",
         "email",
         "invoice_due_soon",
-        serde_json::json!({"email":"idempotency@example.com"}),
+        serde_json::json!({"email":"idempotency@example.com", "invoice_id":"INV-IDEM", "amount":500, "due_date":"2026-05-01"}),
         due,
     )
     .await
@@ -167,6 +170,7 @@ async fn e2e_idempotency_key_reuses_stored_outcome() {
         &notif,
         &key,
         Err(NotificationError::Transient("transient".to_string())),
+        None,
     )
     .await
     .expect("record first");
@@ -177,6 +181,7 @@ async fn e2e_idempotency_key_reuses_stored_outcome() {
         &notif,
         &key,
         Ok(Default::default()),
+        None,
     )
     .await
     .expect("record second");
@@ -199,4 +204,136 @@ async fn e2e_idempotency_key_reuses_stored_outcome() {
     .await
     .expect("count attempts");
     assert_eq!(attempts, 1);
+}
+
+// ── Template rendering E2E tests ────────────────────────────────────
+
+#[tokio::test]
+#[serial]
+async fn e2e_rendered_content_persisted_on_successful_dispatch() {
+    let pool = get_pool().await;
+    let base = start_stub_server().await;
+    let due = Utc::now() - chrono::Duration::seconds(1);
+
+    let id = insert_pending(
+        &pool,
+        "render-test@example.com",
+        "email",
+        "invoice_due_soon",
+        serde_json::json!({
+            "invoice_id": "INV-RENDER-001",
+            "amount": 7500,
+            "due_date": "2026-06-15",
+            "email": "render-test@example.com",
+        }),
+        due,
+    )
+    .await
+    .expect("insert pending for render test");
+
+    let sender: Arc<dyn notifications_rs::scheduled::NotificationSender> = Arc::new(
+        HttpEmailSender::new(
+            format!("{base}/send/202"),
+            "no-reply@example.com".to_string(),
+            None,
+        ),
+    );
+    let result = dispatch_once(&pool, sender).await.expect("dispatch render test");
+    assert!(result.sent_count >= 1);
+
+    // Verify rendered content was persisted alongside the delivery attempt.
+    let (subject, body_html, body_text): (Option<String>, Option<String>, Option<String>) =
+        sqlx::query_as(
+            "SELECT rendered_subject, rendered_body_html, rendered_body_text \
+             FROM notification_delivery_attempts WHERE notification_id = $1 \
+             ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch rendered content");
+
+    let subject = subject.expect("rendered_subject should not be null");
+    let body_html = body_html.expect("rendered_body_html should not be null");
+    let body_text = body_text.expect("rendered_body_text should not be null");
+
+    assert!(
+        subject.contains("INV-RENDER-001"),
+        "subject should contain invoice_id, got: {}",
+        subject
+    );
+    assert!(body_html.contains("<strong>INV-RENDER-001</strong>"));
+    assert!(body_text.contains("7500"));
+    assert!(body_text.contains("2026-06-15"));
+}
+
+#[tokio::test]
+#[serial]
+async fn e2e_render_failure_records_permanent_failure() {
+    let pool = get_pool().await;
+    let due = Utc::now() - chrono::Duration::seconds(1);
+
+    // Insert with a template key that does NOT exist in the registry.
+    let id = insert_pending(
+        &pool,
+        "render-fail@example.com",
+        "email",
+        "nonexistent_template",
+        serde_json::json!({}),
+        due,
+    )
+    .await
+    .expect("insert pending for render failure");
+
+    let sender: Arc<dyn notifications_rs::scheduled::NotificationSender> =
+        Arc::new(notifications_rs::scheduled::LoggingSender);
+    let result = dispatch_once(&pool, sender).await.expect("dispatch render failure");
+    assert!(result.failed_count >= 1, "render failure should count as failed");
+
+    let row: StatusRow =
+        sqlx::query_as("SELECT status, retry_count FROM scheduled_notifications WHERE id = $1")
+            .bind(id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch row");
+    assert_eq!(row.status, "failed", "unknown template → permanent failure");
+
+    let (attempt_status, error_class): (String, Option<String>) = sqlx::query_as(
+        "SELECT status, error_class FROM notification_delivery_attempts \
+         WHERE notification_id = $1 ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .expect("fetch attempt");
+    assert_eq!(attempt_status, "failed_permanent");
+    assert_eq!(error_class.as_deref(), Some("render_failure"));
+
+    // Rendered columns should be NULL on render failure.
+    let (subject,): (Option<String>,) = sqlx::query_as(
+        "SELECT rendered_subject FROM notification_delivery_attempts \
+         WHERE notification_id = $1 ORDER BY created_at DESC LIMIT 1",
+    )
+    .bind(id)
+    .fetch_one(&pool)
+    .await
+    .expect("fetch rendered_subject");
+    assert!(subject.is_none(), "rendered_subject should be null on render failure");
+}
+
+#[tokio::test]
+async fn e2e_render_idempotent_across_calls() {
+    // Verify that rendering the same template+payload produces identical output
+    // across separate invocations — deterministic rendering guarantee.
+    use notifications_rs::templates::render;
+
+    let payload = serde_json::json!({
+        "invoice_id": "INV-IDEM",
+        "amount": 1234,
+        "due_date": "2026-12-31",
+    });
+
+    let first = render("invoice_due_soon", &payload).expect("render first");
+    let second = render("invoice_due_soon", &payload).expect("render second");
+    assert_eq!(first, second, "same inputs must produce identical outputs");
 }

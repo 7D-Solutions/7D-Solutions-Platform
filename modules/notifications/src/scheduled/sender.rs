@@ -18,6 +18,8 @@ pub enum NotificationError {
     RateLimited(String),
     #[error("permanent delivery failure: {0}")]
     Permanent(String),
+    #[error("render failure: {0}")]
+    RenderFailure(String),
 }
 
 impl NotificationError {
@@ -28,6 +30,7 @@ impl NotificationError {
             NotificationError::ProviderAuth(_) => "provider_auth",
             NotificationError::RateLimited(_) => "rate_limited",
             NotificationError::Permanent(_) => "permanent",
+            NotificationError::RenderFailure(_) => "render_failure",
         }
     }
 

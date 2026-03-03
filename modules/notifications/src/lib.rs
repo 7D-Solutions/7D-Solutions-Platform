@@ -15,3 +15,4 @@ pub mod metrics;
 pub mod models;
 pub mod http;
 pub mod scheduled;
+pub mod templates;

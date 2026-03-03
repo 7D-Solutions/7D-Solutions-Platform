@@ -42,8 +42,8 @@ async fn test_dispatch_once_due_send() {
         &pool,
         &recipient_ref,
         "email",
-        "test_due_tpl",
-        serde_json::json!({"test": true}),
+        "invoice_due_soon",
+        serde_json::json!({"invoice_id": "INV-DUE-TEST", "amount": 5000, "due_date": "2026-04-01"}),
         deliver_at,
     )
     .await

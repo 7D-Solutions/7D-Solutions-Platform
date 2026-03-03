@@ -4,6 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::event_bus::{create_notifications_envelope, enqueue_event};
+use crate::templates::RenderedMessage;
 use super::models::ScheduledNotification;
 use super::sender::{NotificationError, SendReceipt};
 
@@ -177,6 +178,7 @@ pub async fn record_delivery_attempt_and_mutate(
     notif: &ScheduledNotification,
     idempotency_key: &str,
     send_result: Result<SendReceipt, NotificationError>,
+    rendered: Option<&RenderedMessage>,
 ) -> Result<AttemptApplyOutcome, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
@@ -239,8 +241,9 @@ pub async fn record_delivery_attempt_and_mutate(
     sqlx::query(
         r#"
         INSERT INTO notification_delivery_attempts
-            (notification_id, idempotency_key, attempt_no, status, provider_message_id, error_class, error_message)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
+            (notification_id, idempotency_key, attempt_no, status, provider_message_id,
+             error_class, error_message, rendered_subject, rendered_body_html, rendered_body_text)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
         "#,
     )
     .bind(notif.id)
@@ -250,6 +253,9 @@ pub async fn record_delivery_attempt_and_mutate(
     .bind(provider_message_id.clone())
     .bind(error_class.clone())
     .bind(error_message.clone())
+    .bind(rendered.map(|r| &r.subject))
+    .bind(rendered.map(|r| &r.body_html))
+    .bind(rendered.map(|r| &r.body_text))
     .execute(&mut *tx)
     .await?;
 
