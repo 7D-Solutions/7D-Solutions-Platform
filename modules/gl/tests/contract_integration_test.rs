@@ -13,10 +13,13 @@ fn test_deserialize_valid_event_envelope_from_example() {
     // Note: Using valid UUIDs (example JSON has ULIDs which don't parse as UUIDs)
     let json = r#"{
   "event_id": "550e8400-e29b-41d4-a716-446655440000",
+  "event_type": "gl.posting.requested",
   "occurred_at": "2024-02-11T16:00:00.000Z",
   "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
   "source_module": "ar",
   "source_version": "0.1.0",
+  "schema_version": "1",
+  "replay_safe": true,
   "correlation_id": "cor_01HPQZT7M2P9KY3W6V5R8XJ4N2T",
   "causation_id": "inv_01HPQW9K7J4M6N8P2R5T7V9W1X",
   "payload": {
@@ -126,10 +129,13 @@ fn test_reject_invalid_envelope_missing_required_field() {
     // Missing required field "description" in payload
     let json = r#"{
   "event_id": "550e8400-e29b-41d4-a716-446655440000",
+  "event_type": "gl.posting.requested",
   "occurred_at": "2024-02-11T16:00:00.000Z",
   "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
   "source_module": "ar",
   "source_version": "0.1.0",
+  "schema_version": "1",
+  "replay_safe": true,
   "payload": {
     "posting_date": "2024-02-11",
     "currency": "USD",
@@ -164,10 +170,13 @@ fn test_reject_invalid_envelope_missing_required_field() {
 fn test_reject_invalid_currency() {
     let json = r#"{
   "event_id": "550e8400-e29b-41d4-a716-446655440001",
+  "event_type": "gl.posting.requested",
   "occurred_at": "2024-02-11T16:00:00.000Z",
   "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
   "source_module": "ar",
   "source_version": "0.1.0",
+  "schema_version": "1",
+  "replay_safe": true,
   "payload": {
     "posting_date": "2024-02-11",
     "currency": "usd",
@@ -211,10 +220,13 @@ fn test_reject_invalid_currency() {
 fn test_reject_unbalanced_entry() {
     let json = r#"{
   "event_id": "550e8400-e29b-41d4-a716-446655440002",
+  "event_type": "gl.posting.requested",
   "occurred_at": "2024-02-11T16:00:00.000Z",
   "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
   "source_module": "ar",
   "source_version": "0.1.0",
+  "schema_version": "1",
+  "replay_safe": true,
   "payload": {
     "posting_date": "2024-02-11",
     "currency": "USD",
@@ -258,10 +270,13 @@ fn test_reject_unbalanced_entry() {
 fn test_reject_empty_account_ref() {
     let json = r#"{
   "event_id": "550e8400-e29b-41d4-a716-446655440003",
+  "event_type": "gl.posting.requested",
   "occurred_at": "2024-02-11T16:00:00.000Z",
   "tenant_id": "tnt_01HPQW8YN4KJXR6S9TM2CP5V8H",
   "source_module": "ar",
   "source_version": "0.1.0",
+  "schema_version": "1",
+  "replay_safe": true,
   "payload": {
     "posting_date": "2024-02-11",
     "currency": "USD",
