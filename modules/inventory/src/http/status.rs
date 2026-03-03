@@ -9,10 +9,12 @@
 //!   Duplicate keys with the same body return 200 OK with the stored result.
 //!   Duplicate keys with a different body return 409 Conflict.
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
+use security::VerifiedClaims;
 use serde_json::json;
 use std::sync::Arc;
 
+use super::tenant::extract_tenant;
 use crate::{
     domain::{
         guards::GuardError,
@@ -107,8 +109,14 @@ fn transfer_error_response(err: TransferError) -> impl IntoResponse {
 /// Returns 201 on new transfer, 200 on idempotent replay.
 pub async fn post_status_transfer(
     State(state): State<Arc<AppState>>,
-    Json(req): Json<StatusTransferRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<StatusTransferRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.tenant_id = tenant_id;
     match process_status_transfer(&state.pool, &req).await {
         Ok((result, false)) => (StatusCode::CREATED, Json(json!(result))).into_response(),
         Ok((result, true)) => (StatusCode::OK, Json(json!(result))).into_response(),

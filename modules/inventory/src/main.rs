@@ -167,12 +167,7 @@ async fn main() {
         ]))
         .with_state(app_state.clone());
 
-    let app = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(health))
-        .route("/api/ready", get(ready))
-        .route("/api/version", get(version))
-        .route("/metrics", get(metrics_handler))
+    let inv_reads = Router::new()
         // Item master — read
         .route("/api/inventory/items/{id}", axum::routing::get(get_item))
         // UoM — read
@@ -230,7 +225,19 @@ async fn main() {
             "/api/inventory/warehouses/{warehouse_id}/locations",
             axum::routing::get(list_locations),
         )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::INVENTORY_READ,
+        ]))
+        .with_state(app_state.clone());
+
+    let app = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route("/api/health", get(health))
+        .route("/api/ready", get(ready))
+        .route("/api/version", get(version))
+        .route("/metrics", get(metrics_handler))
         .with_state(app_state)
+        .merge(inv_reads)
         .merge(inv_mutations)
         .merge(inventory_rs::http::admin::admin_router(admin_pool))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))

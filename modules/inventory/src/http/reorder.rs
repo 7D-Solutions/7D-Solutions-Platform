@@ -142,11 +142,24 @@ pub async fn get_reorder_policy(
 /// PUT /api/inventory/reorder-policies/:id
 ///
 /// Updates threshold fields on an existing policy.
+/// Tenant derived from JWT VerifiedClaims — body tenant_id is overridden.
 pub async fn put_reorder_policy(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    Json(req): Json<UpdateReorderPolicyRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<UpdateReorderPolicyRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match &claims {
+        Some(Extension(c)) => c.tenant_id.to_string(),
+        None => {
+            return (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({ "error": "unauthorized", "message": "Missing or invalid authentication" })),
+            )
+                .into_response();
+        }
+    };
+    req.tenant_id = tenant_id;
     match ReorderPolicyRepo::update(&state.pool, id, &req).await {
         Ok(policy) => (StatusCode::OK, Json(json!(policy))).into_response(),
         Err(e) => policy_error_response(e).into_response(),
