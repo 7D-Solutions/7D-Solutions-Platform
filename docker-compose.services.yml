@@ -108,7 +108,7 @@ services:
     volumes:
       - ./nginx/auth-nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     networks:
       - 7d-platform
     depends_on:
@@ -131,10 +131,10 @@ services:
       dockerfile: platform/control-plane/Dockerfile.workspace
     restart: unless-stopped
     ports:
-      - "8091:8091"
+      - "127.0.0.1:8091:8091"
     environment:
-      DATABASE_URL: postgres://tenant_registry_user:tenant_registry_pass@7d-tenant-registry-postgres:5432/tenant_registry_db
-      AR_DATABASE_URL: postgres://ar_user:ar_pass@7d-ar-postgres:5432/ar_db
+      DATABASE_URL: postgres://${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user}:${TENANT_REGISTRY_POSTGRES_PASSWORD:-tenant_registry_pass}@7d-tenant-registry-postgres:5432/${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}
+      AR_DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}
       PORT: 8091
       HOST: 0.0.0.0
       RUST_LOG: info
@@ -180,7 +180,7 @@ services:
       TILLED_WEBHOOK_SECRET: ${TILLED_WEBHOOK_SECRET:-dev-placeholder-secret}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8086:8086"
+      - "127.0.0.1:8086:8086"
     networks:
       - 7d-platform
     healthcheck:
@@ -224,7 +224,7 @@ services:
       AR_BASE_URL: http://7d-ar:8086
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8087:8087"
+      - "127.0.0.1:8087:8087"
     networks:
       - 7d-platform
     healthcheck:
@@ -267,7 +267,7 @@ services:
       PORT: 8088
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8088:8088"
+      - "127.0.0.1:8088:8088"
     networks:
       - 7d-platform
     healthcheck:
@@ -310,7 +310,7 @@ services:
       PORT: 8089
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8089:8089"
+      - "127.0.0.1:8089:8089"
     networks:
       - 7d-platform
     healthcheck:
@@ -354,7 +354,7 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090"
     networks:
       - 7d-platform
     healthcheck:
@@ -397,7 +397,7 @@ services:
       PORT: 8092
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8092:8092"
+      - "127.0.0.1:8092:8092"
     networks:
       - 7d-platform
     healthcheck:
@@ -440,7 +440,7 @@ services:
       PORT: 8093
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8093:8093"
+      - "127.0.0.1:8093:8093"
     networks:
       - 7d-platform
     healthcheck:
@@ -483,7 +483,7 @@ services:
       PORT: 8094
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8094:8094"
+      - "127.0.0.1:8094:8094"
     networks:
       - 7d-platform
     healthcheck:
@@ -526,7 +526,7 @@ services:
       PORT: 8104
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8104:8104"
+      - "127.0.0.1:8104:8104"
     networks:
       - 7d-platform
     healthcheck:
@@ -569,7 +569,7 @@ services:
       PORT: 8105
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8105:8105"
+      - "127.0.0.1:8105:8105"
     networks:
       - 7d-platform
     healthcheck:
@@ -612,7 +612,7 @@ services:
       PORT: 8097
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8097:8097"
+      - "127.0.0.1:8097:8097"
     networks:
       - 7d-platform
     healthcheck:
@@ -656,7 +656,7 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8098:8098"
+      - "127.0.0.1:8098:8098"
     networks:
       - 7d-platform
     healthcheck:
@@ -699,7 +699,7 @@ services:
       PORT: 8099
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8099:8099"
+      - "127.0.0.1:8099:8099"
     networks:
       - 7d-platform
     healthcheck:
@@ -743,7 +743,7 @@ services:
       TENANT_REGISTRY_URL: http://7d-control-plane:8091
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8100:8100"
+      - "127.0.0.1:8100:8100"
     networks:
       - 7d-platform
     healthcheck:
@@ -787,7 +787,7 @@ services:
       CORS_ORIGINS: ${PDF_EDITOR_CORS_ORIGINS:-*}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8102:8102"
+      - "127.0.0.1:8102:8102"
     networks:
       - 7d-platform
     healthcheck:
@@ -831,7 +831,7 @@ services:
       JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8101:8101"
+      - "127.0.0.1:8101:8101"
     networks:
       - 7d-platform
     healthcheck:
@@ -874,7 +874,7 @@ services:
       PORT: 8103
       RUST_LOG: ${RUST_LOG:-info}
     ports:
-      - "8103:8103"
+      - "127.0.0.1:8103:8103"
     networks:
       - 7d-platform
     healthcheck:

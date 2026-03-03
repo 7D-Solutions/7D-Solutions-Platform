@@ -17,11 +17,11 @@ Version-bumped on every change. See [docs/VERSIONING.md](docs/VERSIONING.md).
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
-| ar | ar-rs | 1.0.57 | 8086 | 5434 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| control-plane | control-plane | 1.0.3 | 8091 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
-| identity-auth | auth-rs | 1.3.10 | 8080 | 5433 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md) |
-| payments | payments-rs | 1.1.15 | 8088 | 5436 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md) |
-| ttp | ttp-rs | 2.1.5 | 8100 | 5451 | Tenant-to-platform billing, metering, and service agreement management | [Vision](docs/architecture/TTP-VISION.md), [Revisions](modules/ttp/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| ar | ar-rs | 1.0.57 | 127.0.0.1 | 127.0.0.1 | Invoicing, collections, payment application, dunning, and cash flow forecasting | [Revisions](modules/ar/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| control-plane | control-plane | 1.0.3 | 127.0.0.1 |  | Tenant provisioning, platform billing orchestration, and data retention | [Revisions](platform/control-plane/REVISIONS.md) |
+| identity-auth | auth-rs | 1.3.10 | 127.0.0.1 | 127.0.0.1 | JWT authentication, session management, password reset, and rate limiting | [Revisions](platform/identity-auth/REVISIONS.md) |
+| payments | payments-rs | 1.1.15 | 127.0.0.1 | 127.0.0.1 | Payment processing, reconciliation, and Tilled gateway integration | [Revisions](modules/payments/REVISIONS.md) |
+| ttp | ttp-rs | 2.1.5 | 127.0.0.1 | 127.0.0.1 | Tenant-to-platform billing, metering, and service agreement management | [Vision](docs/architecture/TTP-VISION.md), [Revisions](modules/ttp/REVISIONS.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 
 ## Unproven Modules (v0.x.x)
 
@@ -29,25 +29,25 @@ No version bump discipline required yet.
 
 | Module | Crate | Version | Port | DB Port | Description | Docs |
 |--------|-------|---------|------|---------|-------------|------|
-| ap | ap | 0.1.0 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| consolidation | consolidation | 0.1.0 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md) |
+| ap | ap | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| consolidation | consolidation | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md) |
 | customer-portal | customer-portal | 0.1.0 |  |  | External customer portal auth boundary service |  |
-| fixed-assets | fixed-assets | 0.1.0 | 8104 | 5445 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md) |
-| gl | gl-rs | 0.1.0 | 8090 | 5438 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md) |
-| integrations | integrations-rs | 0.1.0 | 8099 | 5449 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md) |
-| inventory | inventory-rs | 0.1.0 | 8092 | 5442 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md) |
-| maintenance | maintenance-rs | 0.1.0 | 8101 | 5452 | Maintenance management: work orders, preventive plans, meters, and labor tracking | [Vision](docs/architecture/MAINTENANCE-VISION.md) |
-| notifications | notifications-rs | 0.1.0 | 8089 | 5437 | Event-driven notification delivery with scheduled dispatch and retry |  |
-| numbering | numbering | 0.1.0 |  | 5456 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation |  |
-| party | party-rs | 0.1.0 | 8098 | 5448 | Party master: companies, individuals, contacts, and addresses | [Vision](docs/architecture/PARTY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| pdf-editor | pdf-editor-rs | 0.1.0 | 8102 | 5453 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md) |
+| fixed-assets | fixed-assets | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md) |
+| gl | gl-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md) |
+| integrations | integrations-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md) |
+| inventory | inventory-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Inventory management: receipts, issues, transfers, reservations, FIFO costing, and cycle counts | [Vision](docs/architecture/INVENTORY-VISION.md) |
+| maintenance | maintenance-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Maintenance management: work orders, preventive plans, meters, and labor tracking | [Vision](docs/architecture/MAINTENANCE-VISION.md) |
+| notifications | notifications-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Event-driven notification delivery with scheduled dispatch and retry |  |
+| numbering | numbering | 0.1.0 |  | 127.0.0.1 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation |  |
+| party | party-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Party master: companies, individuals, contacts, and addresses | [Vision](docs/architecture/PARTY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| pdf-editor | pdf-editor-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md) |
 | reporting | reporting | 0.1.0 |  |  | Financial reporting: aging, KPIs, statements, and cash flow forecasts | [Vision](docs/architecture/REPORTING-VISION.md) |
-| shipping-receiving | shipping-receiving-rs | 0.1.0 | 8103 | 5454 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md) |
-| subscriptions | subscriptions-rs | 0.1.0 | 8087 | 5435 | Subscription lifecycle management, billing cycles, and usage gating | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
-| timekeeping | timekeeping | 0.1.0 | 8097 | 5447 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md) |
-| treasury | treasury | 0.1.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md) |
-| workflow | workflow | 0.1.0 |  | 5457 | Workflow engine: definitions, templates, and durable instance execution |  |
-| workforce-competence | workforce-competence-rs | 0.1.0 |  | 5458 | Workforce competence registry: skills, certifications, training records, and authorization queries |  |
+| shipping-receiving | shipping-receiving-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md) |
+| subscriptions | subscriptions-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Subscription lifecycle management, billing cycles, and usage gating | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
+| timekeeping | timekeeping | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md) |
+| treasury | treasury | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md) |
+| workflow | workflow | 0.1.0 |  | 127.0.0.1 | Workflow engine: definitions, templates, and durable instance execution |  |
+| workforce-competence | workforce-competence-rs | 0.1.0 |  | 127.0.0.1 | Workforce competence registry: skills, certifications, training records, and authorization queries |  |
 
 ## Platform Libraries
 

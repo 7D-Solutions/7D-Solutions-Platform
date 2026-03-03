@@ -9,7 +9,7 @@ services:
     image: nats:2.10-alpine
     command: ["-c", "/etc/nats/nats.conf"]
     ports:
-      - "4222:4222"
+      - "127.0.0.1:4222:4222"
       - "127.0.0.1:8222:8222"
     environment:
       NATS_AUTH_TOKEN: ${NATS_AUTH_TOKEN:-dev-nats-token}
@@ -38,7 +38,7 @@ services:
     container_name: 7d-auth-postgres
     image: postgres:16-alpine
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_DB: ${AUTH_POSTGRES_DB:-auth_db}
       POSTGRES_USER: ${AUTH_POSTGRES_USER:-auth_user}
@@ -64,7 +64,7 @@ services:
     container_name: 7d-ar-postgres
     image: postgres:16-alpine
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     environment:
       POSTGRES_DB: ${AR_POSTGRES_DB:-ar_db}
       POSTGRES_USER: ${AR_POSTGRES_USER:-ar_user}
@@ -92,7 +92,7 @@ services:
     entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
     command: ["postgres"]
     ports:
-      - "5435:5432"
+      - "127.0.0.1:5435:5432"
     environment:
       POSTGRES_DB: ${SUBSCRIPTIONS_POSTGRES_DB:-subscriptions_db}
       POSTGRES_USER: ${SUBSCRIPTIONS_POSTGRES_USER:-subscriptions_user}
@@ -118,7 +118,7 @@ services:
     container_name: 7d-payments-postgres
     image: postgres:16-alpine
     ports:
-      - "5436:5432"
+      - "127.0.0.1:5436:5432"
     environment:
       POSTGRES_DB: ${PAYMENTS_POSTGRES_DB:-payments_db}
       POSTGRES_USER: ${PAYMENTS_POSTGRES_USER:-payments_user}
@@ -144,7 +144,7 @@ services:
     container_name: 7d-notifications-postgres
     image: postgres:16-alpine
     ports:
-      - "5437:5432"
+      - "127.0.0.1:5437:5432"
     environment:
       POSTGRES_DB: ${NOTIFICATIONS_POSTGRES_DB:-notifications_db}
       POSTGRES_USER: ${NOTIFICATIONS_POSTGRES_USER:-notifications_user}
@@ -170,7 +170,7 @@ services:
     container_name: 7d-gl-postgres
     image: postgres:16-alpine
     ports:
-      - "5438:5432"
+      - "127.0.0.1:5438:5432"
     environment:
       POSTGRES_DB: ${GL_POSTGRES_DB:-gl_db}
       POSTGRES_USER: ${GL_POSTGRES_USER:-gl_user}
@@ -199,7 +199,7 @@ services:
     container_name: 7d-projections-postgres
     image: postgres:16-alpine
     ports:
-      - "5439:5432"
+      - "127.0.0.1:5439:5432"
     environment:
       POSTGRES_DB: ${PROJECTIONS_POSTGRES_DB:-projections_db}
       POSTGRES_USER: ${PROJECTIONS_POSTGRES_USER:-projections_user}
@@ -225,7 +225,7 @@ services:
     container_name: 7d-audit-postgres
     image: postgres:16-alpine
     ports:
-      - "5440:5432"
+      - "127.0.0.1:5440:5432"
     environment:
       POSTGRES_DB: ${AUDIT_POSTGRES_DB:-audit_db}
       POSTGRES_USER: ${AUDIT_POSTGRES_USER:-audit_user}
@@ -251,7 +251,7 @@ services:
     container_name: 7d-tenant-registry-postgres
     image: postgres:16-alpine
     ports:
-      - "5441:5432"
+      - "127.0.0.1:5441:5432"
     environment:
       POSTGRES_DB: ${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}
       POSTGRES_USER: ${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user}
@@ -279,7 +279,7 @@ services:
     entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
     command: ["postgres"]
     ports:
-      - "5442:5432"
+      - "127.0.0.1:5442:5432"
     environment:
       POSTGRES_DB: ${INVENTORY_POSTGRES_DB:-inventory_db}
       POSTGRES_USER: ${INVENTORY_POSTGRES_USER:-inventory_user}
@@ -305,7 +305,7 @@ services:
     container_name: 7d-ap-postgres
     image: postgres:16-alpine
     ports:
-      - "5443:5432"
+      - "127.0.0.1:5443:5432"
     environment:
       POSTGRES_DB: ${AP_POSTGRES_DB:-ap_db}
       POSTGRES_USER: ${AP_POSTGRES_USER:-ap_user}
@@ -333,7 +333,7 @@ services:
     entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
     command: ["postgres"]
     ports:
-      - "5444:5432"
+      - "127.0.0.1:5444:5432"
     environment:
       POSTGRES_DB: ${TREASURY_POSTGRES_DB:-treasury_db}
       POSTGRES_USER: ${TREASURY_POSTGRES_USER:-treasury_user}
@@ -359,7 +359,7 @@ services:
     container_name: 7d-fixed-assets-postgres
     image: postgres:16-alpine
     ports:
-      - "5445:5432"
+      - "127.0.0.1:5445:5432"
     environment:
       POSTGRES_DB: ${FIXED_ASSETS_POSTGRES_DB:-fixed_assets_db}
       POSTGRES_USER: ${FIXED_ASSETS_POSTGRES_USER:-fixed_assets_user}
@@ -385,7 +385,7 @@ services:
     container_name: 7d-consolidation-postgres
     image: postgres:16-alpine
     ports:
-      - "5446:5432"
+      - "127.0.0.1:5446:5432"
     environment:
       POSTGRES_DB: ${CONSOLIDATION_POSTGRES_DB:-consolidation_db}
       POSTGRES_USER: ${CONSOLIDATION_POSTGRES_USER:-consolidation_user}
@@ -413,7 +413,7 @@ services:
     entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
     command: ["postgres"]
     ports:
-      - "5447:5432"
+      - "127.0.0.1:5447:5432"
     environment:
       POSTGRES_DB: ${TIMEKEEPING_POSTGRES_DB:-timekeeping_db}
       POSTGRES_USER: ${TIMEKEEPING_POSTGRES_USER:-timekeeping_user}
@@ -439,7 +439,7 @@ services:
     container_name: 7d-party-postgres
     image: postgres:16-alpine
     ports:
-      - "5448:5432"
+      - "127.0.0.1:5448:5432"
     environment:
       POSTGRES_DB: ${PARTY_POSTGRES_DB:-party_db}
       POSTGRES_USER: ${PARTY_POSTGRES_USER:-party_user}
@@ -467,7 +467,7 @@ services:
     entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
     command: ["postgres"]
     ports:
-      - "5449:5432"
+      - "127.0.0.1:5449:5432"
     environment:
       POSTGRES_DB: ${INTEGRATIONS_POSTGRES_DB:-integrations_db}
       POSTGRES_USER: ${INTEGRATIONS_POSTGRES_USER:-integrations_user}
@@ -493,7 +493,7 @@ services:
     container_name: 7d-ttp-postgres
     image: postgres:16-alpine
     ports:
-      - "5451:5432"
+      - "127.0.0.1:5451:5432"
     environment:
       POSTGRES_DB: ${TTP_POSTGRES_DB:-ttp_db}
       POSTGRES_USER: ${TTP_POSTGRES_USER:-ttp_user}
@@ -519,7 +519,7 @@ services:
     container_name: 7d-maintenance-postgres
     image: postgres:16-alpine
     ports:
-      - "5452:5432"
+      - "127.0.0.1:5452:5432"
     environment:
       POSTGRES_DB: ${MAINTENANCE_POSTGRES_DB:-maintenance_db}
       POSTGRES_USER: ${MAINTENANCE_POSTGRES_USER:-maintenance_user}
@@ -545,7 +545,7 @@ services:
     container_name: 7d-pdf-editor-postgres
     image: postgres:16-alpine
     ports:
-      - "5453:5432"
+      - "127.0.0.1:5453:5432"
     environment:
       POSTGRES_DB: ${PDF_EDITOR_POSTGRES_DB:-pdf_editor_db}
       POSTGRES_USER: ${PDF_EDITOR_POSTGRES_USER:-pdf_editor_user}
@@ -571,7 +571,7 @@ services:
     container_name: 7d-shipping-receiving-postgres
     image: postgres:16-alpine
     ports:
-      - "5454:5432"
+      - "127.0.0.1:5454:5432"
     environment:
       POSTGRES_DB: ${SHIPPING_RECEIVING_POSTGRES_DB:-shipping_receiving_db}
       POSTGRES_USER: ${SHIPPING_RECEIVING_POSTGRES_USER:-shipping_receiving_user}
@@ -597,7 +597,7 @@ services:
     container_name: 7d-numbering-postgres
     image: postgres:16-alpine
     ports:
-      - "5456:5432"
+      - "127.0.0.1:5456:5432"
     environment:
       POSTGRES_DB: ${NUMBERING_POSTGRES_DB:-numbering_db}
       POSTGRES_USER: ${NUMBERING_POSTGRES_USER:-numbering_user}
@@ -623,7 +623,7 @@ services:
     container_name: 7d-doc-mgmt-postgres
     image: postgres:16-alpine
     ports:
-      - "5455:5432"
+      - "127.0.0.1:5455:5432"
     environment:
       POSTGRES_DB: ${DOC_MGMT_POSTGRES_DB:-doc_mgmt_db}
       POSTGRES_USER: ${DOC_MGMT_POSTGRES_USER:-doc_mgmt_user}
@@ -649,7 +649,7 @@ services:
     container_name: 7d-workflow-postgres
     image: postgres:16-alpine
     ports:
-      - "5457:5432"
+      - "127.0.0.1:5457:5432"
     environment:
       POSTGRES_DB: ${WORKFLOW_POSTGRES_DB:-workflow_db}
       POSTGRES_USER: ${WORKFLOW_POSTGRES_USER:-workflow_user}
@@ -675,7 +675,7 @@ services:
     container_name: 7d-workforce-competence-postgres
     image: postgres:16-alpine
     ports:
-      - "5458:5432"
+      - "127.0.0.1:5458:5432"
     environment:
       POSTGRES_DB: ${WC_POSTGRES_DB:-workforce_competence_db}
       POSTGRES_USER: ${WC_POSTGRES_USER:-wc_user}
