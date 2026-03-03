@@ -1,4 +1,4 @@
-//! Integration tests for workflow module (bd-iyfxs).
+//! Integration tests for workflow module (bd-iyfxs, bd-hv1v4).
 //!
 //! Covers:
 //! 1. Create a workflow definition — guard validation, DB persistence, outbox event
@@ -12,6 +12,11 @@
 //! 9. Idempotent advance — same key returns existing transition
 //! 10. Tenant isolation — tenant B cannot see/advance tenant A's instances
 //! 11. Duplicate definition name+version — returns Duplicate error
+//! 15. Parallel routing — 2-of-3 threshold with dedup
+//! 16. Parallel routing — duplicate actor rejection
+//! 17. Conditional routing — branch by amount (gte)
+//! 18. Conditional routing — default branch fallback
+//! 19. Conditional routing — no match without default fails
 
 use serial_test::serial;
 use serde_json::json;
@@ -24,6 +29,9 @@ use workflow::domain::definitions::{
 use workflow::domain::instances::{
     AdvanceInstanceRequest, InstanceError, InstanceRepo, ListInstancesQuery,
     StartInstanceRequest,
+};
+use workflow::domain::routing::{
+    EvaluateConditionRequest, RecordDecisionRequest, RoutingEngine, RoutingError,
 };
 
 async fn setup_db() -> sqlx::PgPool {
@@ -831,4 +839,500 @@ async fn test_list_instances_with_filters() {
     .await
     .unwrap();
     assert!(active.len() >= 2);
+}
+
+// ============================================================================
+// 15. Parallel routing — 2-of-3 threshold auto-advances after 2nd approval
+// ============================================================================
+
+fn parallel_steps() -> serde_json::Value {
+    json!([
+        {
+            "step_id": "draft",
+            "name": "Draft",
+            "allowed_transitions": ["review"]
+        },
+        {
+            "step_id": "review",
+            "name": "Parallel Review",
+            "routing_mode": { "mode": "parallel", "threshold": 2 },
+            "allowed_transitions": ["approved"]
+        },
+        {
+            "step_id": "approved",
+            "name": "Approved",
+            "allowed_transitions": []
+        }
+    ])
+}
+
+async fn create_parallel_definition(
+    pool: &sqlx::PgPool,
+    tid: &str,
+) -> workflow::domain::definitions::WorkflowDefinition {
+    DefinitionRepo::create(
+        pool,
+        &CreateDefinitionRequest {
+            tenant_id: tid.to_string(),
+            name: format!("parallel-def-{}", Uuid::new_v4().simple()),
+            description: Some("Parallel threshold test".into()),
+            steps: parallel_steps(),
+            initial_step_id: "draft".into(),
+        },
+    )
+    .await
+    .expect("create parallel def failed")
+}
+
+#[tokio::test]
+#[serial]
+async fn test_parallel_threshold_auto_advance() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+    let def = create_parallel_definition(&pool, &tid).await;
+
+    // Start instance at draft
+    let instance = InstanceRepo::start(
+        &pool,
+        &StartInstanceRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            entity_type: "purchase_order".into(),
+            entity_id: "PO-PAR-001".into(),
+            context: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("start failed");
+
+    // Advance to the parallel review step
+    let (at_review, _) = InstanceRepo::advance(
+        &pool,
+        instance.id,
+        &AdvanceInstanceRequest {
+            tenant_id: tid.clone(),
+            to_step_id: "review".into(),
+            action: "submit".into(),
+            actor_id: None,
+            actor_type: None,
+            comment: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("advance to review failed");
+
+    assert_eq!(at_review.current_step_id, "review");
+
+    let actor_1 = Uuid::new_v4();
+    let actor_2 = Uuid::new_v4();
+    let actor_3 = Uuid::new_v4();
+
+    // First approval — threshold NOT met (1 of 2)
+    let r1 = RoutingEngine::record_decision(
+        &pool,
+        &RecordDecisionRequest {
+            tenant_id: tid.clone(),
+            instance_id: instance.id,
+            step_id: "review".into(),
+            actor_id: actor_1,
+            actor_type: Some("user".into()),
+            decision: "approve".into(),
+            comment: None,
+            metadata: None,
+        },
+    )
+    .await
+    .expect("decision 1 failed");
+
+    assert!(!r1.threshold_met);
+    assert_eq!(r1.current_count, 1);
+    assert_eq!(r1.threshold, 2);
+    assert!(r1.advanced_instance.is_none());
+
+    // Second approval — threshold MET (2 of 2), auto-advances to "approved"
+    let r2 = RoutingEngine::record_decision(
+        &pool,
+        &RecordDecisionRequest {
+            tenant_id: tid.clone(),
+            instance_id: instance.id,
+            step_id: "review".into(),
+            actor_id: actor_2,
+            actor_type: Some("user".into()),
+            decision: "approve".into(),
+            comment: Some("LGTM".into()),
+            metadata: None,
+        },
+    )
+    .await
+    .expect("decision 2 failed");
+
+    assert!(r2.threshold_met);
+    assert_eq!(r2.current_count, 2);
+    let advanced = r2.advanced_instance.expect("should have auto-advanced");
+    assert_eq!(advanced.current_step_id, "approved");
+
+    // Verify transition audit trail includes the auto-advance
+    let transitions = InstanceRepo::list_transitions(&pool, &tid, instance.id)
+        .await
+        .expect("list transitions failed");
+    let actions: Vec<&str> = transitions.iter().map(|t| t.action.as_str()).collect();
+    assert!(actions.contains(&"parallel_threshold_met"));
+
+    // Verify outbox has threshold_met event
+    let events: Vec<(String,)> = sqlx::query_as(
+        "SELECT event_type FROM events_outbox WHERE aggregate_id = $1 ORDER BY created_at",
+    )
+    .bind(instance.id.to_string())
+    .fetch_all(&pool)
+    .await
+    .expect("query failed");
+    let types: Vec<&str> = events.iter().map(|e| e.0.as_str()).collect();
+    assert!(types.contains(&"workflow.events.step.parallel_threshold_met"));
+
+    // Third actor tries to decide — step already advanced, should fail with StepMismatch
+    let r3 = RoutingEngine::record_decision(
+        &pool,
+        &RecordDecisionRequest {
+            tenant_id: tid.clone(),
+            instance_id: instance.id,
+            step_id: "review".into(),
+            actor_id: actor_3,
+            actor_type: Some("user".into()),
+            decision: "approve".into(),
+            comment: None,
+            metadata: None,
+        },
+    )
+    .await;
+    assert!(
+        matches!(r3, Err(RoutingError::StepMismatch { .. })),
+        "Expected StepMismatch after auto-advance, got: {:?}",
+        r3
+    );
+
+    // Verify decisions list
+    let decisions = RoutingEngine::list_decisions(&pool, &tid, instance.id, "review")
+        .await
+        .expect("list decisions failed");
+    assert_eq!(decisions.len(), 2);
+}
+
+// ============================================================================
+// 16. Parallel routing — duplicate actor decision is rejected
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_parallel_duplicate_actor_rejected() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+    let def = create_parallel_definition(&pool, &tid).await;
+
+    let instance = InstanceRepo::start(
+        &pool,
+        &StartInstanceRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            entity_type: "po".into(),
+            entity_id: "PO-DUP-001".into(),
+            context: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("start failed");
+
+    InstanceRepo::advance(
+        &pool,
+        instance.id,
+        &AdvanceInstanceRequest {
+            tenant_id: tid.clone(),
+            to_step_id: "review".into(),
+            action: "submit".into(),
+            actor_id: None,
+            actor_type: None,
+            comment: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("advance to review failed");
+
+    let actor = Uuid::new_v4();
+
+    // First decision succeeds
+    RoutingEngine::record_decision(
+        &pool,
+        &RecordDecisionRequest {
+            tenant_id: tid.clone(),
+            instance_id: instance.id,
+            step_id: "review".into(),
+            actor_id: actor,
+            actor_type: Some("user".into()),
+            decision: "approve".into(),
+            comment: None,
+            metadata: None,
+        },
+    )
+    .await
+    .expect("first decision should succeed");
+
+    // Same actor, same step → DuplicateDecision
+    let dup = RoutingEngine::record_decision(
+        &pool,
+        &RecordDecisionRequest {
+            tenant_id: tid.clone(),
+            instance_id: instance.id,
+            step_id: "review".into(),
+            actor_id: actor,
+            actor_type: Some("user".into()),
+            decision: "approve".into(),
+            comment: None,
+            metadata: None,
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(dup, Err(RoutingError::DuplicateDecision(_))),
+        "Expected DuplicateDecision, got: {:?}",
+        dup
+    );
+
+    // Verify only 1 decision was counted (not 2)
+    let decisions = RoutingEngine::list_decisions(&pool, &tid, instance.id, "review")
+        .await
+        .expect("list decisions failed");
+    assert_eq!(decisions.len(), 1, "duplicate must not be recorded");
+}
+
+// ============================================================================
+// 17. Conditional routing — branch by amount (gte → director, default → manager)
+// ============================================================================
+
+fn conditional_steps() -> serde_json::Value {
+    json!([
+        {
+            "step_id": "triage",
+            "name": "Triage",
+            "routing_mode": {
+                "mode": "conditional",
+                "conditions": [
+                    {
+                        "field": "amount",
+                        "op": "gte",
+                        "value": 10000,
+                        "target_step": "director_review"
+                    },
+                    {
+                        "default": true,
+                        "target_step": "manager_review"
+                    }
+                ]
+            },
+            "allowed_transitions": ["director_review", "manager_review"]
+        },
+        {
+            "step_id": "director_review",
+            "name": "Director Review",
+            "allowed_transitions": ["approved"]
+        },
+        {
+            "step_id": "manager_review",
+            "name": "Manager Review",
+            "allowed_transitions": ["approved"]
+        },
+        {
+            "step_id": "approved",
+            "name": "Approved",
+            "allowed_transitions": []
+        }
+    ])
+}
+
+async fn create_conditional_definition(
+    pool: &sqlx::PgPool,
+    tid: &str,
+) -> workflow::domain::definitions::WorkflowDefinition {
+    DefinitionRepo::create(
+        pool,
+        &CreateDefinitionRequest {
+            tenant_id: tid.to_string(),
+            name: format!("cond-def-{}", Uuid::new_v4().simple()),
+            description: Some("Conditional routing test".into()),
+            steps: conditional_steps(),
+            initial_step_id: "triage".into(),
+        },
+    )
+    .await
+    .expect("create conditional def failed")
+}
+
+#[tokio::test]
+#[serial]
+async fn test_conditional_branch_high_amount() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+    let def = create_conditional_definition(&pool, &tid).await;
+
+    // Start with amount = 25000 → should branch to director_review
+    let instance = InstanceRepo::start(
+        &pool,
+        &StartInstanceRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            entity_type: "purchase_order".into(),
+            entity_id: "PO-COND-HIGH".into(),
+            context: Some(json!({ "amount": 25000, "department": "engineering" })),
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("start failed");
+
+    assert_eq!(instance.current_step_id, "triage");
+
+    let result = RoutingEngine::evaluate_condition(
+        &pool,
+        &EvaluateConditionRequest {
+            tenant_id: tid.clone(),
+            instance_id: instance.id,
+        },
+    )
+    .await
+    .expect("evaluate_condition failed");
+
+    assert_eq!(result.target_step, "director_review");
+    assert_eq!(result.matched_condition_index, Some(0));
+    let advanced = result.advanced_instance.expect("should have advanced");
+    assert_eq!(advanced.current_step_id, "director_review");
+
+    // Verify the transition recorded the conditional branch
+    let transitions = InstanceRepo::list_transitions(&pool, &tid, instance.id)
+        .await
+        .expect("list transitions failed");
+    let last = transitions.last().expect("should have transitions");
+    assert_eq!(last.action, "conditional_branch");
+    assert_eq!(last.from_step_id, "triage");
+    assert_eq!(last.to_step_id, "director_review");
+}
+
+// ============================================================================
+// 18. Conditional routing — default branch fallback
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_conditional_branch_default_fallback() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+    let def = create_conditional_definition(&pool, &tid).await;
+
+    // Start with amount = 500 → should fall through to manager_review (default)
+    let instance = InstanceRepo::start(
+        &pool,
+        &StartInstanceRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            entity_type: "purchase_order".into(),
+            entity_id: "PO-COND-LOW".into(),
+            context: Some(json!({ "amount": 500 })),
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("start failed");
+
+    let result = RoutingEngine::evaluate_condition(
+        &pool,
+        &EvaluateConditionRequest {
+            tenant_id: tid.clone(),
+            instance_id: instance.id,
+        },
+    )
+    .await
+    .expect("evaluate_condition failed");
+
+    assert_eq!(result.target_step, "manager_review");
+    assert_eq!(result.matched_condition_index, None); // default branch, no index
+    let advanced = result.advanced_instance.expect("should have advanced");
+    assert_eq!(advanced.current_step_id, "manager_review");
+}
+
+// ============================================================================
+// 19. Conditional routing — no match without default fails
+// ============================================================================
+
+fn no_default_conditional_steps() -> serde_json::Value {
+    json!([
+        {
+            "step_id": "check",
+            "name": "Check",
+            "routing_mode": {
+                "mode": "conditional",
+                "conditions": [
+                    { "field": "priority", "op": "eq", "value": "critical", "target_step": "escalate" }
+                ]
+            },
+            "allowed_transitions": ["escalate"]
+        },
+        {
+            "step_id": "escalate",
+            "name": "Escalate",
+            "allowed_transitions": []
+        }
+    ])
+}
+
+#[tokio::test]
+#[serial]
+async fn test_conditional_no_match_no_default_fails() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    let def = DefinitionRepo::create(
+        &pool,
+        &CreateDefinitionRequest {
+            tenant_id: tid.clone(),
+            name: format!("no-default-{}", Uuid::new_v4().simple()),
+            description: None,
+            steps: no_default_conditional_steps(),
+            initial_step_id: "check".into(),
+        },
+    )
+    .await
+    .expect("create def failed");
+
+    let instance = InstanceRepo::start(
+        &pool,
+        &StartInstanceRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            entity_type: "task".into(),
+            entity_id: "TASK-NODEF".into(),
+            context: Some(json!({ "priority": "low" })), // doesn't match "critical"
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("start failed");
+
+    let err = RoutingEngine::evaluate_condition(
+        &pool,
+        &EvaluateConditionRequest {
+            tenant_id: tid,
+            instance_id: instance.id,
+        },
+    )
+    .await;
+
+    assert!(
+        matches!(err, Err(RoutingError::NoConditionMatched)),
+        "Expected NoConditionMatched, got: {:?}",
+        err
+    );
 }
