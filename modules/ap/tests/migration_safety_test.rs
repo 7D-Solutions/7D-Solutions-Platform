@@ -55,6 +55,7 @@ async fn migrations_apply_cleanly() {
         "payment_run_items",
         "payment_run_executions",
         "ap_tax_snapshots",
+        "payment_terms",
     ];
 
     for table in &expected_tables {
@@ -107,6 +108,7 @@ async fn forward_fix_rollback_and_reapply() {
         "DROP TABLE IF EXISTS three_way_match CASCADE",
         "DROP TABLE IF EXISTS bill_lines CASCADE",
         "DROP TABLE IF EXISTS vendor_bills CASCADE",
+        "DROP TABLE IF EXISTS payment_terms CASCADE",
         "DROP TABLE IF EXISTS po_receipt_links CASCADE",
         "DROP TABLE IF EXISTS po_status CASCADE",
         "DROP TABLE IF EXISTS po_lines CASCADE",
@@ -132,7 +134,7 @@ async fn forward_fix_rollback_and_reapply() {
           'po_lines','po_status','vendor_bills','bill_lines','payment_runs',\
           'ap_allocations','idempotency_keys','payment_run_items',\
           'payment_run_executions','ap_tax_snapshots','three_way_match',\
-          'po_receipt_links')",
+          'po_receipt_links','payment_terms')",
     )
     .fetch_one(&pool)
     .await
@@ -186,6 +188,7 @@ async fn all_data_tables_have_tenant_id() {
         "ap_allocations",
         "ap_tax_snapshots",
         "idempotency_keys",
+        "payment_terms",
     ];
 
     for table in &tenant_tables {
