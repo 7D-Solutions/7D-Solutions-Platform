@@ -51,6 +51,7 @@ pub mod cycle_count_submitted;
 pub mod low_stock_triggered;
 pub mod revision_activated;
 pub mod revision_created;
+pub mod revision_policy_updated;
 pub mod status_changed;
 pub mod valuation_snapshot_created;
 
@@ -106,6 +107,11 @@ pub use revision_created::{
 pub use revision_activated::{
     build_item_revision_activated_envelope, ItemRevisionActivatedPayload,
     EVENT_TYPE_ITEM_REVISION_ACTIVATED,
+};
+
+pub use revision_policy_updated::{
+    build_item_revision_policy_updated_envelope, ItemRevisionPolicyUpdatedPayload,
+    EVENT_TYPE_ITEM_REVISION_POLICY_UPDATED,
 };
 
 // ============================================================================

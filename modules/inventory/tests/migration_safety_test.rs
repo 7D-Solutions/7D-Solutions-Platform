@@ -37,7 +37,7 @@ async fn migrations_apply_cleanly() {
     sqlx::migrate!("db/migrations")
         .run(&pool)
         .await
-        .expect("All 20 migrations must apply without error");
+        .expect("All migrations must apply without error");
 
     // Verify all expected tables exist
     let expected_tables = vec![
@@ -65,6 +65,7 @@ async fn migrations_apply_cleanly() {
         "inventory_valuation_snapshots",
         "inventory_valuation_lines",
         "inv_low_stock_state",
+        "item_revisions",
     ];
 
     for table in &expected_tables {
@@ -86,8 +87,8 @@ async fn migrations_apply_cleanly() {
             .await
             .expect("migration count query");
     assert!(
-        migration_count >= 20,
-        "At least 20 successful migrations expected, got {}",
+        migration_count >= 22,
+        "At least 22 successful migrations expected, got {}",
         migration_count
     );
 }
@@ -110,6 +111,7 @@ async fn forward_fix_rollback_and_reapply() {
     // Execute full rollback (reverse dependency order)
     let rollback_sql = r#"
         DROP TABLE IF EXISTS inv_low_stock_state CASCADE;
+        DROP TABLE IF EXISTS item_revisions CASCADE;
         DROP TABLE IF EXISTS inventory_valuation_lines CASCADE;
         DROP TABLE IF EXISTS inventory_valuation_snapshots CASCADE;
         DROP TABLE IF EXISTS reorder_policies CASCADE;
@@ -160,7 +162,10 @@ async fn forward_fix_rollback_and_reapply() {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(remaining, 0, "No inventory tables should remain after rollback");
+    assert_eq!(
+        remaining, 0,
+        "No inventory tables should remain after rollback"
+    );
 
     let items_exists: bool = sqlx::query_scalar(
         "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'items')",
@@ -226,6 +231,7 @@ async fn all_data_tables_have_tenant_id() {
         "reorder_policies",
         "inventory_valuation_snapshots",
         "inv_low_stock_state",
+        "item_revisions",
     ];
 
     for table in &tenant_tables {

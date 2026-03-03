@@ -16,8 +16,8 @@ use chrono::{Duration, Utc};
 use inventory_rs::domain::{
     items::{CreateItemRequest, ItemRepo, TrackingMode},
     revisions::{
-        activate_revision, create_revision, list_revisions, revision_at,
-        ActivateRevisionRequest, CreateRevisionRequest, RevisionError,
+        activate_revision, create_revision, list_revisions, revision_at, update_revision_policy,
+        ActivateRevisionRequest, CreateRevisionRequest, RevisionError, UpdateRevisionPolicyRequest,
     },
 };
 use serial_test::serial;
@@ -71,9 +71,33 @@ fn make_create_rev(tenant_id: &str, item_id: Uuid, idem: &str) -> CreateRevision
         inventory_account_ref: "1200".to_string(),
         cogs_account_ref: "5000".to_string(),
         variance_account_ref: "5010".to_string(),
+        traceability_level: "none".to_string(),
+        inspection_required: false,
+        shelf_life_days: None,
+        shelf_life_enforced: false,
         change_reason: "Spec update".to_string(),
         idempotency_key: idem.to_string(),
         correlation_id: Some("corr-test".to_string()),
+        causation_id: None,
+    }
+}
+
+fn make_update_policy(
+    tenant_id: &str,
+    idem: &str,
+    traceability_level: &str,
+    inspection_required: bool,
+    shelf_life_days: Option<i32>,
+    shelf_life_enforced: bool,
+) -> UpdateRevisionPolicyRequest {
+    UpdateRevisionPolicyRequest {
+        tenant_id: tenant_id.to_string(),
+        traceability_level: traceability_level.to_string(),
+        inspection_required,
+        shelf_life_days,
+        shelf_life_enforced,
+        idempotency_key: idem.to_string(),
+        correlation_id: Some("corr-policy".to_string()),
         causation_id: None,
     }
 }
@@ -137,7 +161,10 @@ async fn revision_create_activate_query_happy_path() {
     let (rev, is_replay) = create_revision(&pool, &req).await.expect("create revision");
     assert!(!is_replay);
     assert_eq!(rev.revision_number, 1);
-    assert!(rev.effective_from.is_none(), "draft revision has no effective_from");
+    assert!(
+        rev.effective_from.is_none(),
+        "draft revision has no effective_from"
+    );
 
     // Verify outbox event was written
     let outbox_count: i64 = sqlx::query_scalar(
@@ -297,7 +324,10 @@ async fn revision_activation_supersedes_predecessor() {
     )
     .await
     .expect("activate rev1");
-    assert!(activated1.effective_to.is_none(), "rev1 should be open-ended");
+    assert!(
+        activated1.effective_to.is_none(),
+        "rev1 should be open-ended"
+    );
 
     // Create and activate rev 2 — should auto-close rev 1
     let idem2 = format!("idem-{}", Uuid::new_v4());
@@ -316,16 +346,18 @@ async fn revision_activation_supersedes_predecessor() {
     )
     .await
     .expect("activate rev2");
-    assert!(activated2.effective_to.is_none(), "rev2 should be open-ended");
+    assert!(
+        activated2.effective_to.is_none(),
+        "rev2 should be open-ended"
+    );
 
     // Rev 1 should now be closed (effective_to = rev2.effective_from)
-    let rev1_updated: (Option<chrono::DateTime<Utc>>,) = sqlx::query_as(
-        "SELECT effective_to FROM item_revisions WHERE id = $1",
-    )
-    .bind(rev1.id)
-    .fetch_one(&pool)
-    .await
-    .expect("fetch rev1");
+    let rev1_updated: (Option<chrono::DateTime<Utc>>,) =
+        sqlx::query_as("SELECT effective_to FROM item_revisions WHERE id = $1")
+            .bind(rev1.id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch rev1");
     assert_eq!(
         rev1_updated.0,
         Some(t2),
@@ -584,7 +616,195 @@ async fn revision_bounded_effective_window() {
     let not_found_before = revision_at(&pool, &tenant, item.id, before)
         .await
         .expect("query before");
-    assert!(not_found_before.is_none(), "should not find before window opens");
+    assert!(
+        not_found_before.is_none(),
+        "should not find before window opens"
+    );
 
     cleanup(&pool, &tenant).await;
+}
+
+// ============================================================================
+// 10. Policy flags resolve by effective time
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn revision_policy_flags_resolve_at_time_t() {
+    let pool = setup_db().await;
+    let tenant = format!("test-{}", Uuid::new_v4());
+
+    let item = ItemRepo::create(&pool, &make_item(&tenant, "SKU-REV-POL-TIME"))
+        .await
+        .expect("create item");
+
+    let (rev1, _) = create_revision(
+        &pool,
+        &make_create_rev(&tenant, item.id, &format!("idem-r1-{}", Uuid::new_v4())),
+    )
+    .await
+    .expect("create rev1");
+
+    let (rev1, _) = update_revision_policy(
+        &pool,
+        item.id,
+        rev1.id,
+        &make_update_policy(
+            &tenant,
+            &format!("idem-pol-r1-{}", Uuid::new_v4()),
+            "lot",
+            true,
+            Some(180),
+            true,
+        ),
+    )
+    .await
+    .expect("update rev1 policy");
+
+    let t1 = Utc::now() - Duration::hours(3);
+    activate_revision(
+        &pool,
+        item.id,
+        rev1.id,
+        &make_activate(
+            &tenant,
+            &format!("idem-act-r1-{}", Uuid::new_v4()),
+            t1,
+            None,
+        ),
+    )
+    .await
+    .expect("activate rev1");
+
+    let mut req2 = make_create_rev(&tenant, item.id, &format!("idem-r2-{}", Uuid::new_v4()));
+    req2.name = "Widget Rev 2".to_string();
+    let (rev2, _) = create_revision(&pool, &req2).await.expect("create rev2");
+
+    let (rev2, _) = update_revision_policy(
+        &pool,
+        item.id,
+        rev2.id,
+        &make_update_policy(
+            &tenant,
+            &format!("idem-pol-r2-{}", Uuid::new_v4()),
+            "serial",
+            true,
+            Some(365),
+            true,
+        ),
+    )
+    .await
+    .expect("update rev2 policy");
+
+    let t2 = Utc::now() - Duration::hours(1);
+    activate_revision(
+        &pool,
+        item.id,
+        rev2.id,
+        &make_activate(
+            &tenant,
+            &format!("idem-act-r2-{}", Uuid::new_v4()),
+            t2,
+            None,
+        ),
+    )
+    .await
+    .expect("activate rev2");
+
+    let mid = t1 + Duration::minutes(30);
+    let at_mid = revision_at(&pool, &tenant, item.id, mid)
+        .await
+        .expect("query mid")
+        .expect("rev present");
+    assert_eq!(at_mid.traceability_level, "lot");
+    assert!(at_mid.inspection_required);
+    assert_eq!(at_mid.shelf_life_days, Some(180));
+    assert!(at_mid.shelf_life_enforced);
+
+    let at_t2 = revision_at(&pool, &tenant, item.id, t2)
+        .await
+        .expect("query t2")
+        .expect("rev present at t2");
+    assert_eq!(at_t2.traceability_level, "serial");
+    assert!(at_t2.inspection_required);
+    assert_eq!(at_t2.shelf_life_days, Some(365));
+    assert!(at_t2.shelf_life_enforced);
+
+    cleanup(&pool, &tenant).await;
+}
+
+// ============================================================================
+// 11. Policy update idempotency is tenant-scoped
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn revision_policy_update_idempotent_and_tenant_scoped() {
+    let pool = setup_db().await;
+    let tenant_a = format!("test-a-{}", Uuid::new_v4());
+    let tenant_b = format!("test-b-{}", Uuid::new_v4());
+
+    let item_a = ItemRepo::create(&pool, &make_item(&tenant_a, "SKU-POL-ISO-1"))
+        .await
+        .expect("create item A");
+    let item_b = ItemRepo::create(&pool, &make_item(&tenant_b, "SKU-POL-ISO-1"))
+        .await
+        .expect("create item B");
+
+    let (rev_a, _) = create_revision(
+        &pool,
+        &make_create_rev(
+            &tenant_a,
+            item_a.id,
+            &format!("idem-a-create-{}", Uuid::new_v4()),
+        ),
+    )
+    .await
+    .expect("create rev A");
+    let (rev_b, _) = create_revision(
+        &pool,
+        &make_create_rev(
+            &tenant_b,
+            item_b.id,
+            &format!("idem-b-create-{}", Uuid::new_v4()),
+        ),
+    )
+    .await
+    .expect("create rev B");
+
+    let shared_idem = format!("idem-shared-{}", Uuid::new_v4());
+    let req_a = make_update_policy(&tenant_a, &shared_idem, "lot", true, Some(120), true);
+    let req_b = make_update_policy(&tenant_b, &shared_idem, "serial", false, None, false);
+
+    let (a1, replay_a1) = update_revision_policy(&pool, item_a.id, rev_a.id, &req_a)
+        .await
+        .expect("update A first");
+    assert!(!replay_a1);
+    let (a2, replay_a2) = update_revision_policy(&pool, item_a.id, rev_a.id, &req_a)
+        .await
+        .expect("update A replay");
+    assert!(replay_a2);
+    assert_eq!(a1.id, a2.id);
+    assert_eq!(a2.traceability_level, "lot");
+
+    let (b1, replay_b1) = update_revision_policy(&pool, item_b.id, rev_b.id, &req_b)
+        .await
+        .expect("update B with same idempotency key");
+    assert!(!replay_b1);
+    assert_eq!(b1.traceability_level, "serial");
+
+    let mut conflicting =
+        make_update_policy(&tenant_a, &shared_idem, "serial", true, Some(120), true);
+    conflicting.traceability_level = "batch".to_string();
+    let err = update_revision_policy(&pool, item_a.id, rev_a.id, &conflicting)
+        .await
+        .expect_err("conflicting payload must fail");
+    assert!(
+        matches!(err, RevisionError::ConflictingIdempotencyKey),
+        "expected conflict, got: {:?}",
+        err
+    );
+
+    cleanup(&pool, &tenant_a).await;
+    cleanup(&pool, &tenant_b).await;
 }

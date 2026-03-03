@@ -13,22 +13,6 @@ use tracing_subscriber::EnvFilter;
 use inventory_rs::{
     db::resolver::resolve_pool,
     http::{
-        cycle_counts::{post_cycle_count_approve, post_cycle_count_submit, post_cycle_count_task},
-        history::get_movement_history,
-        lots::get_lots_for_item,
-        reorder::{
-            get_reorder_policy, list_reorder_policies, post_reorder_policy, put_reorder_policy,
-        },
-        revisions::{
-            get_list_revisions, get_revision_at, post_activate_revision, post_create_revision,
-        },
-        serials::get_serials_for_item,
-        status::post_status_transfer,
-        trace::{trace_lot_handler, trace_serial_handler},
-        valuation::{get_valuation_snapshot, list_valuation_snapshots, post_valuation_snapshot},
-    },
-    metrics::{metrics_handler, InventoryMetrics},
-    http::{
         adjustments::post_adjustment,
         health::{health, ready, version},
         issues::post_issue,
@@ -41,6 +25,23 @@ use inventory_rs::{
         transfers::post_transfer,
         uom::{create_conversion, create_uom, list_conversions, list_uoms},
     },
+    http::{
+        cycle_counts::{post_cycle_count_approve, post_cycle_count_submit, post_cycle_count_task},
+        history::get_movement_history,
+        lots::get_lots_for_item,
+        reorder::{
+            get_reorder_policy, list_reorder_policies, post_reorder_policy, put_reorder_policy,
+        },
+        revisions::{
+            get_list_revisions, get_revision_at, post_activate_revision, post_create_revision,
+            put_revision_policy,
+        },
+        serials::get_serials_for_item,
+        status::post_status_transfer,
+        trace::{trace_lot_handler, trace_serial_handler},
+        valuation::{get_valuation_snapshot, list_valuation_snapshots, post_valuation_snapshot},
+    },
+    metrics::{metrics_handler, InventoryMetrics},
     AppState, Config,
 };
 
@@ -161,6 +162,10 @@ async fn main() {
             "/api/inventory/items/{item_id}/revisions/{revision_id}/activate",
             axum::routing::post(post_activate_revision),
         )
+        .route(
+            "/api/inventory/items/{item_id}/revisions/{revision_id}/policy-flags",
+            axum::routing::put(put_revision_policy),
+        )
         // Locations — write
         .route(
             "/api/inventory/locations",
@@ -246,9 +251,7 @@ async fn main() {
             "/api/inventory/warehouses/{warehouse_id}/locations",
             axum::routing::get(list_locations),
         )
-        .route_layer(RequirePermissionsLayer::new(&[
-            permissions::INVENTORY_READ,
-        ]))
+        .route_layer(RequirePermissionsLayer::new(&[permissions::INVENTORY_READ]))
         .with_state(app_state.clone());
 
     let app = Router::new()

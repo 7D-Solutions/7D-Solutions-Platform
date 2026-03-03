@@ -19,8 +19,10 @@ use uuid::Uuid;
 
 use crate::events::{
     build_item_revision_activated_envelope, build_item_revision_created_envelope,
-    ItemRevisionActivatedPayload, ItemRevisionCreatedPayload, EVENT_TYPE_ITEM_REVISION_ACTIVATED,
-    EVENT_TYPE_ITEM_REVISION_CREATED,
+    build_item_revision_policy_updated_envelope, ItemRevisionActivatedPayload,
+    ItemRevisionCreatedPayload, ItemRevisionPolicyUpdatedPayload,
+    EVENT_TYPE_ITEM_REVISION_ACTIVATED, EVENT_TYPE_ITEM_REVISION_CREATED,
+    EVENT_TYPE_ITEM_REVISION_POLICY_UPDATED,
 };
 
 // ============================================================================
@@ -39,6 +41,10 @@ pub struct ItemRevision {
     pub inventory_account_ref: String,
     pub cogs_account_ref: String,
     pub variance_account_ref: String,
+    pub traceability_level: String,
+    pub inspection_required: bool,
+    pub shelf_life_days: Option<i32>,
+    pub shelf_life_enforced: bool,
     pub effective_from: Option<DateTime<Utc>>,
     pub effective_to: Option<DateTime<Utc>>,
     pub change_reason: String,
@@ -61,6 +67,14 @@ pub struct CreateRevisionRequest {
     pub inventory_account_ref: String,
     pub cogs_account_ref: String,
     pub variance_account_ref: String,
+    #[serde(default = "default_traceability_level")]
+    pub traceability_level: String,
+    #[serde(default)]
+    pub inspection_required: bool,
+    #[serde(default)]
+    pub shelf_life_days: Option<i32>,
+    #[serde(default)]
+    pub shelf_life_enforced: bool,
     pub change_reason: String,
     pub idempotency_key: String,
     pub correlation_id: Option<String>,
@@ -72,6 +86,18 @@ pub struct ActivateRevisionRequest {
     pub tenant_id: String,
     pub effective_from: DateTime<Utc>,
     pub effective_to: Option<DateTime<Utc>>,
+    pub idempotency_key: String,
+    pub correlation_id: Option<String>,
+    pub causation_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateRevisionPolicyRequest {
+    pub tenant_id: String,
+    pub traceability_level: String,
+    pub inspection_required: bool,
+    pub shelf_life_days: Option<i32>,
+    pub shelf_life_enforced: bool,
     pub idempotency_key: String,
     pub correlation_id: Option<String>,
     pub causation_id: Option<String>,
@@ -94,6 +120,9 @@ pub enum RevisionError {
 
     #[error("Revision already activated")]
     AlreadyActivated,
+
+    #[error("Policy flags can only be updated on draft revisions")]
+    PolicyLockedOnActivatedRevision,
 
     #[error("Effective window overlap: another revision covers this period")]
     OverlappingWindow,
@@ -129,6 +158,14 @@ fn require_non_empty(value: &str, field: &str) -> Result<(), RevisionError> {
         )));
     }
     Ok(())
+}
+
+fn default_traceability_level() -> String {
+    "none".to_string()
+}
+
+fn normalize_traceability_level(value: &str) -> String {
+    value.trim().to_ascii_lowercase()
 }
 
 // ============================================================================
@@ -176,12 +213,13 @@ pub async fn create_revision(
             (tenant_id, item_id, revision_number,
              name, description, uom,
              inventory_account_ref, cogs_account_ref, variance_account_ref,
+             traceability_level, inspection_required, shelf_life_days, shelf_life_enforced,
              change_reason, idempotency_key, created_at)
         VALUES
             ($1, $2,
              (SELECT COALESCE(MAX(revision_number), 0) + 1
               FROM item_revisions WHERE tenant_id = $1 AND item_id = $2),
-             $3, $4, $5, $6, $7, $8, $9, $10, $11)
+             $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         RETURNING *
         "#,
     )
@@ -193,6 +231,10 @@ pub async fn create_revision(
     .bind(req.inventory_account_ref.trim())
     .bind(req.cogs_account_ref.trim())
     .bind(req.variance_account_ref.trim())
+    .bind(normalize_traceability_level(&req.traceability_level))
+    .bind(req.inspection_required)
+    .bind(req.shelf_life_days)
+    .bind(req.shelf_life_enforced)
     .bind(req.change_reason.trim())
     .bind(&req.idempotency_key)
     .bind(now)
@@ -215,6 +257,10 @@ pub async fn create_revision(
         revision_number: revision.revision_number,
         name: revision.name.clone(),
         uom: revision.uom.clone(),
+        traceability_level: revision.traceability_level.clone(),
+        inspection_required: revision.inspection_required,
+        shelf_life_days: revision.shelf_life_days,
+        shelf_life_enforced: revision.shelf_life_enforced,
         change_reason: revision.change_reason.clone(),
         created_at: now,
     };
@@ -380,6 +426,10 @@ pub async fn activate_revision(
         tenant_id: req.tenant_id.clone(),
         item_id,
         revision_number: activated.revision_number,
+        traceability_level: activated.traceability_level.clone(),
+        inspection_required: activated.inspection_required,
+        shelf_life_days: activated.shelf_life_days,
+        shelf_life_enforced: activated.shelf_life_enforced,
         effective_from: req.effective_from,
         effective_to: req.effective_to,
         superseded_revision_id: superseded_id,
@@ -433,6 +483,137 @@ pub async fn activate_revision(
 
     tx.commit().await?;
     Ok((activated, false))
+}
+
+/// Update policy flags on a draft revision.
+///
+/// Activated revisions are immutable; create a new revision to change policy.
+/// Pattern: Guard → Mutation → Outbox (single transaction).
+/// Returns `(ItemRevision, is_replay)`.
+pub async fn update_revision_policy(
+    pool: &PgPool,
+    item_id: Uuid,
+    revision_id: Uuid,
+    req: &UpdateRevisionPolicyRequest,
+) -> Result<(ItemRevision, bool), RevisionError> {
+    validate_update_policy_request(req)?;
+
+    let request_hash = serde_json::to_string(req)?;
+    if let Some(record) = find_idempotency_key(pool, &req.tenant_id, &req.idempotency_key).await? {
+        if record.request_hash != request_hash {
+            return Err(RevisionError::ConflictingIdempotencyKey);
+        }
+        let result: ItemRevision = serde_json::from_str(&record.response_body)?;
+        return Ok((result, true));
+    }
+
+    guard_item_exists_active(pool, item_id, &req.tenant_id).await?;
+
+    let event_id = Uuid::new_v4();
+    let now = Utc::now();
+    let correlation_id = req
+        .correlation_id
+        .clone()
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+
+    let mut tx = pool.begin().await?;
+
+    let current = sqlx::query_as::<_, ItemRevision>(
+        r#"
+        SELECT * FROM item_revisions
+        WHERE id = $1 AND item_id = $2 AND tenant_id = $3
+        FOR UPDATE
+        "#,
+    )
+    .bind(revision_id)
+    .bind(item_id)
+    .bind(&req.tenant_id)
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(RevisionError::RevisionNotFound)?;
+
+    if current.effective_from.is_some() {
+        return Err(RevisionError::PolicyLockedOnActivatedRevision);
+    }
+
+    let updated = sqlx::query_as::<_, ItemRevision>(
+        r#"
+        UPDATE item_revisions
+        SET traceability_level = $1,
+            inspection_required = $2,
+            shelf_life_days = $3,
+            shelf_life_enforced = $4
+        WHERE id = $5 AND tenant_id = $6
+        RETURNING *
+        "#,
+    )
+    .bind(normalize_traceability_level(&req.traceability_level))
+    .bind(req.inspection_required)
+    .bind(req.shelf_life_days)
+    .bind(req.shelf_life_enforced)
+    .bind(revision_id)
+    .bind(&req.tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let payload = ItemRevisionPolicyUpdatedPayload {
+        revision_id: updated.id,
+        tenant_id: req.tenant_id.clone(),
+        item_id,
+        revision_number: updated.revision_number,
+        traceability_level: updated.traceability_level.clone(),
+        inspection_required: updated.inspection_required,
+        shelf_life_days: updated.shelf_life_days,
+        shelf_life_enforced: updated.shelf_life_enforced,
+        updated_at: now,
+    };
+    let envelope = build_item_revision_policy_updated_envelope(
+        event_id,
+        req.tenant_id.clone(),
+        correlation_id.clone(),
+        req.causation_id.clone(),
+        payload,
+    );
+    let envelope_json = serde_json::to_string(&envelope)?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO inv_outbox
+            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
+             payload, correlation_id, causation_id, schema_version)
+        VALUES ($1, $2, 'item_revision', $3, $4, $5::JSONB, $6, $7, '1.0.0')
+        "#,
+    )
+    .bind(event_id)
+    .bind(EVENT_TYPE_ITEM_REVISION_POLICY_UPDATED)
+    .bind(updated.id.to_string())
+    .bind(&req.tenant_id)
+    .bind(&envelope_json)
+    .bind(&correlation_id)
+    .bind(&req.causation_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let response_json = serde_json::to_string(&updated)?;
+    let expires_at = now + Duration::days(7);
+
+    sqlx::query(
+        r#"
+        INSERT INTO inv_idempotency_keys
+            (tenant_id, idempotency_key, request_hash, response_body, status_code, expires_at)
+        VALUES ($1, $2, $3, $4::JSONB, 200, $5)
+        "#,
+    )
+    .bind(&req.tenant_id)
+    .bind(&req.idempotency_key)
+    .bind(&request_hash)
+    .bind(&response_json)
+    .bind(expires_at)
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+    Ok((updated, false))
 }
 
 // ============================================================================
@@ -502,6 +683,12 @@ fn validate_create_request(req: &CreateRevisionRequest) -> Result<(), RevisionEr
     require_non_empty(&req.variance_account_ref, "variance_account_ref")?;
     require_non_empty(&req.change_reason, "change_reason")?;
     require_non_empty(&req.idempotency_key, "idempotency_key")?;
+    validate_policy_flags(
+        &req.traceability_level,
+        req.inspection_required,
+        req.shelf_life_days,
+        req.shelf_life_enforced,
+    )?;
     Ok(())
 }
 
@@ -514,6 +701,50 @@ fn validate_activate_request(req: &ActivateRevisionRequest) -> Result<(), Revisi
                 "effective_to must be after effective_from".to_string(),
             ));
         }
+    }
+    Ok(())
+}
+
+fn validate_update_policy_request(req: &UpdateRevisionPolicyRequest) -> Result<(), RevisionError> {
+    require_non_empty(&req.tenant_id, "tenant_id")?;
+    require_non_empty(&req.traceability_level, "traceability_level")?;
+    require_non_empty(&req.idempotency_key, "idempotency_key")?;
+    validate_policy_flags(
+        &req.traceability_level,
+        req.inspection_required,
+        req.shelf_life_days,
+        req.shelf_life_enforced,
+    )
+}
+
+fn validate_policy_flags(
+    traceability_level: &str,
+    _inspection_required: bool,
+    shelf_life_days: Option<i32>,
+    shelf_life_enforced: bool,
+) -> Result<(), RevisionError> {
+    let traceability_level = normalize_traceability_level(traceability_level);
+    if !matches!(
+        traceability_level.as_str(),
+        "none" | "lot" | "serial" | "batch"
+    ) {
+        return Err(RevisionError::Validation(
+            "traceability_level must be one of: none, lot, serial, batch".to_string(),
+        ));
+    }
+
+    if let Some(days) = shelf_life_days {
+        if days <= 0 {
+            return Err(RevisionError::Validation(
+                "shelf_life_days must be positive when provided".to_string(),
+            ));
+        }
+    }
+
+    if shelf_life_enforced && shelf_life_days.is_none() {
+        return Err(RevisionError::Validation(
+            "shelf_life_days is required when shelf_life_enforced is true".to_string(),
+        ));
     }
     Ok(())
 }
@@ -573,6 +804,10 @@ mod tests {
             inventory_account_ref: "1200".to_string(),
             cogs_account_ref: "5000".to_string(),
             variance_account_ref: "5010".to_string(),
+            traceability_level: "none".to_string(),
+            inspection_required: false,
+            shelf_life_days: None,
+            shelf_life_enforced: false,
             change_reason: "Updated specs".to_string(),
             idempotency_key: "idem-1".to_string(),
             correlation_id: None,
@@ -641,6 +876,27 @@ mod tests {
         };
         assert!(matches!(
             validate_activate_request(&req),
+            Err(RevisionError::Validation(_))
+        ));
+    }
+
+    #[test]
+    fn create_request_rejects_invalid_traceability_level() {
+        let mut r = valid_create();
+        r.traceability_level = "invalid".to_string();
+        assert!(matches!(
+            validate_create_request(&r),
+            Err(RevisionError::Validation(_))
+        ));
+    }
+
+    #[test]
+    fn create_request_rejects_shelf_life_enforced_without_days() {
+        let mut r = valid_create();
+        r.shelf_life_enforced = true;
+        r.shelf_life_days = None;
+        assert!(matches!(
+            validate_create_request(&r),
             Err(RevisionError::Validation(_))
         ));
     }

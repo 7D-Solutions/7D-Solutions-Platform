@@ -3,6 +3,7 @@
 //! Endpoints:
 //!   POST  /api/inventory/items/:item_id/revisions                         — create revision
 //!   POST  /api/inventory/items/:item_id/revisions/:revision_id/activate   — activate revision
+//!   PUT   /api/inventory/items/:item_id/revisions/:revision_id/policy-flags — update draft policy flags
 //!   GET   /api/inventory/items/:item_id/revisions/at                      — query at time T
 //!   GET   /api/inventory/items/:item_id/revisions                         — list all revisions
 
@@ -22,8 +23,8 @@ use uuid::Uuid;
 use super::tenant::extract_tenant;
 use crate::{
     domain::revisions::{
-        activate_revision, create_revision, list_revisions, revision_at, ActivateRevisionRequest,
-        CreateRevisionRequest, RevisionError,
+        activate_revision, create_revision, list_revisions, revision_at, update_revision_policy,
+        ActivateRevisionRequest, CreateRevisionRequest, RevisionError, UpdateRevisionPolicyRequest,
     },
     AppState,
 };
@@ -45,6 +46,10 @@ fn revision_error_response(err: RevisionError) -> impl IntoResponse {
         RevisionError::AlreadyActivated => (
             StatusCode::CONFLICT,
             Json(json!({ "error": "already_activated", "message": err.to_string() })),
+        ),
+        RevisionError::PolicyLockedOnActivatedRevision => (
+            StatusCode::CONFLICT,
+            Json(json!({ "error": "policy_locked", "message": err.to_string() })),
         ),
         RevisionError::OverlappingWindow => (
             StatusCode::CONFLICT,
@@ -114,6 +119,26 @@ pub async fn post_activate_revision(
     req.tenant_id = tenant_id;
 
     match activate_revision(&state.pool, item_id, revision_id, &req).await {
+        Ok((rev, false)) => (StatusCode::OK, Json(json!(rev))).into_response(),
+        Ok((rev, true)) => (StatusCode::OK, Json(json!(rev))).into_response(),
+        Err(e) => revision_error_response(e).into_response(),
+    }
+}
+
+/// PUT /api/inventory/items/:item_id/revisions/:revision_id/policy-flags
+pub async fn put_revision_policy(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path((item_id, revision_id)): Path<(Uuid, Uuid)>,
+    Json(mut req): Json<UpdateRevisionPolicyRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.tenant_id = tenant_id;
+
+    match update_revision_policy(&state.pool, item_id, revision_id, &req).await {
         Ok((rev, false)) => (StatusCode::OK, Json(json!(rev))).into_response(),
         Ok((rev, true)) => (StatusCode::OK, Json(json!(rev))).into_response(),
         Err(e) => revision_error_response(e).into_response(),

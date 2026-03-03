@@ -17,17 +17,17 @@ use uuid::Uuid;
 
 use inventory_rs::events::{
     build_adjusted_envelope, build_cycle_count_approved_envelope,
-    build_cycle_count_submitted_envelope, build_item_issued_envelope,
-    build_item_received_envelope, build_low_stock_triggered_envelope,
+    build_cycle_count_submitted_envelope, build_item_issued_envelope, build_item_received_envelope,
+    build_item_revision_policy_updated_envelope, build_low_stock_triggered_envelope,
     build_status_changed_envelope, build_transfer_completed_envelope,
     build_valuation_snapshot_created_envelope, AdjustedPayload, ConsumedLayer,
     CycleCountApprovedLine, CycleCountApprovedPayload, CycleCountSubmittedLine,
     CycleCountSubmittedPayload, ItemIssuedPayload, ItemReceivedPayload,
-    LowStockTriggeredPayload, SourceRef, StatusChangedPayload, TransferCompletedPayload,
-    ValuationSnapshotCreatedLine, ValuationSnapshotCreatedPayload,
+    ItemRevisionPolicyUpdatedPayload, LowStockTriggeredPayload, SourceRef, StatusChangedPayload,
+    TransferCompletedPayload, ValuationSnapshotCreatedLine, ValuationSnapshotCreatedPayload,
     EVENT_TYPE_ADJUSTED, EVENT_TYPE_CYCLE_COUNT_APPROVED, EVENT_TYPE_CYCLE_COUNT_SUBMITTED,
-    EVENT_TYPE_ITEM_ISSUED, EVENT_TYPE_ITEM_RECEIVED, EVENT_TYPE_LOW_STOCK_TRIGGERED,
-    EVENT_TYPE_STATUS_CHANGED, EVENT_TYPE_TRANSFER_COMPLETED,
+    EVENT_TYPE_ITEM_ISSUED, EVENT_TYPE_ITEM_RECEIVED, EVENT_TYPE_ITEM_REVISION_POLICY_UPDATED,
+    EVENT_TYPE_LOW_STOCK_TRIGGERED, EVENT_TYPE_STATUS_CHANGED, EVENT_TYPE_TRANSFER_COMPLETED,
     EVENT_TYPE_VALUATION_SNAPSHOT_CREATED, INVENTORY_EVENT_SCHEMA_VERSION,
     MUTATION_CLASS_DATA_MUTATION,
 };
@@ -438,6 +438,46 @@ fn valuation_snapshot_created_full_contract() {
     assert_eq!(rt.lines.len(), 2);
 }
 
+// ── 9. inventory.item_revision_policy_updated ────────────────────────
+
+#[test]
+fn item_revision_policy_updated_full_contract() {
+    let event_id = Uuid::new_v4();
+    let tenant = "contract-test-tenant";
+    let payload = ItemRevisionPolicyUpdatedPayload {
+        revision_id: Uuid::new_v4(),
+        tenant_id: tenant.to_string(),
+        item_id: Uuid::new_v4(),
+        revision_number: 2,
+        traceability_level: "serial".to_string(),
+        inspection_required: true,
+        shelf_life_days: Some(365),
+        shelf_life_enforced: true,
+        updated_at: Utc::now(),
+    };
+    let env = build_item_revision_policy_updated_envelope(
+        event_id,
+        tenant.to_string(),
+        "corr-rev-policy".to_string(),
+        Some("cause-rev-policy".to_string()),
+        payload,
+    );
+    assert_envelope_contract!(
+        env,
+        EVENT_TYPE_ITEM_REVISION_POLICY_UPDATED,
+        event_id,
+        tenant
+    );
+    assert_eq!(env.causation_id.as_deref(), Some("cause-rev-policy"));
+
+    let json = serde_json::to_value(&env.payload).expect("serialize");
+    let rt: ItemRevisionPolicyUpdatedPayload = serde_json::from_value(json).expect("deserialize");
+    assert_eq!(rt.traceability_level, "serial");
+    assert!(rt.inspection_required);
+    assert_eq!(rt.shelf_life_days, Some(365));
+    assert!(rt.shelf_life_enforced);
+}
+
 // ── Cross-cutting: causation_id=None leaves it unset ─────────────────
 
 #[test]
@@ -477,6 +517,7 @@ fn event_type_constants_follow_inventory_dot_convention() {
         EVENT_TYPE_CYCLE_COUNT_SUBMITTED,
         EVENT_TYPE_CYCLE_COUNT_APPROVED,
         EVENT_TYPE_VALUATION_SNAPSHOT_CREATED,
+        EVENT_TYPE_ITEM_REVISION_POLICY_UPDATED,
     ];
     for et in &all_types {
         assert!(
