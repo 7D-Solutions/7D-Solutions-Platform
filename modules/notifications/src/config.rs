@@ -25,6 +25,25 @@ impl BusType {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum EmailSenderType {
+    Logging,
+    Http,
+}
+
+impl EmailSenderType {
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s.to_lowercase().as_str() {
+            "logging" => Ok(EmailSenderType::Logging),
+            "http" => Ok(EmailSenderType::Http),
+            _ => Err(format!(
+                "Invalid EMAIL_SENDER_TYPE '{}'. Must be 'logging' or 'http'",
+                s
+            )),
+        }
+    }
+}
+
 /// Notifications application configuration
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -36,6 +55,10 @@ pub struct Config {
     pub env: String,
     /// Comma-separated list of allowed CORS origins. "*" means allow any.
     pub cors_origins: Vec<String>,
+    pub email_sender_type: EmailSenderType,
+    pub email_http_endpoint: Option<String>,
+    pub email_from: String,
+    pub email_api_key: Option<String>,
 }
 
 impl Config {
@@ -109,6 +132,14 @@ impl Config {
             .filter(|s| !s.is_empty())
             .collect();
 
+        let email_sender_type = EmailSenderType::from_str(
+            &env::var("EMAIL_SENDER_TYPE").unwrap_or_else(|_| "logging".to_string()),
+        )?;
+        let email_http_endpoint = env::var("EMAIL_HTTP_ENDPOINT").ok();
+        let email_from =
+            env::var("EMAIL_FROM").unwrap_or_else(|_| "no-reply@notifications.local".to_string());
+        let email_api_key = env::var("EMAIL_API_KEY").ok();
+
         Ok(Config {
             database_url,
             bus_type,
@@ -117,6 +148,10 @@ impl Config {
             port,
             env,
             cors_origins,
+            email_sender_type,
+            email_http_endpoint,
+            email_from,
+            email_api_key,
         })
     }
 
@@ -137,6 +172,16 @@ impl Config {
             if url.trim().is_empty() {
                 return Err("NATS_URL cannot be empty".to_string());
             }
+        }
+
+        if self.email_sender_type == EmailSenderType::Http
+            && self
+                .email_http_endpoint
+                .as_ref()
+                .map(|s| s.trim().is_empty())
+                .unwrap_or(true)
+        {
+            return Err("EMAIL_HTTP_ENDPOINT is required when EMAIL_SENDER_TYPE=http".to_string());
         }
 
         Ok(())
@@ -169,6 +214,10 @@ mod tests {
             port: 8089,
             env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
+            email_sender_type: EmailSenderType::Logging,
+            email_http_endpoint: None,
+            email_from: "no-reply@notifications.local".to_string(),
+            email_api_key: None,
         };
 
         let err = config.validate().unwrap_err();
@@ -185,6 +234,10 @@ mod tests {
             port: 8089,
             env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
+            email_sender_type: EmailSenderType::Logging,
+            email_http_endpoint: None,
+            email_from: "no-reply@notifications.local".to_string(),
+            email_api_key: None,
         };
 
         let err = config.validate().unwrap_err();
@@ -201,6 +254,10 @@ mod tests {
             port: 8089,
             env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
+            email_sender_type: EmailSenderType::Logging,
+            email_http_endpoint: None,
+            email_from: "no-reply@notifications.local".to_string(),
+            email_api_key: None,
         };
 
         assert!(config.validate().is_ok());
@@ -213,6 +270,10 @@ mod tests {
             port: 8089,
             env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
+            email_sender_type: EmailSenderType::Logging,
+            email_http_endpoint: None,
+            email_from: "no-reply@notifications.local".to_string(),
+            email_api_key: None,
         };
 
         assert!(config_nats.validate().is_ok());

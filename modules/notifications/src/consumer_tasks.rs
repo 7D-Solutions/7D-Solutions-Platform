@@ -6,7 +6,7 @@ use std::sync::Arc;
 use tracing::Instrument;
 use uuid::Uuid;
 
-use crate::consumer::EventConsumer;
+use crate::consumers::EventConsumer;
 use crate::envelope_validation::validate_envelope;
 use crate::handlers::{handle_invoice_issued, handle_payment_failed, handle_payment_succeeded};
 use crate::models::{

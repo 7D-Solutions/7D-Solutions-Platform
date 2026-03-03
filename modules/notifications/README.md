@@ -48,3 +48,7 @@ Admin routes are available under the admin router (requires `notifications.mutat
 | `PORT` | `8089` | HTTP port |
 | `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
 | `NOTIFICATIONS_DISPATCH_INTERVAL_SECS` | `60` | Seconds between dispatch polls |
+| `EMAIL_SENDER_TYPE` | `logging` | Sender backend: `logging` or `http` |
+| `EMAIL_HTTP_ENDPOINT` | _(required when `EMAIL_SENDER_TYPE=http`)_ | Provider HTTP endpoint for outbound email |
+| `EMAIL_FROM` | `no-reply@notifications.local` | From address used by the email sender |
+| `EMAIL_API_KEY` | _(optional)_ | Bearer token for provider auth |

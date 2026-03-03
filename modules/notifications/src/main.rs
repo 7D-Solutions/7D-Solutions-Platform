@@ -2,9 +2,9 @@ use ::event_bus::{EventBus, InMemoryBus, NatsBus};
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use notifications_rs::{
     config,
-    config::Config,
+    config::{Config, EmailSenderType},
     consumer_tasks, db, event_bus, http, metrics,
-    scheduled::{dispatch_once, reset_orphaned_claims, LoggingSender, NotificationSender},
+    scheduled::{dispatch_once, reset_orphaned_claims, HttpEmailSender, LoggingSender, NotificationSender},
 };
 use security::{
     middleware::{
@@ -95,7 +95,17 @@ async fn main() {
             .and_then(|v| v.parse().ok())
             .unwrap_or(60);
         let dispatch_pool = db.clone();
-        let dispatch_sender: Arc<dyn NotificationSender> = Arc::new(LoggingSender);
+        let dispatch_sender: Arc<dyn NotificationSender> = match config.email_sender_type {
+            EmailSenderType::Logging => Arc::new(LoggingSender),
+            EmailSenderType::Http => Arc::new(HttpEmailSender::new(
+                config
+                    .email_http_endpoint
+                    .clone()
+                    .expect("EMAIL_HTTP_ENDPOINT required for HTTP sender"),
+                config.email_from.clone(),
+                config.email_api_key.clone(),
+            )),
+        };
         tokio::spawn(async move {
             loop {
                 if let Err(e) = dispatch_once(&dispatch_pool, dispatch_sender.clone()).await {
@@ -119,6 +129,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/healthz", get(health::healthz))
+        .route("/ready", get(http::health::ready))
         .route("/api/health", get(http::health::health))
         .route("/api/ready", get(http::health::ready))
         .route("/api/version", get(http::health::version))
@@ -227,6 +238,10 @@ mod tests {
             port: 8089,
             env: "development".to_string(),
             cors_origins: vec!["*".to_string()],
+            email_sender_type: config::EmailSenderType::Logging,
+            email_http_endpoint: None,
+            email_from: "no-reply@notifications.local".to_string(),
+            email_api_key: None,
         };
         let _layer = build_cors_layer(&config);
     }
@@ -244,6 +259,10 @@ mod tests {
                 "http://localhost:3000".to_string(),
                 "https://app.example.com".to_string(),
             ],
+            email_sender_type: config::EmailSenderType::Logging,
+            email_http_endpoint: None,
+            email_from: "no-reply@notifications.local".to_string(),
+            email_api_key: None,
         };
         let _layer = build_cors_layer(&config);
     }

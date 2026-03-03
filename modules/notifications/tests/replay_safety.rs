@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use event_bus::BusMessage;
 use notifications_rs::{
-    consumer::EventConsumer,
+    consumers::EventConsumer,
     handlers::handle_invoice_issued,
     models::{EnvelopeMetadata, InvoiceIssuedPayload},
 };
@@ -67,7 +67,7 @@ async fn test_replay_safety_exactly_one_scheduled_row() {
         let pool2 = pool.clone();
         let tenant_id2 = tenant_id.clone();
         consumer
-            .process_idempotent(&msg, move |payload: InvoiceIssuedPayload| {
+            .process_idempotent::<InvoiceIssuedPayload, _, _>(&msg, move |payload: InvoiceIssuedPayload| {
                 let pool2 = pool2.clone();
                 let tenant_id2 = tenant_id2.clone();
                 async move {
@@ -89,7 +89,7 @@ async fn test_replay_safety_exactly_one_scheduled_row() {
         let pool2 = pool.clone();
         let tenant_id2 = tenant_id.clone();
         consumer
-            .process_idempotent(&msg, move |payload: InvoiceIssuedPayload| {
+            .process_idempotent::<InvoiceIssuedPayload, _, _>(&msg, move |payload: InvoiceIssuedPayload| {
                 let pool2 = pool2.clone();
                 let tenant_id2 = tenant_id2.clone();
                 async move {

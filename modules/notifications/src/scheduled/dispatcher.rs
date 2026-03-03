@@ -3,7 +3,7 @@ use std::sync::Arc;
 use chrono::Utc;
 use sqlx::PgPool;
 
-use super::repo::{claim_due_batch, mark_sent, reschedule_or_fail, reset_orphaned_claims};
+use super::repo::{claim_due_batch, record_delivery_attempt_and_mutate, reset_orphaned_claims, AttemptApplyOutcome};
 use super::sender::NotificationSender;
 
 /// Counts returned by a single `dispatch_once` cycle.
@@ -57,31 +57,19 @@ pub async fn dispatch_once(
 
     // 3. Attempt delivery for each claimed notification.
     for notif in &batch {
-        match sender.send(notif).await {
-            Ok(()) => {
-                mark_sent(pool, notif.id)
-                    .await
-                    .map_err(|e| anyhow::anyhow!("mark_sent failed for {}: {e}", notif.id))?;
-                result.sent_count += 1;
-            }
-            Err(err) => {
-                tracing::warn!(
-                    id = %notif.id,
-                    retry_count = notif.retry_count,
-                    error = %err,
-                    "notification delivery failed"
-                );
-                reschedule_or_fail(pool, notif.id, notif.retry_count)
-                    .await
-                    .map_err(|e| {
-                        anyhow::anyhow!("reschedule_or_fail failed for {}: {e}", notif.id)
-                    })?;
+        let idempotency_key = format!("notif:{}:attempt:{}", notif.id, notif.retry_count + 1);
+        let send_result = sender.send(notif).await;
 
-                if notif.retry_count >= 5 {
-                    result.failed_count += 1;
-                } else {
-                    result.rescheduled_count += 1;
-                }
+        let applied = record_delivery_attempt_and_mutate(pool, notif, &idempotency_key, send_result)
+            .await
+            .map_err(|e| anyhow::anyhow!("record_delivery_attempt_and_mutate failed for {}: {e}", notif.id))?;
+
+        match applied {
+            AttemptApplyOutcome::Succeeded => result.sent_count += 1,
+            AttemptApplyOutcome::FailedRetryable => result.rescheduled_count += 1,
+            AttemptApplyOutcome::FailedPermanent => result.failed_count += 1,
+            AttemptApplyOutcome::DuplicateStored => {
+                tracing::info!(id = %notif.id, idempotency_key, "duplicate idempotency key - reused stored outcome");
             }
         }
     }
