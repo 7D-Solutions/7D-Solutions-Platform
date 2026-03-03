@@ -20,9 +20,67 @@ use chrono::{NaiveDate, TimeZone, Utc};
 use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::gl_detail_service::GLDetailResponse;
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use serde::Serialize;
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+// ── JWT test helper ──────────────────────────────────────────────────
+
+#[derive(Serialize)]
+struct TestJwtClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    jti: String,
+    tenant_id: String,
+    roles: Vec<String>,
+    perms: Vec<String>,
+    actor_type: String,
+    ver: String,
+}
+
+fn sign_test_jwt(tenant_id: &str) -> String {
+    dotenvy::dotenv().ok();
+    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
+        .expect("JWT_PRIVATE_KEY_PEM must be set (loaded from .env)");
+    let encoding_key = EncodingKey::from_rsa_pem(pem.as_bytes())
+        .expect("Invalid JWT_PRIVATE_KEY_PEM");
+
+    let now = Utc::now();
+    let claims = TestJwtClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: now.timestamp(),
+        exp: (now + chrono::Duration::minutes(15)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: tenant_id.to_string(),
+        roles: vec!["operator".into()],
+        perms: vec!["gl.read".into()],
+        actor_type: "user".to_string(),
+        ver: "1".to_string(),
+    };
+
+    let header = Header::new(Algorithm::RS256);
+    jsonwebtoken::encode(&header, &claims, &encoding_key)
+        .expect("Failed to sign test JWT")
+}
+
+fn authed_client(token: &str) -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        format!("Bearer {}", token).parse().unwrap(),
+    );
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .unwrap()
+}
 
 /// Setup test database pool
 async fn setup_test_pool() -> PgPool {
@@ -198,7 +256,9 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 async fn test_boundary_http_gl_detail_returns_paginated_entries() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-http-gld-001";
+    let tenant_uuid = Uuid::new_v4();
+    let tenant_id = tenant_uuid.to_string();
+    let tenant_id = tenant_id.as_str();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
@@ -284,13 +344,18 @@ async fn test_boundary_http_gl_detail_returns_paginated_entries() {
     )
     .await;
 
-    // ✅ BOUNDARY TEST: Make real HTTP GET request
+    // ✅ BOUNDARY TEST: Make real HTTP GET request (with JWT auth)
+    let token = sign_test_jwt(tenant_id);
+    let client = authed_client(&token);
+
     let url = format!(
         "{}/api/gl/detail?tenant_id={}&period_id={}&limit=10&offset=0",
         gl_service_url, tenant_id, period_id
     );
 
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to make HTTP request - is GL service running on port 8090?");
 
@@ -356,7 +421,9 @@ async fn test_boundary_http_gl_detail_returns_paginated_entries() {
 async fn test_boundary_http_gl_detail_filters_by_account_code() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-http-gld-002";
+    let tenant_uuid = Uuid::new_v4();
+    let tenant_id = tenant_uuid.to_string();
+    let tenant_id = tenant_id.as_str();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
@@ -408,13 +475,18 @@ async fn test_boundary_http_gl_detail_filters_by_account_code() {
     )
     .await;
 
-    // ✅ BOUNDARY TEST: Filter by account_code
+    // ✅ BOUNDARY TEST: Filter by account_code (with JWT auth)
+    let token = sign_test_jwt(tenant_id);
+    let client = authed_client(&token);
+
     let url = format!(
         "{}/api/gl/detail?tenant_id={}&period_id={}&account_code=1100&limit=10&offset=0",
         gl_service_url, tenant_id, period_id
     );
 
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to make HTTP request");
 
@@ -439,10 +511,14 @@ async fn test_boundary_http_gl_detail_filters_by_account_code() {
 #[tokio::test]
 #[serial]
 async fn test_boundary_http_gl_detail_handles_not_found_period() {
-    let tenant_id = "tenant-http-gld-003";
+    let tenant_uuid = Uuid::new_v4();
+    let tenant_id = tenant_uuid.to_string();
     let non_existent_period = Uuid::new_v4();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
+
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
 
     // ✅ BOUNDARY TEST: Query non-existent period
     let url = format!(
@@ -450,7 +526,9 @@ async fn test_boundary_http_gl_detail_handles_not_found_period() {
         gl_service_url, tenant_id, non_existent_period
     );
 
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to make HTTP request");
 
@@ -476,10 +554,14 @@ async fn test_boundary_http_gl_detail_handles_not_found_period() {
 #[tokio::test]
 #[serial]
 async fn test_boundary_http_gl_detail_handles_invalid_pagination() {
-    let tenant_id = "tenant-http-gld-004";
+    let tenant_uuid = Uuid::new_v4();
+    let tenant_id = tenant_uuid.to_string();
     let period_id = Uuid::new_v4();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
+
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
 
     // ✅ BOUNDARY TEST: Invalid limit (> 100)
     let url = format!(
@@ -487,7 +569,9 @@ async fn test_boundary_http_gl_detail_handles_invalid_pagination() {
         gl_service_url, tenant_id, period_id
     );
 
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to make HTTP request");
 
