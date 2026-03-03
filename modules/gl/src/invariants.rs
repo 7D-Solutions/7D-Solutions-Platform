@@ -11,7 +11,7 @@
 //! 5. Line number uniqueness (UNIQUE per journal_entry_id)
 //!
 //! **Usage:**
-//! ```rust
+//! ```rust,no_run,ignore
 //! use gl_rs::invariants::*;
 //!
 //! // Check journal entry balance

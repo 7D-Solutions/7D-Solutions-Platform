@@ -80,7 +80,11 @@ impl BenchResult {
             println!("  {}: no samples", self.name);
             return;
         }
-        let mut sorted: Vec<f64> = self.samples.iter().map(|d| d.as_secs_f64() * 1000.0).collect();
+        let mut sorted: Vec<f64> = self
+            .samples
+            .iter()
+            .map(|d| d.as_secs_f64() * 1000.0)
+            .collect();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let n = sorted.len();
         let p50 = sorted[n / 2];
@@ -110,8 +114,7 @@ impl BenchResult {
 
 async fn setup_pool() -> PgPool {
     dotenvy::dotenv().ok();
-    let url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for benchmarks");
+    let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for benchmarks");
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&url)
@@ -138,7 +141,9 @@ async fn create_test_item(pool: &PgPool, tenant_id: &str) -> Uuid {
         uom: None,
         tracking_mode: TrackingMode::None,
     };
-    let item = ItemRepo::create(pool, &req).await.expect("create bench item");
+    let item = ItemRepo::create(pool, &req)
+        .await
+        .expect("create bench item");
     item.id
 }
 

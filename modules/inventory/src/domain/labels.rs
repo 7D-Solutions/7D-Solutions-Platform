@@ -151,11 +151,7 @@ fn build_label_payload(
     label_type: &str,
     extra: &Option<serde_json::Value>,
 ) -> serde_json::Value {
-    let barcode_value = format!(
-        "{}-R{}",
-        item_sku,
-        revision.revision_number
-    );
+    let barcode_value = format!("{}-R{}", item_sku, revision.revision_number);
 
     let mut payload = serde_json::json!({
         "barcode_value": barcode_value,
@@ -213,7 +209,8 @@ pub async fn generate_label(
     let item = guard_item_exists_active(pool, req.item_id, &req.tenant_id).await?;
 
     // --- Guard: revision must exist and belong to the item+tenant ---
-    let revision = guard_revision_exists(pool, req.revision_id, req.item_id, &req.tenant_id).await?;
+    let revision =
+        guard_revision_exists(pool, req.revision_id, req.item_id, &req.tenant_id).await?;
 
     // --- Build deterministic payload ---
     let label_payload = build_label_payload(&item.sku, &revision, &req.label_type, &req.extra);
@@ -330,13 +327,12 @@ pub async fn get_label(
     tenant_id: &str,
     label_id: Uuid,
 ) -> Result<Option<Label>, LabelError> {
-    let label = sqlx::query_as::<_, Label>(
-        "SELECT * FROM inv_labels WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(label_id)
-    .bind(tenant_id)
-    .fetch_optional(pool)
-    .await?;
+    let label =
+        sqlx::query_as::<_, Label>("SELECT * FROM inv_labels WHERE id = $1 AND tenant_id = $2")
+            .bind(label_id)
+            .bind(tenant_id)
+            .fetch_optional(pool)
+            .await?;
 
     Ok(label)
 }
