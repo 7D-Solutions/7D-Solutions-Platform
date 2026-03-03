@@ -1,0 +1,243 @@
+{
+  "release_name": "fireproof-go-live",
+  "release_version": "1.0.0",
+  "commit_sha": "c40504a197fd73b9d99cd702cf194617a0364399",
+  "commit_sha7": "c40504a",
+  "commit_date": "2026-03-03T14:16:00-06:00",
+  "registry": "7dsolutions",
+  "tag_name": "fireproof-go-live-v1.0.0",
+  "rollback_tag": null,
+  "components": [
+    {
+      "name": "ap",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/ap:0.1.0-c40504a"
+    },
+    {
+      "name": "ar",
+      "category": "module",
+      "version": "1.0.56",
+      "proven": true,
+      "image_tag": "7dsolutions/ar:1.0.56-c40504a"
+    },
+    {
+      "name": "audit",
+      "category": "platform",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/audit:0.1.0-c40504a"
+    },
+    {
+      "name": "consolidation",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/consolidation:0.1.0-c40504a"
+    },
+    {
+      "name": "control-plane",
+      "category": "platform",
+      "version": "1.0.3",
+      "proven": true,
+      "image_tag": "7dsolutions/control-plane:1.0.3-c40504a"
+    },
+    {
+      "name": "customer-portal",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/customer-portal:0.1.0-c40504a"
+    },
+    {
+      "name": "doc-mgmt",
+      "category": "platform",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/doc-mgmt:0.1.0-c40504a"
+    },
+    {
+      "name": "event-bus",
+      "category": "platform",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/event-bus:0.1.0-c40504a"
+    },
+    {
+      "name": "fixed-assets",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/fixed-assets:0.1.0-c40504a"
+    },
+    {
+      "name": "gl",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/gl:0.1.0-c40504a"
+    },
+    {
+      "name": "health",
+      "category": "platform",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/health:0.1.0-c40504a"
+    },
+    {
+      "name": "identity-auth",
+      "category": "platform",
+      "version": "1.3.10",
+      "proven": true,
+      "image_tag": "7dsolutions/identity-auth:1.3.10-c40504a"
+    },
+    {
+      "name": "integrations",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/integrations:0.1.0-c40504a"
+    },
+    {
+      "name": "inventory",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/inventory:0.1.0-c40504a"
+    },
+    {
+      "name": "maintenance",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/maintenance:0.1.0-c40504a"
+    },
+    {
+      "name": "notifications",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/notifications:0.1.0-c40504a"
+    },
+    {
+      "name": "numbering",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/numbering:0.1.0-c40504a"
+    },
+    {
+      "name": "party",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/party:0.1.0-c40504a"
+    },
+    {
+      "name": "payments",
+      "category": "module",
+      "version": "1.1.14",
+      "proven": true,
+      "image_tag": "7dsolutions/payments:1.1.14-c40504a"
+    },
+    {
+      "name": "pdf-editor",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/pdf-editor:0.1.0-c40504a"
+    },
+    {
+      "name": "platform-contracts",
+      "category": "platform",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/platform-contracts:0.1.0-c40504a"
+    },
+    {
+      "name": "projections",
+      "category": "platform",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/projections:0.1.0-c40504a"
+    },
+    {
+      "name": "reporting",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/reporting:0.1.0-c40504a"
+    },
+    {
+      "name": "security",
+      "category": "platform",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/security:0.1.0-c40504a"
+    },
+    {
+      "name": "shipping-receiving",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/shipping-receiving:0.1.0-c40504a"
+    },
+    {
+      "name": "subscriptions",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/subscriptions:0.1.0-c40504a"
+    },
+    {
+      "name": "tax-core",
+      "category": "platform",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/tax-core:0.1.0-c40504a"
+    },
+    {
+      "name": "tenant-registry",
+      "category": "platform",
+      "version": "1.0.3",
+      "proven": true,
+      "image_tag": "7dsolutions/tenant-registry:1.0.3-c40504a"
+    },
+    {
+      "name": "timekeeping",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/timekeeping:0.1.0-c40504a"
+    },
+    {
+      "name": "treasury",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/treasury:0.1.0-c40504a"
+    },
+    {
+      "name": "ttp",
+      "category": "module",
+      "version": "2.1.5",
+      "proven": true,
+      "image_tag": "7dsolutions/ttp:2.1.5-c40504a"
+    },
+    {
+      "name": "workflow",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/workflow:0.1.0-c40504a"
+    },
+    {
+      "name": "workforce-competence",
+      "category": "module",
+      "version": "0.1.0",
+      "proven": false,
+      "image_tag": "7dsolutions/workforce-competence:0.1.0-c40504a"
+    }
+  ]
+}
