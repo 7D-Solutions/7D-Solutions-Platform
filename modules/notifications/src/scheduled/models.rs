@@ -7,6 +7,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ScheduledNotification {
     pub id: Uuid,
+    pub tenant_id: String,
     pub recipient_ref: String,
     pub channel: String,
     pub template_key: String,

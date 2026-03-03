@@ -37,6 +37,10 @@ impl RetryPolicy {
 }
 
 /// Insert a new pending scheduled notification. Returns the generated id.
+///
+/// `tenant_id` is derived from `recipient_ref` using the platform convention
+/// `"tenant_id:user_ref"`. If no colon is present, the full recipient_ref is
+/// used as the tenant_id.
 pub async fn insert_pending(
     pool: &PgPool,
     recipient_ref: &str,
@@ -45,14 +49,16 @@ pub async fn insert_pending(
     payload_json: Value,
     deliver_at: DateTime<Utc>,
 ) -> Result<Uuid, sqlx::Error> {
+    let tenant_id = tenant_from_recipient_ref(recipient_ref);
     let row = sqlx::query_as::<_, (Uuid,)>(
         r#"
         INSERT INTO scheduled_notifications
-            (recipient_ref, channel, template_key, payload_json, deliver_at)
-        VALUES ($1, $2, $3, $4, $5)
+            (tenant_id, recipient_ref, channel, template_key, payload_json, deliver_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id
         "#,
     )
+    .bind(&tenant_id)
     .bind(recipient_ref)
     .bind(channel)
     .bind(template_key)
@@ -107,6 +113,7 @@ pub async fn claim_due_batch(
         )
         RETURNING
             id,
+            tenant_id,
             recipient_ref,
             channel,
             template_key,
