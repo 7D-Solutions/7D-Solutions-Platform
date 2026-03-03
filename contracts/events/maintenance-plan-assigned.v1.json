@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://7dsolutions.io/schemas/events/maintenance-work-order-status-changed.v1.json",
-  "title": "maintenance.work_order.status_changed",
-  "description": "Event emitted when a work order transitions between statuses",
+  "$id": "https://7dsolutions.io/schemas/events/maintenance-plan-assigned.v1.json",
+  "title": "maintenance.plan.assigned",
+  "description": "Event emitted when a maintenance plan is assigned to an asset",
   "type": "object",
   "required": [
     "event_id",
@@ -23,7 +23,7 @@
     },
     "event_type": {
       "type": "string",
-      "const": "work_order.status_changed",
+      "const": "plan.assigned",
       "description": "Event type following entity.action convention"
     },
     "occurred_at": {
@@ -70,25 +70,28 @@
     "payload": {
       "type": "object",
       "required": [
-        "wo_id",
-        "old_status",
-        "new_status"
+        "plan_id",
+        "asset_id"
       ],
       "properties": {
-        "wo_id": {
+        "plan_id": {
           "type": "string",
           "format": "uuid",
-          "description": "Work order identifier"
+          "description": "Maintenance plan identifier"
         },
-        "old_status": {
+        "asset_id": {
           "type": "string",
-          "enum": ["draft", "awaiting_approval", "scheduled", "in_progress", "on_hold", "completed", "closed", "cancelled"],
-          "description": "Previous work order status"
+          "format": "uuid",
+          "description": "Maintainable asset identifier"
         },
-        "new_status": {
-          "type": "string",
-          "enum": ["draft", "awaiting_approval", "scheduled", "in_progress", "on_hold", "completed", "closed", "cancelled"],
-          "description": "New work order status"
+        "next_due_date": {
+          "type": ["string", "null"],
+          "format": "date",
+          "description": "Next calendar due date (null if meter-only)"
+        },
+        "next_due_meter": {
+          "type": ["integer", "null"],
+          "description": "Next meter due threshold (null if calendar-only)"
         }
       },
       "additionalProperties": false

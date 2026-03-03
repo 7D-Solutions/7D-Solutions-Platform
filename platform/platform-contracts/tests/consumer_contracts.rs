@@ -2338,3 +2338,442 @@ fn reporting_consumed_payment_succeeded_schema_valid() {
         "Payment succeeded payload must require invoice_id (reporting payment history depends on it)"
     );
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// MAINTENANCE
+// ══════════════════════════════════════════════════════════════════════
+
+// ── Maintenance Event Payloads ────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MaintWoCreatedPayload {
+    wo_id: Uuid,
+    wo_number: String,
+    asset_id: Uuid,
+    wo_type: String,
+    priority: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    plan_assignment_id: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MaintWoStatusChangedPayload {
+    wo_id: Uuid,
+    old_status: String,
+    new_status: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MaintWoCompletedPayload {
+    wo_id: Uuid,
+    asset_id: Uuid,
+    total_parts_minor: i64,
+    total_labor_minor: i64,
+    currency: String,
+    downtime_minutes: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    fixed_asset_ref: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MaintWoClosedPayload {
+    wo_id: Uuid,
+    asset_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MaintWoOverduePayload {
+    wo_id: Uuid,
+    asset_id: Uuid,
+    days_overdue: i32,
+    priority: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MaintMeterReadingRecordedPayload {
+    asset_id: Uuid,
+    meter_type_id: Uuid,
+    reading_value: i64,
+    recorded_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MaintPlanDuePayload {
+    assignment_id: Uuid,
+    plan_id: Uuid,
+    asset_id: Uuid,
+    due_kind: String,
+    due_value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MaintPlanAssignedPayload {
+    plan_id: Uuid,
+    asset_id: Uuid,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    next_due_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    next_due_meter: Option<i64>,
+}
+
+// ── work_order.created ───────────────────────────────────────────────
+
+#[test]
+fn maintenance_wo_created_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.created",
+        mutation_classes::DATA_MUTATION,
+        MaintWoCreatedPayload {
+            wo_id: Uuid::new_v4(),
+            wo_number: "WO-000001".into(),
+            asset_id: Uuid::new_v4(),
+            wo_type: "corrective".into(),
+            priority: "high".into(),
+            plan_assignment_id: None,
+        },
+    );
+    assert_envelope_completeness(&json, "maintenance/work_order.created");
+}
+
+#[test]
+fn maintenance_wo_created_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.created",
+        mutation_classes::DATA_MUTATION,
+        MaintWoCreatedPayload {
+            wo_id: Uuid::new_v4(),
+            wo_number: "WO-000042".into(),
+            asset_id: Uuid::new_v4(),
+            wo_type: "preventive".into(),
+            priority: "medium".into(),
+            plan_assignment_id: Some(Uuid::new_v4()),
+        },
+    );
+    validate_against_schema(&json, "maintenance-work-order-created.v1.json");
+}
+
+// ── work_order.status_changed ────────────────────────────────────────
+
+#[test]
+fn maintenance_wo_status_changed_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.status_changed",
+        mutation_classes::DATA_MUTATION,
+        MaintWoStatusChangedPayload {
+            wo_id: Uuid::new_v4(),
+            old_status: "draft".into(),
+            new_status: "scheduled".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "maintenance/work_order.status_changed");
+}
+
+#[test]
+fn maintenance_wo_status_changed_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.status_changed",
+        mutation_classes::DATA_MUTATION,
+        MaintWoStatusChangedPayload {
+            wo_id: Uuid::new_v4(),
+            old_status: "scheduled".into(),
+            new_status: "in_progress".into(),
+        },
+    );
+    validate_against_schema(&json, "maintenance-work-order-status-changed.v1.json");
+}
+
+// ── work_order.completed ─────────────────────────────────────────────
+
+#[test]
+fn maintenance_wo_completed_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.completed",
+        mutation_classes::DATA_MUTATION,
+        MaintWoCompletedPayload {
+            wo_id: Uuid::new_v4(),
+            asset_id: Uuid::new_v4(),
+            total_parts_minor: 15000,
+            total_labor_minor: 8500,
+            currency: "USD".into(),
+            downtime_minutes: 120,
+            fixed_asset_ref: Some(Uuid::new_v4()),
+        },
+    );
+    assert_envelope_completeness(&json, "maintenance/work_order.completed");
+}
+
+#[test]
+fn maintenance_wo_completed_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.completed",
+        mutation_classes::DATA_MUTATION,
+        MaintWoCompletedPayload {
+            wo_id: Uuid::new_v4(),
+            asset_id: Uuid::new_v4(),
+            total_parts_minor: 0,
+            total_labor_minor: 5000,
+            currency: "USD".into(),
+            downtime_minutes: 30,
+            fixed_asset_ref: None,
+        },
+    );
+    validate_against_schema(&json, "maintenance-work-order-completed.v1.json");
+}
+
+// ── work_order.closed ────────────────────────────────────────────────
+
+#[test]
+fn maintenance_wo_closed_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.closed",
+        mutation_classes::DATA_MUTATION,
+        MaintWoClosedPayload {
+            wo_id: Uuid::new_v4(),
+            asset_id: Uuid::new_v4(),
+        },
+    );
+    assert_envelope_completeness(&json, "maintenance/work_order.closed");
+}
+
+#[test]
+fn maintenance_wo_closed_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.closed",
+        mutation_classes::DATA_MUTATION,
+        MaintWoClosedPayload {
+            wo_id: Uuid::new_v4(),
+            asset_id: Uuid::new_v4(),
+        },
+    );
+    validate_against_schema(&json, "maintenance-work-order-closed.v1.json");
+}
+
+// ── work_order.cancelled ─────────────────────────────────────────────
+
+#[test]
+fn maintenance_wo_cancelled_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.cancelled",
+        mutation_classes::DATA_MUTATION,
+        MaintWoStatusChangedPayload {
+            wo_id: Uuid::new_v4(),
+            old_status: "scheduled".into(),
+            new_status: "cancelled".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "maintenance/work_order.cancelled");
+}
+
+#[test]
+fn maintenance_wo_cancelled_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.cancelled",
+        mutation_classes::DATA_MUTATION,
+        MaintWoStatusChangedPayload {
+            wo_id: Uuid::new_v4(),
+            old_status: "in_progress".into(),
+            new_status: "cancelled".into(),
+        },
+    );
+    validate_against_schema(&json, "maintenance-work-order-cancelled.v1.json");
+}
+
+// ── work_order.overdue ───────────────────────────────────────────────
+
+#[test]
+fn maintenance_wo_overdue_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.overdue",
+        mutation_classes::DATA_MUTATION,
+        MaintWoOverduePayload {
+            wo_id: Uuid::new_v4(),
+            asset_id: Uuid::new_v4(),
+            days_overdue: 3,
+            priority: "high".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "maintenance/work_order.overdue");
+}
+
+#[test]
+fn maintenance_wo_overdue_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "work_order.overdue",
+        mutation_classes::DATA_MUTATION,
+        MaintWoOverduePayload {
+            wo_id: Uuid::new_v4(),
+            asset_id: Uuid::new_v4(),
+            days_overdue: 7,
+            priority: "critical".into(),
+        },
+    );
+    validate_against_schema(&json, "maintenance-work-order-overdue.v1.json");
+}
+
+// ── meter_reading.recorded ───────────────────────────────────────────
+
+#[test]
+fn maintenance_meter_reading_recorded_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "meter_reading.recorded",
+        mutation_classes::DATA_MUTATION,
+        MaintMeterReadingRecordedPayload {
+            asset_id: Uuid::new_v4(),
+            meter_type_id: Uuid::new_v4(),
+            reading_value: 12500,
+            recorded_at: "2026-03-01T14:30:00Z".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "maintenance/meter_reading.recorded");
+}
+
+#[test]
+fn maintenance_meter_reading_recorded_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "meter_reading.recorded",
+        mutation_classes::DATA_MUTATION,
+        MaintMeterReadingRecordedPayload {
+            asset_id: Uuid::new_v4(),
+            meter_type_id: Uuid::new_v4(),
+            reading_value: 50000,
+            recorded_at: "2026-03-02T09:00:00Z".into(),
+        },
+    );
+    validate_against_schema(&json, "maintenance-meter-reading-recorded.v1.json");
+}
+
+// ── plan.due ─────────────────────────────────────────────────────────
+
+#[test]
+fn maintenance_plan_due_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "plan.due",
+        mutation_classes::DATA_MUTATION,
+        MaintPlanDuePayload {
+            assignment_id: Uuid::new_v4(),
+            plan_id: Uuid::new_v4(),
+            asset_id: Uuid::new_v4(),
+            due_kind: "calendar".into(),
+            due_value: "2026-03-15".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "maintenance/plan.due");
+}
+
+#[test]
+fn maintenance_plan_due_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "plan.due",
+        mutation_classes::DATA_MUTATION,
+        MaintPlanDuePayload {
+            assignment_id: Uuid::new_v4(),
+            plan_id: Uuid::new_v4(),
+            asset_id: Uuid::new_v4(),
+            due_kind: "meter".into(),
+            due_value: "25000".into(),
+        },
+    );
+    validate_against_schema(&json, "maintenance-plan-due.v1.json");
+}
+
+// ── plan.assigned ────────────────────────────────────────────────────
+
+#[test]
+fn maintenance_plan_assigned_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "plan.assigned",
+        mutation_classes::DATA_MUTATION,
+        MaintPlanAssignedPayload {
+            plan_id: Uuid::new_v4(),
+            asset_id: Uuid::new_v4(),
+            next_due_date: Some("2026-04-01".into()),
+            next_due_meter: None,
+        },
+    );
+    assert_envelope_completeness(&json, "maintenance/plan.assigned");
+}
+
+#[test]
+fn maintenance_plan_assigned_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "maintenance",
+        "plan.assigned",
+        mutation_classes::DATA_MUTATION,
+        MaintPlanAssignedPayload {
+            plan_id: Uuid::new_v4(),
+            asset_id: Uuid::new_v4(),
+            next_due_date: None,
+            next_due_meter: Some(15000),
+        },
+    );
+    validate_against_schema(&json, "maintenance-plan-assigned.v1.json");
+}
+
+// ── Exhaustive subject coverage ──────────────────────────────────────
+
+#[test]
+fn maintenance_all_subjects_have_contract_tests() {
+    let tested_event_types = [
+        "maintenance.work_order.created",
+        "maintenance.work_order.status_changed",
+        "maintenance.work_order.completed",
+        "maintenance.work_order.closed",
+        "maintenance.work_order.cancelled",
+        "maintenance.work_order.overdue",
+        "maintenance.meter_reading.recorded",
+        "maintenance.plan.due",
+        "maintenance.plan.assigned",
+    ];
+    assert_eq!(
+        tested_event_types.len(),
+        9,
+        "Must have contract tests for all 9 maintenance event types"
+    );
+    for et in &tested_event_types {
+        assert!(
+            et.starts_with("maintenance."),
+            "All maintenance event types must start with 'maintenance.'"
+        );
+        let type_part = et.strip_prefix("maintenance.").unwrap();
+        assert!(
+            event_naming::validate_event_type(type_part).is_ok(),
+            "Event type '{}' does not follow entity.action convention",
+            et
+        );
+    }
+}

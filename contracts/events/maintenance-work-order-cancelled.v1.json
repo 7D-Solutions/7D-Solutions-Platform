@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://7dsolutions.io/schemas/events/maintenance-work-order-status-changed.v1.json",
-  "title": "maintenance.work_order.status_changed",
-  "description": "Event emitted when a work order transitions between statuses",
+  "$id": "https://7dsolutions.io/schemas/events/maintenance-work-order-cancelled.v1.json",
+  "title": "maintenance.work_order.cancelled",
+  "description": "Event emitted when a work order is cancelled",
   "type": "object",
   "required": [
     "event_id",
@@ -23,7 +23,7 @@
     },
     "event_type": {
       "type": "string",
-      "const": "work_order.status_changed",
+      "const": "work_order.cancelled",
       "description": "Event type following entity.action convention"
     },
     "occurred_at": {
@@ -87,8 +87,8 @@
         },
         "new_status": {
           "type": "string",
-          "enum": ["draft", "awaiting_approval", "scheduled", "in_progress", "on_hold", "completed", "closed", "cancelled"],
-          "description": "New work order status"
+          "const": "cancelled",
+          "description": "Always 'cancelled' for this event"
         }
       },
       "additionalProperties": false
