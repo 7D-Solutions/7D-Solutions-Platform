@@ -48,7 +48,11 @@
 pub mod contracts;
 pub mod cycle_count_approved;
 pub mod cycle_count_submitted;
+pub mod expiry_alert;
+pub mod expiry_set;
 pub mod label_generated;
+pub mod lot_merged;
+pub mod lot_split;
 pub mod low_stock_triggered;
 pub mod revision_activated;
 pub mod revision_created;
@@ -87,6 +91,10 @@ pub use cycle_count_submitted::{
     EVENT_TYPE_CYCLE_COUNT_SUBMITTED,
 };
 
+pub use expiry_alert::{build_expiry_alert_envelope, ExpiryAlertPayload, EVENT_TYPE_EXPIRY_ALERT};
+
+pub use expiry_set::{build_expiry_set_envelope, ExpirySetPayload, EVENT_TYPE_EXPIRY_SET};
+
 pub use low_stock_triggered::{
     build_low_stock_triggered_envelope, LowStockTriggeredPayload, EVENT_TYPE_LOW_STOCK_TRIGGERED,
 };
@@ -117,6 +125,14 @@ pub use revision_policy_updated::{
 
 pub use label_generated::{
     build_label_generated_envelope, LabelGeneratedPayload, EVENT_TYPE_LABEL_GENERATED,
+};
+
+pub use lot_split::{
+    build_lot_split_envelope, LotSplitPayload, SplitChildEdge, EVENT_TYPE_LOT_SPLIT,
+};
+
+pub use lot_merged::{
+    build_lot_merged_envelope, LotMergedPayload, MergeParentEdge, EVENT_TYPE_LOT_MERGED,
 };
 
 // ============================================================================

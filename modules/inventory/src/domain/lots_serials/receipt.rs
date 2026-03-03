@@ -14,6 +14,7 @@
 //! enforced by the DB (`serial_instances_unique_code`). Callers should validate
 //! for duplicates before calling to get actionable error messages.
 
+use chrono::NaiveDate;
 use sqlx::{Postgres, Transaction};
 use uuid::Uuid;
 
@@ -31,20 +32,33 @@ pub async fn upsert_lot(
     tenant_id: &str,
     item_id: Uuid,
     lot_code: &str,
+    expires_on: Option<NaiveDate>,
     attributes: Option<serde_json::Value>,
 ) -> Result<Uuid, sqlx::Error> {
     sqlx::query_scalar::<_, Uuid>(
         r#"
-        INSERT INTO inventory_lots (tenant_id, item_id, lot_code, attributes)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO inventory_lots (tenant_id, item_id, lot_code, expires_on, attributes)
+        VALUES ($1, $2, $3, $4, $5)
         ON CONFLICT (tenant_id, item_id, lot_code) DO UPDATE
-            SET tenant_id = EXCLUDED.tenant_id
+            SET tenant_id = EXCLUDED.tenant_id,
+                expires_on = COALESCE(inventory_lots.expires_on, EXCLUDED.expires_on),
+                expiry_source = CASE
+                    WHEN inventory_lots.expires_on IS NULL AND EXCLUDED.expires_on IS NOT NULL
+                        THEN 'policy'
+                    ELSE inventory_lots.expiry_source
+                END,
+                expiry_set_at = CASE
+                    WHEN inventory_lots.expires_on IS NULL AND EXCLUDED.expires_on IS NOT NULL
+                        THEN NOW()
+                    ELSE inventory_lots.expiry_set_at
+                END
         RETURNING id
         "#,
     )
     .bind(tenant_id)
     .bind(item_id)
     .bind(lot_code)
+    .bind(expires_on)
     .bind(attributes)
     .fetch_one(&mut **tx)
     .await

@@ -27,12 +27,14 @@ use inventory_rs::{
     },
     http::{
         cycle_counts::{post_cycle_count_approve, post_cycle_count_submit, post_cycle_count_task},
+        expiry::{post_expiry_alert_scan, put_lot_expiry},
+        genealogy::{get_lot_children, get_lot_parents, post_lot_merge, post_lot_split},
         history::get_movement_history,
+        labels::{get_label_by_id, get_list_labels, post_generate_label},
         lots::get_lots_for_item,
         reorder::{
             get_reorder_policy, list_reorder_policies, post_reorder_policy, put_reorder_policy,
         },
-        labels::{get_label_by_id, get_list_labels, post_generate_label},
         revisions::{
             get_list_revisions, get_revision_at, post_activate_revision, post_create_revision,
             put_revision_policy,
@@ -172,6 +174,24 @@ async fn main() {
             "/api/inventory/items/{item_id}/labels",
             axum::routing::post(post_generate_label),
         )
+        // Expiry — write
+        .route(
+            "/api/inventory/lots/{lot_id}/expiry",
+            axum::routing::put(put_lot_expiry),
+        )
+        .route(
+            "/api/inventory/expiry-alerts/scan",
+            axum::routing::post(post_expiry_alert_scan),
+        )
+        // Lot genealogy — write
+        .route(
+            "/api/inventory/lots/split",
+            axum::routing::post(post_lot_split),
+        )
+        .route(
+            "/api/inventory/lots/merge",
+            axum::routing::post(post_lot_merge),
+        )
         // Locations — write
         .route(
             "/api/inventory/locations",
@@ -256,6 +276,15 @@ async fn main() {
         .route(
             "/api/inventory/valuation-snapshots/{id}",
             axum::routing::get(get_valuation_snapshot),
+        )
+        // Lot genealogy — read
+        .route(
+            "/api/inventory/lots/{lot_id}/children",
+            axum::routing::get(get_lot_children),
+        )
+        .route(
+            "/api/inventory/lots/{lot_id}/parents",
+            axum::routing::get(get_lot_parents),
         )
         // Locations — read
         .route(

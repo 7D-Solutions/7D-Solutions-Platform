@@ -7,7 +7,7 @@
 //!
 //! Pattern: Guard → Mutation → Outbox (all in one transaction)
 
-use chrono::{Duration, Utc};
+use chrono::{Duration, NaiveDate, Utc};
 use event_bus::TracingContext;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::{
     domain::{
+        expiry::compute_expiry_from_policy,
         guards::{
             guard_convert_to_base, guard_cost_present, guard_item_active, guard_quantity_positive,
             GuardError,
@@ -26,8 +27,9 @@ use crate::{
         reorder::evaluator,
     },
     events::{
+        build_expiry_set_envelope,
         contracts::{build_item_received_envelope, ItemReceivedPayload},
-        EVENT_TYPE_ITEM_RECEIVED,
+        ExpirySetPayload, EVENT_TYPE_EXPIRY_SET, EVENT_TYPE_ITEM_RECEIVED,
     },
 };
 
@@ -118,6 +120,9 @@ pub enum ReceiptError {
     #[error("Idempotency key conflict: same key used with a different request body")]
     ConflictingIdempotencyKey,
 
+    #[error("Expiry policy error: {0}")]
+    ExpiryPolicy(String),
+
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
@@ -194,6 +199,18 @@ pub async fn process_receipt(
         .correlation_id
         .clone()
         .unwrap_or_else(|| Uuid::new_v4().to_string());
+    let lot_expiry_for_upsert: Option<NaiveDate> = if item.tracking_mode == TrackingMode::Lot {
+        compute_expiry_from_policy(pool, &req.tenant_id, req.item_id, received_at)
+            .await
+            .map_err(|e| ReceiptError::ExpiryPolicy(e.to_string()))?
+    } else {
+        None
+    };
+    let lot_expiry_source = if lot_expiry_for_upsert.is_some() {
+        Some("policy".to_string())
+    } else {
+        None
+    };
 
     let mut tx = pool.begin().await?;
 
@@ -231,7 +248,15 @@ pub async fn process_receipt(
     let lot_id: Option<Uuid> = if item.tracking_mode == TrackingMode::Lot {
         // validated above: lot_code is Some and non-empty
         let code = req.lot_code.as_deref().unwrap();
-        let id = upsert_lot(&mut tx, &req.tenant_id, req.item_id, code, None).await?;
+        let id = upsert_lot(
+            &mut tx,
+            &req.tenant_id,
+            req.item_id,
+            code,
+            lot_expiry_for_upsert,
+            None,
+        )
+        .await?;
         Some(id)
     } else {
         None
@@ -354,6 +379,51 @@ pub async fn process_receipt(
     .bind(&req.causation_id)
     .execute(&mut *tx)
     .await?;
+
+    if let (Some(lot_id), Some(expires_on), Some(expiry_source), Some(lot_code)) = (
+        lot_id,
+        lot_expiry_for_upsert,
+        lot_expiry_source.as_deref(),
+        req.lot_code.as_deref(),
+    ) {
+        let expiry_event_id = Uuid::new_v4();
+        let expiry_payload = ExpirySetPayload {
+            lot_id,
+            tenant_id: req.tenant_id.clone(),
+            item_id: req.item_id,
+            lot_code: lot_code.to_string(),
+            expiry_date: expires_on,
+            source: expiry_source.to_string(),
+            set_at: received_at,
+        };
+        let expiry_envelope = build_expiry_set_envelope(
+            expiry_event_id,
+            req.tenant_id.clone(),
+            correlation_id.clone(),
+            req.causation_id.clone(),
+            expiry_payload,
+        );
+        let expiry_envelope_json = serde_json::to_string(&expiry_envelope)?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO inv_outbox
+                (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
+                 payload, correlation_id, causation_id, schema_version)
+            VALUES
+                ($1, $2, 'inventory_lot', $3, $4, $5::JSONB, $6, $7, '1.0.0')
+            "#,
+        )
+        .bind(expiry_event_id)
+        .bind(EVENT_TYPE_EXPIRY_SET)
+        .bind(lot_id.to_string())
+        .bind(&req.tenant_id)
+        .bind(&expiry_envelope_json)
+        .bind(&correlation_id)
+        .bind(&req.causation_id)
+        .execute(&mut *tx)
+        .await?;
+    }
 
     // Step 6: Build result
     let result = ReceiptResult {

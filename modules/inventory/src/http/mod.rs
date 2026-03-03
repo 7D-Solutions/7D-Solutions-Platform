@@ -2,6 +2,8 @@ pub mod adjustments;
 pub mod admin;
 pub mod admin_types;
 pub mod cycle_counts;
+pub mod expiry;
+pub mod genealogy;
 pub mod health;
 pub mod history;
 pub mod issues;

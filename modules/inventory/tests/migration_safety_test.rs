@@ -67,6 +67,7 @@ async fn migrations_apply_cleanly() {
         "inv_low_stock_state",
         "item_revisions",
         "inv_labels",
+        "inv_lot_expiry_alert_state",
     ];
 
     for table in &expected_tables {
@@ -88,8 +89,8 @@ async fn migrations_apply_cleanly() {
             .await
             .expect("migration count query");
     assert!(
-        migration_count >= 22,
-        "At least 22 successful migrations expected, got {}",
+        migration_count >= 24,
+        "At least 24 successful migrations expected, got {}",
         migration_count
     );
 }
@@ -112,6 +113,7 @@ async fn forward_fix_rollback_and_reapply() {
     // Execute full rollback (reverse dependency order)
     let rollback_sql = r#"
         DROP TABLE IF EXISTS inv_labels CASCADE;
+        DROP TABLE IF EXISTS inv_lot_expiry_alert_state CASCADE;
         DROP TABLE IF EXISTS inv_low_stock_state CASCADE;
         DROP TABLE IF EXISTS item_revisions CASCADE;
         DROP TABLE IF EXISTS inventory_valuation_lines CASCADE;
@@ -235,6 +237,7 @@ async fn all_data_tables_have_tenant_id() {
         "inv_low_stock_state",
         "item_revisions",
         "inv_labels",
+        "inv_lot_expiry_alert_state",
     ];
 
     for table in &tenant_tables {

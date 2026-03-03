@@ -102,6 +102,13 @@ fn receipt_error_response(err: ReceiptError) -> impl IntoResponse {
                 "message": "Idempotency key already used with a different request body"
             })),
         ),
+        ReceiptError::ExpiryPolicy(msg) => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "error": "expiry_policy_error",
+                "message": msg
+            })),
+        ),
         ReceiptError::Serialization(e) => {
             tracing::error!(error = %e, "receipt serialization error");
             (

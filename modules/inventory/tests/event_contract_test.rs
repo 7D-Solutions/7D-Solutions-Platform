@@ -12,20 +12,22 @@
 ///   - deterministic event_id preserved
 ///   - tenant_id preserved
 ///   - payload JSON round-trip succeeds
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
 use uuid::Uuid;
 
 use inventory_rs::events::{
     build_adjusted_envelope, build_cycle_count_approved_envelope,
-    build_cycle_count_submitted_envelope, build_item_issued_envelope, build_item_received_envelope,
+    build_cycle_count_submitted_envelope, build_expiry_alert_envelope, build_expiry_set_envelope,
+    build_item_issued_envelope, build_item_received_envelope,
     build_item_revision_policy_updated_envelope, build_low_stock_triggered_envelope,
     build_status_changed_envelope, build_transfer_completed_envelope,
     build_valuation_snapshot_created_envelope, AdjustedPayload, ConsumedLayer,
     CycleCountApprovedLine, CycleCountApprovedPayload, CycleCountSubmittedLine,
-    CycleCountSubmittedPayload, ItemIssuedPayload, ItemReceivedPayload,
-    ItemRevisionPolicyUpdatedPayload, LowStockTriggeredPayload, SourceRef, StatusChangedPayload,
-    TransferCompletedPayload, ValuationSnapshotCreatedLine, ValuationSnapshotCreatedPayload,
-    EVENT_TYPE_ADJUSTED, EVENT_TYPE_CYCLE_COUNT_APPROVED, EVENT_TYPE_CYCLE_COUNT_SUBMITTED,
+    CycleCountSubmittedPayload, ExpiryAlertPayload, ExpirySetPayload, ItemIssuedPayload,
+    ItemReceivedPayload, ItemRevisionPolicyUpdatedPayload, LowStockTriggeredPayload, SourceRef,
+    StatusChangedPayload, TransferCompletedPayload, ValuationSnapshotCreatedLine,
+    ValuationSnapshotCreatedPayload, EVENT_TYPE_ADJUSTED, EVENT_TYPE_CYCLE_COUNT_APPROVED,
+    EVENT_TYPE_CYCLE_COUNT_SUBMITTED, EVENT_TYPE_EXPIRY_ALERT, EVENT_TYPE_EXPIRY_SET,
     EVENT_TYPE_ITEM_ISSUED, EVENT_TYPE_ITEM_RECEIVED, EVENT_TYPE_ITEM_REVISION_POLICY_UPDATED,
     EVENT_TYPE_LOW_STOCK_TRIGGERED, EVENT_TYPE_STATUS_CHANGED, EVENT_TYPE_TRANSFER_COMPLETED,
     EVENT_TYPE_VALUATION_SNAPSHOT_CREATED, INVENTORY_EVENT_SCHEMA_VERSION,
@@ -478,6 +480,60 @@ fn item_revision_policy_updated_full_contract() {
     assert!(rt.shelf_life_enforced);
 }
 
+// ── 10. inventory.expiry_set.v1 ──────────────────────────────────────
+
+#[test]
+fn expiry_set_full_contract() {
+    let event_id = Uuid::new_v4();
+    let tenant = "contract-test-tenant";
+    let payload = ExpirySetPayload {
+        lot_id: Uuid::new_v4(),
+        tenant_id: tenant.to_string(),
+        item_id: Uuid::new_v4(),
+        lot_code: "LOT-001".to_string(),
+        expiry_date: NaiveDate::from_ymd_opt(2026, 4, 10).unwrap(),
+        source: "policy".to_string(),
+        set_at: Utc::now(),
+    };
+    let env = build_expiry_set_envelope(
+        event_id,
+        tenant.to_string(),
+        "corr-exp-set".to_string(),
+        Some("cause-exp-set".to_string()),
+        payload,
+    );
+    assert_envelope_contract!(env, EVENT_TYPE_EXPIRY_SET, event_id, tenant);
+    assert_eq!(env.causation_id.as_deref(), Some("cause-exp-set"));
+}
+
+// ── 11. inventory.expiry_alert.v1 ────────────────────────────────────
+
+#[test]
+fn expiry_alert_full_contract() {
+    let event_id = Uuid::new_v4();
+    let tenant = "contract-test-tenant";
+    let payload = ExpiryAlertPayload {
+        lot_id: Uuid::new_v4(),
+        tenant_id: tenant.to_string(),
+        item_id: Uuid::new_v4(),
+        lot_code: "LOT-ALERT-001".to_string(),
+        expiry_date: NaiveDate::from_ymd_opt(2026, 4, 10).unwrap(),
+        alert_kind: "expiring_soon".to_string(),
+        window_start: NaiveDate::from_ymd_opt(2026, 4, 5).unwrap(),
+        window_end: NaiveDate::from_ymd_opt(2026, 4, 12).unwrap(),
+        emitted_at: Utc::now(),
+    };
+    let env = build_expiry_alert_envelope(
+        event_id,
+        tenant.to_string(),
+        "corr-exp-alert".to_string(),
+        Some("cause-exp-alert".to_string()),
+        payload,
+    );
+    assert_envelope_contract!(env, EVENT_TYPE_EXPIRY_ALERT, event_id, tenant);
+    assert_eq!(env.causation_id.as_deref(), Some("cause-exp-alert"));
+}
+
 // ── Cross-cutting: causation_id=None leaves it unset ─────────────────
 
 #[test]
@@ -518,6 +574,8 @@ fn event_type_constants_follow_inventory_dot_convention() {
         EVENT_TYPE_CYCLE_COUNT_APPROVED,
         EVENT_TYPE_VALUATION_SNAPSHOT_CREATED,
         EVENT_TYPE_ITEM_REVISION_POLICY_UPDATED,
+        EVENT_TYPE_EXPIRY_SET,
+        EVENT_TYPE_EXPIRY_ALERT,
     ];
     for et in &all_types {
         assert!(
