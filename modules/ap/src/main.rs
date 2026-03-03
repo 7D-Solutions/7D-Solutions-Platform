@@ -139,12 +139,7 @@ async fn main() {
         .route_layer(RequirePermissionsLayer::new(&[permissions::AP_MUTATE]))
         .with_state(app_state.clone());
 
-    let app = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(http::health))
-        .route("/api/ready", get(http::ready))
-        .route("/api/version", get(http::version))
-        .route("/metrics", get(metrics::metrics_handler))
+    let ap_reads = Router::new()
         // Vendors — read
         .route("/api/ap/vendors", get(http::vendors::list_vendors))
         .route(
@@ -181,7 +176,17 @@ async fn main() {
             "/api/ap/tax/reports/export",
             get(http::tax_reports::tax_report_export),
         )
+        .route_layer(RequirePermissionsLayer::new(&[permissions::AP_READ]))
+        .with_state(app_state.clone());
+
+    let app = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route("/api/health", get(http::health))
+        .route("/api/ready", get(http::ready))
+        .route("/api/version", get(http::version))
+        .route("/metrics", get(metrics::metrics_handler))
         .with_state(app_state)
+        .merge(ap_reads)
         .merge(ap_mutations)
         .merge(http::admin::admin_router(pool))
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
