@@ -9,20 +9,72 @@
 
 mod common;
 
-use chrono::NaiveDate;
+use chrono::{NaiveDate, Utc};
 use common::{cleanup_test_tenant, get_test_pool, setup_test_account, setup_test_period};
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use reqwest::StatusCode;
+use serde::Serialize;
 use serde_json::json;
 use serial_test::serial;
 use std::time::Duration;
 use uuid::Uuid;
 
-/// HTTP client with retries for flakiness
-async fn http_client() -> reqwest::Client {
+// ============================================================================
+// JWT Auth Helpers (GL service requires Bearer JWT)
+// ============================================================================
+
+#[derive(Serialize)]
+struct TestJwtClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    jti: String,
+    tenant_id: String,
+    roles: Vec<String>,
+    perms: Vec<String>,
+    actor_type: String,
+    ver: String,
+}
+
+fn sign_test_jwt(tenant_id: &str) -> String {
+    dotenvy::dotenv().ok();
+    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
+        .expect("JWT_PRIVATE_KEY_PEM must be set (loaded from .env)");
+    let encoding_key =
+        EncodingKey::from_rsa_pem(pem.as_bytes()).expect("Invalid JWT_PRIVATE_KEY_PEM");
+    let now = Utc::now();
+    let claims = TestJwtClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: now.timestamp(),
+        exp: (now + chrono::Duration::minutes(15)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: tenant_id.to_string(),
+        roles: vec!["operator".into()],
+        perms: vec!["gl.read".into(), "gl.write".into()],
+        actor_type: "user".to_string(),
+        ver: "1".to_string(),
+    };
+    let header = Header::new(Algorithm::RS256);
+    jsonwebtoken::encode(&header, &claims, &encoding_key).expect("Failed to sign test JWT")
+}
+
+fn authed_client(token: &str) -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        format!("Bearer {}", token)
+            .parse()
+            .expect("valid header value"),
+    );
     reqwest::Client::builder()
         .timeout(Duration::from_secs(5))
+        .default_headers(headers)
         .build()
-        .unwrap()
+        .expect("Failed to build authed client")
 }
 
 /// Base URL for GL service (matches Phase 12 pattern)
@@ -37,39 +89,40 @@ const BASE_URL: &str = "http://localhost:8090";
 #[serial]
 async fn test_http_validate_close_success() {
     let pool = get_test_pool().await;
-    let tenant_id = "tenant_http_val_success";
+    let tenant_id = Uuid::new_v4().to_string();
 
-    cleanup_test_tenant(&pool, tenant_id).await;
+    cleanup_test_tenant(&pool, &tenant_id).await;
 
     // Create open period
     let period_id = setup_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2025, 1, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2025, 1, 31).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2025, 1, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2025, 1, 31).expect("valid date"),
     )
     .await;
 
-    // HTTP POST to validate-close
-    let client = http_client().await;
+    // HTTP POST to validate-close with JWT auth
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
     let url = format!("{}/api/gl/periods/{}/validate-close", BASE_URL, period_id);
     let body = json!({ "tenant_id": tenant_id });
 
-    let response = client.post(&url).json(&body).send().await.unwrap();
+    let response = client.post(&url).json(&body).send().await.expect("Failed to make request");
 
     // Should return 200 OK
     assert_eq!(response.status(), StatusCode::OK);
 
     // Parse response
-    let json: serde_json::Value = response.json().await.unwrap();
+    let json: serde_json::Value = response.json().await.expect("Failed to parse JSON");
 
     // Verify response structure
     assert_eq!(json["period_id"], period_id.to_string());
-    assert_eq!(json["tenant_id"], tenant_id);
+    assert_eq!(json["tenant_id"], tenant_id.as_str());
     assert_eq!(json["can_close"], true);
     assert!(json["validation_report"]["issues"]
         .as_array()
-        .unwrap()
+        .expect("issues should be array")
         .is_empty());
     assert!(json["validated_at"].is_string());
 }
@@ -79,16 +132,16 @@ async fn test_http_validate_close_success() {
 #[serial]
 async fn test_http_validate_close_already_closed() {
     let pool = get_test_pool().await;
-    let tenant_id = "tenant_http_val_closed";
+    let tenant_id = Uuid::new_v4().to_string();
 
-    cleanup_test_tenant(&pool, tenant_id).await;
+    cleanup_test_tenant(&pool, &tenant_id).await;
 
     // Create period
     let period_id = setup_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2025, 2, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2025, 2, 28).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2025, 2, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2025, 2, 28).expect("valid date"),
     )
     .await;
 
@@ -99,30 +152,31 @@ async fn test_http_validate_close_already_closed() {
     .bind(period_id)
     .execute(&pool)
     .await
-    .unwrap();
+    .expect("Failed to close period");
 
-    // HTTP POST to validate-close
-    let client = http_client().await;
+    // HTTP POST to validate-close with JWT auth
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
     let url = format!("{}/api/gl/periods/{}/validate-close", BASE_URL, period_id);
     let body = json!({ "tenant_id": tenant_id });
 
-    let response = client.post(&url).json(&body).send().await.unwrap();
+    let response = client.post(&url).json(&body).send().await.expect("Failed to make request");
 
     // Should return 200 OK (validation always succeeds, but can_close=false)
     assert_eq!(response.status(), StatusCode::OK);
 
     // Parse response
-    let json: serde_json::Value = response.json().await.unwrap();
+    let json: serde_json::Value = response.json().await.expect("Failed to parse JSON");
 
     // Verify response
     assert_eq!(json["can_close"], false);
     assert!(!json["validation_report"]["issues"]
         .as_array()
-        .unwrap()
+        .expect("issues should be array")
         .is_empty());
 
     // Verify has PERIOD_ALREADY_CLOSED error
-    let issues = json["validation_report"]["issues"].as_array().unwrap();
+    let issues = json["validation_report"]["issues"].as_array().expect("issues should be array");
     let has_already_closed = issues
         .iter()
         .any(|issue| issue["code"] == "PERIOD_ALREADY_CLOSED");
@@ -138,21 +192,22 @@ async fn test_http_validate_close_already_closed() {
 #[serial]
 async fn test_http_close_period_success() {
     let pool = get_test_pool().await;
-    let tenant_id = "tenant_http_close_success";
+    let tenant_id = Uuid::new_v4().to_string();
 
-    cleanup_test_tenant(&pool, tenant_id).await;
+    cleanup_test_tenant(&pool, &tenant_id).await;
 
     // Create open period
     let period_id = setup_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2025, 3, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2025, 3, 31).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2025, 3, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2025, 3, 31).expect("valid date"),
     )
     .await;
 
-    // HTTP POST to close
-    let client = http_client().await;
+    // HTTP POST to close with JWT auth
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
     let url = format!("{}/api/gl/periods/{}/close", BASE_URL, period_id);
     let body = json!({
         "tenant_id": tenant_id,
@@ -160,13 +215,13 @@ async fn test_http_close_period_success() {
         "close_reason": "HTTP E2E test close"
     });
 
-    let response = client.post(&url).json(&body).send().await.unwrap();
+    let response = client.post(&url).json(&body).send().await.expect("Failed to make request");
 
     // Should return 200 OK
     assert_eq!(response.status(), StatusCode::OK);
 
     // Parse response
-    let json: serde_json::Value = response.json().await.unwrap();
+    let json: serde_json::Value = response.json().await.expect("Failed to parse JSON");
 
     // Verify response
     assert_eq!(json["success"], true);
@@ -179,7 +234,7 @@ async fn test_http_close_period_success() {
     assert_eq!(close_status["closed_by"], "http_test_user");
     assert_eq!(close_status["close_reason"], "HTTP E2E test close");
     assert!(close_status["close_hash"].is_string());
-    assert_eq!(close_status["close_hash"].as_str().unwrap().len(), 64); // SHA-256 hex
+    assert_eq!(close_status["close_hash"].as_str().expect("hash is string").len(), 64); // SHA-256 hex
 
     // Verify period is actually closed in database
     let closed_at = sqlx::query_scalar::<_, Option<chrono::DateTime<chrono::Utc>>>(
@@ -188,7 +243,7 @@ async fn test_http_close_period_success() {
     .bind(period_id)
     .fetch_one(&pool)
     .await
-    .unwrap();
+    .expect("Failed to query closed_at");
 
     assert!(closed_at.is_some());
 }
@@ -198,20 +253,21 @@ async fn test_http_close_period_success() {
 #[serial]
 async fn test_http_close_period_idempotent() {
     let pool = get_test_pool().await;
-    let tenant_id = "tenant_http_close_idem";
+    let tenant_id = Uuid::new_v4().to_string();
 
-    cleanup_test_tenant(&pool, tenant_id).await;
+    cleanup_test_tenant(&pool, &tenant_id).await;
 
     // Create open period
     let period_id = setup_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2025, 4, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2025, 4, 30).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2025, 4, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2025, 4, 30).expect("valid date"),
     )
     .await;
 
-    let client = http_client().await;
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
     let url = format!("{}/api/gl/periods/{}/close", BASE_URL, period_id);
     let body = json!({
         "tenant_id": tenant_id,
@@ -220,13 +276,13 @@ async fn test_http_close_period_idempotent() {
     });
 
     // First close
-    let response1 = client.post(&url).json(&body).send().await.unwrap();
+    let response1 = client.post(&url).json(&body).send().await.expect("Failed to make request");
 
     assert_eq!(response1.status(), StatusCode::OK);
-    let json1: serde_json::Value = response1.json().await.unwrap();
+    let json1: serde_json::Value = response1.json().await.expect("Failed to parse JSON");
     assert_eq!(json1["success"], true);
 
-    let hash1 = json1["close_status"]["close_hash"].as_str().unwrap();
+    let hash1 = json1["close_status"]["close_hash"].as_str().expect("hash is string");
 
     // Second close (different user, different reason - should be ignored)
     let body2 = json!({
@@ -235,13 +291,13 @@ async fn test_http_close_period_idempotent() {
         "close_reason": "Second close"
     });
 
-    let response2 = client.post(&url).json(&body2).send().await.unwrap();
+    let response2 = client.post(&url).json(&body2).send().await.expect("Failed to make request");
 
     assert_eq!(response2.status(), StatusCode::OK);
-    let json2: serde_json::Value = response2.json().await.unwrap();
+    let json2: serde_json::Value = response2.json().await.expect("Failed to parse JSON");
     assert_eq!(json2["success"], true);
 
-    let hash2 = json2["close_status"]["close_hash"].as_str().unwrap();
+    let hash2 = json2["close_status"]["close_hash"].as_str().expect("hash is string");
 
     // Verify idempotency
     assert_eq!(hash1, hash2);
@@ -254,26 +310,26 @@ async fn test_http_close_period_idempotent() {
 #[serial]
 async fn test_http_close_period_validation_failure() {
     let pool = get_test_pool().await;
-    let tenant_id = "tenant_http_close_unbalanced";
+    let tenant_id = Uuid::new_v4().to_string();
 
-    cleanup_test_tenant(&pool, tenant_id).await;
+    cleanup_test_tenant(&pool, &tenant_id).await;
 
     // Create period
     let period_id = setup_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2025, 5, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2025, 5, 31).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2025, 5, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2025, 5, 31).expect("valid date"),
     )
     .await;
 
     // Create account
-    setup_test_account(&pool, tenant_id, "1000", "Cash", "asset", "debit").await;
+    setup_test_account(&pool, &tenant_id, "1000", "Cash", "asset", "debit").await;
 
     // Create unbalanced journal entry
     let entry_id = Uuid::new_v4();
-    let entry_date = NaiveDate::from_ymd_opt(2025, 5, 15).unwrap();
-    let posted_at = entry_date.and_hms_opt(12, 0, 0).unwrap().and_utc();
+    let entry_date = NaiveDate::from_ymd_opt(2025, 5, 15).expect("valid date");
+    let posted_at = entry_date.and_hms_opt(12, 0, 0).expect("valid time").and_utc();
 
     sqlx::query(
         r#"
@@ -282,11 +338,11 @@ async fn test_http_close_period_validation_failure() {
         "#,
     )
     .bind(entry_id)
-    .bind(tenant_id)
+    .bind(&tenant_id)
     .bind(posted_at)
     .execute(&pool)
     .await
-    .unwrap();
+    .expect("Failed to insert journal entry");
 
     sqlx::query(
         r#"
@@ -297,23 +353,24 @@ async fn test_http_close_period_validation_failure() {
     .bind(entry_id)
     .execute(&pool)
     .await
-    .unwrap();
+    .expect("Failed to insert journal line");
 
     // HTTP POST to close - should fail validation
-    let client = http_client().await;
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
     let url = format!("{}/api/gl/periods/{}/close", BASE_URL, period_id);
     let body = json!({
         "tenant_id": tenant_id,
         "closed_by": "admin"
     });
 
-    let response = client.post(&url).json(&body).send().await.unwrap();
+    let response = client.post(&url).json(&body).send().await.expect("Failed to make request");
 
     // Should return 200 OK (but success=false)
     assert_eq!(response.status(), StatusCode::OK);
 
     // Parse response
-    let json: serde_json::Value = response.json().await.unwrap();
+    let json: serde_json::Value = response.json().await.expect("Failed to parse JSON");
 
     // Verify failure
     assert_eq!(json["success"], false);
@@ -321,7 +378,7 @@ async fn test_http_close_period_validation_failure() {
     assert!(json["validation_report"].is_object());
 
     // Verify has UNBALANCED_ENTRIES error
-    let issues = json["validation_report"]["issues"].as_array().unwrap();
+    let issues = json["validation_report"]["issues"].as_array().expect("issues should be array");
     let has_unbalanced = issues
         .iter()
         .any(|issue| issue["code"] == "UNBALANCED_ENTRIES");
@@ -334,7 +391,7 @@ async fn test_http_close_period_validation_failure() {
     .bind(period_id)
     .fetch_one(&pool)
     .await
-    .unwrap();
+    .expect("Failed to query closed_at");
 
     assert!(closed_at.is_none());
 }
@@ -348,37 +405,38 @@ async fn test_http_close_period_validation_failure() {
 #[serial]
 async fn test_http_close_status_open() {
     let pool = get_test_pool().await;
-    let tenant_id = "tenant_http_status_open";
+    let tenant_id = Uuid::new_v4().to_string();
 
-    cleanup_test_tenant(&pool, tenant_id).await;
+    cleanup_test_tenant(&pool, &tenant_id).await;
 
     // Create open period
     let period_id = setup_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2025, 6, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2025, 6, 30).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2025, 6, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2025, 6, 30).expect("valid date"),
     )
     .await;
 
-    // HTTP GET close-status
-    let client = http_client().await;
+    // HTTP GET close-status with JWT auth
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
     let url = format!(
         "{}/api/gl/periods/{}/close-status?tenant_id={}",
         BASE_URL, period_id, tenant_id
     );
 
-    let response = client.get(&url).send().await.unwrap();
+    let response = client.get(&url).send().await.expect("Failed to make request");
 
     // Should return 200 OK
     assert_eq!(response.status(), StatusCode::OK);
 
     // Parse response
-    let json: serde_json::Value = response.json().await.unwrap();
+    let json: serde_json::Value = response.json().await.expect("Failed to parse JSON");
 
     // Verify response
     assert_eq!(json["period_id"], period_id.to_string());
-    assert_eq!(json["tenant_id"], tenant_id);
+    assert_eq!(json["tenant_id"], tenant_id.as_str());
     assert_eq!(json["period_start"], "2025-06-01");
     assert_eq!(json["period_end"], "2025-06-30");
     assert_eq!(json["close_status"]["state"], "OPEN");
@@ -389,21 +447,22 @@ async fn test_http_close_status_open() {
 #[serial]
 async fn test_http_close_status_closed_with_hash() {
     let pool = get_test_pool().await;
-    let tenant_id = "tenant_http_status_closed";
+    let tenant_id = Uuid::new_v4().to_string();
 
-    cleanup_test_tenant(&pool, tenant_id).await;
+    cleanup_test_tenant(&pool, &tenant_id).await;
 
     // Create period
     let period_id = setup_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2025, 7, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2025, 7, 31).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2025, 7, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2025, 7, 31).expect("valid date"),
     )
     .await;
 
-    // Close the period via HTTP
-    let client = http_client().await;
+    // Close the period via HTTP with JWT auth
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
     let close_url = format!("{}/api/gl/periods/{}/close", BASE_URL, period_id);
     let close_body = json!({
         "tenant_id": tenant_id,
@@ -416,12 +475,12 @@ async fn test_http_close_status_closed_with_hash() {
         .json(&close_body)
         .send()
         .await
-        .unwrap();
+        .expect("Failed to make close request");
 
     assert_eq!(close_response.status(), StatusCode::OK);
 
-    let close_json: serde_json::Value = close_response.json().await.unwrap();
-    let expected_hash = close_json["close_status"]["close_hash"].as_str().unwrap();
+    let close_json: serde_json::Value = close_response.json().await.expect("Failed to parse JSON");
+    let expected_hash = close_json["close_status"]["close_hash"].as_str().expect("hash is string");
 
     // Now query close-status
     let status_url = format!(
@@ -429,12 +488,12 @@ async fn test_http_close_status_closed_with_hash() {
         BASE_URL, period_id, tenant_id
     );
 
-    let status_response = client.get(&status_url).send().await.unwrap();
+    let status_response = client.get(&status_url).send().await.expect("Failed to make request");
 
     assert_eq!(status_response.status(), StatusCode::OK);
 
     // Parse status response
-    let status_json: serde_json::Value = status_response.json().await.unwrap();
+    let status_json: serde_json::Value = status_response.json().await.expect("Failed to parse JSON");
 
     // Verify CLOSED state with hash
     assert_eq!(status_json["close_status"]["state"], "CLOSED");
@@ -448,25 +507,26 @@ async fn test_http_close_status_closed_with_hash() {
 #[tokio::test]
 #[serial]
 async fn test_http_close_status_not_found() {
-    let tenant_id = "tenant_http_status_notfound";
+    let tenant_id = Uuid::new_v4().to_string();
     let fake_period_id = Uuid::new_v4();
 
-    // HTTP GET close-status for non-existent period
-    let client = http_client().await;
+    // HTTP GET close-status for non-existent period with JWT auth
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
     let url = format!(
         "{}/api/gl/periods/{}/close-status?tenant_id={}",
         BASE_URL, fake_period_id, tenant_id
     );
 
-    let response = client.get(&url).send().await.unwrap();
+    let response = client.get(&url).send().await.expect("Failed to make request");
 
     // Should return 404 NOT_FOUND
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     // Parse error response
-    let json: serde_json::Value = response.json().await.unwrap();
+    let json: serde_json::Value = response.json().await.expect("Failed to parse JSON");
     assert!(json["error"].is_string());
-    assert!(json["error"].as_str().unwrap().contains("not found"));
+    assert!(json["error"].as_str().expect("error is string").contains("not found"));
 }
 
 // ============================================================
@@ -478,20 +538,21 @@ async fn test_http_close_status_not_found() {
 #[serial]
 async fn test_http_period_close_performance_guard() {
     let pool = get_test_pool().await;
-    let tenant_id = "tenant_http_perf";
+    let tenant_id = Uuid::new_v4().to_string();
 
-    cleanup_test_tenant(&pool, tenant_id).await;
+    cleanup_test_tenant(&pool, &tenant_id).await;
 
     // Create open period
     let period_id = setup_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2025, 8, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2025, 8, 31).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2025, 8, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2025, 8, 31).expect("valid date"),
     )
     .await;
 
-    let client = http_client().await;
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
 
     // Test validate-close performance
     let start = std::time::Instant::now();
@@ -503,7 +564,7 @@ async fn test_http_period_close_performance_guard() {
         .json(&validate_body)
         .send()
         .await
-        .unwrap();
+        .expect("Failed to make request");
 
     let validate_duration = start.elapsed();
     assert!(
@@ -525,7 +586,7 @@ async fn test_http_period_close_performance_guard() {
         .json(&close_body)
         .send()
         .await
-        .unwrap();
+        .expect("Failed to make request");
 
     let close_duration = start.elapsed();
     assert!(
@@ -541,7 +602,7 @@ async fn test_http_period_close_performance_guard() {
         BASE_URL, period_id, tenant_id
     );
 
-    client.get(&status_url).send().await.unwrap();
+    client.get(&status_url).send().await.expect("Failed to make request");
 
     let status_duration = start.elapsed();
     assert!(
