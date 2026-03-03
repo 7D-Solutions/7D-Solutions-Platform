@@ -440,6 +440,7 @@ async fn sms_outbox_event_has_correct_fields() {
 
     // Fetch outbox row for this notification
     #[derive(sqlx::FromRow)]
+    #[allow(dead_code)]
     struct OutboxRow {
         tenant_id: String,
         event_type: Option<String>,
@@ -467,11 +468,14 @@ async fn sms_outbox_event_has_correct_fields() {
         Some("notifications.delivery.succeeded")
     );
 
-    // Payload contains notification_id and channel
-    let payload_notif_id = row.payload.get("notification_id").and_then(|v| v.as_str());
+    // The outbox stores the full EventEnvelope; the inner payload is at .payload
+    let inner = row.payload.get("payload").expect("envelope should have .payload");
+
+    // Payload contains notification_id
+    let payload_notif_id = inner.get("notification_id").and_then(|v| v.as_str());
     assert_eq!(payload_notif_id, Some(id.to_string()).as_deref());
 
     // Payload contains attempt_status
-    let attempt_status = row.payload.get("attempt_status").and_then(|v| v.as_str());
+    let attempt_status = inner.get("attempt_status").and_then(|v| v.as_str());
     assert_eq!(attempt_status, Some("succeeded"));
 }
