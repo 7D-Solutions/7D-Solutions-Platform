@@ -17,6 +17,7 @@ Operational runbooks for the 7D Solutions Platform.
 | [key_rotation.md](key_rotation.md) | Zero-downtime JWT key and webhook secret rotation with overlap window |
 | [billing_verification.md](billing_verification.md) | Production billing/payment verification cycle and idempotency proof (Tilled test mode) |
 | [tenant_onboarding.md](tenant_onboarding.md) | Recommended onboarding path via TCP UI wizard; recovery steps for partial tenant states |
+| [ci_proof_runbook.md](ci_proof_runbook.md) | CI proof runbook: retrieving artifacts, interpreting summary, gate criteria |
 
 ## Runbook Structure
 

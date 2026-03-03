@@ -1,0 +1,151 @@
+# proof-runbook.yml — CI Proof Runbook (Phase 65)
+#
+# Continuously enforces the same evidence bar that approved Phases 58-64.
+# Runs the proof runbook on every merge to main and on a nightly schedule.
+#
+# Artifacts:
+#   Uploaded as "proof-runbook-<run_ts>" with 90-day retention.
+#   Contains: proofs/<run_ts>/summary.txt, per-crate test output, contract
+#   test output, and NATS health check output.
+#
+# Retrieving artifacts:
+#   1. Go to Actions → "Proof Runbook" → select a run
+#   2. Scroll to "Artifacts" at the bottom of the run page
+#   3. Download "proof-runbook-<timestamp>" zip
+#   4. Inside: summary.txt has the machine-readable gate results
+#
+# Interpreting summary.txt:
+#   - crates_fail=0 means all workspace crate tests passed
+#   - platform_contracts_exit_code=0 means contract tests passed
+#   - nats_exit_code=0 means NATS health check passed
+#   - Any non-zero value means that gate failed (pipeline also fails)
+#
+# To run locally:
+#   bash scripts/ci/proof-runbook-ci.sh
+#
+name: Proof Runbook
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Nightly at 3 AM UTC (after other nightly jobs at 2 AM)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  proof-runbook:
+    name: Proof Runbook (all crates + contracts + NATS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: proof_user
+          POSTGRES_PASSWORD: proof_pass
+          POSTGRES_DB: proof_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U proof_user -d proof_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      nats:
+        image: nats:2.10
+        ports:
+          - 4222:4222
+          - 8222:8222
+        # Enable JetStream + monitoring
+        options: >-
+          --name nats-proof
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-proof-runbook-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-proof-runbook-
+            ${{ runner.os }}-cargo-
+
+      - name: Create per-crate databases
+        env:
+          PGHOST: localhost
+          PGPORT: 5432
+          PGUSER: proof_user
+          PGPASSWORD: proof_pass
+        run: |
+          for db in gl_db inventory_db shipping_receiving_db fixed_assets_db \
+                    subscriptions_db auth_db treasury_db audit_db \
+                    projections_db tenant_registry_db ar_db payments_db \
+                    notifications_db; do
+            psql -d proof_db -c "CREATE DATABASE ${db};" 2>/dev/null || true
+            echo "✓ ${db}"
+          done
+
+      - name: Run proof runbook
+        id: runbook
+        env:
+          DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/proof_db
+          GL_DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/gl_db
+          INVENTORY_DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/inventory_db
+          SHIPPING_RECEIVING_DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/shipping_receiving_db
+          FIXED_ASSETS_DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/fixed_assets_db
+          SUBSCRIPTIONS_DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/subscriptions_db
+          AUTH_DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/auth_db
+          TREASURY_DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/treasury_db
+          AUDIT_DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/audit_db
+          PROJECTIONS_DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/projections_db
+          TENANT_REGISTRY_DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/tenant_registry_db
+          AR_DATABASE_URL: postgres://proof_user:proof_pass@localhost:5432/ar_db
+          NATS_URL: nats://localhost:4222
+          NATS_MONITOR_URL: http://localhost:8222
+          RUST_LOG: info
+          PROOFS_OUTPUT_DIR: ${{ github.workspace }}/proofs
+        run: |
+          chmod +x scripts/ci/proof-runbook-ci.sh
+          bash scripts/ci/proof-runbook-ci.sh
+
+      - name: Upload proof artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proof-runbook-${{ steps.runbook.outputs.run_ts || 'unknown' }}
+          path: proofs/
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Job summary
+        if: always()
+        run: |
+          echo "## Proof Runbook Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Trigger:** ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Find the summary.txt from the latest run
+          SUMMARY=$(find proofs/ -name summary.txt -type f 2>/dev/null | head -1)
+          if [[ -n "$SUMMARY" ]]; then
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat "$SUMMARY" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+          else
+            echo "No summary.txt found — runbook may have failed early." >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Download proof artifacts from the Artifacts section below." >> $GITHUB_STEP_SUMMARY
