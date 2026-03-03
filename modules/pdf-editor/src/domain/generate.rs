@@ -2,6 +2,7 @@
 //!
 //! Overlays field values from a submitted form onto a PDF template at
 //! the coordinates defined by each field's `pdf_position` JSONB.
+//! Also supports branding image injection at header, footer, and inline positions.
 //!
 //! pdf_position format: { "x": f32, "y": f32, "page": u32, "font_size": f32 }
 //! Coordinates use a top-left origin matching the frontend; we convert
@@ -38,6 +39,34 @@ pub enum GenerateError {
     Pdfium(#[from] PdfiumError),
     #[error("Invalid page number {0}: document has {1} pages")]
     InvalidPage(u32, u32),
+    #[error("Image decode error: {0}")]
+    ImageDecode(String),
+}
+
+// ============================================================================
+// Image injection types
+// ============================================================================
+
+/// Where in the PDF to place a branding image.
+#[derive(Debug, Clone, Deserialize)]
+pub struct ImageInjectionPoint {
+    /// X coordinate (top-left origin, PDF points).
+    pub x: f32,
+    /// Y coordinate (top-left origin, PDF points).
+    pub y: f32,
+    /// Desired render width in PDF points.
+    pub width: f32,
+    /// 1-based page number (defaults to 1).
+    pub page: Option<u32>,
+    /// Placement type: "header_logo", "footer_branding", or "inline".
+    pub placement: String,
+}
+
+/// An image to inject, with its raw bytes and target position.
+pub struct ImageInjection {
+    pub image_data: Vec<u8>,
+    pub image_format: String,
+    pub injection_point: ImageInjectionPoint,
 }
 
 /// Validate that bytes look like a PDF.
@@ -127,6 +156,63 @@ pub fn generate_filled_pdf(
             )?;
 
             obj.set_fill_color(PdfColor::new(0, 0, 0, 255))?;
+        }
+    }
+
+    Ok(document.save_to_bytes()?)
+}
+
+/// Inject branding images into a PDF at specified injection points.
+///
+/// Each injection specifies position, size, and the raw image bytes.
+/// Returns the modified PDF bytes with images overlaid.
+pub fn inject_images(
+    pdf_bytes: &[u8],
+    injections: &[ImageInjection],
+) -> Result<Vec<u8>, GenerateError> {
+    if injections.is_empty() {
+        return Ok(pdf_bytes.to_vec());
+    }
+    validate_pdf(pdf_bytes)?;
+
+    let pdfium = create_pdfium()?;
+    let mut document = pdfium.load_pdf_from_byte_slice(pdf_bytes, None)?;
+    let page_count = document.pages().len() as u32;
+
+    // Group injections by page
+    let mut by_page: std::collections::HashMap<u32, Vec<&ImageInjection>> =
+        std::collections::HashMap::new();
+    for inj in injections {
+        let page_num = inj.injection_point.page.unwrap_or(1);
+        if page_num < 1 || page_num > page_count {
+            return Err(GenerateError::InvalidPage(page_num, page_count));
+        }
+        by_page.entry(page_num).or_default().push(inj);
+    }
+
+    for (page_num, page_injections) in &by_page {
+        let page_index = (*page_num - 1) as u16;
+        let mut page = document.pages_mut().get(page_index)?;
+        let page_height = page.height().value;
+
+        for inj in page_injections {
+            let dyn_image = image::load_from_memory(&inj.image_data)
+                .map_err(|e| GenerateError::ImageDecode(e.to_string()))?;
+
+            let w = inj.injection_point.width;
+            let aspect = dyn_image.height() as f32 / dyn_image.width() as f32;
+            let h = w * aspect;
+
+            // Convert top-left origin → bottom-left origin
+            let pdf_y = page_height - inj.injection_point.y - h;
+
+            page.objects_mut().create_image_object(
+                PdfPoints::new(inj.injection_point.x),
+                PdfPoints::new(pdf_y),
+                &dyn_image,
+                Some(PdfPoints::new(w)),
+                None,
+            )?;
         }
     }
 
