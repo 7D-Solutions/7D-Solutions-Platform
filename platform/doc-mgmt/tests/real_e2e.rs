@@ -1682,3 +1682,587 @@ async fn disposal_of_superseded_document_with_hold_lifecycle() {
             .expect("status");
     assert_eq!(status, "disposed");
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// DOC-EVENTS — Outbox envelope completeness for all lifecycle events
+// ══════════════════════════════════════════════════════════════════════
+
+/// Validate that an outbox payload contains all required EventEnvelope fields.
+/// Returns the parsed payload for further inspection.
+fn assert_envelope_complete(payload: &serde_json::Value, expected_event_type: &str) {
+    // Required string fields
+    assert!(
+        payload["event_id"].is_string() && !payload["event_id"].as_str().unwrap().is_empty(),
+        "event_id must be a non-empty string, got: {:?}",
+        payload["event_id"]
+    );
+    assert_eq!(
+        payload["event_type"].as_str().unwrap(),
+        expected_event_type,
+        "event_type mismatch"
+    );
+    assert!(
+        payload["occurred_at"].is_string() && !payload["occurred_at"].as_str().unwrap().is_empty(),
+        "occurred_at must be a non-empty string"
+    );
+    assert!(
+        payload["tenant_id"].is_string() && !payload["tenant_id"].as_str().unwrap().is_empty(),
+        "tenant_id must be a non-empty string"
+    );
+    assert_eq!(
+        payload["source_module"].as_str().unwrap(),
+        "doc_mgmt",
+        "source_module must be doc_mgmt"
+    );
+    assert!(
+        payload["source_version"].is_string()
+            && !payload["source_version"].as_str().unwrap().is_empty(),
+        "source_version must be a non-empty string"
+    );
+    assert!(
+        payload["schema_version"].is_string()
+            && !payload["schema_version"].as_str().unwrap().is_empty(),
+        "schema_version must be a non-empty string"
+    );
+    assert!(
+        payload["replay_safe"].is_boolean(),
+        "replay_safe must be a boolean"
+    );
+    assert!(
+        payload["mutation_class"].is_string()
+            && !payload["mutation_class"].as_str().unwrap().is_empty(),
+        "mutation_class must be a non-empty string"
+    );
+    assert!(
+        payload["actor_id"].is_string() && !payload["actor_id"].as_str().unwrap().is_empty(),
+        "actor_id must be a non-empty string"
+    );
+    assert!(
+        payload["actor_type"].is_string() && !payload["actor_type"].as_str().unwrap().is_empty(),
+        "actor_type must be a non-empty string"
+    );
+    assert!(
+        payload["payload"].is_object(),
+        "payload must be an object"
+    );
+}
+
+/// Helper: write an envelope-complete outbox event the same way the handler does,
+/// returning the outbox row id for later verification.
+async fn write_envelope_to_outbox<T: serde::Serialize>(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    event_type: &str,
+    envelope: &event_bus::EventEnvelope<T>,
+) -> i64 {
+    let event_payload = event_bus::outbox::validate_and_serialize_envelope(envelope)
+        .expect("envelope must validate");
+    let subject = platform_contracts::event_naming::nats_subject("doc_mgmt", event_type);
+
+    let row_id: i64 = sqlx::query_scalar(
+        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3) RETURNING id",
+    )
+    .bind(event_type)
+    .bind(&subject)
+    .bind(&event_payload)
+    .fetch_one(&mut **tx)
+    .await
+    .expect("insert outbox");
+
+    row_id
+}
+
+/// Fetch the outbox payload by row id.
+async fn fetch_outbox_payload(pool: &PgPool, row_id: i64) -> serde_json::Value {
+    sqlx::query_scalar("SELECT payload FROM doc_outbox WHERE id = $1")
+        .bind(row_id)
+        .fetch_one(pool)
+        .await
+        .expect("fetch outbox payload")
+}
+
+// ── document.created envelope ────────────────────────────────────────
+
+#[tokio::test]
+async fn event_envelope_document_created_complete() {
+    use event_bus::EventEnvelope;
+    use platform_contracts::mutation_classes;
+
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+    let doc_id = Uuid::new_v4();
+
+    let envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "document.created".to_string(),
+        doc_mgmt::models::DocumentCreatedPayload {
+            document_id: doc_id,
+            doc_number: "EVT-DC-001".to_string(),
+            title: "Envelope Test".to_string(),
+            doc_type: "spec".to_string(),
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
+    .with_actor(actor_id, "User".to_string());
+
+    let mut tx = pool.begin().await.expect("begin tx");
+    let row_id = write_envelope_to_outbox(&mut tx, "document.created", &envelope).await;
+    tx.commit().await.expect("commit");
+
+    let payload = fetch_outbox_payload(&pool, row_id).await;
+    assert_envelope_complete(&payload, "document.created");
+
+    // Verify inner payload
+    let inner = &payload["payload"];
+    assert_eq!(inner["document_id"], doc_id.to_string());
+    assert_eq!(inner["doc_number"], "EVT-DC-001");
+    assert_eq!(inner["title"], "Envelope Test");
+    assert_eq!(inner["doc_type"], "spec");
+
+    // Verify NATS subject format
+    let subject: String =
+        sqlx::query_scalar("SELECT subject FROM doc_outbox WHERE id = $1")
+            .bind(row_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch subject");
+    assert_eq!(subject, "doc_mgmt.events.document.created");
+}
+
+// ── revision.created envelope ────────────────────────────────────────
+
+#[tokio::test]
+async fn event_envelope_revision_created_complete() {
+    use event_bus::EventEnvelope;
+    use platform_contracts::mutation_classes;
+
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+    let doc_id = Uuid::new_v4();
+    let rev_id = Uuid::new_v4();
+
+    let envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "revision.created".to_string(),
+        doc_mgmt::models::RevisionCreatedPayload {
+            document_id: doc_id,
+            revision_id: rev_id,
+            revision_number: 2,
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::DATA_MUTATION.to_string()))
+    .with_actor(actor_id, "User".to_string());
+
+    let mut tx = pool.begin().await.expect("begin tx");
+    let row_id = write_envelope_to_outbox(&mut tx, "revision.created", &envelope).await;
+    tx.commit().await.expect("commit");
+
+    let payload = fetch_outbox_payload(&pool, row_id).await;
+    assert_envelope_complete(&payload, "revision.created");
+    assert_eq!(payload["mutation_class"], "DATA_MUTATION");
+
+    let inner = &payload["payload"];
+    assert_eq!(inner["document_id"], doc_id.to_string());
+    assert_eq!(inner["revision_id"], rev_id.to_string());
+    assert_eq!(inner["revision_number"], 2);
+
+    let subject: String =
+        sqlx::query_scalar("SELECT subject FROM doc_outbox WHERE id = $1")
+            .bind(row_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch subject");
+    assert_eq!(subject, "doc_mgmt.events.revision.created");
+}
+
+// ── document.released envelope ───────────────────────────────────────
+
+#[tokio::test]
+async fn event_envelope_document_released_complete() {
+    use event_bus::EventEnvelope;
+    use platform_contracts::mutation_classes;
+
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+    let doc_id = Uuid::new_v4();
+
+    let envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "document.released".to_string(),
+        doc_mgmt::models::DocumentReleasedPayload {
+            document_id: doc_id,
+            doc_number: "EVT-REL-001".to_string(),
+            revision_number: 3,
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
+    .with_actor(actor_id, "User".to_string());
+
+    let mut tx = pool.begin().await.expect("begin tx");
+    let row_id = write_envelope_to_outbox(&mut tx, "document.released", &envelope).await;
+    tx.commit().await.expect("commit");
+
+    let payload = fetch_outbox_payload(&pool, row_id).await;
+    assert_envelope_complete(&payload, "document.released");
+    assert_eq!(payload["mutation_class"], "LIFECYCLE");
+
+    let inner = &payload["payload"];
+    assert_eq!(inner["document_id"], doc_id.to_string());
+    assert_eq!(inner["doc_number"], "EVT-REL-001");
+    assert_eq!(inner["revision_number"], 3);
+
+    let subject: String =
+        sqlx::query_scalar("SELECT subject FROM doc_outbox WHERE id = $1")
+            .bind(row_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch subject");
+    assert_eq!(subject, "doc_mgmt.events.document.released");
+}
+
+// ── document.superseded envelope ─────────────────────────────────────
+
+#[tokio::test]
+async fn event_envelope_document_superseded_complete() {
+    use event_bus::EventEnvelope;
+    use platform_contracts::mutation_classes;
+
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+    let old_doc_id = Uuid::new_v4();
+    let new_doc_id = Uuid::new_v4();
+
+    let envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "document.superseded".to_string(),
+        doc_mgmt::models::DocumentSupersededPayload {
+            old_document_id: old_doc_id,
+            new_document_id: new_doc_id,
+            new_doc_number: "EVT-SS-002".to_string(),
+            old_doc_number: "EVT-SS-001".to_string(),
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
+    .with_actor(actor_id, "User".to_string());
+
+    let mut tx = pool.begin().await.expect("begin tx");
+    let row_id = write_envelope_to_outbox(&mut tx, "document.superseded", &envelope).await;
+    tx.commit().await.expect("commit");
+
+    let payload = fetch_outbox_payload(&pool, row_id).await;
+    assert_envelope_complete(&payload, "document.superseded");
+
+    let inner = &payload["payload"];
+    assert_eq!(inner["old_document_id"], old_doc_id.to_string());
+    assert_eq!(inner["new_document_id"], new_doc_id.to_string());
+    assert_eq!(inner["new_doc_number"], "EVT-SS-002");
+    assert_eq!(inner["old_doc_number"], "EVT-SS-001");
+}
+
+// ── legal_hold.applied envelope ──────────────────────────────────────
+
+#[tokio::test]
+async fn event_envelope_legal_hold_applied_complete() {
+    use event_bus::EventEnvelope;
+    use platform_contracts::mutation_classes;
+
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+    let doc_id = Uuid::new_v4();
+    let hold_id = Uuid::new_v4();
+
+    let envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "legal_hold.applied".to_string(),
+        doc_mgmt::models::LegalHoldAppliedPayload {
+            document_id: doc_id,
+            hold_id,
+            reason: "Regulatory investigation".to_string(),
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
+    .with_actor(actor_id, "User".to_string());
+
+    let mut tx = pool.begin().await.expect("begin tx");
+    let row_id = write_envelope_to_outbox(&mut tx, "legal_hold.applied", &envelope).await;
+    tx.commit().await.expect("commit");
+
+    let payload = fetch_outbox_payload(&pool, row_id).await;
+    assert_envelope_complete(&payload, "legal_hold.applied");
+
+    let inner = &payload["payload"];
+    assert_eq!(inner["document_id"], doc_id.to_string());
+    assert_eq!(inner["hold_id"], hold_id.to_string());
+    assert_eq!(inner["reason"], "Regulatory investigation");
+}
+
+// ── legal_hold.released envelope ─────────────────────────────────────
+
+#[tokio::test]
+async fn event_envelope_legal_hold_released_complete() {
+    use event_bus::EventEnvelope;
+    use platform_contracts::mutation_classes;
+
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+    let doc_id = Uuid::new_v4();
+    let hold_id = Uuid::new_v4();
+
+    let envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "legal_hold.released".to_string(),
+        doc_mgmt::models::LegalHoldReleasedPayload {
+            document_id: doc_id,
+            hold_id,
+            reason: "Investigation concluded".to_string(),
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
+    .with_actor(actor_id, "User".to_string());
+
+    let mut tx = pool.begin().await.expect("begin tx");
+    let row_id = write_envelope_to_outbox(&mut tx, "legal_hold.released", &envelope).await;
+    tx.commit().await.expect("commit");
+
+    let payload = fetch_outbox_payload(&pool, row_id).await;
+    assert_envelope_complete(&payload, "legal_hold.released");
+
+    let inner = &payload["payload"];
+    assert_eq!(inner["document_id"], doc_id.to_string());
+    assert_eq!(inner["hold_id"], hold_id.to_string());
+    assert_eq!(inner["reason"], "Investigation concluded");
+}
+
+// ── document.disposed envelope ───────────────────────────────────────
+
+#[tokio::test]
+async fn event_envelope_document_disposed_complete() {
+    use event_bus::EventEnvelope;
+    use platform_contracts::mutation_classes;
+
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+    let doc_id = Uuid::new_v4();
+
+    let envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "document.disposed".to_string(),
+        doc_mgmt::models::DocumentDisposedPayload {
+            document_id: doc_id,
+            doc_number: "EVT-DISP-001".to_string(),
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
+    .with_actor(actor_id, "User".to_string());
+
+    let mut tx = pool.begin().await.expect("begin tx");
+    let row_id = write_envelope_to_outbox(&mut tx, "document.disposed", &envelope).await;
+    tx.commit().await.expect("commit");
+
+    let payload = fetch_outbox_payload(&pool, row_id).await;
+    assert_envelope_complete(&payload, "document.disposed");
+
+    let inner = &payload["payload"];
+    assert_eq!(inner["document_id"], doc_id.to_string());
+    assert_eq!(inner["doc_number"], "EVT-DISP-001");
+}
+
+// ── Replay safety: event_id uniqueness across outbox rows ────────────
+
+#[tokio::test]
+async fn outbox_event_ids_are_unique_across_events() {
+    use event_bus::EventEnvelope;
+    use platform_contracts::mutation_classes;
+
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+
+    // Create two different events
+    let envelope1 = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "document.created".to_string(),
+        doc_mgmt::models::DocumentCreatedPayload {
+            document_id: Uuid::new_v4(),
+            doc_number: "DEDUP-001".to_string(),
+            title: "First".to_string(),
+            doc_type: "spec".to_string(),
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
+    .with_actor(actor_id, "User".to_string());
+
+    let envelope2 = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "document.created".to_string(),
+        doc_mgmt::models::DocumentCreatedPayload {
+            document_id: Uuid::new_v4(),
+            doc_number: "DEDUP-002".to_string(),
+            title: "Second".to_string(),
+            doc_type: "spec".to_string(),
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
+    .with_actor(actor_id, "User".to_string());
+
+    let mut tx = pool.begin().await.expect("begin tx");
+    let row1 = write_envelope_to_outbox(&mut tx, "document.created", &envelope1).await;
+    let row2 = write_envelope_to_outbox(&mut tx, "document.created", &envelope2).await;
+    tx.commit().await.expect("commit");
+
+    let payload1 = fetch_outbox_payload(&pool, row1).await;
+    let payload2 = fetch_outbox_payload(&pool, row2).await;
+
+    let eid1 = payload1["event_id"].as_str().unwrap();
+    let eid2 = payload2["event_id"].as_str().unwrap();
+
+    assert_ne!(
+        eid1, eid2,
+        "each event must have a unique event_id for consumer dedup"
+    );
+}
+
+// ── Full lifecycle: create → release produces outbox events atomically ──
+
+#[tokio::test]
+async fn full_lifecycle_outbox_events_atomic() {
+    use event_bus::EventEnvelope;
+    use platform_contracts::mutation_classes;
+
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+    let doc_id = Uuid::new_v4();
+    let rev_id = Uuid::new_v4();
+    let now = Utc::now();
+    let doc_number = format!("FULL-LC-{}", Uuid::new_v4());
+
+    // ── Step 1: Create document + outbox (atomic) ─────────────────────
+    let mut tx = pool.begin().await.expect("begin tx");
+
+    sqlx::query(
+        "INSERT INTO documents (id, tenant_id, doc_number, title, doc_type, status, created_by, created_at, updated_at)
+         VALUES ($1, $2, $3, 'Full Lifecycle', 'spec', 'draft', $4, $5, $5)",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(&doc_number)
+    .bind(actor_id)
+    .bind(now)
+    .execute(&mut *tx)
+    .await
+    .expect("insert doc");
+
+    sqlx::query(
+        "INSERT INTO revisions (id, document_id, tenant_id, revision_number, body, change_summary, status, created_by, created_at)
+         VALUES ($1, $2, $3, 1, '{}'::jsonb, 'Initial', 'draft', $4, $5)",
+    )
+    .bind(rev_id)
+    .bind(doc_id)
+    .bind(tenant_id)
+    .bind(actor_id)
+    .bind(now)
+    .execute(&mut *tx)
+    .await
+    .expect("insert revision");
+
+    let create_envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "document.created".to_string(),
+        doc_mgmt::models::DocumentCreatedPayload {
+            document_id: doc_id,
+            doc_number: doc_number.clone(),
+            title: "Full Lifecycle".to_string(),
+            doc_type: "spec".to_string(),
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
+    .with_actor(actor_id, "User".to_string());
+
+    let create_row = write_envelope_to_outbox(&mut tx, "document.created", &create_envelope).await;
+    tx.commit().await.expect("commit create");
+
+    // ── Step 2: Release document + outbox (atomic) ────────────────────
+    let mut tx = pool.begin().await.expect("begin tx");
+
+    sqlx::query(
+        "UPDATE documents SET status = 'released', updated_at = now()
+         WHERE id = $1 AND tenant_id = $2 AND status = 'draft'",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await
+    .expect("release doc");
+
+    sqlx::query(
+        "UPDATE revisions SET status = 'released'
+         WHERE document_id = $1 AND tenant_id = $2 AND status = 'draft'",
+    )
+    .bind(doc_id)
+    .bind(tenant_id)
+    .execute(&mut *tx)
+    .await
+    .expect("release revisions");
+
+    let release_envelope = EventEnvelope::new(
+        tenant_id.to_string(),
+        "doc_mgmt".to_string(),
+        "document.released".to_string(),
+        doc_mgmt::models::DocumentReleasedPayload {
+            document_id: doc_id,
+            doc_number: doc_number.clone(),
+            revision_number: 1,
+        },
+    )
+    .with_mutation_class(Some(mutation_classes::LIFECYCLE.to_string()))
+    .with_actor(actor_id, "User".to_string());
+
+    let release_row =
+        write_envelope_to_outbox(&mut tx, "document.released", &release_envelope).await;
+    tx.commit().await.expect("commit release");
+
+    // ── Verify both outbox events ─────────────────────────────────────
+    let create_payload = fetch_outbox_payload(&pool, create_row).await;
+    assert_envelope_complete(&create_payload, "document.created");
+
+    let release_payload = fetch_outbox_payload(&pool, release_row).await;
+    assert_envelope_complete(&release_payload, "document.released");
+
+    // Verify causality: different event_ids, same tenant
+    assert_ne!(
+        create_payload["event_id"].as_str().unwrap(),
+        release_payload["event_id"].as_str().unwrap()
+    );
+    assert_eq!(
+        create_payload["tenant_id"].as_str().unwrap(),
+        release_payload["tenant_id"].as_str().unwrap()
+    );
+
+    // Both events published_at should be NULL (not yet relayed)
+    let unpublished: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM doc_outbox WHERE id IN ($1, $2) AND published_at IS NULL",
+    )
+    .bind(create_row)
+    .bind(release_row)
+    .fetch_one(&pool)
+    .await
+    .expect("count unpublished");
+    assert_eq!(unpublished, 2, "both events should be pending relay");
+}
