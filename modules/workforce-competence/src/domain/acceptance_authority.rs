@@ -38,7 +38,7 @@ pub struct AcceptanceAuthority {
     pub updated_at: chrono::DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GrantAuthorityRequest {
     pub tenant_id: String,
     pub operator_id: Uuid,
