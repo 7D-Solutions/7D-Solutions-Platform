@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/ap-vendor-created.v1.json",
+  "title": "ap.vendor_created",
+  "description": "Event emitted when a new vendor is registered in the AP module",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "ap",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "vendor_id",
+        "tenant_id",
+        "name",
+        "currency",
+        "payment_terms_days",
+        "created_at"
+      ],
+      "properties": {
+        "vendor_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Stable vendor identifier"
+        },
+        "tenant_id": {
+          "type": "string",
+          "description": "Tenant identifier"
+        },
+        "name": {
+          "type": "string",
+          "description": "Legal name of the vendor"
+        },
+        "tax_id": {
+          "type": ["string", "null"],
+          "description": "Tax identification number (EIN, VAT, etc.)"
+        },
+        "currency": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 3,
+          "pattern": "^[A-Z]{3}$",
+          "description": "ISO 4217 currency code"
+        },
+        "payment_terms_days": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Net payment terms in days"
+        },
+        "payment_method": {
+          "type": ["string", "null"],
+          "description": "Preferred payment method (ach, wire, check)"
+        },
+        "remittance_email": {
+          "type": ["string", "null"],
+          "description": "Remittance email address"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of creation"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

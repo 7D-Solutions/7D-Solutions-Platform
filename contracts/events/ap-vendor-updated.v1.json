@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/ap-vendor-updated.v1.json",
+  "title": "ap.vendor_updated",
+  "description": "Event emitted when a vendor's attributes are updated",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "ap",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "vendor_id",
+        "tenant_id",
+        "updated_by",
+        "updated_at"
+      ],
+      "properties": {
+        "vendor_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Stable vendor identifier"
+        },
+        "tenant_id": {
+          "type": "string",
+          "description": "Tenant identifier"
+        },
+        "name": {
+          "type": ["string", "null"],
+          "description": "Updated legal name (null = unchanged)"
+        },
+        "tax_id": {
+          "type": ["string", "null"],
+          "description": "Updated tax ID (null = unchanged)"
+        },
+        "currency": {
+          "type": ["string", "null"],
+          "description": "Updated currency code (null = unchanged)"
+        },
+        "payment_terms_days": {
+          "type": ["integer", "null"],
+          "description": "Updated payment terms (null = unchanged)"
+        },
+        "payment_method": {
+          "type": ["string", "null"],
+          "description": "Updated payment method (null = unchanged)"
+        },
+        "remittance_email": {
+          "type": ["string", "null"],
+          "description": "Updated remittance email (null = unchanged)"
+        },
+        "updated_by": {
+          "type": "string",
+          "description": "Actor who made the change"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of update"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

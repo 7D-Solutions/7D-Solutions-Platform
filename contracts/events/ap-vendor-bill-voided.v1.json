@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/ap-vendor-bill-voided.v1.json",
+  "title": "ap.vendor_bill_voided",
+  "description": "Compensating event emitted when a vendor bill is voided (reversal)",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "description": "Tenant identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "ap",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "bill_id",
+        "tenant_id",
+        "vendor_id",
+        "vendor_invoice_ref",
+        "original_total_minor",
+        "currency",
+        "void_reason",
+        "voided_by",
+        "voided_at"
+      ],
+      "properties": {
+        "bill_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Vendor bill identifier"
+        },
+        "tenant_id": {
+          "type": "string",
+          "description": "Tenant identifier"
+        },
+        "vendor_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Vendor identifier"
+        },
+        "vendor_invoice_ref": {
+          "type": "string",
+          "description": "Vendor's invoice number (external reference)"
+        },
+        "original_total_minor": {
+          "type": "integer",
+          "description": "Original bill total being reversed (minor currency units)"
+        },
+        "currency": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 3,
+          "pattern": "^[A-Z]{3}$",
+          "description": "ISO 4217 currency code"
+        },
+        "void_reason": {
+          "type": "string",
+          "description": "Reason for voiding the bill"
+        },
+        "voided_by": {
+          "type": "string",
+          "description": "Actor who voided the bill"
+        },
+        "voided_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of void"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
