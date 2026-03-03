@@ -3,6 +3,8 @@
 //! Defines the canonical event contracts for AR's monetization events:
 //! - ar.usage_captured       (metered usage recorded)
 //! - ar.usage_invoiced       (usage billed on an invoice)
+//! - ar.credit_memo_created  (draft credit memo created)
+//! - ar.credit_memo_approved (draft credit memo approved)
 //! - ar.credit_note_issued   (credit note issued against an invoice)
 //! - ar.invoice_written_off  (invoice written off as bad debt)
 //! - ar.ar_aging_updated     (AR aging projection updated)
@@ -66,6 +68,8 @@ mod tests {
     fn all_event_type_constants_use_ar_prefix() {
         assert!(EVENT_TYPE_USAGE_CAPTURED.starts_with("ar."));
         assert!(EVENT_TYPE_USAGE_INVOICED.starts_with("ar."));
+        assert!(EVENT_TYPE_CREDIT_MEMO_CREATED.starts_with("ar."));
+        assert!(EVENT_TYPE_CREDIT_MEMO_APPROVED.starts_with("ar."));
         assert!(EVENT_TYPE_CREDIT_NOTE_ISSUED.starts_with("ar."));
         assert!(EVENT_TYPE_INVOICE_WRITTEN_OFF.starts_with("ar."));
         assert!(EVENT_TYPE_AR_AGING_UPDATED.starts_with("ar."));

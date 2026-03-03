@@ -8,6 +8,8 @@ pub mod publisher;
 pub use consumer::{is_event_processed, mark_event_processed, process_event_idempotent};
 pub use contracts::{
     build_ar_aging_updated_envelope,
+    build_credit_memo_approved_envelope,
+    build_credit_memo_created_envelope,
     build_credit_note_issued_envelope,
     build_dunning_state_changed_envelope,
     build_invoice_opened_envelope,
@@ -29,6 +31,8 @@ pub use contracts::{
     // Phase 22 types
     AllocationLine,
     ArAgingUpdatedPayload,
+    CreditMemoApprovedPayload,
+    CreditMemoCreatedPayload,
     CreditNoteIssuedPayload,
     DunningState,
     DunningStateChangedPayload,
@@ -52,6 +56,8 @@ pub use contracts::{
     UsageInvoicedPayload,
     AR_EVENT_SCHEMA_VERSION,
     EVENT_TYPE_AR_AGING_UPDATED,
+    EVENT_TYPE_CREDIT_MEMO_APPROVED,
+    EVENT_TYPE_CREDIT_MEMO_CREATED,
     EVENT_TYPE_CREDIT_NOTE_ISSUED,
     EVENT_TYPE_DUNNING_STATE_CHANGED,
     EVENT_TYPE_INVOICE_OPENED,

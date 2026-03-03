@@ -99,6 +99,18 @@ fn build_ar_router(db: PgPool, enforce_permissions: bool) -> Router {
             post(credit_notes::issue_credit_note_route),
         )
         .route(
+            "/api/ar/credit-memos",
+            post(credit_notes::create_credit_memo_handler),
+        )
+        .route(
+            "/api/ar/credit-memos/{id}/approve",
+            post(credit_notes::approve_credit_memo_handler),
+        )
+        .route(
+            "/api/ar/credit-memos/{id}/issue",
+            post(credit_notes::issue_credit_memo_handler),
+        )
+        .route(
             "/api/ar/invoices/{id}/write-off",
             post(write_offs::write_off_invoice_route),
         )

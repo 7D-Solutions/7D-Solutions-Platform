@@ -1,5 +1,5 @@
-//! Credit note and write-off event contracts:
-//! ar.credit_note_issued, ar.invoice_written_off
+//! Credit memo and write-off event contracts:
+//! ar.credit_memo_created, ar.credit_memo_approved, ar.credit_note_issued, ar.invoice_written_off
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -14,9 +14,77 @@ use crate::events::envelope::{create_ar_envelope, EventEnvelope};
 
 /// A credit note was formally issued against an invoice
 pub const EVENT_TYPE_CREDIT_NOTE_ISSUED: &str = "ar.credit_note_issued";
+/// A draft credit memo was created
+pub const EVENT_TYPE_CREDIT_MEMO_CREATED: &str = "ar.credit_memo_created";
+/// A draft credit memo was approved
+pub const EVENT_TYPE_CREDIT_MEMO_APPROVED: &str = "ar.credit_memo_approved";
 
 /// An invoice was written off as uncollectable bad debt
 pub const EVENT_TYPE_INVOICE_WRITTEN_OFF: &str = "ar.invoice_written_off";
+
+// ============================================================================
+// Payload: ar.credit_note_issued
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreditMemoCreatedPayload {
+    pub credit_note_id: Uuid,
+    pub tenant_id: String,
+    pub customer_id: String,
+    pub invoice_id: String,
+    pub amount_minor: i64,
+    pub currency: String,
+    pub reason: String,
+    pub reference_id: Option<String>,
+    pub created_at: DateTime<Utc>,
+}
+
+pub fn build_credit_memo_created_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: CreditMemoCreatedPayload,
+) -> EventEnvelope<CreditMemoCreatedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_CREDIT_MEMO_CREATED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreditMemoApprovedPayload {
+    pub credit_note_id: Uuid,
+    pub tenant_id: String,
+    pub invoice_id: String,
+    pub approved_by: Option<String>,
+    pub approved_at: DateTime<Utc>,
+}
+
+pub fn build_credit_memo_approved_envelope(
+    event_id: Uuid,
+    tenant_id: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+    payload: CreditMemoApprovedPayload,
+) -> EventEnvelope<CreditMemoApprovedPayload> {
+    create_ar_envelope(
+        event_id,
+        tenant_id,
+        EVENT_TYPE_CREDIT_MEMO_APPROVED.to_string(),
+        correlation_id,
+        causation_id,
+        MUTATION_CLASS_DATA_MUTATION.to_string(),
+        payload,
+    )
+    .with_schema_version(AR_EVENT_SCHEMA_VERSION.to_string())
+}
 
 // ============================================================================
 // Payload: ar.credit_note_issued
@@ -140,6 +208,58 @@ mod tests {
             payload,
         );
         assert_eq!(envelope.event_type, EVENT_TYPE_CREDIT_NOTE_ISSUED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+        assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn credit_memo_created_envelope_has_correct_metadata() {
+        let payload = CreditMemoCreatedPayload {
+            credit_note_id: Uuid::new_v4(),
+            tenant_id: "tenant-1".to_string(),
+            customer_id: "cust-1".to_string(),
+            invoice_id: "inv-99".to_string(),
+            amount_minor: 5000,
+            currency: "usd".to_string(),
+            reason: "rma_disposition".to_string(),
+            reference_id: Some("rma-44".to_string()),
+            created_at: Utc::now(),
+        };
+        let envelope = build_credit_memo_created_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            None,
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_CREDIT_MEMO_CREATED);
+        assert_eq!(
+            envelope.mutation_class.as_deref(),
+            Some(MUTATION_CLASS_DATA_MUTATION)
+        );
+        assert_eq!(envelope.schema_version, AR_EVENT_SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn credit_memo_approved_envelope_has_correct_metadata() {
+        let payload = CreditMemoApprovedPayload {
+            credit_note_id: Uuid::new_v4(),
+            tenant_id: "tenant-1".to_string(),
+            invoice_id: "inv-99".to_string(),
+            approved_by: Some("qa@tenant.local".to_string()),
+            approved_at: Utc::now(),
+        };
+        let envelope = build_credit_memo_approved_envelope(
+            Uuid::new_v4(),
+            "tenant-1".to_string(),
+            "corr-1".to_string(),
+            None,
+            payload,
+        );
+        assert_eq!(envelope.event_type, EVENT_TYPE_CREDIT_MEMO_APPROVED);
         assert_eq!(
             envelope.mutation_class.as_deref(),
             Some(MUTATION_CLASS_DATA_MUTATION)

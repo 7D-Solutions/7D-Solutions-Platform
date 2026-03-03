@@ -6,7 +6,11 @@ use axum::{
 use security::VerifiedClaims;
 use sqlx::PgPool;
 
-use crate::credit_notes::{issue_credit_note, IssueCreditNoteRequest};
+use crate::credit_notes::{
+    approve_credit_memo, create_credit_memo, issue_credit_memo, issue_credit_note,
+    ApproveCreditMemoRequest, CreateCreditMemoRequest, IssueCreditMemoRequest,
+    IssueCreditNoteRequest,
+};
 use crate::models::ErrorResponse;
 
 // ============================================================================
@@ -232,5 +236,287 @@ pub async fn issue_credit_note_handler(
                 )),
             ))
         }
+        Err(crate::credit_notes::CreditNoteError::InvalidStatusTransition {
+            expected, actual, ..
+        }) => Err((
+            StatusCode::CONFLICT,
+            Json(ErrorResponse::new(
+                "invalid_status_transition",
+                format!("Expected status '{}', got '{}'", expected, actual),
+            )),
+        )),
+        Err(crate::credit_notes::CreditNoteError::CreditMemoNotFound {
+            credit_note_id, ..
+        }) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new(
+                "credit_memo_not_found",
+                format!("Credit memo {} not found", credit_note_id),
+            )),
+        )),
+    }
+}
+
+#[derive(serde::Deserialize)]
+pub struct CreateCreditMemoHttpRequest {
+    pub credit_note_id: uuid::Uuid,
+    pub customer_id: String,
+    pub invoice_id: i32,
+    pub amount_minor: i64,
+    pub currency: String,
+    pub reason: String,
+    pub reference_id: Option<String>,
+    pub created_by: Option<String>,
+    pub create_idempotency_key: uuid::Uuid,
+    pub correlation_id: String,
+    pub causation_id: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ApproveCreditMemoHttpRequest {
+    pub approved_by: Option<String>,
+    pub correlation_id: String,
+    pub causation_id: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct IssueCreditMemoHttpRequest {
+    pub issued_by: Option<String>,
+    pub issue_idempotency_key: uuid::Uuid,
+    pub correlation_id: String,
+    pub causation_id: Option<String>,
+}
+
+pub async fn create_credit_memo_handler(
+    State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(body): Json<CreateCreditMemoHttpRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<ErrorResponse>)> {
+    let app_id = super::tenant::extract_tenant(&claims)?;
+    match create_credit_memo(
+        &pool,
+        CreateCreditMemoRequest {
+            credit_note_id: body.credit_note_id,
+            app_id,
+            customer_id: body.customer_id,
+            invoice_id: body.invoice_id,
+            amount_minor: body.amount_minor,
+            currency: body.currency,
+            reason: body.reason,
+            reference_id: body.reference_id,
+            created_by: body.created_by,
+            create_idempotency_key: body.create_idempotency_key,
+            correlation_id: body.correlation_id,
+            causation_id: body.causation_id,
+        },
+    )
+    .await
+    {
+        Ok(crate::credit_notes::CreateCreditMemoResult::Created {
+            credit_note_row_id,
+            credit_note_id,
+            created_at,
+        }) => Ok((
+            StatusCode::CREATED,
+            Json(serde_json::json!({
+                "status": "draft",
+                "credit_note_row_id": credit_note_row_id,
+                "credit_note_id": credit_note_id,
+                "created_at": created_at,
+            })),
+        )),
+        Ok(crate::credit_notes::CreateCreditMemoResult::AlreadyProcessed {
+            existing_row_id,
+            credit_note_id,
+        }) => Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "already_processed",
+                "credit_note_row_id": existing_row_id,
+                "credit_note_id": credit_note_id,
+            })),
+        )),
+        Err(crate::credit_notes::CreditNoteError::InvoiceNotFound { invoice_id, .. }) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new(
+                "invoice_not_found",
+                format!("Invoice {} not found", invoice_id),
+            )),
+        )),
+        Err(crate::credit_notes::CreditNoteError::InvalidAmount(n)) => Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse::new(
+                "invalid_amount",
+                format!("amount_minor must be > 0, got {}", n),
+            )),
+        )),
+        Err(crate::credit_notes::CreditNoteError::InvalidCurrency) => Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse::new(
+                "invalid_currency",
+                "currency must not be empty",
+            )),
+        )),
+        Err(crate::credit_notes::CreditNoteError::OverCreditBalance {
+            invoice_id,
+            invoice_amount_cents,
+            existing_credits,
+            requested,
+        }) => Err((
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(ErrorResponse::new(
+                "over_credit",
+                format!(
+                    "Credit of {} exceeds remaining balance {} on invoice {}",
+                    requested,
+                    invoice_amount_cents - existing_credits,
+                    invoice_id
+                ),
+            )),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new(
+                "credit_memo_error",
+                format!("Failed to create credit memo: {}", e),
+            )),
+        )),
+    }
+}
+
+pub async fn approve_credit_memo_handler(
+    State(pool): State<PgPool>,
+    Path(credit_note_id): Path<uuid::Uuid>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(body): Json<ApproveCreditMemoHttpRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<ErrorResponse>)> {
+    let app_id = super::tenant::extract_tenant(&claims)?;
+    match approve_credit_memo(
+        &pool,
+        ApproveCreditMemoRequest {
+            app_id,
+            credit_note_id,
+            approved_by: body.approved_by,
+            correlation_id: body.correlation_id,
+            causation_id: body.causation_id,
+        },
+    )
+    .await
+    {
+        Ok(crate::credit_notes::ApproveCreditMemoResult::Approved {
+            credit_note_row_id,
+            approved_at,
+            ..
+        }) => Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "approved",
+                "credit_note_row_id": credit_note_row_id,
+                "approved_at": approved_at,
+            })),
+        )),
+        Ok(crate::credit_notes::ApproveCreditMemoResult::AlreadyApproved {
+            credit_note_row_id,
+            ..
+        }) => Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "approved",
+                "credit_note_row_id": credit_note_row_id,
+                "already_approved": true,
+            })),
+        )),
+        Err(crate::credit_notes::CreditNoteError::CreditMemoNotFound { credit_note_id, .. }) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new(
+                "credit_memo_not_found",
+                format!("Credit memo {} not found", credit_note_id),
+            )),
+        )),
+        Err(crate::credit_notes::CreditNoteError::InvalidStatusTransition {
+            expected, actual, ..
+        }) => Err((
+            StatusCode::CONFLICT,
+            Json(ErrorResponse::new(
+                "invalid_status_transition",
+                format!("Expected status '{}', got '{}'", expected, actual),
+            )),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new(
+                "credit_memo_error",
+                format!("Failed to approve credit memo: {}", e),
+            )),
+        )),
+    }
+}
+
+pub async fn issue_credit_memo_handler(
+    State(pool): State<PgPool>,
+    Path(credit_note_id): Path<uuid::Uuid>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(body): Json<IssueCreditMemoHttpRequest>,
+) -> Result<(StatusCode, Json<serde_json::Value>), (StatusCode, Json<ErrorResponse>)> {
+    let app_id = super::tenant::extract_tenant(&claims)?;
+    match issue_credit_memo(
+        &pool,
+        IssueCreditMemoRequest {
+            app_id,
+            credit_note_id,
+            issued_by: body.issued_by,
+            issue_idempotency_key: body.issue_idempotency_key,
+            correlation_id: body.correlation_id,
+            causation_id: body.causation_id,
+        },
+    )
+    .await
+    {
+        Ok(crate::credit_notes::IssueCreditMemoResult::Issued {
+            credit_note_row_id,
+            issued_at,
+            ..
+        }) => Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "issued",
+                "credit_note_row_id": credit_note_row_id,
+                "issued_at": issued_at,
+            })),
+        )),
+        Ok(crate::credit_notes::IssueCreditMemoResult::AlreadyProcessed {
+            existing_row_id,
+            ..
+        }) => Ok((
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "status": "issued",
+                "credit_note_row_id": existing_row_id,
+                "already_processed": true,
+            })),
+        )),
+        Err(crate::credit_notes::CreditNoteError::CreditMemoNotFound { credit_note_id, .. }) => Err((
+            StatusCode::NOT_FOUND,
+            Json(ErrorResponse::new(
+                "credit_memo_not_found",
+                format!("Credit memo {} not found", credit_note_id),
+            )),
+        )),
+        Err(crate::credit_notes::CreditNoteError::InvalidStatusTransition {
+            expected, actual, ..
+        }) => Err((
+            StatusCode::CONFLICT,
+            Json(ErrorResponse::new(
+                "invalid_status_transition",
+                format!("Expected status '{}', got '{}'", expected, actual),
+            )),
+        )),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse::new(
+                "credit_memo_error",
+                format!("Failed to issue credit memo: {}", e),
+            )),
+        )),
     }
 }

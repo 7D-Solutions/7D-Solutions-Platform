@@ -24,6 +24,10 @@ prometheus = "0.13"
 event-bus = { path = "../../platform/event-bus" }
 projections = { path = "../../platform/projections" }
 
+[[bin]]
+name = "bench"
+path = "src/bin/bench.rs"
+
 [dev-dependencies]
 serial_test = "3.3.1"
 
