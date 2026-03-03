@@ -84,7 +84,7 @@ async fn cleanup_tenant(pool: &PgPool, tenant_id: &str) {
         "layer_consumptions",
         "inventory_layers",
         "inventory_ledger",
-        "low_stock_state",
+        "inv_low_stock_state",
         "item_on_hand_by_status",
         "item_on_hand",
         "inventory_reservations",
@@ -93,8 +93,8 @@ async fn cleanup_tenant(pool: &PgPool, tenant_id: &str) {
         "inv_transfers",
         "cycle_count_lines",
         "reorder_policies",
-        "valuation_snapshot_lines",
-        "valuation_snapshots",
+        "inventory_valuation_lines",
+        "inventory_valuation_snapshots",
         "inventory_serial_instances",
         "inventory_lots",
         "item_uom_conversions",
@@ -216,7 +216,7 @@ async fn concurrent_receipts_are_tenant_isolated() {
 
     // Verify on-hand projections are tenant-scoped
     let a_on_hand: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(quantity_on_hand), 0) FROM item_on_hand WHERE tenant_id = $1",
+        "SELECT COALESCE(SUM(quantity_on_hand)::bigint, 0::bigint) FROM item_on_hand WHERE tenant_id = $1",
     )
     .bind(&tenant_a)
     .fetch_one(&pool)
@@ -225,7 +225,7 @@ async fn concurrent_receipts_are_tenant_isolated() {
     assert_eq!(a_on_hand, 500, "Tenant A total on-hand should be 500");
 
     let b_on_hand: i64 = sqlx::query_scalar(
-        "SELECT COALESCE(SUM(quantity_on_hand), 0) FROM item_on_hand WHERE tenant_id = $1",
+        "SELECT COALESCE(SUM(quantity_on_hand)::bigint, 0::bigint) FROM item_on_hand WHERE tenant_id = $1",
     )
     .bind(&tenant_b)
     .fetch_one(&pool)

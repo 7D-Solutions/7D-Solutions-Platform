@@ -13,7 +13,7 @@ None alter or drop existing objects.
 | 001 | create_items | CREATE TABLE items, 2 indexes | DROP TABLE items CASCADE |
 | 002 | create_inventory_ledger | CREATE TYPE inv_entry_type, CREATE TABLE inventory_ledger, 5 indexes | DROP TABLE inventory_ledger CASCADE; DROP TYPE inv_entry_type |
 | 003 | create_fifo_layers | CREATE TABLE inventory_layers, 2 indexes; CREATE TABLE layer_consumptions, 2 indexes | DROP TABLE layer_consumptions CASCADE; DROP TABLE inventory_layers CASCADE |
-| 004 | create_inventory_reservations | CREATE TABLE inventory_reservations, indexes | DROP TABLE inventory_reservations CASCADE |
+| 004 | create_inventory_reservations | CREATE TYPE inv_reservation_status, CREATE TABLE inventory_reservations, indexes | DROP TABLE inventory_reservations CASCADE; DROP TYPE inv_reservation_status |
 | 005 | create_item_on_hand_projection | CREATE TABLE item_on_hand, indexes | DROP TABLE item_on_hand CASCADE |
 | 006 | create_outbox_and_idempotency | CREATE TABLE inv_outbox, inv_processed_events, inv_idempotency_keys | DROP all three tables CASCADE |
 | 007 | create_uoms | CREATE TABLE uoms, item_uom_conversions; ALTER items ADD base_uom_id | DROP TABLE item_uom_conversions, uoms CASCADE; ALTER items DROP base_uom_id |
@@ -25,11 +25,11 @@ None alter or drop existing objects.
 | 013 | location_aware_ledger_and_projection | ALTER ledger/on_hand ADD location_id, indexes | ALTER DROP columns and indexes |
 | 014 | create_status_transfers | CREATE TABLE inv_status_transfers | DROP TABLE inv_status_transfers CASCADE |
 | 015 | create_adjustments | CREATE TABLE inv_adjustments | DROP TABLE inv_adjustments CASCADE |
-| 016 | create_cycle_count_tables | CREATE TABLE cycle_count_tasks, cycle_count_lines | DROP both tables CASCADE |
+| 016 | create_cycle_count_tables | CREATE TYPE cycle_count_scope, cycle_count_status; CREATE TABLE cycle_count_tasks, cycle_count_lines | DROP both tables CASCADE; DROP TYPE cycle_count_status, cycle_count_scope |
 | 017 | create_inv_transfers | CREATE TABLE inv_transfers | DROP TABLE inv_transfers CASCADE |
 | 018 | create_reorder_policies | CREATE TABLE reorder_policies | DROP TABLE reorder_policies CASCADE |
-| 019 | create_valuation_snapshots | CREATE TABLE valuation_snapshots, valuation_snapshot_lines | DROP both tables CASCADE |
-| 020 | create_low_stock_state | CREATE TABLE low_stock_state | DROP TABLE low_stock_state CASCADE |
+| 019 | create_valuation_snapshots | CREATE TABLE inventory_valuation_snapshots, inventory_valuation_lines | DROP both tables CASCADE |
+| 020 | create_low_stock_state | CREATE TABLE inv_low_stock_state | DROP TABLE inv_low_stock_state CASCADE |
 
 ## Rollback Strategy: Forward-Fix
 
@@ -41,13 +41,15 @@ Execute in reverse order. The `CASCADE` on each DROP ensures FK-dependent object
 
 ```sql
 -- Reverse order: 020 → 001
-DROP TABLE IF EXISTS low_stock_state CASCADE;
-DROP TABLE IF EXISTS valuation_snapshot_lines CASCADE;
-DROP TABLE IF EXISTS valuation_snapshots CASCADE;
+DROP TABLE IF EXISTS inv_low_stock_state CASCADE;
+DROP TABLE IF EXISTS inventory_valuation_lines CASCADE;
+DROP TABLE IF EXISTS inventory_valuation_snapshots CASCADE;
 DROP TABLE IF EXISTS reorder_policies CASCADE;
 DROP TABLE IF EXISTS inv_transfers CASCADE;
 DROP TABLE IF EXISTS cycle_count_lines CASCADE;
 DROP TABLE IF EXISTS cycle_count_tasks CASCADE;
+DROP TYPE IF EXISTS cycle_count_status CASCADE;
+DROP TYPE IF EXISTS cycle_count_scope CASCADE;
 DROP TABLE IF EXISTS inv_adjustments CASCADE;
 DROP TABLE IF EXISTS inv_status_transfers CASCADE;
 DROP TABLE IF EXISTS locations CASCADE;
@@ -62,6 +64,7 @@ DROP TABLE IF EXISTS inv_processed_events CASCADE;
 DROP TABLE IF EXISTS inv_outbox CASCADE;
 DROP TABLE IF EXISTS item_on_hand CASCADE;
 DROP TABLE IF EXISTS inventory_reservations CASCADE;
+DROP TYPE IF EXISTS inv_reservation_status CASCADE;
 DROP TABLE IF EXISTS layer_consumptions CASCADE;
 DROP TABLE IF EXISTS inventory_layers CASCADE;
 DROP TABLE IF EXISTS inventory_ledger CASCADE;
@@ -78,7 +81,7 @@ be updated:
 
 ```sql
 -- Example: undo migration 020
-DROP TABLE IF EXISTS low_stock_state CASCADE;
+DROP TABLE IF EXISTS inv_low_stock_state CASCADE;
 DELETE FROM _sqlx_migrations WHERE version = 20260218000020;
 ```
 

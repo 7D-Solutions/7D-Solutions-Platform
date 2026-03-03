@@ -62,9 +62,9 @@ async fn migrations_apply_cleanly() {
         "cycle_count_lines",
         "inv_transfers",
         "reorder_policies",
-        "valuation_snapshots",
-        "valuation_snapshot_lines",
-        "low_stock_state",
+        "inventory_valuation_snapshots",
+        "inventory_valuation_lines",
+        "inv_low_stock_state",
     ];
 
     for table in &expected_tables {
@@ -109,13 +109,15 @@ async fn forward_fix_rollback_and_reapply() {
 
     // Execute full rollback (reverse dependency order)
     let rollback_sql = r#"
-        DROP TABLE IF EXISTS low_stock_state CASCADE;
-        DROP TABLE IF EXISTS valuation_snapshot_lines CASCADE;
-        DROP TABLE IF EXISTS valuation_snapshots CASCADE;
+        DROP TABLE IF EXISTS inv_low_stock_state CASCADE;
+        DROP TABLE IF EXISTS inventory_valuation_lines CASCADE;
+        DROP TABLE IF EXISTS inventory_valuation_snapshots CASCADE;
         DROP TABLE IF EXISTS reorder_policies CASCADE;
         DROP TABLE IF EXISTS inv_transfers CASCADE;
         DROP TABLE IF EXISTS cycle_count_lines CASCADE;
         DROP TABLE IF EXISTS cycle_count_tasks CASCADE;
+        DROP TYPE IF EXISTS cycle_count_status CASCADE;
+        DROP TYPE IF EXISTS cycle_count_scope CASCADE;
         DROP TABLE IF EXISTS inv_adjustments CASCADE;
         DROP TABLE IF EXISTS inv_status_transfers CASCADE;
         DROP TABLE IF EXISTS locations CASCADE;
@@ -130,6 +132,7 @@ async fn forward_fix_rollback_and_reapply() {
         DROP TABLE IF EXISTS inv_outbox CASCADE;
         DROP TABLE IF EXISTS item_on_hand CASCADE;
         DROP TABLE IF EXISTS inventory_reservations CASCADE;
+        DROP TYPE IF EXISTS inv_reservation_status CASCADE;
         DROP TABLE IF EXISTS layer_consumptions CASCADE;
         DROP TABLE IF EXISTS inventory_layers CASCADE;
         DROP TABLE IF EXISTS inventory_ledger CASCADE;
@@ -213,7 +216,6 @@ async fn all_data_tables_have_tenant_id() {
         "item_on_hand",
         "inv_outbox",
         "inv_idempotency_keys",
-        "inv_processed_events",
         "uoms",
         "inventory_lots",
         "inventory_serial_instances",
@@ -222,8 +224,8 @@ async fn all_data_tables_have_tenant_id() {
         "inv_status_transfers",
         "inv_adjustments",
         "reorder_policies",
-        "valuation_snapshots",
-        "low_stock_state",
+        "inventory_valuation_snapshots",
+        "inv_low_stock_state",
     ];
 
     for table in &tenant_tables {
