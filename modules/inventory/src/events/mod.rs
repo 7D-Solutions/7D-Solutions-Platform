@@ -59,6 +59,7 @@ pub mod revision_activated;
 pub mod revision_created;
 pub mod revision_policy_updated;
 pub mod status_changed;
+pub mod valuation_run_completed;
 pub mod valuation_snapshot_created;
 
 // ============================================================================
@@ -139,6 +140,11 @@ pub use lot_merged::{
 pub use item_change_recorded::{
     build_item_change_recorded_envelope, ItemChangeRecordedPayload,
     EVENT_TYPE_ITEM_CHANGE_RECORDED,
+};
+
+pub use valuation_run_completed::{
+    build_valuation_run_completed_envelope, ValuationRunCompletedLine,
+    ValuationRunCompletedPayload, EVENT_TYPE_VALUATION_RUN_COMPLETED,
 };
 
 // ============================================================================
