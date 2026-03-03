@@ -13,7 +13,10 @@ use tracing_subscriber::EnvFilter;
 use workforce_competence_rs::{
     db::resolver::resolve_pool,
     http::{
-        handlers::{get_artifact, get_authorization, post_artifact, post_assignment},
+        handlers::{
+            get_acceptance_authority_check, get_artifact, get_authorization, post_artifact,
+            post_assignment, post_grant_authority, post_revoke_authority,
+        },
         health::{health, ready, schema_version, version},
     },
     metrics::{metrics_handler, WcMetrics},
@@ -62,6 +65,14 @@ async fn main() {
             "/api/workforce-competence/assignments",
             axum::routing::post(post_assignment),
         )
+        .route(
+            "/api/workforce-competence/acceptance-authorities",
+            axum::routing::post(post_grant_authority),
+        )
+        .route(
+            "/api/workforce-competence/acceptance-authorities/{id}/revoke",
+            axum::routing::post(post_revoke_authority),
+        )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::WORKFORCE_COMPETENCE_MUTATE,
         ]))
@@ -75,6 +86,10 @@ async fn main() {
         .route(
             "/api/workforce-competence/authorization",
             axum::routing::get(get_authorization),
+        )
+        .route(
+            "/api/workforce-competence/acceptance-authority-check",
+            axum::routing::get(get_acceptance_authority_check),
         )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::WORKFORCE_COMPETENCE_READ,

@@ -21,6 +21,9 @@ use uuid::Uuid;
 use super::tenant::extract_tenant;
 use crate::{
     domain::{
+        acceptance_authority::{
+            self, AcceptanceAuthorityQuery, GrantAuthorityRequest, RevokeAuthorityRequest,
+        },
         guards::GuardError,
         models::{AssignCompetenceRequest, AuthorizationQuery, RegisterArtifactRequest},
         service::{self, ServiceError},
@@ -188,6 +191,85 @@ pub async fn get_authorization(
     };
 
     match service::check_authorization(&state.pool, &query).await {
+        Ok(result) => (StatusCode::OK, Json(json!(result))).into_response(),
+        Err(e) => service_error_response(e).into_response(),
+    }
+}
+
+// ============================================================================
+// Acceptance authority handlers
+// ============================================================================
+
+/// POST /api/workforce-competence/acceptance-authorities
+pub async fn post_grant_authority(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<GrantAuthorityRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.tenant_id = tenant_id;
+
+    match acceptance_authority::grant_acceptance_authority(&state.pool, &req).await {
+        Ok((result, is_replay)) => {
+            let status = if is_replay { StatusCode::OK } else { StatusCode::CREATED };
+            (status, Json(json!(result))).into_response()
+        }
+        Err(e) => service_error_response(e).into_response(),
+    }
+}
+
+/// POST /api/workforce-competence/acceptance-authorities/{id}/revoke
+pub async fn post_revoke_authority(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path(authority_id): Path<Uuid>,
+    Json(mut req): Json<RevokeAuthorityRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    req.tenant_id = tenant_id;
+    req.authority_id = authority_id;
+
+    match acceptance_authority::revoke_acceptance_authority(&state.pool, &req).await {
+        Ok((result, is_replay)) => {
+            let status = if is_replay { StatusCode::OK } else { StatusCode::OK };
+            (status, Json(json!(result))).into_response()
+        }
+        Err(e) => service_error_response(e).into_response(),
+    }
+}
+
+/// GET /api/workforce-competence/acceptance-authority-check
+#[derive(Deserialize)]
+pub struct AcceptanceAuthorityCheckParams {
+    pub operator_id: Uuid,
+    pub capability_scope: String,
+    pub at_time: chrono::DateTime<chrono::Utc>,
+}
+
+pub async fn get_acceptance_authority_check(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Query(params): Query<AcceptanceAuthorityCheckParams>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+
+    let query = AcceptanceAuthorityQuery {
+        tenant_id,
+        operator_id: params.operator_id,
+        capability_scope: params.capability_scope,
+        at_time: params.at_time,
+    };
+
+    match acceptance_authority::check_acceptance_authority(&state.pool, &query).await {
         Ok(result) => (StatusCode::OK, Json(json!(result))).into_response(),
         Err(e) => service_error_response(e).into_response(),
     }
