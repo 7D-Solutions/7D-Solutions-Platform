@@ -68,12 +68,12 @@ run_drill() {
     echo ""
     echo "  -> $name: PASS"
     results+=("PASS  $name — $description")
-    ((pass_count++))
+    pass_count=$((pass_count + 1))
   else
     echo ""
     echo "  -> $name: FAIL (exit_code=$exit_code)"
     results+=("FAIL  $name — $description")
-    ((fail_count++))
+    fail_count=$((fail_count + 1))
   fi
 }
 
