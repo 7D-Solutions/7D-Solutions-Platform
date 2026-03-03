@@ -668,6 +668,32 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  workforce-competence-postgres:
+    container_name: 7d-workforce-competence-postgres
+    image: postgres:16-alpine
+    ports:
+      - "5458:5432"
+    environment:
+      POSTGRES_DB: ${WC_POSTGRES_DB:-workforce_competence_db}
+      POSTGRES_USER: ${WC_POSTGRES_USER:-wc_user}
+      POSTGRES_PASSWORD: ${WC_POSTGRES_PASSWORD:-wc_pass}
+    volumes:
+      - workforce_competence_pgdata:/var/lib/postgresql/data
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${WC_POSTGRES_USER:-wc_user} -d ${WC_POSTGRES_DB:-workforce_competence_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "workforce-competence-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
@@ -748,4 +774,7 @@ volumes:
     external: true
   workflow_pgdata:
     name: 7d-workflow-pgdata
+    external: true
+  workforce_competence_pgdata:
+    name: 7d-workforce-competence-pgdata
     external: true

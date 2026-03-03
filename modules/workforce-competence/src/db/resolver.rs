@@ -1,0 +1,25 @@
+use sqlx::postgres::PgPoolOptions;
+use sqlx::PgPool;
+use std::time::Duration;
+
+/// Centralized DB pool resolver for Workforce Competence module.
+/// All pool creation must go through this function.
+pub async fn resolve_pool(database_url: &str) -> Result<PgPool, sqlx::Error> {
+    let max_connections = std::env::var("DB_MAX_CONNECTIONS")
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(10);
+
+    let acquire_timeout_secs = std::env::var("DB_ACQUIRE_TIMEOUT_SECS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(10);
+
+    PgPoolOptions::new()
+        .max_connections(max_connections)
+        .idle_timeout(Some(Duration::from_secs(300)))
+        .max_lifetime(Some(Duration::from_secs(1800)))
+        .acquire_timeout(Duration::from_secs(acquire_timeout_secs))
+        .connect(database_url)
+        .await
+}

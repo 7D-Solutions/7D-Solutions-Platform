@@ -117,6 +117,11 @@ pub const WORKFLOW_READ: &str = "workflow.read";
 pub const NUMBERING_ALLOCATE: &str = "numbering.allocate";
 pub const NUMBERING_READ: &str = "numbering.read";
 
+// ── Workforce Competence ─────────────────────────────────────────────
+
+pub const WORKFORCE_COMPETENCE_MUTATE: &str = "workforce_competence.mutate";
+pub const WORKFORCE_COMPETENCE_READ: &str = "workforce_competence.read";
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -233,6 +238,7 @@ mod tests {
             PDF_EDITOR_MUTATE,
             SHIPPING_RECEIVING_MUTATE,
             WORKFLOW_MUTATE,
+            WORKFORCE_COMPETENCE_MUTATE,
         ];
         for perm in &mutate_perms {
             assert!(
@@ -278,6 +284,7 @@ mod tests {
         assert_ne!(PDF_EDITOR_MUTATE, PDF_EDITOR_READ);
         assert_ne!(SHIPPING_RECEIVING_MUTATE, SHIPPING_RECEIVING_READ);
         assert_ne!(WORKFLOW_MUTATE, WORKFLOW_READ);
+        assert_ne!(WORKFORCE_COMPETENCE_MUTATE, WORKFORCE_COMPETENCE_READ);
     }
 
     #[test]

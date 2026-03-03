@@ -46,6 +46,7 @@ No version bump discipline required yet.
 | timekeeping | timekeeping | 0.1.0 | 8097 | 5447 | Time entry, approval workflows, project billing, and AR/GL integration | [Vision](docs/architecture/TIMEKEEPING-VISION.md) |
 | treasury | treasury | 0.1.0 | 8094 | 5444 | Bank account management, transaction import, reconciliation, and cash position | [Vision](docs/architecture/TREASURY-VISION.md) |
 | workflow | workflow | 0.1.0 |  | 5457 | Workflow engine: definitions, templates, and durable instance execution |  |
+| workforce-competence | workforce-competence-rs | 0.1.0 |  | 5458 | Workforce competence registry: skills, certifications, training records, and authorization queries |  |
 
 ## Platform Libraries
 
