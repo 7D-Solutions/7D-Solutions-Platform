@@ -2,4 +2,5 @@
 
 pub mod connectors;
 pub mod external_refs;
+pub mod outbound_webhooks;
 pub mod webhooks;

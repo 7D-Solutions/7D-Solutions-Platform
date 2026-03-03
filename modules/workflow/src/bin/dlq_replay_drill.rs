@@ -28,17 +28,17 @@ async fn main() {
         .await
         .expect("Failed to run migrations");
 
-    let tenant_id = format!("drill-{}", Uuid::new_v4());
+    // Use a unique aggregate_type to scope drill rows away from real data
+    let drill_tag = format!("drill-{}", Uuid::new_v4());
 
     // Insert 3 synthetic stuck outbox rows (published_at = NULL, old created_at)
-    let mut inserted_ids = Vec::new();
     for i in 0..3 {
         let event_id = Uuid::new_v4();
         let event_type = format!("workflow.drill_event_{}", i);
         let payload = serde_json::json!({
             "event_id": event_id.to_string(),
             "event_type": &event_type,
-            "tenant_id": &tenant_id,
+            "tenant_id": &drill_tag,
             "source_module": "workflow",
             "source_version": "0.1.0",
             "schema_version": "1.0.0",
@@ -48,33 +48,33 @@ async fn main() {
             "payload": {"drill": true}
         });
 
-        let id: i32 = sqlx::query_scalar(
+        sqlx::query(
             r#"
             INSERT INTO events_outbox
                 (event_id, event_type, aggregate_type, aggregate_id,
                  payload, created_at)
-            VALUES ($1, $2, 'drill', $3, $4,
+            VALUES ($1, $2, $3, $4, $5,
                     now() - interval '10 minutes')
-            RETURNING id
             "#,
         )
         .bind(event_id)
         .bind(&event_type)
+        .bind(&drill_tag)
         .bind(format!("drill-{}", i))
         .bind(&payload)
-        .fetch_one(&pool)
+        .execute(&pool)
         .await
         .expect("insert drill row");
-
-        inserted_ids.push(id);
     }
 
-    // Count candidates before replay
+    // Count candidates before replay (scoped to our drill rows)
     let (before_count,): (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM events_outbox \
          WHERE published_at IS NULL \
+           AND aggregate_type = $1 \
            AND created_at < now() - interval '5 minutes'",
     )
+    .bind(&drill_tag)
     .fetch_one(&pool)
     .await
     .expect("count before");
@@ -86,13 +86,14 @@ async fn main() {
         before_count
     );
 
-    // Replay: mark stuck rows as published (same SQL as runbook)
+    // Replay: mark stuck rows as published (same SQL pattern as runbook, scoped)
     let replayed: Vec<(i32, String)> = sqlx::query_as(
         r#"
         WITH candidates AS (
           SELECT id
           FROM events_outbox
           WHERE published_at IS NULL
+            AND aggregate_type = $1
             AND created_at < now() - interval '5 minutes'
           ORDER BY id
           FOR UPDATE SKIP LOCKED
@@ -105,6 +106,7 @@ async fn main() {
         RETURNING o.id, o.event_type
         "#,
     )
+    .bind(&drill_tag)
     .fetch_all(&pool)
     .await
     .expect("replay");
@@ -123,6 +125,7 @@ async fn main() {
           SELECT id
           FROM events_outbox
           WHERE published_at IS NULL
+            AND aggregate_type = $1
             AND created_at < now() - interval '5 minutes'
           ORDER BY id
           FOR UPDATE SKIP LOCKED
@@ -135,6 +138,7 @@ async fn main() {
         RETURNING o.id, o.event_type
         "#,
     )
+    .bind(&drill_tag)
     .fetch_all(&pool)
     .await
     .expect("replay again");
@@ -151,8 +155,10 @@ async fn main() {
     let (after_count,): (i64,) = sqlx::query_as(
         "SELECT COUNT(*) FROM events_outbox \
          WHERE published_at IS NULL \
+           AND aggregate_type = $1 \
            AND created_at < now() - interval '5 minutes'",
     )
+    .bind(&drill_tag)
     .fetch_one(&pool)
     .await
     .expect("count after");
@@ -165,13 +171,11 @@ async fn main() {
     );
 
     // Clean up drill rows
-    for id in &inserted_ids {
-        sqlx::query("DELETE FROM events_outbox WHERE id = $1")
-            .bind(id)
-            .execute(&pool)
-            .await
-            .expect("cleanup drill row");
-    }
+    sqlx::query("DELETE FROM events_outbox WHERE aggregate_type = $1")
+        .bind(&drill_tag)
+        .execute(&pool)
+        .await
+        .expect("cleanup drill rows");
 
     println!("dlq_replay_drill=ok");
 }

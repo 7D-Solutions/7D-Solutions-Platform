@@ -10,6 +10,9 @@ pub mod envelope;
 pub mod external_ref_created;
 pub mod external_ref_deleted;
 pub mod external_ref_updated;
+pub mod outbound_webhook_created;
+pub mod outbound_webhook_deleted;
+pub mod outbound_webhook_updated;
 pub mod webhook_received;
 pub mod webhook_routed;
 
@@ -33,6 +36,18 @@ pub use external_ref_deleted::{
 };
 pub use external_ref_updated::{
     build_external_ref_updated_envelope, ExternalRefUpdatedPayload, EVENT_TYPE_EXTERNAL_REF_UPDATED,
+};
+pub use outbound_webhook_created::{
+    build_outbound_webhook_created_envelope, OutboundWebhookCreatedPayload,
+    EVENT_TYPE_OUTBOUND_WEBHOOK_CREATED,
+};
+pub use outbound_webhook_deleted::{
+    build_outbound_webhook_deleted_envelope, OutboundWebhookDeletedPayload,
+    EVENT_TYPE_OUTBOUND_WEBHOOK_DELETED,
+};
+pub use outbound_webhook_updated::{
+    build_outbound_webhook_updated_envelope, OutboundWebhookUpdatedPayload,
+    EVENT_TYPE_OUTBOUND_WEBHOOK_UPDATED,
 };
 pub use webhook_received::{
     build_webhook_received_envelope, WebhookReceivedPayload, EVENT_TYPE_WEBHOOK_RECEIVED,
