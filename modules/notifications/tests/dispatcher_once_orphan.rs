@@ -36,14 +36,21 @@ async fn test_dispatch_once_orphan_recovery() {
     let future_deliver = Utc::now() + chrono::Duration::hours(1);
     let recipient_ref = format!("test-orphan:{}", uuid::Uuid::new_v4());
 
+    let tenant_id = recipient_ref
+        .split(':')
+        .next()
+        .unwrap_or("unknown")
+        .to_string();
+
     let id: uuid::Uuid = sqlx::query_scalar(
         r#"
         INSERT INTO scheduled_notifications
-            (recipient_ref, channel, template_key, payload_json, deliver_at, status, last_attempt_at)
-        VALUES ($1, 'email', 'test_orphan_tpl', '{}', $2, 'attempting', $3)
+            (tenant_id, recipient_ref, channel, template_key, payload_json, deliver_at, status, last_attempt_at)
+        VALUES ($1, $2, 'email', 'test_orphan_tpl', '{}', $3, 'attempting', $4)
         RETURNING id
         "#,
     )
+    .bind(&tenant_id)
     .bind(&recipient_ref)
     .bind(future_deliver)
     .bind(stale_attempt)
