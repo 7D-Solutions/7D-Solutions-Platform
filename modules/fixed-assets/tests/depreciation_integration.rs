@@ -23,7 +23,7 @@ use uuid::Uuid;
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgresql://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db"
+        "postgresql://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db?sslmode=disable"
             .to_string()
     });
 

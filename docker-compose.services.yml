@@ -351,6 +351,7 @@ services:
       BUS_TYPE: nats
       HOST: 0.0.0.0
       PORT: 8090
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY_PEM}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
       - "8090:8090"
@@ -652,6 +653,7 @@ services:
       BUS_TYPE: nats
       HOST: 0.0.0.0
       PORT: 8098
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
       - "8098:8098"
@@ -826,6 +828,7 @@ services:
       BUS_TYPE: nats
       HOST: 0.0.0.0
       PORT: 8101
+      JWT_PUBLIC_KEY: ${JWT_PUBLIC_KEY}
       RUST_LOG: ${RUST_LOG:-info}
     ports:
       - "8101:8101"

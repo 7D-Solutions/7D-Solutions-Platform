@@ -6,7 +6,7 @@
 //! 3. Tests pagination (limit/offset)
 //! 4. Tests filtering by period_id and date range
 //! 5. Tests currency filtering
-//! 6. Verifies error handling (400/404)
+//! 6. Verifies error handling (401/400/404)
 //!
 //! ## Architecture Decision
 //! Per ChatGPT Phase 12 guidance: "Boundary-first testing for reporting primitives."
@@ -14,16 +14,83 @@
 //!
 //! ## Prerequisites
 //! - Docker containers running: `docker compose up -d`
-//! - GL HTTP server at localhost:8090
+//! - GL HTTP server at localhost:8090 (with JWT_PUBLIC_KEY configured)
 //! - PostgreSQL at localhost:5438
+//! - JWT_PRIVATE_KEY_PEM env var (loaded from .env)
 
 use chrono::{NaiveDate, TimeZone, Utc};
 use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::account_activity_service::AccountActivityResponse;
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
 use serial_test::serial;
+use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+// ── JWT test helper ──────────────────────────────────────────────────
+
+/// JWT claims matching the platform's RawAccessClaims structure.
+#[derive(Serialize)]
+struct TestJwtClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    jti: String,
+    tenant_id: String,
+    roles: Vec<String>,
+    perms: Vec<String>,
+    actor_type: String,
+    ver: String,
+}
+
+/// Sign a test JWT for the given tenant_id using the dev private key.
+///
+/// Reads `JWT_PRIVATE_KEY_PEM` from the environment (loaded via dotenvy from
+/// the project root `.env` file).
+fn sign_test_jwt(tenant_id: &Uuid) -> String {
+    dotenvy::dotenv().ok();
+    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
+        .expect("JWT_PRIVATE_KEY_PEM must be set (loaded from .env)");
+    let encoding_key = EncodingKey::from_rsa_pem(pem.as_bytes())
+        .expect("Invalid JWT_PRIVATE_KEY_PEM");
+
+    let now = Utc::now();
+    let claims = TestJwtClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: now.timestamp(),
+        exp: (now + chrono::Duration::minutes(15)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: tenant_id.to_string(),
+        roles: vec!["operator".into()],
+        perms: vec!["gl.read".into()],
+        actor_type: "user".to_string(),
+        ver: "1".to_string(),
+    };
+
+    let header = Header::new(Algorithm::RS256);
+    jsonwebtoken::encode(&header, &claims, &encoding_key)
+        .expect("Failed to sign test JWT")
+}
+
+/// Build a reqwest Client that sends the Bearer token on every request.
+fn authed_client(token: &str) -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        format!("Bearer {}", token).parse().unwrap(),
+    );
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .unwrap()
+}
+
+// ── Database helpers ─────────────────────────────────────────────────
 
 /// Setup test database pool
 async fn setup_test_pool() -> PgPool {
@@ -193,23 +260,28 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
         .expect("Failed to cleanup periods");
 }
 
+// ── Tests ────────────────────────────────────────────────────────────
+
 #[tokio::test]
 #[serial]
 async fn test_boundary_http_account_activity_with_period_id() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-aa-period-001";
+    let tenant_uuid = Uuid::new_v4();
+    let tenant_id = tenant_uuid.to_string();
+    let token = sign_test_jwt(&tenant_uuid);
+    let client = authed_client(&token);
     let account_code = "1100";
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup Chart of Accounts
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         account_code,
         "Cash",
         AccountType::Asset,
@@ -220,7 +292,7 @@ async fn test_boundary_http_account_activity_with_period_id() {
     // Setup accounting period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
+        &tenant_id,
         NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
         NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
     )
@@ -235,7 +307,7 @@ async fn test_boundary_http_account_activity_with_period_id() {
 
     insert_test_journal_entry(
         &pool,
-        tenant_id,
+        &tenant_id,
         account_code,
         "USD",
         100000, // $1000 debit
@@ -248,7 +320,7 @@ async fn test_boundary_http_account_activity_with_period_id() {
 
     insert_test_journal_entry(
         &pool,
-        tenant_id,
+        &tenant_id,
         account_code,
         "USD",
         0,
@@ -259,13 +331,15 @@ async fn test_boundary_http_account_activity_with_period_id() {
     )
     .await;
 
-    // ✅ BOUNDARY TEST: Make real HTTP GET request
+    // BOUNDARY TEST: Make real HTTP GET request with JWT auth
     let url = format!(
-        "{}/api/gl/accounts/{}/activity?tenant_id={}&period_id={}",
-        gl_service_url, account_code, tenant_id, period_id
+        "{}/api/gl/accounts/{}/activity?period_id={}",
+        gl_service_url, account_code, period_id
     );
 
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to make HTTP request - is GL service running on port 8090?");
 
@@ -299,7 +373,7 @@ async fn test_boundary_http_account_activity_with_period_id() {
     assert!(line1.debit_minor > 0 || line1.credit_minor > 0);
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
@@ -307,18 +381,21 @@ async fn test_boundary_http_account_activity_with_period_id() {
 async fn test_boundary_http_account_activity_pagination() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-aa-pagination-001";
+    let tenant_uuid = Uuid::new_v4();
+    let tenant_id = tenant_uuid.to_string();
+    let token = sign_test_jwt(&tenant_uuid);
+    let client = authed_client(&token);
     let account_code = "2000";
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup account
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         account_code,
         "Accounts Payable",
         AccountType::Liability,
@@ -329,7 +406,7 @@ async fn test_boundary_http_account_activity_pagination() {
     // Setup period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
+        &tenant_id,
         NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
         NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
     )
@@ -340,7 +417,7 @@ async fn test_boundary_http_account_activity_pagination() {
     for i in 0..5 {
         insert_test_journal_entry(
             &pool,
-            tenant_id,
+            &tenant_id,
             account_code,
             "USD",
             0,
@@ -354,11 +431,13 @@ async fn test_boundary_http_account_activity_pagination() {
 
     // Test 1: First page (limit=2, offset=0)
     let url_page1 = format!(
-        "{}/api/gl/accounts/{}/activity?tenant_id={}&period_id={}&limit=2&offset=0",
-        gl_service_url, account_code, tenant_id, period_id
+        "{}/api/gl/accounts/{}/activity?period_id={}&limit=2&offset=0",
+        gl_service_url, account_code, period_id
     );
 
-    let response1 = reqwest::get(&url_page1)
+    let response1 = client
+        .get(&url_page1)
+        .send()
         .await
         .expect("Failed to fetch page 1");
     assert_eq!(response1.status(), 200);
@@ -372,11 +451,13 @@ async fn test_boundary_http_account_activity_pagination() {
 
     // Test 2: Second page (limit=2, offset=2)
     let url_page2 = format!(
-        "{}/api/gl/accounts/{}/activity?tenant_id={}&period_id={}&limit=2&offset=2",
-        gl_service_url, account_code, tenant_id, period_id
+        "{}/api/gl/accounts/{}/activity?period_id={}&limit=2&offset=2",
+        gl_service_url, account_code, period_id
     );
 
-    let response2 = reqwest::get(&url_page2)
+    let response2 = client
+        .get(&url_page2)
+        .send()
         .await
         .expect("Failed to fetch page 2");
     assert_eq!(response2.status(), 200);
@@ -388,11 +469,13 @@ async fn test_boundary_http_account_activity_pagination() {
 
     // Test 3: Last page (limit=2, offset=4)
     let url_page3 = format!(
-        "{}/api/gl/accounts/{}/activity?tenant_id={}&period_id={}&limit=2&offset=4",
-        gl_service_url, account_code, tenant_id, period_id
+        "{}/api/gl/accounts/{}/activity?period_id={}&limit=2&offset=4",
+        gl_service_url, account_code, period_id
     );
 
-    let response3 = reqwest::get(&url_page3)
+    let response3 = client
+        .get(&url_page3)
+        .send()
         .await
         .expect("Failed to fetch page 3");
     assert_eq!(response3.status(), 200);
@@ -403,7 +486,7 @@ async fn test_boundary_http_account_activity_pagination() {
     assert!(!activity3.pagination.has_more, "Should not have more pages");
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
@@ -411,18 +494,21 @@ async fn test_boundary_http_account_activity_pagination() {
 async fn test_boundary_http_account_activity_currency_filter() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-aa-currency-001";
+    let tenant_uuid = Uuid::new_v4();
+    let tenant_id = tenant_uuid.to_string();
+    let token = sign_test_jwt(&tenant_uuid);
+    let client = authed_client(&token);
     let account_code = "3000";
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup account
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         account_code,
         "Revenue",
         AccountType::Revenue,
@@ -433,7 +519,7 @@ async fn test_boundary_http_account_activity_currency_filter() {
     // Setup period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
+        &tenant_id,
         NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
         NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
     )
@@ -443,7 +529,7 @@ async fn test_boundary_http_account_activity_currency_filter() {
     let posted_at = Utc.with_ymd_and_hms(2024, 3, 15, 10, 0, 0).unwrap();
     insert_test_journal_entry(
         &pool,
-        tenant_id,
+        &tenant_id,
         account_code,
         "USD",
         0,
@@ -455,7 +541,7 @@ async fn test_boundary_http_account_activity_currency_filter() {
     .await;
     insert_test_journal_entry(
         &pool,
-        tenant_id,
+        &tenant_id,
         account_code,
         "EUR",
         0,
@@ -467,7 +553,7 @@ async fn test_boundary_http_account_activity_currency_filter() {
     .await;
     insert_test_journal_entry(
         &pool,
-        tenant_id,
+        &tenant_id,
         account_code,
         "USD",
         0,
@@ -480,11 +566,13 @@ async fn test_boundary_http_account_activity_currency_filter() {
 
     // Test 1: Filter by USD
     let url_usd = format!(
-        "{}/api/gl/accounts/{}/activity?tenant_id={}&period_id={}&currency=USD",
-        gl_service_url, account_code, tenant_id, period_id
+        "{}/api/gl/accounts/{}/activity?period_id={}&currency=USD",
+        gl_service_url, account_code, period_id
     );
 
-    let response_usd = reqwest::get(&url_usd)
+    let response_usd = client
+        .get(&url_usd)
+        .send()
         .await
         .expect("Failed to fetch USD activity");
     assert_eq!(response_usd.status(), 200);
@@ -496,11 +584,13 @@ async fn test_boundary_http_account_activity_currency_filter() {
 
     // Test 2: Filter by EUR
     let url_eur = format!(
-        "{}/api/gl/accounts/{}/activity?tenant_id={}&period_id={}&currency=EUR",
-        gl_service_url, account_code, tenant_id, period_id
+        "{}/api/gl/accounts/{}/activity?period_id={}&currency=EUR",
+        gl_service_url, account_code, period_id
     );
 
-    let response_eur = reqwest::get(&url_eur)
+    let response_eur = client
+        .get(&url_eur)
+        .send()
         .await
         .expect("Failed to fetch EUR activity");
     assert_eq!(response_eur.status(), 200);
@@ -511,7 +601,7 @@ async fn test_boundary_http_account_activity_currency_filter() {
     assert_eq!(activity_eur.lines[0].currency, "EUR");
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
@@ -520,25 +610,32 @@ async fn test_boundary_http_account_activity_error_handling() {
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
-    // Test 1: Missing required query parameter tenant_id (should return 400)
-    let url_missing_tenant = format!("{}/api/gl/accounts/1000/activity", gl_service_url);
+    // Authed client for tests that need to get past JWT auth
+    let tenant_uuid = Uuid::new_v4();
+    let token = sign_test_jwt(&tenant_uuid);
+    let client = authed_client(&token);
 
-    let response = reqwest::get(&url_missing_tenant)
+    // Test 1: No authentication token → should return 401
+    let url_no_auth = format!("{}/api/gl/accounts/1000/activity", gl_service_url);
+
+    let response = reqwest::get(&url_no_auth)
         .await
         .expect("Failed to make request");
     assert_eq!(
         response.status(),
-        400,
-        "Should return 400 for missing tenant_id parameter"
+        401,
+        "Should return 401 when no JWT token is provided"
     );
 
     // Test 2: Missing both period_id and date range (should return 400)
     let url_no_date_filter = format!(
-        "{}/api/gl/accounts/1000/activity?tenant_id=test",
+        "{}/api/gl/accounts/1000/activity",
         gl_service_url
     );
 
-    let response_no_date = reqwest::get(&url_no_date_filter)
+    let response_no_date = client
+        .get(&url_no_date_filter)
+        .send()
         .await
         .expect("Failed to make request");
     assert_eq!(
@@ -549,11 +646,13 @@ async fn test_boundary_http_account_activity_error_handling() {
 
     // Test 3: Invalid UUID format for period_id (should return 400)
     let url_invalid_uuid = format!(
-        "{}/api/gl/accounts/1000/activity?tenant_id=test&period_id=not-a-uuid",
+        "{}/api/gl/accounts/1000/activity?period_id=not-a-uuid",
         gl_service_url
     );
 
-    let response_invalid = reqwest::get(&url_invalid_uuid)
+    let response_invalid = client
+        .get(&url_invalid_uuid)
+        .send()
         .await
         .expect("Failed to make request");
     assert_eq!(
@@ -565,11 +664,13 @@ async fn test_boundary_http_account_activity_error_handling() {
     // Test 4: Period not found (should return 404)
     let nonexistent_period_id = Uuid::new_v4();
     let url_not_found = format!(
-        "{}/api/gl/accounts/1000/activity?tenant_id=nonexistent&period_id={}",
+        "{}/api/gl/accounts/1000/activity?period_id={}",
         gl_service_url, nonexistent_period_id
     );
 
-    let response_not_found = reqwest::get(&url_not_found)
+    let response_not_found = client
+        .get(&url_not_found)
+        .send()
         .await
         .expect("Failed to make request");
     assert_eq!(
@@ -581,11 +682,13 @@ async fn test_boundary_http_account_activity_error_handling() {
     // Test 5: Invalid pagination parameters (should return 400)
     let period_id = Uuid::new_v4();
     let url_invalid_pagination = format!(
-        "{}/api/gl/accounts/1000/activity?tenant_id=test&period_id={}&limit=1000",
+        "{}/api/gl/accounts/1000/activity?period_id={}&limit=1000",
         gl_service_url, period_id
     );
 
-    let response_bad_pagination = reqwest::get(&url_invalid_pagination)
+    let response_bad_pagination = client
+        .get(&url_invalid_pagination)
+        .send()
         .await
         .expect("Failed to make request");
     assert!(
@@ -601,18 +704,21 @@ async fn test_boundary_http_account_activity_json_dto_structure() {
     // to prevent breaking changes in serialization.
 
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-aa-dto-test";
+    let tenant_uuid = Uuid::new_v4();
+    let tenant_id = tenant_uuid.to_string();
+    let token = sign_test_jwt(&tenant_uuid);
+    let client = authed_client(&token);
     let account_code = "4000";
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup account
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         account_code,
         "Revenue",
         AccountType::Revenue,
@@ -623,7 +729,7 @@ async fn test_boundary_http_account_activity_json_dto_structure() {
     // Setup period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
+        &tenant_id,
         NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
         NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
     )
@@ -633,7 +739,7 @@ async fn test_boundary_http_account_activity_json_dto_structure() {
     let posted_at = Utc.with_ymd_and_hms(2024, 3, 15, 10, 0, 0).unwrap();
     insert_test_journal_entry(
         &pool,
-        tenant_id,
+        &tenant_id,
         account_code,
         "USD",
         0,
@@ -646,11 +752,11 @@ async fn test_boundary_http_account_activity_json_dto_structure() {
 
     // Make request
     let url = format!(
-        "{}/api/gl/accounts/{}/activity?tenant_id={}&period_id={}",
-        gl_service_url, account_code, tenant_id, period_id
+        "{}/api/gl/accounts/{}/activity?period_id={}",
+        gl_service_url, account_code, period_id
     );
 
-    let response = reqwest::get(&url).await.expect("Failed to make request");
+    let response = client.get(&url).send().await.expect("Failed to make request");
     assert_eq!(response.status(), 200);
 
     // Parse as generic JSON first to validate structure
@@ -723,7 +829,7 @@ async fn test_boundary_http_account_activity_json_dto_structure() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
@@ -733,18 +839,21 @@ async fn test_boundary_http_account_activity_performance_guard() {
     // Expected: < 200ms for 1000 transactions (per Phase 12 spec)
 
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-aa-perf-guard";
+    let tenant_uuid = Uuid::new_v4();
+    let tenant_id = tenant_uuid.to_string();
+    let token = sign_test_jwt(&tenant_uuid);
+    let client = authed_client(&token);
     let account_code = "5000";
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup account
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         account_code,
         "Expense",
         AccountType::Expense,
@@ -755,7 +864,7 @@ async fn test_boundary_http_account_activity_performance_guard() {
     // Setup period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
+        &tenant_id,
         NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
         NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
     )
@@ -766,7 +875,7 @@ async fn test_boundary_http_account_activity_performance_guard() {
     for i in 0..10 {
         insert_test_journal_entry(
             &pool,
-            tenant_id,
+            &tenant_id,
             account_code,
             "USD",
             (i + 1) * 1000,
@@ -780,12 +889,14 @@ async fn test_boundary_http_account_activity_performance_guard() {
 
     // Make HTTP request and time it
     let url = format!(
-        "{}/api/gl/accounts/{}/activity?tenant_id={}&period_id={}",
-        gl_service_url, account_code, tenant_id, period_id
+        "{}/api/gl/accounts/{}/activity?period_id={}",
+        gl_service_url, account_code, period_id
     );
 
     let start = std::time::Instant::now();
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to fetch account activity");
     let elapsed = start.elapsed();
@@ -801,5 +912,5 @@ async fn test_boundary_http_account_activity_performance_guard() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }

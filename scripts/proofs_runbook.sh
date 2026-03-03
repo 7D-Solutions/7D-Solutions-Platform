@@ -229,19 +229,19 @@ resolved_db_url() {
   local hp
   hp="$(container_host_port "$container")"
   if [[ -n "$hp" ]]; then
-    echo "postgres://${user}:${pass}@localhost:${hp}/${db}?connect_timeout=5"
+    echo "postgres://${user}:${pass}@localhost:${hp}/${db}?sslmode=disable&connect_timeout=5"
     return 0
   fi
 
   local ip
   ip="$(container_ip "$container")"
   if [[ -n "$ip" ]]; then
-    echo "postgres://${user}:${pass}@${ip}:5432/${db}?connect_timeout=5"
+    echo "postgres://${user}:${pass}@${ip}:5432/${db}?sslmode=disable&connect_timeout=5"
     return 0
   fi
 
   # Final fallback for environments without docker inspection.
-  echo "postgres://${user}:${pass}@localhost:${fallback_port}/${db}?connect_timeout=5"
+  echo "postgres://${user}:${pass}@localhost:${fallback_port}/${db}?sslmode=disable&connect_timeout=5"
 }
 
 crate_test_env_cmd() {
@@ -262,6 +262,16 @@ crate_test_env_cmd() {
     shipping-receiving-rs)
       local url
       url="$(resolved_db_url "${DATABASE_URL_SHIPPING_RECEIVING:-}" "7d-shipping-receiving-postgres" "shipping_receiving_user" "shipping_receiving_pass" "shipping_receiving_db" "5454")"
+      echo "DATABASE_URL=${url}"
+      ;;
+    fixed-assets)
+      local url
+      url="$(resolved_db_url "${DATABASE_URL_FIXED_ASSETS:-}" "7d-fixed-assets-postgres" "fixed_assets_user" "fixed_assets_pass" "fixed_assets_db" "5445")"
+      echo "DATABASE_URL=${url}"
+      ;;
+    subscriptions-rs)
+      local url
+      url="$(resolved_db_url "${DATABASE_URL_SUBSCRIPTIONS:-}" "7d-subscriptions-postgres" "subscriptions_user" "subscriptions_pass" "subscriptions_db" "5435")"
       echo "DATABASE_URL=${url}"
       ;;
     auth-rs)
