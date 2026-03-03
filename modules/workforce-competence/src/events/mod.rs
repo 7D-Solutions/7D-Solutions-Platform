@@ -5,6 +5,8 @@ pub const MUTATION_CLASS_DATA_MUTATION: &str = "DATA_MUTATION";
 
 pub const EVENT_TYPE_ARTIFACT_REGISTERED: &str = "workforce_competence.artifact_registered";
 pub const EVENT_TYPE_COMPETENCE_ASSIGNED: &str = "workforce_competence.competence_assigned";
+pub const EVENT_TYPE_AUTHORITY_GRANTED: &str = "workforce_competence.acceptance_authority_granted";
+pub const EVENT_TYPE_AUTHORITY_REVOKED: &str = "workforce_competence.acceptance_authority_revoked";
 
 /// Create a workforce-competence-scoped EventEnvelope.
 ///
