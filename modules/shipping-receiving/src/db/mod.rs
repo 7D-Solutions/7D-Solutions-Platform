@@ -1,3 +1,4 @@
+pub mod carrier_request_repo;
 pub mod inspection_routing_repo;
 pub mod repository;
 pub mod rma_repo;
