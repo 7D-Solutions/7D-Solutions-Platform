@@ -19,6 +19,7 @@ pub mod consumer;
 pub mod event_naming;
 pub mod idempotency;
 pub mod mutation_classes;
+pub mod portal_identity;
 
 // ── Re-exports from event-bus ───────────────────────────────────────────
 pub use event_bus::{EventEnvelope, MerchantContext};
