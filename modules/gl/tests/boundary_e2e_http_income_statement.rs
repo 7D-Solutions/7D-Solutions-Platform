@@ -19,9 +19,68 @@ use chrono::{NaiveDate, Utc};
 use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::income_statement_service::IncomeStatementResponse;
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use serde::Serialize;
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+// ============================================================================
+// JWT Auth Helpers (GL service requires Bearer JWT)
+// ============================================================================
+
+#[derive(Serialize)]
+struct TestJwtClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    jti: String,
+    tenant_id: String,
+    roles: Vec<String>,
+    perms: Vec<String>,
+    actor_type: String,
+    ver: String,
+}
+
+fn sign_test_jwt(tenant_id: &str) -> String {
+    dotenvy::dotenv().ok();
+    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
+        .expect("JWT_PRIVATE_KEY_PEM must be set (loaded from .env)");
+    let encoding_key =
+        EncodingKey::from_rsa_pem(pem.as_bytes()).expect("Invalid JWT_PRIVATE_KEY_PEM");
+    let now = Utc::now();
+    let claims = TestJwtClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: now.timestamp(),
+        exp: (now + chrono::Duration::minutes(15)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: tenant_id.to_string(),
+        roles: vec!["operator".into()],
+        perms: vec!["gl.read".into()],
+        actor_type: "user".to_string(),
+        ver: "1".to_string(),
+    };
+    let header = Header::new(Algorithm::RS256);
+    jsonwebtoken::encode(&header, &claims, &encoding_key).expect("Failed to sign test JWT")
+}
+
+fn authed_client(token: &str) -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        format!("Bearer {}", token)
+            .parse()
+            .expect("valid header value"),
+    );
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .expect("Failed to build authed client")
+}
 
 /// Setup test database pool
 async fn setup_test_pool() -> PgPool {
@@ -162,17 +221,21 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 async fn test_boundary_http_income_statement_returns_correct_json() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-http-is-001";
+    let tenant_id = Uuid::new_v4().to_string();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    // JWT auth
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup Chart of Accounts
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "4000",
         "Sales Revenue",
         AccountType::Revenue,
@@ -182,7 +245,7 @@ async fn test_boundary_http_income_statement_returns_correct_json() {
 
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "5000",
         "Operating Expenses",
         AccountType::Expense,
@@ -193,23 +256,25 @@ async fn test_boundary_http_income_statement_returns_correct_json() {
     // Setup accounting period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2024, 2, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2024, 2, 29).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 2, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 2, 29).expect("valid date"),
     )
     .await;
 
     // Insert test balances (Revenue: $1000 credit, Expenses: $400 debit)
-    insert_test_balance(&pool, tenant_id, period_id, "4000", "USD", 0, 100000).await; // $1000 revenue
-    insert_test_balance(&pool, tenant_id, period_id, "5000", "USD", 40000, 0).await; // $400 expenses
+    insert_test_balance(&pool, &tenant_id, period_id, "4000", "USD", 0, 100000).await; // $1000 revenue
+    insert_test_balance(&pool, &tenant_id, period_id, "5000", "USD", 40000, 0).await; // $400 expenses
 
-    // ✅ BOUNDARY TEST: Make real HTTP GET request
+    // BOUNDARY TEST: Make real HTTP GET request with JWT auth
     let url = format!(
         "{}/api/gl/income-statement?tenant_id={}&period_id={}&currency=USD",
         gl_service_url, tenant_id, period_id
     );
 
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to make HTTP request - is GL service running on port 8090?");
 
@@ -254,7 +319,7 @@ async fn test_boundary_http_income_statement_returns_correct_json() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
@@ -263,10 +328,17 @@ async fn test_boundary_http_income_statement_error_handling() {
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    // JWT auth for authenticated requests
+    let tenant_id = Uuid::new_v4().to_string();
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Test: Missing required query parameter (should return 400)
     let url_missing_params = format!("{}/api/gl/income-statement", gl_service_url);
 
-    let response = reqwest::get(&url_missing_params)
+    let response = client
+        .get(&url_missing_params)
+        .send()
         .await
         .expect("Failed to make request");
 
@@ -279,11 +351,13 @@ async fn test_boundary_http_income_statement_error_handling() {
 
     // Test: Invalid UUID format (should return 400)
     let url_invalid_uuid = format!(
-        "{}/api/gl/income-statement?tenant_id=test&period_id=not-a-uuid&currency=USD",
-        gl_service_url
+        "{}/api/gl/income-statement?tenant_id={}&period_id=not-a-uuid&currency=USD",
+        gl_service_url, tenant_id
     );
 
-    let response_invalid = reqwest::get(&url_invalid_uuid)
+    let response_invalid = client
+        .get(&url_invalid_uuid)
+        .send()
         .await
         .expect("Failed to make request");
     assert_eq!(
@@ -298,17 +372,21 @@ async fn test_boundary_http_income_statement_error_handling() {
 async fn test_boundary_http_income_statement_schema_validation() {
     // This test verifies the JSON schema matches expectations (deterministic serialization)
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-http-is-schema";
+    let tenant_id = Uuid::new_v4().to_string();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    // JWT auth
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup minimal test data
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "4000",
         "Revenue",
         AccountType::Revenue,
@@ -318,21 +396,23 @@ async fn test_boundary_http_income_statement_schema_validation() {
 
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2024, 3, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2024, 3, 31).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 3, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 3, 31).expect("valid date"),
     )
     .await;
 
-    insert_test_balance(&pool, tenant_id, period_id, "4000", "USD", 0, 50000).await;
+    insert_test_balance(&pool, &tenant_id, period_id, "4000", "USD", 0, 50000).await;
 
-    // Make HTTP request
+    // Make authenticated HTTP request
     let url = format!(
         "{}/api/gl/income-statement?tenant_id={}&period_id={}&currency=USD",
         gl_service_url, tenant_id, period_id
     );
 
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to fetch income statement");
     assert_eq!(response.status(), 200);
@@ -354,5 +434,5 @@ async fn test_boundary_http_income_statement_schema_validation() {
     assert!(totals.get("net_income").is_some());
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
