@@ -205,3 +205,66 @@ pub struct DocumentRenderedPayload {
     pub template_id: Uuid,
     pub output_hash: String,
 }
+
+// ── Controlled distribution models (DOC4) ───────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct DocumentDistribution {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub document_id: Uuid,
+    pub revision_id: Option<Uuid>,
+    pub recipient_ref: String,
+    pub channel: String,
+    pub template_key: String,
+    pub payload_json: serde_json::Value,
+    pub status: String,
+    pub provider_message_id: Option<String>,
+    pub requested_by: Uuid,
+    pub requested_at: DateTime<Utc>,
+    pub sent_at: Option<DateTime<Utc>>,
+    pub delivered_at: Option<DateTime<Utc>>,
+    pub failed_at: Option<DateTime<Utc>>,
+    pub failure_reason: Option<String>,
+    pub idempotency_key: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateDistributionRequest {
+    pub recipient_ref: String,
+    pub channel: String,
+    pub template_key: String,
+    pub payload_json: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DistributionStatusUpdateRequest {
+    pub status: String,
+    pub provider_message_id: Option<String>,
+    pub failure_reason: Option<String>,
+    pub notification_event_id: Option<Uuid>,
+    pub delivered_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentDistributionRequestedPayload {
+    pub distribution_id: Uuid,
+    pub document_id: Uuid,
+    pub revision_id: Option<Uuid>,
+    pub doc_number: String,
+    pub recipient_ref: String,
+    pub channel: String,
+    pub template_key: String,
+    pub payload_json: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentDistributionStatusUpdatedPayload {
+    pub distribution_id: Uuid,
+    pub document_id: Uuid,
+    pub status: String,
+    pub provider_message_id: Option<String>,
+    pub failure_reason: Option<String>,
+}

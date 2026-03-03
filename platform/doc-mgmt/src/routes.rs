@@ -24,6 +24,18 @@ pub fn api_router(state: Arc<AppState>) -> Router {
             "/api/documents/{id}/revisions",
             post(crate::handlers::create_revision),
         )
+        .route(
+            "/api/documents/{id}/distributions",
+            post(crate::distribution::create_distribution),
+        )
+        .route(
+            "/api/documents/{id}/distributions",
+            get(crate::distribution::list_distributions),
+        )
+        .route(
+            "/api/distributions/{id}/status",
+            post(crate::distribution::update_distribution_status),
+        )
         // Retention policies
         .route(
             "/api/retention-policies",

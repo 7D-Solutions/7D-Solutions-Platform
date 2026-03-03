@@ -7,6 +7,7 @@ use tracing_subscriber::EnvFilter;
 
 mod config;
 mod db;
+mod distribution;
 mod handlers;
 mod models;
 mod outbox_relay;
@@ -47,34 +48,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Health endpoints (no auth)
     let health_pool = pool.clone();
-    let health_router = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route(
-            "/api/ready",
-            get(move || {
-                let db = health_pool.clone();
-                async move {
-                    let start = std::time::Instant::now();
-                    let check = sqlx::query("SELECT 1").execute(&db).await;
-                    let latency = start.elapsed().as_millis() as u64;
-                    let db_check = health::db_check(latency, check.err().map(|e| e.to_string()));
-                    let resp = health::build_ready_response("doc-mgmt", env!("CARGO_PKG_VERSION"), vec![db_check]);
-                    health::ready_response_to_axum(resp)
-                }
-            }),
-        );
+    let health_router = Router::new().route("/healthz", get(health::healthz)).route(
+        "/api/ready",
+        get(move || {
+            let db = health_pool.clone();
+            async move {
+                let start = std::time::Instant::now();
+                let check = sqlx::query("SELECT 1").execute(&db).await;
+                let latency = start.elapsed().as_millis() as u64;
+                let db_check = health::db_check(latency, check.err().map(|e| e.to_string()));
+                let resp = health::build_ready_response(
+                    "doc-mgmt",
+                    env!("CARGO_PKG_VERSION"),
+                    vec![db_check],
+                );
+                health::ready_response_to_axum(resp)
+            }
+        }),
+    );
 
     // API router (with auth)
     let api = routes::api_router(app_state)
         .route_layer(RequirePermissionsLayer::new(&["doc_mgmt.mutate"]));
 
-    let app = Router::new()
-        .merge(health_router)
-        .merge(api)
-        .layer(axum::middleware::from_fn_with_state(
-            maybe_verifier,
-            optional_claims_mw,
-        ));
+    let app =
+        Router::new()
+            .merge(health_router)
+            .merge(api)
+            .layer(axum::middleware::from_fn_with_state(
+                maybe_verifier,
+                optional_claims_mw,
+            ));
 
     let addr: SocketAddr = format!("{}:{}", cfg.host, cfg.port).parse()?;
     tracing::info!(%addr, "doc-mgmt listening");

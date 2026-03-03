@@ -7,8 +7,7 @@ use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-const DEFAULT_DB_URL: &str =
-    "postgresql://doc_mgmt_user:doc_mgmt_pass@localhost:5455/doc_mgmt_db";
+const DEFAULT_DB_URL: &str = "postgresql://doc_mgmt_user:doc_mgmt_pass@localhost:5455/doc_mgmt_db";
 
 async fn get_pool() -> PgPool {
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| DEFAULT_DB_URL.to_string());
@@ -27,12 +26,7 @@ async fn get_pool() -> PgPool {
 // ── Test helpers ─────────────────────────────────────────────────────
 
 /// Create a test document directly in the database, returning (doc_id, tenant_id).
-async fn insert_test_doc(
-    pool: &PgPool,
-    tenant_id: Uuid,
-    doc_number: &str,
-    status: &str,
-) -> Uuid {
+async fn insert_test_doc(pool: &PgPool, tenant_id: Uuid, doc_number: &str, status: &str) -> Uuid {
     let doc_id = Uuid::new_v4();
     let actor = Uuid::new_v4();
     let now = Utc::now();
@@ -87,7 +81,12 @@ async fn schema_tables_exist() {
 
     assert_eq!(
         tables,
-        vec!["doc_idempotency_keys", "doc_outbox", "documents", "revisions"]
+        vec![
+            "doc_idempotency_keys",
+            "doc_outbox",
+            "documents",
+            "revisions"
+        ]
     );
 }
 
@@ -143,12 +142,11 @@ async fn lifecycle_draft_to_released() {
     let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "draft").await;
 
     // Verify it's draft
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
-            .bind(doc_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch status");
+    let status: String = sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+        .bind(doc_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch status");
     assert_eq!(status, "draft");
 
     // Release it
@@ -165,12 +163,11 @@ async fn lifecycle_draft_to_released() {
     assert_eq!(result.rows_affected(), 1);
 
     // Verify it's released
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
-            .bind(doc_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch status");
+    let status: String = sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+        .bind(doc_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch status");
     assert_eq!(status, "released");
 
     // Trying to release again should affect 0 rows (idempotent guard)
@@ -202,13 +199,12 @@ async fn revisions_increment_correctly() {
     let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "draft").await;
 
     // Initial revision is 1 (created by insert_test_doc)
-    let max_rev: Option<i32> = sqlx::query_scalar(
-        "SELECT MAX(revision_number) FROM revisions WHERE document_id = $1",
-    )
-    .bind(doc_id)
-    .fetch_one(&pool)
-    .await
-    .expect("query max rev");
+    let max_rev: Option<i32> =
+        sqlx::query_scalar("SELECT MAX(revision_number) FROM revisions WHERE document_id = $1")
+            .bind(doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("query max rev");
     assert_eq!(max_rev, Some(1));
 
     // Add revision 2
@@ -237,13 +233,12 @@ async fn revisions_increment_correctly() {
     .await
     .expect("insert rev 3");
 
-    let max_rev: Option<i32> = sqlx::query_scalar(
-        "SELECT MAX(revision_number) FROM revisions WHERE document_id = $1",
-    )
-    .bind(doc_id)
-    .fetch_one(&pool)
-    .await
-    .expect("query max rev");
+    let max_rev: Option<i32> =
+        sqlx::query_scalar("SELECT MAX(revision_number) FROM revisions WHERE document_id = $1")
+            .bind(doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("query max rev");
     assert_eq!(max_rev, Some(3));
 
     // Duplicate revision_number should fail (unique constraint)
@@ -275,26 +270,24 @@ async fn tenant_isolation_enforced() {
     let _doc_b = insert_test_doc(&pool, tenant_b, &doc_number_b, "draft").await;
 
     // Tenant B should not see tenant A's document
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM documents WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(doc_a)
-    .bind(tenant_b)
-    .fetch_one(&pool)
-    .await
-    .expect("cross-tenant query");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM documents WHERE id = $1 AND tenant_id = $2")
+            .bind(doc_a)
+            .bind(tenant_b)
+            .fetch_one(&pool)
+            .await
+            .expect("cross-tenant query");
 
     assert_eq!(count, 0, "tenant B must not see tenant A's document");
 
     // Tenant A can see its own document
-    let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM documents WHERE id = $1 AND tenant_id = $2",
-    )
-    .bind(doc_a)
-    .bind(tenant_a)
-    .fetch_one(&pool)
-    .await
-    .expect("own-tenant query");
+    let count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM documents WHERE id = $1 AND tenant_id = $2")
+            .bind(doc_a)
+            .bind(tenant_a)
+            .fetch_one(&pool)
+            .await
+            .expect("own-tenant query");
 
     assert_eq!(count, 1, "tenant A must see its own document");
 }
@@ -328,26 +321,23 @@ async fn outbox_event_written_atomically() {
         "tenant_id": tenant_id,
     });
 
-    sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("document.created")
-    .bind("doc_mgmt.events.document.created")
-    .bind(&event_payload)
-    .execute(&mut *tx)
-    .await
-    .expect("insert outbox");
+    sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+        .bind("document.created")
+        .bind("doc_mgmt.events.document.created")
+        .bind(&event_payload)
+        .execute(&mut *tx)
+        .await
+        .expect("insert outbox");
 
     tx.commit().await.expect("commit tx");
 
     // Verify both exist
-    let doc_exists: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM documents WHERE id = $1)",
-    )
-    .bind(doc_id)
-    .fetch_one(&pool)
-    .await
-    .expect("check doc");
+    let doc_exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM documents WHERE id = $1)")
+            .bind(doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("check doc");
     assert!(doc_exists);
 
     let outbox_exists: bool = sqlx::query_scalar(
@@ -445,7 +435,11 @@ async fn event_envelope_validates_and_serializes() {
     .with_actor(Uuid::new_v4(), "User".to_string());
 
     let result = validate_and_serialize_envelope(&envelope);
-    assert!(result.is_ok(), "envelope should validate: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "envelope should validate: {:?}",
+        result.err()
+    );
 
     let payload = result.unwrap();
     assert_eq!(payload["source_module"], "doc_mgmt");
@@ -510,7 +504,10 @@ async fn guard_mutation_outbox_atomicity_on_rollback() {
     .fetch_one(&pool)
     .await
     .expect("check outbox after rollback");
-    assert!(!outbox_exists, "outbox event should not exist after rollback");
+    assert!(
+        !outbox_exists,
+        "outbox event should not exist after rollback"
+    );
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -518,11 +515,7 @@ async fn guard_mutation_outbox_atomicity_on_rollback() {
 // ══════════════════════════════════════════════════════════════════════
 
 /// Helper: insert a test doc, release it, verify the revision is now 'released'.
-async fn insert_and_release_doc(
-    pool: &PgPool,
-    tenant_id: Uuid,
-    doc_number: &str,
-) -> (Uuid, Uuid) {
+async fn insert_and_release_doc(pool: &PgPool, tenant_id: Uuid, doc_number: &str) -> (Uuid, Uuid) {
     let doc_id = insert_test_doc(pool, tenant_id, doc_number, "draft").await;
 
     // Release document
@@ -571,19 +564,19 @@ async fn released_revision_update_blocked_by_trigger() {
     let (_doc_id, rev_id) = insert_and_release_doc(&pool, tenant_id, &doc_number).await;
 
     // Verify revision is released
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM revisions WHERE id = $1")
-            .bind(rev_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch revision status");
+    let status: String = sqlx::query_scalar("SELECT status FROM revisions WHERE id = $1")
+        .bind(rev_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch revision status");
     assert_eq!(status, "released");
 
     // Try to update body — must fail
-    let result = sqlx::query("UPDATE revisions SET body = '{\"tampered\": true}'::jsonb WHERE id = $1")
-        .bind(rev_id)
-        .execute(&pool)
-        .await;
+    let result =
+        sqlx::query("UPDATE revisions SET body = '{\"tampered\": true}'::jsonb WHERE id = $1")
+            .bind(rev_id)
+            .execute(&pool)
+            .await;
 
     assert!(
         result.is_err(),
@@ -633,19 +626,19 @@ async fn draft_revision_update_allowed() {
 
     let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "draft").await;
 
-    let rev_id: Uuid = sqlx::query_scalar(
-        "SELECT id FROM revisions WHERE document_id = $1 LIMIT 1",
-    )
-    .bind(doc_id)
-    .fetch_one(&pool)
-    .await
-    .expect("get revision id");
+    let rev_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM revisions WHERE document_id = $1 LIMIT 1")
+            .bind(doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("get revision id");
 
     // Draft revision: update should succeed
-    let result = sqlx::query("UPDATE revisions SET body = '{\"edited\": true}'::jsonb WHERE id = $1")
-        .bind(rev_id)
-        .execute(&pool)
-        .await;
+    let result =
+        sqlx::query("UPDATE revisions SET body = '{\"edited\": true}'::jsonb WHERE id = $1")
+            .bind(rev_id)
+            .execute(&pool)
+            .await;
 
     assert!(result.is_ok(), "UPDATE on draft revision should be allowed");
 }
@@ -711,40 +704,36 @@ async fn supersede_creates_new_doc_and_links() {
     .expect("mark old doc superseded");
 
     // Outbox event
-    sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("document.superseded")
-    .bind("doc_mgmt.events.document.superseded")
-    .bind(serde_json::json!({
-        "old_document_id": old_doc_id.to_string(),
-        "new_document_id": new_doc_id.to_string(),
-    }))
-    .execute(&mut *tx)
-    .await
-    .expect("insert outbox");
+    sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+        .bind("document.superseded")
+        .bind("doc_mgmt.events.document.superseded")
+        .bind(serde_json::json!({
+            "old_document_id": old_doc_id.to_string(),
+            "new_document_id": new_doc_id.to_string(),
+        }))
+        .execute(&mut *tx)
+        .await
+        .expect("insert outbox");
 
     tx.commit().await.expect("commit tx");
 
     // Verify old doc is superseded with correct linkage
-    let (old_status, superseded_by): (String, Option<Uuid>) = sqlx::query_as(
-        "SELECT status, superseded_by FROM documents WHERE id = $1",
-    )
-    .bind(old_doc_id)
-    .fetch_one(&pool)
-    .await
-    .expect("fetch old doc");
+    let (old_status, superseded_by): (String, Option<Uuid>) =
+        sqlx::query_as("SELECT status, superseded_by FROM documents WHERE id = $1")
+            .bind(old_doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("fetch old doc");
 
     assert_eq!(old_status, "superseded");
     assert_eq!(superseded_by, Some(new_doc_id));
 
     // Verify new doc exists as draft
-    let new_status: String =
-        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
-            .bind(new_doc_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch new doc status");
+    let new_status: String = sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+        .bind(new_doc_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch new doc status");
     assert_eq!(new_status, "draft");
 
     // Verify outbox event
@@ -769,12 +758,11 @@ async fn supersede_rejects_draft_document() {
     let doc_id = insert_test_doc(&pool, tenant_id, &doc_number, "draft").await;
 
     // Check the document is draft
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
-            .bind(doc_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch status");
+    let status: String = sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+        .bind(doc_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch status");
     assert_eq!(status, "draft", "document must be in draft for this test");
 
     // A draft document should NOT be supersedable. Guard check in app code,
@@ -855,18 +843,18 @@ async fn release_marks_revisions_as_released() {
     assert_eq!(released_count, 2, "all revisions should be released");
 
     // And now immutable — cannot update
-    let rev_id: Uuid = sqlx::query_scalar(
-        "SELECT id FROM revisions WHERE document_id = $1 LIMIT 1",
-    )
-    .bind(doc_id)
-    .fetch_one(&pool)
-    .await
-    .expect("get any revision");
+    let rev_id: Uuid =
+        sqlx::query_scalar("SELECT id FROM revisions WHERE document_id = $1 LIMIT 1")
+            .bind(doc_id)
+            .fetch_one(&pool)
+            .await
+            .expect("get any revision");
 
-    let result = sqlx::query("UPDATE revisions SET body = '{\"tampered\": true}'::jsonb WHERE id = $1")
-        .bind(rev_id)
-        .execute(&pool)
-        .await;
+    let result =
+        sqlx::query("UPDATE revisions SET body = '{\"tampered\": true}'::jsonb WHERE id = $1")
+            .bind(rev_id)
+            .execute(&pool)
+            .await;
 
     assert!(result.is_err(), "released revision must be immutable");
 }
@@ -884,10 +872,11 @@ async fn released_revision_body_immutable_verification() {
     let (_doc_id, rev_id) = insert_and_release_doc(&pool, tenant_id, &doc_number).await;
 
     // This is the core bead verification: UPDATE must fail at DB layer
-    let result = sqlx::query("UPDATE revisions SET body = '{\"content_ref\": \"x\"}'::jsonb WHERE id = $1")
-        .bind(rev_id)
-        .execute(&pool)
-        .await;
+    let result =
+        sqlx::query("UPDATE revisions SET body = '{\"content_ref\": \"x\"}'::jsonb WHERE id = $1")
+            .bind(rev_id)
+            .execute(&pool)
+            .await;
 
     assert!(
         result.is_err(),
@@ -1170,16 +1159,18 @@ async fn release_hold_then_disposal_succeeds() {
     .execute(&pool)
     .await;
 
-    assert!(result.is_ok(), "disposal should succeed after hold released");
+    assert!(
+        result.is_ok(),
+        "disposal should succeed after hold released"
+    );
     assert_eq!(result.unwrap().rows_affected(), 1);
 
     // Verify document is disposed
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
-            .bind(doc_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch status");
+    let status: String = sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+        .bind(doc_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch status");
     assert_eq!(status, "disposed");
 }
 
@@ -1418,13 +1409,11 @@ async fn re_hold_after_release_allowed() {
     );
 
     // Should have 2 total records (1 released, 1 active)
-    let total: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM legal_holds WHERE document_id = $1",
-    )
-    .bind(doc_id)
-    .fetch_one(&pool)
-    .await
-    .expect("count all holds");
+    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM legal_holds WHERE document_id = $1")
+        .bind(doc_id)
+        .fetch_one(&pool)
+        .await
+        .expect("count all holds");
     assert_eq!(total, 2);
 
     let active: i64 = sqlx::query_scalar(
@@ -1465,12 +1454,11 @@ async fn retention_period_blocks_disposal() {
     // We verify this at the APPLICATION level (checking retention_policies).
     // The DB trigger only checks holds, not retention. Retention is an app-level guard.
 
-    let doc_type: String =
-        sqlx::query_scalar("SELECT doc_type FROM documents WHERE id = $1")
-            .bind(doc_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch doc_type");
+    let doc_type: String = sqlx::query_scalar("SELECT doc_type FROM documents WHERE id = $1")
+        .bind(doc_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch doc_type");
 
     let updated_at: chrono::DateTime<Utc> =
         sqlx::query_scalar("SELECT updated_at FROM documents WHERE id = $1")
@@ -1495,7 +1483,8 @@ async fn retention_period_blocks_disposal() {
     assert!(
         now < eligible_after,
         "document should NOT be eligible for disposal yet (eligible_after: {}, now: {})",
-        eligible_after, now
+        eligible_after,
+        now
     );
 }
 
@@ -1532,12 +1521,11 @@ async fn no_retention_policy_allows_disposal() {
         "disposal should succeed with no policy and no holds"
     );
 
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
-            .bind(doc_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch status");
+    let status: String = sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+        .bind(doc_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch status");
     assert_eq!(status, "disposed");
 }
 
@@ -1649,7 +1637,10 @@ async fn disposal_of_superseded_document_with_hold_lifecycle() {
     .bind(tenant_id)
     .execute(&pool)
     .await;
-    assert!(result.is_err(), "disposal blocked on superseded doc with hold");
+    assert!(
+        result.is_err(),
+        "disposal blocked on superseded doc with hold"
+    );
 
     // Release hold
     sqlx::query(
@@ -1672,14 +1663,16 @@ async fn disposal_of_superseded_document_with_hold_lifecycle() {
     .execute(&pool)
     .await;
 
-    assert!(result.is_ok(), "disposal of superseded doc after hold release");
+    assert!(
+        result.is_ok(),
+        "disposal of superseded doc after hold release"
+    );
 
-    let status: String =
-        sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
-            .bind(old_doc_id)
-            .fetch_one(&pool)
-            .await
-            .expect("status");
+    let status: String = sqlx::query_scalar("SELECT status FROM documents WHERE id = $1")
+        .bind(old_doc_id)
+        .fetch_one(&pool)
+        .await
+        .expect("status");
     assert_eq!(status, "disposed");
 }
 
@@ -1741,10 +1734,7 @@ fn assert_envelope_complete(payload: &serde_json::Value, expected_event_type: &s
         payload["actor_type"].is_string() && !payload["actor_type"].as_str().unwrap().is_empty(),
         "actor_type must be a non-empty string"
     );
-    assert!(
-        payload["payload"].is_object(),
-        "payload must be an object"
-    );
+    assert!(payload["payload"].is_object(), "payload must be an object");
 }
 
 /// Helper: write an envelope-complete outbox event the same way the handler does,
@@ -1821,12 +1811,11 @@ async fn event_envelope_document_created_complete() {
     assert_eq!(inner["doc_type"], "spec");
 
     // Verify NATS subject format
-    let subject: String =
-        sqlx::query_scalar("SELECT subject FROM doc_outbox WHERE id = $1")
-            .bind(row_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch subject");
+    let subject: String = sqlx::query_scalar("SELECT subject FROM doc_outbox WHERE id = $1")
+        .bind(row_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch subject");
     assert_eq!(subject, "doc_mgmt.events.document.created");
 }
 
@@ -1869,12 +1858,11 @@ async fn event_envelope_revision_created_complete() {
     assert_eq!(inner["revision_id"], rev_id.to_string());
     assert_eq!(inner["revision_number"], 2);
 
-    let subject: String =
-        sqlx::query_scalar("SELECT subject FROM doc_outbox WHERE id = $1")
-            .bind(row_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch subject");
+    let subject: String = sqlx::query_scalar("SELECT subject FROM doc_outbox WHERE id = $1")
+        .bind(row_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch subject");
     assert_eq!(subject, "doc_mgmt.events.revision.created");
 }
 
@@ -1916,12 +1904,11 @@ async fn event_envelope_document_released_complete() {
     assert_eq!(inner["doc_number"], "EVT-REL-001");
     assert_eq!(inner["revision_number"], 3);
 
-    let subject: String =
-        sqlx::query_scalar("SELECT subject FROM doc_outbox WHERE id = $1")
-            .bind(row_id)
-            .fetch_one(&pool)
-            .await
-            .expect("fetch subject");
+    let subject: String = sqlx::query_scalar("SELECT subject FROM doc_outbox WHERE id = $1")
+        .bind(row_id)
+        .fetch_one(&pool)
+        .await
+        .expect("fetch subject");
     assert_eq!(subject, "doc_mgmt.events.document.released");
 }
 
@@ -2387,7 +2374,10 @@ async fn template_unique_name_version_per_tenant() {
     .execute(&pool)
     .await;
 
-    assert!(result.is_err(), "duplicate template name+version should fail");
+    assert!(
+        result.is_err(),
+        "duplicate template name+version should fail"
+    );
 }
 
 #[tokio::test]
@@ -2415,7 +2405,10 @@ async fn template_same_name_different_version_allowed() {
     .execute(&pool)
     .await;
 
-    assert!(result.is_ok(), "different version of same template should succeed");
+    assert!(
+        result.is_ok(),
+        "different version of same template should succeed"
+    );
 }
 
 // ── Render pipeline: template → artifact ────────────────────────────
@@ -2515,7 +2508,10 @@ async fn render_deterministic_same_inputs_same_hash() {
     let hash2 = doc_mgmt::render::compute_hash(&output2);
 
     assert_eq!(hash1, hash2, "same inputs must produce same output hash");
-    assert_eq!(output1, output2, "same inputs must produce identical output");
+    assert_eq!(
+        output1, output2,
+        "same inputs must produce identical output"
+    );
 }
 
 // ── Idempotency: duplicate render key rejected ──────────────────────
@@ -2567,7 +2563,10 @@ async fn render_idempotency_key_prevents_duplicates() {
     .execute(&pool)
     .await;
 
-    assert!(result.is_err(), "duplicate idempotency key must be rejected");
+    assert!(
+        result.is_err(),
+        "duplicate idempotency key must be rejected"
+    );
 }
 
 // ── Render emits outbox event ───────────────────────────────────────
@@ -2588,10 +2587,8 @@ async fn render_writes_outbox_event() {
     .await;
 
     let input_data = serde_json::json!({"name": "Test"});
-    let output = doc_mgmt::render::apply_template(
-        &serde_json::json!({"label": "{{name}}"}),
-        &input_data,
-    );
+    let output =
+        doc_mgmt::render::apply_template(&serde_json::json!({"label": "{{name}}"}), &input_data);
     let input_hash = doc_mgmt::render::compute_hash(&input_data);
     let output_hash = doc_mgmt::render::compute_hash(&output);
 
@@ -2628,22 +2625,22 @@ async fn render_writes_outbox_event() {
             "output_hash": output_hash,
         }),
     )
-    .with_mutation_class(Some(platform_contracts::mutation_classes::DATA_MUTATION.to_string()))
+    .with_mutation_class(Some(
+        platform_contracts::mutation_classes::DATA_MUTATION.to_string(),
+    ))
     .with_actor(actor, "User".to_string());
 
-    let event_payload = event_bus::outbox::validate_and_serialize_envelope(&envelope)
-        .expect("serialize envelope");
+    let event_payload =
+        event_bus::outbox::validate_and_serialize_envelope(&envelope).expect("serialize envelope");
     let subject = platform_contracts::event_naming::nats_subject("doc_mgmt", "document.rendered");
 
-    sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("document.rendered")
-    .bind(&subject)
-    .bind(&event_payload)
-    .execute(&mut *tx)
-    .await
-    .expect("outbox insert");
+    sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+        .bind("document.rendered")
+        .bind(&subject)
+        .bind(&event_payload)
+        .execute(&mut *tx)
+        .await
+        .expect("outbox insert");
 
     tx.commit().await.expect("commit");
 
@@ -2657,9 +2654,18 @@ async fn render_writes_outbox_event() {
 
     assert_eq!(outbox_payload["event_type"], "document.rendered");
     assert_eq!(outbox_payload["source_module"], "doc_mgmt");
-    assert!(outbox_payload["event_id"].as_str().is_some(), "event_id present");
-    assert!(outbox_payload["tenant_id"].as_str().is_some(), "tenant_id present");
-    assert!(outbox_payload["mutation_class"].as_str().is_some(), "mutation_class present");
+    assert!(
+        outbox_payload["event_id"].as_str().is_some(),
+        "event_id present"
+    );
+    assert!(
+        outbox_payload["tenant_id"].as_str().is_some(),
+        "tenant_id present"
+    );
+    assert!(
+        outbox_payload["mutation_class"].as_str().is_some(),
+        "mutation_class present"
+    );
 }
 
 // ── Full E2E: create template → render → query artifact ─────────────
@@ -2754,7 +2760,11 @@ async fn template_full_e2e_create_render_query() {
     .await
     .expect("idem query");
 
-    assert_eq!(idem_artifact, Some(artifact_id), "artifact queryable by idempotency key");
+    assert_eq!(
+        idem_artifact,
+        Some(artifact_id),
+        "artifact queryable by idempotency key"
+    );
 }
 
 // ── Tenant isolation: different tenants see different templates ──────
@@ -2805,5 +2815,235 @@ async fn artifact_requires_valid_template() {
     .execute(&pool)
     .await;
 
-    assert!(result.is_err(), "artifact with non-existent template must fail FK check");
+    assert!(
+        result.is_err(),
+        "artifact with non-existent template must fail FK check"
+    );
+}
+
+// ── DOC4: controlled distribution + delivery confirmation ───────────
+
+#[tokio::test]
+async fn distribution_tables_exist() {
+    let pool = get_pool().await;
+
+    let tables: Vec<String> = sqlx::query_scalar(
+        "SELECT table_name::text FROM information_schema.tables
+         WHERE table_schema = 'public'
+           AND table_name IN ('document_distributions', 'document_distribution_status_log')
+         ORDER BY table_name",
+    )
+    .fetch_all(&pool)
+    .await
+    .expect("query distribution tables");
+
+    assert_eq!(
+        tables,
+        vec!["document_distribution_status_log", "document_distributions"]
+    );
+}
+
+#[tokio::test]
+async fn distribution_request_is_idempotent_and_outbox_backed() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+    let doc_id = insert_test_doc(
+        &pool,
+        tenant_id,
+        &format!("DIST-{}", Uuid::new_v4()),
+        "released",
+    )
+    .await;
+
+    let dist_id = Uuid::new_v4();
+    let idem_key = format!("dist-idem:{}", Uuid::new_v4());
+
+    let mut tx = pool.begin().await.expect("begin");
+
+    sqlx::query(
+        "INSERT INTO document_distributions
+         (id, tenant_id, document_id, recipient_ref, channel, template_key, payload_json,
+          status, requested_by, requested_at, idempotency_key, created_at, updated_at)
+         VALUES ($1, $2, $3, 'ops@fireproof.test', 'email', 'doc_distribution_notice',
+                 '{\"doc\":\"release\"}'::jsonb, 'pending', $4, now(), $5, now(), now())",
+    )
+    .bind(dist_id)
+    .bind(tenant_id)
+    .bind(doc_id)
+    .bind(actor_id)
+    .bind(&idem_key)
+    .execute(&mut *tx)
+    .await
+    .expect("insert distribution");
+
+    sqlx::query(
+        "INSERT INTO document_distribution_status_log
+         (distribution_id, tenant_id, previous_status, new_status, idempotency_key, payload_json, changed_by, changed_at)
+         VALUES ($1, $2, NULL, 'pending', $3, '{\"source\":\"test\"}'::jsonb, $4, now())",
+    )
+    .bind(dist_id)
+    .bind(tenant_id)
+    .bind(format!("{}:requested", idem_key))
+    .bind(actor_id)
+    .execute(&mut *tx)
+    .await
+    .expect("insert status log");
+
+    sqlx::query(
+        "INSERT INTO doc_outbox (event_type, subject, payload)
+         VALUES ('document.distribution.requested', 'doc_mgmt.events.document.distribution.requested',
+                 '{\"distribution_id\":\"stub\"}'::jsonb)",
+    )
+    .execute(&mut *tx)
+    .await
+    .expect("insert outbox");
+
+    tx.commit().await.expect("commit");
+
+    let duplicate = sqlx::query(
+        "INSERT INTO document_distributions
+         (id, tenant_id, document_id, recipient_ref, channel, template_key, payload_json,
+          status, requested_by, requested_at, idempotency_key, created_at, updated_at)
+         VALUES ($1, $2, $3, 'ops@fireproof.test', 'email', 'doc_distribution_notice',
+                 '{\"doc\":\"release\"}'::jsonb, 'pending', $4, now(), $5, now(), now())",
+    )
+    .bind(Uuid::new_v4())
+    .bind(tenant_id)
+    .bind(doc_id)
+    .bind(actor_id)
+    .bind(&idem_key)
+    .execute(&pool)
+    .await;
+
+    assert!(
+        duplicate.is_err(),
+        "duplicate idempotency key should be rejected"
+    );
+
+    let distribution_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM document_distributions WHERE tenant_id = $1 AND idempotency_key = $2",
+    )
+    .bind(tenant_id)
+    .bind(&idem_key)
+    .fetch_one(&pool)
+    .await
+    .expect("count distribution rows");
+    assert_eq!(
+        distribution_count, 1,
+        "must persist a single distribution intent"
+    );
+
+    let outbox_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM doc_outbox WHERE event_type = 'document.distribution.requested'",
+    )
+    .fetch_one(&pool)
+    .await
+    .expect("count outbox rows");
+    assert!(
+        outbox_count >= 1,
+        "distribution should enqueue outbox event"
+    );
+}
+
+#[tokio::test]
+async fn delivery_status_flow_and_replay_safety() {
+    let pool = get_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+    let doc_id = insert_test_doc(
+        &pool,
+        tenant_id,
+        &format!("FLOW-{}", Uuid::new_v4()),
+        "released",
+    )
+    .await;
+    let dist_id = Uuid::new_v4();
+
+    sqlx::query(
+        "INSERT INTO document_distributions
+         (id, tenant_id, document_id, recipient_ref, channel, template_key, payload_json,
+          status, requested_by, requested_at, idempotency_key, created_at, updated_at)
+         VALUES ($1, $2, $3, 'qa@fireproof.test', 'email', 'doc_distribution_notice', '{}'::jsonb,
+                 'pending', $4, now(), $5, now(), now())",
+    )
+    .bind(dist_id)
+    .bind(tenant_id)
+    .bind(doc_id)
+    .bind(actor_id)
+    .bind(format!("flow-create:{}", dist_id))
+    .execute(&pool)
+    .await
+    .expect("seed distribution");
+
+    // Simulate first status callback: delivered.
+    sqlx::query(
+        "UPDATE document_distributions
+         SET status = 'delivered', sent_at = now(), delivered_at = now(), updated_at = now()
+         WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(dist_id)
+    .bind(tenant_id)
+    .execute(&pool)
+    .await
+    .expect("update distribution to delivered");
+
+    sqlx::query(
+        "INSERT INTO document_distribution_status_log
+         (distribution_id, tenant_id, previous_status, new_status, idempotency_key, payload_json, changed_by, changed_at)
+         VALUES ($1, $2, 'pending', 'delivered', $3, '{\"provider_message_id\":\"m-1\"}'::jsonb, $4, now())",
+    )
+    .bind(dist_id)
+    .bind(tenant_id)
+    .bind(format!("flow-status:{}", dist_id))
+    .bind(actor_id)
+    .execute(&pool)
+    .await
+    .expect("insert delivered status log");
+
+    sqlx::query(
+        "INSERT INTO doc_outbox (event_type, subject, payload)
+         VALUES ('document.distribution.status.updated', 'doc_mgmt.events.document.distribution.status.updated',
+                 '{\"distribution_id\":\"stub\",\"status\":\"delivered\"}'::jsonb)",
+    )
+    .execute(&pool)
+    .await
+    .expect("insert status outbox");
+
+    // Replay with same idempotency key must fail unique guard -> no duplicate log.
+    let replay = sqlx::query(
+        "INSERT INTO document_distribution_status_log
+         (distribution_id, tenant_id, previous_status, new_status, idempotency_key, payload_json, changed_by, changed_at)
+         VALUES ($1, $2, 'pending', 'delivered', $3, '{\"provider_message_id\":\"m-1\"}'::jsonb, $4, now())",
+    )
+    .bind(dist_id)
+    .bind(tenant_id)
+    .bind(format!("flow-status:{}", dist_id))
+    .bind(actor_id)
+    .execute(&pool)
+    .await;
+
+    assert!(
+        replay.is_err(),
+        "duplicate delivery callback should be replay-safe"
+    );
+
+    let status: String = sqlx::query_scalar(
+        "SELECT status FROM document_distributions WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(dist_id)
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("fetch distribution status");
+    assert_eq!(status, "delivered");
+
+    let log_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM document_distribution_status_log WHERE distribution_id = $1",
+    )
+    .bind(dist_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count status logs");
+    assert_eq!(log_count, 1, "status replay should not duplicate logs");
 }

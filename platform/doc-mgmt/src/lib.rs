@@ -1,5 +1,6 @@
 pub mod config;
 pub mod db;
+pub mod distribution;
 pub mod handlers;
 pub mod models;
 pub mod outbox_relay;
