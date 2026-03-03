@@ -160,6 +160,28 @@ discover_services() {
   docker ps --format '{{.Names}}' | grep -E '^7d-' || true
 }
 
+ensure_port_binding() {
+  # ensure_port_binding <container_name> <compose_service_name>
+  local container="$1"
+  local service="$2"
+
+  if docker port "$container" 5432/tcp >/dev/null 2>&1; then
+    return 0
+  fi
+
+  warn "Container $container has no published 5432 port; attempting recreate via docker-compose.data.yml ($service)"
+  docker compose -f "$ROOT_DIR/docker-compose.data.yml" up -d --force-recreate "$service" >/dev/null 2>&1 || {
+    warn "Failed to recreate $service for published port binding"
+    return 1
+  }
+
+  if ! docker port "$container" 5432/tcp >/dev/null 2>&1; then
+    warn "Container $container still has no published 5432 port after recreate"
+    return 1
+  fi
+  return 0
+}
+
 discover_crates() {
   # Finds Cargo.toml under modules/* and platform/* and prints: <crate_name>\t<manifest_path>
   local roots=("$ROOT_DIR/modules" "$ROOT_DIR/platform")
@@ -183,25 +205,74 @@ discover_crates() {
   done | sort -u
 }
 
+container_ip() {
+  # container_ip <container_name>
+  # Returns first discovered container IPv4 address.
+  local c="$1"
+  docker inspect "$c" --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' 2>/dev/null || true
+}
+
+resolved_db_url() {
+  # resolved_db_url <env_override_value> <container> <user> <pass> <db_name> <fallback_port>
+  local override="$1"
+  local container="$2"
+  local user="$3"
+  local pass="$4"
+  local db="$5"
+  local fallback_port="$6"
+
+  if [[ -n "$override" ]]; then
+    echo "$override"
+    return 0
+  fi
+
+  local hp
+  hp="$(container_host_port "$container")"
+  if [[ -n "$hp" ]]; then
+    echo "postgres://${user}:${pass}@localhost:${hp}/${db}?connect_timeout=5"
+    return 0
+  fi
+
+  local ip
+  ip="$(container_ip "$container")"
+  if [[ -n "$ip" ]]; then
+    echo "postgres://${user}:${pass}@${ip}:5432/${db}?connect_timeout=5"
+    return 0
+  fi
+
+  # Final fallback for environments without docker inspection.
+  echo "postgres://${user}:${pass}@localhost:${fallback_port}/${db}?connect_timeout=5"
+}
+
 crate_test_env_cmd() {
   # crate_test_env_cmd <crate_name>
   # Echoes an env-prefixed command fragment for crates that need explicit DB wiring.
   local crate="$1"
   case "$crate" in
     gl-rs)
-      echo "DATABASE_URL=${DATABASE_URL_GL:-postgres://gl_user:gl_pass@localhost:5438/gl_db}"
+      local url
+      url="$(resolved_db_url "${DATABASE_URL_GL:-}" "7d-gl-postgres" "gl_user" "gl_pass" "gl_db" "5438")"
+      echo "DATABASE_URL=${url}"
       ;;
     inventory-rs)
-      echo "DATABASE_URL=${DATABASE_URL_INVENTORY:-postgres://inventory_user:inventory_pass@localhost:5442/inventory_db}"
+      local url
+      url="$(resolved_db_url "${DATABASE_URL_INVENTORY:-}" "7d-inventory-postgres" "inventory_user" "inventory_pass" "inventory_db" "5442")"
+      echo "DATABASE_URL=${url}"
       ;;
     shipping-receiving-rs)
-      echo "DATABASE_URL=${DATABASE_URL_SHIPPING_RECEIVING:-postgres://shipping_receiving_user:shipping_receiving_pass@localhost:5454/shipping_receiving_db}"
+      local url
+      url="$(resolved_db_url "${DATABASE_URL_SHIPPING_RECEIVING:-}" "7d-shipping-receiving-postgres" "shipping_receiving_user" "shipping_receiving_pass" "shipping_receiving_db" "5454")"
+      echo "DATABASE_URL=${url}"
       ;;
     auth-rs)
-      echo "DATABASE_URL=${DATABASE_URL_AUTH:-postgres://auth_user:auth_pass@localhost:5433/auth_db}"
+      local url
+      url="$(resolved_db_url "${DATABASE_URL_AUTH:-}" "7d-auth-postgres" "auth_user" "auth_pass" "auth_db" "5433")"
+      echo "DATABASE_URL=${url} RUST_TEST_THREADS=${RUST_TEST_THREADS_AUTH:-1}"
       ;;
     treasury)
-      echo "DATABASE_URL=${DATABASE_URL_TREASURY:-postgres://treasury_user:treasury_pass@localhost:5444/treasury_db} RUST_TEST_THREADS=${RUST_TEST_THREADS_TREASURY:-1}"
+      local url
+      url="$(resolved_db_url "${DATABASE_URL_TREASURY:-}" "7d-treasury-postgres" "treasury_user" "treasury_pass" "treasury_db" "5444")"
+      echo "DATABASE_URL=${url} RUST_TEST_THREADS=${RUST_TEST_THREADS_TREASURY:-1}"
       ;;
     *)
       echo ""
@@ -213,6 +284,11 @@ crate_test_env_cmd() {
 # Run: Readiness/Health/Metrics sweep
 # ----------------------------
 log "Runbook start. proofs_dir=$PROOFS_DIR"
+
+# Preflight: some local setups run auth/treasury postgres without host port publish.
+# Recreate through docker-compose.data.yml when needed so localhost DATABASE_URL works.
+ensure_port_binding "7d-auth-postgres" "auth-postgres" || true
+ensure_port_binding "7d-treasury-postgres" "treasury-postgres" || true
 
 services=()
 while IFS= read -r s; do
