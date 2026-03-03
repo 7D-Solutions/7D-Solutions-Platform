@@ -54,7 +54,8 @@ pub async fn list_lots_for_item(
 ) -> Result<Vec<InventoryLot>, sqlx::Error> {
     sqlx::query_as::<_, InventoryLot>(
         r#"
-        SELECT id, tenant_id, item_id, lot_code, attributes, created_at
+        SELECT id, tenant_id, item_id, lot_code, attributes,
+               expires_on, expiry_source, expiry_set_at, created_at
         FROM inventory_lots
         WHERE tenant_id = $1
           AND item_id   = $2

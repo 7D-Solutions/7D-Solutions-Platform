@@ -11,7 +11,7 @@
 //! on receipt and transitions through a terminal lifecycle (on_hand → issued/
 //! transferred/adjusted).
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -32,6 +32,11 @@ pub struct InventoryLot {
     pub lot_code: String,
     /// Optional free-form metadata stored as JSON (e.g. expiry date, supplier info).
     pub attributes: Option<serde_json::Value>,
+    /// First-class lot expiry date used for policy enforcement and alerting.
+    pub expires_on: Option<NaiveDate>,
+    /// Source of expiry assignment: manual or policy.
+    pub expiry_source: Option<String>,
+    pub expiry_set_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
 
