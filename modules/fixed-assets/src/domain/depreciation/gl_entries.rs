@@ -53,6 +53,7 @@ mod tests {
     use super::*;
     use chrono::NaiveDate;
     use serial_test::serial;
+    use sqlx::PgPool;
     use uuid::Uuid;
 
     fn test_db_url() -> String {
@@ -136,7 +137,8 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let in_service =
+            NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid fixed test date literal");
         let (_, asset_id) = insert_category_and_asset(&pool, in_service).await;
 
         // Insert one schedule row, mark it posted with a run_id

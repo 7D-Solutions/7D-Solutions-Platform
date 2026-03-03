@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::routes::checkout_sessions::extract_tenant;
+use crate::http::checkout_sessions::extract_tenant;
 
 /// Query parameters for payment endpoint
 #[derive(Debug, Deserialize)]
