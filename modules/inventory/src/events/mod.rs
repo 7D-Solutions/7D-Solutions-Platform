@@ -49,6 +49,8 @@ pub mod contracts;
 pub mod cycle_count_approved;
 pub mod cycle_count_submitted;
 pub mod low_stock_triggered;
+pub mod revision_activated;
+pub mod revision_created;
 pub mod status_changed;
 pub mod valuation_snapshot_created;
 
@@ -94,6 +96,16 @@ pub use status_changed::{
 pub use valuation_snapshot_created::{
     build_valuation_snapshot_created_envelope, ValuationSnapshotCreatedLine,
     ValuationSnapshotCreatedPayload, EVENT_TYPE_VALUATION_SNAPSHOT_CREATED,
+};
+
+pub use revision_created::{
+    build_item_revision_created_envelope, ItemRevisionCreatedPayload,
+    EVENT_TYPE_ITEM_REVISION_CREATED,
+};
+
+pub use revision_activated::{
+    build_item_revision_activated_envelope, ItemRevisionActivatedPayload,
+    EVENT_TYPE_ITEM_REVISION_ACTIVATED,
 };
 
 // ============================================================================

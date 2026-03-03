@@ -19,6 +19,9 @@ use inventory_rs::{
         reorder::{
             get_reorder_policy, list_reorder_policies, post_reorder_policy, put_reorder_policy,
         },
+        revisions::{
+            get_list_revisions, get_revision_at, post_activate_revision, post_create_revision,
+        },
         serials::get_serials_for_item,
         status::post_status_transfer,
         trace::{trace_lot_handler, trace_serial_handler},
@@ -149,6 +152,15 @@ async fn main() {
             "/api/inventory/valuation-snapshots",
             axum::routing::post(post_valuation_snapshot),
         )
+        // Item revisions — write
+        .route(
+            "/api/inventory/items/{item_id}/revisions",
+            axum::routing::post(post_create_revision),
+        )
+        .route(
+            "/api/inventory/items/{item_id}/revisions/{revision_id}/activate",
+            axum::routing::post(post_activate_revision),
+        )
         // Locations — write
         .route(
             "/api/inventory/locations",
@@ -197,6 +209,15 @@ async fn main() {
         .route(
             "/api/inventory/items/{item_id}/serials/{serial_code}/trace",
             axum::routing::get(trace_serial_handler),
+        )
+        // Item revisions — read
+        .route(
+            "/api/inventory/items/{item_id}/revisions/at",
+            axum::routing::get(get_revision_at),
+        )
+        .route(
+            "/api/inventory/items/{item_id}/revisions",
+            axum::routing::get(get_list_revisions),
         )
         // Reorder policies — read
         .route(

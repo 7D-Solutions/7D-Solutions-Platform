@@ -12,6 +12,7 @@ pub mod projections;
 pub mod receipt_service;
 pub mod reorder;
 pub mod reservation_service;
+pub mod revisions;
 pub mod status;
 pub mod transfer_service;
 pub mod uom;

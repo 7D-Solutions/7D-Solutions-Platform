@@ -11,6 +11,7 @@ pub mod lots;
 pub mod receipts;
 pub mod reorder;
 pub mod reservations;
+pub mod revisions;
 pub mod serials;
 pub mod status;
 pub mod tenant;
