@@ -41,6 +41,16 @@ services:
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
       com.7dsolutions.instance: "1"
+    develop:
+      watch:
+        - action: rebuild
+          path: platform/identity-auth/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   auth-2:
     container_name: 7d-auth-2
@@ -79,6 +89,16 @@ services:
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
       com.7dsolutions.instance: "2"
+    develop:
+      watch:
+        - action: rebuild
+          path: platform/identity-auth/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # CONTROL PLANE
@@ -111,6 +131,16 @@ services:
       com.7dsolutions.component: "control-plane"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: platform/control-plane/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # AUTH LOAD BALANCER

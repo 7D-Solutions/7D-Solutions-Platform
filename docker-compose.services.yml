@@ -40,6 +40,16 @@ services:
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
       com.7dsolutions.instance: "1"
+    develop:
+      watch:
+        - action: rebuild
+          path: platform/identity-auth/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   auth-2:
     container_name: 7d-auth-2
@@ -77,6 +87,16 @@ services:
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
       com.7dsolutions.instance: "2"
+    develop:
+      watch:
+        - action: rebuild
+          path: platform/identity-auth/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # AUTH LOAD BALANCER
@@ -132,6 +152,16 @@ services:
       com.7dsolutions.component: "control-plane"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: platform/control-plane/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # AR MODULE
@@ -166,6 +196,16 @@ services:
       com.7dsolutions.component: "ar"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/ar/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # SUBSCRIPTIONS MODULE
@@ -200,6 +240,16 @@ services:
       com.7dsolutions.component: "subscriptions"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/subscriptions/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # PAYMENTS MODULE
@@ -233,6 +283,16 @@ services:
       com.7dsolutions.component: "payments"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/payments/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # NOTIFICATIONS MODULE
@@ -266,6 +326,16 @@ services:
       com.7dsolutions.component: "notifications"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/notifications/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # GL MODULE
@@ -299,6 +369,16 @@ services:
       com.7dsolutions.component: "gl"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/gl/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # INVENTORY MODULE
@@ -332,6 +412,16 @@ services:
       com.7dsolutions.component: "inventory"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/inventory/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # AP MODULE
@@ -365,6 +455,16 @@ services:
       com.7dsolutions.component: "ap"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/ap/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # TREASURY MODULE
@@ -398,6 +498,16 @@ services:
       com.7dsolutions.component: "treasury"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/treasury/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # FIXED ASSETS MODULE
@@ -431,6 +541,16 @@ services:
       com.7dsolutions.component: "fixed-assets"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/fixed-assets/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # CONSOLIDATION MODULE
@@ -464,6 +584,16 @@ services:
       com.7dsolutions.component: "consolidation"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/consolidation/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # TIMEKEEPING MODULE
@@ -497,6 +627,16 @@ services:
       com.7dsolutions.component: "timekeeping"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/timekeeping/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # PARTY MODULE
@@ -530,6 +670,16 @@ services:
       com.7dsolutions.component: "party"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/party/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # INTEGRATIONS MODULE
@@ -563,6 +713,16 @@ services:
       com.7dsolutions.component: "integrations"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/integrations/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # TTP MODULE
@@ -597,6 +757,16 @@ services:
       com.7dsolutions.component: "ttp"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/ttp/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # PDF EDITOR MODULE
@@ -631,6 +801,16 @@ services:
       com.7dsolutions.component: "pdf-editor"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/pdf-editor/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # MAINTENANCE MODULE
@@ -664,6 +844,16 @@ services:
       com.7dsolutions.component: "maintenance"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/maintenance/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
   # =========================
   # SHIPPING-RECEIVING MODULE
@@ -697,6 +887,16 @@ services:
       com.7dsolutions.component: "shipping-receiving"
       com.7dsolutions.type: "api"
       com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/shipping-receiving/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
 
 networks:
   7d-platform:
