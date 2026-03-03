@@ -36,6 +36,11 @@ prometheus = "0.13"
 [dev-dependencies]
 serial_test = "3.3.1"
 chrono = "0.4"
+jsonwebtoken = "9"
+rsa = "0.9"
+rand = "0.8"
+http = "1"
+http-body-util = "0.1"
 
 [lints]
 workspace = true
