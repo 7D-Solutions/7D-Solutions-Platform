@@ -26,6 +26,9 @@ use uuid::Uuid;
 use workflow::domain::definitions::{
     CreateDefinitionRequest, DefError, DefinitionRepo, ListDefinitionsQuery,
 };
+use workflow::domain::holds::{
+    ApplyHoldRequest, HoldError, HoldRepo, ListHoldsQuery, ReleaseHoldRequest,
+};
 use workflow::domain::instances::{
     AdvanceInstanceRequest, InstanceError, InstanceRepo, ListInstancesQuery,
     StartInstanceRequest,
@@ -1335,4 +1338,672 @@ async fn test_conditional_no_match_no_default_fails() {
         "Expected NoConditionMatched, got: {:?}",
         err
     );
+}
+
+// ============================================================================
+// 20. Apply hold — persists and enqueues outbox event
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_apply_hold_persists_and_emits_event() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    let hold = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "document".into(),
+            entity_id: "DOC-001".into(),
+            hold_type: "quality_hold".into(),
+            reason: Some("Pending inspection".into()),
+            applied_by: Some(Uuid::new_v4()),
+            metadata: Some(json!({ "inspector": "QA-team" })),
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("apply hold failed");
+
+    assert_eq!(hold.tenant_id, tid);
+    assert_eq!(hold.entity_type, "document");
+    assert_eq!(hold.entity_id, "DOC-001");
+    assert_eq!(hold.hold_type, "quality_hold");
+    assert_eq!(hold.reason.as_deref(), Some("Pending inspection"));
+    assert!(hold.released_at.is_none());
+
+    // Verify outbox event
+    let event: Option<(String,)> =
+        sqlx::query_as("SELECT event_type FROM events_outbox WHERE aggregate_id = $1")
+            .bind(hold.id.to_string())
+            .fetch_optional(&pool)
+            .await
+            .unwrap();
+    assert_eq!(event.unwrap().0, "workflow.events.hold.applied");
+}
+
+// ============================================================================
+// 21. Release hold — sets released_at and enqueues outbox event
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_release_hold_sets_timestamp_and_emits_event() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+    let releaser = Uuid::new_v4();
+
+    let hold = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "part".into(),
+            entity_id: "PART-42".into(),
+            hold_type: "engineering_hold".into(),
+            reason: Some("Design review pending".into()),
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("apply failed");
+
+    let released = HoldRepo::release(
+        &pool,
+        hold.id,
+        &ReleaseHoldRequest {
+            tenant_id: tid.clone(),
+            released_by: Some(releaser),
+            release_reason: Some("Design approved".into()),
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("release failed");
+
+    assert!(released.released_at.is_some());
+    assert_eq!(released.released_by, Some(releaser));
+    assert_eq!(released.release_reason.as_deref(), Some("Design approved"));
+
+    // Verify both events in outbox
+    let events: Vec<(String,)> = sqlx::query_as(
+        "SELECT event_type FROM events_outbox WHERE aggregate_id = $1 ORDER BY created_at",
+    )
+    .bind(hold.id.to_string())
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    let types: Vec<&str> = events.iter().map(|e| e.0.as_str()).collect();
+    assert!(types.contains(&"workflow.events.hold.applied"));
+    assert!(types.contains(&"workflow.events.hold.released"));
+}
+
+// ============================================================================
+// 22. Duplicate active hold — AlreadyHeld error
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_duplicate_active_hold_rejected() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "batch".into(),
+            entity_id: "BATCH-100".into(),
+            hold_type: "material_hold".into(),
+            reason: None,
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("first apply failed");
+
+    // Same entity + hold_type → AlreadyHeld
+    let err = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "batch".into(),
+            entity_id: "BATCH-100".into(),
+            hold_type: "material_hold".into(),
+            reason: None,
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(
+        matches!(err, HoldError::AlreadyHeld),
+        "Expected AlreadyHeld, got: {:?}",
+        err
+    );
+}
+
+// ============================================================================
+// 23. Re-apply after release — allowed
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_reapply_after_release_allowed() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    let hold1 = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "order".into(),
+            entity_id: "ORD-55".into(),
+            hold_type: "customer_hold".into(),
+            reason: Some("Credit check".into()),
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("apply failed");
+
+    HoldRepo::release(
+        &pool,
+        hold1.id,
+        &ReleaseHoldRequest {
+            tenant_id: tid.clone(),
+            released_by: None,
+            release_reason: Some("Credit approved".into()),
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("release failed");
+
+    // Re-apply same hold_type on same entity → should succeed
+    let hold2 = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "order".into(),
+            entity_id: "ORD-55".into(),
+            hold_type: "customer_hold".into(),
+            reason: Some("Second credit check".into()),
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("re-apply failed");
+
+    assert_ne!(hold1.id, hold2.id);
+    assert!(hold2.released_at.is_none());
+}
+
+// ============================================================================
+// 24. Release already-released hold — AlreadyReleased error
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_release_already_released_hold_fails() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    let hold = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "item".into(),
+            entity_id: "ITEM-99".into(),
+            hold_type: "quality_hold".into(),
+            reason: None,
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("apply failed");
+
+    HoldRepo::release(
+        &pool,
+        hold.id,
+        &ReleaseHoldRequest {
+            tenant_id: tid.clone(),
+            released_by: None,
+            release_reason: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("first release failed");
+
+    let err = HoldRepo::release(
+        &pool,
+        hold.id,
+        &ReleaseHoldRequest {
+            tenant_id: tid.clone(),
+            released_by: None,
+            release_reason: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(
+        matches!(err, HoldError::AlreadyReleased),
+        "Expected AlreadyReleased, got: {:?}",
+        err
+    );
+}
+
+// ============================================================================
+// 25. Release non-existent hold — NotFound
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_release_nonexistent_hold_fails() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    let err = HoldRepo::release(
+        &pool,
+        Uuid::new_v4(),
+        &ReleaseHoldRequest {
+            tenant_id: tid,
+            released_by: None,
+            release_reason: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .unwrap_err();
+
+    assert!(
+        matches!(err, HoldError::NotFound),
+        "Expected NotFound, got: {:?}",
+        err
+    );
+}
+
+// ============================================================================
+// 26. Idempotent apply — same key returns existing hold
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_idempotent_apply_hold() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+    let idem_key = format!("hold:apply:{}:DOC-IDEM", tid);
+
+    let hold1 = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "document".into(),
+            entity_id: "DOC-IDEM".into(),
+            hold_type: "quality_hold".into(),
+            reason: Some("First apply".into()),
+            applied_by: None,
+            metadata: None,
+            idempotency_key: Some(idem_key.clone()),
+        },
+    )
+    .await
+    .expect("first apply failed");
+
+    // Same key → same hold returned
+    let hold2 = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "document".into(),
+            entity_id: "DOC-IDEM".into(),
+            hold_type: "quality_hold".into(),
+            reason: Some("Second apply attempt".into()),
+            applied_by: None,
+            metadata: None,
+            idempotency_key: Some(idem_key),
+        },
+    )
+    .await
+    .expect("idempotent apply failed");
+
+    assert_eq!(hold1.id, hold2.id);
+}
+
+// ============================================================================
+// 27. Idempotent release — same key returns existing release
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_idempotent_release_hold() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+    let idem_key = format!("hold:release:{}:ITEM-IDEM", tid);
+
+    let hold = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "item".into(),
+            entity_id: "ITEM-IDEM".into(),
+            hold_type: "engineering_hold".into(),
+            reason: None,
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("apply failed");
+
+    let released1 = HoldRepo::release(
+        &pool,
+        hold.id,
+        &ReleaseHoldRequest {
+            tenant_id: tid.clone(),
+            released_by: None,
+            release_reason: Some("Done".into()),
+            idempotency_key: Some(idem_key.clone()),
+        },
+    )
+    .await
+    .expect("first release failed");
+
+    // Same key → same result
+    let released2 = HoldRepo::release(
+        &pool,
+        hold.id,
+        &ReleaseHoldRequest {
+            tenant_id: tid.clone(),
+            released_by: None,
+            release_reason: Some("Done".into()),
+            idempotency_key: Some(idem_key),
+        },
+    )
+    .await
+    .expect("idempotent release failed");
+
+    assert_eq!(released1.id, released2.id);
+    assert!(released2.released_at.is_some());
+}
+
+// ============================================================================
+// 28. List holds — active-only filter and entity filter
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_list_holds_with_filters() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    let h1 = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "doc".into(),
+            entity_id: "D-LIST-1".into(),
+            hold_type: "quality_hold".into(),
+            reason: None,
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("apply h1 failed");
+
+    HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "doc".into(),
+            entity_id: "D-LIST-1".into(),
+            hold_type: "engineering_hold".into(),
+            reason: None,
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("apply h2 failed");
+
+    // Release one
+    HoldRepo::release(
+        &pool,
+        h1.id,
+        &ReleaseHoldRequest {
+            tenant_id: tid.clone(),
+            released_by: None,
+            release_reason: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("release failed");
+
+    // List all for entity — should return 2
+    let all = HoldRepo::list(
+        &pool,
+        &ListHoldsQuery {
+            tenant_id: tid.clone(),
+            entity_type: Some("doc".into()),
+            entity_id: Some("D-LIST-1".into()),
+            hold_type: None,
+            active_only: None,
+            limit: None,
+            offset: None,
+        },
+    )
+    .await
+    .expect("list all failed");
+    assert_eq!(all.len(), 2);
+
+    // List active only — should return 1
+    let active = HoldRepo::list(
+        &pool,
+        &ListHoldsQuery {
+            tenant_id: tid.clone(),
+            entity_type: Some("doc".into()),
+            entity_id: Some("D-LIST-1".into()),
+            hold_type: None,
+            active_only: Some(true),
+            limit: None,
+            offset: None,
+        },
+    )
+    .await
+    .expect("list active failed");
+    assert_eq!(active.len(), 1);
+    assert_eq!(active[0].hold_type, "engineering_hold");
+
+    // List by hold_type filter
+    let quality = HoldRepo::list(
+        &pool,
+        &ListHoldsQuery {
+            tenant_id: tid.clone(),
+            entity_type: None,
+            entity_id: None,
+            hold_type: Some("quality_hold".into()),
+            active_only: None,
+            limit: None,
+            offset: None,
+        },
+    )
+    .await
+    .expect("list by type failed");
+    assert_eq!(quality.len(), 1);
+}
+
+// ============================================================================
+// 29. Tenant isolation — tenant B cannot see/release tenant A's holds
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_hold_tenant_isolation() {
+    let pool = setup_db().await;
+    let tid_a = unique_tenant();
+    let tid_b = unique_tenant();
+
+    let hold_a = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid_a.clone(),
+            entity_type: "widget".into(),
+            entity_id: "W-001".into(),
+            hold_type: "quality_hold".into(),
+            reason: None,
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("apply failed");
+
+    // Tenant B cannot see tenant A's hold
+    let result = HoldRepo::get(&pool, &tid_b, hold_a.id).await;
+    assert!(matches!(result, Err(HoldError::NotFound)));
+
+    // Tenant B cannot release tenant A's hold
+    let err = HoldRepo::release(
+        &pool,
+        hold_a.id,
+        &ReleaseHoldRequest {
+            tenant_id: tid_b.clone(),
+            released_by: None,
+            release_reason: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .unwrap_err();
+    assert!(matches!(err, HoldError::NotFound));
+
+    // Tenant B's list is empty
+    let list = HoldRepo::list(
+        &pool,
+        &ListHoldsQuery {
+            tenant_id: tid_b,
+            entity_type: None,
+            entity_id: None,
+            hold_type: None,
+            active_only: None,
+            limit: None,
+            offset: None,
+        },
+    )
+    .await
+    .expect("list failed");
+    assert!(list.is_empty());
+}
+
+// ============================================================================
+// 30. Multiple hold types on same entity — independent
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_multiple_hold_types_independent() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    let h_quality = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "assembly".into(),
+            entity_id: "ASM-001".into(),
+            hold_type: "quality_hold".into(),
+            reason: Some("Quality inspection".into()),
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("quality hold failed");
+
+    let h_eng = HoldRepo::apply(
+        &pool,
+        &ApplyHoldRequest {
+            tenant_id: tid.clone(),
+            entity_type: "assembly".into(),
+            entity_id: "ASM-001".into(),
+            hold_type: "engineering_hold".into(),
+            reason: Some("Design change pending".into()),
+            applied_by: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("engineering hold failed");
+
+    // Both active
+    let active = HoldRepo::list(
+        &pool,
+        &ListHoldsQuery {
+            tenant_id: tid.clone(),
+            entity_type: Some("assembly".into()),
+            entity_id: Some("ASM-001".into()),
+            hold_type: None,
+            active_only: Some(true),
+            limit: None,
+            offset: None,
+        },
+    )
+    .await
+    .expect("list failed");
+    assert_eq!(active.len(), 2);
+
+    // Release quality — engineering still active
+    HoldRepo::release(
+        &pool,
+        h_quality.id,
+        &ReleaseHoldRequest {
+            tenant_id: tid.clone(),
+            released_by: None,
+            release_reason: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("release quality failed");
+
+    let still_active = HoldRepo::list(
+        &pool,
+        &ListHoldsQuery {
+            tenant_id: tid.clone(),
+            entity_type: Some("assembly".into()),
+            entity_id: Some("ASM-001".into()),
+            hold_type: None,
+            active_only: Some(true),
+            limit: None,
+            offset: None,
+        },
+    )
+    .await
+    .expect("list failed");
+    assert_eq!(still_active.len(), 1);
+    assert_eq!(still_active[0].id, h_eng.id);
 }
