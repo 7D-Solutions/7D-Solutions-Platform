@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/workflow-delegation-revoked.v1.json",
+  "title": "delegation.revoked",
+  "description": "Event emitted when a delegation of workflow authority is revoked",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "event_type": {
+      "type": "string",
+      "const": "delegation.revoked",
+      "description": "Event type following entity.action convention"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Tenant identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "workflow",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Schema version of the payload"
+    },
+    "replay_safe": {
+      "type": "boolean",
+      "description": "Whether the event can be safely replayed"
+    },
+    "mutation_class": {
+      "type": "string",
+      "enum": ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"],
+      "description": "Classification of the mutation"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "delegation_id",
+        "tenant_id",
+        "delegator_id",
+        "delegatee_id",
+        "revoked_by"
+      ],
+      "properties": {
+        "delegation_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Unique delegation rule identifier"
+        },
+        "tenant_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Tenant identifier (matches envelope tenant_id)"
+        },
+        "delegator_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Actor who had delegated their authority"
+        },
+        "delegatee_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Actor whose delegated authority was revoked"
+        },
+        "revoked_by": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Actor who performed the revocation"
+        },
+        "revoke_reason": {
+          "type": ["string", "null"],
+          "description": "Human-readable reason for the revocation"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -270,6 +270,85 @@ struct DefinitionCreatedPayload {
     step_count: usize,
 }
 
+// ── Workflow Gate B Event Payloads ─────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DecisionRecordedPayload {
+    instance_id: Uuid,
+    tenant_id: String,
+    step_id: String,
+    actor_id: Uuid,
+    decision: String,
+    current_count: u32,
+    threshold: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct ParallelThresholdMetPayload {
+    instance_id: Uuid,
+    tenant_id: String,
+    step_id: String,
+    decision_count: u32,
+    threshold: u32,
+    target_step: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct HoldAppliedPayload {
+    hold_id: Uuid,
+    tenant_id: String,
+    entity_type: String,
+    entity_id: String,
+    hold_type: String,
+    reason: Option<String>,
+    applied_by: Option<Uuid>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct HoldReleasedPayload {
+    hold_id: Uuid,
+    tenant_id: String,
+    entity_type: String,
+    entity_id: String,
+    hold_type: String,
+    released_by: Option<Uuid>,
+    release_reason: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct EscalationFiredPayload {
+    timer_id: Uuid,
+    instance_id: Uuid,
+    tenant_id: String,
+    rule_id: Uuid,
+    step_id: String,
+    escalation_count: i32,
+    escalate_to_step: Option<String>,
+    notify_actor_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DelegationCreatedPayload {
+    delegation_id: Uuid,
+    tenant_id: String,
+    delegator_id: Uuid,
+    delegatee_id: Uuid,
+    definition_id: Option<Uuid>,
+    entity_type: Option<String>,
+    valid_from: String,
+    valid_until: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DelegationRevokedPayload {
+    delegation_id: Uuid,
+    tenant_id: String,
+    delegator_id: Uuid,
+    delegatee_id: Uuid,
+    revoked_by: Uuid,
+    revoke_reason: Option<String>,
+}
+
 // ── Identity Event Payloads ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -861,6 +940,288 @@ fn workflow_definition_created_schema_validation() {
         },
     );
     validate_against_schema(&json, "workflow-definition-created.v1.json");
+}
+
+// ── Workflow Gate B: step, hold, escalation, delegation events ──────
+
+#[test]
+fn workflow_step_decision_recorded_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "step.decision_recorded",
+        mutation_classes::DATA_MUTATION,
+        DecisionRecordedPayload {
+            instance_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            step_id: "review".into(),
+            actor_id: Uuid::new_v4(),
+            decision: "approve".into(),
+            current_count: 1,
+            threshold: 2,
+        },
+    );
+    assert_envelope_completeness(&json, "workflow/step.decision_recorded");
+}
+
+#[test]
+fn workflow_step_decision_recorded_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "step.decision_recorded",
+        mutation_classes::DATA_MUTATION,
+        DecisionRecordedPayload {
+            instance_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            step_id: "qa_check".into(),
+            actor_id: Uuid::new_v4(),
+            decision: "reject".into(),
+            current_count: 3,
+            threshold: 3,
+        },
+    );
+    validate_against_schema(&json, "workflow-step-decision-recorded.v1.json");
+}
+
+#[test]
+fn workflow_step_parallel_threshold_met_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "step.parallel_threshold_met",
+        mutation_classes::DATA_MUTATION,
+        ParallelThresholdMetPayload {
+            instance_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            step_id: "review".into(),
+            decision_count: 2,
+            threshold: 2,
+            target_step: "approved".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "workflow/step.parallel_threshold_met");
+}
+
+#[test]
+fn workflow_step_parallel_threshold_met_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "step.parallel_threshold_met",
+        mutation_classes::DATA_MUTATION,
+        ParallelThresholdMetPayload {
+            instance_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            step_id: "sign_off".into(),
+            decision_count: 3,
+            threshold: 3,
+            target_step: "released".into(),
+        },
+    );
+    validate_against_schema(&json, "workflow-step-parallel-threshold-met.v1.json");
+}
+
+#[test]
+fn workflow_hold_applied_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "hold.applied",
+        mutation_classes::DATA_MUTATION,
+        HoldAppliedPayload {
+            hold_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            entity_type: "work_order".into(),
+            entity_id: "wo-123".into(),
+            hold_type: "quality_hold".into(),
+            reason: Some("Failed inspection".into()),
+            applied_by: Some(Uuid::new_v4()),
+        },
+    );
+    assert_envelope_completeness(&json, "workflow/hold.applied");
+}
+
+#[test]
+fn workflow_hold_applied_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "hold.applied",
+        mutation_classes::DATA_MUTATION,
+        HoldAppliedPayload {
+            hold_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            entity_type: "lot".into(),
+            entity_id: "lot-456".into(),
+            hold_type: "regulatory_hold".into(),
+            reason: None,
+            applied_by: None,
+        },
+    );
+    validate_against_schema(&json, "workflow-hold-applied.v1.json");
+}
+
+#[test]
+fn workflow_hold_released_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "hold.released",
+        mutation_classes::DATA_MUTATION,
+        HoldReleasedPayload {
+            hold_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            entity_type: "work_order".into(),
+            entity_id: "wo-123".into(),
+            hold_type: "quality_hold".into(),
+            released_by: Some(Uuid::new_v4()),
+            release_reason: Some("Inspection passed on re-check".into()),
+        },
+    );
+    assert_envelope_completeness(&json, "workflow/hold.released");
+}
+
+#[test]
+fn workflow_hold_released_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "hold.released",
+        mutation_classes::DATA_MUTATION,
+        HoldReleasedPayload {
+            hold_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            entity_type: "lot".into(),
+            entity_id: "lot-789".into(),
+            hold_type: "engineering_hold".into(),
+            released_by: None,
+            release_reason: None,
+        },
+    );
+    validate_against_schema(&json, "workflow-hold-released.v1.json");
+}
+
+#[test]
+fn workflow_escalation_fired_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "escalation.fired",
+        mutation_classes::DATA_MUTATION,
+        EscalationFiredPayload {
+            timer_id: Uuid::new_v4(),
+            instance_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            rule_id: Uuid::new_v4(),
+            step_id: "pending_approval".into(),
+            escalation_count: 1,
+            escalate_to_step: Some("director_review".into()),
+            notify_actor_ids: vec![Uuid::new_v4()],
+        },
+    );
+    assert_envelope_completeness(&json, "workflow/escalation.fired");
+}
+
+#[test]
+fn workflow_escalation_fired_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "escalation.fired",
+        mutation_classes::DATA_MUTATION,
+        EscalationFiredPayload {
+            timer_id: Uuid::new_v4(),
+            instance_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            rule_id: Uuid::new_v4(),
+            step_id: "qa_review".into(),
+            escalation_count: 2,
+            escalate_to_step: None,
+            notify_actor_ids: vec![Uuid::new_v4(), Uuid::new_v4()],
+        },
+    );
+    validate_against_schema(&json, "workflow-escalation-fired.v1.json");
+}
+
+#[test]
+fn workflow_delegation_created_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "delegation.created",
+        mutation_classes::DATA_MUTATION,
+        DelegationCreatedPayload {
+            delegation_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            delegator_id: Uuid::new_v4(),
+            delegatee_id: Uuid::new_v4(),
+            definition_id: Some(Uuid::new_v4()),
+            entity_type: Some("document".into()),
+            valid_from: "2026-03-01T00:00:00Z".into(),
+            valid_until: Some("2026-04-01T00:00:00Z".into()),
+        },
+    );
+    assert_envelope_completeness(&json, "workflow/delegation.created");
+}
+
+#[test]
+fn workflow_delegation_created_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "delegation.created",
+        mutation_classes::DATA_MUTATION,
+        DelegationCreatedPayload {
+            delegation_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            delegator_id: Uuid::new_v4(),
+            delegatee_id: Uuid::new_v4(),
+            definition_id: None,
+            entity_type: None,
+            valid_from: "2026-03-01T00:00:00Z".into(),
+            valid_until: None,
+        },
+    );
+    validate_against_schema(&json, "workflow-delegation-created.v1.json");
+}
+
+#[test]
+fn workflow_delegation_revoked_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "delegation.revoked",
+        mutation_classes::DATA_MUTATION,
+        DelegationRevokedPayload {
+            delegation_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            delegator_id: Uuid::new_v4(),
+            delegatee_id: Uuid::new_v4(),
+            revoked_by: Uuid::new_v4(),
+            revoke_reason: Some("Employee on leave".into()),
+        },
+    );
+    assert_envelope_completeness(&json, "workflow/delegation.revoked");
+}
+
+#[test]
+fn workflow_delegation_revoked_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "workflow",
+        "delegation.revoked",
+        mutation_classes::DATA_MUTATION,
+        DelegationRevokedPayload {
+            delegation_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            delegator_id: Uuid::new_v4(),
+            delegatee_id: Uuid::new_v4(),
+            revoked_by: Uuid::new_v4(),
+            revoke_reason: None,
+        },
+    );
+    validate_against_schema(&json, "workflow-delegation-revoked.v1.json");
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1565,6 +1926,13 @@ fn all_phase57_nats_subjects_have_correct_prefix() {
         ("workflow", "instance.completed"),
         ("workflow", "instance.cancelled"),
         ("workflow", "definition.created"),
+        ("workflow", "step.decision_recorded"),
+        ("workflow", "step.parallel_threshold_met"),
+        ("workflow", "hold.applied"),
+        ("workflow", "hold.released"),
+        ("workflow", "escalation.fired"),
+        ("workflow", "delegation.created"),
+        ("workflow", "delegation.revoked"),
         ("identity", "user.lifecycle.user_created"),
         ("identity", "user.lifecycle.role_assigned"),
         ("identity", "user.lifecycle.role_revoked"),
@@ -1618,6 +1986,13 @@ fn all_phase57_schemas_exist_on_disk() {
         "workflow-instance-completed.v1.json",
         "workflow-instance-cancelled.v1.json",
         "workflow-definition-created.v1.json",
+        "workflow-step-decision-recorded.v1.json",
+        "workflow-step-parallel-threshold-met.v1.json",
+        "workflow-hold-applied.v1.json",
+        "workflow-hold-released.v1.json",
+        "workflow-escalation-fired.v1.json",
+        "workflow-delegation-created.v1.json",
+        "workflow-delegation-revoked.v1.json",
         "identity-user-created.v1.json",
         "identity-role-assigned.v1.json",
         "identity-role-revoked.v1.json",
@@ -1667,6 +2042,13 @@ fn all_phase57_schemas_have_schema_version_field() {
         "workflow-instance-completed.v1.json",
         "workflow-instance-cancelled.v1.json",
         "workflow-definition-created.v1.json",
+        "workflow-step-decision-recorded.v1.json",
+        "workflow-step-parallel-threshold-met.v1.json",
+        "workflow-hold-applied.v1.json",
+        "workflow-hold-released.v1.json",
+        "workflow-escalation-fired.v1.json",
+        "workflow-delegation-created.v1.json",
+        "workflow-delegation-revoked.v1.json",
         "identity-user-created.v1.json",
         "identity-role-assigned.v1.json",
         "identity-role-revoked.v1.json",
