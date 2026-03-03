@@ -102,7 +102,7 @@ async fn main() {
         }
         "nats" => {
             tracing::info!("Connecting to NATS at {}", config.nats_url);
-            let client = async_nats::connect(&config.nats_url)
+            let client = event_bus::connect_nats(&config.nats_url)
                 .await
                 .expect("Failed to connect to NATS");
             Arc::new(NatsBus::new(client))

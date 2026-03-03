@@ -383,7 +383,7 @@ async fn verify_connectivity(cfg: &Config) -> Result<()> {
     info!("Postgres OK");
 
     info!("Verifying NATS connectivity…");
-    let nc = async_nats::connect(&cfg.nats_url)
+    let nc = event_bus::connect_nats(&cfg.nats_url)
         .await
         .with_context(|| format!("Cannot connect to NATS at {}", cfg.nats_url))?;
     nc.flush().await.context("NATS flush failed")?;

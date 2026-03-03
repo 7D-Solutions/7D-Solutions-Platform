@@ -37,7 +37,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     metrics.dep_up.with_label_values(&["db"]).set(1);
 
     // NATS (fail-fast)
-    let nats = async_nats::connect(&cfg.nats_url).await?;
+    let nats = event_bus::connect_nats(&cfg.nats_url).await?;
     metrics.dep_up.with_label_values(&["nats"]).set(1);
 
     // JetStream streams (events + DLQ)

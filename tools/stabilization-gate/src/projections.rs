@@ -291,7 +291,7 @@ async fn measure_lag(
     duration_secs: u64,
 ) -> Result<(f64, f64, u64)> {
     // Subscribe before publishing to avoid missing early events.
-    let sub_nc = async_nats::connect(&cfg.nats_url)
+    let sub_nc = event_bus::connect_nats(&cfg.nats_url)
         .await
         .context("lag phase: subscriber NATS connect")?;
     let mut subscriber = sub_nc
@@ -339,7 +339,7 @@ async fn measure_lag(
         }
     });
 
-    let pub_nc = async_nats::connect(&cfg.nats_url)
+    let pub_nc = event_bus::connect_nats(&cfg.nats_url)
         .await
         .context("lag phase: publisher NATS connect")?;
 

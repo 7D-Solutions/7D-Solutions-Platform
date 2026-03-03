@@ -45,11 +45,14 @@
 //! # }
 //! ```
 
+mod connect;
 pub mod consumer_retry;
 mod envelope;
 mod inmemory_bus;
 mod nats_bus;
 pub mod outbox;
+
+pub use connect::connect_nats;
 
 pub use envelope::{
     validate_envelope_fields, validate_merchant_context_for_financial, EventEnvelope,

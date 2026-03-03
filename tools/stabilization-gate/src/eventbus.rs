@@ -73,7 +73,7 @@ pub async fn run(cfg: &Config, dry_run: bool) -> Result<ScenarioResult> {
 
     // ── 1. Subscribe BEFORE publishers to avoid message loss ─────────────────
 
-    let sub_nc = async_nats::connect(&cfg.nats_url)
+    let sub_nc = event_bus::connect_nats(&cfg.nats_url)
         .await
         .context("consumer: NATS connect")?;
     let mut subscriber = sub_nc
@@ -123,7 +123,7 @@ pub async fn run(cfg: &Config, dry_run: bool) -> Result<ScenarioResult> {
         let err_ctr = publish_err.clone();
 
         handles.push(tokio::spawn(async move {
-            let nc = match async_nats::connect(&nats_url).await {
+            let nc = match event_bus::connect_nats(&nats_url).await {
                 Ok(c) => c,
                 Err(e) => {
                     tracing::error!("publisher NATS connect failed: {}", e);
@@ -312,7 +312,7 @@ pub async fn run(cfg: &Config, dry_run: bool) -> Result<ScenarioResult> {
 // ── Dry-run ───────────────────────────────────────────────────────────────────
 
 async fn run_dry(cfg: &Config) -> Result<ScenarioResult> {
-    let nc = async_nats::connect(&cfg.nats_url)
+    let nc = event_bus::connect_nats(&cfg.nats_url)
         .await
         .context("dry-run: NATS connect")?;
 

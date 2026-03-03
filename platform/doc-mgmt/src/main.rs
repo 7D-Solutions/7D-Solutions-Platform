@@ -33,7 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!("database migrations applied");
 
     // NATS (fail-fast)
-    let nats_client = async_nats::connect(&cfg.nats_url).await?;
+    let nats_client = event_bus::connect_nats(&cfg.nats_url).await?;
     let bus: Arc<dyn EventBus> = Arc::new(NatsBus::new(nats_client));
     tracing::info!(url = %cfg.nats_url, "connected to NATS");
 
