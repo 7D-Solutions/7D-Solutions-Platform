@@ -203,6 +203,27 @@ struct RevisionCreatedPayload {
     revision_number: i32,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct DocumentDistributionRequestedPayload {
+    distribution_id: Uuid,
+    document_id: Uuid,
+    revision_id: Option<Uuid>,
+    doc_number: String,
+    recipient_ref: String,
+    channel: String,
+    template_key: String,
+    payload_json: serde_json::Value,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DocumentDistributionStatusUpdatedPayload {
+    distribution_id: Uuid,
+    document_id: Uuid,
+    status: String,
+    provider_message_id: Option<String>,
+    failure_reason: Option<String>,
+}
+
 // ── Workflow Event Payloads ──────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -431,6 +452,87 @@ fn doc_mgmt_revision_created_schema_validation() {
         },
     );
     validate_against_schema(&json, "doc-mgmt-revision-created.v1.json");
+}
+
+#[test]
+fn doc_mgmt_distribution_requested_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "doc_mgmt",
+        "document.distribution.requested",
+        mutation_classes::SIDE_EFFECT,
+        DocumentDistributionRequestedPayload {
+            distribution_id: Uuid::new_v4(),
+            document_id: Uuid::new_v4(),
+            revision_id: Some(Uuid::new_v4()),
+            doc_number: "SOP-001".into(),
+            recipient_ref: "qa@fireproof.test".into(),
+            channel: "email".into(),
+            template_key: "doc_distribution_notice".into(),
+            payload_json: serde_json::json!({"priority":"high"}),
+        },
+    );
+    assert_envelope_completeness(&json, "doc_mgmt/document.distribution.requested");
+}
+
+#[test]
+fn doc_mgmt_distribution_requested_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "doc_mgmt",
+        "document.distribution.requested",
+        mutation_classes::SIDE_EFFECT,
+        DocumentDistributionRequestedPayload {
+            distribution_id: Uuid::new_v4(),
+            document_id: Uuid::new_v4(),
+            revision_id: None,
+            doc_number: "SOP-002".into(),
+            recipient_ref: "ops@fireproof.test".into(),
+            channel: "email".into(),
+            template_key: "doc_distribution_notice".into(),
+            payload_json: serde_json::json!({"doc":"release"}),
+        },
+    );
+    validate_against_schema(&json, "doc-mgmt-document-distribution-requested.v1.json");
+}
+
+#[test]
+fn doc_mgmt_distribution_status_updated_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "doc_mgmt",
+        "document.distribution.status.updated",
+        mutation_classes::SIDE_EFFECT,
+        DocumentDistributionStatusUpdatedPayload {
+            distribution_id: Uuid::new_v4(),
+            document_id: Uuid::new_v4(),
+            status: "delivered".into(),
+            provider_message_id: Some("provider-msg-42".into()),
+            failure_reason: None,
+        },
+    );
+    assert_envelope_completeness(&json, "doc_mgmt/document.distribution.status.updated");
+}
+
+#[test]
+fn doc_mgmt_distribution_status_updated_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "doc_mgmt",
+        "document.distribution.status.updated",
+        mutation_classes::SIDE_EFFECT,
+        DocumentDistributionStatusUpdatedPayload {
+            distribution_id: Uuid::new_v4(),
+            document_id: Uuid::new_v4(),
+            status: "failed".into(),
+            provider_message_id: None,
+            failure_reason: Some("smtp_timeout".into()),
+        },
+    );
+    validate_against_schema(
+        &json,
+        "doc-mgmt-document-distribution-status-updated.v1.json",
+    );
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -794,6 +896,8 @@ fn all_phase57_event_types_follow_naming_convention() {
         "document.created",
         "document.released",
         "revision.created",
+        "document.distribution.requested",
+        "document.distribution.status.updated",
         // Workflow
         "instance.started",
         "instance.advanced",
@@ -826,6 +930,8 @@ fn all_phase57_nats_subjects_have_correct_prefix() {
         ("doc_mgmt", "document.created"),
         ("doc_mgmt", "document.released"),
         ("doc_mgmt", "revision.created"),
+        ("doc_mgmt", "document.distribution.requested"),
+        ("doc_mgmt", "document.distribution.status.updated"),
         ("workflow", "instance.started"),
         ("workflow", "instance.advanced"),
         ("workflow", "instance.completed"),
@@ -868,6 +974,8 @@ fn all_phase57_schemas_exist_on_disk() {
         "doc-mgmt-document-created.v1.json",
         "doc-mgmt-document-released.v1.json",
         "doc-mgmt-revision-created.v1.json",
+        "doc-mgmt-document-distribution-requested.v1.json",
+        "doc-mgmt-document-distribution-status-updated.v1.json",
         "workflow-instance-started.v1.json",
         "workflow-instance-advanced.v1.json",
         "workflow-instance-completed.v1.json",
@@ -906,6 +1014,8 @@ fn all_phase57_schemas_have_schema_version_field() {
         "doc-mgmt-document-created.v1.json",
         "doc-mgmt-document-released.v1.json",
         "doc-mgmt-revision-created.v1.json",
+        "doc-mgmt-document-distribution-requested.v1.json",
+        "doc-mgmt-document-distribution-status-updated.v1.json",
         "workflow-instance-started.v1.json",
         "workflow-instance-advanced.v1.json",
         "workflow-instance-completed.v1.json",
