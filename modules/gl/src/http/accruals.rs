@@ -4,9 +4,11 @@
 //! POST /api/gl/accruals/create              — Create an accrual instance from template
 //! POST /api/gl/accruals/reversals/execute   — Execute auto-reversals for a target period
 
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
+use security::VerifiedClaims;
 use std::sync::Arc;
 
+use super::auth::extract_tenant;
 use crate::accruals;
 use crate::AppState;
 
@@ -25,8 +27,16 @@ struct ErrorBody {
 
 pub async fn create_template_handler(
     State(app_state): State<Arc<AppState>>,
-    Json(body): Json<accruals::CreateTemplateRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut body): Json<accruals::CreateTemplateRequest>,
 ) -> impl IntoResponse {
+    // Override client-supplied tenant_id with JWT claims
+    match extract_tenant(&claims) {
+        Ok(tid) => body.tenant_id = tid,
+        Err((status, msg)) => {
+            return (status, Json(ErrorBody { error: msg })).into_response();
+        }
+    }
     match accruals::create_template(&app_state.pool, &body).await {
         Ok(result) => (StatusCode::CREATED, Json(result)).into_response(),
         Err(e) => {
@@ -51,8 +61,16 @@ pub async fn create_template_handler(
 
 pub async fn create_accrual_handler(
     State(app_state): State<Arc<AppState>>,
-    Json(body): Json<accruals::CreateAccrualRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut body): Json<accruals::CreateAccrualRequest>,
 ) -> impl IntoResponse {
+    // Override client-supplied tenant_id with JWT claims
+    match extract_tenant(&claims) {
+        Ok(tid) => body.tenant_id = tid,
+        Err((status, msg)) => {
+            return (status, Json(ErrorBody { error: msg })).into_response();
+        }
+    }
     match accruals::create_accrual_instance(&app_state.pool, &body).await {
         Ok(result) => {
             let status = if result.idempotent_hit {
@@ -84,8 +102,16 @@ pub async fn create_accrual_handler(
 
 pub async fn execute_reversals_handler(
     State(app_state): State<Arc<AppState>>,
-    Json(body): Json<accruals::ExecuteReversalsRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut body): Json<accruals::ExecuteReversalsRequest>,
 ) -> impl IntoResponse {
+    // Override client-supplied tenant_id with JWT claims
+    match extract_tenant(&claims) {
+        Ok(tid) => body.tenant_id = tid,
+        Err((status, msg)) => {
+            return (status, Json(ErrorBody { error: msg })).into_response();
+        }
+    }
     match accruals::execute_auto_reversals(&app_state.pool, &body).await {
         Ok(result) => (StatusCode::OK, Json(result)).into_response(),
         Err(e) => {
