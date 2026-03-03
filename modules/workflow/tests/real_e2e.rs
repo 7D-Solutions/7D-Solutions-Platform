@@ -1,4 +1,4 @@
-//! Integration tests for workflow module (bd-iyfxs, bd-hv1v4).
+//! Integration tests for workflow module (bd-iyfxs, bd-hv1v4, bd-ucz7d).
 //!
 //! Covers:
 //! 1. Create a workflow definition — guard validation, DB persistence, outbox event
@@ -17,6 +17,12 @@
 //! 17. Conditional routing — branch by amount (gte)
 //! 18. Conditional routing — default branch fallback
 //! 19. Conditional routing — no match without default fails
+//! 30. Escalation: pending step times out → single escalation fires (exactly-once)
+//! 31. Escalation: re-tick on already-fired timer is no-op (idempotent)
+//! 32. Escalation: cancel timers when instance advances
+//! 33. Delegation: create rule + resolve delegatee
+//! 34. Delegation: revoke rule + verify no longer resolves
+//! 35. Delegation: delegatee can decide on behalf of delegator
 
 use serial_test::serial;
 use serde_json::json;
@@ -35,6 +41,13 @@ use workflow::domain::instances::{
 };
 use workflow::domain::routing::{
     EvaluateConditionRequest, RecordDecisionRequest, RoutingEngine, RoutingError,
+};
+use workflow::domain::escalation::{
+    CreateEscalationRuleRequest, EscalationRepo,
+};
+use workflow::domain::delegation::{
+    CreateDelegationRequest, DelegationError, DelegationRepo, ResolveDelegationQuery,
+    RevokeDelegationRequest,
 };
 
 async fn setup_db() -> sqlx::PgPool {
@@ -2006,4 +2019,591 @@ async fn test_multiple_hold_types_independent() {
     .expect("list failed");
     assert_eq!(still_active.len(), 1);
     assert_eq!(still_active[0].id, h_eng.id);
+}
+
+// ============================================================================
+// 30. Escalation: pending step times out → single escalation fires (exactly-once)
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_escalation_timer_fires_once_when_due() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    // Create definition with a review step
+    let def = create_test_definition(&pool, &tid).await;
+
+    // Create escalation rule: review step times out after 5s
+    let rule = EscalationRepo::create_rule(
+        &pool,
+        &CreateEscalationRuleRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            step_id: "review".into(),
+            timeout_seconds: 5,
+            escalate_to_step: Some("approved".into()),
+            notify_actor_ids: vec![Uuid::new_v4()],
+            notify_template: Some("escalation_alert".into()),
+            max_escalations: Some(1),
+            metadata: None,
+        },
+    )
+    .await
+    .expect("create rule failed");
+
+    assert_eq!(rule.timeout_seconds, 5);
+    assert!(rule.is_active);
+
+    // Start instance and advance to review step
+    let instance = InstanceRepo::start(
+        &pool,
+        &StartInstanceRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            entity_type: "document".into(),
+            entity_id: format!("DOC-ESC-{}", Uuid::new_v4().simple()),
+            context: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("start failed");
+
+    let (instance, _) = InstanceRepo::advance(
+        &pool,
+        instance.id,
+        &AdvanceInstanceRequest {
+            tenant_id: tid.clone(),
+            to_step_id: "review".into(),
+            action: "submit".into(),
+            actor_id: None,
+            actor_type: None,
+            comment: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("advance to review failed");
+
+    assert_eq!(instance.current_step_id, "review");
+
+    // Arm a timer that is already due (due_at in the past for testing)
+    let past_due = chrono::Utc::now() - chrono::Duration::seconds(10);
+    let timer = EscalationRepo::arm_timer_with_due_at(
+        &pool,
+        &tid,
+        instance.id,
+        &rule,
+        past_due,
+    )
+    .await
+    .expect("arm timer failed");
+
+    assert!(timer.fired_at.is_none());
+    assert!(timer.cancelled_at.is_none());
+
+    // Tick — should fire exactly one escalation
+    let fired = EscalationRepo::tick(&pool, 10).await.expect("tick failed");
+    assert_eq!(fired.len(), 1);
+    assert_eq!(fired[0].id, timer.id);
+    assert!(fired[0].fired_at.is_some());
+    assert_eq!(fired[0].escalation_count, 1);
+
+    // Verify outbox event was enqueued
+    let event: Option<(String,)> = sqlx::query_as(
+        "SELECT event_type FROM events_outbox WHERE aggregate_id = $1",
+    )
+    .bind(timer.id.to_string())
+    .fetch_optional(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        event.unwrap().0,
+        "workflow.events.escalation.fired"
+    );
+
+    // Tick again — should fire nothing (already fired)
+    let fired2 = EscalationRepo::tick(&pool, 10).await.expect("tick2 failed");
+    assert_eq!(fired2.len(), 0);
+}
+
+// ============================================================================
+// 31. Escalation: arm_timer is idempotent — returns existing active timer
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_escalation_arm_timer_idempotent() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+    let def = create_test_definition(&pool, &tid).await;
+
+    let rule = EscalationRepo::create_rule(
+        &pool,
+        &CreateEscalationRuleRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            step_id: "review".into(),
+            timeout_seconds: 60,
+            escalate_to_step: None,
+            notify_actor_ids: vec![],
+            notify_template: None,
+            max_escalations: None,
+            metadata: None,
+        },
+    )
+    .await
+    .expect("create rule failed");
+
+    let instance = InstanceRepo::start(
+        &pool,
+        &StartInstanceRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            entity_type: "document".into(),
+            entity_id: format!("DOC-IDEM-{}", Uuid::new_v4().simple()),
+            context: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("start failed");
+
+    // Arm twice — should return same timer
+    let t1 = EscalationRepo::arm_timer(&pool, &tid, instance.id, &rule)
+        .await
+        .expect("arm 1 failed");
+    let t2 = EscalationRepo::arm_timer(&pool, &tid, instance.id, &rule)
+        .await
+        .expect("arm 2 failed");
+
+    assert_eq!(t1.id, t2.id);
+}
+
+// ============================================================================
+// 32. Escalation: cancel timers when instance advances past step
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_escalation_cancel_timers_on_advance() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+    let def = create_test_definition(&pool, &tid).await;
+
+    let rule = EscalationRepo::create_rule(
+        &pool,
+        &CreateEscalationRuleRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            step_id: "review".into(),
+            timeout_seconds: 300,
+            escalate_to_step: Some("approved".into()),
+            notify_actor_ids: vec![],
+            notify_template: None,
+            max_escalations: None,
+            metadata: None,
+        },
+    )
+    .await
+    .expect("create rule failed");
+
+    let instance = InstanceRepo::start(
+        &pool,
+        &StartInstanceRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            entity_type: "document".into(),
+            entity_id: format!("DOC-CANCEL-{}", Uuid::new_v4().simple()),
+            context: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("start failed");
+
+    let (instance, _) = InstanceRepo::advance(
+        &pool,
+        instance.id,
+        &AdvanceInstanceRequest {
+            tenant_id: tid.clone(),
+            to_step_id: "review".into(),
+            action: "submit".into(),
+            actor_id: None,
+            actor_type: None,
+            comment: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("advance failed");
+
+    // Arm timer
+    let timer = EscalationRepo::arm_timer(&pool, &tid, instance.id, &rule)
+        .await
+        .expect("arm failed");
+    assert!(timer.cancelled_at.is_none());
+
+    // Verify active timers
+    let active = EscalationRepo::list_active_timers(&pool, &tid, instance.id)
+        .await
+        .expect("list failed");
+    assert_eq!(active.len(), 1);
+
+    // Instance advances past review — cancel timers
+    let cancelled = EscalationRepo::cancel_timers_for_instance(&pool, &tid, instance.id)
+        .await
+        .expect("cancel failed");
+    assert_eq!(cancelled.len(), 1);
+    assert!(cancelled[0].cancelled_at.is_some());
+
+    // No more active timers
+    let remaining = EscalationRepo::list_active_timers(&pool, &tid, instance.id)
+        .await
+        .expect("list failed");
+    assert_eq!(remaining.len(), 0);
+
+    // Tick should not fire anything (cancelled)
+    let fired = EscalationRepo::tick(&pool, 10).await.expect("tick failed");
+    assert_eq!(fired.len(), 0);
+}
+
+// ============================================================================
+// 33. Delegation: create rule + resolve delegatee
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_delegation_create_and_resolve() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+    let def = create_test_definition(&pool, &tid).await;
+
+    let delegator = Uuid::new_v4();
+    let delegatee = Uuid::new_v4();
+
+    // Create delegation: delegator → delegatee, scoped to this definition
+    let delegation = DelegationRepo::create(
+        &pool,
+        &CreateDelegationRequest {
+            tenant_id: tid.clone(),
+            delegator_id: delegator,
+            delegatee_id: delegatee,
+            definition_id: Some(def.id),
+            entity_type: Some("document".into()),
+            reason: Some("Out of office".into()),
+            valid_from: None,
+            valid_until: None,
+        },
+    )
+    .await
+    .expect("create delegation failed");
+
+    assert_eq!(delegation.delegator_id, delegator);
+    assert_eq!(delegation.delegatee_id, delegatee);
+    assert!(delegation.revoked_at.is_none());
+
+    // Verify outbox event
+    let event: Option<(String,)> = sqlx::query_as(
+        "SELECT event_type FROM events_outbox WHERE aggregate_id = $1",
+    )
+    .bind(delegation.id.to_string())
+    .fetch_optional(&pool)
+    .await
+    .unwrap();
+    assert_eq!(event.unwrap().0, "workflow.events.delegation.created");
+
+    // Resolve: delegator should resolve to delegatee
+    let resolved = DelegationRepo::resolve_delegatee(
+        &pool,
+        &ResolveDelegationQuery {
+            tenant_id: tid.clone(),
+            actor_id: delegator,
+            definition_id: Some(def.id),
+            entity_type: Some("document".into()),
+        },
+    )
+    .await
+    .expect("resolve failed");
+    assert!(resolved.is_some());
+    assert_eq!(resolved.unwrap().delegatee_id, delegatee);
+
+    // Non-delegated actor resolves to None
+    let other_actor = Uuid::new_v4();
+    let not_delegated = DelegationRepo::resolve_delegatee(
+        &pool,
+        &ResolveDelegationQuery {
+            tenant_id: tid.clone(),
+            actor_id: other_actor,
+            definition_id: Some(def.id),
+            entity_type: Some("document".into()),
+        },
+    )
+    .await
+    .expect("resolve failed");
+    assert!(not_delegated.is_none());
+}
+
+// ============================================================================
+// 34. Delegation: revoke rule → no longer resolves
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_delegation_revoke_stops_resolution() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    let delegator = Uuid::new_v4();
+    let delegatee = Uuid::new_v4();
+    let revoker = Uuid::new_v4();
+
+    let delegation = DelegationRepo::create(
+        &pool,
+        &CreateDelegationRequest {
+            tenant_id: tid.clone(),
+            delegator_id: delegator,
+            delegatee_id: delegatee,
+            definition_id: None,
+            entity_type: None,
+            reason: Some("Vacation".into()),
+            valid_from: None,
+            valid_until: None,
+        },
+    )
+    .await
+    .expect("create failed");
+
+    // Revoke it
+    let revoked = DelegationRepo::revoke(
+        &pool,
+        delegation.id,
+        &RevokeDelegationRequest {
+            tenant_id: tid.clone(),
+            revoked_by: revoker,
+            revoke_reason: Some("Returned from vacation".into()),
+        },
+    )
+    .await
+    .expect("revoke failed");
+    assert!(revoked.revoked_at.is_some());
+    assert_eq!(revoked.revoked_by, Some(revoker));
+
+    // Verify outbox event
+    let events: Vec<(String,)> = sqlx::query_as(
+        "SELECT event_type FROM events_outbox WHERE aggregate_id = $1 ORDER BY created_at",
+    )
+    .bind(delegation.id.to_string())
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(events.len(), 2);
+    assert_eq!(events[0].0, "workflow.events.delegation.created");
+    assert_eq!(events[1].0, "workflow.events.delegation.revoked");
+
+    // Resolve: should no longer return delegatee
+    let resolved = DelegationRepo::resolve_delegatee(
+        &pool,
+        &ResolveDelegationQuery {
+            tenant_id: tid.clone(),
+            actor_id: delegator,
+            definition_id: None,
+            entity_type: None,
+        },
+    )
+    .await
+    .expect("resolve failed");
+    assert!(resolved.is_none());
+
+    // Double-revoke should fail
+    let err = DelegationRepo::revoke(
+        &pool,
+        delegation.id,
+        &RevokeDelegationRequest {
+            tenant_id: tid.clone(),
+            revoked_by: revoker,
+            revoke_reason: None,
+        },
+    )
+    .await;
+    assert!(matches!(err, Err(DelegationError::AlreadyRevoked)));
+}
+
+// ============================================================================
+// 35. Delegation: delegatee can record decision on behalf of delegator
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn test_delegation_delegatee_decides_for_delegator() {
+    let pool = setup_db().await;
+    let tid = unique_tenant();
+
+    // Create definition with a parallel review step (2-of-2 threshold)
+    let steps = json!([
+        {
+            "step_id": "draft",
+            "name": "Draft",
+            "allowed_transitions": ["review"]
+        },
+        {
+            "step_id": "review",
+            "name": "Review",
+            "routing_mode": { "mode": "parallel", "threshold": 2 },
+            "allowed_transitions": ["approved"]
+        },
+        {
+            "step_id": "approved",
+            "name": "Approved",
+            "allowed_transitions": []
+        }
+    ]);
+
+    let def = DefinitionRepo::create(
+        &pool,
+        &CreateDefinitionRequest {
+            tenant_id: tid.clone(),
+            name: format!("deleg-test-{}", Uuid::new_v4().simple()),
+            description: None,
+            steps,
+            initial_step_id: "draft".into(),
+        },
+    )
+    .await
+    .expect("create def failed");
+
+    let delegator = Uuid::new_v4();
+    let delegatee = Uuid::new_v4();
+    let other_reviewer = Uuid::new_v4();
+
+    // Create delegation: delegator → delegatee
+    DelegationRepo::create(
+        &pool,
+        &CreateDelegationRequest {
+            tenant_id: tid.clone(),
+            delegator_id: delegator,
+            delegatee_id: delegatee,
+            definition_id: Some(def.id),
+            entity_type: None,
+            reason: Some("OOO coverage".into()),
+            valid_from: None,
+            valid_until: None,
+        },
+    )
+    .await
+    .expect("create delegation failed");
+
+    // Start instance and advance to review
+    let instance = InstanceRepo::start(
+        &pool,
+        &StartInstanceRequest {
+            tenant_id: tid.clone(),
+            definition_id: def.id,
+            entity_type: "document".into(),
+            entity_id: format!("DOC-DELEG-{}", Uuid::new_v4().simple()),
+            context: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("start failed");
+
+    let (instance, _) = InstanceRepo::advance(
+        &pool,
+        instance.id,
+        &AdvanceInstanceRequest {
+            tenant_id: tid.clone(),
+            to_step_id: "review".into(),
+            action: "submit".into(),
+            actor_id: None,
+            actor_type: None,
+            comment: None,
+            metadata: None,
+            idempotency_key: None,
+        },
+    )
+    .await
+    .expect("advance to review failed");
+
+    // Resolve delegation: the system should check if delegator has a delegate
+    let resolved = DelegationRepo::resolve_delegatee(
+        &pool,
+        &ResolveDelegationQuery {
+            tenant_id: tid.clone(),
+            actor_id: delegator,
+            definition_id: Some(def.id),
+            entity_type: None,
+        },
+    )
+    .await
+    .expect("resolve failed");
+    assert!(resolved.is_some());
+    let effective_actor = resolved.unwrap().delegatee_id;
+    assert_eq!(effective_actor, delegatee);
+
+    // Delegatee records decision on behalf of delegator
+    let result1 = RoutingEngine::record_decision(
+        &pool,
+        &RecordDecisionRequest {
+            tenant_id: tid.clone(),
+            instance_id: instance.id,
+            step_id: "review".into(),
+            actor_id: delegatee, // delegatee acts
+            actor_type: Some("delegatee".into()),
+            decision: "approve".into(),
+            comment: Some(format!("On behalf of {}", delegator)),
+            metadata: Some(json!({
+                "delegation_from": delegator.to_string()
+            })),
+        },
+    )
+    .await
+    .expect("delegatee decision failed");
+
+    assert!(!result1.threshold_met); // 1 of 2
+
+    // Other reviewer decides normally
+    let result2 = RoutingEngine::record_decision(
+        &pool,
+        &RecordDecisionRequest {
+            tenant_id: tid.clone(),
+            instance_id: instance.id,
+            step_id: "review".into(),
+            actor_id: other_reviewer,
+            actor_type: None,
+            decision: "approve".into(),
+            comment: None,
+            metadata: None,
+        },
+    )
+    .await
+    .expect("other reviewer decision failed");
+
+    assert!(result2.threshold_met); // 2 of 2
+    assert!(result2.advanced_instance.is_some());
+    assert_eq!(
+        result2.advanced_instance.unwrap().current_step_id,
+        "approved"
+    );
+
+    // Verify delegatee cannot double-decide (dedup still works)
+    let dup_err = RoutingEngine::record_decision(
+        &pool,
+        &RecordDecisionRequest {
+            tenant_id: tid.clone(),
+            instance_id: instance.id,
+            step_id: "review".into(),
+            actor_id: delegatee,
+            actor_type: None,
+            decision: "approve".into(),
+            comment: None,
+            metadata: None,
+        },
+    )
+    .await;
+    // The instance already advanced past review, so this should fail
+    assert!(dup_err.is_err());
 }
