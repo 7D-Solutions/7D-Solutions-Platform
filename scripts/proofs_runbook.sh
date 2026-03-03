@@ -4,7 +4,7 @@
 # - Runs ./scripts/cargo-slot.sh test per crate discovered under modules/* and platform/*
 # - Captures /healthz, /api/ready, /metrics per service (no auth)
 # - Runs platform_contracts tests
-# - Checks NATS JetStream health via docker exec 7d-nats nats
+# - Checks NATS JetStream health via HTTP monitoring API (port 8222)
 # - Captures outbox-related metrics lines per service
 #
 # Idempotent: safe to re-run; overwrites per-run artifacts under proofs/<timestamp>/
@@ -335,19 +335,65 @@ safe_run "platform_contracts: cargo-slot test" "$contracts_out" \
   "$SLOT_SCRIPT" test -p platform_contracts -- --nocapture || contracts_rc=$?
 
 # ----------------------------
-# Run: NATS JetStream health (via docker exec 7d-nats nats)
+# Run: NATS JetStream health (via monitoring HTTP API on port 8222)
 # ----------------------------
 nats_check_out="$PROOFS_DIR/nats/nats_server_check.txt"
 nats_streams_out="$PROOFS_DIR/nats/nats_stream_ls.txt"
+nats_consumers_out="$PROOFS_DIR/nats/nats_consumers.txt"
 nats_rc=0
 
 if docker ps --format '{{.Names}}' | grep -qx '7d-nats'; then
-  safe_run "nats: server check" "$nats_check_out" docker exec 7d-nats nats server check || nats_rc=$?
-  safe_run "nats: stream ls" "$nats_streams_out" docker exec 7d-nats nats stream ls || nats_rc=$?
+  # Resolve the monitoring port (8222 inside container)
+  nats_monitor_port="$(docker inspect 7d-nats --format '{{(index (index .NetworkSettings.Ports "8222/tcp") 0).HostPort}}' 2>/dev/null || echo "")"
+  if [[ -z "$nats_monitor_port" ]]; then
+    # Fallback: try container IP directly
+    nats_ip="$(container_ip 7d-nats)"
+    if [[ -n "$nats_ip" ]]; then
+      nats_monitor_url="http://${nats_ip}:8222"
+    else
+      warn "7d-nats monitoring port 8222 not reachable (no host port, no container IP)"
+      echo "SKIPPED: monitoring port 8222 not reachable" >"$nats_check_out"
+      echo "SKIPPED: monitoring port 8222 not reachable" >"$nats_streams_out"
+      echo "SKIPPED: monitoring port 8222 not reachable" >"$nats_consumers_out"
+      nats_rc=2
+    fi
+  else
+    nats_monitor_url="http://localhost:${nats_monitor_port}"
+  fi
+
+  if [[ "$nats_rc" -eq 0 ]]; then
+    # Server health check: /healthz + /varz (JetStream enabled?)
+    safe_run "nats: server health check (${nats_monitor_url})" "$nats_check_out" \
+      bash -c "
+        echo '=== /healthz ==='
+        curl -sS --max-time 5 '${nats_monitor_url}/healthz' | jq .
+        echo
+        echo '=== /varz (server + jetstream) ==='
+        curl -sS --max-time 5 '${nats_monitor_url}/varz' | jq '{server_id,server_name,version,host,port,jetstream}'
+        echo
+        echo '=== /jsz (JetStream summary) ==='
+        curl -sS --max-time 5 '${nats_monitor_url}/jsz' | jq '{streams,consumers,messages,bytes,api,config}'
+      " || nats_rc=$?
+
+    # Stream listing: /jsz?streams=true&config=true
+    safe_run "nats: stream listing (${nats_monitor_url})" "$nats_streams_out" \
+      bash -c "
+        curl -sS --max-time 5 '${nats_monitor_url}/jsz?streams=true&config=true' \
+          | jq '[.account_details[]?.stream_detail[]? | {name, state: {messages: .state.messages, bytes: .state.bytes, consumers: .state.consumer_count, first_seq: .state.first_seq, last_seq: .state.last_seq}, config: {subjects: .config.subjects, retention: .config.retention, storage: .config.storage, max_age_ns: .config.max_age}}]'
+      " || nats_rc=$?
+
+    # Consumer listing: /jsz?streams=true&consumers=true&config=true
+    safe_run "nats: consumer listing (${nats_monitor_url})" "$nats_consumers_out" \
+      bash -c "
+        curl -sS --max-time 5 '${nats_monitor_url}/jsz?streams=true&consumers=true&config=true' \
+          | jq '[.account_details[]?.stream_detail[]? | {stream: .name, consumers: [.consumer_detail[]? | {name: .name, config: {durable_name: .config.durable_name, deliver_subject: .config.deliver_subject, ack_policy: .config.ack_policy}, num_pending: .num_pending, num_ack_pending: .num_ack_pending}]}]'
+      " || nats_rc=$?
+  fi
 else
   warn "7d-nats container not found; skipping NATS checks"
   echo "SKIPPED: 7d-nats not found" >"$nats_check_out"
   echo "SKIPPED: 7d-nats not found" >"$nats_streams_out"
+  echo "SKIPPED: 7d-nats not found" >"$nats_consumers_out"
   nats_rc=2
 fi
 
@@ -405,10 +451,11 @@ fail_crates=0
   echo "platform_contracts_exit_code=$contracts_rc"
   echo "platform_contracts_output=$contracts_out"
   echo
-  echo "== NATS checks =="
+  echo "== NATS checks (via HTTP monitoring API) =="
   echo "nats_exit_code=$nats_rc"
   echo "nats_server_check=$nats_check_out"
   echo "nats_stream_ls=$nats_streams_out"
+  echo "nats_consumers=$nats_consumers_out"
   echo
   echo "== Crate tests =="
 } >"$SUMMARY"
