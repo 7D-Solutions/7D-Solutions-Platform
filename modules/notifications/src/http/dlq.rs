@@ -449,10 +449,17 @@ fn not_found(msg: &str) -> (StatusCode, Json<DlqError>) {
 
 // ── Router ──────────────────────────────────────────────────────────
 
-pub fn dlq_router(pool: PgPool) -> Router {
+/// Build separate read and mutate routers so main.rs can apply different
+/// permission layers (NOTIFICATIONS_READ vs NOTIFICATIONS_MUTATE).
+pub fn dlq_read_router(pool: PgPool) -> Router {
     Router::new()
         .route("/api/dlq", get(list_dlq))
         .route("/api/dlq/{id}", get(get_dlq_item))
+        .with_state(pool)
+}
+
+pub fn dlq_mutate_router(pool: PgPool) -> Router {
+    Router::new()
         .route("/api/dlq/{id}/replay", post(replay_dlq_item))
         .route("/api/dlq/{id}/abandon", post(abandon_dlq_item))
         .with_state(pool)

@@ -31,6 +31,7 @@ pub const GL_READ: &str = "gl.read";
 // ── Notifications ─────────────────────────────────────────────────────────────
 
 pub const NOTIFICATIONS_MUTATE: &str = "notifications.mutate";
+pub const NOTIFICATIONS_READ: &str = "notifications.read";
 
 // ── Maintenance ───────────────────────────────────────────────────────────────
 
@@ -196,6 +197,17 @@ mod tests {
     fn test_permissions_pdf_editor_constants_are_non_empty() {
         assert!(!PDF_EDITOR_MUTATE.is_empty());
         assert!(!PDF_EDITOR_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_notifications_constants_are_non_empty() {
+        assert!(!NOTIFICATIONS_MUTATE.is_empty());
+        assert!(!NOTIFICATIONS_READ.is_empty());
+    }
+
+    #[test]
+    fn test_permissions_notifications_mutate_distinct_from_read() {
+        assert_ne!(NOTIFICATIONS_MUTATE, NOTIFICATIONS_READ);
     }
 
     #[test]
