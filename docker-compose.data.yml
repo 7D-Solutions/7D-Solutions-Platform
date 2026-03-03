@@ -7,12 +7,15 @@ services:
   nats:
     container_name: 7d-nats
     image: nats:2.10-alpine
-    command: ["-js", "-sd", "/data", "-m", "8222"]
+    command: ["-c", "/etc/nats/nats.conf"]
     ports:
       - "4222:4222"
-      - "8222:8222"
+      - "127.0.0.1:8222:8222"
+    environment:
+      NATS_AUTH_TOKEN: ${NATS_AUTH_TOKEN:-dev-nats-token}
     volumes:
       - nats_data:/data
+      - ./infra/nats/nats.conf:/etc/nats/nats.conf:ro
     networks:
       - 7d-platform
     healthcheck:
