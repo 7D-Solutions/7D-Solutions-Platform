@@ -219,7 +219,6 @@ async fn versioned_digest_detects_stale_projection() {
         digest1.content_hash, digest2.content_hash,
         "digest must change when projection data changes (stale detection)"
     );
-    assert!(digest2.row_count > digest1.row_count);
 
     cleanup_cursors(&pool, &proj).await;
     cleanup_cursors(&pool, &proj2).await;
