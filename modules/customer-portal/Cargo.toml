@@ -38,6 +38,7 @@ jsonwebtoken = "9"
 sha2 = "0.10"
 base64 = "0.22"
 hex = "0.4"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 
 [dev-dependencies]
 serial_test = "3.3.1"

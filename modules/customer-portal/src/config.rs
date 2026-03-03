@@ -10,6 +10,8 @@ pub struct Config {
     pub portal_jwt_public_key: String,
     pub access_token_ttl_minutes: i64,
     pub refresh_token_ttl_days: i64,
+    pub doc_mgmt_base_url: String,
+    pub doc_mgmt_bearer_token: Option<String>,
 }
 
 impl Config {
@@ -45,6 +47,9 @@ impl Config {
             .ok()
             .and_then(|v| v.parse::<i64>().ok())
             .unwrap_or(7);
+        let doc_mgmt_base_url =
+            env::var("DOC_MGMT_BASE_URL").unwrap_or_else(|_| "http://localhost:8095".to_string());
+        let doc_mgmt_bearer_token = env::var("DOC_MGMT_BEARER_TOKEN").ok();
 
         Ok(Self {
             database_url,
@@ -55,6 +60,8 @@ impl Config {
             portal_jwt_public_key,
             access_token_ttl_minutes,
             refresh_token_ttl_days,
+            doc_mgmt_base_url,
+            doc_mgmt_bearer_token,
         })
     }
 }

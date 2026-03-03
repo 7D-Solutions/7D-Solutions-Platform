@@ -43,6 +43,14 @@ pub fn build_router(state: Arc<AppState>) -> Router {
 
     let admin_routes = Router::new()
         .route("/portal/admin/users", axum::routing::post(http::admin::invite_user))
+        .route(
+            "/portal/admin/docs/link",
+            axum::routing::post(http::status::link_document),
+        )
+        .route(
+            "/portal/admin/status-cards",
+            axum::routing::post(http::status::create_status_card),
+        )
         .route_layer(RequirePermissionsLayer::new(&[permissions::PARTY_MUTATE]))
         .with_state(state.clone());
 
@@ -51,6 +59,12 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .route("/portal/auth/refresh", axum::routing::post(http::auth::refresh))
         .route("/portal/auth/logout", axum::routing::post(http::auth::logout))
         .route("/portal/me", get(http::protected::me))
+        .route("/portal/docs", get(http::docs::list_documents))
+        .route("/portal/status/feed", get(http::status::list_status_cards))
+        .route(
+            "/portal/acknowledgments",
+            axum::routing::post(http::status::acknowledge),
+        )
         .route(
             "/portal/party/{party_id}/probe",
             get(http::protected::party_guard_probe),
