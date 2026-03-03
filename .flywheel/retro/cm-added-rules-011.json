@@ -1,0 +1,64 @@
+{
+  "sessions_prepared": 0,
+  "added_rules": [
+    {
+      "content": "When adding a new value to a column governed by a CHECK constraint, create a migration to DROP and re-ADD the constraint with the extended list before inserting data.",
+      "category": "architecture",
+      "playbook_id": "b-mmaaj196-oceet4"
+    },
+    {
+      "content": "Never bundle changes from multiple beads into a single git commit — each bead changes must be in a separate commit with its own [bead-id] prefix.",
+      "category": "git",
+      "playbook_id": "b-mmaaj196-gh3sr1"
+    },
+    {
+      "content": "Validate cumulative business invariants (running totals, balance limits) under a SELECT FOR UPDATE lock in the Guard phase to prevent race conditions from concurrent requests.",
+      "category": "architecture",
+      "playbook_id": "b-mmaaj196-dvw0v7"
+    },
+    {
+      "content": "When rendering or serializing deterministic output, write golden fixture tests that assert byte-identical results from identical inputs to catch format regressions.",
+      "category": "testing",
+      "playbook_id": "b-mmaaj196-5nh5b5"
+    },
+    {
+      "content": "Run the idempotency_key duplicate check before opening a database transaction to avoid holding locks during the lookup.",
+      "category": "performance",
+      "playbook_id": "b-mmaaj196-v696ag"
+    },
+    {
+      "content": "When a schedule or job can fail silently, record every execution attempt (success or failure) in an executions table to make failures visible.",
+      "category": "architecture",
+      "playbook_id": "b-mmaaj196-7hibd8"
+    },
+    {
+      "content": "Use shared transactional helper functions (like record_change_in_tx) for cross-cutting concerns within the same database transaction — never duplicate audit SQL across features.",
+      "category": "architecture",
+      "playbook_id": "b-mmaaj196-z1x13z"
+    },
+    {
+      "content": "After adding a new domain type to a module, grep the codebase for CHECK constraints, enum lists, and event subject counts that reference the old set of values.",
+      "category": "debugging",
+      "playbook_id": "b-mmaaj196-717pmz"
+    }
+  ],
+  "max_rules_per_run": 10,
+  "extraction_method": "manual-analysis",
+  "lint_config": {
+    "min_length": 20,
+    "max_length": 200,
+    "valid_categories": [
+      "architecture",
+      "collaboration",
+      "debugging",
+      "documentation",
+      "git",
+      "integration",
+      "performance",
+      "security",
+      "testing",
+      "workflow"
+    ],
+    "requires_imperative": true
+  }
+}

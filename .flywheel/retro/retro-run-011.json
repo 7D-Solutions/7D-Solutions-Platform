@@ -1,0 +1,81 @@
+{
+  "run_num": 11,
+  "run_num_fmt": "011",
+  "run_date": "2026-03-03",
+  "trigger_type": "count-based",
+  "analysis_window": {
+    "max_events": 5,
+    "max_days": 183,
+    "actual_events": 5
+  },
+  "bead_ids_in_window": [
+    "bd-7nvjh",
+    "bd-268ml",
+    "bd-2h1ng",
+    "bd-2nddc",
+    "bd-120qw"
+  ],
+  "rows": [
+    {
+      "bead_id": "bd-7nvjh",
+      "title": "Phase 63: AR progress billing / milestone invoicing",
+      "agent": "CopperRiver",
+      "cycle_days": 0.01,
+      "cycle_str": "14m",
+      "reopen_count": 0,
+      "deviations": "",
+      "is_retro_bead": false
+    },
+    {
+      "bead_id": "bd-268ml",
+      "title": "Phase 57 coordination — monitor progress",
+      "agent": "BrightHill",
+      "cycle_days": 0.20,
+      "cycle_str": "5h",
+      "reopen_count": 0,
+      "deviations": "Orchestrator coordination bead, not implementation",
+      "is_retro_bead": false
+    },
+    {
+      "bead_id": "bd-2h1ng",
+      "title": "Inventory 60A: item classifications + commodity codes",
+      "agent": "PurpleCliff",
+      "cycle_days": 0.01,
+      "cycle_str": "14m",
+      "reopen_count": 0,
+      "deviations": "Required follow-up commit to extend CHECK constraint on existing table",
+      "is_retro_bead": false
+    },
+    {
+      "bead_id": "bd-2nddc",
+      "title": "Phase 64: Reporting scheduled delivery",
+      "agent": "CopperRiver",
+      "cycle_days": 0.01,
+      "cycle_str": "14m",
+      "reopen_count": 0,
+      "deviations": "",
+      "is_retro_bead": false
+    },
+    {
+      "bead_id": "bd-120qw",
+      "title": "Phase 62: PDF editor rich formatting (tables)",
+      "agent": "MaroonHarbor",
+      "cycle_days": 0.01,
+      "cycle_str": "14m",
+      "reopen_count": 0,
+      "deviations": "Changes bundled into another bead's commit",
+      "is_retro_bead": false
+    }
+  ],
+  "signals": {
+    "avg_cycle_days": 0.048,
+    "reopen_total": 0,
+    "deviation_count": 2,
+    "agent_counts": {
+      "CopperRiver": 2,
+      "PurpleCliff": 1,
+      "BrightHill": 1,
+      "MaroonHarbor": 1
+    }
+  }
+}
