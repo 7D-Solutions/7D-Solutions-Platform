@@ -15,8 +15,8 @@ use sqlx::{postgres::PgPoolOptions, PgPool};
 
 async fn connect() -> PgPool {
     dotenvy::dotenv().ok();
-    let url =
-        std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for integration tests");
+    let url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "postgresql://ap_user:ap_pass@localhost:5443/ap_db".to_string());
     PgPoolOptions::new()
         .max_connections(2)
         .connect(&url)
