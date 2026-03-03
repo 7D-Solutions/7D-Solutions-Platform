@@ -253,6 +253,8 @@ fn event_type_constants_are_unique() {
         EVENT_TYPE_INBOUND_CLOSED,
         EVENT_TYPE_OUTBOUND_SHIPPED,
         EVENT_TYPE_OUTBOUND_DELIVERED,
+        EVENT_TYPE_RECEIPT_ROUTED_TO_INSPECTION,
+        EVENT_TYPE_RECEIPT_ROUTED_TO_STOCK,
     ];
     for (i, a) in types.iter().enumerate() {
         for (j, b) in types.iter().enumerate() {
@@ -273,6 +275,8 @@ fn all_event_types_conform_to_platform_naming() {
         EVENT_TYPE_INBOUND_CLOSED,
         EVENT_TYPE_OUTBOUND_SHIPPED,
         EVENT_TYPE_OUTBOUND_DELIVERED,
+        EVENT_TYPE_RECEIPT_ROUTED_TO_INSPECTION,
+        EVENT_TYPE_RECEIPT_ROUTED_TO_STOCK,
     ];
     for event_type in &types {
         platform_contracts::event_naming::validate_event_type(event_type)
