@@ -49,6 +49,13 @@ fn asset_error_response(err: AssetError) -> (StatusCode, Json<ErrorBody>) {
             StatusCode::BAD_REQUEST,
             Json(ErrorBody::new("validation_error", &msg)),
         ),
+        AssetError::IdempotentDuplicate(_) => {
+            // Handled specially in create_asset — this arm is for exhaustiveness
+            (
+                StatusCode::OK,
+                Json(ErrorBody::new("idempotent_duplicate", "Asset already exists")),
+            )
+        }
         AssetError::Database(e) => {
             tracing::error!(error = %e, "asset database error");
             (
@@ -72,6 +79,9 @@ pub async fn create_asset(
     req.tenant_id = tenant_id;
     match AssetRepo::create(&state.pool, &req).await {
         Ok(asset) => (StatusCode::CREATED, Json(json!(asset))).into_response(),
+        Err(AssetError::IdempotentDuplicate(asset)) => {
+            (StatusCode::OK, Json(json!(asset))).into_response()
+        }
         Err(e) => asset_error_response(e).into_response(),
     }
 }

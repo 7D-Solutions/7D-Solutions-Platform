@@ -4,6 +4,8 @@
 //! - asset_tag is unique per tenant (DB constraint + application guard)
 //! - tenant_id, asset_tag, name, asset_type are required and non-empty
 //! - Every query filters by tenant_id for multi-tenant isolation
+//! - All mutations use Guard → Mutation → Outbox atomicity
+//! - idempotency_key prevents duplicate asset creation per tenant
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -12,6 +14,8 @@ use thiserror::Error;
 use uuid::Uuid;
 
 use super::work_orders::types::{AssetStatus, AssetType};
+use crate::events::{envelope, subjects};
+use crate::outbox;
 
 // ============================================================================
 // Domain model
@@ -34,6 +38,8 @@ pub struct Asset {
     #[sqlx(try_from = "String")]
     pub status: AssetStatus,
     pub metadata: Option<serde_json::Value>,
+    pub maintenance_schedule: Option<serde_json::Value>,
+    pub idempotency_key: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -55,6 +61,8 @@ pub struct CreateAssetRequest {
     pub serial_number: Option<String>,
     pub fixed_asset_ref: Option<Uuid>,
     pub metadata: Option<serde_json::Value>,
+    pub maintenance_schedule: Option<serde_json::Value>,
+    pub idempotency_key: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -69,6 +77,7 @@ pub struct UpdateAssetRequest {
     pub fixed_asset_ref: Option<Uuid>,
     pub status: Option<String>,
     pub metadata: Option<serde_json::Value>,
+    pub maintenance_schedule: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -103,6 +112,9 @@ pub enum AssetError {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    #[error("Idempotent duplicate — returning existing asset")]
+    IdempotentDuplicate(Asset),
+
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
 }
@@ -114,7 +126,9 @@ pub enum AssetError {
 pub struct AssetRepo;
 
 impl AssetRepo {
+    /// Create an asset using Guard → Mutation → Outbox.
     pub async fn create(pool: &PgPool, req: &CreateAssetRequest) -> Result<Asset, AssetError> {
+        // ── Guard ──
         if req.tenant_id.trim().is_empty() {
             return Err(AssetError::Validation("tenant_id is required".into()));
         }
@@ -127,6 +141,24 @@ impl AssetRepo {
         AssetType::from_str_value(&req.asset_type)
             .map_err(|e| AssetError::Validation(e.to_string()))?;
 
+        // ── Idempotency check ──
+        if let Some(ref ikey) = req.idempotency_key {
+            let existing = sqlx::query_as::<_, Asset>(
+                "SELECT * FROM maintainable_assets WHERE tenant_id = $1 AND idempotency_key = $2",
+            )
+            .bind(&req.tenant_id)
+            .bind(ikey)
+            .fetch_optional(pool)
+            .await?;
+
+            if let Some(asset) = existing {
+                return Err(AssetError::IdempotentDuplicate(asset));
+            }
+        }
+
+        let mut tx = pool.begin().await?;
+
+        // ── Mutation ──
         let id = Uuid::new_v4();
         let now = Utc::now();
 
@@ -135,8 +167,9 @@ impl AssetRepo {
             INSERT INTO maintainable_assets
                 (id, tenant_id, asset_tag, name, description, asset_type,
                  location, department, responsible_person, serial_number,
-                 fixed_asset_ref, metadata, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $13)
+                 fixed_asset_ref, metadata, maintenance_schedule, idempotency_key,
+                 created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $15)
             RETURNING *
             "#,
         )
@@ -152,8 +185,10 @@ impl AssetRepo {
         .bind(req.serial_number.as_deref())
         .bind(req.fixed_asset_ref)
         .bind(&req.metadata)
+        .bind(&req.maintenance_schedule)
+        .bind(req.idempotency_key.as_deref())
         .bind(now)
-        .fetch_one(pool)
+        .fetch_one(&mut *tx)
         .await
         .map_err(|e| {
             if let sqlx::Error::Database(ref dbe) = e {
@@ -164,6 +199,37 @@ impl AssetRepo {
             AssetError::Database(e)
         })?;
 
+        // ── Outbox ──
+        let event_payload = serde_json::json!({
+            "asset_id": id,
+            "tenant_id": &req.tenant_id,
+            "asset_tag": req.asset_tag.trim(),
+            "name": req.name.trim(),
+            "asset_type": &req.asset_type,
+            "serial_number": req.serial_number,
+            "location": req.location,
+            "status": "active",
+        });
+        let event_id = Uuid::new_v4();
+        let env = envelope::create_envelope(
+            event_id,
+            req.tenant_id.clone(),
+            subjects::ASSET_CREATED.to_string(),
+            event_payload,
+        );
+        let env_json = envelope::validate_envelope(&env)
+            .map_err(|e| AssetError::Validation(format!("envelope: {}", e)))?;
+        outbox::enqueue_event_tx(
+            &mut tx,
+            event_id,
+            subjects::ASSET_CREATED,
+            "asset",
+            &id.to_string(),
+            &env_json,
+        )
+        .await?;
+
+        tx.commit().await?;
         Ok(asset)
     }
 
@@ -237,12 +303,14 @@ impl AssetRepo {
         })
     }
 
+    /// Update an asset using Guard → Mutation → Outbox.
     pub async fn update(
         pool: &PgPool,
         id: Uuid,
         tenant_id: &str,
         req: &UpdateAssetRequest,
     ) -> Result<Asset, AssetError> {
+        // ── Guard ──
         if let Some(ref at) = req.asset_type {
             AssetType::from_str_value(at).map_err(|e| AssetError::Validation(e.to_string()))?;
         }
@@ -255,20 +323,24 @@ impl AssetRepo {
             }
         }
 
-        sqlx::query_as::<_, Asset>(
+        let mut tx = pool.begin().await?;
+
+        // ── Mutation ──
+        let asset = sqlx::query_as::<_, Asset>(
             r#"
             UPDATE maintainable_assets SET
-                name               = COALESCE($3, name),
-                description        = COALESCE($4, description),
-                asset_type         = COALESCE($5, asset_type),
-                location           = COALESCE($6, location),
-                department         = COALESCE($7, department),
-                responsible_person = COALESCE($8, responsible_person),
-                serial_number      = COALESCE($9, serial_number),
-                fixed_asset_ref    = COALESCE($10, fixed_asset_ref),
-                status             = COALESCE($11, status),
-                metadata           = COALESCE($12, metadata),
-                updated_at         = NOW()
+                name                  = COALESCE($3, name),
+                description           = COALESCE($4, description),
+                asset_type            = COALESCE($5, asset_type),
+                location              = COALESCE($6, location),
+                department            = COALESCE($7, department),
+                responsible_person    = COALESCE($8, responsible_person),
+                serial_number         = COALESCE($9, serial_number),
+                fixed_asset_ref       = COALESCE($10, fixed_asset_ref),
+                status                = COALESCE($11, status),
+                metadata              = COALESCE($12, metadata),
+                maintenance_schedule  = COALESCE($13, maintenance_schedule),
+                updated_at            = NOW()
             WHERE id = $1 AND tenant_id = $2
             RETURNING *
             "#,
@@ -285,9 +357,38 @@ impl AssetRepo {
         .bind(req.fixed_asset_ref)
         .bind(req.status.as_deref())
         .bind(&req.metadata)
-        .fetch_optional(pool)
+        .bind(&req.maintenance_schedule)
+        .fetch_optional(&mut *tx)
         .await?
-        .ok_or(AssetError::NotFound)
+        .ok_or(AssetError::NotFound)?;
+
+        // ── Outbox ──
+        let event_payload = serde_json::json!({
+            "asset_id": id,
+            "tenant_id": tenant_id,
+            "status": asset.status.as_str(),
+        });
+        let event_id = Uuid::new_v4();
+        let env = envelope::create_envelope(
+            event_id,
+            tenant_id.to_string(),
+            subjects::ASSET_UPDATED.to_string(),
+            event_payload,
+        );
+        let env_json = envelope::validate_envelope(&env)
+            .map_err(|e| AssetError::Validation(format!("envelope: {}", e)))?;
+        outbox::enqueue_event_tx(
+            &mut tx,
+            event_id,
+            subjects::ASSET_UPDATED,
+            "asset",
+            &id.to_string(),
+            &env_json,
+        )
+        .await?;
+
+        tx.commit().await?;
+        Ok(asset)
     }
 }
 

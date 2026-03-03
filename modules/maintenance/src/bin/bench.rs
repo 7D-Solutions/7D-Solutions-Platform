@@ -142,6 +142,8 @@ async fn create_test_asset(pool: &PgPool, tenant_id: &str) -> Uuid {
         serial_number: None,
         fixed_asset_ref: None,
         metadata: None,
+        maintenance_schedule: None,
+        idempotency_key: None,
     };
     let asset = AssetRepo::create(pool, &req).await.expect("create bench asset");
     asset.id

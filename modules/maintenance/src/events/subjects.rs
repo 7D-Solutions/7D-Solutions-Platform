@@ -75,6 +75,6 @@ mod tests {
 
     #[test]
     fn all_subjects_count() {
-        assert_eq!(ALL_SUBJECTS.len(), 11);
+        assert_eq!(ALL_SUBJECTS.len(), 14);
     }
 }

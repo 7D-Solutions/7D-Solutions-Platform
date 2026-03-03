@@ -159,6 +159,18 @@ async fn main() {
                     "/api/maintenance/work-orders/{wo_id}/labor",
                     get(http::work_order_labor::list_labor),
                 )
+                .route(
+                    "/api/maintenance/downtime-events",
+                    get(http::downtime::list_downtime),
+                )
+                .route(
+                    "/api/maintenance/downtime-events/{id}",
+                    get(http::downtime::get_downtime),
+                )
+                .route(
+                    "/api/maintenance/assets/{asset_id}/downtime",
+                    get(http::downtime::list_asset_downtime),
+                )
                 .route_layer(RequirePermissionsLayer::new(&[
                     permissions::MAINTENANCE_READ,
                 ])),
@@ -217,6 +229,10 @@ async fn main() {
                 .route(
                     "/api/maintenance/work-orders/{wo_id}/labor/{labor_id}",
                     axum::routing::delete(http::work_order_labor::remove_labor),
+                )
+                .route(
+                    "/api/maintenance/downtime-events",
+                    post(http::downtime::create_downtime),
                 )
                 .route_layer(RequirePermissionsLayer::new(&[
                     permissions::MAINTENANCE_MUTATE,
