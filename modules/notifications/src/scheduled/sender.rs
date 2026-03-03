@@ -172,6 +172,128 @@ impl NotificationSender for HttpEmailSender {
     }
 }
 
+/// Channel-routing sender that delegates to the appropriate backend based on
+/// `notif.channel` (e.g., "email" → email sender, "sms" → SMS sender).
+///
+/// Unknown channels are rejected with a permanent error.
+pub struct ChannelRouter {
+    pub email: Arc<dyn NotificationSender>,
+    pub sms: Arc<dyn NotificationSender>,
+}
+
+use std::sync::Arc;
+
+#[async_trait]
+impl NotificationSender for ChannelRouter {
+    async fn send(
+        &self,
+        notif: &ScheduledNotification,
+    ) -> Result<SendReceipt, NotificationError> {
+        match notif.channel.as_str() {
+            "email" => self.email.send(notif).await,
+            "sms" => self.sms.send(notif).await,
+            other => Err(NotificationError::Permanent(format!(
+                "unsupported notification channel: {other}"
+            ))),
+        }
+    }
+}
+
+/// Provider-backed sender that performs real HTTP delivery to an SMS gateway.
+pub struct HttpSmsSender {
+    client: reqwest::Client,
+    endpoint: String,
+    from_number: String,
+    api_key: Option<String>,
+}
+
+impl HttpSmsSender {
+    pub fn new(endpoint: String, from_number: String, api_key: Option<String>) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            endpoint,
+            from_number,
+            api_key,
+        }
+    }
+
+    fn resolve_recipient(notif: &ScheduledNotification) -> Result<String, NotificationError> {
+        // Try payload_json.phone first
+        if let Some(phone) = notif.payload_json.get("phone").and_then(|v| v.as_str()) {
+            if phone.starts_with('+') && phone.len() >= 8 {
+                return Ok(phone.to_string());
+            }
+        }
+
+        // Fall back to recipient_ref if it looks like a phone number
+        let ref_part = notif.recipient_ref.split(':').last().unwrap_or("");
+        if ref_part.starts_with('+') && ref_part.len() >= 8 {
+            return Ok(ref_part.to_string());
+        }
+
+        Err(NotificationError::InvalidRecipient(format!(
+            "recipient_ref '{}' is not a phone number and payload has no valid phone field",
+            notif.recipient_ref
+        )))
+    }
+}
+
+#[async_trait]
+impl NotificationSender for HttpSmsSender {
+    async fn send(
+        &self,
+        notif: &ScheduledNotification,
+    ) -> Result<SendReceipt, NotificationError> {
+        let to = Self::resolve_recipient(notif)?;
+        let body = serde_json::json!({
+            "to": to,
+            "from": self.from_number,
+            "body": notif.payload_json.get("body").and_then(|v| v.as_str()).unwrap_or(""),
+            "template_key": notif.template_key,
+            "notification_id": notif.id,
+        });
+
+        let mut req = self.client.post(&self.endpoint).json(&body);
+        if let Some(api_key) = &self.api_key {
+            req = req.bearer_auth(api_key);
+        }
+
+        let resp = req
+            .send()
+            .await
+            .map_err(|e| NotificationError::Transient(e.to_string()))?;
+
+        let status = resp.status();
+        let payload: Option<Value> = resp.json::<Value>().await.ok();
+        let provider_message_id = payload
+            .as_ref()
+            .and_then(|v| v.get("message_id"))
+            .and_then(|v| v.as_str())
+            .map(ToOwned::to_owned);
+
+        match status {
+            s if s.is_success() => Ok(SendReceipt { provider_message_id }),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => Err(NotificationError::ProviderAuth(
+                format!("SMS provider returned status {status}"),
+            )),
+            StatusCode::TOO_MANY_REQUESTS => Err(NotificationError::RateLimited(
+                "SMS provider returned 429".to_string(),
+            )),
+            StatusCode::BAD_REQUEST
+            | StatusCode::NOT_FOUND
+            | StatusCode::UNPROCESSABLE_ENTITY => Err(NotificationError::InvalidRecipient(
+                format!("SMS provider rejected recipient/status {status}"),
+            )),
+            s if s.is_server_error() => Err(NotificationError::Transient(format!(
+                "SMS provider server error status {s}"
+            ))),
+            _ => Err(NotificationError::Permanent(format!(
+                "SMS provider returned unexpected status {status}"
+            ))),
+        }
+    }
+}
+
 /// Test-only sender that fails for the first `fail_count` calls, then succeeds.
 ///
 /// Uses an atomic counter so the struct is `Send + Sync` without a Mutex.

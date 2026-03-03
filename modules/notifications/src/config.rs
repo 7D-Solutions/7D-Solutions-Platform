@@ -44,6 +44,25 @@ impl EmailSenderType {
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum SmsSenderType {
+    Logging,
+    Http,
+}
+
+impl SmsSenderType {
+    pub fn from_str(s: &str) -> Result<Self, String> {
+        match s.to_lowercase().as_str() {
+            "logging" => Ok(SmsSenderType::Logging),
+            "http" => Ok(SmsSenderType::Http),
+            _ => Err(format!(
+                "Invalid SMS_SENDER_TYPE '{}'. Must be 'logging' or 'http'",
+                s
+            )),
+        }
+    }
+}
+
 /// Notifications application configuration
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -59,6 +78,10 @@ pub struct Config {
     pub email_http_endpoint: Option<String>,
     pub email_from: String,
     pub email_api_key: Option<String>,
+    pub sms_sender_type: SmsSenderType,
+    pub sms_http_endpoint: Option<String>,
+    pub sms_from_number: String,
+    pub sms_api_key: Option<String>,
     pub retry_max_attempts: i32,
     pub retry_backoff_base_secs: i64,
     pub retry_backoff_multiplier: f64,
@@ -143,6 +166,13 @@ impl Config {
         let email_from =
             env::var("EMAIL_FROM").unwrap_or_else(|_| "no-reply@notifications.local".to_string());
         let email_api_key = env::var("EMAIL_API_KEY").ok();
+        let sms_sender_type = SmsSenderType::from_str(
+            &env::var("SMS_SENDER_TYPE").unwrap_or_else(|_| "logging".to_string()),
+        )?;
+        let sms_http_endpoint = env::var("SMS_HTTP_ENDPOINT").ok();
+        let sms_from_number =
+            env::var("SMS_FROM_NUMBER").unwrap_or_else(|_| "+10000000000".to_string());
+        let sms_api_key = env::var("SMS_API_KEY").ok();
         let retry_max_attempts = env::var("NOTIFICATIONS_RETRY_MAX_ATTEMPTS")
             .ok()
             .and_then(|v| v.parse::<i32>().ok())
@@ -172,6 +202,10 @@ impl Config {
             email_http_endpoint,
             email_from,
             email_api_key,
+            sms_sender_type,
+            sms_http_endpoint,
+            sms_from_number,
+            sms_api_key,
             retry_max_attempts,
             retry_backoff_base_secs,
             retry_backoff_multiplier,
@@ -206,6 +240,15 @@ impl Config {
                 .unwrap_or(true)
         {
             return Err("EMAIL_HTTP_ENDPOINT is required when EMAIL_SENDER_TYPE=http".to_string());
+        }
+        if self.sms_sender_type == SmsSenderType::Http
+            && self
+                .sms_http_endpoint
+                .as_ref()
+                .map(|s| s.trim().is_empty())
+                .unwrap_or(true)
+        {
+            return Err("SMS_HTTP_ENDPOINT is required when SMS_SENDER_TYPE=http".to_string());
         }
         if self.retry_max_attempts < 1 {
             return Err("NOTIFICATIONS_RETRY_MAX_ATTEMPTS must be >= 1".to_string());
@@ -257,6 +300,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            sms_sender_type: SmsSenderType::Logging,
+            sms_http_endpoint: None,
+            sms_from_number: "+10000000000".to_string(),
+            sms_api_key: None,
             retry_max_attempts: 5,
             retry_backoff_base_secs: 300,
             retry_backoff_multiplier: 1.0,
@@ -281,6 +328,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            sms_sender_type: SmsSenderType::Logging,
+            sms_http_endpoint: None,
+            sms_from_number: "+10000000000".to_string(),
+            sms_api_key: None,
             retry_max_attempts: 5,
             retry_backoff_base_secs: 300,
             retry_backoff_multiplier: 1.0,
@@ -305,6 +356,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            sms_sender_type: SmsSenderType::Logging,
+            sms_http_endpoint: None,
+            sms_from_number: "+10000000000".to_string(),
+            sms_api_key: None,
             retry_max_attempts: 5,
             retry_backoff_base_secs: 300,
             retry_backoff_multiplier: 1.0,
@@ -325,6 +380,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            sms_sender_type: SmsSenderType::Logging,
+            sms_http_endpoint: None,
+            sms_from_number: "+10000000000".to_string(),
+            sms_api_key: None,
             retry_max_attempts: 5,
             retry_backoff_base_secs: 300,
             retry_backoff_multiplier: 1.0,

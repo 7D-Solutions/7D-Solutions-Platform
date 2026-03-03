@@ -10,5 +10,6 @@ pub use repo::{
     reschedule_or_fail, reset_orphaned_claims, AttemptApplyOutcome, RetryPolicy,
 };
 pub use sender::{
-    HttpEmailSender, LoggingSender, NotificationError, NotificationSender, SendReceipt,
+    ChannelRouter, HttpEmailSender, HttpSmsSender, LoggingSender, NotificationError,
+    NotificationSender, SendReceipt,
 };

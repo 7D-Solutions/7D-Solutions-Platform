@@ -2,11 +2,11 @@ use ::event_bus::{EventBus, InMemoryBus, NatsBus};
 use axum::{extract::DefaultBodyLimit, routing::get, Extension, Router};
 use notifications_rs::{
     config,
-    config::{Config, EmailSenderType},
+    config::{Config, EmailSenderType, SmsSenderType},
     consumer_tasks, db, event_bus, http, metrics,
     scheduled::{
-        dispatch_once, reset_orphaned_claims, HttpEmailSender, LoggingSender, NotificationSender,
-        RetryPolicy,
+        dispatch_once, reset_orphaned_claims, ChannelRouter, HttpEmailSender, HttpSmsSender,
+        LoggingSender, NotificationSender, RetryPolicy,
     },
 };
 use security::{
@@ -104,7 +104,7 @@ async fn main() {
             backoff_multiplier: config.retry_backoff_multiplier,
             backoff_max_secs: config.retry_backoff_max_secs,
         };
-        let dispatch_sender: Arc<dyn NotificationSender> = match config.email_sender_type {
+        let email_sender: Arc<dyn NotificationSender> = match config.email_sender_type {
             EmailSenderType::Logging => Arc::new(LoggingSender),
             EmailSenderType::Http => Arc::new(HttpEmailSender::new(
                 config
@@ -115,6 +115,21 @@ async fn main() {
                 config.email_api_key.clone(),
             )),
         };
+        let sms_sender: Arc<dyn NotificationSender> = match config.sms_sender_type {
+            SmsSenderType::Logging => Arc::new(LoggingSender),
+            SmsSenderType::Http => Arc::new(HttpSmsSender::new(
+                config
+                    .sms_http_endpoint
+                    .clone()
+                    .expect("SMS_HTTP_ENDPOINT required for HTTP SMS sender"),
+                config.sms_from_number.clone(),
+                config.sms_api_key.clone(),
+            )),
+        };
+        let dispatch_sender: Arc<dyn NotificationSender> = Arc::new(ChannelRouter {
+            email: email_sender,
+            sms: sms_sender,
+        });
         tokio::spawn(async move {
             loop {
                 if let Err(e) =
@@ -273,6 +288,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            sms_sender_type: config::SmsSenderType::Logging,
+            sms_http_endpoint: None,
+            sms_from_number: "+10000000000".to_string(),
+            sms_api_key: None,
             retry_max_attempts: 5,
             retry_backoff_base_secs: 300,
             retry_backoff_multiplier: 1.0,
@@ -298,6 +317,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            sms_sender_type: config::SmsSenderType::Logging,
+            sms_http_endpoint: None,
+            sms_from_number: "+10000000000".to_string(),
+            sms_api_key: None,
             retry_max_attempts: 5,
             retry_backoff_base_secs: 300,
             retry_backoff_multiplier: 1.0,
