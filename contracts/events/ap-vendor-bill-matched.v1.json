@@ -6,10 +6,14 @@
   "type": "object",
   "required": [
     "event_id",
+    "event_type",
     "occurred_at",
     "tenant_id",
     "source_module",
     "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
     "payload"
   ],
   "properties": {
@@ -17,6 +21,11 @@
       "type": "string",
       "format": "uuid",
       "description": "Unique event identifier (idempotency key)"
+    },
+    "event_type": {
+      "type": "string",
+      "const": "ap.vendor_bill_matched",
+      "description": "Event type following entity.action convention"
     },
     "occurred_at": {
       "type": "string",
@@ -36,6 +45,28 @@
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
       "description": "Semantic version of the source module"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Schema version of the payload"
+    },
+    "replay_safe": {
+      "type": "boolean",
+      "description": "Whether the event can be safely replayed"
+    },
+    "mutation_class": {
+      "type": "string",
+      "enum": [
+        "DATA_MUTATION",
+        "REVERSAL",
+        "CORRECTION",
+        "SIDE_EFFECT",
+        "QUERY",
+        "LIFECYCLE",
+        "ADMINISTRATIVE"
+      ],
+      "description": "Classification of the mutation"
     },
     "correlation_id": {
       "type": "string",
@@ -80,21 +111,49 @@
         },
         "match_type": {
           "type": "string",
-          "enum": ["two_way", "three_way", "non_po"],
+          "enum": [
+            "two_way",
+            "three_way",
+            "non_po"
+          ],
           "description": "Type of PO match performed"
         },
         "match_lines": {
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["bill_line_id", "po_line_id", "matched_quantity", "matched_amount_minor", "within_tolerance"],
+            "required": [
+              "bill_line_id",
+              "po_line_id",
+              "matched_quantity",
+              "matched_amount_minor",
+              "within_tolerance"
+            ],
             "properties": {
-              "bill_line_id": { "type": "string", "format": "uuid" },
-              "po_line_id": { "type": "string", "format": "uuid" },
-              "receipt_id": { "type": ["string", "null"], "format": "uuid" },
-              "matched_quantity": { "type": "number" },
-              "matched_amount_minor": { "type": "integer" },
-              "within_tolerance": { "type": "boolean" }
+              "bill_line_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "po_line_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "receipt_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "matched_quantity": {
+                "type": "number"
+              },
+              "matched_amount_minor": {
+                "type": "integer"
+              },
+              "within_tolerance": {
+                "type": "boolean"
+              }
             },
             "additionalProperties": false
           },

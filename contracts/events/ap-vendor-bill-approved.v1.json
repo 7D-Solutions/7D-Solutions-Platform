@@ -6,10 +6,14 @@
   "type": "object",
   "required": [
     "event_id",
+    "event_type",
     "occurred_at",
     "tenant_id",
     "source_module",
     "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
     "payload"
   ],
   "properties": {
@@ -17,6 +21,11 @@
       "type": "string",
       "format": "uuid",
       "description": "Unique event identifier (idempotency key)"
+    },
+    "event_type": {
+      "type": "string",
+      "const": "ap.vendor_bill_approved",
+      "description": "Event type following entity.action convention"
     },
     "occurred_at": {
       "type": "string",
@@ -36,6 +45,28 @@
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
       "description": "Semantic version of the source module"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Schema version of the payload"
+    },
+    "replay_safe": {
+      "type": "boolean",
+      "description": "Whether the event can be safely replayed"
+    },
+    "mutation_class": {
+      "type": "string",
+      "enum": [
+        "DATA_MUTATION",
+        "REVERSAL",
+        "CORRECTION",
+        "SIDE_EFFECT",
+        "QUERY",
+        "LIFECYCLE",
+        "ADMINISTRATIVE"
+      ],
+      "description": "Classification of the mutation"
     },
     "correlation_id": {
       "type": "string",
@@ -103,7 +134,10 @@
           "description": "Timestamp of approval"
         },
         "fx_rate_id": {
-          "type": ["string", "null"],
+          "type": [
+            "string",
+            "null"
+          ],
           "format": "uuid",
           "description": "FX rate record used at bill entry (null when same currency)"
         },
@@ -111,12 +145,29 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["line_id", "gl_account_code", "amount_minor"],
+            "required": [
+              "line_id",
+              "gl_account_code",
+              "amount_minor"
+            ],
             "properties": {
-              "line_id": { "type": "string", "format": "uuid" },
-              "gl_account_code": { "type": "string" },
-              "amount_minor": { "type": "integer" },
-              "po_line_id": { "type": ["string", "null"], "format": "uuid" }
+              "line_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "gl_account_code": {
+                "type": "string"
+              },
+              "amount_minor": {
+                "type": "integer"
+              },
+              "po_line_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              }
             },
             "additionalProperties": false
           },

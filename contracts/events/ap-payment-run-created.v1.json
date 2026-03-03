@@ -6,10 +6,14 @@
   "type": "object",
   "required": [
     "event_id",
+    "event_type",
     "occurred_at",
     "tenant_id",
     "source_module",
     "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
     "payload"
   ],
   "properties": {
@@ -17,6 +21,11 @@
       "type": "string",
       "format": "uuid",
       "description": "Unique event identifier (idempotency key)"
+    },
+    "event_type": {
+      "type": "string",
+      "const": "ap.payment_run_created",
+      "description": "Event type following entity.action convention"
     },
     "occurred_at": {
       "type": "string",
@@ -36,6 +45,28 @@
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
       "description": "Semantic version of the source module"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Schema version of the payload"
+    },
+    "replay_safe": {
+      "type": "boolean",
+      "description": "Whether the event can be safely replayed"
+    },
+    "mutation_class": {
+      "type": "string",
+      "enum": [
+        "DATA_MUTATION",
+        "REVERSAL",
+        "CORRECTION",
+        "SIDE_EFFECT",
+        "QUERY",
+        "LIFECYCLE",
+        "ADMINISTRATIVE"
+      ],
+      "description": "Classification of the mutation"
     },
     "correlation_id": {
       "type": "string",
@@ -72,16 +103,31 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["vendor_id", "bill_ids", "amount_minor", "currency"],
+            "required": [
+              "vendor_id",
+              "bill_ids",
+              "amount_minor",
+              "currency"
+            ],
             "properties": {
-              "vendor_id": { "type": "string", "format": "uuid" },
+              "vendor_id": {
+                "type": "string",
+                "format": "uuid"
+              },
               "bill_ids": {
                 "type": "array",
-                "items": { "type": "string", "format": "uuid" },
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
                 "minItems": 1
               },
-              "amount_minor": { "type": "integer" },
-              "currency": { "type": "string" }
+              "amount_minor": {
+                "type": "integer"
+              },
+              "currency": {
+                "type": "string"
+              }
             },
             "additionalProperties": false
           },

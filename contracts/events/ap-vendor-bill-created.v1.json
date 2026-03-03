@@ -6,10 +6,14 @@
   "type": "object",
   "required": [
     "event_id",
+    "event_type",
     "occurred_at",
     "tenant_id",
     "source_module",
     "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
     "payload"
   ],
   "properties": {
@@ -17,6 +21,11 @@
       "type": "string",
       "format": "uuid",
       "description": "Unique event identifier (idempotency key)"
+    },
+    "event_type": {
+      "type": "string",
+      "const": "ap.vendor_bill_created",
+      "description": "Event type following entity.action convention"
     },
     "occurred_at": {
       "type": "string",
@@ -36,6 +45,28 @@
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
       "description": "Semantic version of the source module"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Schema version of the payload"
+    },
+    "replay_safe": {
+      "type": "boolean",
+      "description": "Whether the event can be safely replayed"
+    },
+    "mutation_class": {
+      "type": "string",
+      "enum": [
+        "DATA_MUTATION",
+        "REVERSAL",
+        "CORRECTION",
+        "SIDE_EFFECT",
+        "QUERY",
+        "LIFECYCLE",
+        "ADMINISTRATIVE"
+      ],
+      "description": "Classification of the mutation"
     },
     "correlation_id": {
       "type": "string",
@@ -90,15 +121,41 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["line_id", "description", "quantity", "unit_price_minor", "line_total_minor", "gl_account_code"],
+            "required": [
+              "line_id",
+              "description",
+              "quantity",
+              "unit_price_minor",
+              "line_total_minor",
+              "gl_account_code"
+            ],
             "properties": {
-              "line_id": { "type": "string", "format": "uuid" },
-              "description": { "type": "string" },
-              "quantity": { "type": "number" },
-              "unit_price_minor": { "type": "integer" },
-              "line_total_minor": { "type": "integer" },
-              "gl_account_code": { "type": "string" },
-              "po_line_id": { "type": ["string", "null"], "format": "uuid" }
+              "line_id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "description": {
+                "type": "string"
+              },
+              "quantity": {
+                "type": "number"
+              },
+              "unit_price_minor": {
+                "type": "integer"
+              },
+              "line_total_minor": {
+                "type": "integer"
+              },
+              "gl_account_code": {
+                "type": "string"
+              },
+              "po_line_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              }
             },
             "additionalProperties": false
           },
@@ -109,7 +166,10 @@
           "description": "Total bill amount in minor currency units"
         },
         "tax_minor": {
-          "type": ["integer", "null"],
+          "type": [
+            "integer",
+            "null"
+          ],
           "description": "Tax amount in minor currency units (null if not itemized)"
         },
         "invoice_date": {
