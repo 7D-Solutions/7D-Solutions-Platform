@@ -184,7 +184,7 @@ The script asserts:
 - Mode is `0600`
 - No `CHANGE_ME` placeholders remain
 - No test/development secret patterns
-- All 22 required variables are present and non-empty
+- All 26 required variables are present and non-empty
 
 Exit code 0 = ready to deploy. Non-zero = fix the reported issues first.
 
@@ -217,6 +217,10 @@ Exit code 0 = ready to deploy. Non-zero = fix the reported issues first.
 | `MAINTENANCE_POSTGRES_PASSWORD` | Maintenance module DB |
 | `PDF_EDITOR_POSTGRES_PASSWORD` | PDF Editor module DB |
 | `SHIPPING_RECEIVING_POSTGRES_PASSWORD` | Shipping-Receiving module DB |
+| `NUMBERING_POSTGRES_PASSWORD` | Numbering module DB |
+| `DOC_MGMT_POSTGRES_PASSWORD` | Doc Management module DB |
+| `WORKFLOW_POSTGRES_PASSWORD` | Workflow module DB |
+| `WC_POSTGRES_PASSWORD` | Workforce Competence module DB |
 | `SEED_ADMIN_PASSWORD` | Initial admin password for new tenant seed (see below) |
 
 Variable names and DB usernames are documented in full in `scripts/production/env.example`.
@@ -546,6 +550,89 @@ See `bd-1itw` for the full production secrets contract.
 | `scripts/production/rollback_stack.sh --tag <tag>` | Roll back to a specific prior tag |
 | `scripts/production/rollback_stack.sh --previous` | Roll back to the tag before the current one |
 | `scripts/production/rollback_stack.sh --history` | Show deployment log on the production VPS |
+| `scripts/production/backup_all_dbs.sh` | Dump all 25 Postgres databases to local backup storage |
+| `scripts/production/backup_all_dbs.sh --dry-run` | List all configured databases without running backups |
+| `scripts/production/backup_ship.sh` | Ship latest backup to off-host storage (S3 or SCP) |
+
+## Backups
+
+### Local backups
+
+`backup_all_dbs.sh` dumps all 25 Postgres databases to timestamped directories under
+`/var/backups/7d-platform/`. Each run produces one `.sql.gz` per database, a globals
+dump, and a SHA-256 manifest.
+
+```bash
+# On the VPS (as deploy user):
+sudo -E bash /opt/7d-platform/scripts/production/backup_all_dbs.sh
+```
+
+Schedule via cron (e.g. daily at 02:00 UTC):
+
+```bash
+sudo crontab -e
+# Add:
+0 2 * * * bash /opt/7d-platform/scripts/production/backup_all_dbs.sh >> /var/log/7d-backup.log 2>&1
+```
+
+### Off-host backup shipping
+
+After a local backup completes, `backup_ship.sh` copies the latest backup run to
+off-host storage. Two methods are supported: S3-compatible object stores and SCP.
+
+#### S3 shipping
+
+Set these environment variables in `/etc/7d/production/secrets.env`:
+
+```bash
+BACKUP_SHIP_METHOD=s3
+BACKUP_S3_BUCKET=your-backup-bucket
+BACKUP_S3_PREFIX=backups/7d-platform          # optional, this is the default
+AWS_ACCESS_KEY_ID=AKIA...
+AWS_SECRET_ACCESS_KEY=...
+AWS_DEFAULT_REGION=us-east-1                   # optional, this is the default
+# For S3-compatible APIs (DigitalOcean Spaces, Backblaze B2, MinIO):
+BACKUP_S3_ENDPOINT_URL=https://nyc3.digitaloceanspaces.com
+```
+
+#### SCP shipping
+
+```bash
+BACKUP_SHIP_METHOD=scp
+BACKUP_SCP_HOST=backup.example.com
+BACKUP_SCP_USER=backup                        # optional, this is the default
+BACKUP_SCP_PORT=22                             # optional, this is the default
+BACKUP_SCP_PATH=/var/backups/7d-platform       # optional, this is the default
+BACKUP_SCP_KEY=~/.ssh/id_ed25519               # optional, this is the default
+```
+
+#### Running the ship
+
+```bash
+# Ship the latest local backup:
+sudo -E bash /opt/7d-platform/scripts/production/backup_ship.sh
+
+# Ship a specific backup run:
+sudo -E bash /opt/7d-platform/scripts/production/backup_ship.sh \
+  --backup-dir /var/backups/7d-platform/2026-02-21_02-00-01
+```
+
+#### Automated schedule
+
+Chain backup and ship in cron so every dump is immediately shipped off-host:
+
+```bash
+sudo crontab -e
+# Add:
+0 2 * * * bash /opt/7d-platform/scripts/production/backup_all_dbs.sh >> /var/log/7d-backup.log 2>&1 && bash /opt/7d-platform/scripts/production/backup_ship.sh >> /var/log/7d-backup-ship.log 2>&1
+```
+
+### Local backup retention
+
+Old backups are retained indefinitely by default. To prune, remove timestamped
+directories under `/var/backups/7d-platform/` older than your retention window.
+Off-host storage lifecycle (S3 lifecycle rules or remote cron) should be configured
+separately at the storage provider.
 
 ## Staging Parity
 

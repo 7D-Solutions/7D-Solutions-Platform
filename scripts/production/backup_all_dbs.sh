@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# backup_all_dbs.sh — Dump all 7D Platform Postgres databases to local backup storage.
+# backup_all_dbs.sh — Dump all 25 7D Platform Postgres databases to local backup storage.
 #
 # Runs pg_dump (per-database) and pg_dumpall --globals-only via docker exec.
 # Each invocation creates a timestamped directory under BACKUP_DIR containing
@@ -7,6 +7,7 @@
 #
 # Usage:
 #   bash scripts/production/backup_all_dbs.sh
+#   bash scripts/production/backup_all_dbs.sh --dry-run
 #
 # Required environment (sourced automatically from SECRETS_FILE):
 #   *_POSTGRES_DB, *_POSTGRES_USER, *_POSTGRES_PASSWORD  — per-service credentials
@@ -19,6 +20,17 @@
 # Exit: 0 = all databases backed up successfully. Non-zero = one or more failures.
 
 set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Parse arguments
+# ---------------------------------------------------------------------------
+DRY_RUN=false
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --dry-run) DRY_RUN=true; shift ;;
+        *) echo "[backup_all_dbs] ERROR: Unknown argument: $1" >&2; exit 1 ;;
+    esac
+done
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -70,7 +82,28 @@ declare -a DB_CONFIGS=(
     "7d-party-postgres|PARTY_POSTGRES_DB|PARTY_POSTGRES_USER|PARTY_POSTGRES_PASSWORD"
     "7d-integrations-postgres|INTEGRATIONS_POSTGRES_DB|INTEGRATIONS_POSTGRES_USER|INTEGRATIONS_POSTGRES_PASSWORD"
     "7d-ttp-postgres|TTP_POSTGRES_DB|TTP_POSTGRES_USER|TTP_POSTGRES_PASSWORD"
+    "7d-maintenance-postgres|MAINTENANCE_POSTGRES_DB|MAINTENANCE_POSTGRES_USER|MAINTENANCE_POSTGRES_PASSWORD"
+    "7d-pdf-editor-postgres|PDF_EDITOR_POSTGRES_DB|PDF_EDITOR_POSTGRES_USER|PDF_EDITOR_POSTGRES_PASSWORD"
+    "7d-shipping-receiving-postgres|SHIPPING_RECEIVING_POSTGRES_DB|SHIPPING_RECEIVING_POSTGRES_USER|SHIPPING_RECEIVING_POSTGRES_PASSWORD"
+    "7d-numbering-postgres|NUMBERING_POSTGRES_DB|NUMBERING_POSTGRES_USER|NUMBERING_POSTGRES_PASSWORD"
+    "7d-doc-mgmt-postgres|DOC_MGMT_POSTGRES_DB|DOC_MGMT_POSTGRES_USER|DOC_MGMT_POSTGRES_PASSWORD"
+    "7d-workflow-postgres|WORKFLOW_POSTGRES_DB|WORKFLOW_POSTGRES_USER|WORKFLOW_POSTGRES_PASSWORD"
+    "7d-workforce-competence-postgres|WC_POSTGRES_DB|WC_POSTGRES_USER|WC_POSTGRES_PASSWORD"
 )
+
+# ---------------------------------------------------------------------------
+# Dry-run mode: list all configured databases and exit
+# ---------------------------------------------------------------------------
+if [[ "$DRY_RUN" == "true" ]]; then
+    log "DRY RUN — listing ${#DB_CONFIGS[@]} configured databases:"
+    for _config in "${DB_CONFIGS[@]}"; do
+        IFS='|' read -r _container _db_env _user_env _pass_env <<< "$_config"
+        log "  ${_container}  (${_db_env})"
+    done
+    log ""
+    log "Total: ${#DB_CONFIGS[@]} databases configured for backup."
+    exit 0
+fi
 
 # ---------------------------------------------------------------------------
 # Preflight checks
