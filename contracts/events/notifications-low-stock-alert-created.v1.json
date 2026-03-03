@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/notifications-low-stock-alert-created.v1.json",
+  "title": "notifications.low_stock.alert.created",
+  "type": "object",
+  "required": ["event_id", "event_type", "occurred_at", "tenant_id", "source_module", "source_version", "schema_version", "replay_safe", "mutation_class", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "notifications.low_stock.alert.created" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "source_module": { "type": "string", "const": "notifications" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "const": "SIDE_EFFECT" },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": ["notification_id", "channel", "status", "attempts"],
+      "properties": {
+        "notification_id": { "type": "string", "minLength": 1 },
+        "channel": { "type": "string", "minLength": 1 },
+        "to": { "type": "string" },
+        "template_id": { "type": "string" },
+        "status": { "type": "string", "const": "queued" },
+        "provider_message_id": { "type": ["string", "null"] },
+        "attempts": { "type": "integer", "minimum": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

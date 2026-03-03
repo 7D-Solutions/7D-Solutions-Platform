@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/notifications-inbox-message-read.v1.json",
+  "title": "notifications.inbox.message_read",
+  "type": "object",
+  "required": ["event_id", "event_type", "occurred_at", "tenant_id", "source_module", "source_version", "schema_version", "replay_safe", "mutation_class", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "notifications.inbox.message_read" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "source_module": { "type": "string", "const": "notifications" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "const": "LIFECYCLE" },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": ["inbox_message_id", "user_id"],
+      "properties": {
+        "inbox_message_id": { "type": "string", "format": "uuid" },
+        "user_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -303,15 +303,70 @@ struct AccessReviewRecordedPayload {
 struct DeliverySucceededPayload {
     notification_id: String,
     channel: String,
-    status: String,
+    status: Option<String>,
+    attempt_no: Option<i32>,
+    attempt_status: Option<String>,
+    scheduled_status: Option<String>,
+    idempotency_key: Option<String>,
+    template_key: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct DeliveryFailedPayload {
     notification_id: String,
     channel: String,
+    status: Option<String>,
+    failure_code: Option<String>,
+    attempt_no: Option<i32>,
+    attempt_status: Option<String>,
+    scheduled_status: Option<String>,
+    idempotency_key: Option<String>,
+    template_key: Option<String>,
+    error_class: Option<String>,
+    error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct InboxMessageCreatedPayload {
+    inbox_message_id: Uuid,
+    user_id: String,
+    notification_id: Uuid,
+    title: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct InboxMessageLifecyclePayload {
+    inbox_message_id: Uuid,
+    user_id: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct DlqActionPayload {
+    notification_id: Uuid,
+    action: String,
+    previous_status: String,
+    new_status: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct CloseCalendarReminderPayload {
+    calendar_entry_id: Uuid,
+    tenant_id: String,
+    period_id: Uuid,
+    owner_role: String,
+    reminder_type: String,
+    expected_close_date: String,
+    days_offset: i32,
+    message: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct LowStockAlertCreatedPayload {
+    notification_id: String,
+    channel: String,
     status: String,
-    failure_code: String,
+    attempts: i32,
+    template_id: Option<String>,
 }
 
 // ── GL Event Payloads ───────────────────────────────────────────────
@@ -951,10 +1006,36 @@ fn notifications_delivery_succeeded_envelope_completeness() {
         DeliverySucceededPayload {
             notification_id: Uuid::new_v4().to_string(),
             channel: "email".into(),
-            status: "succeeded".into(),
+            status: Some("succeeded".into()),
+            attempt_no: None,
+            attempt_status: None,
+            scheduled_status: None,
+            idempotency_key: None,
+            template_key: None,
         },
     );
     assert_envelope_completeness(&json, "notifications/delivery.succeeded");
+}
+
+#[test]
+fn notifications_delivery_succeeded_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "notifications",
+        "notifications.delivery.succeeded",
+        mutation_classes::SIDE_EFFECT,
+        DeliverySucceededPayload {
+            notification_id: Uuid::new_v4().to_string(),
+            channel: "email".into(),
+            status: Some("succeeded".into()),
+            attempt_no: Some(1),
+            attempt_status: Some("succeeded".into()),
+            scheduled_status: Some("sent".into()),
+            idempotency_key: Some("notif:abc:gen:0:attempt:1".into()),
+            template_key: Some("invoice_due_soon".into()),
+        },
+    );
+    validate_against_schema(&json, "notifications-delivery-succeeded.v1.json");
 }
 
 #[test]
@@ -967,11 +1048,192 @@ fn notifications_delivery_failed_envelope_completeness() {
         DeliveryFailedPayload {
             notification_id: Uuid::new_v4().to_string(),
             channel: "email".into(),
-            status: "failed".into(),
-            failure_code: "BOUNCED".into(),
+            status: Some("failed".into()),
+            failure_code: Some("BOUNCED".into()),
+            attempt_no: None,
+            attempt_status: None,
+            scheduled_status: None,
+            idempotency_key: None,
+            template_key: None,
+            error_class: None,
+            error_message: None,
         },
     );
     assert_envelope_completeness(&json, "notifications/delivery.failed");
+}
+
+#[test]
+fn notifications_delivery_failed_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "notifications",
+        "notifications.delivery.failed",
+        mutation_classes::SIDE_EFFECT,
+        DeliveryFailedPayload {
+            notification_id: Uuid::new_v4().to_string(),
+            channel: "sms".into(),
+            status: Some("failed".into()),
+            failure_code: Some("provider_error".into()),
+            attempt_no: Some(5),
+            attempt_status: Some("failed_permanent".into()),
+            scheduled_status: Some("dead_lettered".into()),
+            idempotency_key: Some("notif:def:gen:0:attempt:5".into()),
+            template_key: Some("payment_retry".into()),
+            error_class: Some("provider".into()),
+            error_message: Some("delivery permanently failed".into()),
+        },
+    );
+    validate_against_schema(&json, "notifications-delivery-failed.v1.json");
+}
+
+#[test]
+fn notifications_inbox_message_created_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "notifications",
+        "notifications.inbox.message_created",
+        mutation_classes::LIFECYCLE,
+        InboxMessageCreatedPayload {
+            inbox_message_id: Uuid::new_v4(),
+            user_id: "ops-user".into(),
+            notification_id: Uuid::new_v4(),
+            title: "Review required".into(),
+        },
+    );
+    validate_against_schema(&json, "notifications-inbox-message-created.v1.json");
+}
+
+#[test]
+fn notifications_inbox_message_read_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "notifications",
+        "notifications.inbox.message_read",
+        mutation_classes::LIFECYCLE,
+        InboxMessageLifecyclePayload {
+            inbox_message_id: Uuid::new_v4(),
+            user_id: "ops-user".into(),
+        },
+    );
+    validate_against_schema(&json, "notifications-inbox-message-read.v1.json");
+}
+
+#[test]
+fn notifications_inbox_message_unread_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "notifications",
+        "notifications.inbox.message_unread",
+        mutation_classes::LIFECYCLE,
+        InboxMessageLifecyclePayload {
+            inbox_message_id: Uuid::new_v4(),
+            user_id: "ops-user".into(),
+        },
+    );
+    validate_against_schema(&json, "notifications-inbox-message-unread.v1.json");
+}
+
+#[test]
+fn notifications_inbox_message_dismissed_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "notifications",
+        "notifications.inbox.message_dismissed",
+        mutation_classes::LIFECYCLE,
+        InboxMessageLifecyclePayload {
+            inbox_message_id: Uuid::new_v4(),
+            user_id: "ops-user".into(),
+        },
+    );
+    validate_against_schema(&json, "notifications-inbox-message-dismissed.v1.json");
+}
+
+#[test]
+fn notifications_inbox_message_undismissed_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "notifications",
+        "notifications.inbox.message_undismissed",
+        mutation_classes::LIFECYCLE,
+        InboxMessageLifecyclePayload {
+            inbox_message_id: Uuid::new_v4(),
+            user_id: "ops-user".into(),
+        },
+    );
+    validate_against_schema(&json, "notifications-inbox-message-undismissed.v1.json");
+}
+
+#[test]
+fn notifications_dlq_replayed_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "notifications",
+        "notifications.dlq.replayed",
+        mutation_classes::LIFECYCLE,
+        DlqActionPayload {
+            notification_id: Uuid::new_v4(),
+            action: "replay".into(),
+            previous_status: "dead_lettered".into(),
+            new_status: "pending".into(),
+        },
+    );
+    validate_against_schema(&json, "notifications-dlq-replayed.v1.json");
+}
+
+#[test]
+fn notifications_dlq_abandoned_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "notifications",
+        "notifications.dlq.abandoned",
+        mutation_classes::LIFECYCLE,
+        DlqActionPayload {
+            notification_id: Uuid::new_v4(),
+            action: "abandon".into(),
+            previous_status: "dead_lettered".into(),
+            new_status: "abandoned".into(),
+        },
+    );
+    validate_against_schema(&json, "notifications-dlq-abandoned.v1.json");
+}
+
+#[test]
+fn notifications_close_calendar_reminder_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "notifications",
+        "notifications.close_calendar.reminder",
+        mutation_classes::SIDE_EFFECT,
+        CloseCalendarReminderPayload {
+            calendar_entry_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            period_id: Uuid::new_v4(),
+            owner_role: "controller".into(),
+            reminder_type: "upcoming".into(),
+            expected_close_date: "2026-03-31".into(),
+            days_offset: 7,
+            message: "Period close due in 7 day(s).".into(),
+        },
+    );
+    validate_against_schema(&json, "notifications-close-calendar-reminder.v1.json");
+}
+
+#[test]
+fn notifications_low_stock_alert_created_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "notifications",
+        "notifications.low_stock.alert.created",
+        mutation_classes::SIDE_EFFECT,
+        LowStockAlertCreatedPayload {
+            notification_id: Uuid::new_v4().to_string(),
+            channel: "internal".into(),
+            status: "queued".into(),
+            attempts: 1,
+            template_id: Some("low_stock_alert".into()),
+        },
+    );
+    validate_against_schema(&json, "notifications-low-stock-alert-created.v1.json");
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1269,6 +1531,15 @@ fn all_phase57_event_types_follow_naming_convention() {
         // Notifications
         "delivery.succeeded",
         "delivery.failed",
+        "inbox.message_created",
+        "inbox.message_read",
+        "inbox.message_unread",
+        "inbox.message_dismissed",
+        "inbox.message_undismissed",
+        "dlq.replayed",
+        "dlq.abandoned",
+        "close_calendar.reminder",
+        "low_stock.alert.created",
     ];
 
     for et in &event_types {
@@ -1300,6 +1571,15 @@ fn all_phase57_nats_subjects_have_correct_prefix() {
         ("identity", "user.lifecycle.access_review_recorded"),
         ("notifications", "delivery.succeeded"),
         ("notifications", "delivery.failed"),
+        ("notifications", "inbox.message_created"),
+        ("notifications", "inbox.message_read"),
+        ("notifications", "inbox.message_unread"),
+        ("notifications", "inbox.message_dismissed"),
+        ("notifications", "inbox.message_undismissed"),
+        ("notifications", "dlq.replayed"),
+        ("notifications", "dlq.abandoned"),
+        ("notifications", "close_calendar.reminder"),
+        ("notifications", "low_stock.alert.created"),
     ];
 
     for (module, event_type) in &module_events {
@@ -1342,9 +1622,18 @@ fn all_phase57_schemas_exist_on_disk() {
         "identity-role-assigned.v1.json",
         "identity-role-revoked.v1.json",
         "identity-access-review-recorded.v1.json",
-        // Pre-existing Phase 57 schemas
+        // Notifications
         "notifications-delivery-succeeded.v1.json",
         "notifications-delivery-failed.v1.json",
+        "notifications-inbox-message-created.v1.json",
+        "notifications-inbox-message-read.v1.json",
+        "notifications-inbox-message-unread.v1.json",
+        "notifications-inbox-message-dismissed.v1.json",
+        "notifications-inbox-message-undismissed.v1.json",
+        "notifications-dlq-replayed.v1.json",
+        "notifications-dlq-abandoned.v1.json",
+        "notifications-close-calendar-reminder.v1.json",
+        "notifications-low-stock-alert-created.v1.json",
     ];
 
     let events_dir = contracts_dir().join("events");
@@ -1382,6 +1671,17 @@ fn all_phase57_schemas_have_schema_version_field() {
         "identity-role-assigned.v1.json",
         "identity-role-revoked.v1.json",
         "identity-access-review-recorded.v1.json",
+        "notifications-delivery-succeeded.v1.json",
+        "notifications-delivery-failed.v1.json",
+        "notifications-inbox-message-created.v1.json",
+        "notifications-inbox-message-read.v1.json",
+        "notifications-inbox-message-unread.v1.json",
+        "notifications-inbox-message-dismissed.v1.json",
+        "notifications-inbox-message-undismissed.v1.json",
+        "notifications-dlq-replayed.v1.json",
+        "notifications-dlq-abandoned.v1.json",
+        "notifications-close-calendar-reminder.v1.json",
+        "notifications-low-stock-alert-created.v1.json",
     ];
 
     for schema_name in &schemas {
@@ -1451,6 +1751,79 @@ fn gl_gate_b_schemas_require_envelope_fields() {
             .as_array()
             .unwrap_or_else(|| panic!("{} has no 'required' array", schema_name));
 
+        let required_strs: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
+
+        for field in [
+            "event_id",
+            "event_type",
+            "occurred_at",
+            "tenant_id",
+            "source_module",
+            "source_version",
+            "schema_version",
+            "replay_safe",
+            "mutation_class",
+            "payload",
+        ] {
+            assert!(
+                required_strs.contains(&field),
+                "{} missing required envelope field '{}'",
+                schema_name,
+                field
+            );
+        }
+    }
+}
+
+#[test]
+fn notifications_gate_b_schemas_exist_on_disk() {
+    let schemas = [
+        "notifications-delivery-succeeded.v1.json",
+        "notifications-delivery-failed.v1.json",
+        "notifications-inbox-message-created.v1.json",
+        "notifications-inbox-message-read.v1.json",
+        "notifications-inbox-message-unread.v1.json",
+        "notifications-inbox-message-dismissed.v1.json",
+        "notifications-inbox-message-undismissed.v1.json",
+        "notifications-dlq-replayed.v1.json",
+        "notifications-dlq-abandoned.v1.json",
+        "notifications-close-calendar-reminder.v1.json",
+        "notifications-low-stock-alert-created.v1.json",
+    ];
+
+    let events_dir = contracts_dir().join("events");
+    for schema_name in &schemas {
+        let path = events_dir.join(schema_name);
+        assert!(path.exists(), "Schema file missing: {}", path.display());
+
+        let content = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("Cannot read {}: {}", schema_name, e));
+        let _: serde_json::Value = serde_json::from_str(&content)
+            .unwrap_or_else(|e| panic!("Invalid JSON in {}: {}", schema_name, e));
+    }
+}
+
+#[test]
+fn notifications_gate_b_schemas_require_envelope_fields() {
+    let schemas = [
+        "notifications-delivery-succeeded.v1.json",
+        "notifications-delivery-failed.v1.json",
+        "notifications-inbox-message-created.v1.json",
+        "notifications-inbox-message-read.v1.json",
+        "notifications-inbox-message-unread.v1.json",
+        "notifications-inbox-message-dismissed.v1.json",
+        "notifications-inbox-message-undismissed.v1.json",
+        "notifications-dlq-replayed.v1.json",
+        "notifications-dlq-abandoned.v1.json",
+        "notifications-close-calendar-reminder.v1.json",
+        "notifications-low-stock-alert-created.v1.json",
+    ];
+
+    for schema_name in &schemas {
+        let schema = load_schema(schema_name);
+        let required = schema["required"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{} has no 'required' array", schema_name));
         let required_strs: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
 
         for field in [

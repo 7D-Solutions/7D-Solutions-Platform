@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/notifications-close-calendar-reminder.v1.json",
+  "title": "notifications.close_calendar.reminder",
+  "type": "object",
+  "required": ["event_id", "event_type", "occurred_at", "tenant_id", "source_module", "source_version", "schema_version", "replay_safe", "mutation_class", "payload"],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "notifications.close_calendar.reminder" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "source_module": { "type": "string", "const": "notifications" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "const": "SIDE_EFFECT" },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": ["calendar_entry_id", "tenant_id", "period_id", "owner_role", "reminder_type", "expected_close_date", "days_offset", "message"],
+      "properties": {
+        "calendar_entry_id": { "type": "string", "format": "uuid" },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "period_id": { "type": "string", "format": "uuid" },
+        "owner_role": { "type": "string", "minLength": 1 },
+        "reminder_type": { "type": "string", "enum": ["upcoming", "overdue"] },
+        "expected_close_date": { "type": "string", "format": "date" },
+        "days_offset": { "type": "integer" },
+        "message": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
