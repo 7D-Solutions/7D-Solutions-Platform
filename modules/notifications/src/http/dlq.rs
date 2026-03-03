@@ -10,9 +10,10 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use chrono::{DateTime, Utc};
+use security::VerifiedClaims;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -117,25 +118,31 @@ struct StatusOnly {
 
 async fn list_dlq(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<DlqListParams>,
 ) -> Result<Json<DlqListResponse>, (StatusCode, Json<DlqError>)> {
+    let tenant_id = require_tenant(&claims)?;
     let limit = params.limit.unwrap_or(50).min(200);
     let offset = params.offset.unwrap_or(0);
 
     let (count,): (i64,) = sqlx::query_as(
-        "SELECT COUNT(*) FROM scheduled_notifications WHERE status = 'dead_lettered'",
+        "SELECT COUNT(*) FROM scheduled_notifications \
+         WHERE status = 'dead_lettered' AND tenant_id = $1",
     )
+    .bind(&tenant_id)
     .fetch_one(&pool)
     .await
     .map_err(|e| internal_error(&e.to_string()))?;
 
+    // tenant_id is always $1
+    let mut bind_idx = 1u32;
+    let mut binds: Vec<String> = vec![tenant_id];
+
     let mut query = String::from(
         "SELECT id, recipient_ref, channel, template_key, payload_json, \
          retry_count, last_error, dead_lettered_at, created_at \
-         FROM scheduled_notifications WHERE status = 'dead_lettered'",
+         FROM scheduled_notifications WHERE status = 'dead_lettered' AND tenant_id = $1",
     );
-    let mut bind_idx = 0u32;
-    let mut binds: Vec<String> = Vec::new();
 
     if let Some(ref ch) = params.channel {
         bind_idx += 1;
@@ -188,14 +195,18 @@ async fn list_dlq(
 
 async fn get_dlq_item(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<DlqDetailResponse>, (StatusCode, Json<DlqError>)> {
+    let tenant_id = require_tenant(&claims)?;
     let row = sqlx::query_as::<_, DlqRow>(
         "SELECT id, recipient_ref, channel, template_key, payload_json, \
          retry_count, last_error, dead_lettered_at, created_at \
-         FROM scheduled_notifications WHERE id = $1 AND status = 'dead_lettered'",
+         FROM scheduled_notifications \
+         WHERE id = $1 AND status = 'dead_lettered' AND tenant_id = $2",
     )
     .bind(id)
+    .bind(&tenant_id)
     .fetch_optional(&pool)
     .await
     .map_err(|e| internal_error(&e.to_string()))?
@@ -242,18 +253,22 @@ async fn get_dlq_item(
 
 async fn replay_dlq_item(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<DlqActionResponse>, (StatusCode, Json<DlqError>)> {
+    let tenant_id = require_tenant(&claims)?;
     let mut tx = pool
         .begin()
         .await
         .map_err(|e| internal_error(&e.to_string()))?;
 
-    // Guard: only replay if currently dead_lettered (SELECT FOR UPDATE prevents races)
+    // Guard: only replay if currently dead_lettered AND belongs to caller's tenant
     let current = sqlx::query_as::<_, StatusOnly>(
-        "SELECT status FROM scheduled_notifications WHERE id = $1 FOR UPDATE",
+        "SELECT status FROM scheduled_notifications \
+         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(id)
+    .bind(&tenant_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|e| internal_error(&e.to_string()))?
@@ -290,12 +305,9 @@ async fn replay_dlq_item(
     .map_err(|e| internal_error(&e.to_string()))?;
 
     // Outbox: emit dlq.replayed event
-    let tenant_id = extract_tenant_id(&pool, id)
-        .await
-        .unwrap_or_else(|| "unknown".to_string());
     let envelope = create_notifications_envelope(
         Uuid::new_v4(),
-        tenant_id,
+        tenant_id.clone(),
         "notifications.dlq.replayed".to_string(),
         None,
         None,
@@ -326,18 +338,22 @@ async fn replay_dlq_item(
 
 async fn abandon_dlq_item(
     State(pool): State<PgPool>,
+    claims: Option<Extension<VerifiedClaims>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<DlqActionResponse>, (StatusCode, Json<DlqError>)> {
+    let tenant_id = require_tenant(&claims)?;
     let mut tx = pool
         .begin()
         .await
         .map_err(|e| internal_error(&e.to_string()))?;
 
-    // Guard: only abandon if currently dead_lettered
+    // Guard: only abandon if currently dead_lettered AND belongs to caller's tenant
     let current = sqlx::query_as::<_, StatusOnly>(
-        "SELECT status FROM scheduled_notifications WHERE id = $1 FOR UPDATE",
+        "SELECT status FROM scheduled_notifications \
+         WHERE id = $1 AND tenant_id = $2 FOR UPDATE",
     )
     .bind(id)
+    .bind(&tenant_id)
     .fetch_optional(&mut *tx)
     .await
     .map_err(|e| internal_error(&e.to_string()))?
@@ -368,12 +384,9 @@ async fn abandon_dlq_item(
     .map_err(|e| internal_error(&e.to_string()))?;
 
     // Outbox: emit dlq.abandoned event
-    let tenant_id = extract_tenant_id(&pool, id)
-        .await
-        .unwrap_or_else(|| "unknown".to_string());
     let envelope = create_notifications_envelope(
         Uuid::new_v4(),
-        tenant_id,
+        tenant_id.clone(),
         "notifications.dlq.abandoned".to_string(),
         None,
         None,
@@ -404,27 +417,23 @@ async fn abandon_dlq_item(
 
 // ── Helpers ─────────────────────────────────────────────────────────
 
-async fn extract_tenant_id(pool: &PgPool, notification_id: Uuid) -> Option<String> {
-    #[derive(sqlx::FromRow)]
-    struct RecipientRow {
-        recipient_ref: String,
+fn require_tenant(
+    claims: &Option<Extension<VerifiedClaims>>,
+) -> Result<String, (StatusCode, Json<DlqError>)> {
+    match claims {
+        Some(Extension(c)) => Ok(c.tenant_id.to_string()),
+        None => Err(unauthorized("Missing or invalid authentication")),
     }
+}
 
-    let row = sqlx::query_as::<_, RecipientRow>(
-        "SELECT recipient_ref FROM scheduled_notifications WHERE id = $1",
+fn unauthorized(msg: &str) -> (StatusCode, Json<DlqError>) {
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(DlqError {
+            error: "unauthorized".to_string(),
+            message: msg.to_string(),
+        }),
     )
-    .bind(notification_id)
-    .fetch_optional(pool)
-    .await
-    .ok()
-    .flatten()?;
-
-    // Convention: recipient_ref is "tenant_id:user_ref" or just an email
-    row.recipient_ref
-        .split(':')
-        .next()
-        .filter(|s| !s.is_empty())
-        .map(|s| s.to_string())
 }
 
 fn internal_error(msg: &str) -> (StatusCode, Json<DlqError>) {
