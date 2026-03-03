@@ -184,7 +184,7 @@ The script asserts:
 - Mode is `0600`
 - No `CHANGE_ME` placeholders remain
 - No test/development secret patterns
-- All 26 required variables are present and non-empty
+- All 30 required variables are present and non-empty
 
 Exit code 0 = ready to deploy. Non-zero = fix the reported issues first.
 
