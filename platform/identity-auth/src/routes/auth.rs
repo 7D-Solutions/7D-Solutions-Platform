@@ -19,13 +19,13 @@ pub fn router(state: Arc<handlers::AuthState>) -> Router {
             post(handlers::record_access_review),
         )
         .route(
-            "/api/auth/lifecycle/:tenant_id/:user_id",
+            "/api/auth/lifecycle/{tenant_id}/{user_id}",
             get(handlers::get_user_lifecycle_timeline),
         )
         .route("/api/auth/sod/policies", post(handlers::upsert_sod_policy))
         .route("/api/auth/sod/evaluate", post(handlers::evaluate_sod))
         .route(
-            "/api/auth/sod/policies/:tenant_id/:action_key",
+            "/api/auth/sod/policies/{tenant_id}/{action_key}",
             get(handlers::list_sod_policies),
         )
         .route(

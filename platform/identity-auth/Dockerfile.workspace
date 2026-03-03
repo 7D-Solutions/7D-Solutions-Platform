@@ -13,7 +13,7 @@ COPY modules modules
 COPY platform platform
 COPY tools tools
 COPY e2e-tests e2e-tests
-RUN cargo chef prepare --recipe-path recipe.json --bin auth-rs
+RUN cargo chef prepare --recipe-path recipe.json --bin identity-auth
 
 # --- Stage 3: Builder (cache deps, then build) ---
 FROM chef AS builder
@@ -27,7 +27,7 @@ COPY modules modules
 COPY platform platform
 COPY tools tools
 COPY e2e-tests e2e-tests
-RUN cargo build --release --bin auth-rs
+RUN cargo build --release --bin identity-auth
 
 # --- Stage 4: Runtime (minimal image) ---
 FROM debian:bookworm-slim
@@ -38,7 +38,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/auth-rs /usr/local/bin/auth-rs
+COPY --from=builder /app/target/release/identity-auth /usr/local/bin/identity-auth
 COPY --from=builder /app/platform/identity-auth/db/migrations /app/migrations
 COPY --from=builder /app/platform/identity-auth/src/events/schemas /app/schemas
 
@@ -50,4 +50,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=60s \
     CMD curl -f http://localhost:${PORT}/api/ready || exit 1
 
-CMD ["auth-rs"]
+CMD ["identity-auth"]
