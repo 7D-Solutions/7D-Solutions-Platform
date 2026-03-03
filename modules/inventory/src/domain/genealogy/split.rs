@@ -4,7 +4,9 @@ use chrono::{Duration, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use super::helpers::{find_idempotency_key, find_lot, insert_genealogy_edge, upsert_lot_in_tx};
+use super::helpers::{
+    find_idempotency_key, find_lot, insert_genealogy_edge, lot_on_hand, upsert_lot_in_tx,
+};
 use super::{GenealogyError, GenealogyResult, LotSplitRequest};
 use crate::events::{
     build_lot_split_envelope, LotSplitPayload, SplitChildEdge, EVENT_TYPE_LOT_SPLIT,
@@ -34,6 +36,16 @@ pub async fn process_split(
     let parent = find_lot(pool, &req.tenant_id, req.item_id, &req.parent_lot_code)
         .await?
         .ok_or_else(|| GenealogyError::LotNotFound(req.parent_lot_code.clone()))?;
+
+    // --- Guard: quantity conservation ---
+    let parent_qty = lot_on_hand(pool, &req.tenant_id, parent.id).await?;
+    let children_sum: i64 = req.children.iter().map(|c| c.quantity).sum();
+    if children_sum != parent_qty {
+        return Err(GenealogyError::QuantityConservation {
+            children_sum,
+            parent_qty,
+        });
+    }
 
     // --- Guard: child lot codes must not include parent ---
     for child in &req.children {

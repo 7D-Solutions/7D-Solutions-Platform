@@ -635,3 +635,213 @@ async fn test_graph_integrity_split_then_merge() {
 
     cleanup(&pool, &tenant).await;
 }
+
+#[tokio::test]
+#[serial]
+async fn test_quantity_conservation_guard() {
+    let pool = setup_db().await;
+    let tenant = format!("t-gen-conserve-{}", Uuid::new_v4());
+    cleanup(&pool, &tenant).await;
+
+    let item_id = create_lot_item(&pool, &tenant).await;
+    // Parent has 100 on hand
+    receive_lot(&pool, &tenant, item_id, "CONSERVE-PARENT", 100).await;
+
+    // Try to split into children that sum to 90 (not 100) — should fail
+    let err = process_split(
+        &pool,
+        &LotSplitRequest {
+            tenant_id: tenant.clone(),
+            item_id,
+            parent_lot_code: "CONSERVE-PARENT".to_string(),
+            children: vec![
+                SplitChild {
+                    lot_code: "CONSERVE-A".to_string(),
+                    quantity: 50,
+                },
+                SplitChild {
+                    lot_code: "CONSERVE-B".to_string(),
+                    quantity: 40,
+                },
+            ],
+            actor_id: None,
+            notes: None,
+            idempotency_key: "conserve-001".to_string(),
+            correlation_id: None,
+            causation_id: None,
+        },
+    )
+    .await
+    .expect_err("should reject non-conserving split");
+
+    assert!(
+        matches!(
+            err,
+            GenealogyError::QuantityConservation {
+                children_sum: 90,
+                parent_qty: 100
+            }
+        ),
+        "expected QuantityConservation error, got: {:?}",
+        err,
+    );
+
+    // Correct split that sums to 100 should succeed
+    process_split(
+        &pool,
+        &LotSplitRequest {
+            tenant_id: tenant.clone(),
+            item_id,
+            parent_lot_code: "CONSERVE-PARENT".to_string(),
+            children: vec![
+                SplitChild {
+                    lot_code: "CONSERVE-A".to_string(),
+                    quantity: 60,
+                },
+                SplitChild {
+                    lot_code: "CONSERVE-B".to_string(),
+                    quantity: 40,
+                },
+            ],
+            actor_id: None,
+            notes: None,
+            idempotency_key: "conserve-002".to_string(),
+            correlation_id: None,
+            causation_id: None,
+        },
+    )
+    .await
+    .expect("correct split should succeed");
+
+    cleanup(&pool, &tenant).await;
+}
+
+#[tokio::test]
+#[serial]
+async fn test_multilevel_genealogy_trace() {
+    let pool = setup_db().await;
+    let tenant = format!("t-gen-trace-{}", Uuid::new_v4());
+    cleanup(&pool, &tenant).await;
+
+    let item_id = create_lot_item(&pool, &tenant).await;
+    receive_lot(&pool, &tenant, item_id, "ROOT", 100).await;
+
+    // Level 1: ROOT(100) → LEVEL1-A(60), LEVEL1-B(40)
+    process_split(
+        &pool,
+        &LotSplitRequest {
+            tenant_id: tenant.clone(),
+            item_id,
+            parent_lot_code: "ROOT".to_string(),
+            children: vec![
+                SplitChild {
+                    lot_code: "LEVEL1-A".to_string(),
+                    quantity: 60,
+                },
+                SplitChild {
+                    lot_code: "LEVEL1-B".to_string(),
+                    quantity: 40,
+                },
+            ],
+            actor_id: None,
+            notes: None,
+            idempotency_key: "trace-split-1".to_string(),
+            correlation_id: None,
+            causation_id: None,
+        },
+    )
+    .await
+    .expect("first split");
+
+    // Receive into LEVEL1-A so it has on-hand for the second split
+    receive_lot(&pool, &tenant, item_id, "LEVEL1-A", 60).await;
+
+    // Level 2: LEVEL1-A(60) → LEAF-1(30), LEAF-2(30)
+    process_split(
+        &pool,
+        &LotSplitRequest {
+            tenant_id: tenant.clone(),
+            item_id,
+            parent_lot_code: "LEVEL1-A".to_string(),
+            children: vec![
+                SplitChild {
+                    lot_code: "LEAF-1".to_string(),
+                    quantity: 30,
+                },
+                SplitChild {
+                    lot_code: "LEAF-2".to_string(),
+                    quantity: 30,
+                },
+            ],
+            actor_id: None,
+            notes: None,
+            idempotency_key: "trace-split-2".to_string(),
+            correlation_id: None,
+            causation_id: None,
+        },
+    )
+    .await
+    .expect("second split");
+
+    // Trace forward from ROOT: should have 2 direct children (LEVEL1-A, LEVEL1-B)
+    let root_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM inventory_lots WHERE tenant_id = $1 AND lot_code = 'ROOT'",
+    )
+    .bind(&tenant)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let root_children = children_of(&pool, &tenant, root_id).await.unwrap();
+    assert_eq!(root_children.len(), 2, "ROOT should have 2 direct children");
+
+    // Trace forward from LEVEL1-A: should have 2 children (LEAF-1, LEAF-2)
+    let level1a_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM inventory_lots WHERE tenant_id = $1 AND lot_code = 'LEVEL1-A'",
+    )
+    .bind(&tenant)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let level1a_children = children_of(&pool, &tenant, level1a_id).await.unwrap();
+    assert_eq!(
+        level1a_children.len(),
+        2,
+        "LEVEL1-A should have 2 children"
+    );
+
+    // Trace backward from LEAF-1: should have 1 parent (LEVEL1-A)
+    let leaf1_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM inventory_lots WHERE tenant_id = $1 AND lot_code = 'LEAF-1'",
+    )
+    .bind(&tenant)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    let leaf1_parents = parents_of(&pool, &tenant, leaf1_id).await.unwrap();
+    assert_eq!(leaf1_parents.len(), 1, "LEAF-1 should have 1 parent");
+    assert_eq!(leaf1_parents[0].parent_lot_id, level1a_id);
+
+    // Full lineage: trace LEAF-1 → LEVEL1-A → ROOT (two hops)
+    let level1a_parents = parents_of(&pool, &tenant, level1a_id).await.unwrap();
+    assert_eq!(
+        level1a_parents.len(),
+        1,
+        "LEVEL1-A should have 1 parent (ROOT)"
+    );
+    assert_eq!(level1a_parents[0].parent_lot_id, root_id);
+
+    // Total edge count: 2 (ROOT split) + 2 (LEVEL1-A split) = 4
+    let total_edges: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM inv_lot_genealogy WHERE tenant_id = $1",
+    )
+    .bind(&tenant)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(total_edges, 4, "should have 4 genealogy edges total");
+
+    cleanup(&pool, &tenant).await;
+}

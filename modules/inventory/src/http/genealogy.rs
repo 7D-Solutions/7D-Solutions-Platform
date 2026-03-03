@@ -40,6 +40,16 @@ fn genealogy_error_response(err: GenealogyError) -> impl IntoResponse {
             StatusCode::UNPROCESSABLE_ENTITY,
             Json(json!({ "error": "validation_error", "message": msg })),
         ),
+        GenealogyError::QuantityConservation {
+            children_sum,
+            parent_qty,
+        } => (
+            StatusCode::UNPROCESSABLE_ENTITY,
+            Json(json!({
+                "error": "quantity_conservation",
+                "message": format!("children sum to {} but parent has {} on hand", children_sum, parent_qty),
+            })),
+        ),
         GenealogyError::ConflictingIdempotencyKey => (
             StatusCode::CONFLICT,
             Json(json!({ "error": "idempotency_conflict", "message": err.to_string() })),

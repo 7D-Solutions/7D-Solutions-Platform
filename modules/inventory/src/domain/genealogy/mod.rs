@@ -94,6 +94,9 @@ pub enum GenealogyError {
     #[error("Lot not found: {0}")]
     LotNotFound(String),
 
+    #[error("Quantity conservation violated: children sum to {children_sum} but parent has {parent_qty} on hand")]
+    QuantityConservation { children_sum: i64, parent_qty: i64 },
+
     #[error("Idempotency key conflict: same key used with a different request body")]
     ConflictingIdempotencyKey,
 

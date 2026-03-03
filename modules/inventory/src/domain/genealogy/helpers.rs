@@ -94,6 +94,25 @@ pub(super) async fn insert_genealogy_edge(
     .await
 }
 
+/// Sum of quantity_remaining across all FIFO layers for a given lot.
+pub(super) async fn lot_on_hand(
+    pool: &PgPool,
+    tenant_id: &str,
+    lot_id: Uuid,
+) -> Result<i64, sqlx::Error> {
+    sqlx::query_scalar::<_, i64>(
+        r#"
+        SELECT COALESCE(SUM(quantity_remaining), 0)::BIGINT
+        FROM inventory_layers
+        WHERE tenant_id = $1 AND lot_id = $2
+        "#,
+    )
+    .bind(tenant_id)
+    .bind(lot_id)
+    .fetch_one(pool)
+    .await
+}
+
 pub(super) async fn find_idempotency_key(
     pool: &PgPool,
     tenant_id: &str,
