@@ -277,7 +277,7 @@ mod tests {
 
     fn test_db_url() -> String {
         std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db"
+            "postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db?sslmode=disable"
                 .to_string()
         })
     }
@@ -373,7 +373,7 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid test date");
         let asset_id = create_test_asset(&pool, in_service).await;
 
         let req = GenerateScheduleRequest {
@@ -382,7 +382,7 @@ mod tests {
         };
         let schedules = DepreciationService::generate_schedule(&pool, &req)
             .await
-            .unwrap();
+            .expect("generate_schedule failed");
 
         assert_eq!(schedules.len(), 12);
         let total: i64 = schedules.iter().map(|s| s.depreciation_amount_minor).sum();
@@ -398,7 +398,7 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid test date");
         let asset_id = create_test_asset(&pool, in_service).await;
 
         let req = GenerateScheduleRequest {
@@ -407,10 +407,10 @@ mod tests {
         };
         let first = DepreciationService::generate_schedule(&pool, &req)
             .await
-            .unwrap();
+            .expect("first generate_schedule failed");
         let second = DepreciationService::generate_schedule(&pool, &req)
             .await
-            .unwrap();
+            .expect("second generate_schedule failed");
 
         assert_eq!(first.len(), second.len(), "no duplicate rows on rerun");
         for (a, b) in first.iter().zip(second.iter()) {
@@ -424,7 +424,7 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid test date");
         let asset_id = create_test_asset(&pool, in_service).await;
 
         // Generate schedule first
@@ -434,23 +434,23 @@ mod tests {
         };
         DepreciationService::generate_schedule(&pool, &sched_req)
             .await
-            .unwrap();
+            .expect("generate_schedule failed");
 
         // Run through 2026-06-30 → should post periods 1-6
         let run_req = CreateRunRequest {
             tenant_id: TEST_TENANT.into(),
-            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).unwrap(),
+            as_of_date: NaiveDate::from_ymd_opt(2026, 6, 30).expect("valid test date"),
             currency: None,
             created_by: None,
         };
-        let run1 = DepreciationService::run(&pool, &run_req).await.unwrap();
+        let run1 = DepreciationService::run(&pool, &run_req).await.expect("run1 failed");
         assert_eq!(run1.status, "completed");
         assert_eq!(run1.periods_posted, 6);
         assert_eq!(run1.assets_processed, 1);
         assert_eq!(run1.total_depreciation_minor, 60_000);
 
         // Rerun same as_of_date → no new periods posted
-        let run2 = DepreciationService::run(&pool, &run_req).await.unwrap();
+        let run2 = DepreciationService::run(&pool, &run_req).await.expect("run2 failed");
         assert_eq!(run2.status, "completed");
         assert_eq!(run2.periods_posted, 0, "already posted — idempotent");
         assert_eq!(run2.total_depreciation_minor, 0);
@@ -462,7 +462,7 @@ mod tests {
         let pool = test_pool().await;
         cleanup(&pool).await;
 
-        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+        let in_service = NaiveDate::from_ymd_opt(2026, 1, 1).expect("valid test date");
         let asset_id = create_test_asset(&pool, in_service).await;
 
         DepreciationService::generate_schedule(
@@ -473,20 +473,20 @@ mod tests {
             },
         )
         .await
-        .unwrap();
+        .expect("generate_schedule failed");
 
         // Only one period ending 2026-01-31 should be posted
         let run = DepreciationService::run(
             &pool,
             &CreateRunRequest {
                 tenant_id: TEST_TENANT.into(),
-                as_of_date: NaiveDate::from_ymd_opt(2026, 1, 31).unwrap(),
+                as_of_date: NaiveDate::from_ymd_opt(2026, 1, 31).expect("valid test date"),
                 currency: None,
                 created_by: None,
             },
         )
         .await
-        .unwrap();
+        .expect("run failed");
 
         assert_eq!(run.periods_posted, 1);
         assert_eq!(run.total_depreciation_minor, 10_000); // 120_000 / 12

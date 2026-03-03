@@ -261,7 +261,7 @@ mod tests {
 
     fn test_db_url() -> String {
         std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db"
+            "postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db?sslmode=disable"
                 .to_string()
         })
     }
@@ -348,7 +348,7 @@ mod tests {
             tenant_id: TEST_TENANT.into(),
             asset_id,
             disposal_type: DisposalType::Sale,
-            disposal_date: NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+            disposal_date: NaiveDate::from_ymd_opt(2026, 7, 1).expect("valid test date"),
             proceeds_minor: Some(80000),
             reason: Some("Upgrading".into()),
             buyer: Some("Acme Corp".into()),
@@ -356,7 +356,7 @@ mod tests {
             created_by: None,
         };
 
-        let d = DisposalService::dispose(&pool, &req).await.unwrap();
+        let d = DisposalService::dispose(&pool, &req).await.expect("dispose failed");
         assert_eq!(d.disposal_type, "sale");
         assert_eq!(d.net_book_value_at_disposal_minor, 60000);
         assert_eq!(d.proceeds_minor, 80000);
@@ -366,7 +366,7 @@ mod tests {
             .bind(asset_id)
             .fetch_one(&pool)
             .await
-            .unwrap();
+            .expect("status query failed");
         assert_eq!(status, "disposed");
 
         cleanup(&pool).await;
@@ -383,7 +383,7 @@ mod tests {
             tenant_id: TEST_TENANT.into(),
             asset_id,
             disposal_type: DisposalType::Scrap,
-            disposal_date: NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+            disposal_date: NaiveDate::from_ymd_opt(2026, 7, 1).expect("valid test date"),
             proceeds_minor: None,
             reason: Some("Broken".into()),
             buyer: None,
@@ -391,7 +391,7 @@ mod tests {
             created_by: None,
         };
 
-        let d = DisposalService::dispose(&pool, &req).await.unwrap();
+        let d = DisposalService::dispose(&pool, &req).await.expect("dispose failed");
         assert_eq!(d.disposal_type, "scrap");
         assert_eq!(d.gain_loss_minor, -60000);
 
@@ -409,7 +409,7 @@ mod tests {
             tenant_id: TEST_TENANT.into(),
             asset_id,
             disposal_type: DisposalType::Sale,
-            disposal_date: NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+            disposal_date: NaiveDate::from_ymd_opt(2026, 7, 1).expect("valid test date"),
             proceeds_minor: Some(50000),
             reason: None,
             buyer: None,
@@ -417,8 +417,8 @@ mod tests {
             created_by: None,
         };
 
-        let d1 = DisposalService::dispose(&pool, &req).await.unwrap();
-        let d2 = DisposalService::dispose(&pool, &req).await.unwrap();
+        let d1 = DisposalService::dispose(&pool, &req).await.expect("dispose d1 failed");
+        let d2 = DisposalService::dispose(&pool, &req).await.expect("dispose d2 failed");
         assert_eq!(d1.id, d2.id, "idempotent — same disposal returned");
 
         cleanup(&pool).await;
@@ -435,7 +435,7 @@ mod tests {
             tenant_id: TEST_TENANT.into(),
             asset_id,
             disposal_type: DisposalType::Impairment,
-            disposal_date: NaiveDate::from_ymd_opt(2026, 7, 1).unwrap(),
+            disposal_date: NaiveDate::from_ymd_opt(2026, 7, 1).expect("valid test date"),
             proceeds_minor: None,
             reason: Some("Market value decline".into()),
             buyer: None,
@@ -443,7 +443,7 @@ mod tests {
             created_by: None,
         };
 
-        let d = DisposalService::dispose(&pool, &req).await.unwrap();
+        let d = DisposalService::dispose(&pool, &req).await.expect("dispose failed");
         assert_eq!(d.disposal_type, "impairment");
         assert_eq!(d.gain_loss_minor, -60000);
 
@@ -451,7 +451,7 @@ mod tests {
             .bind(asset_id)
             .fetch_one(&pool)
             .await
-            .unwrap();
+            .expect("status query failed");
         assert_eq!(status, "impaired");
 
         cleanup(&pool).await;

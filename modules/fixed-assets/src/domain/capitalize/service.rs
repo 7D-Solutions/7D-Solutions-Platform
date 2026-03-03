@@ -234,7 +234,7 @@ mod tests {
 
     fn test_db_url() -> String {
         std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db"
+            "postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db?sslmode=disable"
                 .to_string()
         })
     }
@@ -306,7 +306,7 @@ mod tests {
             gl_account_code: gl_account_code.to_string(),
             amount_minor: 100_000,
             currency: "USD".to_string(),
-            acquisition_date: NaiveDate::from_ymd_opt(2026, 2, 18).unwrap(),
+            acquisition_date: NaiveDate::from_ymd_opt(2026, 2, 18).expect("valid test date"),
             vendor_invoice_ref: "INV-TEST-001".to_string(),
         }
     }
