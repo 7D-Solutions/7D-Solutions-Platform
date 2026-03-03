@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/pdf-editor-form-generated.v1.json",
+  "title": "pdf.form.generated",
+  "description": "Event emitted when a filled PDF is generated from a submitted form",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)"
+    },
+    "event_type": {
+      "type": "string",
+      "const": "pdf.form.generated",
+      "description": "Event type following entity.action convention"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when event was generated"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Tenant identifier for multi-tenant isolation"
+    },
+    "source_module": {
+      "type": "string",
+      "const": "pdf-editor",
+      "description": "Module that generated the event"
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Schema version of the payload"
+    },
+    "replay_safe": {
+      "type": "boolean",
+      "description": "Whether the event can be safely replayed"
+    },
+    "mutation_class": {
+      "type": "string",
+      "enum": ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"],
+      "description": "Classification of the mutation"
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction"
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it"
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "tenant_id",
+        "submission_id",
+        "template_id"
+      ],
+      "properties": {
+        "tenant_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Tenant identifier"
+        },
+        "submission_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Submission the PDF was generated from"
+        },
+        "template_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Template used for the submission"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

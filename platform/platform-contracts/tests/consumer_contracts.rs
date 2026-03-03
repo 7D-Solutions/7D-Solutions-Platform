@@ -2777,3 +2777,191 @@ fn maintenance_all_subjects_have_contract_tests() {
         );
     }
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// PDF EDITOR
+// ══════════════════════════════════════════════════════════════════════
+
+// ── PDF Editor Event Payloads ────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PdfFormSubmittedPayload {
+    tenant_id: String,
+    submission_id: Uuid,
+    template_id: Uuid,
+    submitted_by: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PdfFormGeneratedPayload {
+    tenant_id: String,
+    submission_id: Uuid,
+    template_id: Uuid,
+}
+
+// ── pdf.form.submitted ───────────────────────────────────────────────
+
+#[test]
+fn pdf_editor_form_submitted_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "pdf-editor",
+        "pdf.form.submitted",
+        mutation_classes::DATA_MUTATION,
+        PdfFormSubmittedPayload {
+            tenant_id: "tenant-001".into(),
+            submission_id: Uuid::new_v4(),
+            template_id: Uuid::new_v4(),
+            submitted_by: "user@example.com".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "pdf-editor/pdf.form.submitted");
+}
+
+#[test]
+fn pdf_editor_form_submitted_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "pdf-editor",
+        "pdf.form.submitted",
+        mutation_classes::DATA_MUTATION,
+        PdfFormSubmittedPayload {
+            tenant_id: "tenant-001".into(),
+            submission_id: Uuid::new_v4(),
+            template_id: Uuid::new_v4(),
+            submitted_by: "admin@acme.com".into(),
+        },
+    );
+    validate_against_schema(&json, "pdf-editor-form-submitted.v1.json");
+}
+
+// ── pdf.form.generated ───────────────────────────────────────────────
+
+#[test]
+fn pdf_editor_form_generated_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "pdf-editor",
+        "pdf.form.generated",
+        mutation_classes::DATA_MUTATION,
+        PdfFormGeneratedPayload {
+            tenant_id: "tenant-001".into(),
+            submission_id: Uuid::new_v4(),
+            template_id: Uuid::new_v4(),
+        },
+    );
+    assert_envelope_completeness(&json, "pdf-editor/pdf.form.generated");
+}
+
+#[test]
+fn pdf_editor_form_generated_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "pdf-editor",
+        "pdf.form.generated",
+        mutation_classes::DATA_MUTATION,
+        PdfFormGeneratedPayload {
+            tenant_id: "tenant-001".into(),
+            submission_id: Uuid::new_v4(),
+            template_id: Uuid::new_v4(),
+        },
+    );
+    validate_against_schema(&json, "pdf-editor-form-generated.v1.json");
+}
+
+// ── Gate B: schemas exist on disk ────────────────────────────────────
+
+#[test]
+fn pdf_editor_gate_b_schemas_exist_on_disk() {
+    let schemas = [
+        "pdf-editor-form-submitted.v1.json",
+        "pdf-editor-form-generated.v1.json",
+    ];
+    for name in &schemas {
+        let path = contracts_dir().join("events").join(name);
+        assert!(
+            path.exists(),
+            "Schema file missing: {}",
+            path.display()
+        );
+    }
+}
+
+#[test]
+fn pdf_editor_gate_b_schemas_require_envelope_fields() {
+    let schemas = [
+        "pdf-editor-form-submitted.v1.json",
+        "pdf-editor-form-generated.v1.json",
+    ];
+    let required_envelope_fields = [
+        "event_id",
+        "occurred_at",
+        "tenant_id",
+        "source_module",
+        "source_version",
+        "schema_version",
+        "replay_safe",
+        "mutation_class",
+        "payload",
+    ];
+    for name in &schemas {
+        let schema = load_schema(name);
+        let required = schema["required"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{} must have a top-level 'required' array", name));
+        let required_strs: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
+        for field in &required_envelope_fields {
+            assert!(
+                required_strs.contains(field),
+                "{} must require '{}' at top level",
+                name,
+                field
+            );
+        }
+    }
+}
+
+// ── Event naming and subject coverage ────────────────────────────────
+
+#[test]
+fn pdf_editor_event_types_follow_naming_convention() {
+    let event_types = [
+        "pdf.form.submitted",
+        "pdf.form.generated",
+    ];
+    for et in &event_types {
+        assert!(
+            event_naming::validate_event_type(et).is_ok(),
+            "Event type '{}' does not follow entity.action convention",
+            et
+        );
+    }
+}
+
+#[test]
+fn pdf_editor_all_subjects_have_contract_tests() {
+    let tested_event_types = [
+        "pdf.form.submitted",
+        "pdf.form.generated",
+    ];
+    assert_eq!(
+        tested_event_types.len(),
+        2,
+        "Must have contract tests for all 2 pdf-editor event types"
+    );
+    for et in &tested_event_types {
+        assert!(
+            event_naming::validate_event_type(et).is_ok(),
+            "Event type '{}' does not follow entity.action convention",
+            et
+        );
+    }
+}
+
+#[test]
+fn pdf_editor_is_not_financial_module() {
+    assert!(
+        !mutation_classes::FINANCIAL_MODULES.contains(&"pdf-editor"),
+        "pdf-editor should not be listed as a financial module"
+    );
+}
