@@ -80,7 +80,7 @@ pub fn validate_pdf(bytes: &[u8]) -> Result<(), GenerateError> {
     Ok(())
 }
 
-fn create_pdfium() -> Result<Pdfium, PdfiumError> {
+pub fn create_pdfium() -> Result<Pdfium, PdfiumError> {
     if let Ok(path) = std::env::var("PDFIUM_LIB_PATH") {
         let bindings = Pdfium::bind_to_library(path)?;
         return Ok(Pdfium::new(bindings));
