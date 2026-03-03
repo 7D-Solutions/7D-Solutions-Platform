@@ -1,0 +1,192 @@
+## crate test: pdf-editor-rs
+## started_at_utc=2026-03-03T20:09:05Z
+## cmd=./scripts/cargo-slot.sh test -p pdf-editor-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.40s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/pdf_editor_rs-92beb46a652be3b1)
+
+running 14 tests
+test domain::generate::tests::test_validate_pdf_magic ... ok
+test domain::annotations::render::tests::test_validate_pdf_magic ... ok
+test domain::generate::tests::test_format_checkbox_false ... ok
+test domain::generate::tests::test_format_checkbox_true ... ok
+test domain::generate::tests::test_format_number_float ... ok
+test domain::annotations::render::tests::test_parse_hex_color ... ok
+test domain::generate::tests::test_format_number_integer ... ok
+test domain::generate::tests::test_format_dropdown ... ok
+test config::tests::test_bus_type_from_str ... ok
+test domain::generate::tests::test_format_date ... ok
+test domain::generate::tests::test_format_text ... ok
+test metrics::tests::metrics_exports_request_latency ... ok
+test domain::annotations::render::tests::test_validate_pdf_too_large ... ok
+test domain::generate::tests::test_validate_pdf_too_large ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+
+     Running unittests src/bin/bench.rs (target-slot-1/debug/deps/bench-2418567cf71ea5ff)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/dlq_replay_drill.rs (target-slot-1/debug/deps/dlq_replay_drill-681dcc0a864f22c2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/pdf_editor_rs-8d6c64d93547ced5)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/annotation_render_integration.rs (target-slot-1/debug/deps/annotation_render_integration-467719b423c6196e)
+
+running 26 tests
+test render_non_pdf_bytes_rejected ... ok
+test render_highlight_fallback_rect ... ok
+test render_highlight_with_text_rects ... ok
+test render_bubble_with_leader_line ... ok
+test render_page_zero_rejected ... ok
+test render_bubble_annotation ... ok
+test render_shape_circle ... ok
+test render_invalid_page_number_rejected ... ok
+test render_empty_annotations_returns_original ... ok
+test render_arrow_annotation ... ok
+test validate_pdf_accepts_valid ... ok
+test validate_pdf_rejects_non_pdf ... ok
+test render_freehand_annotation ... ok
+test render_callout_uses_text_path ... ok
+test render_multiple_annotation_types_on_one_page ... ok
+test render_default_colors_when_none_specified ... ok
+test render_freehand_too_few_points_is_noop ... ok
+test render_shape_line ... ok
+test render_shape_rectangle ... ok
+test render_signature_draw ... ok
+test render_signature_text ... ok
+test render_stamp_approved ... ok
+test render_stamp_custom ... ok
+test render_text_annotation ... ok
+test render_text_empty_string_is_noop ... ok
+test validate_pdf_rejects_oversized ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.02s
+
+     Running tests/form_submission_integration.rs (target-slot-1/debug/deps/form_submission_integration-c43835ff683cdc78)
+
+running 7 tests
+test test_cannot_autosave_submitted ... ok
+test test_tenant_isolation_submissions ... ok
+test test_list_submissions_with_filters ... ok
+test test_submit_with_valid_data ... ok
+test test_create_draft_submission ... ok
+test test_cannot_submit_twice ... ok
+test test_autosave_field_data ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+
+     Running tests/form_template_integration.rs (target-slot-1/debug/deps/form_template_integration-3a58257bb7b00c5a)
+
+running 10 tests
+test test_reorder_fields ... ok
+test test_template_empty_name_rejected ... ok
+test test_invalid_field_type_rejected ... ok
+test test_tenant_isolation ... ok
+test test_reorder_incomplete_ids_rejected ... ok
+test test_list_and_update_templates ... ok
+test test_create_fields_and_list_ordered ... ok
+test test_update_field ... ok
+test test_duplicate_field_key_rejected ... ok
+test test_create_and_get_template ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.97s
+
+     Running tests/image_branding_integration.rs (target-slot-1/debug/deps/image_branding_integration-46a360801afb9cf5)
+
+running 12 tests
+test template_injection_renders_image_into_pdf ... ok
+test rejects_empty_image_data ... ok
+test tenant_b_cannot_see_tenant_a_images ... ok
+test upload_creates_outbox_event_with_correct_type_and_tenant ... ok
+test image_upload_e2e_persists_with_correct_metadata ... ok
+test rejects_oversized_image ... ok
+test rejects_gif_format ... ok
+test list_filters_by_placement ... ok
+test idempotent_upload_returns_same_image_no_duplicate ... ok
+test image_upload_jpeg_detects_dimensions ... ok
+test template_injection_with_multiple_placements ... ok
+test rejects_unsupported_image_format ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+
+     Running tests/pdf_generate_integration.rs (target-slot-1/debug/deps/pdf_generate_integration-3f0428b44d1a009b)
+
+running 6 tests
+test test_validate_pdf_rejects_non_pdf ... ok
+test test_validate_pdf_accepts_valid ... ok
+test test_generate_filled_pdf_roundtrip ... ok
+test test_generate_emits_event ... ok
+test test_generate_with_empty_field_data ... ok
+test test_generate_skips_fields_without_position ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.26s
+
+     Running tests/submission_helpers.rs (target-slot-1/debug/deps/submission_helpers-8fcc4803e81e7ed1)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/submission_validation_integration.rs (target-slot-1/debug/deps/submission_validation_integration-5603884b636bdf13)
+
+running 6 tests
+test test_submit_rejects_missing_required_fields ... ok
+test test_submit_rejects_invalid_date ... ok
+test test_checkbox_must_be_boolean ... ok
+test test_submit_rejects_number_over_max ... ok
+test test_submit_rejects_invalid_dropdown_value ... ok
+test test_submit_rejects_invalid_number_range ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+
+     Running tests/table_render_integration.rs (target-slot-1/debug/deps/table_render_integration-2199b9e8c30f94e9)
+
+running 6 tests
+test deterministic_render_produces_identical_output ... ok
+test idempotent_render_returns_same_request_no_duplicate ... ok
+test simple_table_render_e2e ... ok
+test border_styling_produces_different_outputs ... ok
+test tenant_b_cannot_see_tenant_a_render_requests ... ok
+test pagination_creates_new_pages_for_long_tables ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.45s
+
+     Running tests/tenant_boundary_test.rs (target-slot-1/debug/deps/tenant_boundary_test-180d076e016eb115)
+
+running 12 tests
+test tenant_b_cannot_update_field_on_tenant_a_template ... ok
+test tenant_b_cannot_read_tenant_a_submission ... ok
+test tenant_b_cannot_create_field_on_tenant_a_template ... ok
+test tenant_b_cannot_create_submission_on_tenant_a_template ... ok
+test tenant_b_cannot_read_tenant_a_template ... ok
+test tenant_b_cannot_autosave_tenant_a_submission ... ok
+test tenant_b_cannot_list_tenant_a_submissions ... ok
+test tenant_b_cannot_reorder_fields_on_tenant_a_template ... ok
+test tenant_b_cannot_list_fields_on_tenant_a_template ... ok
+test tenant_b_cannot_list_tenant_a_templates ... ok
+test tenant_b_cannot_submit_tenant_a_submission ... ok
+test tenant_b_cannot_update_tenant_a_template ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.14s
+
+   Doc-tests pdf_editor_rs
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T20:09:40Z

@@ -1,0 +1,901 @@
+## crate test: gl-rs
+## started_at_utc=2026-03-03T20:04:57Z
+## cmd=bash -lc DATABASE_URL=postgres://gl_user:gl_pass@localhost:5438/gl_db?sslmode=disable&connect_timeout=5 "./scripts/cargo-slot.sh" test -p "gl-rs" -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+warning: function `log_pool_state` is never used
+  --> modules/gl/tests/common/mod.rs:74:14
+   |
+74 | pub async fn log_pool_state(pool: &PgPool, label: &str) {
+   |              ^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `setup_test_period` is never used
+  --> modules/gl/tests/common/mod.rs:87:14
+   |
+87 | pub async fn setup_test_period(
+   |              ^^^^^^^^^^^^^^^^^
+
+warning: function `setup_test_account` is never used
+   --> modules/gl/tests/common/mod.rs:115:14
+    |
+115 | pub async fn setup_test_account(
+    |              ^^^^^^^^^^^^^^^^^^
+
+warning: function `cleanup_test_tenant` is never used
+   --> modules/gl/tests/common/mod.rs:146:14
+    |
+146 | pub async fn cleanup_test_tenant(pool: &PgPool, tenant_id: &str) {
+    |              ^^^^^^^^^^^^^^^^^^^
+
+warning: unused import: `Row`
+  --> modules/gl/tests/tenant_boundary_concurrency_test.rs:19:20
+   |
+19 | use sqlx::{PgPool, Row};
+   |                    ^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `period_id`
+  --> modules/gl/tests/tenant_boundary_concurrency_test.rs:29:5
+   |
+29 |     period_id: Uuid,
+   |     ^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_period_id`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `pb`
+   --> modules/gl/tests/tenant_boundary_concurrency_test.rs:416:13
+    |
+416 |         let pb = period_b;
+    |             ^^ help: if this is intentional, prefix it with an underscore: `_pb`
+
+warning: `gl-rs` (test "gl_export_test") generated 4 warnings
+warning: `gl-rs` (test "tenant_boundary_concurrency_test") generated 4 warnings (1 duplicate) (run `cargo fix --test "tenant_boundary_concurrency_test" -p gl-rs` to apply 3 suggestions)
+warning: `gl-rs` (test "test_period_close_atomic") generated 1 warning (1 duplicate)
+warning: `gl-rs` (test "gl_export_behavior_test") generated 4 warnings (4 duplicates)
+warning: `gl-rs` (test "statement_repo_test") generated 4 warnings (4 duplicates)
+warning: `gl-rs` (test "boundary_e2e_http_close_status") generated 2 warnings (2 duplicates)
+warning: `gl-rs` (test "ar_tax_liability_consumer_test") generated 2 warnings (2 duplicates)
+warning: `gl-rs` (test "boundary_e2e_http_period_close") generated 1 warning (1 duplicate)
+warning: function `get_balance_count` is never used
+   --> modules/gl/tests/test_period_close_snapshot.rs:519:10
+    |
+519 | async fn get_balance_count(pool: &PgPool, tenant_id: &str, period_id: Uuid) -> i64 {
+    |          ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `log_pool_state` is never used
+  --> modules/gl/tests/common/mod.rs:74:14
+   |
+74 | pub async fn log_pool_state(pool: &PgPool, label: &str) {
+   |              ^^^^^^^^^^^^^^
+
+warning: unused import: `super::*`
+   --> modules/gl/src/services/balance_updater.rs:121:9
+    |
+121 |     use super::*;
+    |         ^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `expected`
+  --> modules/gl/src/services/period_close_service.rs:60:13
+   |
+60 |         let expected = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; // SHA-256 of empty string inputs
+   |             ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_expected`
+   |
+   = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `gl-rs` (test "test_period_close_snapshot") generated 3 warnings (1 duplicate)
+warning: `gl-rs` (test "period_close_schema_test") generated 4 warnings (4 duplicates)
+warning: `gl-rs` (test "period_close_validation_test") generated 4 warnings (4 duplicates)
+warning: `gl-rs` (test "ap_bill_approved_gl_consumer_test") generated 2 warnings (2 duplicates)
+warning: `gl-rs` (test "boundary_e2e_nats_posting") generated 4 warnings (4 duplicates)
+warning: `gl-rs` (test "statement_performance_benchmark") generated 2 warnings (2 duplicates)
+warning: `gl-rs` (lib test) generated 2 warnings (run `cargo fix --lib -p gl-rs --tests` to apply 2 suggestions)
+warning: function `setup_test_period` is never used
+  --> modules/gl/tests/common/mod.rs:87:14
+   |
+87 | pub async fn setup_test_period(
+   |              ^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `AccountBalance`
+ --> modules/gl/tests/balance_repo_test.rs:3:40
+  |
+3 | use gl_rs::repos::balance_repo::{self, AccountBalance};
+  |                                        ^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `gl-rs` (test "boundary_e2e_http_validate_close") generated 2 warnings (2 duplicates)
+warning: `gl-rs` (test "trial_balance_service_test") generated 4 warnings (4 duplicates)
+warning: `gl-rs` (test "balance_sheet_service_test") generated 4 warnings (4 duplicates)
+warning: `gl-rs` (test "boundary_e2e_http_close_period") generated 2 warnings (2 duplicates)
+warning: `gl-rs` (test "period_close_enforcement_test") generated 3 warnings (2 duplicates)
+warning: `gl-rs` (test "test_period_validation") generated 1 warning (1 duplicate)
+warning: `gl-rs` (test "balance_repo_test") generated 1 warning (run `cargo fix --test "balance_repo_test" -p gl-rs` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.40s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/gl_rs-c4abb537bea28292)
+
+running 216 tests
+test config::tests::currency_config_normalizes_to_uppercase ... ok
+test config::tests::currency_config_requires_fx_when_different ... ok
+test config::tests::test_validate_empty_database_url ... ok
+test config::tests::test_validate_empty_nats_url ... ok
+test config::tests::test_validate_invalid_bus_type ... ok
+test config::tests::test_validate_success ... ok
+test config::tests::currency_config_rejects_invalid_codes ... ok
+test config::tests::currency_config_valid_iso_4217 ... ok
+test contracts::period_close_v1::tests::test_empty_validation_report ... ok
+test contracts::period_close_v1::tests::test_validation_issue_creation ... ok
+test config::tests::registry_returns_default_for_unknown_tenant ... ok
+test contracts::gl_posting_request_v1::tests::test_source_doc_type_variants ... ok
+test domain::statements::tests::test_currency_totals_serialization ... ok
+test config::tests::currency_config_serializes_correctly ... ok
+test domain::statements::tests::test_balance_sheet_row_serialization ... ok
+test domain::statements::tests::test_comprehensive_snapshot_serialization ... ok
+test config::tests::registry_overwrites_existing_config ... ok
+test config::tests::registry_stores_and_retrieves_tenant_config ... ok
+test domain::statements::tests::test_income_statement_row_serialization ... ok
+test domain::statements::tests::test_statement_totals_balanced ... ok
+test contracts::period_close_v1::tests::test_close_status_serialization ... ok
+test domain::statements::tests::test_statement_totals_serialization ... ok
+test domain::statements::tests::test_statement_totals_unbalanced ... ok
+test contracts::gl_posting_request_v1::tests::test_deserialize_valid_payload ... ok
+test domain::statements::tests::test_trial_balance_row_serialization ... ok
+test events::contracts::accruals::tests::accrual_created_cashflow_class_serializes_as_snake_case ... ok
+test events::contracts::accruals::tests::accrual_created_envelope_carries_causation_id ... ok
+test events::contracts::accruals::tests::accrual_created_envelope_has_correct_type_and_class ... ok
+test events::contracts::accruals::tests::accrual_created_payload_serializes_correctly ... ok
+test events::contracts::accruals::tests::accrual_reversed_causation_links_to_original_accrual ... ok
+test events::contracts::accruals::tests::accrual_reversed_envelope_has_reversal_mutation_class ... ok
+test contracts::gl_posting_request_v1::tests::test_deserialize_minimal_payload ... ok
+test events::contracts::accruals::tests::accrual_reversed_payload_swaps_accounts_vs_original ... ok
+test events::contracts::accruals::tests::cashflow_class_variants_serialize_as_snake_case ... ok
+test events::contracts::accruals::tests::cashflow_classification_struct_serializes ... ok
+test events::contracts::accruals::tests::event_type_constants_use_gl_prefix ... ok
+test events::contracts::accruals::tests::reversal_policy_auto_serializes ... ok
+test events::contracts::accruals::tests::reversal_policy_explicit_date_serializes ... ok
+test events::contracts::accruals::tests::schema_version_is_stable ... ok
+test events::contracts::accruals::tests::standard_account_classifications_are_documented ... ok
+test events::contracts::fx::tests::fx_event_type_constants_use_correct_prefix ... ok
+test events::contracts::fx::tests::fx_rate_updated_envelope_has_correct_type_and_class ... ok
+test events::contracts::fx::tests::fx_rate_updated_payload_serializes_correctly ... ok
+test events::contracts::fx::tests::fx_realized_envelope_carries_causation_id ... ok
+test events::contracts::fx::tests::fx_rate_updated_roundtrips ... ok
+test events::contracts::fx::tests::fx_realized_envelope_has_correct_type_and_class ... ok
+test events::contracts::fx::tests::fx_realized_payload_carries_rate_pair ... ok
+test events::contracts::fx::tests::fx_revaluation_envelope_carries_causation_id ... ok
+test events::contracts::fx::tests::fx_realized_payload_serializes_correctly ... ok
+test events::contracts::fx::tests::fx_revaluation_envelope_has_correct_type_and_class ... ok
+test events::contracts::fx::tests::all_fx_envelopes_pass_validation ... ok
+test events::contracts::fx::tests::fx_revaluation_payload_carries_currency_pair ... ok
+test events::contracts::fx::tests::fx_schema_version_is_stable ... ok
+test events::contracts::fx::tests::fx_revaluation_payload_serializes_correctly ... ok
+test exports::formats::tests::test_minor_to_signed ... ok
+test exports::formats::tests::test_qb_coa_format ... ok
+test exports::formats::tests::test_xero_coa_format ... ok
+test repos::account_repo::tests::test_account_type_variants ... ok
+test repos::account_repo::tests::test_normal_balance_variants ... ok
+test repos::balance_repo::tests::test_balance_error_display ... ok
+test repos::period_repo::tests::test_period_error_display ... ok
+test repos::period_summary_repo::tests::test_period_summary_model ... ok
+test repos::report_query_repo::tests::test_report_query_error_display ... ok
+test repos::statement_repo::tests::test_account_type_conversion ... ok
+test repos::statement_repo::tests::test_normal_balance_conversion ... ok
+test revrec::contracts::contract_schedule::tests::contract_created_carries_causation_id ... ok
+test revrec::contracts::contract_schedule::tests::contract_created_envelope_has_correct_metadata ... ok
+test exports::formats::tests::test_csv_escape ... ok
+test revrec::contracts::contract_schedule::tests::contract_obligations_allocation_sum_invariant ... ok
+test revrec::contracts::contract_schedule::tests::contract_created_payload_serializes_correctly ... ok
+test revrec::contracts::contract_schedule::tests::schedule_created_envelope_has_correct_metadata ... ok
+test revrec::contracts::contract_schedule::tests::schedule_has_12_monthly_lines ... ok
+test revrec::contracts::contract_schedule::tests::schedule_lines_sum_equals_total ... ok
+test revrec::contracts::contract_schedule::tests::schedule_created_payload_serializes_correctly ... ok
+test revrec::contracts::recognition_amendment::tests::recognition_posted_cumulative_plus_remaining_equals_total ... ok
+test revrec::contracts::recognition_amendment::tests::recognition_posted_envelope_has_correct_metadata ... ok
+test revrec::contracts::tests::all_event_types_are_revrec_prefixed ... ok
+test revrec::contracts::recognition_amendment::tests::recognition_posted_payload_serializes_correctly ... ok
+test invariants::tests::test_invariant_violation_from_sqlx_error ... ok
+test repos::period_repo::tests::test_period_closed_error_display ... ok
+test revrec::contracts::tests::event_type_constants_use_revrec_prefix ... ok
+test revrec::contracts::tests::modification_type_serializes_as_snake_case ... ok
+test invariants::tests::test_invariant_violation_display ... ok
+test revrec::contracts::tests::recognition_pattern_point_in_time_serializes ... ok
+test revrec::contracts::tests::recognition_pattern_ratable_serializes ... ok
+test revrec::contracts::tests::recognition_pattern_usage_based_serializes ... ok
+test revrec::contracts::tests::schema_version_is_stable ... ok
+test revrec::schedule_builder::tests::point_in_time_single_line ... ok
+test revrec::schedule_builder::tests::usage_based_returns_error ... ok
+test revrec::contracts::recognition_amendment::tests::contract_modified_envelope_has_correct_metadata ... ok
+test revrec::contracts::recognition_amendment::tests::contract_modified_payload_serializes_correctly ... ok
+test revrec::schedule_builder::tests::ratable_with_remainder_distributes_pennies ... ok
+test revrec::schedule_builder::tests::accounts_default_to_standard_names ... ok
+test revrec::schedule_builder::tests::ratable_7_months_remainder_5 ... ok
+test revrec::schedule_builder::tests::ratable_12_months_even_division ... ok
+test revrec::schedule_builder::tests::determinism_same_inputs_same_output ... ok
+test revrec::schedule_builder::tests::year_boundary_crossing ... ok
+test revrec::schedule_builder::tests::zero_allocation_rejected ... ok
+test revrec::schedule_builder::tests::zero_period_months_rejected ... ok
+test services::account_activity_service::tests::test_validate_account_code ... ok
+test services::account_activity_service::tests::test_validate_pagination ... ok
+test services::account_activity_service::tests::test_validate_tenant_id ... ok
+test services::balance_deltas::tests::test_compute_deltas_empty_lines ... ok
+test services::account_activity_service::tests::test_validate_currency ... ok
+test services::balance_deltas::tests::test_compute_deltas_multiple_accounts ... ok
+test services::balance_deltas::tests::test_compute_deltas_mixed_debits_credits ... ok
+test services::balance_deltas::tests::test_compute_deltas_reversal_entry ... ok
+test services::balance_deltas::tests::test_compute_deltas_same_account_multiple_lines ... ok
+test services::balance_deltas::tests::test_compute_deltas_single_account ... ok
+test services::balance_deltas::tests::test_delta_deterministic_ordering ... ok
+test services::balance_sheet_service::tests::test_balance_sheet_response_serialization ... ok
+test services::balance_sheet_service::tests::test_balance_sheet_totals_serialization ... ok
+test services::balance_sheet_service::tests::test_calculate_totals_balanced ... ok
+test services::balance_sheet_service::tests::test_calculate_totals_deterministic_ordering ... ok
+test services::balance_sheet_service::tests::test_calculate_totals_multiple_accounts_per_type ... ok
+test services::balance_sheet_service::tests::test_calculate_totals_negative_balances ... ok
+test services::balance_sheet_service::tests::test_calculate_totals_unbalanced ... ok
+test services::balance_sheet_service::tests::test_calculate_totals_zero ... ok
+test services::balance_updater::tests::test_balance_updater_module_exists ... ok
+test services::currency_conversion::tests::bankers_round_half_to_even ... ok
+test services::currency_conversion::tests::bankers_round_non_half ... ok
+test services::currency_conversion::tests::convert_1_minor_unit ... ok
+test services::currency_conversion::tests::convert_balanced_journal ... ok
+test services::currency_conversion::tests::convert_high_rate_jpy ... ok
+test services::currency_conversion::tests::convert_inverse_direction ... ok
+test services::balance_sheet_service::tests::test_balance_sheet_error_display ... ok
+test services::currency_conversion::tests::convert_large_amount ... ok
+test services::currency_conversion::tests::convert_preserves_original_amounts ... ok
+test services::currency_conversion::tests::convert_journal_with_rounding_residual ... ok
+test services::currency_conversion::tests::convert_rate_near_parity ... ok
+test services::currency_conversion::tests::convert_rejects_currency_mismatch ... ok
+test services::currency_conversion::tests::convert_rejects_negative_amount ... ok
+test services::currency_conversion::tests::convert_rejects_negative_rate ... ok
+test services::currency_conversion::tests::convert_rejects_zero_rate ... ok
+test services::currency_conversion::tests::convert_simple_amount ... ok
+test services::currency_conversion::tests::convert_with_rounding ... ok
+test services::currency_conversion::tests::convert_zero_amount ... ok
+test services::currency_conversion::tests::different_currency_needs_conversion ... ok
+test services::currency_conversion::tests::resolve_rate_case_insensitive ... ok
+test services::currency_conversion::tests::resolve_rate_direct ... ok
+test services::currency_conversion::tests::resolve_rate_inverse ... ok
+test services::currency_conversion::tests::resolve_rate_mismatch ... ok
+test services::currency_conversion::tests::same_currency_no_conversion ... ok
+test services::fx_helpers::tests::convert_with_sign_negative ... ok
+test services::fx_helpers::tests::convert_with_sign_positive ... ok
+test services::fx_helpers::tests::convert_with_sign_zero ... ok
+test services::fx_helpers::tests::deterministic_event_id_is_stable ... ok
+test services::fx_helpers::tests::different_periods_produce_different_ids ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test services::gl_detail_service::tests::test_validate_currency ... ok
+test services::gl_detail_service::tests::test_validate_pagination ... ok
+test services::gl_detail_service::tests::test_validate_tenant_id ... ok
+test services::income_statement_service::tests::test_calculate_totals_deterministic_ordering ... ok
+test services::income_statement_service::tests::test_calculate_totals_expense_only ... ok
+test services::income_statement_service::tests::test_calculate_totals_loss ... ok
+test services::income_statement_service::tests::test_calculate_totals_multiple_revenue_expense ... ok
+test services::income_statement_service::tests::test_calculate_totals_profit ... ok
+test services::income_statement_service::tests::test_calculate_totals_revenue_only ... ok
+test services::income_statement_service::tests::test_calculate_totals_zero ... ok
+test services::journal_service::tests::test_validation_error_handling ... ok
+test services::income_statement_service::tests::test_comprehensive_snapshot_serialization ... ok
+test services::normal_balance::tests::test_balance_sheet_asset_credit_balance ... ok
+test services::normal_balance::tests::test_balance_sheet_asset_debit_balance ... ok
+test services::normal_balance::tests::test_balance_sheet_equity_credit_balance ... ok
+test services::normal_balance::tests::test_balance_sheet_equity_debit_balance ... ok
+test services::normal_balance::tests::test_balance_sheet_liability_credit_balance ... ok
+test services::normal_balance::tests::test_balance_sheet_liability_debit_balance ... ok
+test services::normal_balance::tests::test_balance_sheet_zero_balance ... ok
+test services::normal_balance::tests::test_income_statement_expense_credit_balance ... ok
+test services::normal_balance::tests::test_income_statement_expense_debit_balance ... ok
+test services::normal_balance::tests::test_income_statement_revenue_credit_balance ... ok
+test services::normal_balance::tests::test_income_statement_revenue_debit_balance ... ok
+test services::normal_balance::tests::test_income_statement_zero_balance ... ok
+test services::normal_balance::tests::test_is_credit_normal ... ok
+test services::normal_balance::tests::test_is_debit_normal ... ok
+test services::normal_balance::tests::test_mutual_exclusivity_normal_balance ... ok
+test services::normal_balance::tests::test_sign_inversion_asset_vs_liability ... ok
+test services::normal_balance::tests::test_sign_inversion_double_negation ... ok
+test services::normal_balance::tests::test_sign_inversion_revenue_vs_expense ... ok
+test services::normal_balance::tests::test_zero_drift_balance_sheet ... ok
+test services::normal_balance::tests::test_zero_drift_income_statement ... ok
+test services::normal_balance::tests::test_zero_drift_multi_currency_balance_sheet ... ok
+test services::normal_balance::tests::test_zero_drift_multi_currency_income_statement ... ok
+test services::period_close_service::tests::test_has_blocking_errors_empty_report ... ok
+test services::period_close_service::tests::test_has_blocking_errors_mixed_severities ... ok
+test services::period_close_service::tests::test_has_blocking_errors_with_error ... ok
+test services::period_close_service::tests::test_has_blocking_errors_with_warnings_only ... ok
+test services::period_close_service::tests::test_period_close_snapshot_structure ... ok
+test services::period_summary_service::tests::test_period_summary_response ... ok
+test services::period_summary_service::tests::test_validate_currency_invalid ... ok
+test services::period_summary_service::tests::test_validate_currency_valid ... ok
+test services::reversal_service::tests::test_reversal_error_display ... ok
+test services::trial_balance_service::tests::test_calculate_totals_balanced ... ok
+test services::trial_balance_service::tests::test_calculate_totals_deterministic_ordering ... ok
+test services::trial_balance_service::tests::test_calculate_totals_unbalanced ... ok
+test services::trial_balance_service::tests::test_calculate_totals_zero ... ok
+test validation::tests::test_balanced_entry_with_multiple_lines ... ok
+test validation::tests::test_description_too_long ... ok
+test validation::tests::test_empty_account_ref ... ok
+test validation::tests::test_empty_description ... ok
+test validation::tests::test_insufficient_lines ... ok
+test validation::tests::test_invalid_currency_lowercase ... ok
+test validation::tests::test_invalid_currency_too_short ... ok
+test validation::tests::test_memo_too_long ... ok
+test validation::tests::test_negative_credit ... ok
+test validation::tests::test_negative_debit ... ok
+test validation::tests::test_unbalanced_entry ... ok
+test validation::tests::test_valid_payload ... ok
+test services::period_close_service::tests::test_compute_close_hash_stable_format ... ok
+test services::period_close_service::tests::test_compute_close_hash_different_inputs ... ok
+test services::period_close_service::tests::test_compute_close_hash_deterministic ... ok
+test http::admin::tests::test_admin_router_builds ... ok
+test consumers::fixed_assets_depreciation::tests::posts_balanced_journal_entry ... ok
+test consumers::fixed_assets_depreciation::tests::multiple_entries_in_run_all_posted ... ok
+test consumers::fixed_assets_depreciation::tests::idempotent_on_replay ... ok
+
+test result: ok. 216 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running unittests src/bin/bench.rs (target-slot-1/debug/deps/bench-593cc73306fbe2ae)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/dlq_replay_drill.rs (target-slot-1/debug/deps/dlq_replay_drill-c55d89c640708c60)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/gl_rs-0657b275cf13595b)
+
+running 2 tests
+test tests::cors_specific_origins_parse ... ok
+test tests::cors_wildcard_parses ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/rebuild_balances.rs (target-slot-1/debug/deps/rebuild_balances-3d978d5ee8758a69)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/account_repo_test.rs (target-slot-1/debug/deps/account_repo_test-56b3d1b5a3a437b6)
+
+running 10 tests
+test test_unique_tenant_code_constraint ... ok
+test test_find_active_by_code_inactive ... ok
+test test_assert_active_success ... ok
+test test_find_by_code_success ... ok
+test test_find_active_by_code_not_found ... ok
+test test_different_tenants_same_code ... ok
+test test_assert_active_fails_for_inactive ... ok
+test test_transaction_variants ... ok
+test test_find_by_code_not_found ... ok
+test test_find_active_by_code_success ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s
+
+     Running tests/ap_bill_approved_gl_consumer_test.rs (target-slot-1/debug/deps/ap_bill_approved_gl_consumer_test-7e0e48291534fb0a)
+
+running 5 tests
+test test_ap_bill_approved_empty_gl_lines_fallback_to_expense ... ok
+test test_ap_bill_approved_multi_line_bill_all_debit_to_expense_accounts ... ok
+test test_ap_bill_approved_idempotent_no_duplicate_entry ... ok
+test test_ap_bill_approved_po_backed_line_posts_to_ap_clearing ... ok
+test test_ap_bill_approved_single_expense_line_posts_balanced_entry ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+
+     Running tests/ar_tax_liability_consumer_test.rs (target-slot-1/debug/deps/ar_tax_liability_consumer_test-3f2c03fcba189b2e)
+
+running 5 tests
+test test_tax_committed_then_voided_nets_to_zero ... ok
+test test_tax_committed_rejects_closed_period ... ok
+test test_tax_committed_idempotent_no_duplicate ... ok
+test test_tax_committed_posts_balanced_liability_entry ... ok
+test test_tax_voided_posts_reversal_entry ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+
+     Running tests/balance_deltas_test.rs (target-slot-1/debug/deps/balance_deltas_test-5303877408a3c301)
+
+running 12 tests
+test test_large_amounts ... ok
+test test_balanced_entry_two_accounts ... ok
+test test_reversal_entry_produces_inverted_deltas ... ok
+test test_deterministic_ordering ... ok
+test test_empty_lines_error ... ok
+test test_single_line_credit_only ... ok
+test test_same_account_multiple_lines_aggregation ... ok
+test test_zero_amounts ... ok
+test test_single_line_debit_only ... ok
+test test_complex_entry_multiple_lines ... ok
+test test_multi_currency_correct_assignment ... ok
+test test_reversal_net_effect_zero ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/balance_repo_test.rs (target-slot-1/debug/deps/balance_repo_test-f13f0cc2d3a5fa11)
+
+running 8 tests
+test test_find_balance_history ... ok
+test test_find_trial_balance_all_currencies ... ok
+test test_tx_upsert_rollup_insert_new_balance ... ok
+test test_find_trial_balance_single_currency ... ok
+test test_find_by_grain_success ... ok
+test test_tx_upsert_rollup_increments_existing_balance ... ok
+test test_find_by_grain_not_found ... ok
+test test_tx_upsert_rollup_respects_unique_grain ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+
+     Running tests/balance_sheet_service_test.rs (target-slot-1/debug/deps/balance_sheet_service_test-1909edb082c63c12)
+
+running 6 tests
+test test_balance_sheet_service_period_not_found ... ok
+test test_balance_sheet_service_empty_period ... ok
+test test_balance_sheet_service_negative_balances ... ok
+test test_balance_sheet_service_balanced ... ok
+test test_balance_sheet_service_unbalanced_error ... ok
+test test_balance_sheet_service_deterministic_json_snapshot ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/balances_trial_balance_multi_currency_e2e.rs (target-slot-1/debug/deps/balances_trial_balance_multi_currency_e2e-fe3f542d52463c6a)
+
+running 2 tests
+✅ E2E Test Passed: USD posting → balances updated → trial balance correct
+test test_e2e_posting_updates_balances_and_trial_balance_usd ... ok
+✅ E2E Test Passed: Multi-currency isolation and filtering works correctly
+test test_e2e_multi_currency_isolation_and_filtering ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/boundary_e2e_http_account_activity.rs (target-slot-1/debug/deps/boundary_e2e_http_account_activity-756e4f4101418eeb)
+
+running 6 tests
+test test_boundary_http_account_activity_pagination ... ok
+test test_boundary_http_account_activity_with_period_id ... ok
+test test_boundary_http_account_activity_error_handling ... ok
+test test_boundary_http_account_activity_performance_guard ... ok
+test test_boundary_http_account_activity_json_dto_structure ... ok
+test test_boundary_http_account_activity_currency_filter ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.61s
+
+     Running tests/boundary_e2e_http_balance_sheet.rs (target-slot-1/debug/deps/boundary_e2e_http_balance_sheet-10712f3035ce749e)
+
+running 3 tests
+test test_boundary_http_balance_sheet_error_handling ... ok
+test test_boundary_http_balance_sheet_returns_correct_json ... ok
+test test_boundary_http_balance_sheet_schema_validation ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.31s
+
+     Running tests/boundary_e2e_http_close_period.rs (target-slot-1/debug/deps/boundary_e2e_http_close_period-9664c8f262deadba)
+
+running 3 tests
+test test_boundary_http_close_fails_on_closed_period ... ignored, Requires bd-3gr (HTTP Handlers) to be implemented
+test test_boundary_http_close_period_idempotent ... ignored, Requires bd-3gr (HTTP Handlers) to be implemented
+test test_boundary_http_close_period_success ... ignored, Requires bd-3gr (HTTP Handlers) to be implemented
+
+test result: ok. 0 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/boundary_e2e_http_close_status.rs (target-slot-1/debug/deps/boundary_e2e_http_close_status-322cf87f0020f6b1)
+
+running 2 tests
+test test_boundary_http_close_status_reflects_snapshot ... ignored, Requires bd-3gr (HTTP Handlers) to be implemented
+test test_boundary_http_period_close_performance_guard ... ignored, Requires bd-3gr (HTTP Handlers) to be implemented
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/boundary_e2e_http_gl_detail.rs (target-slot-1/debug/deps/boundary_e2e_http_gl_detail-ab3d33468bbe7620)
+
+running 4 tests
+test test_boundary_http_gl_detail_handles_invalid_pagination ... ok
+test test_boundary_http_gl_detail_filters_by_account_code ... ok
+test test_boundary_http_gl_detail_returns_paginated_entries ... ok
+test test_boundary_http_gl_detail_handles_not_found_period ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.34s
+
+     Running tests/boundary_e2e_http_income_statement.rs (target-slot-1/debug/deps/boundary_e2e_http_income_statement-461cfae854c1d074)
+
+running 3 tests
+test test_boundary_http_income_statement_schema_validation ... ok
+test test_boundary_http_income_statement_error_handling ... ok
+test test_boundary_http_income_statement_returns_correct_json ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.33s
+
+     Running tests/boundary_e2e_http_period_close.rs (target-slot-1/debug/deps/boundary_e2e_http_period_close-9118485a2cfc6801)
+
+running 9 tests
+test test_http_validate_close_already_closed ... ok
+test test_http_period_close_performance_guard ... ok
+test test_http_close_status_not_found ... ok
+test test_http_close_period_idempotent ... ok
+test test_http_validate_close_success ... ok
+test test_http_close_status_open ... ok
+test test_http_close_status_closed_with_hash ... ok
+test test_http_close_period_validation_failure ... ok
+test test_http_close_period_success ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.89s
+
+     Running tests/boundary_e2e_http_period_summary.rs (target-slot-1/debug/deps/boundary_e2e_http_period_summary-01379fc96bac6042)
+
+running 6 tests
+test test_boundary_http_period_summary_currency_filter ... ok
+test test_boundary_http_period_summary_computed_from_balances ... ok
+test test_boundary_http_period_summary_json_dto_structure ... ok
+test test_boundary_http_period_summary_performance_guard ... ok
+test test_boundary_http_period_summary_from_snapshot ... ok
+test test_boundary_http_period_summary_error_handling ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.58s
+
+     Running tests/boundary_e2e_http_trial_balance.rs (target-slot-1/debug/deps/boundary_e2e_http_trial_balance-3b1d2663265efdbb)
+
+running 4 tests
+test test_boundary_http_trial_balance_returns_correct_json ... ok
+test test_boundary_http_trial_balance_performance_guard ... ok
+test test_boundary_http_trial_balance_currency_filter ... ok
+test test_boundary_http_trial_balance_error_handling ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.38s
+
+     Running tests/boundary_e2e_http_validate_close.rs (target-slot-1/debug/deps/boundary_e2e_http_validate_close-d6d97b7cb6a22204)
+
+running 2 tests
+test test_boundary_http_validate_close_fails_on_closed_period ... ignored, Requires bd-3gr (HTTP Handlers) to be implemented
+test test_boundary_http_validate_close_success ... ignored, Requires bd-3gr (HTTP Handlers) to be implemented
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/boundary_e2e_nats_posting.rs (target-slot-1/debug/deps/boundary_e2e_nats_posting-5fc6410b6a383b68)
+
+running 2 tests
+test test_boundary_nats_posting_creates_journal_and_balances ... ok
+test test_boundary_nats_posting_replay_safety ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.45s
+
+     Running tests/coa_validation_test.rs (target-slot-1/debug/deps/coa_validation_test-da2cf9dbfaeae978)
+
+running 5 tests
+test test_posting_validates_all_lines ... ok
+test test_posting_fails_account_not_found ... ok
+test test_posting_succeeds_with_valid_accounts ... ok
+test test_posting_preserves_idempotency_with_coa_validation ... ok
+test test_posting_fails_account_inactive ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+     Running tests/contract_integration_test.rs (target-slot-1/debug/deps/contract_integration_test-393fbfaf0d446180)
+
+running 5 tests
+✅ Correctly rejected empty account_ref:
+   Validation Error: EmptyAccountRef(0)
+✅ Correctly rejected invalid JSON (missing description):
+   Error: Error("missing field `description`", line: 27, column: 3)
+✅ Successfully deserialized and validated EventEnvelope<GlPostingRequestV1>
+   Event ID: 550e8400-e29b-41d4-a716-446655440000
+   Tenant: tnt_01HPQW8YN4KJXR6S9TM2CP5V8H
+   Source: ar@0.1.0
+   Posting Date: 2024-02-11
+   Description: Invoice for customer services - February 2024
+test test_reject_empty_account_ref ...    Lines: 2 (balanced: 2599 debit, 2599 credit)
+ok
+✅ Correctly rejected invalid currency (lowercase 'usd'):
+   Validation Error: InvalidCurrency("usd")
+test test_reject_invalid_envelope_missing_required_field ... ok
+✅ Correctly rejected unbalanced entry (100 debit vs 50 credit):
+   Validation Error: UnbalancedEntry(100.0, 50.0)
+test test_deserialize_valid_event_envelope_from_example ... ok
+test test_reject_invalid_currency ... ok
+test test_reject_unbalanced_entry ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/db_repos_test.rs (target-slot-1/debug/deps/db_repos_test-ab071488e27150d1)
+
+running 4 tests
+test test_processed_events_idempotency ... ok
+test test_journal_entry_with_lines ... ok
+test test_transaction_rollback ... ok
+test test_failed_event_insertion ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+
+     Running tests/dlq_behavior_test.rs (target-slot-1/debug/deps/dlq_behavior_test-8ac2a77e18f23542)
+
+running 5 tests
+test test_dlq_captures_empty_account_ref ... ignored
+test test_dlq_captures_invalid_currency ... ignored
+test test_dlq_captures_missing_required_field ... ignored
+test test_dlq_captures_unbalanced_entry ... ignored
+test test_dlq_handles_garbage_json_without_panic ... ignored
+
+test result: ok. 0 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/gl_export_behavior_test.rs (target-slot-1/debug/deps/gl_export_behavior_test-4597ab319774c967)
+
+running 2 tests
+test test_idempotency ... ok
+test test_outbox_event ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/gl_export_test.rs (target-slot-1/debug/deps/gl_export_test-447323103628cd73)
+
+running 7 tests
+test test_xero_journal_export ... ok
+test test_quickbooks_journal_export ... ok
+test test_xero_coa_export ... ok
+test test_tenant_isolation ... ok
+test test_empty_journal_export ... ok
+test test_quickbooks_coa_export ... ok
+test test_empty_coa_export ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+
+     Running tests/period_close_enforcement_test.rs (target-slot-1/debug/deps/period_close_enforcement_test-cdbd045ff9fae949)
+
+running 4 tests
+[POOL_STATE:START] size=1, idle=1
+[DIAGNOSTIC] before create_test_period INSERT: size=1, idle=1, checked_out=0, tenant=tenant-close-608fe2de-f44c-420b-b7d5-d67d7d3df840
+[POOL_STATE:BEFORE_CLOSE] size=2, idle=2
+[POOL_STATE:AFTER_CLOSE] size=0, idle=2
+test test_closed_at_semantics_override_is_closed_boolean ... ok
+[POOL_STATE:START] size=1, idle=1
+[DIAGNOSTIC] before create_test_period INSERT: size=1, idle=1, checked_out=0, tenant=tenant-close-29261baf-b1ba-4ef6-8782-6ec0887e90ec
+[DIAGNOSTIC] before create_test_period INSERT: size=1, idle=0, checked_out=1, tenant=tenant-close-29261baf-b1ba-4ef6-8782-6ec0887e90ec
+[POOL_STATE:BEFORE_CLOSE] size=2, idle=2
+[POOL_STATE:AFTER_CLOSE] size=0, idle=2
+test test_reversal_blocked_when_original_period_closed ... ok
+[POOL_STATE:START] size=1, idle=1
+[DIAGNOSTIC] before create_test_period INSERT: size=1, idle=1, checked_out=0, tenant=tenant-close-40276961-8312-46eb-a485-b8b6a1f4f31d
+[DIAGNOSTIC] before create_test_period INSERT: size=1, idle=0, checked_out=1, tenant=tenant-close-40276961-8312-46eb-a485-b8b6a1f4f31d
+[DIAGNOSTIC] before create_test_period INSERT: size=2, idle=1, checked_out=1, tenant=tenant-close-40276961-8312-46eb-a485-b8b6a1f4f31d
+[POOL_STATE:BEFORE_CLOSE] size=2, idle=2
+[POOL_STATE:AFTER_CLOSE] size=0, idle=2
+test test_reversal_succeeds_when_both_periods_open ... ok
+[POOL_STATE:START] size=1, idle=1
+[DIAGNOSTIC] before create_test_period INSERT: size=1, idle=1, checked_out=0, tenant=tenant-close-adcd0ea5-ccdf-4e7a-bf78-82446b3812e3
+[POOL_STATE:BEFORE_CLOSE] size=2, idle=2
+[POOL_STATE:AFTER_CLOSE] size=0, idle=2
+test test_posting_blocked_when_period_closed ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+     Running tests/period_close_schema_test.rs (target-slot-1/debug/deps/period_close_schema_test-beefbb2955d379f3)
+
+running 3 tests
+test test_closed_with_hash_valid ... ok
+test test_close_timestamps_valid ... ok
+test test_close_fields_nullable ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/period_close_validation_test.rs (target-slot-1/debug/deps/period_close_validation_test-b8a44820b4382284)
+
+running 9 tests
+test test_validate_period_not_found ... ok
+test test_validate_period_already_closed ... ok
+test test_validate_dlq_enabled_no_pending_entries ... ok
+test test_validate_dlq_disabled_with_pending_entries ... ok
+test test_validate_empty_period ... ok
+test test_validate_dlq_enabled_with_pending_entries ... ok
+test test_validate_dlq_tenant_scoped ... ok
+test test_validate_unbalanced_entries ... ok
+test test_validate_valid_period ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/report_query_repo_tests.rs (target-slot-1/debug/deps/report_query_repo_tests-64923528f853a3aa)
+
+running 15 tests
+test test_explain_entries_by_date_range_uses_indexes ... ok
+test test_count_account_activity ... ok
+test test_query_entries_by_account_types ... ok
+test test_query_account_activity_success ... ok
+test test_query_entries_by_date_range ... ok
+test test_fetch_entry_header_not_found ... ok
+test test_query_account_activity_no_results ... ok
+test test_explain_account_activity_uses_indexes ... ok
+test test_account_activity_invalid_date_range ... ok
+test test_explain_entries_by_account_types_uses_indexes ... ok
+test test_count_entries ... ok
+test test_query_period_journal_entries ... ok
+test test_query_entries_by_account_codes ... ok
+test test_account_activity_invalid_pagination ... ok
+test test_fetch_entry_lines_with_accounts ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.49s
+
+     Running tests/reversal_balances_trial_balance_e2e.rs (target-slot-1/debug/deps/reversal_balances_trial_balance_e2e-beb1a43aed2518d2)
+
+running 1 test
+✅ E2E Test Passed: Reversal updates balances correctly and trial balance matches
+✅ Idempotency Verified: Replaying reversal request does not change balances
+test test_e2e_reversal_updates_balances_and_trial_balance ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.79s
+
+     Running tests/statement_contract_snapshot_test.rs (target-slot-1/debug/deps/statement_contract_snapshot_test-b6b3e6ab88a191fd)
+
+running 6 tests
+✅ Cross-statement field consistency validated
+✅ CurrencyTotals contract snapshot validated
+✅ IncomeStatementResponse contract snapshot validated
+✅ TrialBalanceResponse contract snapshot validated
+test test_cross_statement_field_consistency ... ok
+✅ BalanceSheetResponse contract snapshot validated
+✅ JSON schema stability validated (golden snapshot matched)
+test test_currency_totals_contract_snapshot ... ok
+test test_income_statement_response_contract_snapshot ... ok
+test test_trial_balance_response_contract_snapshot ... ok
+test test_balance_sheet_response_contract_snapshot ... ok
+test test_json_schema_stability_golden_snapshot ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/statement_performance_benchmark.rs (target-slot-1/debug/deps/statement_performance_benchmark-1f9947e36f829d6a)
+
+running 4 tests
+test benchmark_all_statements_1m_dataset ... ignored
+test benchmark_balance_sheet_1m_dataset ... ignored
+test benchmark_income_statement_1m_dataset ... ignored
+test benchmark_trial_balance_1m_dataset ... ignored
+
+test result: ok. 0 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/statement_repo_test.rs (target-slot-1/debug/deps/statement_repo_test-b5a00470814cd227)
+
+running 6 tests
+test test_period_validation_not_found ... ok
+
+=== EXPLAIN PLAN ===
+
+=== EXPLAIN PLAN ===
+Query:          SELECT             ab.account_code,
+Tenant: tenant_test_balance_sheet, Period: a23ca6f0-b144-4187-973a-0cacd25a74b4
+Query:          SELECT             ab.account_code,
+Tenant: tenant_test_income_statement, Period: 9be6804c-f0fa-4cd1-b0c9-74651236d7a9
+
+=== EXPLAIN PLAN ===
+Query:          SELECT             ab.account_code,
+Tenant: tenant_test_trial_balance, Period: 9f668d24-2ea4-49de-8f48-ba7abc0a8aad
+Sort  (cost=19.68..19.68 rows=1 width=32)
+  Sort Key: a.type, ab.account_code, ab.currency
+  ->  Nested Loop  (cost=0.41..19.67 rows=1 width=32)
+        ->  Index Scan using idx_account_balances_period_id on account_balances ab  (cost=0.14..8.16 rows=1 width=46)
+              Index Cond: (period_id = 'a23ca6f0-b144-4187-973a-0cacd25a74b4'::uuid)
+              Filter: (tenant_id = 'tenant_test_balance_sheet'::text)
+        ->  Index Scan using idx_accounts_tenant_code on accounts a  (cost=0.27..8.30 rows=1 width=65)
+              Index Cond: ((tenant_id = 'tenant_test_balance_sheet'::text) AND (code = ab.account_code))
+              Filter: (is_active AND (type = ANY ('{asset,liability,equity}'::account_type[])))
+=== END EXPLAIN ===
+
+Sort  (cost=20.08..20.09 rows=1 width=32)
+  Sort Key: a.type DESC, ab.account_code, ab.currency
+  ->  Nested Loop  (cost=4.45..20.07 rows=1 width=32)
+        Join Filter: (ab.account_code = a.code)
+        ->  Index Scan using idx_account_balances_period_id on account_balances ab  (cost=0.14..8.16 rows=1 width=46)
+              Index Cond: (period_id = '9be6804c-f0fa-4cd1-b0c9-74651236d7a9'::uuid)
+              Filter: (tenant_id = 'tenant_test_income_statement'::text)
+        ->  Bitmap Heap Scan on accounts a  (cost=4.31..11.90 rows=1 width=65)
+              Recheck Cond: (tenant_id = 'tenant_test_income_statement'::text)
+              Filter: (is_active AND (type = ANY ('{revenue,expense}'::account_type[])))
+              ->  Bitmap Index Scan on idx_accounts_tenant_type  (cost=0.00..4.31 rows=5 width=0)
+                    Index Cond: (tenant_id = 'tenant_test_income_statement'::text)
+=== END EXPLAIN ===
+
+Nested Loop  (cost=4.56..19.14 rows=1 width=52)
+  Join Filter: (ab.account_code = a.code)
+  ->  Index Scan using idx_account_balances_tenant_period_full on account_balances ab  (cost=0.27..8.29 rows=1 width=62)
+        Index Cond: ((tenant_id = 'tenant_test_trial_balance'::text) AND (period_id = '9f668d24-2ea4-49de-8f48-ba7abc0a8aad'::uuid))
+  ->  Bitmap Heap Scan on accounts a  (cost=4.30..10.82 rows=3 width=69)
+        Recheck Cond: (tenant_id = 'tenant_test_trial_balance'::text)
+        Filter: is_active
+        ->  Bitmap Index Scan on idx_accounts_tenant_type  (cost=0.00..4.29 rows=3 width=0)
+              Index Cond: (tenant_id = 'tenant_test_trial_balance'::text)
+=== END EXPLAIN ===
+
+test test_numeric_safety_proof_decimal_exactness ... ok
+test test_get_income_statement_rows_with_explain ... ok
+test test_get_balance_sheet_rows_with_explain ... ok
+test test_get_trial_balance_rows_with_explain ... ok
+test test_get_trial_balance_rows_with_currency_filter ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/tenant_boundary_concurrency_test.rs (target-slot-1/debug/deps/tenant_boundary_concurrency_test-a7324e33844e8cce)
+
+running 2 tests
+test test_tenant_boundary_no_cross_tenant_leakage_under_concurrent_writes ... ok
+test test_tenant_boundary_concurrent_reads_during_writes ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+
+     Running tests/test_period_close_atomic.rs (target-slot-1/debug/deps/test_period_close_atomic-c201e6db9af618e9)
+
+running 7 tests
+test test_close_period_not_found ... ok
+test test_close_period_with_balanced_entries ... ok
+test test_close_period_validation_failure ... ok
+test test_close_period_idempotent ... ok
+test test_close_period_empty_success ... ok
+test test_close_period_tenant_isolation ... ok
+test test_close_period_concurrency ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+
+     Running tests/test_period_close_snapshot.rs (target-slot-1/debug/deps/test_period_close_snapshot-a17d93876f9078e0)
+
+running 8 tests
+test test_close_hash_deterministic ... ok
+test test_verify_close_hash_success ... ok
+test test_verify_close_hash_failure ... ok
+test test_snapshot_persistence ... ok
+test test_close_hash_different_inputs ... ok
+test test_create_close_snapshot_with_entries ... ok
+test test_snapshot_idempotency ... ok
+test test_create_close_snapshot_empty_period ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+
+     Running tests/test_period_validation.rs (target-slot-1/debug/deps/test_period_validation-30335dfbec0e7ccd)
+
+running 7 tests
+test test_validate_tenant_isolation ... ok
+test test_validate_balanced_entries_success ... ok
+test test_validate_period_already_closed ... ok
+test test_validate_empty_period_success ... ok
+test test_validate_unbalanced_entries ... ok
+test test_validate_period_not_found ... ok
+test test_validate_multiple_errors ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+
+     Running tests/trial_balance_service_test.rs (target-slot-1/debug/deps/trial_balance_service_test-c6526f1f09384bb9)
+
+running 5 tests
+test test_trial_balance_service_period_not_found ... ok
+test test_trial_balance_service_empty_period ... ok
+test test_trial_balance_service_balanced ... ok
+test test_trial_balance_service_unbalanced_error ... ok
+test test_trial_balance_service_deterministic_json_snapshot ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+   Doc-tests gl_rs
+
+running 11 tests
+test modules/gl/src/invariants.rs - invariants (line 14) ... ignored
+test modules/gl/src/repos/balance_repo.rs - repos::balance_repo::tx_upsert_rollup (line 80) ... ignored
+test modules/gl/src/services/balance_sheet_service.rs - services::balance_sheet_service::get_balance_sheet (line 87) ... ignored
+test modules/gl/src/services/balance_updater.rs - services::balance_updater::update_balances_from_journal (line 38) ... ignored
+test modules/gl/src/services/income_statement_service.rs - services::income_statement_service::get_income_statement (line 83) ... ignored
+test modules/gl/src/services/normal_balance.rs - services::normal_balance::apply_balance_sheet_presentation (line 84) ... ignored
+test modules/gl/src/services/normal_balance.rs - services::normal_balance::apply_income_statement_presentation (line 44) ... ignored
+test modules/gl/src/services/period_summary_service.rs - services::period_summary_service::get_period_summary (line 53) ... ignored
+test modules/gl/src/services/trial_balance_service.rs - services::trial_balance_service::get_trial_balance (line 62) ... ignored
+test modules/gl/src/config.rs - config::CurrencyConfig (line 32) ... ok
+test modules/gl/src/services/balance_deltas.rs - services::balance_deltas::compute_deltas (line 62) ... ok
+
+test result: ok. 2 passed; 0 failed; 9 ignored; 0 measured; 0 filtered out; finished in 3.06s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T20:05:29Z
