@@ -28,6 +28,10 @@ projections = { path = "../../platform/projections" }
 name = "bench"
 path = "src/bin/bench.rs"
 
+[[bin]]
+name = "dlq_replay_drill"
+path = "src/bin/dlq_replay_drill.rs"
+
 [dev-dependencies]
 serial_test = "3.3.1"
 

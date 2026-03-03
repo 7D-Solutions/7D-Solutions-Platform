@@ -31,6 +31,7 @@ No version bump discipline required yet.
 |--------|-------|---------|------|---------|-------------|------|
 | ap | ap | 0.1.0 | 8093 | 5443 | Accounts payable: bills, purchase orders, payment runs, vendor management, and AP aging | [Vision](docs/architecture/AP-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | consolidation | consolidation | 0.1.0 | 8105 | 5446 | Multi-entity financial consolidation with intercompany eliminations | [Vision](docs/architecture/CONSOLIDATION-VISION.md) |
+| customer-portal | customer-portal | 0.1.0 |  |  | External customer portal auth boundary service |  |
 | fixed-assets | fixed-assets | 0.1.0 | 8104 | 5445 | Fixed asset lifecycle: capitalization, depreciation schedules, and disposals | [Vision](docs/architecture/FIXED-ASSETS-VISION.md) |
 | gl | gl-rs | 0.1.0 | 8090 | 5438 | Double-entry general ledger with journal engine, accruals, and revenue recognition | [Vision](docs/architecture/GL-VISION.md) |
 | integrations | integrations-rs | 0.1.0 | 8099 | 5449 | External system connectors, webhook routing, and reference linking | [Vision](docs/architecture/INTEGRATIONS-VISION.md) |
