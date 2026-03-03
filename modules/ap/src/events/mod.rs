@@ -17,6 +17,7 @@
 pub mod bill;
 pub mod envelope;
 pub mod payment;
+pub mod payment_terms;
 pub mod po;
 pub mod vendor;
 pub mod vendor_bill_approved;
@@ -69,6 +70,11 @@ pub use payment::{
     EVENT_TYPE_AP_PAYMENT_EXECUTED, EVENT_TYPE_AP_PAYMENT_RUN_CREATED,
 };
 
+pub use payment_terms::{
+    build_payment_terms_created_envelope, PaymentTermsCreatedPayload,
+    EVENT_TYPE_PAYMENT_TERMS_CREATED,
+};
+
 pub use envelope::EventEnvelope;
 
 #[cfg(test)]
@@ -94,5 +100,6 @@ mod tests {
         assert!(EVENT_TYPE_VENDOR_BILL_VOIDED.starts_with("ap."));
         assert!(EVENT_TYPE_AP_PAYMENT_RUN_CREATED.starts_with("ap."));
         assert!(EVENT_TYPE_AP_PAYMENT_EXECUTED.starts_with("ap."));
+        assert!(EVENT_TYPE_PAYMENT_TERMS_CREATED.starts_with("ap."));
     }
 }

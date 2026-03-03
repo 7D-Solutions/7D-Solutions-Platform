@@ -3,6 +3,7 @@ pub mod admin_types;
 pub mod allocations;
 pub mod bills;
 pub mod payment_runs;
+pub mod payment_terms;
 pub mod purchase_orders;
 pub mod reports;
 pub mod tax_reports;

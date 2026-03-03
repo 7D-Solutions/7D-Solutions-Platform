@@ -130,6 +130,19 @@ async fn main() {
             "/api/ap/bills/{bill_id}/allocations",
             post(http::allocations::create_allocation),
         )
+        // Payment terms — write
+        .route(
+            "/api/ap/payment-terms",
+            post(http::payment_terms::create_terms),
+        )
+        .route(
+            "/api/ap/payment-terms/{term_id}",
+            put(http::payment_terms::update_terms),
+        )
+        .route(
+            "/api/ap/bills/{bill_id}/assign-terms",
+            post(http::payment_terms::assign_terms),
+        )
         // Payment runs — write
         .route("/api/ap/payment-runs", post(http::payment_runs::create_run))
         .route(
@@ -160,6 +173,15 @@ async fn main() {
         .route(
             "/api/ap/bills/{bill_id}/balance",
             get(http::allocations::get_balance),
+        )
+        // Payment terms — read
+        .route(
+            "/api/ap/payment-terms",
+            get(http::payment_terms::list_terms),
+        )
+        .route(
+            "/api/ap/payment-terms/{term_id}",
+            get(http::payment_terms::get_terms),
         )
         // Payment runs — read
         .route(
