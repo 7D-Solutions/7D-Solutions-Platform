@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/gl-fx-realized-posted.v1.json",
+  "title": "gl.fx_realized_posted",
+  "description": "Event emitted when realized FX gain/loss is posted to GL",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "gl.fx_realized_posted" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "source_module": { "type": "string", "const": "gl" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "const": "DATA_MUTATION" },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": [
+        "realized_id",
+        "tenant_id",
+        "source_transaction_id",
+        "source_transaction_type",
+        "transaction_currency",
+        "reporting_currency",
+        "booking_rate",
+        "settlement_rate",
+        "transaction_amount_minor",
+        "realized_gain_loss_minor",
+        "gain_loss_account",
+        "settlement_date"
+      ],
+      "properties": {
+        "realized_id": { "type": "string", "format": "uuid" },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "source_transaction_id": { "type": "string", "format": "uuid" },
+        "source_transaction_type": { "type": "string", "minLength": 1 },
+        "transaction_currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "reporting_currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "booking_rate": { "type": "number", "exclusiveMinimum": 0 },
+        "settlement_rate": { "type": "number", "exclusiveMinimum": 0 },
+        "transaction_amount_minor": { "type": "integer" },
+        "realized_gain_loss_minor": { "type": "integer" },
+        "gain_loss_account": { "type": "string", "minLength": 1 },
+        "journal_entry_id": { "type": ["string", "null"], "format": "uuid" },
+        "settlement_date": { "type": "string", "format": "date" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

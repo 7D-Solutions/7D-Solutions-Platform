@@ -35,5 +35,13 @@ reqwest = { version = "0.12", features = ["json"] }
 name = "rebuild_balances"
 path = "src/bin/rebuild_balances.rs"
 
+[[bin]]
+name = "bench"
+path = "src/bin/bench.rs"
+
+[[bin]]
+name = "dlq_replay_drill"
+path = "src/bin/dlq_replay_drill.rs"
+
 [lints]
 workspace = true

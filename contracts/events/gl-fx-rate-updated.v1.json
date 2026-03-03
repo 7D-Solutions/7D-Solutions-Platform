@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/gl-fx-rate-updated.v1.json",
+  "title": "fx.rate_updated",
+  "description": "Event emitted when an FX rate is published or updated",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "fx.rate_updated" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "source_module": { "type": "string", "const": "gl" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "const": "DATA_MUTATION" },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": [
+        "rate_id",
+        "base_currency",
+        "quote_currency",
+        "rate",
+        "inverse_rate",
+        "effective_at",
+        "source"
+      ],
+      "properties": {
+        "rate_id": { "type": "string", "format": "uuid" },
+        "base_currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "quote_currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "rate": { "type": "number", "exclusiveMinimum": 0 },
+        "inverse_rate": { "type": "number", "exclusiveMinimum": 0 },
+        "effective_at": { "type": "string", "format": "date-time" },
+        "source": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

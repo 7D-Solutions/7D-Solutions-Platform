@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/gl-accrual-created.v1.json",
+  "title": "gl.accrual_created",
+  "description": "Event emitted when a GL accrual is created and posted",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": { "type": "string", "format": "uuid" },
+    "event_type": { "type": "string", "const": "gl.accrual_created" },
+    "occurred_at": { "type": "string", "format": "date-time" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "source_module": { "type": "string", "const": "gl" },
+    "source_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "schema_version": { "type": "string", "minLength": 1 },
+    "replay_safe": { "type": "boolean" },
+    "mutation_class": { "type": "string", "const": "DATA_MUTATION" },
+    "correlation_id": { "type": "string" },
+    "causation_id": { "type": "string" },
+    "payload": {
+      "type": "object",
+      "required": [
+        "accrual_id",
+        "tenant_id",
+        "name",
+        "period",
+        "posting_date",
+        "debit_account",
+        "credit_account",
+        "amount_minor",
+        "currency",
+        "cashflow_class",
+        "reversal_policy",
+        "description",
+        "created_at"
+      ],
+      "properties": {
+        "accrual_id": { "type": "string", "format": "uuid" },
+        "template_id": { "type": ["string", "null"], "format": "uuid" },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "period": { "type": "string", "pattern": "^\\d{4}-\\d{2}$" },
+        "posting_date": { "type": "string", "format": "date" },
+        "debit_account": { "type": "string", "minLength": 1 },
+        "credit_account": { "type": "string", "minLength": 1 },
+        "amount_minor": { "type": "integer" },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" },
+        "cashflow_class": {
+          "type": "string",
+          "enum": ["operating", "investing", "financing", "non_cash"]
+        },
+        "reversal_policy": {
+          "type": "object",
+          "required": ["auto_reverse_next_period"],
+          "properties": {
+            "auto_reverse_next_period": { "type": "boolean" },
+            "reverse_on_date": { "type": ["string", "null"], "format": "date" }
+          },
+          "additionalProperties": false
+        },
+        "journal_entry_id": { "type": ["string", "null"], "format": "uuid" },
+        "description": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

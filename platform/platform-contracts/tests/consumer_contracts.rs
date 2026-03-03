@@ -314,6 +314,97 @@ struct DeliveryFailedPayload {
     failure_code: String,
 }
 
+// ── GL Event Payloads ───────────────────────────────────────────────
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlAccrualReversalPolicyPayload {
+    auto_reverse_next_period: bool,
+    reverse_on_date: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlAccrualCreatedPayload {
+    accrual_id: Uuid,
+    template_id: Option<Uuid>,
+    tenant_id: String,
+    name: String,
+    period: String,
+    posting_date: String,
+    debit_account: String,
+    credit_account: String,
+    amount_minor: i64,
+    currency: String,
+    cashflow_class: String,
+    reversal_policy: GlAccrualReversalPolicyPayload,
+    journal_entry_id: Option<Uuid>,
+    description: String,
+    created_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlAccrualReversedPayload {
+    reversal_id: Uuid,
+    original_accrual_id: Uuid,
+    template_id: Option<Uuid>,
+    tenant_id: String,
+    reversal_period: String,
+    reversal_date: String,
+    debit_account: String,
+    credit_account: String,
+    amount_minor: i64,
+    currency: String,
+    cashflow_class: String,
+    journal_entry_id: Option<Uuid>,
+    reason: String,
+    reversed_at: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlFxRateUpdatedPayload {
+    rate_id: Uuid,
+    base_currency: String,
+    quote_currency: String,
+    rate: f64,
+    inverse_rate: f64,
+    effective_at: String,
+    source: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlFxRevaluationPostedPayload {
+    revaluation_id: Uuid,
+    tenant_id: String,
+    period: String,
+    transaction_currency: String,
+    reporting_currency: String,
+    rate_used: f64,
+    original_amount_minor: i64,
+    revalued_amount_minor: i64,
+    unrealized_gain_loss_minor: i64,
+    gain_loss_account: String,
+    balance_account: String,
+    journal_entry_id: Option<Uuid>,
+    revaluation_date: String,
+    auto_reverse: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlFxRealizedPostedPayload {
+    realized_id: Uuid,
+    tenant_id: String,
+    source_transaction_id: Uuid,
+    source_transaction_type: String,
+    transaction_currency: String,
+    reporting_currency: String,
+    booking_rate: f64,
+    settlement_rate: f64,
+    transaction_amount_minor: i64,
+    realized_gain_loss_minor: i64,
+    gain_loss_account: String,
+    journal_entry_id: Option<Uuid>,
+    settlement_date: String,
+}
+
 // ══════════════════════════════════════════════════════════════════════
 // NUMBERING
 // ══════════════════════════════════════════════════════════════════════
@@ -884,6 +975,272 @@ fn notifications_delivery_failed_envelope_completeness() {
 }
 
 // ══════════════════════════════════════════════════════════════════════
+// GL
+// ══════════════════════════════════════════════════════════════════════
+
+#[test]
+fn gl_accrual_created_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "gl",
+        "gl.accrual_created",
+        mutation_classes::DATA_MUTATION,
+        GlAccrualCreatedPayload {
+            accrual_id: Uuid::new_v4(),
+            template_id: Some(Uuid::new_v4()),
+            tenant_id: "tenant-001".into(),
+            name: "Month-end accrual".into(),
+            period: "2026-01".into(),
+            posting_date: "2026-01-31".into(),
+            debit_account: "6100".into(),
+            credit_account: "2100".into(),
+            amount_minor: 250000,
+            currency: "USD".into(),
+            cashflow_class: "operating".into(),
+            reversal_policy: GlAccrualReversalPolicyPayload {
+                auto_reverse_next_period: true,
+                reverse_on_date: None,
+            },
+            journal_entry_id: Some(Uuid::new_v4()),
+            description: "Accrued payroll".into(),
+            created_at: "2026-01-31T23:59:59Z".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "gl/gl.accrual_created");
+}
+
+#[test]
+fn gl_accrual_created_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "gl",
+        "gl.accrual_created",
+        mutation_classes::DATA_MUTATION,
+        GlAccrualCreatedPayload {
+            accrual_id: Uuid::new_v4(),
+            template_id: None,
+            tenant_id: "tenant-001".into(),
+            name: "Utilities accrual".into(),
+            period: "2026-02".into(),
+            posting_date: "2026-02-28".into(),
+            debit_account: "6200".into(),
+            credit_account: "2200".into(),
+            amount_minor: 10000,
+            currency: "USD".into(),
+            cashflow_class: "operating".into(),
+            reversal_policy: GlAccrualReversalPolicyPayload {
+                auto_reverse_next_period: false,
+                reverse_on_date: Some("2026-03-01".into()),
+            },
+            journal_entry_id: None,
+            description: "Utilities estimate".into(),
+            created_at: "2026-02-28T23:00:00Z".into(),
+        },
+    );
+    validate_against_schema(&json, "gl-accrual-created.v1.json");
+}
+
+#[test]
+fn gl_accrual_reversed_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "gl",
+        "gl.accrual_reversed",
+        mutation_classes::REVERSAL,
+        GlAccrualReversedPayload {
+            reversal_id: Uuid::new_v4(),
+            original_accrual_id: Uuid::new_v4(),
+            template_id: Some(Uuid::new_v4()),
+            tenant_id: "tenant-001".into(),
+            reversal_period: "2026-02".into(),
+            reversal_date: "2026-02-01".into(),
+            debit_account: "2100".into(),
+            credit_account: "6100".into(),
+            amount_minor: 250000,
+            currency: "USD".into(),
+            cashflow_class: "operating".into(),
+            journal_entry_id: Some(Uuid::new_v4()),
+            reason: "auto_reverse_next_period".into(),
+            reversed_at: "2026-02-01T00:00:01Z".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "gl/gl.accrual_reversed");
+}
+
+#[test]
+fn gl_accrual_reversed_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "gl",
+        "gl.accrual_reversed",
+        mutation_classes::REVERSAL,
+        GlAccrualReversedPayload {
+            reversal_id: Uuid::new_v4(),
+            original_accrual_id: Uuid::new_v4(),
+            template_id: None,
+            tenant_id: "tenant-001".into(),
+            reversal_period: "2026-03".into(),
+            reversal_date: "2026-03-01".into(),
+            debit_account: "2200".into(),
+            credit_account: "6200".into(),
+            amount_minor: 10000,
+            currency: "USD".into(),
+            cashflow_class: "operating".into(),
+            journal_entry_id: None,
+            reason: "manual_correction".into(),
+            reversed_at: "2026-03-01T01:00:00Z".into(),
+        },
+    );
+    validate_against_schema(&json, "gl-accrual-reversed.v1.json");
+}
+
+#[test]
+fn gl_fx_rate_updated_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "gl",
+        "fx.rate_updated",
+        mutation_classes::DATA_MUTATION,
+        GlFxRateUpdatedPayload {
+            rate_id: Uuid::new_v4(),
+            base_currency: "EUR".into(),
+            quote_currency: "USD".into(),
+            rate: 1.08,
+            inverse_rate: 0.9259259,
+            effective_at: "2026-02-01T00:00:00Z".into(),
+            source: "ecb".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "gl/fx.rate_updated");
+}
+
+#[test]
+fn gl_fx_rate_updated_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "gl",
+        "fx.rate_updated",
+        mutation_classes::DATA_MUTATION,
+        GlFxRateUpdatedPayload {
+            rate_id: Uuid::new_v4(),
+            base_currency: "GBP".into(),
+            quote_currency: "USD".into(),
+            rate: 1.26,
+            inverse_rate: 0.7936508,
+            effective_at: "2026-02-15T10:00:00Z".into(),
+            source: "manual".into(),
+        },
+    );
+    validate_against_schema(&json, "gl-fx-rate-updated.v1.json");
+}
+
+#[test]
+fn gl_fx_revaluation_posted_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "gl",
+        "gl.fx_revaluation_posted",
+        mutation_classes::DATA_MUTATION,
+        GlFxRevaluationPostedPayload {
+            revaluation_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            period: "2026-02".into(),
+            transaction_currency: "EUR".into(),
+            reporting_currency: "USD".into(),
+            rate_used: 1.09,
+            original_amount_minor: 100000,
+            revalued_amount_minor: 109000,
+            unrealized_gain_loss_minor: 9000,
+            gain_loss_account: "7990".into(),
+            balance_account: "1100-EUR".into(),
+            journal_entry_id: Some(Uuid::new_v4()),
+            revaluation_date: "2026-02-28".into(),
+            auto_reverse: true,
+        },
+    );
+    assert_envelope_completeness(&json, "gl/gl.fx_revaluation_posted");
+}
+
+#[test]
+fn gl_fx_revaluation_posted_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "gl",
+        "gl.fx_revaluation_posted",
+        mutation_classes::DATA_MUTATION,
+        GlFxRevaluationPostedPayload {
+            revaluation_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            period: "2026-03".into(),
+            transaction_currency: "CAD".into(),
+            reporting_currency: "USD".into(),
+            rate_used: 0.73,
+            original_amount_minor: 500000,
+            revalued_amount_minor: 365000,
+            unrealized_gain_loss_minor: -35000,
+            gain_loss_account: "7991".into(),
+            balance_account: "1200-CAD".into(),
+            journal_entry_id: None,
+            revaluation_date: "2026-03-31".into(),
+            auto_reverse: false,
+        },
+    );
+    validate_against_schema(&json, "gl-fx-revaluation-posted.v1.json");
+}
+
+#[test]
+fn gl_fx_realized_posted_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "gl",
+        "gl.fx_realized_posted",
+        mutation_classes::DATA_MUTATION,
+        GlFxRealizedPostedPayload {
+            realized_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            source_transaction_id: Uuid::new_v4(),
+            source_transaction_type: "invoice_payment".into(),
+            transaction_currency: "EUR".into(),
+            reporting_currency: "USD".into(),
+            booking_rate: 1.07,
+            settlement_rate: 1.1,
+            transaction_amount_minor: 100000,
+            realized_gain_loss_minor: 3000,
+            gain_loss_account: "7992".into(),
+            journal_entry_id: Some(Uuid::new_v4()),
+            settlement_date: "2026-03-10".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "gl/gl.fx_realized_posted");
+}
+
+#[test]
+fn gl_fx_realized_posted_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "gl",
+        "gl.fx_realized_posted",
+        mutation_classes::DATA_MUTATION,
+        GlFxRealizedPostedPayload {
+            realized_id: Uuid::new_v4(),
+            tenant_id: "tenant-001".into(),
+            source_transaction_id: Uuid::new_v4(),
+            source_transaction_type: "ar_settlement".into(),
+            transaction_currency: "GBP".into(),
+            reporting_currency: "USD".into(),
+            booking_rate: 1.24,
+            settlement_rate: 1.22,
+            transaction_amount_minor: 200000,
+            realized_gain_loss_minor: -4000,
+            gain_loss_account: "7993".into(),
+            journal_entry_id: None,
+            settlement_date: "2026-03-20".into(),
+        },
+    );
+    validate_against_schema(&json, "gl-fx-realized-posted.v1.json");
+}
+
+// ══════════════════════════════════════════════════════════════════════
 // CROSS-CUTTING: Event Naming Convention Tests
 // ══════════════════════════════════════════════════════════════════════
 
@@ -1053,6 +1410,68 @@ fn all_phase57_schemas_have_schema_version_field() {
             "{}: 'replay_safe' must be in required fields",
             schema_name
         );
+    }
+}
+
+#[test]
+fn gl_gate_b_schemas_exist_on_disk() {
+    let schemas = [
+        "gl-accrual-created.v1.json",
+        "gl-accrual-reversed.v1.json",
+        "gl-fx-rate-updated.v1.json",
+        "gl-fx-revaluation-posted.v1.json",
+        "gl-fx-realized-posted.v1.json",
+    ];
+
+    let events_dir = contracts_dir().join("events");
+    for schema_name in &schemas {
+        let path = events_dir.join(schema_name);
+        assert!(path.exists(), "Schema file missing: {}", path.display());
+
+        let content = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("Cannot read {}: {}", schema_name, e));
+        let _: serde_json::Value = serde_json::from_str(&content)
+            .unwrap_or_else(|e| panic!("Invalid JSON in {}: {}", schema_name, e));
+    }
+}
+
+#[test]
+fn gl_gate_b_schemas_require_envelope_fields() {
+    let schemas = [
+        "gl-accrual-created.v1.json",
+        "gl-accrual-reversed.v1.json",
+        "gl-fx-rate-updated.v1.json",
+        "gl-fx-revaluation-posted.v1.json",
+        "gl-fx-realized-posted.v1.json",
+    ];
+
+    for schema_name in &schemas {
+        let schema = load_schema(schema_name);
+        let required = schema["required"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{} has no 'required' array", schema_name));
+
+        let required_strs: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
+
+        for field in [
+            "event_id",
+            "event_type",
+            "occurred_at",
+            "tenant_id",
+            "source_module",
+            "source_version",
+            "schema_version",
+            "replay_safe",
+            "mutation_class",
+            "payload",
+        ] {
+            assert!(
+                required_strs.contains(&field),
+                "{} missing required envelope field '{}'",
+                schema_name,
+                field
+            );
+        }
     }
 }
 
