@@ -11,7 +11,6 @@ FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY modules modules
 COPY platform platform
-COPY products products
 COPY tools tools
 COPY e2e-tests e2e-tests
 RUN cargo chef prepare --recipe-path recipe.json --bin ar-rs
@@ -26,7 +25,6 @@ RUN cargo chef cook --release --recipe-path recipe.json
 COPY Cargo.toml Cargo.lock ./
 COPY modules modules
 COPY platform platform
-COPY products products
 COPY tools tools
 COPY e2e-tests e2e-tests
 RUN cargo build --release --bin ar-rs

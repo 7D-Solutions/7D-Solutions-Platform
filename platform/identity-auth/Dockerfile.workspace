@@ -13,7 +13,6 @@ COPY modules modules
 COPY platform platform
 COPY tools tools
 COPY e2e-tests e2e-tests
-COPY products products
 RUN cargo chef prepare --recipe-path recipe.json --bin auth-rs
 
 # --- Stage 3: Builder (cache deps, then build) ---
@@ -28,7 +27,6 @@ COPY modules modules
 COPY platform platform
 COPY tools tools
 COPY e2e-tests e2e-tests
-COPY products products
 RUN cargo build --release --bin auth-rs
 
 # --- Stage 4: Runtime (minimal image) ---
