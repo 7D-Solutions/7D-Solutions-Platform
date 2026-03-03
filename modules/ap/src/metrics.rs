@@ -26,6 +26,8 @@ pub struct ApMetrics {
     pub http_requests_total: IntCounterVec,
     // SLO: event consumer lag
     pub event_consumer_lag_messages: IntGaugeVec,
+    /// Outbox queue depth — number of unpublished events
+    pub outbox_queue_depth: IntGauge,
     registry: Registry,
 }
 
@@ -105,6 +107,12 @@ impl ApMetrics {
         )?;
         registry.register(Box::new(event_consumer_lag_messages.clone()))?;
 
+        let outbox_queue_depth = IntGauge::new(
+            "ap_outbox_queue_depth",
+            "Number of unpublished events in outbox",
+        )?;
+        registry.register(Box::new(outbox_queue_depth.clone()))?;
+
         Ok(Self {
             bills_created_total,
             bills_approved_total,
@@ -117,6 +125,7 @@ impl ApMetrics {
             http_request_duration_seconds,
             http_requests_total,
             event_consumer_lag_messages,
+            outbox_queue_depth,
             registry,
         })
     }
@@ -187,6 +196,12 @@ mod tests {
 pub async fn metrics_handler(
     State(app_state): State<Arc<crate::AppState>>,
 ) -> Result<String, (StatusCode, String)> {
+    // Refresh outbox queue depth gauge on each scrape
+    match crate::outbox::count_unpublished(&app_state.pool).await {
+        Ok(depth) => app_state.metrics.outbox_queue_depth.set(depth),
+        Err(e) => tracing::warn!("Failed to fetch outbox queue depth: {}", e),
+    }
+
     // Refresh operational gauges from DB on each scrape.
     match crate::domain::reports::metrics::fetch_snapshot(&app_state.pool).await {
         Ok(snapshot) => {

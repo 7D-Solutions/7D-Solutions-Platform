@@ -9,7 +9,7 @@
 //! EventEnvelope. This provides basic validation but should be migrated
 //! to use the platform EventEnvelope + validation helper in a future bead.
 
-use sqlx::{Postgres, Transaction};
+use sqlx::{PgPool, Postgres, Transaction};
 use uuid::Uuid;
 
 /// Validate outbox event parameters
@@ -32,6 +32,15 @@ fn validate_outbox_event_params(
         return Err("aggregate_id cannot be empty".to_string());
     }
     Ok(())
+}
+
+/// Count unpublished events in the outbox (used for metrics scrape).
+pub async fn count_unpublished(db: &PgPool) -> Result<i64, sqlx::Error> {
+    let row: (i64,) =
+        sqlx::query_as("SELECT COUNT(*) FROM events_outbox WHERE published_at IS NULL")
+            .fetch_one(db)
+            .await?;
+    Ok(row.0)
 }
 
 /// Insert an event into the outbox for later publishing

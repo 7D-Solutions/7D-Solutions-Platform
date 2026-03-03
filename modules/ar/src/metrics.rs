@@ -6,8 +6,8 @@
 use axum::{extract::State, http::StatusCode};
 use projections::metrics::ProjectionMetrics;
 use prometheus::{
-    Encoder, Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGaugeVec, Opts,
-    Registry, TextEncoder,
+    Encoder, Histogram, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge,
+    IntGaugeVec, Opts, Registry, TextEncoder,
 };
 use std::sync::Arc;
 
@@ -23,6 +23,8 @@ pub struct ArMetrics {
     pub http_requests_total: IntCounterVec,
     // SLO: event consumer lag
     pub event_consumer_lag_messages: IntGaugeVec,
+    /// Outbox queue depth — number of unpublished events
+    pub outbox_queue_depth: IntGauge,
     registry: Registry,
 }
 
@@ -96,6 +98,12 @@ impl ArMetrics {
         )?;
         registry.register(Box::new(event_consumer_lag_messages.clone()))?;
 
+        let outbox_queue_depth = IntGauge::new(
+            "ar_outbox_queue_depth",
+            "Number of unpublished events in outbox",
+        )?;
+        registry.register(Box::new(outbox_queue_depth.clone()))?;
+
         Ok(Self {
             invoices_created_total,
             invoices_paid_total,
@@ -104,6 +112,7 @@ impl ArMetrics {
             http_request_duration_seconds,
             http_requests_total,
             event_consumer_lag_messages,
+            outbox_queue_depth,
             registry,
         })
     }
@@ -188,6 +197,12 @@ mod tests {
 pub async fn metrics_handler(
     State(app_state): State<Arc<crate::AppState>>,
 ) -> Result<String, (StatusCode, String)> {
+    // Refresh outbox queue depth gauge on each scrape
+    match crate::events::outbox::count_unpublished(&app_state.pool).await {
+        Ok(depth) => app_state.metrics.outbox_queue_depth.set(depth),
+        Err(e) => tracing::warn!("Failed to fetch outbox queue depth: {}", e),
+    }
+
     let encoder = TextEncoder::new();
 
     // Gather metrics from both AR metrics and projection metrics

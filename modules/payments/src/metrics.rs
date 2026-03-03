@@ -17,7 +17,8 @@
 use lazy_static::lazy_static;
 use projections::metrics::ProjectionMetrics;
 use prometheus::{
-    HistogramOpts, HistogramVec, IntCounterVec, IntGaugeVec, Opts, Registry as PrometheusRegistry,
+    HistogramOpts, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Opts,
+    Registry as PrometheusRegistry,
 };
 use prometheus_client::encoding::EncodeLabelSet;
 use prometheus_client::metrics::counter::Counter;
@@ -87,6 +88,8 @@ lazy_static! {
             .expect("register payments_http_requests_total");
         registry.register(Box::new(PAYMENTS_EVENT_CONSUMER_LAG_MESSAGES.clone()))
             .expect("register payments_event_consumer_lag_messages");
+        registry.register(Box::new(PAYMENTS_OUTBOX_QUEUE_DEPTH.clone()))
+            .expect("register payments_outbox_queue_depth");
         registry
     };
 
@@ -114,6 +117,13 @@ lazy_static! {
         &["consumer_group"],
     )
     .expect("create payments_event_consumer_lag_messages");
+
+    /// Outbox queue depth — number of unpublished events
+    pub static ref PAYMENTS_OUTBOX_QUEUE_DEPTH: IntGauge = IntGauge::new(
+        "payments_outbox_queue_depth",
+        "Number of unpublished events in outbox",
+    )
+    .expect("create payments_outbox_queue_depth");
 }
 
 /// Record an HTTP request for SLO tracking. Labels must not contain PII.

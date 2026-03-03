@@ -7,6 +7,7 @@
 
 | Version | Date | Bead | What Changed | Why | Breaking? |
 |---------|------|------|-------------|-----|-----------|
+| 1.1.15 | 2026-03-03 | bd-mybqv | Added `payments_outbox_queue_depth` gauge metric and `count_unpublished()` to outbox module. Metrics handler refreshes gauge on each Prometheus scrape. | Outbox backlog alerting requires visibility into unpublished event count. | No |
 | 1.1.14 | 2026-03-03 | bd-284l2 | Fixed payment query handler import to use `crate::http::checkout_sessions::extract_tenant` instead of stale `crate::routes` path so the library/test target resolves correctly. | Test target compilation was blocked by unresolved module path (`E0433`) after the routes-to-http layout change. | No |
 | 1.1.13 | 2026-02-28 | bd-2tha0 | Renamed `routes/` directory to `http/` for module naming standardization. Updated all imports in lib.rs, main.rs, and e2e tests. | Consistent directory naming across all modules per MODULE-STANDARD.md. | No |
 | 1.1.12 | 2026-02-27 | bd-1lcy | Dropped `client_secret` column from `checkout_sessions` table. POST create-session still returns client_secret as a pass-through from Tilled API, but it is no longer persisted. GET session response no longer includes client_secret. | Server never reads client_secret after creation — only the browser needs it from the initial POST response. Storing it is unnecessary and a security concern. | No — POST response unchanged. GET response removes `client_secret` field; consumers relying on GET to retrieve the secret must use the POST response instead. |

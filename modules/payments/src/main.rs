@@ -1,5 +1,5 @@
 use axum::{
-    extract::DefaultBodyLimit,
+    extract::{DefaultBodyLimit, State},
     routing::{get, post},
     Extension, Router,
 };
@@ -20,8 +20,16 @@ mod db;
 use payments_rs::Config;
 
 /// Handler for /metrics endpoint
-async fn metrics_handler() -> String {
+async fn metrics_handler(
+    State(state): State<Arc<payments_rs::AppState>>,
+) -> String {
     use prometheus_client::encoding::text::encode;
+
+    // Refresh outbox queue depth gauge on each scrape
+    match payments_rs::events::outbox::count_unpublished(&state.pool).await {
+        Ok(depth) => payments_rs::metrics::PAYMENTS_OUTBOX_QUEUE_DEPTH.set(depth),
+        Err(e) => tracing::warn!("Failed to fetch outbox queue depth: {}", e),
+    }
 
     // Encode prometheus-client metrics
     let registry = payments_rs::metrics::METRICS_REGISTRY
