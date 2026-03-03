@@ -13,7 +13,7 @@
 
 mod common;
 
-use chrono::{NaiveDate, Utc};
+use chrono::{Datelike, NaiveDate, Utc};
 use common::{get_test_pool, log_pool_state};
 use gl_rs::contracts::gl_posting_request_v1::{GlPostingRequestV1, JournalLine, SourceDocType};
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
@@ -580,6 +580,17 @@ async fn test_reversal_succeeds_when_both_periods_open() -> Result<(), sqlx::Err
     let period_b_start = NaiveDate::from_ymd_opt(2026, 2, 1).unwrap();
     let period_b_end = NaiveDate::from_ymd_opt(2026, 2, 28).unwrap();
     let _period_b_id = create_test_period(&pool, &tenant_id, period_b_start, period_b_end).await;
+
+    // Reversal uses Utc::now() as posting date, so we need a period covering today
+    let today = chrono::Utc::now().date_naive();
+    let current_month_start = NaiveDate::from_ymd_opt(today.year(), today.month(), 1).unwrap();
+    let current_month_end = current_month_start
+        .checked_add_months(chrono::Months::new(1))
+        .unwrap()
+        .pred_opt()
+        .unwrap();
+    let _period_current_id =
+        create_test_period(&pool, &tenant_id, current_month_start, current_month_end).await;
 
     // Create test accounts
     create_test_account(
