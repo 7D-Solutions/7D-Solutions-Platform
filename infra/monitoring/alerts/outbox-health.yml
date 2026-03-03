@@ -1,0 +1,94 @@
+# Prometheus Alert Rules: Outbox Backlog & DLQ Growth
+#
+# Phase 65: Outbox backlog alerting + dashboards (bd-mybqv)
+#
+# These rules detect when the outbox publisher is falling behind, events
+# are failing to publish, or DLQ growth indicates systemic retry exhaustion.
+#
+# Metric sources:
+#   {module}_outbox_queue_depth  — gauge, refreshed on each /metrics scrape
+#   dlq_events_total             — counter, incremented on DLQ arrival
+#   outbox_insert_failures_total — counter, incremented on outbox insert failure
+#
+# Thresholds tuning guide: docs/runbooks/outbox-alerting.md
+#
+# Severity levels:
+#   critical — immediate action required (page on-call)
+#   warning  — investigate promptly (non-paging alert)
+
+groups:
+  # ── Outbox Backlog ─────────────────────────────────────────────────────────
+  - name: outbox_backlog
+    interval: 30s
+    rules:
+      # Critical: billing-spine outbox backlog sustained > 100 events for 5 minutes
+      - alert: BillingOutboxBacklogCritical
+        expr: >
+          {__name__=~"(ar|payments|subscriptions)_outbox_queue_depth"} > 100
+        for: 5m
+        labels:
+          severity: critical
+          category: event_delivery
+        annotations:
+          summary: "Billing outbox backlog critical: {{ $labels.__name__ }} = {{ $value }}"
+          description: >
+            {{ $labels.__name__ }} has had more than 100 unpublished events for
+            over 5 minutes. Event delivery to downstream consumers is degraded.
+            Check the outbox publisher task logs and NATS connectivity.
+          runbook_url: "docs/runbooks/outbox-alerting.md#backlog-critical"
+          dashboard_url: "https://grafana.7dsolutions.com/d/outbox-health/outbox-health"
+
+      # Warning: any outbox backlog sustained > 10 events for 10 minutes
+      - alert: OutboxBacklogWarning
+        expr: >
+          {__name__=~".+_outbox_queue_depth"} > 10
+        for: 10m
+        labels:
+          severity: warning
+          category: event_delivery
+        annotations:
+          summary: "Outbox backlog elevated: {{ $labels.__name__ }} = {{ $value }}"
+          description: >
+            {{ $labels.__name__ }} has had more than 10 unpublished events for
+            over 10 minutes. The publisher may be slow or encountering transient
+            errors. Investigate publisher logs.
+          runbook_url: "docs/runbooks/outbox-alerting.md#backlog-warning"
+          dashboard_url: "https://grafana.7dsolutions.com/d/outbox-health/outbox-health"
+
+      # Critical: any outbox backlog sustained > 500 events for 2 minutes
+      # (catastrophic — publisher may be dead)
+      - alert: OutboxBacklogEmergency
+        expr: >
+          {__name__=~".+_outbox_queue_depth"} > 500
+        for: 2m
+        labels:
+          severity: critical
+          category: event_delivery
+        annotations:
+          summary: "Outbox backlog emergency: {{ $labels.__name__ }} = {{ $value }}"
+          description: >
+            {{ $labels.__name__ }} has over 500 unpublished events. The outbox
+            publisher task is likely dead or NATS is unreachable. Immediate
+            intervention required — downstream consumers are not receiving events.
+          runbook_url: "docs/runbooks/outbox-alerting.md#backlog-emergency"
+          dashboard_url: "https://grafana.7dsolutions.com/d/outbox-health/outbox-health"
+
+  # ── DLQ Growth ─────────────────────────────────────────────────────────────
+  - name: outbox_dlq_growth
+    interval: 60s
+    rules:
+      # Warning: DLQ growing steadily (> 1 event/min sustained)
+      - alert: DLQGrowthWarning
+        expr: rate(dlq_events_total[10m]) * 60 > 1
+        for: 10m
+        labels:
+          severity: warning
+          category: platform_health
+        annotations:
+          summary: "DLQ growth detected: {{ $value | printf \"%.1f\" }} events/min"
+          description: >
+            DLQ is accumulating events at {{ $value | printf "%.1f" }} per minute
+            sustained over 10 minutes. Some event consumers are failing to process
+            events after retries. Investigate consumer logs and downstream health.
+          runbook_url: "docs/runbooks/outbox-alerting.md#dlq-growth"
+          dashboard_url: "https://grafana.7dsolutions.com/d/outbox-health/outbox-health"
