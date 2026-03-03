@@ -109,6 +109,7 @@ async fn setup_pool() -> PgPool {
     let url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set for benchmarks");
     let pool = PgPoolOptions::new()
         .max_connections(5)
+        .acquire_timeout(std::time::Duration::from_secs(10))
         .connect(&url)
         .await
         .expect("Failed to connect to party DB");

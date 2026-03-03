@@ -10,6 +10,9 @@
     "tenant_id",
     "source_module",
     "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
     "payload"
   ],
   "properties": {
@@ -18,6 +21,11 @@
       "format": "uuid",
       "description": "Unique event identifier (idempotency key)"
     },
+    "event_type": {
+      "type": "string",
+      "const": "party.created",
+      "description": "Event type following entity.action convention"
+    },
     "occurred_at": {
       "type": "string",
       "format": "date-time",
@@ -25,6 +33,7 @@
     },
     "tenant_id": {
       "type": "string",
+      "minLength": 1,
       "description": "Tenant/app identifier for multi-tenant isolation"
     },
     "source_module": {
@@ -36,6 +45,20 @@
       "type": "string",
       "pattern": "^\\d+\\.\\d+\\.\\d+$",
       "description": "Semantic version of the source module"
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Schema version of the payload"
+    },
+    "replay_safe": {
+      "type": "boolean",
+      "description": "Whether the event can be safely replayed"
+    },
+    "mutation_class": {
+      "type": "string",
+      "enum": ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"],
+      "description": "Classification of the mutation"
     },
     "correlation_id": {
       "type": "string",
