@@ -34,5 +34,13 @@ serial_test = "3.3.1"
 uuid = { version = "1", features = ["v4"] }
 tax-core = { path = "../../platform/tax-core" }
 
+[[bin]]
+name = "bench"
+path = "src/bin/bench.rs"
+
+[[bin]]
+name = "dlq_replay_drill"
+path = "src/bin/dlq_replay_drill.rs"
+
 [lints]
 workspace = true
