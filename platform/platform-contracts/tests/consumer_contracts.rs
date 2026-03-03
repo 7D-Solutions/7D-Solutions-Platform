@@ -179,6 +179,24 @@ struct NumberAllocatedPayload {
     idempotency_key: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct NumberConfirmedPayload {
+    tenant_id: String,
+    entity: String,
+    number_value: i64,
+    idempotency_key: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PolicyUpdatedPayload {
+    tenant_id: String,
+    entity: String,
+    pattern: String,
+    prefix: String,
+    padding: i32,
+    version: i32,
+}
+
 // ── Doc Mgmt Event Payloads ─────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -575,6 +593,78 @@ fn numbering_number_allocated_schema_validation() {
         },
     );
     validate_against_schema(&json, "numbering-number-allocated.v1.json");
+}
+
+#[test]
+fn numbering_number_confirmed_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "numbering",
+        "number.confirmed",
+        mutation_classes::DATA_MUTATION,
+        NumberConfirmedPayload {
+            tenant_id: "tenant-001".into(),
+            entity: "invoice".into(),
+            number_value: 42,
+            idempotency_key: "inv:create:tenant-001:req-1".into(),
+        },
+    );
+    assert_envelope_completeness(&json, "numbering/number.confirmed");
+}
+
+#[test]
+fn numbering_number_confirmed_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "numbering",
+        "number.confirmed",
+        mutation_classes::DATA_MUTATION,
+        NumberConfirmedPayload {
+            tenant_id: "tenant-001".into(),
+            entity: "work_order".into(),
+            number_value: 7,
+            idempotency_key: "wo:confirm:tenant-001:req-1".into(),
+        },
+    );
+    validate_against_schema(&json, "numbering-number-confirmed.v1.json");
+}
+
+#[test]
+fn numbering_policy_updated_envelope_completeness() {
+    let json = build_envelope(
+        "tenant-001",
+        "numbering",
+        "policy.updated",
+        mutation_classes::DATA_MUTATION,
+        PolicyUpdatedPayload {
+            tenant_id: "tenant-001".into(),
+            entity: "invoice".into(),
+            pattern: "{prefix}-{YYYY}-{number}".into(),
+            prefix: "INV".into(),
+            padding: 5,
+            version: 1,
+        },
+    );
+    assert_envelope_completeness(&json, "numbering/policy.updated");
+}
+
+#[test]
+fn numbering_policy_updated_schema_validation() {
+    let json = build_envelope(
+        "tenant-001",
+        "numbering",
+        "policy.updated",
+        mutation_classes::DATA_MUTATION,
+        PolicyUpdatedPayload {
+            tenant_id: "tenant-001".into(),
+            entity: "work_order".into(),
+            pattern: "{prefix}-{number}".into(),
+            prefix: "WO".into(),
+            padding: 4,
+            version: 2,
+        },
+    );
+    validate_against_schema(&json, "numbering-policy-updated.v1.json");
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -1916,6 +2006,8 @@ fn all_phase57_event_types_follow_naming_convention() {
 fn all_phase57_nats_subjects_have_correct_prefix() {
     let module_events = [
         ("numbering", "number.allocated"),
+        ("numbering", "number.confirmed"),
+        ("numbering", "policy.updated"),
         ("doc_mgmt", "document.created"),
         ("doc_mgmt", "document.released"),
         ("doc_mgmt", "revision.created"),
@@ -1976,6 +2068,8 @@ fn all_phase57_nats_subjects_have_correct_prefix() {
 fn all_phase57_schemas_exist_on_disk() {
     let schemas = [
         "numbering-number-allocated.v1.json",
+        "numbering-number-confirmed.v1.json",
+        "numbering-policy-updated.v1.json",
         "doc-mgmt-document-created.v1.json",
         "doc-mgmt-document-released.v1.json",
         "doc-mgmt-revision-created.v1.json",
@@ -2032,6 +2126,8 @@ fn all_phase57_schemas_exist_on_disk() {
 fn all_phase57_schemas_have_schema_version_field() {
     let schemas = [
         "numbering-number-allocated.v1.json",
+        "numbering-number-confirmed.v1.json",
+        "numbering-policy-updated.v1.json",
         "doc-mgmt-document-created.v1.json",
         "doc-mgmt-document-released.v1.json",
         "doc-mgmt-revision-created.v1.json",
@@ -3926,4 +4022,85 @@ fn party_is_not_financial_module() {
         !mutation_classes::FINANCIAL_MODULES.contains(&"party"),
         "party should not be listed as a financial module"
     );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// NUMBERING GATE B
+// ══════════════════════════════════════════════════════════════════════
+
+#[test]
+fn numbering_gate_b_schemas_exist_on_disk() {
+    let schemas = [
+        "numbering-number-allocated.v1.json",
+        "numbering-number-confirmed.v1.json",
+        "numbering-policy-updated.v1.json",
+    ];
+
+    let events_dir = contracts_dir().join("events");
+    for schema_name in &schemas {
+        let path = events_dir.join(schema_name);
+        assert!(path.exists(), "Schema file missing: {}", path.display());
+
+        let content = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("Cannot read {}: {}", schema_name, e));
+        let _: serde_json::Value = serde_json::from_str(&content)
+            .unwrap_or_else(|e| panic!("Invalid JSON in {}: {}", schema_name, e));
+    }
+}
+
+#[test]
+fn numbering_gate_b_schemas_require_envelope_fields() {
+    let schemas = [
+        "numbering-number-allocated.v1.json",
+        "numbering-number-confirmed.v1.json",
+        "numbering-policy-updated.v1.json",
+    ];
+
+    for schema_name in &schemas {
+        let schema = load_schema(schema_name);
+        let required = schema["required"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{} has no 'required' array", schema_name));
+        let required_strs: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
+
+        for field in [
+            "event_id",
+            "occurred_at",
+            "tenant_id",
+            "source_module",
+            "source_version",
+            "schema_version",
+            "replay_safe",
+            "mutation_class",
+            "payload",
+        ] {
+            assert!(
+                required_strs.contains(&field),
+                "{} missing required envelope field '{}'",
+                schema_name,
+                field
+            );
+        }
+    }
+}
+
+#[test]
+fn numbering_all_events_have_contract_tests() {
+    let tested_event_types = [
+        "number.allocated",
+        "number.confirmed",
+        "policy.updated",
+    ];
+    assert_eq!(
+        tested_event_types.len(),
+        3,
+        "Must have contract tests for all 3 numbering event types"
+    );
+    for et in &tested_event_types {
+        assert!(
+            event_naming::validate_event_type(et).is_ok(),
+            "Event type '{}' does not follow entity.action convention",
+            et
+        );
+    }
 }
