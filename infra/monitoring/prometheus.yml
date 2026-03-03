@@ -5,6 +5,11 @@ global:
     environment: 'production'
     project: '7d-solutions-platform'
 
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['7d-alertmanager:9093']
+
 rule_files:
   - '/etc/prometheus/alerts/*.yml'
 

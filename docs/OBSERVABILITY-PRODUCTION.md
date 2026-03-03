@@ -8,7 +8,7 @@ This document covers the metrics, health checks, alerting, and log access for th
 |-----------|------|---------|
 | Metrics | Prometheus | Scrapes `/metrics` from all services every 15 s |
 | Dashboards | Grafana | Visualises billing health, payment unknowns, invariant failures |
-| Alerts | Prometheus alert rules | Pages on service down, billing stall, payment failure rate |
+| Alerts | Prometheus → Alertmanager | Pages on service down, billing stall, payment failure rate |
 | Health checks | `/healthz` + `/api/ready` | Liveness and readiness probes (see `docs/HEALTH-CONTRACT.md`) |
 | Logs | Docker log driver (`json-file`) | Accessed via `docker logs` or SSH on the VPS |
 | Audit | `scripts/production/health_audit.sh` | Standalone DB + HTTP endpoint audit (run on VPS) |
@@ -24,20 +24,25 @@ export GRAFANA_ADMIN_PASSWORD="<secret>"
 docker compose -f docker-compose.monitoring.yml up -d
 ```
 
-The stack adds two containers to the `7d-platform` network:
-- `7d-prometheus` — scrapes all service `/metrics` endpoints
+The stack adds three containers to the `7d-platform` network:
+- `7d-alertmanager` — receives alerts from Prometheus, routes and deduplicates, sends notifications
+- `7d-prometheus` — scrapes all service `/metrics` endpoints, evaluates alert rules
 - `7d-grafana` — Grafana UI (auto-provisions Prometheus datasource and dashboards)
 
-Both ports are bound to `127.0.0.1` only; UFW blocks external access. Use SSH tunnels to access:
+All ports are bound to `127.0.0.1` only; UFW blocks external access. Use SSH tunnels to access:
 
 ```bash
-# Grafana UI
-ssh -L 3002:localhost:3002 deploy@prod.7dsolutions.example.com
-# → open http://localhost:3002
-
 # Prometheus UI
 ssh -L 9091:localhost:9091 deploy@prod.7dsolutions.example.com
 # → open http://localhost:9091
+
+# Alertmanager UI
+ssh -L 9093:localhost:9093 deploy@prod.7dsolutions.example.com
+# → open http://localhost:9093
+
+# Grafana UI
+ssh -L 3002:localhost:3002 deploy@prod.7dsolutions.example.com
+# → open http://localhost:3002
 ```
 
 ## Metrics Endpoints
@@ -94,7 +99,7 @@ bash scripts/production/smoke.sh --host prod.7dsolutions.example.com
 
 ## Alert Rules
 
-Alert rules are stored in `infra/monitoring/alerts/` and loaded by Prometheus automatically. Grafana Alertmanager is not required — Prometheus evaluates rules and fires to an external receiver (configure `alertmanager.yml` for your notification channel).
+Alert rules are stored in `infra/monitoring/alerts/` and loaded by Prometheus automatically. Prometheus evaluates rules and sends firing alerts to Alertmanager, which handles grouping, deduplication, inhibition, and notification delivery.
 
 | Rule file | Coverage |
 |-----------|---------|
@@ -102,12 +107,68 @@ Alert rules are stored in `infra/monitoring/alerts/` and loaded by Prometheus au
 | `payment-unknown.yml` | Payments stuck in UNKNOWN state >30 min (warning) / >1 h (critical) |
 | `invariant-failure.yml` | GL / AR / Payments / Subscriptions invariant violations |
 | `latency-slo.yml` | Per-endpoint HTTP latency SLOs and 5xx error rates (auth, AR, payments, TTP) |
+| `outbox-health.yml` | Outbox backlog, DLQ growth, outbox insert failures |
 
 > **SLO baseline re-sampling:** Thresholds in `latency-slo.yml` are pre-production baselines derived
 > from k6 load testing and staging drills. After the first 72 h of real production traffic, re-sample
 > p95/p99 using the PromQL queries in `docs/ALERT-THRESHOLDS.md §7` and update the alert rules.
 > Repeat monthly (first Monday) and after any major release. See `docs/ALERT-THRESHOLDS.md` for the
 > full re-sampling procedure.
+
+## Alertmanager
+
+Alertmanager receives alerts from Prometheus and routes them to notification channels. Configuration: `infra/monitoring/alertmanager.yml`.
+
+### Routing
+
+| Alert category | Group wait | Repeat interval | Rationale |
+|---------------|------------|-----------------|-----------|
+| Billing-spine critical (AR, Payments, Subscriptions, TTP) | 10 s | 5 min | Revenue-impacting — page immediately |
+| Platform availability critical (auth, control-plane, NATS) | 10 s | 5 min | All services depend on these |
+| Data integrity critical (invariant violations, outbox) | 10 s | 5 min | Financial data corruption risk |
+| All warnings | 5 min | 4 h | Investigate promptly but don't page |
+| Everything else | 30 s | 4 h | Default catch-all |
+
+### Inhibition
+
+- Critical alerts suppress warnings for the same alert name (avoids duplicate noise).
+- `NATSDown` suppresses all event-delivery warnings (downstream effect of bus outage).
+
+### Notification Channel
+
+The default receiver is `ops-webhook`, configured to POST alert payloads to a webhook URL. To change the notification channel:
+
+1. Edit `infra/monitoring/alertmanager.yml`
+2. Replace the `receivers` section with your preferred channel (Slack, email, PagerDuty)
+3. Reload Alertmanager: `curl -X POST http://localhost:9093/-/reload`
+
+Example Slack receiver:
+```yaml
+receivers:
+  - name: ops-webhook
+    slack_configs:
+      - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+        channel: '#ops-alerts'
+        send_resolved: true
+        title: '{{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+```
+
+### Verifying Alertmanager
+
+```bash
+# Health check
+curl -s http://localhost:9093/-/healthy
+
+# View active alerts
+curl -s http://localhost:9093/api/v2/alerts | jq .
+
+# View silences
+curl -s http://localhost:9093/api/v2/silences | jq .
+
+# Reload config after editing alertmanager.yml
+curl -X POST http://localhost:9093/-/reload
+```
 
 ### Critical Alerts — Immediate Action Required
 
@@ -198,4 +259,6 @@ After provisioning a new VPS:
 5. Verify alert rules loaded: Prometheus → Alerts (all rules should be listed).
 6. Run the health audit: `bash scripts/production/health_audit.sh`
 7. Run the smoke suite: `bash scripts/production/smoke.sh --host <VPS> --dry-run` then without `--dry-run`.
-8. Configure an alert receiver in `infra/monitoring/alertmanager.yml` (email, Slack, PagerDuty).
+8. Alertmanager starts automatically with the monitoring stack. Edit `infra/monitoring/alertmanager.yml` to set your notification channel (Slack, email, PagerDuty).
+9. Verify Alertmanager is healthy: `curl -s http://localhost:9093/-/healthy`
+10. Verify Prometheus is connected: Prometheus → Status → Alertmanagers (should show `7d-alertmanager:9093`).

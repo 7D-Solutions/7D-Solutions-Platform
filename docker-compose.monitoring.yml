@@ -1,21 +1,43 @@
 name: 7d-monitoring
 
-# Minimal production observability stack: Prometheus + Grafana.
+# Production observability stack: Prometheus + Alertmanager + Grafana.
 #
 # Start AFTER the platform and services stacks:
 #   docker compose -f docker-compose.monitoring.yml up -d
 #
-# In production, Prometheus and Grafana ports are firewalled by UFW.
-# Access Grafana via SSH tunnel:
-#   ssh -L 3001:localhost:3001 deploy@prod.7dsolutions.example.com
-# Access Prometheus via SSH tunnel:
-#   ssh -L 9090:localhost:9090 deploy@prod.7dsolutions.example.com
+# In production, all ports are firewalled by UFW (bound to 127.0.0.1).
+# Access via SSH tunnel:
+#   ssh -L 9091:localhost:9091 deploy@prod.7dsolutions.example.com   # Prometheus
+#   ssh -L 9093:localhost:9093 deploy@prod.7dsolutions.example.com   # Alertmanager
+#   ssh -L 3002:localhost:3002 deploy@prod.7dsolutions.example.com   # Grafana
 #
 # Prometheus scrapes /metrics from all platform services on the 7d-platform network.
 # Alert rules live in infra/monitoring/alerts/*.yml.
+# Alertmanager config: infra/monitoring/alertmanager.yml
 # Grafana dashboards live in infra/monitoring/grafana/dashboards/*.json.
 
 services:
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: 7d-alertmanager
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.listen-address=:9093'
+    volumes:
+      - ./infra/monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    ports:
+      - "127.0.0.1:9093:9093"
+    networks:
+      - 7d-platform
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "monitoring"
+      com.7dsolutions.component: "alertmanager"
+      com.7dsolutions.env: "production"
+
   prometheus:
     image: prom/prometheus:v2.50.1
     container_name: 7d-prometheus
@@ -33,6 +55,8 @@ services:
       - "127.0.0.1:9091:9090"
     networks:
       - 7d-platform
+    depends_on:
+      - alertmanager
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "monitoring"
@@ -67,6 +91,8 @@ services:
       com.7dsolutions.env: "production"
 
 volumes:
+  alertmanager_data:
+    name: 7d-alertmanager-data
   prometheus_data:
     name: 7d-prometheus-data
   grafana_data:

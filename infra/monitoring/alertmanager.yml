@@ -1,0 +1,101 @@
+# Alertmanager Configuration — 7D Solutions Platform
+#
+# Phase 66: Wire up Alertmanager (bd-3w4ho)
+#
+# Routing strategy:
+#   - Billing-spine alerts (AR, Payments, Subscriptions, TTP) → immediate delivery
+#   - Platform availability alerts (auth, control-plane, NATS) → immediate delivery
+#   - All other modules → standard 5-minute grouping
+#
+# Receiver setup:
+#   By default, alerts go to the 'ops-webhook' receiver which posts to a
+#   configurable webhook URL. Set ALERTMANAGER_WEBHOOK_URL in your env.
+#
+#   To switch to Slack, email, or PagerDuty, replace the receiver config
+#   below. See: https://prometheus.io/docs/alerting/latest/configuration/
+#
+# Inhibition:
+#   - Critical alerts suppress warning alerts for the same module
+#   - NATSDown suppresses all event-delivery warnings (downstream effect)
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: ops-webhook
+  group_by: ['alertname', 'module', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # Billing-spine critical — page immediately, repeat every 5 minutes
+    - match_re:
+        module: 'ar|payments|subscriptions'
+      match:
+        severity: critical
+      receiver: ops-webhook
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 5m
+      continue: false
+
+    # TTP billing runs — same urgency as billing spine
+    - match:
+        service: ttp
+        severity: critical
+      receiver: ops-webhook
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 5m
+      continue: false
+
+    # Platform availability critical (auth, control-plane, NATS)
+    - match:
+        category: availability
+        severity: critical
+      receiver: ops-webhook
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 5m
+      continue: false
+
+    # Data integrity critical (invariant violations, outbox failures)
+    - match_re:
+        category: 'data_integrity|financial_integrity'
+      match:
+        severity: critical
+      receiver: ops-webhook
+      group_wait: 10s
+      group_interval: 1m
+      repeat_interval: 5m
+      continue: false
+
+    # All warnings — standard grouping, repeat every 4 hours
+    - match:
+        severity: warning
+      receiver: ops-webhook
+      group_wait: 5m
+      group_interval: 10m
+      repeat_interval: 4h
+
+receivers:
+  - name: ops-webhook
+    webhook_configs:
+      - url: 'http://host.docker.internal:9095/alertmanager'
+        send_resolved: true
+
+inhibit_rules:
+  # Critical suppresses warning for same alertname
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['alertname']
+
+  # NATS down suppresses all event-delivery warnings
+  - source_match:
+      alertname: NATSDown
+    target_match:
+      category: event_delivery
+    equal: []
