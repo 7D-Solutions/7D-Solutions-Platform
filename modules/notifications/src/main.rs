@@ -157,7 +157,17 @@ async fn main() {
             ])),
         )
         .merge(
-            http::dlq::dlq_mutate_router(db).route_layer(RequirePermissionsLayer::new(&[
+            http::dlq::dlq_mutate_router(db.clone()).route_layer(RequirePermissionsLayer::new(&[
+                permissions::NOTIFICATIONS_MUTATE,
+            ])),
+        )
+        .merge(
+            http::inbox::inbox_read_router(db.clone()).route_layer(
+                RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
+            ),
+        )
+        .merge(
+            http::inbox::inbox_mutate_router(db).route_layer(RequirePermissionsLayer::new(&[
                 permissions::NOTIFICATIONS_MUTATE,
             ])),
         )
