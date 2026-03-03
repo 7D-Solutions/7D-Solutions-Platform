@@ -1,7 +1,9 @@
 //! Core workflow types and status enums.
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -39,6 +41,63 @@ pub struct StepDefinition {
     pub name: String,
     pub step_type: String,
     pub position: i32,
+}
+
+// ── Routing mode ─────────────────────────────────────────────
+
+/// How a step collects decisions and determines the next step.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum RoutingMode {
+    /// Single decision advances to the specified target step (default).
+    Sequential,
+    /// N-of-M actors must decide before advancing.
+    Parallel {
+        threshold: u32,
+    },
+    /// Evaluate conditions against instance context to pick a branch.
+    Conditional {
+        conditions: Vec<BranchCondition>,
+    },
+}
+
+impl Default for RoutingMode {
+    fn default() -> Self {
+        RoutingMode::Sequential
+    }
+}
+
+/// A single condition→target mapping for conditional routing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BranchCondition {
+    /// JSON-path–style field name in instance context (e.g. "amount").
+    pub field: Option<String>,
+    /// Comparison operator: "eq", "neq", "gt", "gte", "lt", "lte", "in".
+    pub op: Option<String>,
+    /// Value to compare against (JSON scalar or array for "in").
+    pub value: Option<serde_json::Value>,
+    /// The step to route to if this condition matches.
+    pub target_step: String,
+    /// If true, this is the fallback when no other condition matches.
+    #[serde(default)]
+    pub default: bool,
+}
+
+// ── Step decision ────────────────────────────────────────────
+
+/// A single actor's decision at a parallel step.
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct StepDecision {
+    pub id: Uuid,
+    pub tenant_id: String,
+    pub instance_id: Uuid,
+    pub step_id: String,
+    pub actor_id: Uuid,
+    pub actor_type: String,
+    pub decision: String,
+    pub comment: Option<String>,
+    pub metadata: Option<serde_json::Value>,
+    pub decided_at: DateTime<Utc>,
 }
 
 #[cfg(test)]
