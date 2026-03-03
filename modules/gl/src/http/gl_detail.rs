@@ -14,6 +14,7 @@ use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
 
+use super::auth::extract_tenant;
 use crate::services::gl_detail_service::{self, GLDetailResponse};
 
 /// Query parameters for GL detail endpoint
@@ -67,12 +68,10 @@ pub async fn get_gl_detail(
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<GLDetailQuery>,
 ) -> Result<Json<GLDetailResponse>, GLDetailErrorResponse> {
-    let tenant_id = claims
-        .map(|Extension(c)| c.tenant_id.to_string())
-        .ok_or_else(|| GLDetailErrorResponse {
-            status: StatusCode::UNAUTHORIZED,
-            message: "Missing or invalid authentication".to_string(),
-        })?;
+    let tenant_id = extract_tenant(&claims).map_err(|(_, msg)| GLDetailErrorResponse {
+        status: StatusCode::UNAUTHORIZED,
+        message: msg,
+    })?;
 
     // Call service layer
     let response = gl_detail_service::get_gl_detail(
