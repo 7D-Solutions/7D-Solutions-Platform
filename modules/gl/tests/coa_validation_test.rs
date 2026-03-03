@@ -1,4 +1,4 @@
-use chrono::Utc;
+use chrono::{NaiveDate, Utc};
 use gl_rs::contracts::gl_posting_request_v1::{GlPostingRequestV1, JournalLine, SourceDocType};
 use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
@@ -32,6 +32,7 @@ async fn insert_test_account(
         r#"
         INSERT INTO accounts (id, tenant_id, code, name, type, normal_balance, is_active, created_at)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ON CONFLICT (tenant_id, code) DO NOTHING
         "#,
     )
     .bind(id)
@@ -47,6 +48,34 @@ async fn insert_test_account(
     .expect("Failed to insert test account");
 
     id
+}
+
+/// Helper to create a test accounting period
+async fn insert_test_period(
+    pool: &PgPool,
+    tenant_id: &str,
+    period_start: NaiveDate,
+    period_end: NaiveDate,
+) -> Uuid {
+    let period_id = Uuid::new_v4();
+
+    sqlx::query(
+        r#"
+        INSERT INTO accounting_periods (id, tenant_id, period_start, period_end, is_closed, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        "#,
+    )
+    .bind(period_id)
+    .bind(tenant_id)
+    .bind(period_start)
+    .bind(period_end)
+    .bind(false)
+    .bind(Utc::now())
+    .execute(pool)
+    .await
+    .expect("Failed to insert test period");
+
+    period_id
 }
 
 /// Helper to cleanup test data
@@ -68,23 +97,38 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
         .await
         .expect("Failed to cleanup processed events");
 
+    sqlx::query("DELETE FROM account_balances WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
+
     sqlx::query("DELETE FROM accounts WHERE tenant_id = $1")
         .bind(tenant_id)
         .execute(pool)
         .await
         .expect("Failed to cleanup accounts");
+
+    sqlx::query("DELETE FROM accounting_periods WHERE tenant_id = $1")
+        .bind(tenant_id)
+        .execute(pool)
+        .await
+        .ok();
 }
 
 #[tokio::test]
 #[serial]
 async fn test_posting_succeeds_with_valid_accounts() {
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-coa-001";
+    let tenant_id = Uuid::new_v4().to_string();
+
+    // Cleanup any leftover data
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup: Create active accounts
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "1200",
         "Accounts Receivable",
         AccountType::Asset,
@@ -95,12 +139,21 @@ async fn test_posting_succeeds_with_valid_accounts() {
 
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "4000",
         "Revenue",
         AccountType::Revenue,
         NormalBalance::Credit,
         true,
+    )
+    .await;
+
+    // Setup accounting period covering the posting date
+    insert_test_period(
+        &pool,
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 2, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 2, 29).expect("valid date"),
     )
     .await;
 
@@ -135,7 +188,7 @@ async fn test_posting_succeeds_with_valid_accounts() {
     let result = process_gl_posting_request(
         &pool,
         event_id,
-        tenant_id,
+        &tenant_id,
         "ar",
         "ar.invoice.created",
         &payload,
@@ -144,9 +197,7 @@ async fn test_posting_succeeds_with_valid_accounts() {
     .await;
 
     // Should succeed
-    assert!(result.is_ok(), "Posting should succeed with valid accounts");
-
-    let entry_id = result.unwrap();
+    let entry_id = result.expect("Posting should succeed with valid accounts");
 
     // Verify journal entry was created
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM journal_entries WHERE id = $1")
@@ -158,19 +209,21 @@ async fn test_posting_succeeds_with_valid_accounts() {
     assert_eq!(count, 1, "Journal entry should be created");
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
 #[serial]
 async fn test_posting_fails_account_not_found() {
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-coa-002";
+    let tenant_id = Uuid::new_v4().to_string();
+
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup: Create only one account (missing the second one)
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "1200",
         "Accounts Receivable",
         AccountType::Asset,
@@ -210,7 +263,7 @@ async fn test_posting_fails_account_not_found() {
     let result = process_gl_posting_request(
         &pool,
         event_id,
-        tenant_id,
+        &tenant_id,
         "ar",
         "ar.invoice.created",
         &payload,
@@ -238,7 +291,7 @@ async fn test_posting_fails_account_not_found() {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1 AND reference_id = $2",
     )
-    .bind(tenant_id)
+    .bind(&tenant_id)
     .bind("inv_coa_002")
     .fetch_one(&pool)
     .await
@@ -250,19 +303,21 @@ async fn test_posting_fails_account_not_found() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
 #[serial]
 async fn test_posting_fails_account_inactive() {
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-coa-003";
+    let tenant_id = Uuid::new_v4().to_string();
+
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup: Create accounts, one inactive
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "1200",
         "Accounts Receivable",
         AccountType::Asset,
@@ -273,7 +328,7 @@ async fn test_posting_fails_account_inactive() {
 
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "4000",
         "Inactive Revenue",
         AccountType::Revenue,
@@ -313,7 +368,7 @@ async fn test_posting_fails_account_inactive() {
     let result = process_gl_posting_request(
         &pool,
         event_id,
-        tenant_id,
+        &tenant_id,
         "ar",
         "ar.invoice.created",
         &payload,
@@ -338,7 +393,7 @@ async fn test_posting_fails_account_inactive() {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1 AND reference_id = $2",
     )
-    .bind(tenant_id)
+    .bind(&tenant_id)
     .bind("inv_coa_003")
     .fetch_one(&pool)
     .await
@@ -350,19 +405,21 @@ async fn test_posting_fails_account_inactive() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
 #[serial]
 async fn test_posting_validates_all_lines() {
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-coa-004";
+    let tenant_id = Uuid::new_v4().to_string();
+
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup: Create only one account
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "1200",
         "Accounts Receivable",
         AccountType::Asset,
@@ -409,7 +466,7 @@ async fn test_posting_validates_all_lines() {
     let result = process_gl_posting_request(
         &pool,
         event_id,
-        tenant_id,
+        &tenant_id,
         "ar",
         "ar.invoice.created",
         &payload,
@@ -431,19 +488,21 @@ async fn test_posting_validates_all_lines() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
 #[serial]
 async fn test_posting_preserves_idempotency_with_coa_validation() {
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-coa-005";
+    let tenant_id = Uuid::new_v4().to_string();
+
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup: Create active accounts
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "1200",
         "Accounts Receivable",
         AccountType::Asset,
@@ -454,12 +513,21 @@ async fn test_posting_preserves_idempotency_with_coa_validation() {
 
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "4000",
         "Revenue",
         AccountType::Revenue,
         NormalBalance::Credit,
         true,
+    )
+    .await;
+
+    // Setup accounting period covering the posting date
+    insert_test_period(
+        &pool,
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 2, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 2, 29).expect("valid date"),
     )
     .await;
 
@@ -494,7 +562,7 @@ async fn test_posting_preserves_idempotency_with_coa_validation() {
     let result1 = process_gl_posting_request(
         &pool,
         event_id,
-        tenant_id,
+        &tenant_id,
         "ar",
         "ar.invoice.created",
         &payload,
@@ -508,7 +576,7 @@ async fn test_posting_preserves_idempotency_with_coa_validation() {
     let result2 = process_gl_posting_request(
         &pool,
         event_id,
-        tenant_id,
+        &tenant_id,
         "ar",
         "ar.invoice.created",
         &payload,
@@ -532,7 +600,7 @@ async fn test_posting_preserves_idempotency_with_coa_validation() {
     let count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*) FROM journal_entries WHERE tenant_id = $1 AND reference_id = $2",
     )
-    .bind(tenant_id)
+    .bind(&tenant_id)
     .bind("inv_coa_005")
     .fetch_one(&pool)
     .await
@@ -541,5 +609,5 @@ async fn test_posting_preserves_idempotency_with_coa_validation() {
     assert_eq!(count, 1, "Only one journal entry should exist");
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
