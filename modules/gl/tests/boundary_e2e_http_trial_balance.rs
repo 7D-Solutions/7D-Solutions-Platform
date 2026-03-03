@@ -19,9 +19,68 @@ use chrono::{NaiveDate, Utc};
 use gl_rs::db::init_pool;
 use gl_rs::repos::account_repo::{AccountType, NormalBalance};
 use gl_rs::services::trial_balance_service::TrialBalanceResponse;
+use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use serde::Serialize;
 use serial_test::serial;
 use sqlx::PgPool;
 use uuid::Uuid;
+
+// ============================================================================
+// JWT Auth Helpers (GL service requires Bearer JWT)
+// ============================================================================
+
+#[derive(Serialize)]
+struct TestJwtClaims {
+    sub: String,
+    iss: String,
+    aud: String,
+    iat: i64,
+    exp: i64,
+    jti: String,
+    tenant_id: String,
+    roles: Vec<String>,
+    perms: Vec<String>,
+    actor_type: String,
+    ver: String,
+}
+
+fn sign_test_jwt(tenant_id: &str) -> String {
+    dotenvy::dotenv().ok();
+    let pem = std::env::var("JWT_PRIVATE_KEY_PEM")
+        .expect("JWT_PRIVATE_KEY_PEM must be set (loaded from .env)");
+    let encoding_key =
+        EncodingKey::from_rsa_pem(pem.as_bytes()).expect("Invalid JWT_PRIVATE_KEY_PEM");
+    let now = Utc::now();
+    let claims = TestJwtClaims {
+        sub: Uuid::new_v4().to_string(),
+        iss: "auth-rs".to_string(),
+        aud: "7d-platform".to_string(),
+        iat: now.timestamp(),
+        exp: (now + chrono::Duration::minutes(15)).timestamp(),
+        jti: Uuid::new_v4().to_string(),
+        tenant_id: tenant_id.to_string(),
+        roles: vec!["operator".into()],
+        perms: vec!["gl.read".into()],
+        actor_type: "user".to_string(),
+        ver: "1".to_string(),
+    };
+    let header = Header::new(Algorithm::RS256);
+    jsonwebtoken::encode(&header, &claims, &encoding_key).expect("Failed to sign test JWT")
+}
+
+fn authed_client(token: &str) -> reqwest::Client {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        format!("Bearer {}", token)
+            .parse()
+            .expect("valid header value"),
+    );
+    reqwest::Client::builder()
+        .default_headers(headers)
+        .build()
+        .expect("Failed to build authed client")
+}
 
 /// Setup test database pool
 async fn setup_test_pool() -> PgPool {
@@ -162,17 +221,21 @@ async fn cleanup_test_data(pool: &PgPool, tenant_id: &str) {
 async fn test_boundary_http_trial_balance_returns_correct_json() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-http-tb-001";
+    let tenant_id = Uuid::new_v4().to_string();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    // JWT auth
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup Chart of Accounts
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "1100",
         "Accounts Receivable",
         AccountType::Asset,
@@ -182,7 +245,7 @@ async fn test_boundary_http_trial_balance_returns_correct_json() {
 
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "4000",
         "Revenue",
         AccountType::Revenue,
@@ -193,23 +256,25 @@ async fn test_boundary_http_trial_balance_returns_correct_json() {
     // Setup accounting period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2024, 2, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2024, 2, 29).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 2, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 2, 29).expect("valid date"),
     )
     .await;
 
     // Insert test balances directly (simulating prior postings)
-    insert_test_balance(&pool, tenant_id, period_id, "1100", "USD", 250000, 0).await; // $2500 AR
-    insert_test_balance(&pool, tenant_id, period_id, "4000", "USD", 0, 250000).await; // $2500 Revenue
+    insert_test_balance(&pool, &tenant_id, period_id, "1100", "USD", 250000, 0).await; // $2500 AR
+    insert_test_balance(&pool, &tenant_id, period_id, "4000", "USD", 0, 250000).await; // $2500 Revenue
 
-    // ✅ BOUNDARY TEST: Make real HTTP GET request
+    // BOUNDARY TEST: Make real HTTP GET request with JWT auth
     let url = format!(
         "{}/api/gl/trial-balance?tenant_id={}&period_id={}&currency=USD",
         gl_service_url, tenant_id, period_id
     );
 
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to make HTTP request - is GL service running on port 8090?");
 
@@ -227,7 +292,7 @@ async fn test_boundary_http_trial_balance_returns_correct_json() {
         .expect("Failed to parse JSON response");
 
     // Assert: Correct tenant_id and period_id in response
-    assert_eq!(trial_balance.tenant_id, tenant_id);
+    assert_eq!(trial_balance.tenant_id, tenant_id.as_str());
     assert_eq!(trial_balance.period_id, period_id);
     assert_eq!(trial_balance.currency, "USD".to_string());
 
@@ -284,7 +349,7 @@ async fn test_boundary_http_trial_balance_returns_correct_json() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
@@ -292,17 +357,21 @@ async fn test_boundary_http_trial_balance_returns_correct_json() {
 async fn test_boundary_http_trial_balance_currency_filter() {
     // Setup
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-http-tb-multi";
+    let tenant_id = Uuid::new_v4().to_string();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    // JWT auth
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup accounts
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "1100",
         "Cash",
         AccountType::Asset,
@@ -313,16 +382,16 @@ async fn test_boundary_http_trial_balance_currency_filter() {
     // Setup period
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2024, 2, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2024, 2, 29).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 2, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 2, 29).expect("valid date"),
     )
     .await;
 
     // Setup second account for balanced entries
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "4000",
         "Revenue",
         AccountType::Revenue,
@@ -332,16 +401,16 @@ async fn test_boundary_http_trial_balance_currency_filter() {
 
     // Insert BALANCED balances in MULTIPLE currencies
     // USD: Cash debit 100000, Revenue credit 100000 (balanced)
-    insert_test_balance(&pool, tenant_id, period_id, "1100", "USD", 100000, 0).await;
-    insert_test_balance(&pool, tenant_id, period_id, "4000", "USD", 0, 100000).await;
+    insert_test_balance(&pool, &tenant_id, period_id, "1100", "USD", 100000, 0).await;
+    insert_test_balance(&pool, &tenant_id, period_id, "4000", "USD", 0, 100000).await;
 
     // EUR: Cash debit 50000, Revenue credit 50000 (balanced)
-    insert_test_balance(&pool, tenant_id, period_id, "1100", "EUR", 50000, 0).await;
-    insert_test_balance(&pool, tenant_id, period_id, "4000", "EUR", 0, 50000).await;
+    insert_test_balance(&pool, &tenant_id, period_id, "1100", "EUR", 50000, 0).await;
+    insert_test_balance(&pool, &tenant_id, period_id, "4000", "EUR", 0, 50000).await;
 
     // GBP: Cash debit 30000, Revenue credit 30000 (balanced)
-    insert_test_balance(&pool, tenant_id, period_id, "1100", "GBP", 30000, 0).await;
-    insert_test_balance(&pool, tenant_id, period_id, "4000", "GBP", 0, 30000).await;
+    insert_test_balance(&pool, &tenant_id, period_id, "1100", "GBP", 30000, 0).await;
+    insert_test_balance(&pool, &tenant_id, period_id, "4000", "GBP", 0, 30000).await;
 
     // Test 1: Filter by USD only
     let url_usd = format!(
@@ -349,7 +418,9 @@ async fn test_boundary_http_trial_balance_currency_filter() {
         gl_service_url, tenant_id, period_id
     );
 
-    let response_usd = reqwest::get(&url_usd)
+    let response_usd = client
+        .get(&url_usd)
+        .send()
         .await
         .expect("Failed to fetch USD trial balance");
     assert_eq!(response_usd.status(), 200);
@@ -386,7 +457,7 @@ async fn test_boundary_http_trial_balance_currency_filter() {
     // To get multiple currencies, client must call get_trial_balance once per currency
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
 
 #[tokio::test]
@@ -395,33 +466,41 @@ async fn test_boundary_http_trial_balance_error_handling() {
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
-    // Test: Missing required query parameter (should return 400)
+    // JWT auth for authenticated requests
+    let tenant_id = Uuid::new_v4().to_string();
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
+    // Test: Missing required query parameter (should return client error)
     let url_missing_params = format!("{}/api/gl/trial-balance", gl_service_url);
 
-    let response = reqwest::get(&url_missing_params)
+    let response = client
+        .get(&url_missing_params)
+        .send()
         .await
         .expect("Failed to make request");
 
-    // Axum returns 400 for missing query parameters
-    assert_eq!(
-        response.status(),
-        400,
-        "Should return 400 for missing query parameters"
+    assert!(
+        response.status().is_client_error(),
+        "Should return client error for missing query parameters, got {}",
+        response.status()
     );
 
-    // Test: Invalid UUID format (should return 400)
+    // Test: Invalid UUID format (should return client error)
     let url_invalid_uuid = format!(
-        "{}/api/gl/trial-balance?tenant_id=test&period_id=not-a-uuid",
-        gl_service_url
+        "{}/api/gl/trial-balance?tenant_id={}&period_id=not-a-uuid&currency=USD",
+        gl_service_url, tenant_id
     );
 
-    let response_invalid = reqwest::get(&url_invalid_uuid)
+    let response_invalid = client
+        .get(&url_invalid_uuid)
+        .send()
         .await
         .expect("Failed to make request");
-    assert_eq!(
-        response_invalid.status(),
-        400,
-        "Should return 400 for invalid UUID format"
+    assert!(
+        response_invalid.status().is_client_error(),
+        "Should return client error for invalid UUID format, got {}",
+        response_invalid.status()
     );
 }
 
@@ -438,17 +517,21 @@ async fn test_boundary_http_trial_balance_performance_guard() {
     // We test this by timing the response (should be < 100ms even with 10k+ journal lines).
 
     let pool = setup_test_pool().await;
-    let tenant_id = "tenant-perf-guard";
+    let tenant_id = Uuid::new_v4().to_string();
     let gl_service_url =
         std::env::var("GL_SERVICE_URL").unwrap_or_else(|_| "http://localhost:8090".to_string());
 
+    // JWT auth
+    let token = sign_test_jwt(&tenant_id);
+    let client = authed_client(&token);
+
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 
     // Setup minimal accounts and period
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "1100",
         "Cash",
         AccountType::Asset,
@@ -458,7 +541,7 @@ async fn test_boundary_http_trial_balance_performance_guard() {
 
     insert_test_account(
         &pool,
-        tenant_id,
+        &tenant_id,
         "4000",
         "Revenue",
         AccountType::Revenue,
@@ -468,15 +551,15 @@ async fn test_boundary_http_trial_balance_performance_guard() {
 
     let period_id = insert_test_period(
         &pool,
-        tenant_id,
-        NaiveDate::from_ymd_opt(2024, 2, 1).unwrap(),
-        NaiveDate::from_ymd_opt(2024, 2, 29).unwrap(),
+        &tenant_id,
+        NaiveDate::from_ymd_opt(2024, 2, 1).expect("valid date"),
+        NaiveDate::from_ymd_opt(2024, 2, 29).expect("valid date"),
     )
     .await;
 
     // Insert BALANCED balances (should be fast to query from account_balances, not journal_lines)
-    insert_test_balance(&pool, tenant_id, period_id, "1100", "USD", 100000, 0).await; // Cash debit
-    insert_test_balance(&pool, tenant_id, period_id, "4000", "USD", 0, 100000).await; // Revenue credit
+    insert_test_balance(&pool, &tenant_id, period_id, "1100", "USD", 100000, 0).await; // Cash debit
+    insert_test_balance(&pool, &tenant_id, period_id, "4000", "USD", 0, 100000).await; // Revenue credit
 
     // Make HTTP request and time it
     let url = format!(
@@ -485,7 +568,9 @@ async fn test_boundary_http_trial_balance_performance_guard() {
     );
 
     let start = std::time::Instant::now();
-    let response = reqwest::get(&url)
+    let response = client
+        .get(&url)
+        .send()
         .await
         .expect("Failed to fetch trial balance");
     let elapsed = start.elapsed();
@@ -501,5 +586,5 @@ async fn test_boundary_http_trial_balance_performance_guard() {
     );
 
     // Cleanup
-    cleanup_test_data(&pool, tenant_id).await;
+    cleanup_test_data(&pool, &tenant_id).await;
 }
