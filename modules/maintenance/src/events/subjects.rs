@@ -19,6 +19,17 @@ pub const METER_READING_RECORDED: &str = "maintenance.meter_reading.recorded";
 pub const PLAN_DUE: &str = "maintenance.plan.due";
 pub const PLAN_ASSIGNED: &str = "maintenance.plan.assigned";
 
+// ── Asset lifecycle ────────────────────────────────────────
+pub const ASSET_CREATED: &str = "maintenance.asset.created";
+pub const ASSET_UPDATED: &str = "maintenance.asset.updated";
+
+// ── Downtime events ───────────────────────────────────────
+pub const DOWNTIME_RECORDED: &str = "maintenance.downtime.recorded";
+
+// ── Calibration lifecycle ───────────────────────────────────
+pub const CALIBRATION_CREATED: &str = "maintenance.calibration.created";
+pub const CALIBRATION_COMPLETED: &str = "maintenance.calibration.completed";
+
 /// All stable NATS subjects exported by the maintenance module.
 ///
 /// Used in tests to assert exhaustive coverage and in documentation.
@@ -32,6 +43,11 @@ pub const ALL_SUBJECTS: &[&str] = &[
     METER_READING_RECORDED,
     PLAN_DUE,
     PLAN_ASSIGNED,
+    ASSET_CREATED,
+    ASSET_UPDATED,
+    DOWNTIME_RECORDED,
+    CALIBRATION_CREATED,
+    CALIBRATION_COMPLETED,
 ];
 
 #[cfg(test)]
@@ -59,6 +75,6 @@ mod tests {
 
     #[test]
     fn all_subjects_count() {
-        assert_eq!(ALL_SUBJECTS.len(), 9);
+        assert_eq!(ALL_SUBJECTS.len(), 11);
     }
 }
