@@ -9,7 +9,7 @@ use event_bus::outbox::validate_and_serialize_envelope;
 use platform_contracts::{event_naming::nats_subject, mutation_classes, EventEnvelope};
 use uuid::Uuid;
 
-use crate::handlers::{AppState, capitalize_actor_type, extract_idem_key, is_unique_violation};
+use crate::handlers::{capitalize_actor_type, extract_idem_key, is_unique_violation, AppState};
 use crate::models::*;
 
 // ── Set Retention Policy (upsert) ────────────────────────────────────
@@ -273,14 +273,13 @@ pub async fn apply_hold(
 
     let subject = nats_subject("doc_mgmt", "legal_hold.applied");
 
-    if let Err(e) = sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("legal_hold.applied")
-    .bind(&subject)
-    .bind(&event_payload)
-    .execute(&mut *tx)
-    .await
+    if let Err(e) =
+        sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+            .bind("legal_hold.applied")
+            .bind(&subject)
+            .bind(&event_payload)
+            .execute(&mut *tx)
+            .await
     {
         let _ = tx.rollback().await;
         tracing::error!(error = %e, "outbox insert failed");
@@ -464,14 +463,13 @@ pub async fn release_hold(
 
     let subject = nats_subject("doc_mgmt", "legal_hold.released");
 
-    if let Err(e) = sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("legal_hold.released")
-    .bind(&subject)
-    .bind(&event_payload)
-    .execute(&mut *tx)
-    .await
+    if let Err(e) =
+        sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+            .bind("legal_hold.released")
+            .bind(&subject)
+            .bind(&event_payload)
+            .execute(&mut *tx)
+            .await
     {
         let _ = tx.rollback().await;
         tracing::error!(error = %e, "outbox insert failed");
@@ -540,10 +538,7 @@ pub async fn list_holds(
     .await
     .unwrap_or_default();
 
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({"holds": holds})),
-    )
+    (StatusCode::OK, Json(serde_json::json!({"holds": holds})))
 }
 
 // ── Dispose Document ─────────────────────────────────────────────────
@@ -700,7 +695,9 @@ pub async fn dispose_document(
             if msg.contains("active legal hold") {
                 return (
                     StatusCode::CONFLICT,
-                    Json(serde_json::json!({"error": "cannot dispose — active legal hold (DB enforced)"})),
+                    Json(
+                        serde_json::json!({"error": "cannot dispose — active legal hold (DB enforced)"}),
+                    ),
                 );
             }
             tracing::error!(error = %e, "dispose document failed");
@@ -746,14 +743,13 @@ pub async fn dispose_document(
 
     let subject = nats_subject("doc_mgmt", "document.disposed");
 
-    if let Err(e) = sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("document.disposed")
-    .bind(&subject)
-    .bind(&event_payload)
-    .execute(&mut *tx)
-    .await
+    if let Err(e) =
+        sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+            .bind("document.disposed")
+            .bind(&subject)
+            .bind(&event_payload)
+            .execute(&mut *tx)
+            .await
     {
         let _ = tx.rollback().await;
         tracing::error!(error = %e, "outbox insert failed");

@@ -59,8 +59,7 @@ pub async fn create_document(
     // ── Idempotency check ────────────────────────────────────────────
     let idem_key = extract_idem_key(&headers);
     if let Some(ref key) = idem_key {
-        if let Ok(Some(cached)) = check_idempotency(&state.db, &tenant_id.to_string(), key).await
-        {
+        if let Ok(Some(cached)) = check_idempotency(&state.db, &tenant_id.to_string(), key).await {
             return (
                 StatusCode::from_u16(cached.status_code as u16).unwrap_or(StatusCode::OK),
                 Json(cached.response_body),
@@ -132,7 +131,9 @@ pub async fn create_document(
         if is_unique_violation(&e) {
             return (
                 StatusCode::CONFLICT,
-                Json(serde_json::json!({"error": "document with this doc_number already exists for tenant"})),
+                Json(
+                    serde_json::json!({"error": "document with this doc_number already exists for tenant"}),
+                ),
             );
         }
         tracing::error!(error = %e, "insert document failed");
@@ -165,14 +166,13 @@ pub async fn create_document(
     }
 
     // Outbox insert
-    if let Err(e) = sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("document.created")
-    .bind(&subject)
-    .bind(&event_payload)
-    .execute(&mut *tx)
-    .await
+    if let Err(e) =
+        sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+            .bind("document.created")
+            .bind(&subject)
+            .bind(&event_payload)
+            .execute(&mut *tx)
+            .await
     {
         let _ = tx.rollback().await;
         tracing::error!(error = %e, "outbox insert failed");
@@ -209,8 +209,7 @@ pub async fn create_document(
 
     // Store idempotency key
     if let Some(ref key) = idem_key {
-        let _ =
-            store_idempotency(&mut tx, &tenant_id.to_string(), key, &response_body, 201).await;
+        let _ = store_idempotency(&mut tx, &tenant_id.to_string(), key, &response_body, 201).await;
     }
 
     if let Err(e) = tx.commit().await {
@@ -252,8 +251,7 @@ pub async fn release_document(
     // ── Idempotency check ────────────────────────────────────────────
     let idem_key = extract_idem_key(&headers);
     if let Some(ref key) = idem_key {
-        if let Ok(Some(cached)) = check_idempotency(&state.db, &tenant_id.to_string(), key).await
-        {
+        if let Ok(Some(cached)) = check_idempotency(&state.db, &tenant_id.to_string(), key).await {
             return (
                 StatusCode::from_u16(cached.status_code as u16).unwrap_or(StatusCode::OK),
                 Json(cached.response_body),
@@ -387,14 +385,13 @@ pub async fn release_document(
         );
     }
 
-    if let Err(e) = sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("document.released")
-    .bind(&subject)
-    .bind(&event_payload)
-    .execute(&mut *tx)
-    .await
+    if let Err(e) =
+        sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+            .bind("document.released")
+            .bind(&subject)
+            .bind(&event_payload)
+            .execute(&mut *tx)
+            .await
     {
         let _ = tx.rollback().await;
         tracing::error!(error = %e, "outbox insert failed");
@@ -412,8 +409,7 @@ pub async fn release_document(
     });
 
     if let Some(ref key) = idem_key {
-        let _ =
-            store_idempotency(&mut tx, &tenant_id.to_string(), key, &response_body, 200).await;
+        let _ = store_idempotency(&mut tx, &tenant_id.to_string(), key, &response_body, 200).await;
     }
 
     if let Err(e) = tx.commit().await {
@@ -463,8 +459,7 @@ pub async fn supersede_document(
     // ── Idempotency check ────────────────────────────────────────────
     let idem_key = extract_idem_key(&headers);
     if let Some(ref key) = idem_key {
-        if let Ok(Some(cached)) = check_idempotency(&state.db, &tenant_id.to_string(), key).await
-        {
+        if let Ok(Some(cached)) = check_idempotency(&state.db, &tenant_id.to_string(), key).await {
             return (
                 StatusCode::from_u16(cached.status_code as u16).unwrap_or(StatusCode::OK),
                 Json(cached.response_body),
@@ -509,7 +504,9 @@ pub async fn supersede_document(
         let _ = tx.rollback().await;
         return (
             StatusCode::CONFLICT,
-            Json(serde_json::json!({"error": format!("document must be in 'released' state to supersede (current: {})", doc.status)})),
+            Json(
+                serde_json::json!({"error": format!("document must be in 'released' state to supersede (current: {})", doc.status)}),
+            ),
         );
     }
 
@@ -526,7 +523,9 @@ pub async fn supersede_document(
     let new_rev_id = Uuid::new_v4();
     let now = Utc::now();
     let new_title = req.new_title.unwrap_or_else(|| doc.title.clone());
-    let change_summary = req.change_summary.unwrap_or_else(|| format!("Supersedes {}", doc.doc_number));
+    let change_summary = req
+        .change_summary
+        .unwrap_or_else(|| format!("Supersedes {}", doc.doc_number));
 
     // Copy body from latest released revision of old document
     let latest_body: Option<serde_json::Value> = sqlx::query_scalar(
@@ -641,14 +640,13 @@ pub async fn supersede_document(
 
     let subject = nats_subject("doc_mgmt", "document.superseded");
 
-    if let Err(e) = sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("document.superseded")
-    .bind(&subject)
-    .bind(&event_payload)
-    .execute(&mut *tx)
-    .await
+    if let Err(e) =
+        sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+            .bind("document.superseded")
+            .bind(&subject)
+            .bind(&event_payload)
+            .execute(&mut *tx)
+            .await
     {
         let _ = tx.rollback().await;
         tracing::error!(error = %e, "outbox insert failed");
@@ -675,8 +673,7 @@ pub async fn supersede_document(
     });
 
     if let Some(ref key) = idem_key {
-        let _ =
-            store_idempotency(&mut tx, &tenant_id.to_string(), key, &response_body, 201).await;
+        let _ = store_idempotency(&mut tx, &tenant_id.to_string(), key, &response_body, 201).await;
     }
 
     if let Err(e) = tx.commit().await {
@@ -777,10 +774,7 @@ pub async fn list_documents(
     .await
     .unwrap_or_default();
 
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({"documents": docs})),
-    )
+    (StatusCode::OK, Json(serde_json::json!({"documents": docs})))
 }
 
 // ── Create Revision ──────────────────────────────────────────────────
@@ -847,13 +841,12 @@ pub async fn create_revision(
     };
 
     // Get next revision number
-    let max_rev: Option<i32> = sqlx::query_scalar(
-        "SELECT MAX(revision_number) FROM revisions WHERE document_id = $1",
-    )
-    .bind(doc_id)
-    .fetch_one(&mut *tx)
-    .await
-    .unwrap_or(None);
+    let max_rev: Option<i32> =
+        sqlx::query_scalar("SELECT MAX(revision_number) FROM revisions WHERE document_id = $1")
+            .bind(doc_id)
+            .fetch_one(&mut *tx)
+            .await
+            .unwrap_or(None);
     let next_rev = max_rev.unwrap_or(0) + 1;
 
     if let Err(e) = sqlx::query(
@@ -914,14 +907,13 @@ pub async fn create_revision(
 
     let event_subject = nats_subject("doc_mgmt", "revision.created");
 
-    if let Err(e) = sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("revision.created")
-    .bind(&event_subject)
-    .bind(&event_payload)
-    .execute(&mut *tx)
-    .await
+    if let Err(e) =
+        sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+            .bind("revision.created")
+            .bind(&event_subject)
+            .bind(&event_payload)
+            .execute(&mut *tx)
+            .await
     {
         let _ = tx.rollback().await;
         tracing::error!(error = %e, "outbox insert failed");

@@ -49,9 +49,7 @@ pub async fn create_template(
     // ── Idempotency check ────────────────────────────────────────────
     let idem_key = extract_idem_key(&headers);
     if let Some(ref key) = idem_key {
-        if let Ok(Some(cached)) =
-            check_idempotency(&state.db, &tenant_id.to_string(), key).await
-        {
+        if let Ok(Some(cached)) = check_idempotency(&state.db, &tenant_id.to_string(), key).await {
             return (
                 StatusCode::from_u16(cached.status_code as u16).unwrap_or(StatusCode::OK),
                 Json(cached.response_body),
@@ -142,14 +140,13 @@ pub async fn create_template(
         );
     }
 
-    if let Err(e) = sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("template.created")
-    .bind(&subject)
-    .bind(&event_payload)
-    .execute(&mut *tx)
-    .await
+    if let Err(e) =
+        sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+            .bind("template.created")
+            .bind(&subject)
+            .bind(&event_payload)
+            .execute(&mut *tx)
+            .await
     {
         let _ = tx.rollback().await;
         tracing::error!(error = %e, "outbox insert failed");
@@ -263,9 +260,7 @@ pub async fn render_template(
     // ── Idempotency check ────────────────────────────────────────────
     let idem_key = extract_idem_key(&headers);
     if let Some(ref key) = idem_key {
-        if let Ok(Some(cached)) =
-            check_idempotency(&state.db, &tenant_id.to_string(), key).await
-        {
+        if let Ok(Some(cached)) = check_idempotency(&state.db, &tenant_id.to_string(), key).await {
             return (
                 StatusCode::from_u16(cached.status_code as u16).unwrap_or(StatusCode::OK),
                 Json(cached.response_body),
@@ -391,14 +386,13 @@ pub async fn render_template(
         );
     }
 
-    if let Err(e) = sqlx::query(
-        "INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)",
-    )
-    .bind("document.rendered")
-    .bind(&subject)
-    .bind(&event_payload)
-    .execute(&mut *tx)
-    .await
+    if let Err(e) =
+        sqlx::query("INSERT INTO doc_outbox (event_type, subject, payload) VALUES ($1, $2, $3)")
+            .bind("document.rendered")
+            .bind(&subject)
+            .bind(&event_payload)
+            .execute(&mut *tx)
+            .await
     {
         let _ = tx.rollback().await;
         tracing::error!(error = %e, "outbox insert failed");
