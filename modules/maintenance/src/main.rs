@@ -112,74 +112,107 @@ async fn main() {
         .route("/api/ready", get(http::health::ready))
         .route("/api/version", get(http::health::version))
         .route("/metrics", get(metrics::metrics_handler))
+        // ── Read-only endpoints (MAINTENANCE_READ) ──
         .merge(
             Router::new()
-                // Asset endpoints
                 .route(
                     "/api/maintenance/assets",
-                    post(http::assets::create_asset).get(http::assets::list_assets),
+                    get(http::assets::list_assets),
                 )
                 .route(
                     "/api/maintenance/assets/{asset_id}",
-                    get(http::assets::get_asset).patch(http::assets::update_asset),
+                    get(http::assets::get_asset),
                 )
-                // Meter type endpoints
                 .route(
                     "/api/maintenance/meter-types",
-                    post(http::meters::create_meter_type).get(http::meters::list_meter_types),
+                    get(http::meters::list_meter_types),
                 )
-                // Meter reading endpoints
                 .route(
                     "/api/maintenance/assets/{asset_id}/readings",
-                    post(http::meters::record_reading).get(http::meters::list_readings),
+                    get(http::meters::list_readings),
                 )
-                // Plan endpoints
                 .route(
                     "/api/maintenance/plans",
-                    post(http::plans::create_plan).get(http::plans::list_plans),
+                    get(http::plans::list_plans),
                 )
                 .route(
                     "/api/maintenance/plans/{plan_id}",
-                    get(http::plans::get_plan).patch(http::plans::update_plan),
+                    get(http::plans::get_plan),
                 )
-                .route(
-                    "/api/maintenance/plans/{plan_id}/assign",
-                    post(http::plans::assign_plan),
-                )
-                // Assignment endpoints
                 .route(
                     "/api/maintenance/assignments",
                     get(http::plans::list_assignments),
                 )
-                // Work order endpoints
                 .route(
                     "/api/maintenance/work-orders",
-                    post(http::work_orders::create_work_order)
-                        .get(http::work_orders::list_work_orders),
+                    get(http::work_orders::list_work_orders),
                 )
                 .route(
                     "/api/maintenance/work-orders/{wo_id}",
                     get(http::work_orders::get_work_order),
                 )
                 .route(
+                    "/api/maintenance/work-orders/{wo_id}/parts",
+                    get(http::work_order_parts::list_parts),
+                )
+                .route(
+                    "/api/maintenance/work-orders/{wo_id}/labor",
+                    get(http::work_order_labor::list_labor),
+                )
+                .route_layer(RequirePermissionsLayer::new(&[
+                    permissions::MAINTENANCE_READ,
+                ])),
+        )
+        // ── Mutation endpoints (MAINTENANCE_MUTATE) ──
+        .merge(
+            Router::new()
+                .route(
+                    "/api/maintenance/assets",
+                    post(http::assets::create_asset),
+                )
+                .route(
+                    "/api/maintenance/assets/{asset_id}",
+                    axum::routing::patch(http::assets::update_asset),
+                )
+                .route(
+                    "/api/maintenance/meter-types",
+                    post(http::meters::create_meter_type),
+                )
+                .route(
+                    "/api/maintenance/assets/{asset_id}/readings",
+                    post(http::meters::record_reading),
+                )
+                .route(
+                    "/api/maintenance/plans",
+                    post(http::plans::create_plan),
+                )
+                .route(
+                    "/api/maintenance/plans/{plan_id}",
+                    axum::routing::patch(http::plans::update_plan),
+                )
+                .route(
+                    "/api/maintenance/plans/{plan_id}/assign",
+                    post(http::plans::assign_plan),
+                )
+                .route(
+                    "/api/maintenance/work-orders",
+                    post(http::work_orders::create_work_order),
+                )
+                .route(
                     "/api/maintenance/work-orders/{wo_id}/transition",
                     axum::routing::patch(http::work_orders::transition_work_order),
                 )
-                // Work order parts subresource
                 .route(
                     "/api/maintenance/work-orders/{wo_id}/parts",
-                    post(http::work_order_parts::add_part)
-                        .get(http::work_order_parts::list_parts),
+                    post(http::work_order_parts::add_part),
                 )
                 .route(
                     "/api/maintenance/work-orders/{wo_id}/parts/{part_id}",
                     axum::routing::delete(http::work_order_parts::remove_part),
                 )
-                // Work order labor subresource
                 .route(
                     "/api/maintenance/work-orders/{wo_id}/labor",
-                    post(http::work_order_labor::add_labor)
-                        .get(http::work_order_labor::list_labor),
+                    post(http::work_order_labor::add_labor),
                 )
                 .route(
                     "/api/maintenance/work-orders/{wo_id}/labor/{labor_id}",

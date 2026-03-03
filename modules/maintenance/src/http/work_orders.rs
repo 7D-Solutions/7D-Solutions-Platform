@@ -130,8 +130,14 @@ pub async fn get_work_order(
 pub async fn transition_work_order(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
-    Json(req): Json<TransitionRequest>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Json(mut req): Json<TransitionRequest>,
 ) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(t) => t,
+        Err(resp) => return resp.into_response(),
+    };
+    req.tenant_id = tenant_id;
     match WorkOrderRepo::transition(&state.pool, id, &req).await {
         Ok(wo) => (StatusCode::OK, Json(json!(wo))).into_response(),
         Err(e) => wo_error_response(e).into_response(),

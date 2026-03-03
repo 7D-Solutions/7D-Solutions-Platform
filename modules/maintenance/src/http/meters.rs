@@ -85,7 +85,7 @@ pub async fn create_meter_type(
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<CreateMeterTypeRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };
@@ -101,7 +101,7 @@ pub async fn list_meter_types(
     State(state): State<Arc<AppState>>,
     claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };
@@ -119,7 +119,7 @@ pub async fn record_reading(
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<RecordReadingRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };
@@ -137,7 +137,7 @@ pub async fn list_readings(
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<ListReadingsParams>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };

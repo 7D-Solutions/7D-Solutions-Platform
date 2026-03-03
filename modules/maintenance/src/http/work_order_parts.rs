@@ -58,7 +58,7 @@ pub async fn add_part(
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<AddPartRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };
@@ -75,7 +75,7 @@ pub async fn list_parts(
     Path(wo_id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };
@@ -91,7 +91,7 @@ pub async fn remove_part(
     Path((wo_id, part_id)): Path<(Uuid, Uuid)>,
     claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };

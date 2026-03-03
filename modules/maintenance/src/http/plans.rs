@@ -87,7 +87,7 @@ pub async fn create_plan(
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<CreatePlanRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };
@@ -104,7 +104,7 @@ pub async fn list_plans(
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<ListPlansParams>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };
@@ -126,7 +126,7 @@ pub async fn get_plan(
     Path(id): Path<Uuid>,
     claims: Option<Extension<VerifiedClaims>>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };
@@ -145,7 +145,7 @@ pub async fn update_plan(
     claims: Option<Extension<VerifiedClaims>>,
     Json(req): Json<UpdatePlanRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };
@@ -163,7 +163,7 @@ pub async fn assign_plan(
     claims: Option<Extension<VerifiedClaims>>,
     Json(mut req): Json<AssignPlanRequest>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };
@@ -180,7 +180,7 @@ pub async fn list_assignments(
     claims: Option<Extension<VerifiedClaims>>,
     Query(params): Query<ListAssignmentsParams>,
 ) -> impl IntoResponse {
-    let tenant_id = match crate::routes::work_orders::extract_tenant(&claims) {
+    let tenant_id = match crate::http::work_orders::extract_tenant(&claims) {
         Ok(t) => t,
         Err(resp) => return resp.into_response(),
     };

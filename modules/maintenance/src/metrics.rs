@@ -14,7 +14,7 @@ use prometheus::{
 };
 use std::sync::Arc;
 
-use crate::routes::ErrorBody;
+use crate::http::ErrorBody;
 
 /// Maintenance-specific Prometheus metrics
 pub struct MaintenanceMetrics {
