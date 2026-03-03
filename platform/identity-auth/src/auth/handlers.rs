@@ -121,6 +121,31 @@ pub struct AccessReviewReq {
     pub causation_id: Option<Uuid>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct SodPolicyUpsertReq {
+    pub tenant_id: Uuid,
+    pub action_key: String,
+    pub primary_role_id: Uuid,
+    pub conflicting_role_id: Uuid,
+    pub allow_override: bool,
+    pub override_requires_approval: bool,
+    pub actor_user_id: Option<Uuid>,
+    pub idempotency_key: Option<String>,
+    pub causation_id: Option<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SodEvaluateReq {
+    pub tenant_id: Uuid,
+    pub action_key: String,
+    pub actor_user_id: Uuid,
+    pub subject_user_id: Option<Uuid>,
+    pub override_granted_by: Option<Uuid>,
+    pub override_ticket: Option<String>,
+    pub idempotency_key: Option<String>,
+    pub causation_id: Option<Uuid>,
+}
+
 pub async fn record_access_review(
     State(state): State<Arc<AuthState>>,
     extensions: Extensions,
@@ -173,6 +198,138 @@ pub async fn record_access_review(
     Ok((StatusCode::OK, Json(OkResponse { ok: true })))
 }
 
+pub async fn upsert_sod_policy(
+    State(state): State<Arc<AuthState>>,
+    headers: HeaderMap,
+    extensions: Extensions,
+    Json(req): Json<SodPolicyUpsertReq>,
+) -> Result<impl IntoResponse, ApiErr> {
+    let trace_id = get_trace_id_from_extensions(&extensions);
+    if req.action_key.trim().is_empty() {
+        return Err(err(StatusCode::BAD_REQUEST, "action_key is required"));
+    }
+
+    let idempotency_key = req
+        .idempotency_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
+        .or_else(|| {
+            headers
+                .get("x-idempotency-key")
+                .and_then(|v| v.to_str().ok())
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(ToOwned::to_owned)
+        })
+        .unwrap_or_else(|| {
+            format!(
+                "sod-policy:{}:{}:{}:{}",
+                req.tenant_id, req.action_key, req.primary_role_id, req.conflicting_role_id
+            )
+        });
+
+    let result = crate::db::sod::upsert_policy(
+        &state.db,
+        crate::db::sod::SodPolicyUpsert {
+            tenant_id: req.tenant_id,
+            action_key: req.action_key,
+            primary_role_id: req.primary_role_id,
+            conflicting_role_id: req.conflicting_role_id,
+            allow_override: req.allow_override,
+            override_requires_approval: req.override_requires_approval,
+            actor_user_id: req.actor_user_id,
+            idempotency_key,
+            trace_id,
+            causation_id: req.causation_id,
+            producer: state.producer.clone(),
+        },
+    )
+    .await
+    .map_err(|e| {
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("sod policy write: {e}"),
+        )
+    })?;
+
+    Ok((StatusCode::OK, Json(result)))
+}
+
+pub async fn evaluate_sod(
+    State(state): State<Arc<AuthState>>,
+    headers: HeaderMap,
+    extensions: Extensions,
+    Json(req): Json<SodEvaluateReq>,
+) -> Result<impl IntoResponse, ApiErr> {
+    let trace_id = get_trace_id_from_extensions(&extensions);
+    if req.action_key.trim().is_empty() {
+        return Err(err(StatusCode::BAD_REQUEST, "action_key is required"));
+    }
+
+    let idempotency_key = req
+        .idempotency_key
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
+        .or_else(|| {
+            headers
+                .get("x-idempotency-key")
+                .and_then(|v| v.to_str().ok())
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(ToOwned::to_owned)
+        })
+        .unwrap_or_else(|| {
+            format!(
+                "sod-eval:{}:{}:{}:{}",
+                req.tenant_id,
+                req.action_key,
+                req.actor_user_id,
+                req.subject_user_id
+                    .map(|u| u.to_string())
+                    .unwrap_or_else(|| "none".to_string())
+            )
+        });
+
+    let result = crate::db::sod::evaluate_decision(
+        &state.db,
+        crate::db::sod::SodDecisionRequest {
+            tenant_id: req.tenant_id,
+            action_key: req.action_key,
+            actor_user_id: req.actor_user_id,
+            subject_user_id: req.subject_user_id,
+            override_granted_by: req.override_granted_by,
+            override_ticket: req.override_ticket,
+            idempotency_key,
+            trace_id,
+            causation_id: req.causation_id,
+            producer: state.producer.clone(),
+        },
+    )
+    .await
+    .map_err(|e| {
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("sod evaluate: {e}"),
+        )
+    })?;
+
+    Ok((StatusCode::OK, Json(result)))
+}
+
+pub async fn list_sod_policies(
+    State(state): State<Arc<AuthState>>,
+    Path((tenant_id, action_key)): Path<(Uuid, String)>,
+) -> Result<impl IntoResponse, ApiErr> {
+    let policies = crate::db::sod::list_policies(&state.db, tenant_id, &action_key)
+        .await
+        .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("sod list: {e}")))?;
+    Ok((StatusCode::OK, Json(policies)))
+}
+
 pub async fn get_user_lifecycle_timeline(
     State(state): State<Arc<AuthState>>,
     Path((tenant_id, user_id)): Path<(Uuid, Uuid)>,
@@ -181,7 +338,12 @@ pub async fn get_user_lifecycle_timeline(
         &state.db, tenant_id, user_id,
     )
     .await
-    .map_err(|e| err(StatusCode::INTERNAL_SERVER_ERROR, format!("timeline read: {e}")))?;
+    .map_err(|e| {
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("timeline read: {e}"),
+        )
+    })?;
 
     Ok((StatusCode::OK, Json(timeline)))
 }

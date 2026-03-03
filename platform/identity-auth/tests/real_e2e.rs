@@ -1,4 +1,4 @@
-use auth_rs::db::{rbac, user_lifecycle_audit};
+use auth_rs::db::{rbac, sod, user_lifecycle_audit};
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Row};
 use uuid::Uuid;
@@ -232,5 +232,161 @@ async fn replay_safety_duplicate_idempotency_key_does_not_duplicate_audit_rows()
     assert_eq!(
         outbox_count, 1,
         "duplicate idempotency must not create another outbox row"
+    );
+}
+
+#[tokio::test]
+async fn sod_forbidden_combo_denies_high_risk_action_and_logs_idempotently() {
+    let pool = test_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_user_id = Uuid::new_v4();
+
+    let role_a = rbac::create_role(
+        &pool,
+        tenant_id,
+        "quality_release",
+        "Quality Release",
+        false,
+    )
+    .await
+    .expect("create role a");
+    let role_b = rbac::create_role(
+        &pool,
+        tenant_id,
+        "production_execute",
+        "Production Execute",
+        false,
+    )
+    .await
+    .expect("create role b");
+
+    let ctx_bind_a = user_lifecycle_audit::LifecycleAuditContext {
+        producer: "auth-rs@test".to_string(),
+        trace_id: "trace-bind-a".to_string(),
+        causation_id: None,
+        idempotency_key: format!("bind-a:{tenant_id}:{actor_user_id}:{}", role_a.id),
+    };
+    let ctx_bind_b = user_lifecycle_audit::LifecycleAuditContext {
+        producer: "auth-rs@test".to_string(),
+        trace_id: "trace-bind-b".to_string(),
+        causation_id: None,
+        idempotency_key: format!("bind-b:{tenant_id}:{actor_user_id}:{}", role_b.id),
+    };
+
+    rbac::bind_user_role_with_audit(
+        &pool,
+        tenant_id,
+        actor_user_id,
+        role_a.id,
+        None,
+        &ctx_bind_a,
+    )
+    .await
+    .expect("bind role a");
+    rbac::bind_user_role_with_audit(
+        &pool,
+        tenant_id,
+        actor_user_id,
+        role_b.id,
+        None,
+        &ctx_bind_b,
+    )
+    .await
+    .expect("bind role b");
+
+    let policy = sod::upsert_policy(
+        &pool,
+        sod::SodPolicyUpsert {
+            tenant_id,
+            action_key: "workflow.approve_release".to_string(),
+            primary_role_id: role_a.id,
+            conflicting_role_id: role_b.id,
+            allow_override: false,
+            override_requires_approval: false,
+            actor_user_id: None,
+            idempotency_key: format!("sod-policy:{tenant_id}:approve_release"),
+            trace_id: "trace-sod-policy".to_string(),
+            causation_id: None,
+            producer: "auth-rs@test".to_string(),
+        },
+    )
+    .await
+    .expect("upsert sod policy");
+    assert!(!policy.idempotent_replay);
+
+    let first_eval = sod::evaluate_decision(
+        &pool,
+        sod::SodDecisionRequest {
+            tenant_id,
+            action_key: "workflow.approve_release".to_string(),
+            actor_user_id,
+            subject_user_id: None,
+            override_granted_by: None,
+            override_ticket: None,
+            idempotency_key: format!("sod-eval:{tenant_id}:1"),
+            trace_id: "trace-sod-eval-1".to_string(),
+            causation_id: None,
+            producer: "auth-rs@test".to_string(),
+        },
+    )
+    .await
+    .expect("first sod eval");
+
+    assert_eq!(first_eval.decision, "deny");
+    assert!(
+        first_eval.reason.contains("sod_conflict"),
+        "unexpected deny reason: {}",
+        first_eval.reason
+    );
+    assert_eq!(first_eval.matched_policy_ids.len(), 1);
+    assert!(!first_eval.idempotent_replay);
+
+    let replay_eval = sod::evaluate_decision(
+        &pool,
+        sod::SodDecisionRequest {
+            tenant_id,
+            action_key: "workflow.approve_release".to_string(),
+            actor_user_id,
+            subject_user_id: None,
+            override_granted_by: None,
+            override_ticket: None,
+            idempotency_key: format!("sod-eval:{tenant_id}:1"),
+            trace_id: "trace-sod-eval-1-replay".to_string(),
+            causation_id: None,
+            producer: "auth-rs@test".to_string(),
+        },
+    )
+    .await
+    .expect("replay sod eval");
+
+    assert_eq!(replay_eval.decision, "deny");
+    assert!(replay_eval.idempotent_replay);
+
+    let decision_rows: i64 = sqlx::query(
+        "SELECT COUNT(*) AS c FROM sod_decision_logs WHERE tenant_id = $1 AND idempotency_key = $2",
+    )
+    .bind(tenant_id)
+    .bind(format!("sod-eval:{tenant_id}:1"))
+    .fetch_one(&pool)
+    .await
+    .expect("count sod decision logs")
+    .get("c");
+
+    let outbox_rows: i64 = sqlx::query(
+        "SELECT COUNT(*) AS c FROM sod_events_outbox WHERE tenant_id = $1 AND event_type = 'auth.sod.decision.recorded'",
+    )
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count sod outbox")
+    .get("c");
+
+    assert_eq!(
+        decision_rows, 1,
+        "duplicate idempotency should not duplicate decision rows"
+    );
+    assert_eq!(
+        outbox_rows, 1,
+        "duplicate idempotency should not duplicate outbox events"
     );
 }
