@@ -8,6 +8,14 @@ description = "PDF template management, form submissions, annotations, and docum
 name = "pdf-editor-rs"
 path = "src/main.rs"
 
+[[bin]]
+name = "bench"
+path = "src/bin/bench.rs"
+
+[[bin]]
+name = "dlq_replay_drill"
+path = "src/bin/dlq_replay_drill.rs"
+
 [dependencies]
 axum = { version = "0.8", features = ["multipart"] }
 security = { path = "../../platform/security" }
