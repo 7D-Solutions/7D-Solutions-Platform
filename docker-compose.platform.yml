@@ -110,10 +110,10 @@ services:
       dockerfile: platform/control-plane/Dockerfile.workspace
     restart: unless-stopped
     ports:
-      - "8091:8091"
+      - "127.0.0.1:8091:8091"
     environment:
-      DATABASE_URL: postgres://tenant_registry_user:tenant_registry_pass@7d-tenant-registry-postgres:5432/tenant_registry_db
-      AR_DATABASE_URL: postgres://ar_user:ar_pass@7d-ar-postgres:5432/ar_db
+      DATABASE_URL: postgres://${TENANT_REGISTRY_POSTGRES_USER:-tenant_registry_user}:${TENANT_REGISTRY_POSTGRES_PASSWORD:-tenant_registry_pass}@7d-tenant-registry-postgres:5432/${TENANT_REGISTRY_POSTGRES_DB:-tenant_registry_db}
+      AR_DATABASE_URL: postgres://${AR_POSTGRES_USER:-ar_user}:${AR_POSTGRES_PASSWORD:-ar_pass}@7d-ar-postgres:5432/${AR_POSTGRES_DB:-ar_db}
       PORT: 8091
       HOST: 0.0.0.0
       RUST_LOG: info
@@ -152,7 +152,7 @@ services:
     volumes:
       - ./nginx/auth-nginx.conf:/etc/nginx/nginx.conf:ro
     ports:
-      - "8080:80"
+      - "127.0.0.1:8080:80"
     networks:
       - 7d-platform
     depends_on:
