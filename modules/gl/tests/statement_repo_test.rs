@@ -263,21 +263,21 @@ async fn test_get_income_statement_rows_with_explain() {
     // Assertions: should only have revenue and expense accounts (not asset)
     assert_eq!(rows.len(), 4);
 
-    // Verify revenue rows (should be positive)
+    // Verify revenue rows (sign-inverted: DB net_balance_minor=-100000 → amount_minor=100000)
     let revenue_4000 = rows.iter().find(|r| r.account_code == "4000").unwrap();
     assert_eq!(revenue_4000.account_name, "Sales Revenue");
     assert_eq!(revenue_4000.account_type, "revenue");
-    assert_eq!(revenue_4000.amount_minor, -100000); // Credit balance = positive for revenue
+    assert_eq!(revenue_4000.amount_minor, 100000); // Credit balance inverted to positive for P&L
 
     let revenue_4100 = rows.iter().find(|r| r.account_code == "4100").unwrap();
     assert_eq!(revenue_4100.account_type, "revenue");
-    assert_eq!(revenue_4100.amount_minor, -50000);
+    assert_eq!(revenue_4100.amount_minor, 50000);
 
-    // Verify expense rows (should be negative)
+    // Verify expense rows (sign-inverted: DB net_balance_minor=60000 → amount_minor=-60000)
     let expense_5000 = rows.iter().find(|r| r.account_code == "5000").unwrap();
     assert_eq!(expense_5000.account_name, "Cost of Sales");
     assert_eq!(expense_5000.account_type, "expense");
-    assert_eq!(expense_5000.amount_minor, -60000); // Debit balance = negative for expense
+    assert_eq!(expense_5000.amount_minor, -60000); // Debit balance inverted to negative for P&L
 
     let expense_5100 = rows.iter().find(|r| r.account_code == "5100").unwrap();
     assert_eq!(expense_5100.account_type, "expense");
