@@ -4,7 +4,10 @@ use notifications_rs::{
     config,
     config::{Config, EmailSenderType},
     consumer_tasks, db, event_bus, http, metrics,
-    scheduled::{dispatch_once, reset_orphaned_claims, HttpEmailSender, LoggingSender, NotificationSender},
+    scheduled::{
+        dispatch_once, reset_orphaned_claims, HttpEmailSender, LoggingSender, NotificationSender,
+        RetryPolicy,
+    },
 };
 use security::{
     middleware::{
@@ -95,6 +98,12 @@ async fn main() {
             .and_then(|v| v.parse().ok())
             .unwrap_or(60);
         let dispatch_pool = db.clone();
+        let retry_policy = RetryPolicy {
+            max_attempts: config.retry_max_attempts,
+            backoff_base_secs: config.retry_backoff_base_secs,
+            backoff_multiplier: config.retry_backoff_multiplier,
+            backoff_max_secs: config.retry_backoff_max_secs,
+        };
         let dispatch_sender: Arc<dyn NotificationSender> = match config.email_sender_type {
             EmailSenderType::Logging => Arc::new(LoggingSender),
             EmailSenderType::Http => Arc::new(HttpEmailSender::new(
@@ -108,7 +117,9 @@ async fn main() {
         };
         tokio::spawn(async move {
             loop {
-                if let Err(e) = dispatch_once(&dispatch_pool, dispatch_sender.clone()).await {
+                if let Err(e) =
+                    dispatch_once(&dispatch_pool, dispatch_sender.clone(), retry_policy).await
+                {
                     tracing::error!(error = %e, "dispatch_once error");
                 }
                 tokio::time::sleep(Duration::from_secs(interval_secs)).await;
@@ -242,6 +253,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            retry_max_attempts: 5,
+            retry_backoff_base_secs: 300,
+            retry_backoff_multiplier: 1.0,
+            retry_backoff_max_secs: 3600,
         };
         let _layer = build_cors_layer(&config);
     }
@@ -263,6 +278,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            retry_max_attempts: 5,
+            retry_backoff_base_secs: 300,
+            retry_backoff_multiplier: 1.0,
+            retry_backoff_max_secs: 3600,
         };
         let _layer = build_cors_layer(&config);
     }

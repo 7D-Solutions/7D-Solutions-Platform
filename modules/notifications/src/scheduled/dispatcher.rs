@@ -3,7 +3,10 @@ use std::sync::Arc;
 use chrono::Utc;
 use sqlx::PgPool;
 
-use super::repo::{claim_due_batch, record_delivery_attempt_and_mutate, reset_orphaned_claims, AttemptApplyOutcome};
+use super::repo::{
+    claim_due_batch, record_delivery_attempt_and_mutate, reset_orphaned_claims, AttemptApplyOutcome,
+    RetryPolicy,
+};
 use super::sender::NotificationSender;
 
 /// Counts returned by a single `dispatch_once` cycle.
@@ -32,6 +35,7 @@ pub struct DispatchResult {
 pub async fn dispatch_once(
     pool: &PgPool,
     sender: Arc<dyn NotificationSender>,
+    retry_policy: RetryPolicy,
 ) -> anyhow::Result<DispatchResult> {
     let mut result = DispatchResult::default();
 
@@ -82,7 +86,12 @@ pub async fn dispatch_once(
         };
 
         let applied = record_delivery_attempt_and_mutate(
-            pool, notif, &idempotency_key, send_result, rendered_msg.as_ref(),
+            pool,
+            notif,
+            &idempotency_key,
+            send_result,
+            rendered_msg.as_ref(),
+            retry_policy,
         )
         .await
         .map_err(|e| anyhow::anyhow!("record_delivery_attempt_and_mutate failed for {}: {e}", notif.id))?;

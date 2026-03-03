@@ -59,6 +59,10 @@ pub struct Config {
     pub email_http_endpoint: Option<String>,
     pub email_from: String,
     pub email_api_key: Option<String>,
+    pub retry_max_attempts: i32,
+    pub retry_backoff_base_secs: i64,
+    pub retry_backoff_multiplier: f64,
+    pub retry_backoff_max_secs: i64,
 }
 
 impl Config {
@@ -139,6 +143,22 @@ impl Config {
         let email_from =
             env::var("EMAIL_FROM").unwrap_or_else(|_| "no-reply@notifications.local".to_string());
         let email_api_key = env::var("EMAIL_API_KEY").ok();
+        let retry_max_attempts = env::var("NOTIFICATIONS_RETRY_MAX_ATTEMPTS")
+            .ok()
+            .and_then(|v| v.parse::<i32>().ok())
+            .unwrap_or(5);
+        let retry_backoff_base_secs = env::var("NOTIFICATIONS_RETRY_BACKOFF_BASE_SECS")
+            .ok()
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or(300);
+        let retry_backoff_multiplier = env::var("NOTIFICATIONS_RETRY_BACKOFF_MULTIPLIER")
+            .ok()
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(1.0);
+        let retry_backoff_max_secs = env::var("NOTIFICATIONS_RETRY_BACKOFF_MAX_SECS")
+            .ok()
+            .and_then(|v| v.parse::<i64>().ok())
+            .unwrap_or(3600);
 
         Ok(Config {
             database_url,
@@ -152,6 +172,10 @@ impl Config {
             email_http_endpoint,
             email_from,
             email_api_key,
+            retry_max_attempts,
+            retry_backoff_base_secs,
+            retry_backoff_multiplier,
+            retry_backoff_max_secs,
         })
     }
 
@@ -182,6 +206,21 @@ impl Config {
                 .unwrap_or(true)
         {
             return Err("EMAIL_HTTP_ENDPOINT is required when EMAIL_SENDER_TYPE=http".to_string());
+        }
+        if self.retry_max_attempts < 1 {
+            return Err("NOTIFICATIONS_RETRY_MAX_ATTEMPTS must be >= 1".to_string());
+        }
+        if self.retry_backoff_base_secs < 1 {
+            return Err("NOTIFICATIONS_RETRY_BACKOFF_BASE_SECS must be >= 1".to_string());
+        }
+        if self.retry_backoff_multiplier < 1.0 {
+            return Err("NOTIFICATIONS_RETRY_BACKOFF_MULTIPLIER must be >= 1.0".to_string());
+        }
+        if self.retry_backoff_max_secs < self.retry_backoff_base_secs {
+            return Err(
+                "NOTIFICATIONS_RETRY_BACKOFF_MAX_SECS must be >= NOTIFICATIONS_RETRY_BACKOFF_BASE_SECS"
+                    .to_string(),
+            );
         }
 
         Ok(())
@@ -218,6 +257,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            retry_max_attempts: 5,
+            retry_backoff_base_secs: 300,
+            retry_backoff_multiplier: 1.0,
+            retry_backoff_max_secs: 3600,
         };
 
         let err = config.validate().unwrap_err();
@@ -238,6 +281,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            retry_max_attempts: 5,
+            retry_backoff_base_secs: 300,
+            retry_backoff_multiplier: 1.0,
+            retry_backoff_max_secs: 3600,
         };
 
         let err = config.validate().unwrap_err();
@@ -258,6 +305,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            retry_max_attempts: 5,
+            retry_backoff_base_secs: 300,
+            retry_backoff_multiplier: 1.0,
+            retry_backoff_max_secs: 3600,
         };
 
         assert!(config.validate().is_ok());
@@ -274,6 +325,10 @@ mod tests {
             email_http_endpoint: None,
             email_from: "no-reply@notifications.local".to_string(),
             email_api_key: None,
+            retry_max_attempts: 5,
+            retry_backoff_base_secs: 300,
+            retry_backoff_multiplier: 1.0,
+            retry_backoff_max_secs: 3600,
         };
 
         assert!(config_nats.validate().is_ok());

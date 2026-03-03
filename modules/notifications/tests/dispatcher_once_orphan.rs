@@ -1,6 +1,6 @@
 /// Integration test: dispatch_once orphan recovery.
 ///
-/// Inserts a row directly with status='claimed' and last_attempt_at 10 minutes
+/// Inserts a row directly with status='attempting' and last_attempt_at 10 minutes
 /// ago (older than the 5-minute orphan threshold).  dispatch_once resets it to
 /// 'pending'.  Because deliver_at is set 1 hour in the future, the row is NOT
 /// re-claimed in the same cycle, leaving it as 'pending'.
@@ -9,7 +9,7 @@ use std::sync::Arc;
 use chrono::Utc;
 use sqlx::PgPool;
 
-use notifications_rs::scheduled::{dispatch_once, LoggingSender};
+use notifications_rs::scheduled::{dispatch_once, LoggingSender, RetryPolicy};
 
 const DEFAULT_DB_URL: &str =
     "postgresql://notifications_user:notifications_pass@localhost:5437/notifications_db";
@@ -30,7 +30,7 @@ async fn get_pool() -> PgPool {
 async fn test_dispatch_once_orphan_recovery() {
     let pool = get_pool().await;
 
-    // Insert directly with status='claimed' and a stale last_attempt_at (10 min ago).
+    // Insert directly with status='attempting' and a stale last_attempt_at (10 min ago).
     // deliver_at is 1 hour in the future so the row won't be re-claimed after reset.
     let stale_attempt = Utc::now() - chrono::Duration::minutes(10);
     let future_deliver = Utc::now() + chrono::Duration::hours(1);
@@ -40,7 +40,7 @@ async fn test_dispatch_once_orphan_recovery() {
         r#"
         INSERT INTO scheduled_notifications
             (recipient_ref, channel, template_key, payload_json, deliver_at, status, last_attempt_at)
-        VALUES ($1, 'email', 'test_orphan_tpl', '{}', $2, 'claimed', $3)
+        VALUES ($1, 'email', 'test_orphan_tpl', '{}', $2, 'attempting', $3)
         RETURNING id
         "#,
     )
@@ -54,7 +54,7 @@ async fn test_dispatch_once_orphan_recovery() {
     // dispatch_once: reset_orphaned_claims runs first, resetting our row to 'pending'.
     // claim_due_batch does NOT pick it up (deliver_at is in the future).
     let sender = Arc::new(LoggingSender);
-    let result = dispatch_once(&pool, sender)
+    let result = dispatch_once(&pool, sender, RetryPolicy::default())
         .await
         .expect("dispatch_once failed");
 
@@ -74,7 +74,7 @@ async fn test_dispatch_once_orphan_recovery() {
 
     assert_eq!(
         status, "pending",
-        "orphaned 'claimed' row should be reset to 'pending', got '{}'",
+        "orphaned 'attempting' row should be reset to 'pending', got '{}'",
         status
     );
 }

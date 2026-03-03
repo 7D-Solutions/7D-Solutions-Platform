@@ -8,6 +8,34 @@ use crate::templates::RenderedMessage;
 use super::models::ScheduledNotification;
 use super::sender::{NotificationError, SendReceipt};
 
+#[derive(Debug, Clone, Copy)]
+pub struct RetryPolicy {
+    pub max_attempts: i32,
+    pub backoff_base_secs: i64,
+    pub backoff_multiplier: f64,
+    pub backoff_max_secs: i64,
+}
+
+impl Default for RetryPolicy {
+    fn default() -> Self {
+        Self {
+            max_attempts: 5,
+            backoff_base_secs: 300,
+            backoff_multiplier: 1.0,
+            backoff_max_secs: 3600,
+        }
+    }
+}
+
+impl RetryPolicy {
+    fn delay_for_attempt(self, attempt_no: i32) -> Duration {
+        let exp = (attempt_no.saturating_sub(1).max(0)) as i32;
+        let scale = self.backoff_multiplier.powi(exp);
+        let secs = ((self.backoff_base_secs as f64) * scale) as i64;
+        Duration::seconds(secs.min(self.backoff_max_secs).max(1))
+    }
+}
+
 /// Insert a new pending scheduled notification. Returns the generated id.
 pub async fn insert_pending(
     pool: &PgPool,
@@ -46,7 +74,7 @@ pub async fn reset_orphaned_claims(
         r#"
         UPDATE scheduled_notifications
         SET status = 'pending'
-        WHERE status = 'claimed'
+        WHERE status = 'attempting'
           AND last_attempt_at < $1
         "#,
     )
@@ -66,12 +94,13 @@ pub async fn claim_due_batch(
     let rows = sqlx::query_as::<_, ScheduledNotification>(
         r#"
         UPDATE scheduled_notifications
-        SET status = 'claimed',
+        SET status = 'attempting',
+            attempted_at = NOW(),
             last_attempt_at = NOW()
         WHERE id IN (
             SELECT id FROM scheduled_notifications
             WHERE deliver_at <= NOW()
-              AND status = 'pending'
+              AND status IN ('pending', 'failed')
             ORDER BY deliver_at
             LIMIT $1
             FOR UPDATE SKIP LOCKED
@@ -86,6 +115,11 @@ pub async fn claim_due_batch(
             status,
             retry_count,
             last_attempt_at,
+            attempted_at,
+            sent_at,
+            failed_at,
+            dead_lettered_at,
+            last_error,
             created_at
         "#,
     )
@@ -159,13 +193,17 @@ fn tenant_from_recipient_ref(recipient_ref: &str) -> String {
         .to_string()
 }
 
-fn next_status_after_failure(retry_count: i32, retryable: bool) -> (&'static str, Option<DateTime<Utc>>, bool) {
-    if retryable && retry_count < 5 {
-        let backoff_minutes = (retry_count + 1) as i64 * 5;
-        let next_deliver_at = Utc::now() + Duration::minutes(backoff_minutes);
-        ("pending", Some(next_deliver_at), true)
+fn next_status_after_failure(
+    retry_count: i32,
+    retryable: bool,
+    policy: RetryPolicy,
+) -> (&'static str, Option<DateTime<Utc>>, bool) {
+    let attempt_no = retry_count + 1;
+    if retryable && attempt_no < policy.max_attempts {
+        let next_deliver_at = Utc::now() + policy.delay_for_attempt(attempt_no + 1);
+        ("failed", Some(next_deliver_at), true)
     } else {
-        ("failed", None, false)
+        ("dead_lettered", None, false)
     }
 }
 
@@ -179,6 +217,7 @@ pub async fn record_delivery_attempt_and_mutate(
     idempotency_key: &str,
     send_result: Result<SendReceipt, NotificationError>,
     rendered: Option<&RenderedMessage>,
+    policy: RetryPolicy,
 ) -> Result<AttemptApplyOutcome, sqlx::Error> {
     let mut tx = pool.begin().await?;
 
@@ -214,7 +253,7 @@ pub async fn record_delivery_attempt_and_mutate(
             ),
             Err(err) => {
                 let (sn_status, deliver_at, retryable) =
-                    next_status_after_failure(notif.retry_count, err.retryable());
+                    next_status_after_failure(notif.retry_count, err.retryable(), policy);
                 let out = if retryable {
                     AttemptApplyOutcome::FailedRetryable
                 } else {
@@ -263,12 +302,35 @@ pub async fn record_delivery_attempt_and_mutate(
         sqlx::query(
             r#"
             UPDATE scheduled_notifications
-            SET status = $1, deliver_at = $2, retry_count = retry_count + $3
-            WHERE id = $4
+            SET status = $1,
+                deliver_at = $2,
+                retry_count = retry_count + $3,
+                failed_at = NOW(),
+                dead_lettered_at = NULL,
+                last_error = $4
+            WHERE id = $5
             "#,
         )
         .bind(next_sn_status)
         .bind(deliver_at)
+        .bind(retry_increment)
+        .bind(error_message.clone())
+        .bind(notif.id)
+        .execute(&mut *tx)
+        .await?;
+    } else if next_sn_status == "sent" {
+        sqlx::query(
+            r#"
+            UPDATE scheduled_notifications
+            SET status = $1,
+                sent_at = NOW(),
+                retry_count = retry_count + $2,
+                dead_lettered_at = NULL,
+                last_error = NULL
+            WHERE id = $3
+            "#,
+        )
+        .bind(next_sn_status)
         .bind(retry_increment)
         .bind(notif.id)
         .execute(&mut *tx)
@@ -277,12 +339,17 @@ pub async fn record_delivery_attempt_and_mutate(
         sqlx::query(
             r#"
             UPDATE scheduled_notifications
-            SET status = $1, retry_count = retry_count + $2
-            WHERE id = $3
+            SET status = $1,
+                retry_count = retry_count + $2,
+                failed_at = NOW(),
+                dead_lettered_at = NOW(),
+                last_error = $3
+            WHERE id = $4
             "#,
         )
         .bind(next_sn_status)
         .bind(retry_increment)
+        .bind(error_message.clone())
         .bind(notif.id)
         .execute(&mut *tx)
         .await?;

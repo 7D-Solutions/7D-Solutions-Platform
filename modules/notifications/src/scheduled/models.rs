@@ -15,6 +15,11 @@ pub struct ScheduledNotification {
     pub status: String,
     pub retry_count: i32,
     pub last_attempt_at: Option<DateTime<Utc>>,
+    pub attempted_at: Option<DateTime<Utc>>,
+    pub sent_at: Option<DateTime<Utc>>,
+    pub failed_at: Option<DateTime<Utc>>,
+    pub dead_lettered_at: Option<DateTime<Utc>>,
+    pub last_error: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 

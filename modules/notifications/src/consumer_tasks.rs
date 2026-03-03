@@ -9,12 +9,14 @@ use uuid::Uuid;
 use crate::consumers::EventConsumer;
 use crate::envelope_validation::validate_envelope;
 use crate::handlers::{handle_invoice_issued, handle_payment_failed, handle_payment_succeeded};
+use crate::metrics::record_consumer_lag;
 use crate::models::{
     EnvelopeMetadata, InvoiceIssuedPayload, PaymentFailedPayload, PaymentSucceededPayload,
 };
 
 /// Start consumer task for ar.invoice.issued events
 pub async fn start_invoice_issued_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
+    record_consumer_lag("notifications_invoice_issued_consumer", 0);
     tokio::spawn(async move {
         tracing::info!("Starting invoice issued consumer");
 
@@ -125,6 +127,7 @@ async fn process_invoice_issued(
 
 /// Start consumer task for payments.payment.succeeded events
 pub async fn start_payment_succeeded_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
+    record_consumer_lag("notifications_payment_succeeded_consumer", 0);
     tokio::spawn(async move {
         tracing::info!("Starting payment succeeded consumer");
 
@@ -235,6 +238,7 @@ async fn process_payment_succeeded(
 
 /// Start consumer task for payments.payment.failed events
 pub async fn start_payment_failed_consumer(bus: Arc<dyn EventBus>, pool: PgPool) {
+    record_consumer_lag("notifications_payment_failed_consumer", 0);
     tokio::spawn(async move {
         tracing::info!("Starting payment failed consumer");
 

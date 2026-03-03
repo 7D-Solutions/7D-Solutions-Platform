@@ -52,3 +52,7 @@ Admin routes are available under the admin router (requires `notifications.mutat
 | `EMAIL_HTTP_ENDPOINT` | _(required when `EMAIL_SENDER_TYPE=http`)_ | Provider HTTP endpoint for outbound email |
 | `EMAIL_FROM` | `no-reply@notifications.local` | From address used by the email sender |
 | `EMAIL_API_KEY` | _(optional)_ | Bearer token for provider auth |
+| `NOTIFICATIONS_RETRY_MAX_ATTEMPTS` | `5` | Maximum delivery attempts before dead-lettering |
+| `NOTIFICATIONS_RETRY_BACKOFF_BASE_SECS` | `300` | Base retry delay in seconds |
+| `NOTIFICATIONS_RETRY_BACKOFF_MULTIPLIER` | `1.0` | Exponential backoff multiplier |
+| `NOTIFICATIONS_RETRY_BACKOFF_MAX_SECS` | `3600` | Maximum retry delay cap in seconds |

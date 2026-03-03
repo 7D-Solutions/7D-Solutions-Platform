@@ -7,7 +7,7 @@ use std::sync::Arc;
 use chrono::Utc;
 use sqlx::PgPool;
 
-use notifications_rs::scheduled::{dispatch_once, insert_pending, LoggingSender};
+use notifications_rs::scheduled::{dispatch_once, insert_pending, LoggingSender, RetryPolicy};
 
 const DEFAULT_DB_URL: &str =
     "postgresql://notifications_user:notifications_pass@localhost:5437/notifications_db";
@@ -51,7 +51,7 @@ async fn test_dispatch_once_due_send() {
 
     // Dispatch with LoggingSender — should succeed immediately.
     let sender = Arc::new(LoggingSender);
-    let result = dispatch_once(&pool, sender)
+    let result = dispatch_once(&pool, sender, RetryPolicy::default())
         .await
         .expect("dispatch_once failed");
 

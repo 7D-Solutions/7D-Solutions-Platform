@@ -15,7 +15,7 @@ use sqlx::PgPool;
 
 use notifications_rs::scheduled::{
     dispatch_once, insert_pending, LoggingSender, NotificationError, NotificationSender,
-    ScheduledNotification, SendReceipt,
+    RetryPolicy, ScheduledNotification, SendReceipt,
 };
 
 const DEFAULT_DB_URL: &str =
@@ -88,11 +88,11 @@ async fn test_dispatch_once_retry_backoff() {
     // Back-off for retry_count=0: (0+1)*5 = 5 minutes.
     let before_retry = Utc::now();
     let failing = Arc::new(FailingSender::new(1));
-    dispatch_once(&pool, failing)
+    dispatch_once(&pool, failing, RetryPolicy::default())
         .await
         .expect("dispatch_once (fail) failed");
 
-    // Assert: row rescheduled — pending, retry_count=1, deliver_at advanced ~5 min.
+    // Assert: row rescheduled — failed (retry-eligible), retry_count=1, deliver_at advanced ~5 min.
     let row: RetryRow = sqlx::query_as(
         "SELECT status, retry_count, deliver_at FROM scheduled_notifications WHERE id = $1",
     )
@@ -102,8 +102,8 @@ async fn test_dispatch_once_retry_backoff() {
     .expect("row not found after first dispatch");
 
     assert_eq!(
-        row.status, "pending",
-        "expected pending after failure, got {}",
+        row.status, "failed",
+        "expected failed after retryable failure, got {}",
         row.status
     );
     assert_eq!(
@@ -132,7 +132,7 @@ async fn test_dispatch_once_retry_backoff() {
 
     // Second dispatch: LoggingSender succeeds.
     let sender = Arc::new(LoggingSender);
-    dispatch_once(&pool, sender)
+    dispatch_once(&pool, sender, RetryPolicy::default())
         .await
         .expect("dispatch_once (success) failed");
 

@@ -4,7 +4,7 @@ use axum::{extract::Path, response::IntoResponse, routing::post, Json, Router};
 use chrono::Utc;
 use notifications_rs::scheduled::{
     claim_due_batch, dispatch_once, insert_pending, record_delivery_attempt_and_mutate,
-    AttemptApplyOutcome, HttpEmailSender, NotificationError,
+    AttemptApplyOutcome, HttpEmailSender, NotificationError, RetryPolicy,
 };
 use serial_test::serial;
 use sqlx::PgPool;
@@ -75,7 +75,9 @@ async fn e2e_http_sender_success_and_invalid_recipient_classification() {
             None,
         ),
     );
-    let result = dispatch_once(&pool, sender).await.expect("dispatch success");
+    let result = dispatch_once(&pool, sender, RetryPolicy::default())
+        .await
+        .expect("dispatch success");
     assert!(result.sent_count >= 1, "expected at least one sent notification");
 
     let success_row: StatusRow =
@@ -116,7 +118,9 @@ async fn e2e_http_sender_success_and_invalid_recipient_classification() {
             None,
         ),
     );
-    let result = dispatch_once(&pool, fail_sender).await.expect("dispatch failure path");
+    let result = dispatch_once(&pool, fail_sender, RetryPolicy::default())
+        .await
+        .expect("dispatch failure path");
     assert!(
         result.failed_count >= 1,
         "expected at least one failed notification"
@@ -128,7 +132,7 @@ async fn e2e_http_sender_success_and_invalid_recipient_classification() {
             .fetch_one(&pool)
             .await
             .expect("fetch failure row");
-    assert_eq!(fail_row.status, "failed");
+    assert_eq!(fail_row.status, "dead_lettered");
     assert_eq!(fail_row.retry_count, 0);
 
     let (attempt_status, error_class): (String, Option<String>) = sqlx::query_as(
@@ -171,6 +175,7 @@ async fn e2e_idempotency_key_reuses_stored_outcome() {
         &key,
         Err(NotificationError::Transient("transient".to_string())),
         None,
+        RetryPolicy::default(),
     )
     .await
     .expect("record first");
@@ -182,6 +187,7 @@ async fn e2e_idempotency_key_reuses_stored_outcome() {
         &key,
         Ok(Default::default()),
         None,
+        RetryPolicy::default(),
     )
     .await
     .expect("record second");
@@ -193,7 +199,7 @@ async fn e2e_idempotency_key_reuses_stored_outcome() {
             .fetch_one(&pool)
             .await
             .expect("fetch row");
-    assert_eq!(row.status, "pending");
+    assert_eq!(row.status, "failed");
     assert_eq!(row.retry_count, 1);
 
     let (attempts,): (i64,) = sqlx::query_as(
@@ -238,7 +244,9 @@ async fn e2e_rendered_content_persisted_on_successful_dispatch() {
             None,
         ),
     );
-    let result = dispatch_once(&pool, sender).await.expect("dispatch render test");
+    let result = dispatch_once(&pool, sender, RetryPolicy::default())
+        .await
+        .expect("dispatch render test");
     assert!(result.sent_count >= 1);
 
     // Verify rendered content was persisted alongside the delivery attempt.
@@ -287,7 +295,9 @@ async fn e2e_render_failure_records_permanent_failure() {
 
     let sender: Arc<dyn notifications_rs::scheduled::NotificationSender> =
         Arc::new(notifications_rs::scheduled::LoggingSender);
-    let result = dispatch_once(&pool, sender).await.expect("dispatch render failure");
+    let result = dispatch_once(&pool, sender, RetryPolicy::default())
+        .await
+        .expect("dispatch render failure");
     assert!(result.failed_count >= 1, "render failure should count as failed");
 
     let row: StatusRow =
@@ -296,7 +306,10 @@ async fn e2e_render_failure_records_permanent_failure() {
             .fetch_one(&pool)
             .await
             .expect("fetch row");
-    assert_eq!(row.status, "failed", "unknown template → permanent failure");
+    assert_eq!(
+        row.status, "dead_lettered",
+        "unknown template → DLQ terminal status"
+    );
 
     let (attempt_status, error_class): (String, Option<String>) = sqlx::query_as(
         "SELECT status, error_class FROM notification_delivery_attempts \
