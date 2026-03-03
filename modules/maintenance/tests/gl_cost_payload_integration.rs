@@ -58,6 +58,8 @@ async fn create_test_asset(
             serial_number: None,
             fixed_asset_ref,
             metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
         },
     )
     .await

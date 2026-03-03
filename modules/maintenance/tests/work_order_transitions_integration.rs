@@ -55,6 +55,8 @@ async fn create_test_asset(pool: &sqlx::PgPool, tid: &str, tag: &str) -> Uuid {
             serial_number: None,
             fixed_asset_ref: None,
             metadata: None,
+            maintenance_schedule: None,
+            idempotency_key: None,
         },
     )
     .await
