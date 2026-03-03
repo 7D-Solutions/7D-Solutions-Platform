@@ -10,6 +10,8 @@ pub mod envelope;
 pub mod external_ref_created;
 pub mod external_ref_deleted;
 pub mod external_ref_updated;
+pub mod file_job_created;
+pub mod file_job_status_changed;
 pub mod outbound_webhook_created;
 pub mod outbound_webhook_deleted;
 pub mod outbound_webhook_updated;
@@ -28,6 +30,13 @@ pub const MUTATION_CLASS_LIFECYCLE: &str = "LIFECYCLE";
 // Re-exports
 // ============================================================================
 
+pub use file_job_created::{
+    build_file_job_created_envelope, FileJobCreatedPayload, EVENT_TYPE_FILE_JOB_CREATED,
+};
+pub use file_job_status_changed::{
+    build_file_job_status_changed_envelope, FileJobStatusChangedPayload,
+    EVENT_TYPE_FILE_JOB_STATUS_CHANGED,
+};
 pub use external_ref_created::{
     build_external_ref_created_envelope, ExternalRefCreatedPayload, EVENT_TYPE_EXTERNAL_REF_CREATED,
 };
