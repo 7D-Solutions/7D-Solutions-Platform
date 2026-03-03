@@ -127,13 +127,8 @@ async fn main() {
         ]))
         .with_state(db.clone());
 
-    // Read handlers — no permission gate.
+    // Read handlers — require pdf_editor.read permission.
     let reads = Router::new()
-        .route("/healthz", get(health::healthz))
-        .route("/api/health", get(handlers::health::health))
-        .route("/api/ready", get(handlers::health::ready))
-        .route("/api/version", get(handlers::health::version))
-        .route("/metrics", get(metrics::metrics_handler))
         // Form templates — read
         .route(
             "/api/pdf/forms/templates",
@@ -157,11 +152,24 @@ async fn main() {
             "/api/pdf/forms/submissions/{id}",
             get(handlers::submissions::get_submission),
         )
+        .route_layer(RequirePermissionsLayer::new(&[
+            permissions::PDF_EDITOR_READ,
+        ]))
+        .with_state(db.clone());
+
+    // Health/metrics — public, no auth required.
+    let health_routes = Router::new()
+        .route("/healthz", get(health::healthz))
+        .route("/api/health", get(handlers::health::health))
+        .route("/api/ready", get(handlers::health::ready))
+        .route("/api/version", get(handlers::health::version))
+        .route("/metrics", get(metrics::metrics_handler))
         .with_state(db.clone());
 
     let app = Router::new()
         .merge(mutations)
         .merge(reads)
+        .merge(health_routes)
         // PDF processing — stateless, no DB state needed.
         // Nested router with its own 50 MB body limit for PDF uploads.
         .merge(

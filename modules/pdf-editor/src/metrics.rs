@@ -12,7 +12,7 @@ use prometheus::{
     Encoder, HistogramOpts, HistogramVec, IntCounterVec, Opts, Registry, TextEncoder,
 };
 
-use crate::routes::ErrorBody;
+use crate::http::ErrorBody;
 
 lazy_static! {
     pub static ref METRICS_REGISTRY: Registry = {
