@@ -89,6 +89,10 @@ async fn forward_fix_rollback_and_reapply() {
 
     // Execute full rollback (reverse dependency order)
     let rollback_statements = [
+        "DROP TABLE IF EXISTS sr_shipping_doc_requests CASCADE",
+        "DROP TABLE IF EXISTS rma_receipt_items CASCADE",
+        "DROP TABLE IF EXISTS rma_receipts CASCADE",
+        "DROP TABLE IF EXISTS inspection_routings CASCADE",
         "DROP TABLE IF EXISTS shipment_lines CASCADE",
         "DROP TABLE IF EXISTS shipments CASCADE",
         "DROP TABLE IF EXISTS sr_processed_events CASCADE",
