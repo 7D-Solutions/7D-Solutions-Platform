@@ -54,17 +54,17 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-      nats:
-        image: nats:2.10
-        ports:
-          - 4222:4222
-          - 8222:8222
-        # Enable JetStream + monitoring
-        options: >-
-          --name nats-proof
-
     steps:
       - uses: actions/checkout@v4
+
+      - name: Start NATS with JetStream + monitoring
+        run: |
+          docker run -d --name nats-proof \
+            -p 4222:4222 -p 8222:8222 \
+            nats:2.10 -js -m 8222
+          # Wait for NATS to be ready
+          timeout 30 bash -c 'until curl -sS http://localhost:8222/healthz >/dev/null 2>&1; do sleep 1; done'
+          echo "✓ NATS ready (JetStream + monitoring on :8222)"
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -149,3 +149,7 @@ jobs:
 
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Download proof artifacts from the Artifacts section below." >> $GITHUB_STEP_SUMMARY
+
+      - name: Cleanup NATS
+        if: always()
+        run: docker rm -f nats-proof 2>/dev/null || true
