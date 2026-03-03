@@ -1,6 +1,6 @@
 use axum::{routing::get, Router};
 use event_bus::{EventBus, NatsBus};
-use security::{optional_claims_mw, JwtVerifier, RequirePermissionsLayer};
+use security::{optional_claims_mw, JwtVerifier};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing_subscriber::EnvFilter;
@@ -67,9 +67,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }),
     );
 
-    // API router (with auth)
-    let api = routes::api_router(app_state)
-        .route_layer(RequirePermissionsLayer::new(&["doc_mgmt.mutate"]));
+    // API router (with authz at route level in routes::api_router)
+    let api = routes::api_router(app_state);
 
     let app =
         Router::new()
