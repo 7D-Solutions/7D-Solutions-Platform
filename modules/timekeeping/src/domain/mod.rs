@@ -1,6 +1,7 @@
 pub mod allocations;
 pub mod approvals;
 pub mod billing;
+pub mod clock;
 pub mod employees;
 pub mod entries;
 pub mod export;
