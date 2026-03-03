@@ -11,6 +11,9 @@ pub const STEP_DECISION_RECORDED: &str = "workflow.events.step.decision_recorded
 pub const PARALLEL_THRESHOLD_MET: &str = "workflow.events.step.parallel_threshold_met";
 pub const HOLD_APPLIED: &str = "workflow.events.hold.applied";
 pub const HOLD_RELEASED: &str = "workflow.events.hold.released";
+pub const ESCALATION_FIRED: &str = "workflow.events.escalation.fired";
+pub const DELEGATION_CREATED: &str = "workflow.events.delegation.created";
+pub const DELEGATION_REVOKED: &str = "workflow.events.delegation.revoked";
 
 pub const ALL_SUBJECTS: &[&str] = &[
     INSTANCE_STARTED,
@@ -22,6 +25,9 @@ pub const ALL_SUBJECTS: &[&str] = &[
     PARALLEL_THRESHOLD_MET,
     HOLD_APPLIED,
     HOLD_RELEASED,
+    ESCALATION_FIRED,
+    DELEGATION_CREATED,
+    DELEGATION_REVOKED,
 ];
 
 #[cfg(test)]
@@ -49,6 +55,6 @@ mod tests {
 
     #[test]
     fn all_subjects_count() {
-        assert_eq!(ALL_SUBJECTS.len(), 9);
+        assert_eq!(ALL_SUBJECTS.len(), 12);
     }
 }

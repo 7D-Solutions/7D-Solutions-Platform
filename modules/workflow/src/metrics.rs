@@ -14,6 +14,7 @@ pub struct WorkflowMetrics {
     pub http_requests_total: IntCounterVec,
     pub outbox_queue_depth: IntGauge,
     pub events_enqueued_total: IntCounter,
+    pub escalations_fired_total: IntCounter,
     registry: Registry,
 }
 
@@ -51,11 +52,18 @@ impl WorkflowMetrics {
         )?;
         registry.register(Box::new(events_enqueued_total.clone()))?;
 
+        let escalations_fired_total = IntCounter::new(
+            "workflow_escalations_fired_total",
+            "Total escalation timers fired (all time)",
+        )?;
+        registry.register(Box::new(escalations_fired_total.clone()))?;
+
         Ok(Self {
             http_request_duration_seconds,
             http_requests_total,
             outbox_queue_depth,
             events_enqueued_total,
+            escalations_fired_total,
             registry,
         })
     }
