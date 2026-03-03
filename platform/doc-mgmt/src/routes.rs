@@ -51,5 +51,23 @@ pub fn api_router(state: Arc<AppState>) -> Router {
             "/api/documents/{id}/dispose",
             post(crate::retention::dispose_document),
         )
+        // Templates
+        .route(
+            "/api/templates",
+            post(crate::template_engine::create_template),
+        )
+        .route(
+            "/api/templates/{id}",
+            get(crate::template_engine::get_template),
+        )
+        .route(
+            "/api/templates/{id}/render",
+            post(crate::template_engine::render_template),
+        )
+        // Render artifacts
+        .route(
+            "/api/artifacts/{id}",
+            get(crate::template_engine::get_artifact),
+        )
         .with_state(state)
 }

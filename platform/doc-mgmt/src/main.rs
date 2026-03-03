@@ -10,8 +10,10 @@ mod db;
 mod handlers;
 mod models;
 mod outbox_relay;
+mod render;
 mod retention;
 mod routes;
+mod template_engine;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

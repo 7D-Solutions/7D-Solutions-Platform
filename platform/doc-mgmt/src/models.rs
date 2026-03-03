@@ -148,3 +148,60 @@ pub struct LegalHoldReleasedPayload {
     pub hold_id: Uuid,
     pub reason: String,
 }
+
+// ── Template engine models ──────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct DocTemplate {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub name: String,
+    pub doc_type: String,
+    pub body_template: serde_json::Value,
+    pub version: i32,
+    pub created_by: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct RenderArtifact {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub template_id: Uuid,
+    pub idempotency_key: Option<String>,
+    pub input_hash: String,
+    pub output_hash: String,
+    pub output: serde_json::Value,
+    pub rendered_by: Uuid,
+    pub rendered_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateTemplateRequest {
+    pub name: String,
+    pub doc_type: String,
+    pub body_template: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RenderRequest {
+    pub input_data: serde_json::Value,
+}
+
+// ── Template + render event payloads ────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateCreatedPayload {
+    pub template_id: Uuid,
+    pub name: String,
+    pub doc_type: String,
+    pub version: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentRenderedPayload {
+    pub artifact_id: Uuid,
+    pub template_id: Uuid,
+    pub output_hash: String,
+}
