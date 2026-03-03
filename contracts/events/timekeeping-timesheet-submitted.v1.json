@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/timekeeping-timesheet-submitted.v1.json",
+  "title": "timesheet.submitted",
+  "description": "Emitted when an employee submits a timesheet for a period. Transitions approval status from draft/rejected to submitted.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)."
+    },
+    "event_type": {
+      "type": "string",
+      "const": "timesheet.submitted",
+      "description": "Event type following entity.action convention."
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the timesheet was submitted."
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Tenant identifier (app_id) for multi-tenant isolation."
+    },
+    "source_module": {
+      "type": "string",
+      "const": "timekeeping",
+      "description": "Module that generated the event."
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module."
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Schema version of the payload."
+    },
+    "replay_safe": {
+      "type": "boolean",
+      "description": "Whether the event can be safely replayed."
+    },
+    "mutation_class": {
+      "type": "string",
+      "enum": ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"],
+      "description": "Classification of the mutation."
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction."
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it."
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "approval_id",
+        "app_id",
+        "employee_id",
+        "period_start",
+        "period_end",
+        "total_minutes"
+      ],
+      "properties": {
+        "approval_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Approval request identifier."
+        },
+        "app_id": {
+          "type": "string",
+          "description": "Application/tenant identifier."
+        },
+        "employee_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Employee who submitted the timesheet."
+        },
+        "period_start": {
+          "type": "string",
+          "format": "date",
+          "description": "Start date of the approval period (YYYY-MM-DD)."
+        },
+        "period_end": {
+          "type": "string",
+          "format": "date",
+          "description": "End date of the approval period (YYYY-MM-DD)."
+        },
+        "total_minutes": {
+          "type": "integer",
+          "description": "Total minutes logged in the period at time of submission."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

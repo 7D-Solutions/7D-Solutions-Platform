@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://7dsolutions.io/schemas/events/timekeeping-entry-voided.v1.json",
+  "title": "timesheet_entry.voided",
+  "description": "Emitted when a timesheet entry is voided (cancelled). A void row with minutes=0 is appended and the previous version is marked is_current=FALSE.",
+  "type": "object",
+  "required": [
+    "event_id",
+    "occurred_at",
+    "tenant_id",
+    "source_module",
+    "source_version",
+    "schema_version",
+    "replay_safe",
+    "mutation_class",
+    "payload"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique event identifier (idempotency key)."
+    },
+    "event_type": {
+      "type": "string",
+      "const": "timesheet_entry.voided",
+      "description": "Event type following entity.action convention."
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp when the entry was voided."
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Tenant identifier (app_id) for multi-tenant isolation."
+    },
+    "source_module": {
+      "type": "string",
+      "const": "timekeeping",
+      "description": "Module that generated the event."
+    },
+    "source_version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "Semantic version of the source module."
+    },
+    "schema_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Schema version of the payload."
+    },
+    "replay_safe": {
+      "type": "boolean",
+      "description": "Whether the event can be safely replayed."
+    },
+    "mutation_class": {
+      "type": "string",
+      "enum": ["DATA_MUTATION", "REVERSAL", "CORRECTION", "SIDE_EFFECT", "QUERY", "LIFECYCLE", "ADMINISTRATIVE"],
+      "description": "Classification of the mutation."
+    },
+    "correlation_id": {
+      "type": "string",
+      "description": "Links related events in a business transaction."
+    },
+    "causation_id": {
+      "type": "string",
+      "description": "Links this event to the command/event that caused it."
+    },
+    "payload": {
+      "type": "object",
+      "required": [
+        "entry_id",
+        "app_id",
+        "employee_id",
+        "work_date",
+        "voided_minutes",
+        "version"
+      ],
+      "properties": {
+        "entry_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Logical entry identifier being voided."
+        },
+        "app_id": {
+          "type": "string",
+          "description": "Application/tenant identifier."
+        },
+        "employee_id": {
+          "type": "string",
+          "format": "uuid",
+          "description": "Employee whose entry was voided."
+        },
+        "work_date": {
+          "type": "string",
+          "format": "date",
+          "description": "Work date of the voided entry."
+        },
+        "voided_minutes": {
+          "type": "integer",
+          "description": "Number of minutes that were voided (from previous version)."
+        },
+        "version": {
+          "type": "integer",
+          "description": "New version number of the void row."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}
