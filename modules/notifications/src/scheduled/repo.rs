@@ -120,6 +120,8 @@ pub async fn claim_due_batch(
             failed_at,
             dead_lettered_at,
             last_error,
+            abandoned_at,
+            replay_generation,
             created_at
         "#,
     )

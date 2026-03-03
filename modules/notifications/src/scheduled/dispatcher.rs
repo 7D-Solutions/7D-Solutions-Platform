@@ -61,7 +61,10 @@ pub async fn dispatch_once(
 
     // 3. Render template + attempt delivery for each claimed notification.
     for notif in &batch {
-        let idempotency_key = format!("notif:{}:attempt:{}", notif.id, notif.retry_count + 1);
+        let idempotency_key = format!(
+            "notif:{}:gen:{}:attempt:{}",
+            notif.id, notif.replay_generation, notif.retry_count + 1
+        );
 
         // Render template (pure, deterministic step).
         let rendered = crate::templates::render(&notif.template_key, &notif.payload_json);

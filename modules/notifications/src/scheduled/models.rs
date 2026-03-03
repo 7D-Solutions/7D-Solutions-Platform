@@ -20,6 +20,8 @@ pub struct ScheduledNotification {
     pub failed_at: Option<DateTime<Utc>>,
     pub dead_lettered_at: Option<DateTime<Utc>>,
     pub last_error: Option<String>,
+    pub abandoned_at: Option<DateTime<Utc>>,
+    pub replay_generation: i32,
     pub created_at: DateTime<Utc>,
 }
 

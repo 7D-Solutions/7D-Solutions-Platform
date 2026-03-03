@@ -147,7 +147,12 @@ async fn main() {
         .route("/metrics", get(metrics::metrics_handler))
         .with_state(db.clone())
         .merge(
-            http::admin::admin_router(db).route_layer(RequirePermissionsLayer::new(&[
+            http::admin::admin_router(db.clone()).route_layer(RequirePermissionsLayer::new(&[
+                permissions::NOTIFICATIONS_MUTATE,
+            ])),
+        )
+        .merge(
+            http::dlq::dlq_router(db).route_layer(RequirePermissionsLayer::new(&[
                 permissions::NOTIFICATIONS_MUTATE,
             ])),
         )
