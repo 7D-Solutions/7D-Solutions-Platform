@@ -1,0 +1,1104 @@
+## crate test: subscriptions-rs
+## started_at_utc=2026-03-03T16:20:52Z
+## cmd=bash -lc DATABASE_URL=postgres://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db?connect_timeout=5 "./scripts/cargo-slot.sh" test -p "subscriptions-rs" -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/subscriptions_rs-f0587d9e69c0d219)
+
+running 29 tests
+test cycle_gating::tests::test_calculate_cycle_boundaries_february ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_december ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_january ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_leap_year ... ok
+test cycle_gating::tests::test_generate_cycle_key_december ... ok
+test cycle_gating::tests::test_generate_cycle_key ... ok
+test cycle_gating::tests::test_generate_cycle_key_january ... ok
+test cycle_gating::tests::test_cycle_key_determinism ... ok
+test config::tests::test_validate_empty_database_url ... ok
+test config::tests::test_bus_type_from_str ... ok
+test config::tests::test_validate_success ... ok
+test config::tests::test_validate_nats_requires_url ... ok
+test lifecycle::state_machine::tests::test_status_from_str_invalid ... ok
+test lifecycle::state_machine::tests::test_guard_past_due_to_active ... ok
+test lifecycle::state_machine::tests::test_guard_active_to_past_due ... ok
+test lifecycle::state_machine::tests::test_guard_past_due_to_suspended ... ok
+test lifecycle::state_machine::tests::test_guard_illegal_suspended_to_past_due ... ok
+test lifecycle::state_machine::tests::test_guard_suspended_to_active ... ok
+test lifecycle::state_machine::tests::test_guard_active_to_suspended ... ok
+test lifecycle::state_machine::tests::test_guard_idempotent_transitions ... ok
+test cycle_gating::tests::test_advisory_lock_key_determinism ... ok
+test cycle_gating::tests::test_advisory_lock_key_uniqueness ... ok
+test cycle_gating::tests::test_advisory_lock_key_cycle_uniqueness ... ok
+test lifecycle::state_machine::tests::test_status_roundtrip ... ok
+test invariants::tests::test_invariant_violation_from_sqlx_error ... ok
+test invariants::tests::test_invariant_violation_display ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test admin::tests::test_admin_router_builds ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/subscriptions_rs-38dd9e92be5c1d2e)
+
+running 39 tests
+test cycle_gating::tests::test_calculate_cycle_boundaries_december ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_february ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_leap_year ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_january ... ok
+test cycle_gating::tests::test_generate_cycle_key_december ... ok
+test cycle_gating::tests::test_generate_cycle_key_january ... ok
+test cycle_gating::tests::test_generate_cycle_key ... ok
+test config::tests::test_bus_type_from_str ... ok
+test config::tests::test_validate_empty_database_url ... ok
+test config::tests::test_validate_success ... ok
+test config::tests::test_validate_nats_requires_url ... ok
+test envelope_validation::tests::test_invalid_event_id ... ok
+test envelope_validation::tests::test_invalid_occurred_at ... ok
+test envelope_validation::tests::test_missing_event_id ... ok
+test envelope_validation::tests::test_invalid_payload_type ... ok
+test envelope_validation::tests::test_empty_tenant_id ... ok
+test envelope_validation::tests::test_missing_payload ... ok
+test cycle_gating::tests::test_cycle_key_determinism ... ok
+test cycle_gating::tests::test_advisory_lock_key_determinism ... ok
+test cycle_gating::tests::test_advisory_lock_key_uniqueness ... ok
+test cycle_gating::tests::test_advisory_lock_key_cycle_uniqueness ... ok
+test envelope_validation::tests::test_valid_envelope ... ok
+test envelope_validation::tests::test_valid_envelope_with_optional_fields ... ok
+test invariants::tests::test_invariant_violation_from_sqlx_error ... ok
+test lifecycle::state_machine::tests::test_status_from_str_invalid ... ok
+test lifecycle::state_machine::tests::test_status_roundtrip ... ok
+test lifecycle::state_machine::tests::test_guard_idempotent_transitions ... ok
+test lifecycle::state_machine::tests::test_guard_active_to_suspended ... ok
+test lifecycle::state_machine::tests::test_guard_past_due_to_active ... ok
+test lifecycle::state_machine::tests::test_guard_illegal_suspended_to_past_due ... ok
+test lifecycle::state_machine::tests::test_guard_suspended_to_active ... ok
+test invariants::tests::test_invariant_violation_display ... ok
+test lifecycle::state_machine::tests::test_guard_past_due_to_suspended ... ok
+test lifecycle::state_machine::tests::test_guard_active_to_past_due ... ok
+test tests::cors_wildcard_parses ... ok
+test tests::cors_specific_origins_parse ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test admin::tests::test_admin_router_builds ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/cycle_gating_integration_test.rs (target-slot-1/debug/deps/cycle_gating_integration_test-d7073ef20d0d4701)
+
+running 9 tests
+test test_cycle_boundaries ... ok
+test test_cycle_key_determinism ... ok
+test test_different_cycles_dont_block ... ok
+test test_advisory_lock_basic ... ok
+test test_record_cycle_attempt ... ok
+test test_duplicate_cycle_attempt_fails ... ok
+test test_cycle_attempt_exists ... ok
+test test_mark_attempt_failed ... ok
+test test_mark_attempt_succeeded ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/lifecycle_integration_test.rs (target-slot-1/debug/deps/lifecycle_integration_test-e407a2d96708db04)
+
+running 14 tests
+test test_transition_suspended_to_active ... ok
+test test_transition_past_due_to_suspended ... ok
+test test_idempotent_transition_active_to_active ... ok
+test test_illegal_transition_suspended_to_past_due ... ok
+test test_illegal_transition_active_to_suspended ... ok
+test test_transition_past_due_to_active ... ok
+test test_lifecycle_function_subscription_not_found ... ok
+test test_transition_active_to_past_due ... ok
+test test_lifecycle_function_past_due_to_suspended ... ok
+test test_lifecycle_function_idempotent ... ok
+test test_lifecycle_function_past_due_to_active ... ok
+test test_lifecycle_function_rejects_illegal_transition ... ok
+test test_lifecycle_function_active_to_past_due ... ok
+test test_lifecycle_function_suspended_to_active ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/lifecycle_state_machine_test.rs (target-slot-1/debug/deps/lifecycle_state_machine_test-7d2c4224ff5397e4)
+
+running 14 tests
+test test_consumer_no_matching_subscriptions ... ok
+test test_double_suspension_is_idempotent ... ok
+test test_failed_transition_does_not_emit_outbox_event ... ok
+test test_direct_active_to_suspended_dunning_escalation ... ok
+test test_full_dunning_lifecycle_and_recovery ... ok
+test test_consumer_skips_already_suspended_subscription ... ok
+test test_suspended_to_past_due_rejected_via_lifecycle_fn ... ok
+test test_consumer_suspends_active_subscription ... ok
+test test_transition_to_suspended_emits_outbox_event ... ok
+test test_transition_to_past_due_emits_outbox_event ... ok
+test test_consumer_idempotent_duplicate_event ... ok
+test test_nonexistent_subscription_transition_fails ... ok
+test test_consumer_suspends_past_due_subscription ... ok
+test test_past_due_recovery_without_suspension ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+   Doc-tests subscriptions_rs
+
+running 7 tests
+error: unknown start of token: \u{2192}
+ --> modules/subscriptions/src/gated_invoice_creation.rs:8:6
+  |
+1 | Gate → Lock → Check → Execute → Record
+  |      ^
+
+error: unknown start of token: \u{2192}
+ --> modules/subscriptions/src/gated_invoice_creation.rs:8:13
+  |
+1 | Gate → Lock → Check → Execute → Record
+  |             ^
+
+error: unknown start of token: \u{2192}
+ --> modules/subscriptions/src/gated_invoice_creation.rs:8:21
+  |
+1 | Gate → Lock → Check → Execute → Record
+  |                     ^
+
+error: unknown start of token: \u{2192}
+ --> modules/subscriptions/src/gated_invoice_creation.rs:8:31
+  |
+1 | Gate → Lock → Check → Execute → Record
+  |                               ^
+
+error: expected one of `!` or `::`, found `Lock`
+ --> modules/subscriptions/src/gated_invoice_creation.rs:8:8
+  |
+1 | Gate → Lock → Check → Execute → Record
+  |        ^^^^ expected one of `!` or `::`
+
+error: aborting due to 5 previous errors
+
+Couldn't compile the test.test modules/subscriptions/src/gated_invoice_creation.rs - gated_invoice_creation (line 7) ... FAILED
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:8:8
+  |
+1 | ACTIVE ──> PAST_DUE ──> SUSPENDED
+  |        ^^
+  |
+  = note: character appears once more
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+1 - ACTIVE ──> PAST_DUE ──> SUSPENDED
+1 + ACTIVE --> PAST_DUE ──> SUSPENDED
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:8:9
+  |
+1 | ACTIVE ──> PAST_DUE ──> SUSPENDED
+  |         ^
+  |
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+1 - ACTIVE ──> PAST_DUE ──> SUSPENDED
+1 + ACTIVE ─-> PAST_DUE ──> SUSPENDED
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:8:21
+  |
+1 | ACTIVE ──> PAST_DUE ──> SUSPENDED
+  |                     ^^
+  |
+  = note: character appears once more
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+1 - ACTIVE ──> PAST_DUE ──> SUSPENDED
+1 + ACTIVE ──> PAST_DUE --> SUSPENDED
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:8:22
+  |
+1 | ACTIVE ──> PAST_DUE ──> SUSPENDED
+  |                      ^
+  |
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+1 - ACTIVE ──> PAST_DUE ──> SUSPENDED
+1 + ACTIVE ──> PAST_DUE ─-> SUSPENDED
+  |
+
+error: unknown start of token: \u{2514}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:8
+  |
+2 |   ^    └───────────────────┘  |
+  |        ^
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:9
+  |
+2 |   ^    └───────────────────┘  |
+  |         ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 18 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └-------------------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:10
+  |
+2 |   ^    └───────────────────┘  |
+  |          ^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 17 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └─------------------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:11
+  |
+2 |   ^    └───────────────────┘  |
+  |           ^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 16 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └──-----------------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:12
+  |
+2 |   ^    └───────────────────┘  |
+  |            ^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 15 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └───----------------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:13
+  |
+2 |   ^    └───────────────────┘  |
+  |             ^^^^^^^^^^^^^^^
+  |
+  = note: character appears 14 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └────---------------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:14
+  |
+2 |   ^    └───────────────────┘  |
+  |              ^^^^^^^^^^^^^^
+  |
+  = note: character appears 13 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └─────--------------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:15
+  |
+2 |   ^    └───────────────────┘  |
+  |               ^^^^^^^^^^^^^
+  |
+  = note: character appears 12 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └──────-------------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:16
+  |
+2 |   ^    └───────────────────┘  |
+  |                ^^^^^^^^^^^^
+  |
+  = note: character appears 11 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └───────------------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:17
+  |
+2 |   ^    └───────────────────┘  |
+  |                 ^^^^^^^^^^^
+  |
+  = note: character appears 10 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └────────-----------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:18
+  |
+2 |   ^    └───────────────────┘  |
+  |                  ^^^^^^^^^^
+  |
+  = note: character appears 9 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └─────────----------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:19
+  |
+2 |   ^    └───────────────────┘  |
+  |                   ^^^^^^^^^
+  |
+  = note: character appears 8 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └──────────---------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:20
+  |
+2 |   ^    └───────────────────┘  |
+  |                    ^^^^^^^^
+  |
+  = note: character appears 7 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └───────────--------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:21
+  |
+2 |   ^    └───────────────────┘  |
+  |                     ^^^^^^^
+  |
+  = note: character appears 6 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └────────────-------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:22
+  |
+2 |   ^    └───────────────────┘  |
+  |                      ^^^^^^
+  |
+  = note: character appears 5 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └─────────────------┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:23
+  |
+2 |   ^    └───────────────────┘  |
+  |                       ^^^^^
+  |
+  = note: character appears 4 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └──────────────-----┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:24
+  |
+2 |   ^    └───────────────────┘  |
+  |                        ^^^^
+  |
+  = note: character appears 3 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └───────────────----┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:25
+  |
+2 |   ^    └───────────────────┘  |
+  |                         ^^^
+  |
+  = note: character appears 2 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └────────────────---┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:26
+  |
+2 |   ^    └───────────────────┘  |
+  |                          ^^
+  |
+  = note: character appears once more
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └─────────────────--┘  |
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:27
+  |
+2 |   ^    └───────────────────┘  |
+  |                           ^
+  |
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+2 -   ^    └───────────────────┘  |
+2 +   ^    └──────────────────-┘  |
+  |
+
+error: unknown start of token: \u{2518}
+ --> modules/subscriptions/src/lifecycle/mod.rs:9:28
+  |
+2 |   ^    └───────────────────┘  |
+  |                            ^
+
+error: unknown start of token: \u{2514}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:3
+  |
+3 |   └───────────────────────────┘
+  |   ^
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:4
+  |
+3 |   └───────────────────────────┘
+  |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 26 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └---------------------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:5
+  |
+3 |   └───────────────────────────┘
+  |     ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 25 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └─--------------------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:6
+  |
+3 |   └───────────────────────────┘
+  |      ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 24 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └──-------------------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:7
+  |
+3 |   └───────────────────────────┘
+  |       ^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 23 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └───------------------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:8
+  |
+3 |   └───────────────────────────┘
+  |        ^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 22 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └────-----------------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:9
+  |
+3 |   └───────────────────────────┘
+  |         ^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 21 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └─────----------------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:10
+  |
+3 |   └───────────────────────────┘
+  |          ^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 20 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └──────---------------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:11
+  |
+3 |   └───────────────────────────┘
+  |           ^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 19 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └───────--------------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:12
+  |
+3 |   └───────────────────────────┘
+  |            ^^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 18 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └────────-------------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:13
+  |
+3 |   └───────────────────────────┘
+  |             ^^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 17 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └─────────------------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:14
+  |
+3 |   └───────────────────────────┘
+  |              ^^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 16 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └──────────-----------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:15
+  |
+3 |   └───────────────────────────┘
+  |               ^^^^^^^^^^^^^^^^
+  |
+  = note: character appears 15 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └───────────----------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:16
+  |
+3 |   └───────────────────────────┘
+  |                ^^^^^^^^^^^^^^^
+  |
+  = note: character appears 14 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └────────────---------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:17
+  |
+3 |   └───────────────────────────┘
+  |                 ^^^^^^^^^^^^^^
+  |
+  = note: character appears 13 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └─────────────--------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:18
+  |
+3 |   └───────────────────────────┘
+  |                  ^^^^^^^^^^^^^
+  |
+  = note: character appears 12 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └──────────────-------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:19
+  |
+3 |   └───────────────────────────┘
+  |                   ^^^^^^^^^^^^
+  |
+  = note: character appears 11 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └───────────────------------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:20
+  |
+3 |   └───────────────────────────┘
+  |                    ^^^^^^^^^^^
+  |
+  = note: character appears 10 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └────────────────-----------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:21
+  |
+3 |   └───────────────────────────┘
+  |                     ^^^^^^^^^^
+  |
+  = note: character appears 9 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └─────────────────----------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:22
+  |
+3 |   └───────────────────────────┘
+  |                      ^^^^^^^^^
+  |
+  = note: character appears 8 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └──────────────────---------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:23
+  |
+3 |   └───────────────────────────┘
+  |                       ^^^^^^^^
+  |
+  = note: character appears 7 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └───────────────────--------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:24
+  |
+3 |   └───────────────────────────┘
+  |                        ^^^^^^^
+  |
+  = note: character appears 6 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └────────────────────-------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:25
+  |
+3 |   └───────────────────────────┘
+  |                         ^^^^^^
+  |
+  = note: character appears 5 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └─────────────────────------┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:26
+  |
+3 |   └───────────────────────────┘
+  |                          ^^^^^
+  |
+  = note: character appears 4 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └──────────────────────-----┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:27
+  |
+3 |   └───────────────────────────┘
+  |                           ^^^^
+  |
+  = note: character appears 3 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └───────────────────────----┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:28
+  |
+3 |   └───────────────────────────┘
+  |                            ^^^
+  |
+  = note: character appears 2 more times
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └────────────────────────---┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:29
+  |
+3 |   └───────────────────────────┘
+  |                             ^^
+  |
+  = note: character appears once more
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └─────────────────────────--┘
+  |
+
+error: unknown start of token: \u{2500}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:30
+  |
+3 |   └───────────────────────────┘
+  |                              ^
+  |
+help: Unicode character '─' (Box Drawings Light Horizontal) looks like '-' (Minus/Hyphen), but it is not
+  |
+3 -   └───────────────────────────┘
+3 +   └──────────────────────────-┘
+  |
+
+error: unknown start of token: \u{2518}
+ --> modules/subscriptions/src/lifecycle/mod.rs:10:31
+  |
+3 |   └───────────────────────────┘
+  |                               ^
+
+error: expected one of `!` or `::`, found `-`
+ --> modules/subscriptions/src/lifecycle/mod.rs:8:8
+  |
+1 | ACTIVE ──> PAST_DUE ──> SUSPENDED
+  |        ^ expected one of `!` or `::`
+
+error: aborting due to 55 previous errors
+
+Couldn't compile the test.test modules/subscriptions/src/lifecycle/mod.rs - lifecycle (line 7) ... FAILED
+error: unknown start of token: \u{2192}
+ --> modules/subscriptions/src/cycle_gating.rs:13:6
+  |
+1 | Gate → Lock → Check → Execute → Record
+  |      ^
+
+error: unknown start of token: \u{2192}
+ --> modules/subscriptions/src/cycle_gating.rs:13:13
+  |
+1 | Gate → Lock → Check → Execute → Record
+  |             ^
+
+error: unknown start of token: \u{2192}
+ --> modules/subscriptions/src/cycle_gating.rs:13:21
+  |
+1 | Gate → Lock → Check → Execute → Record
+  |                     ^
+
+error: unknown start of token: \u{2192}
+ --> modules/subscriptions/src/cycle_gating.rs:13:31
+  |
+1 | Gate → Lock → Check → Execute → Record
+  |                               ^
+
+error: expected one of `!` or `::`, found `Lock`
+ --> modules/subscriptions/src/cycle_gating.rs:13:8
+  |
+1 | Gate → Lock → Check → Execute → Record
+  |        ^^^^ expected one of `!` or `::`
+
+error: aborting due to 5 previous errors
+
+Couldn't compile the test.test modules/subscriptions/src/cycle_gating.rs - cycle_gating (line 12) ... FAILED
+error[E0425]: cannot find value `pool` in this scope
+ --> modules/subscriptions/src/invariants.rs:18:37
+  |
+8 | assert_no_duplicate_cycle_attempts(&pool, tenant_id).await?;
+  |                                     ^^^^ not found in this scope
+
+error[E0425]: cannot find value `tenant_id` in this scope
+ --> modules/subscriptions/src/invariants.rs:18:43
+  |
+8 | assert_no_duplicate_cycle_attempts(&pool, tenant_id).await?;
+  |                                           ^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `pool` in this scope
+  --> modules/subscriptions/src/invariants.rs:21:31
+   |
+11 | assert_one_invoice_per_cycle(&pool, tenant_id).await?;
+   |                               ^^^^ not found in this scope
+
+error[E0425]: cannot find value `tenant_id` in this scope
+  --> modules/subscriptions/src/invariants.rs:21:37
+   |
+11 | assert_one_invoice_per_cycle(&pool, tenant_id).await?;
+   |                                     ^^^^^^^^^ not found in this scope
+
+error[E0728]: `await` is only allowed inside `async` functions and blocks
+ --> modules/subscriptions/src/invariants.rs:18:54
+  |
+4 | fn main() { #[allow(non_snake_case)] fn _doctest_main_modules_subscriptions_src_invariants_rs_13_0() {
+  |                                      --------------------------------------------------------------- this is not `async`
+...
+8 | assert_no_duplicate_cycle_attempts(&pool, tenant_id).await?;
+  |                                                      ^^^^^ only allowed inside `async` functions and blocks
+
+error[E0728]: `await` is only allowed inside `async` functions and blocks
+  --> modules/subscriptions/src/invariants.rs:21:48
+   |
+ 4 | fn main() { #[allow(non_snake_case)] fn _doctest_main_modules_subscriptions_src_invariants_rs_13_0() {
+   |                                      --------------------------------------------------------------- this is not `async`
+...
+11 | assert_one_invoice_per_cycle(&pool, tenant_id).await?;
+   |                                                ^^^^^ only allowed inside `async` functions and blocks
+
+error: aborting due to 6 previous errors
+
+Some errors have detailed explanations: E0425, E0728.
+For more information about an error, try `rustc --explain E0425`.
+error[E0433]: failed to resolve: use of undeclared type `NaiveDate`
+ --> modules/subscriptions/src/cycle_gating.rs:61:12
+  |
+3 | let date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
+  |            ^^^^^^^^^ use of undeclared type `NaiveDate`
+  |
+help: consider importing one of these structs
+  |
+2 + use chrono::NaiveDate;
+  |
+2 + use sqlx::types::chrono::NaiveDate;
+  |
+
+error[E0425]: cannot find function `generate_cycle_key` in this scope
+ --> modules/subscriptions/src/cycle_gating.rs:62:11
+  |
+4 | let key = generate_cycle_key(date);
+  |           ^^^^^^^^^^^^^^^^^^ not found in this scope
+  |
+help: consider importing this function
+  |
+2 + use subscriptions_rs::generate_cycle_key;
+  |
+
+error: aborting due to 2 previous errors
+
+Some errors have detailed explanations: E0425, E0433.
+For more information about an error, try `rustc --explain E0425`.
+Couldn't compile the test.Couldn't compile the test.error[E0425]: cannot find value `pool` in this scope
+ --> modules/subscriptions/src/cycle_gating.rs:132:14
+  |
+3 | let mut tx = pool.begin().await?;
+  |              ^^^^ not found in this scope
+
+error[E0425]: cannot find function `acquire_cycle_lock` in this scope
+ --> modules/subscriptions/src/cycle_gating.rs:133:1
+  |
+4 | acquire_cycle_lock(&mut tx, tenant_id, subscription_id, cycle_key).await?;
+  | ^^^^^^^^^^^^^^^^^^ not found in this scope
+  |
+help: consider importing this function
+  |
+2 + use subscriptions_rs::acquire_cycle_lock;
+  |
+
+error[E0425]: cannot find value `tenant_id` in this scope
+ --> modules/subscriptions/src/cycle_gating.rs:133:29
+  |
+4 | acquire_cycle_lock(&mut tx, tenant_id, subscription_id, cycle_key).await?;
+  |                             ^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `subscription_id` in this scope
+ --> modules/subscriptions/src/cycle_gating.rs:133:40
+  |
+4 | acquire_cycle_lock(&mut tx, tenant_id, subscription_id, cycle_key).await?;
+  |                                        ^^^^^^^^^^^^^^^ not found in this scope
+
+error[E0425]: cannot find value `cycle_key` in this scope
+ --> modules/subscriptions/src/cycle_gating.rs:133:57
+  |
+4 | acquire_cycle_lock(&mut tx, tenant_id, subscription_id, cycle_key).await?;
+  |                                                         ^^^^^^^^^ not found in this scope
+
+error[E0728]: `await` is only allowed inside `async` functions and blocks
+ --> modules/subscriptions/src/cycle_gating.rs:132:27
+  |
+2 | fn main() { #[allow(non_snake_case)] fn _doctest_main_modules_subscriptions_src_cycle_gating_rs_131_0() {
+  |                                      ------------------------------------------------------------------ this is not `async`
+3 | let mut tx = pool.begin().await?;
+  |                           ^^^^^ only allowed inside `async` functions and blocks
+
+error[E0728]: `await` is only allowed inside `async` functions and blocks
+ --> modules/subscriptions/src/cycle_gating.rs:133:68
+  |
+2 | fn main() { #[allow(non_snake_case)] fn _doctest_main_modules_subscriptions_src_cycle_gating_rs_131_0() {
+  |                                      ------------------------------------------------------------------ this is not `async`
+3 | let mut tx = pool.begin().await?;
+4 | acquire_cycle_lock(&mut tx, tenant_id, subscription_id, cycle_key).await?;
+  |                                                                    ^^^^^ only allowed inside `async` functions and blocks
+
+error[E0728]: `await` is only allowed inside `async` functions and blocks
+ --> modules/subscriptions/src/cycle_gating.rs:135:13
+  |
+2 | fn main() { #[allow(non_snake_case)] fn _doctest_main_modules_subscriptions_src_cycle_gating_rs_131_0() {
+  |                                      ------------------------------------------------------------------ this is not `async`
+...
+6 | tx.commit().await?;
+  |             ^^^^^ only allowed inside `async` functions and blocks
+
+error: aborting due to 8 previous errors
+
+Some errors have detailed explanations: E0425, E0728.
+For more information about an error, try `rustc --explain E0425`.
+test modules/subscriptions/src/cycle_gating.rs - cycle_gating::generate_cycle_key (line 60) ... FAILED
+Couldn't compile the test.test modules/subscriptions/src/invariants.rs - invariants (line 13) ... FAILED
+test modules/subscriptions/src/cycle_gating.rs - cycle_gating::acquire_cycle_lock (line 131) ... FAILED
+error[E0433]: failed to resolve: use of undeclared type `NaiveDate`
+ --> modules/subscriptions/src/cycle_gating.rs:75:12
+  |
+3 | let date = NaiveDate::from_ymd_opt(2026, 2, 15).unwrap();
+  |            ^^^^^^^^^ use of undeclared type `NaiveDate`
+  |
+help: consider importing one of these structs
+  |
+2 + use chrono::NaiveDate;
+  |
+2 + use sqlx::types::chrono::NaiveDate;
+  |
+
+error[E0425]: cannot find function `calculate_cycle_boundaries` in this scope
+ --> modules/subscriptions/src/cycle_gating.rs:76:20
+  |
+4 | let (start, end) = calculate_cycle_boundaries(date);
+  |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^ not found in this scope
+  |
+help: consider importing this function
+  |
+2 + use subscriptions_rs::calculate_cycle_boundaries;
+  |
+
+error[E0433]: failed to resolve: use of undeclared type `NaiveDate`
+ --> modules/subscriptions/src/cycle_gating.rs:77:19
+  |
+5 | assert_eq!(start, NaiveDate::from_ymd_opt(2026, 2, 1).unwrap());
+  |                   ^^^^^^^^^ use of undeclared type `NaiveDate`
+  |
+help: consider importing one of these structs
+  |
+2 + use chrono::NaiveDate;
+  |
+2 + use sqlx::types::chrono::NaiveDate;
+  |
+
+error[E0433]: failed to resolve: use of undeclared type `NaiveDate`
+ --> modules/subscriptions/src/cycle_gating.rs:78:17
+  |
+6 | assert_eq!(end, NaiveDate::from_ymd_opt(2026, 2, 28).unwrap());
+  |                 ^^^^^^^^^ use of undeclared type `NaiveDate`
+  |
+help: consider importing one of these structs
+  |
+2 + use chrono::NaiveDate;
+  |
+2 + use sqlx::types::chrono::NaiveDate;
+  |
+
+error: aborting due to 4 previous errors
+
+Some errors have detailed explanations: E0425, E0433.
+For more information about an error, try `rustc --explain E0425`.
+Couldn't compile the test.test modules/subscriptions/src/cycle_gating.rs - cycle_gating::calculate_cycle_boundaries (line 74) ... FAILED
+
+failures:
+
+failures:
+    modules/subscriptions/src/cycle_gating.rs - cycle_gating (line 12)
+    modules/subscriptions/src/cycle_gating.rs - cycle_gating::acquire_cycle_lock (line 131)
+    modules/subscriptions/src/cycle_gating.rs - cycle_gating::calculate_cycle_boundaries (line 74)
+    modules/subscriptions/src/cycle_gating.rs - cycle_gating::generate_cycle_key (line 60)
+    modules/subscriptions/src/gated_invoice_creation.rs - gated_invoice_creation (line 7)
+    modules/subscriptions/src/invariants.rs - invariants (line 13)
+    modules/subscriptions/src/lifecycle/mod.rs - lifecycle (line 7)
+
+test result: FAILED. 0 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.71s
+
+error: doctest failed, to rerun pass `-p subscriptions-rs --doc`
+
+## exit_code=101
+## finished_at_utc=2026-03-03T16:21:06Z

@@ -1,0 +1,3 @@
+## url=http://localhost:5452/metrics
+## fetched_at_utc=2026-03-03T19:00:03Z
+

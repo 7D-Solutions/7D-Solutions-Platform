@@ -1,0 +1,72 @@
+## url=http://localhost:8080/metrics
+## fetched_at_utc=2026-03-03T12:47:11Z
+
+# HELP auth_dependency_up Dependency up gauge
+# TYPE auth_dependency_up gauge
+auth_dependency_up{dep="db"} 1
+auth_dependency_up{dep="nats"} 1
+auth_dependency_up{dep="ready"} 1
+# HELP auth_entitlement_cache_hit_total Entitlement cache hits (within TTL)
+# TYPE auth_entitlement_cache_hit_total counter
+auth_entitlement_cache_hit_total 0
+# HELP auth_tenant_status_cache_hit_total Tenant status cache hits (within TTL)
+# TYPE auth_tenant_status_cache_hit_total counter
+auth_tenant_status_cache_hit_total 0
+# HELP http_request_duration_seconds HTTP request duration seconds
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="0.005"} 79
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="0.01"} 79
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="0.025"} 79
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="0.05"} 79
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="0.1"} 79
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="0.25"} 79
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="0.5"} 79
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="1"} 79
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="2.5"} 79
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="5"} 79
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="10"} 79
+http_request_duration_seconds_bucket{method="GET",path="/.well-known/jwks.json",status="200",le="+Inf"} 79
+http_request_duration_seconds_sum{method="GET",path="/.well-known/jwks.json",status="200"} 0.0034412949999999996
+http_request_duration_seconds_count{method="GET",path="/.well-known/jwks.json",status="200"} 79
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.005"} 2348
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.01"} 2355
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.025"} 2356
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.05"} 2356
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.1"} 2356
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.25"} 2356
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.5"} 2356
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="1"} 2356
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="2.5"} 2356
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="5"} 2356
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="10"} 2356
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="+Inf"} 2356
+http_request_duration_seconds_sum{method="GET",path="/api/ready",status="200"} 0.9147903770000019
+http_request_duration_seconds_count{method="GET",path="/api/ready",status="200"} 2356
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.005"} 1
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.01"} 1
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.025"} 1
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.05"} 1
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.1"} 1
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.25"} 1
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.5"} 1
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="1"} 1
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="2.5"} 1
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="5"} 1
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="10"} 1
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="+Inf"} 1
+http_request_duration_seconds_sum{method="GET",path="/healthz",status="200"} 0.000006875
+http_request_duration_seconds_count{method="GET",path="/healthz",status="200"} 1
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.005"} 1576
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.01"} 1576
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.025"} 1576
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.05"} 1576
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.1"} 1576
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.25"} 1576
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.5"} 1576
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="1"} 1576
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="2.5"} 1576
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="5"} 1576
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="10"} 1576
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="+Inf"} 1576
+http_request_duration_seconds_sum{method="GET",path="/metrics",status="200"} 0.07615809400000001
+http_request_duration_seconds_count{method="GET",path="/metrics",status="200"} 1576

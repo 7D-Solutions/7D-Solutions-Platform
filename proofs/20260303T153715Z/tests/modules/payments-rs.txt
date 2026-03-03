@@ -1,0 +1,118 @@
+## crate test: payments-rs
+## started_at_utc=2026-03-03T15:47:21Z
+## cmd=./scripts/cargo-slot.sh test -p payments-rs -- --nocapture
+
+Reclaiming stale slot 1 (dead PID 37432)
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on artifact directory
+warning: unused variable: `metadata`
+   --> modules/payments/tests/payment_collection_tests.rs:165:9
+    |
+165 |     let metadata = payments_rs::handlers::EnvelopeMetadata {
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_metadata`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `payments-rs` (test "payment_collection_tests") generated 1 warning (run `cargo fix --test "payment_collection_tests" -p payments-rs` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.19s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/payments_rs-e61c9228632a1a1d)
+
+running 58 tests
+test config::tests::test_payments_provider_from_str ... ok
+test config::tests::test_bus_type_from_str ... ok
+test config::tests::test_validate_nats_requires_url ... ok
+test config::tests::test_validate_success ... ok
+test config::tests::test_validate_tilled_requires_credentials ... ok
+test config::tests::test_validate_empty_database_url ... ok
+test envelope_validation::tests::test_invalid_event_id ... ok
+test envelope_validation::tests::test_invalid_occurred_at ... ok
+test envelope_validation::tests::test_invalid_payload_type ... ok
+test envelope_validation::tests::test_empty_tenant_id ... ok
+test envelope_validation::tests::test_missing_event_id ... ok
+test envelope_validation::tests::test_missing_payload ... ok
+test envelope_validation::tests::test_valid_envelope ... ok
+test envelope_validation::tests::test_valid_ar_envelope ... ok
+test envelope_validation::tests::test_valid_envelope_with_optional_fields ... ok
+test idempotency_keys::tests::test_payment_attempt_key_all_retry_windows ... ok
+test idempotency_keys::tests::test_payment_attempt_key_determinism ... ok
+test idempotency_keys::tests::test_payment_attempt_key_empty_app_id ... ok
+test idempotency_keys::tests::test_payment_attempt_key_format ... ok
+test idempotency_keys::tests::test_payment_attempt_key_invalid_attempt_no_negative ... ok
+test idempotency_keys::tests::test_payment_attempt_key_invalid_attempt_no_too_high ... ok
+test idempotency_keys::tests::test_payment_attempt_key_stable_uuid ... ok
+test idempotency_keys::tests::test_payment_attempt_key_uniqueness_across_attempts ... ok
+test idempotency_keys::tests::test_payment_attempt_key_uniqueness_across_payments ... ok
+test invariants::tests::test_invariant_violation_from_sqlx_error ... ok
+test lifecycle::tests::test_attempt_not_found_error ... ok
+test invariants::tests::test_invariant_violation_display ... ok
+test lifecycle::tests::test_status_constants ... ok
+test lifecycle::tests::test_transition_error_display ... ok
+test metrics::tests::test_record_payment_attempt ... ok
+test metrics::tests::test_record_retry_attempt ... ok
+test metrics::tests::test_record_unknown_duration ... ok
+test reconciliation::tests::test_psp_payment_status_variants ... ok
+test reconciliation::tests::test_reconciliation_error_display ... ok
+test reconciliation::tests::test_reconciliation_result_equality ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test retry::tests::test_calculate_retry_windows ... ok
+test retry::tests::test_determine_current_window_attempt_0 ... ok
+test retry::tests::test_determine_current_window_attempt_1 ... ok
+test retry::tests::test_determine_current_window_attempt_2 ... ok
+test retry::tests::test_determine_current_window_before_due ... ok
+test retry::tests::test_is_eligible_for_retry ... ok
+test retry::tests::test_retry_error_display ... ok
+test retry::tests::test_unknown_blocks_retry ... ok
+test retry::tests::test_window_constants_match_ar ... ok
+test webhook_handler::tests::test_webhook_error_display ... ok
+test webhook_signature::tests::test_internal_webhook_always_valid ... ok
+test webhook_signature::tests::test_signature_error_display ... ok
+test webhook_signature::tests::test_stripe_webhook_unsupported ... ok
+test webhook_signature::tests::test_tilled_missing_header ... ok
+test webhook_signature::tests::test_tilled_no_secret_configured ... ok
+test webhook_signature::tests::test_tilled_invalid_signature ... ok
+test webhook_signature::tests::test_tilled_replay_rejected ... ok
+test webhook_signature::tests::test_tilled_valid_signature ... ok
+test webhook_signature::tests::test_tilled_rotation_overlap_accepts_prev_secret ... ok
+test webhook_signature::tests::test_tilled_rotation_overlap_rejects_unknown_secret ... ok
+test http::admin::tests::test_admin_router_builds ... ok
+
+test result: ok. 58 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/payments_rs-f945e0d40b604bd8)
+
+running 2 tests
+test tests::cors_wildcard_parses ... ok
+test tests::cors_specific_origins_parse ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/checkout_tests.rs (target-slot-1/debug/deps/checkout_tests-6f263259d0d30515)
+
+running 7 tests
+
+thread 'test_present_transition_created_to_presented' (76280422) panicked at modules/payments/tests/checkout_tests.rs:146:14:
+Failed to query presented_at: RowNotFound
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test test_present_transition_created_to_presented ... FAILED
+test test_present_transition_is_idempotent ... ok
+test test_checkout_session_created_with_mock ... ok
+test test_webhook_updates_checkout_session_to_completed ... ok
+test test_webhook_does_not_update_terminal_session ... ok
+test test_webhook_replay_is_idempotent ... ok
+test test_get_checkout_session_by_id ... ok
+
+failures:
+
+failures:
+    test_present_transition_created_to_presented
+
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+
+error: test failed, to rerun pass `-p payments-rs --test checkout_tests`
+
+## exit_code=101
+## finished_at_utc=2026-03-03T15:47:51Z

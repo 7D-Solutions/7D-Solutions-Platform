@@ -1,0 +1,196 @@
+## crate test: timekeeping
+## started_at_utc=2026-03-03T16:10:56Z
+## cmd=./scripts/cargo-slot.sh test -p timekeeping -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.37s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/timekeeping-c8f7b5e5955ed122)
+
+running 64 tests
+test domain::allocations::models::tests::update_zero_minutes ... ok
+test domain::allocations::models::tests::update_valid ... ok
+test domain::clock::models::tests::clock_in_empty_app_id ... ok
+test config::tests::test_bus_type_case_insensitive ... ok
+test config::tests::test_bus_type_from_str ... ok
+test domain::allocations::models::tests::create_empty_app_id ... ok
+test domain::allocations::models::tests::create_zero_minutes ... ok
+test domain::allocations::models::tests::create_negative_minutes ... ok
+test domain::approvals::models::tests::approval_status_serde_roundtrip ... ok
+test domain::allocations::models::tests::create_no_end_date_ok ... ok
+test domain::allocations::models::tests::create_end_before_start ... ok
+test domain::allocations::models::tests::create_valid ... ok
+test domain::clock::models::tests::clock_in_valid ... ok
+test domain::clock::models::tests::clock_out_empty_app_id ... ok
+test domain::approvals::models::tests::submit_request_deserialize ... ok
+test domain::clock::models::tests::clock_out_valid ... ok
+test domain::employees::models::tests::create_empty_code_rejected ... ok
+test domain::employees::models::tests::create_empty_email_rejected ... ok
+test domain::employees::models::tests::create_empty_first_name_rejected ... ok
+test domain::employees::models::tests::create_empty_last_name_rejected ... ok
+test domain::employees::models::tests::create_valid ... ok
+test domain::employees::models::tests::update_empty_first_name_rejected ... ok
+test domain::employees::models::tests::update_valid_all_none ... ok
+test domain::entries::guards::tests::correct_negative_minutes ... ok
+test domain::entries::guards::tests::correct_valid ... ok
+test domain::entries::guards::tests::create_empty_app_id ... ok
+test domain::entries::guards::tests::create_exceeds_max_minutes ... ok
+test domain::entries::guards::tests::create_max_minutes_ok ... ok
+test domain::entries::guards::tests::create_negative_minutes ... ok
+test domain::entries::guards::tests::create_valid ... ok
+test domain::entries::guards::tests::create_zero_minutes_ok ... ok
+test domain::entries::guards::tests::void_empty_app_id ... ok
+test domain::entries::guards::tests::void_valid ... ok
+test domain::entries::models::tests::entry_type_correction ... ok
+test domain::entries::models::tests::entry_type_serde_roundtrip ... ok
+test domain::export::json::tests::json_empty_entries ... ok
+test domain::export::json::tests::json_has_required_fields ... ok
+test domain::export::models::tests::create_request_deserialize ... ok
+test domain::export::models::tests::export_status_serde_roundtrip ... ok
+test domain::integrations::ar::service::tests::billable_line_amount_calculation ... ok
+test domain::integrations::ar::service::tests::export_id_is_deterministic ... ok
+test domain::export::json::tests::json_deterministic ... ok
+test domain::integrations::gl::service::tests::posting_id_differs_by_employee ... ok
+test domain::integrations::gl::service::tests::posting_id_is_deterministic ... ok
+test domain::projects::models::tests::project_create_empty_code_rejected ... ok
+test domain::projects::models::tests::project_create_empty_name_rejected ... ok
+test domain::projects::models::tests::project_create_valid ... ok
+test domain::projects::models::tests::project_update_valid_all_none ... ok
+test domain::projects::models::tests::task_create_empty_code_rejected ... ok
+test domain::projects::models::tests::task_create_empty_name_rejected ... ok
+test domain::projects::models::tests::task_create_valid ... ok
+test domain::export::csv::tests::csv_header_present ... ok
+test domain::export::csv::tests::csv_escapes_quotes_and_commas ... ok
+test domain::export::csv::tests::csv_deterministic ... ok
+test domain::integrations::ar::service::tests::payload_serde_roundtrip ... ok
+test domain::export::csv::tests::csv_empty_entries ... ok
+test domain::export::csv::tests::csv_row_count ... ok
+test db::tests::test_database_url_trailing_slash ... ok
+test db::tests::test_database_url_sanitizes_app_id ... ok
+test db::tests::test_database_url_for_app ... ok
+test domain::integrations::gl::service::tests::payload_serde_roundtrip ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test http::admin::tests::test_admin_router_builds ... ok
+
+test result: ok. 64 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/bin/bench.rs (target-slot-1/debug/deps/bench-b20dab1e8a3c0094)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/dlq_replay_drill.rs (target-slot-1/debug/deps/dlq_replay_drill-edfc3ad4a7dfd5ef)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/timekeeping-6482aebe7fedb2d7)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/allocation_crud_integration.rs (target-slot-1/debug/deps/allocation_crud_integration-3e66284aeb147e5f)
+
+running 7 tests
+test test_update_allocation ... ok
+test test_deactivate_allocation ... ok
+test test_get_allocation_tenant_isolation ... ok
+test test_create_allocation_negative_minutes_rejected ... ok
+test test_list_allocations_with_filters ... ok
+test test_create_allocation ... ok
+test test_create_allocation_end_before_start_rejected ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+
+     Running tests/approval_workflow_integration.rs (target-slot-1/debug/deps/approval_workflow_integration-417492d43fb89a5a)
+
+running 7 tests
+test test_approve_draft_rejected ... ok
+test test_reject_approval ... ok
+test test_double_approve_rejected ... ok
+test test_approval_tenant_isolation ... ok
+test test_submit_approval ... ok
+test test_approve_approval ... ok
+test test_recall_approval ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+     Running tests/clock_integration.rs (target-slot-1/debug/deps/clock_integration-2d3534f5d3814dd7)
+
+running 5 tests
+test test_clock_tenant_isolation ... ok
+test test_clock_outbox_events ... ok
+test test_concurrent_session_guard ... ok
+test test_clock_in_idempotency ... ok
+test test_clock_in_out_e2e ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+
+     Running tests/employee_crud_integration.rs (target-slot-1/debug/deps/employee_crud_integration-4334c6390cf344d3)
+
+running 6 tests
+test test_deactivate_employee_idempotent ... ok
+test test_create_employee ... ok
+test test_create_employee_duplicate_code_rejected ... ok
+test test_employee_tenant_isolation ... ok
+test test_list_employees_active_only ... ok
+test test_update_employee ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+     Running tests/entry_lifecycle_integration.rs (target-slot-1/debug/deps/entry_lifecycle_integration-cac5c1898e175d9c)
+
+running 7 tests
+test test_correct_nonexistent_entry_rejected ... ok
+test test_void_nonexistent_entry_rejected ... ok
+test test_void_entry ... ok
+test test_create_entry_overlap_rejected ... ok
+test test_create_entry_happy_path ... ok
+test test_correct_entry ... ok
+test test_entry_tenant_isolation ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.79s
+
+     Running tests/hardening_integration.rs (target-slot-1/debug/deps/hardening_integration-5aafb200aa1dce36)
+
+running 11 tests
+test test_concurrent_reads_during_writes_isolated ... ok
+test test_authz_create_employee_denied_without_jwt ... ok
+test test_tenant_boundary_entries ... ok
+test test_migration_safety_all_tables_present ... ok
+test test_authz_create_entry_denied_without_jwt ... ok
+test test_guard_mutation_outbox_approval_submit ... ok
+test test_authz_submit_approval_denied_without_jwt ... ok
+test test_tenant_boundary_approvals ... ok
+test test_authz_read_endpoints_allowed_without_jwt ... ok
+test test_concurrent_tenant_isolation_entries ... ok
+test test_guard_mutation_outbox_atomicity ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.55s
+
+     Running tests/project_task_crud_integration.rs (target-slot-1/debug/deps/project_task_crud_integration-f3f262dc2ea0481e)
+
+running 8 tests
+test test_update_and_deactivate_task ... ok
+test test_create_project ... ok
+test test_create_project_duplicate_code_rejected ... ok
+test test_create_task ... ok
+test test_create_task_wrong_project_rejected ... ok
+test test_update_project ... ok
+test test_create_task_duplicate_code_rejected ... ok
+test test_deactivate_project ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+
+   Doc-tests timekeeping
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T16:11:04Z

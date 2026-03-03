@@ -1,0 +1,160 @@
+## crate test: fixed-assets
+## started_at_utc=2026-03-03T16:03:00Z
+## cmd=./scripts/cargo-slot.sh test -p fixed-assets -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.44s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/fixed_assets-f2bc7e52e0b3103a)
+
+running 63 tests
+test config::tests::test_bus_type_case_insensitive ... ok
+test config::tests::test_bus_type_from_str ... ok
+test domain::assets::models::tests::asset_status_roundtrip ... ok
+test domain::assets::models::tests::asset_create_valid ... ok
+test domain::assets::models::tests::asset_empty_tag_rejected ... ok
+test domain::assets::models::tests::asset_negative_cost_rejected ... ok
+test domain::assets::models::tests::asset_validation_accepts_valid_currency ... ok
+test domain::assets::models::tests::asset_validation_rejects_numeric_currency ... ok
+test domain::assets::models::tests::asset_validation_rejects_short_currency ... ok
+test domain::assets::models::tests::category_create_valid ... ok
+test domain::assets::models::tests::category_empty_code_rejected ... ok
+test domain::assets::models::tests::category_negative_life_rejected ... ok
+test domain::assets::models::tests::category_salvage_bp_overflow_rejected ... ok
+test domain::assets::models::tests::depreciation_method_roundtrip ... ok
+test domain::assets::models::tests::update_asset_valid_empty ... ok
+test domain::assets::models::tests::update_category_valid_empty ... ok
+test domain::depreciation::engine::tests::correct_period_count ... ok
+test domain::depreciation::engine::tests::cumulative_equals_depreciable ... ok
+test domain::depreciation::engine::tests::empty_when_zero_depreciable ... ok
+test domain::depreciation::engine::tests::empty_when_zero_life ... ok
+test domain::depreciation::engine::tests::period_dates_anchored_to_month_start ... ok
+test domain::depreciation::engine::tests::period_end_leap_year ... ok
+test domain::depreciation::engine::tests::period_numbers_sequential ... ok
+test domain::depreciation::engine::tests::remainder_absorbed_in_last_period ... ok
+test domain::depreciation::engine::tests::salvage_respected ... ok
+test domain::depreciation::engine::tests::year_crossing ... ok
+test db::tests::test_database_url_sanitizes_app_id ... ok
+test db::tests::test_database_url_trailing_slash ... ok
+test db::tests::test_database_url_for_app ... ok
+test domain::depreciation::models::tests::create_run_validation_accepts_no_currency ... ok
+test domain::depreciation::models::tests::create_run_validation_accepts_valid ... ok
+test domain::depreciation::models::tests::create_run_validation_rejects_empty_tenant ... ok
+test domain::depreciation::models::tests::create_run_validation_rejects_numeric_currency ... ok
+test domain::depreciation::models::tests::create_run_validation_rejects_short_currency ... ok
+test domain::depreciation::models::tests::generate_schedule_validation_accepts_valid ... ok
+test domain::depreciation::models::tests::generate_schedule_validation_rejects_empty_tenant ... ok
+
+thread 'domain::capitalize::service::tests::test_capex_line_creates_asset_and_linkage' (76549058) panicked at modules/fixed-assets/src/domain/capitalize/service.rs:245:14:
+Failed to connect to FA test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test domain::capitalize::service::tests::test_capex_line_creates_asset_and_linkage ... FAILED
+
+thread 'consumers::ap_bill_approved::tests::test_mixed_lines_only_capex_capitalized' (76549039) panicked at modules/fixed-assets/src/consumers/ap_bill_approved.rs:192:14:
+Failed to connect to FA test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test consumers::ap_bill_approved::tests::test_mixed_lines_only_capex_capitalized ... FAILED
+
+thread 'domain::capitalize::service::tests::test_source_ref_stored_correctly' (76549061) panicked at modules/fixed-assets/src/domain/capitalize/service.rs:245:14:
+Failed to connect to FA test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::capitalize::service::tests::test_source_ref_stored_correctly ... FAILED
+
+thread 'consumers::ap_bill_approved::tests::test_idempotent_on_replay' (76549038) panicked at modules/fixed-assets/src/consumers/ap_bill_approved.rs:192:14:
+Failed to connect to FA test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test consumers::ap_bill_approved::tests::test_idempotent_on_replay ... FAILED
+
+thread 'consumers::ap_bill_approved::tests::test_expense_line_skipped' (76549037) panicked at modules/fixed-assets/src/consumers/ap_bill_approved.rs:192:14:
+Failed to connect to FA test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test consumers::ap_bill_approved::tests::test_expense_line_skipped ... FAILED
+
+thread 'domain::capitalize::service::tests::test_non_capex_line_returns_none' (76549060) panicked at modules/fixed-assets/src/domain/capitalize/service.rs:245:14:
+Failed to connect to FA test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::capitalize::service::tests::test_non_capex_line_returns_none ... FAILED
+test domain::disposals::tests::disposal_type_roundtrip ... ok
+test domain::disposals::tests::target_status_correct ... ok
+test domain::disposals::tests::validation_accepts_valid ... ok
+test domain::disposals::tests::validation_rejects_empty_tenant ... ok
+test domain::disposals::tests::validation_rejects_negative_proceeds ... ok
+
+thread 'consumers::ap_bill_approved::tests::test_capex_line_creates_asset' (76549036) panicked at modules/fixed-assets/src/consumers/ap_bill_approved.rs:192:14:
+Failed to connect to FA test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test consumers::ap_bill_approved::tests::test_capex_line_creates_asset ... FAILED
+
+thread 'domain::capitalize::service::tests::test_zero_amount_returns_none' (76549062) panicked at modules/fixed-assets/src/domain/capitalize/service.rs:245:14:
+Failed to connect to FA test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::capitalize::service::tests::test_zero_amount_returns_none ... FAILED
+
+thread 'consumers::ap_bill_approved::tests::test_multi_capex_lines_all_capitalized' (76549040) panicked at modules/fixed-assets/src/consumers/ap_bill_approved.rs:192:14:
+Failed to connect to FA test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test consumers::ap_bill_approved::tests::test_multi_capex_lines_all_capitalized ... FAILED
+
+thread 'domain::capitalize::service::tests::test_idempotent_on_replay' (76549059) panicked at modules/fixed-assets/src/domain/capitalize/service.rs:245:14:
+Failed to connect to FA test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test domain::capitalize::service::tests::test_idempotent_on_replay ... FAILED
+test http::admin::tests::test_admin_router_builds ... ok
+
+thread 'domain::depreciation::gl_entries::tests::query_returns_entries_with_account_refs' (76549073) panicked at modules/fixed-assets/src/domain/depreciation/gl_entries.rs:69:14:
+connect to fixed-assets test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::depreciation::gl_entries::tests::query_returns_entries_with_account_refs ... FAILED
+
+thread 'domain::depreciation::service::tests::generate_schedule_creates_12_periods' (76549081) panicked at modules/fixed-assets/src/domain/depreciation/service.rs:288:14:
+connect to fixed-assets test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::depreciation::service::tests::generate_schedule_creates_12_periods ... FAILED
+
+thread 'domain::depreciation::service::tests::generate_schedule_is_idempotent' (76549082) panicked at modules/fixed-assets/src/domain/depreciation/service.rs:288:14:
+connect to fixed-assets test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::depreciation::service::tests::generate_schedule_is_idempotent ... FAILED
+
+thread 'domain::depreciation::service::tests::run_posts_periods_and_is_idempotent' (76549083) panicked at modules/fixed-assets/src/domain/depreciation/service.rs:288:14:
+connect to fixed-assets test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::depreciation::service::tests::run_posts_periods_and_is_idempotent ... FAILED
+
+thread 'domain::depreciation::service::tests::run_respects_as_of_date_boundary' (76549090) panicked at modules/fixed-assets/src/domain/depreciation/service.rs:288:14:
+connect to fixed-assets test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::depreciation::service::tests::run_respects_as_of_date_boundary ... FAILED
+
+thread 'domain::disposals::service::tests::dispose_is_idempotent' (76549096) panicked at modules/fixed-assets/src/domain/disposals/service.rs:272:14:
+connect to fixed-assets test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::disposals::service::tests::dispose_is_idempotent ... FAILED
+
+thread 'domain::disposals::service::tests::dispose_sale_computes_gain' (76549098) panicked at modules/fixed-assets/src/domain/disposals/service.rs:272:14:
+connect to fixed-assets test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::disposals::service::tests::dispose_sale_computes_gain ... FAILED
+
+thread 'domain::disposals::service::tests::dispose_scrap_computes_loss' (76549103) panicked at modules/fixed-assets/src/domain/disposals/service.rs:272:14:
+connect to fixed-assets test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::disposals::service::tests::dispose_scrap_computes_loss ... FAILED
+
+thread 'domain::disposals::service::tests::impairment_sets_impaired_status' (76549106) panicked at modules/fixed-assets/src/domain/disposals/service.rs:272:14:
+connect to fixed-assets test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test domain::disposals::service::tests::impairment_sets_impaired_status ... FAILED
+
+failures:
+
+failures:
+    consumers::ap_bill_approved::tests::test_capex_line_creates_asset
+    consumers::ap_bill_approved::tests::test_expense_line_skipped
+    consumers::ap_bill_approved::tests::test_idempotent_on_replay
+    consumers::ap_bill_approved::tests::test_mixed_lines_only_capex_capitalized
+    consumers::ap_bill_approved::tests::test_multi_capex_lines_all_capitalized
+    domain::capitalize::service::tests::test_capex_line_creates_asset_and_linkage
+    domain::capitalize::service::tests::test_idempotent_on_replay
+    domain::capitalize::service::tests::test_non_capex_line_returns_none
+    domain::capitalize::service::tests::test_source_ref_stored_correctly
+    domain::capitalize::service::tests::test_zero_amount_returns_none
+    domain::depreciation::gl_entries::tests::query_returns_entries_with_account_refs
+    domain::depreciation::service::tests::generate_schedule_creates_12_periods
+    domain::depreciation::service::tests::generate_schedule_is_idempotent
+    domain::depreciation::service::tests::run_posts_periods_and_is_idempotent
+    domain::depreciation::service::tests::run_respects_as_of_date_boundary
+    domain::disposals::service::tests::dispose_is_idempotent
+    domain::disposals::service::tests::dispose_sale_computes_gain
+    domain::disposals::service::tests::dispose_scrap_computes_loss
+    domain::disposals::service::tests::impairment_sets_impaired_status
+
+test result: FAILED. 44 passed; 19 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+error: test failed, to rerun pass `-p fixed-assets --lib`
+
+## exit_code=101
+## finished_at_utc=2026-03-03T16:03:00Z

@@ -1,0 +1,977 @@
+## crate test: ar-rs
+## started_at_utc=2026-03-03T19:09:58Z
+## cmd=./scripts/cargo-slot.sh test -p ar-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+warning: function `unique_email` is never used
+  --> modules/ar/tests/common/mod.rs:34:8
+   |
+34 | pub fn unique_email() -> String {
+   |        ^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `unique_external_id` is never used
+  --> modules/ar/tests/common/mod.rs:39:8
+   |
+39 | pub fn unique_external_id() -> String {
+   |        ^^^^^^^^^^^^^^^^^^
+
+warning: function `unique_plan_id` is never used
+  --> modules/ar/tests/common/mod.rs:44:8
+   |
+44 | pub fn unique_plan_id() -> String {
+   |        ^^^^^^^^^^^^^^
+
+warning: function `unique_reference_id` is never used
+  --> modules/ar/tests/common/mod.rs:49:8
+   |
+49 | pub fn unique_reference_id() -> String {
+   |        ^^^^^^^^^^^^^^^^^^^
+
+warning: function `app` is never used
+  --> modules/ar/tests/common/mod.rs:56:8
+   |
+56 | pub fn app(pool: &PgPool) -> Router {
+   |        ^^^
+
+warning: function `body_json` is never used
+  --> modules/ar/tests/common/mod.rs:82:14
+   |
+82 | pub async fn body_json(response: axum::http::Response<Body>) -> serde_json::Value {
+   |              ^^^^^^^^^
+
+warning: function `seed_customer` is never used
+  --> modules/ar/tests/common/mod.rs:89:14
+   |
+89 | pub async fn seed_customer(pool: &PgPool, app_id: &str) -> (i32, String, String) {
+   |              ^^^^^^^^^^^^^
+
+warning: function `seed_subscription` is never used
+   --> modules/ar/tests/common/mod.rs:113:14
+    |
+113 | pub async fn seed_subscription(pool: &PgPool, app_id: &str, customer_id: i32, status: &str) -> i32 {
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: function `seed_charge` is never used
+   --> modules/ar/tests/common/mod.rs:147:14
+    |
+147 | pub async fn seed_charge(
+    |              ^^^^^^^^^^^
+
+warning: function `seed_webhook` is never used
+   --> modules/ar/tests/common/mod.rs:185:14
+    |
+185 | pub async fn seed_webhook(
+    |              ^^^^^^^^^^^^
+
+warning: function `seed_payment_method` is never used
+   --> modules/ar/tests/common/mod.rs:232:14
+    |
+232 | pub async fn seed_payment_method(
+    |              ^^^^^^^^^^^^^^^^^^^
+
+warning: function `cleanup_customers` is never used
+   --> modules/ar/tests/common/mod.rs:263:14
+    |
+263 | pub async fn cleanup_customers(pool: &PgPool, customer_ids: &[i32]) {
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: function `seed_dispute` is never used
+   --> modules/ar/tests/common/mod.rs:307:14
+    |
+307 | pub async fn seed_dispute(pool: &PgPool, app_id: &str, charge_id: i32, status: &str) -> i32 {
+    |              ^^^^^^^^^^^^
+
+warning: function `cleanup_disputes` is never used
+   --> modules/ar/tests/common/mod.rs:333:14
+    |
+333 | pub async fn cleanup_disputes(pool: &PgPool, dispute_ids: &[i32]) {
+    |              ^^^^^^^^^^^^^^^^
+
+warning: function `cleanup_webhooks` is never used
+   --> modules/ar/tests/common/mod.rs:344:14
+    |
+344 | pub async fn cleanup_webhooks(pool: &PgPool, webhook_ids: &[i32]) {
+    |              ^^^^^^^^^^^^^^^^
+
+warning: function `seed_event` is never used
+   --> modules/ar/tests/common/mod.rs:356:14
+    |
+356 | pub async fn seed_event(
+    |              ^^^^^^^^^^
+
+warning: function `cleanup_events` is never used
+   --> modules/ar/tests/common/mod.rs:391:14
+    |
+391 | pub async fn cleanup_events(pool: &PgPool, event_ids: &[i32]) {
+    |              ^^^^^^^^^^^^^^
+
+warning: function `teardown_pool` is never used
+   --> modules/ar/tests/common/mod.rs:403:14
+    |
+403 | pub async fn teardown_pool(pool: PgPool) {
+    |              ^^^^^^^^^^^^^
+
+warning: function `unique_plan_id` is never used
+  --> modules/ar/tests/common/mod.rs:44:8
+   |
+44 | pub fn unique_plan_id() -> String {
+   |        ^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `charge1_id`
+   --> modules/ar/tests/payment_tests.rs:178:9
+    |
+178 |     let charge1_id = common::seed_charge(&pool, APP_ID, customer_id, 1000, "succeeded").await;
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_charge1_id`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `charge2_id`
+   --> modules/ar/tests/payment_tests.rs:179:9
+    |
+179 |     let charge2_id = common::seed_charge(&pool, APP_ID, customer_id, 2000, "pending").await;
+    |         ^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_charge2_id`
+
+warning: unused imports: `TilledConfig` and `subscription::SubscriptionOptions`
+  --> modules/ar/examples/tilled_example.rs:19:38
+   |
+19 |     customer::UpdateCustomerRequest, subscription::SubscriptionOptions, TilledClient, TilledConfig,
+   |                                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^                ^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `sub1_id`
+   --> modules/ar/tests/subscription_tests.rs:228:9
+    |
+228 |     let sub1_id = common::seed_subscription(&pool, APP_ID, customer_id, "active").await;
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_sub1_id`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused variable: `sub2_id`
+   --> modules/ar/tests/subscription_tests.rs:229:9
+    |
+229 |     let sub2_id = common::seed_subscription(&pool, APP_ID, customer_id, "canceled").await;
+    |         ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_sub2_id`
+
+warning: unused variable: `canceled_sub_id`
+   --> modules/ar/tests/subscription_tests.rs:268:9
+    |
+268 |     let canceled_sub_id = common::seed_subscription(&pool, APP_ID, customer_id, "canceled").await;
+    |         ^^^^^^^^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_canceled_sub_id`
+
+warning: function `unique_reference_id` is never used
+  --> modules/ar/tests/common/mod.rs:49:8
+   |
+49 | pub fn unique_reference_id() -> String {
+   |        ^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `AccountCapability`
+   --> modules/ar/src/tilled/types.rs:404:30
+    |
+404 |         use super::{Account, AccountCapability};
+    |                              ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `ar-rs` (test "invoice_attempt_tests") generated 18 warnings
+warning: `ar-rs` (test "invoice_lifecycle_events_test") generated 11 warnings (10 duplicates)
+warning: `ar-rs` (test "payment_tests") generated 11 warnings (9 duplicates) (run `cargo fix --test "payment_tests" -p ar-rs` to apply 2 suggestions)
+warning: `ar-rs` (example "tilled_example") generated 1 warning (run `cargo fix --example "tilled_example" -p ar-rs` to apply 1 suggestion)
+warning: `ar-rs` (test "subscription_tests") generated 12 warnings (8 duplicates) (run `cargo fix --test "subscription_tests" -p ar-rs` to apply 3 suggestions)
+warning: `ar-rs` (test "customer_tests") generated 11 warnings (11 duplicates)
+warning: `ar-rs` (test "event_tests") generated 9 warnings (9 duplicates)
+warning: `ar-rs` (test "dispute_tests") generated 7 warnings (7 duplicates)
+warning: `ar-rs` (lib test) generated 1 warning (run `cargo fix --lib -p ar-rs --tests` to apply 1 suggestion)
+warning: `ar-rs` (test "credit_memo_e2e") generated 15 warnings (15 duplicates)
+warning: `ar-rs` (test "payment_method_tests") generated 10 warnings (10 duplicates)
+warning: `ar-rs` (test "progress_billing_e2e") generated 15 warnings (15 duplicates)
+warning: use of deprecated function `ar_rs::events::enqueue_event`: Use enqueue_event_tx for transactional atomicity. Non-tx outbox writes violate Guard→Mutation→Outbox invariant.
+  --> modules/ar/tests/outbox_inbox_tests.rs:52:18
+   |
+52 |     let result = enqueue_event(&pool, "ar.invoice.created", "invoice", "inv-456", &envelope).await;
+   |                  ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(deprecated)]` on by default
+
+warning: use of deprecated function `ar_rs::events::enqueue_event`: Use enqueue_event_tx for transactional atomicity. Non-tx outbox writes violate Guard→Mutation→Outbox invariant.
+   --> modules/ar/tests/outbox_inbox_tests.rs:232:5
+    |
+232 |     enqueue_event(&pool, "ar.test.published", "test", "test-123", &envelope)
+    |     ^^^^^^^^^^^^^
+
+warning: use of deprecated function `ar_rs::events::enqueue_event`: Use enqueue_event_tx for transactional atomicity. Non-tx outbox writes violate Guard→Mutation→Outbox invariant.
+   --> modules/ar/tests/outbox_inbox_tests.rs:318:9
+    |
+318 |         enqueue_event(
+    |         ^^^^^^^^^^^^^
+
+warning: function `unique_ref` is never used
+  --> modules/ar/tests/tilled_sandbox/helpers.rs:91:8
+   |
+91 | pub fn unique_ref() -> String {
+   |        ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `seed_charge` is never used
+   --> modules/ar/tests/common/mod.rs:147:14
+    |
+147 | pub async fn seed_charge(
+    |              ^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `ar-rs` (test "outbox_inbox_tests") generated 20 warnings (17 duplicates)
+warning: `ar-rs` (test "webhook_tests") generated 13 warnings (13 duplicates)
+warning: `ar-rs` (test "tilled_sandbox_tests") generated 1 warning
+warning: `ar-rs` (test "e2e_workflows") generated 8 warnings (7 duplicates)
+warning: `ar-rs` (test "idempotency_test") generated 18 warnings (18 duplicates)
+warning: `ar-rs` (test "payment_loop_e2e") generated 11 warnings (11 duplicates)
+warning: `ar-rs` (test "invoice_tests") generated 11 warnings (11 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.47s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/ar_rs-18925f34b1be1f79)
+
+running 239 tests
+test dunning::tests::state_from_str_unknown_returns_none ... ok
+test dunning::tests::terminal_states ... ok
+test dunning::tests::state_from_str_roundtrip ... ok
+test dunning::tests::valid_transitions ... ok
+test dunning::tests::invalid_transitions ... ok
+test credit_notes::tests::issue_credit_note_result_variants ... ok
+test config::tests::test_bus_type_from_str ... ok
+test dunning_scheduler::tests::state_progression_policy ... ok
+test dunning_scheduler::tests::backoff_attempt_1_is_1h ... ok
+test dunning_scheduler::tests::backoff_attempt_7_is_64h ... ok
+test dunning_scheduler::tests::backoff_attempt_2_is_2h ... ok
+test dunning_scheduler::tests::backoff_attempt_8_caps_at_72h ... ok
+test dunning_scheduler::tests::backoff_attempt_0_treated_as_attempt_1 ... ok
+test dunning_scheduler::tests::backoff_attempt_3_is_4h ... ok
+test config::tests::test_validate_nats_requires_url ... ok
+test config::tests::test_validate_webhook_secret_required ... ok
+test config::tests::test_validate_empty_database_url ... ok
+test config::tests::test_validate_success ... ok
+test events::contracts::aging_dunning::tests::aging_dunning_event_type_constants_use_ar_prefix ... ok
+test dunning::tests::error_display ... ok
+test events::contracts::aging_dunning::tests::dunning_state_changed_envelope_has_lifecycle_class ... ok
+test events::contracts::aging_dunning::tests::aging_updated_envelope_has_correct_metadata ... ok
+test events::contracts::aging_dunning::tests::invoice_suspended_envelope_has_lifecycle_class ... ok
+test events::contracts::credit_writeoff::tests::credit_memo_approved_envelope_has_correct_metadata ... ok
+test events::contracts::credit_writeoff::tests::credit_memo_created_envelope_has_correct_metadata ... ok
+test events::contracts::credit_writeoff::tests::write_off_envelope_has_reversal_mutation_class ... ok
+test events::contracts::invoice_lifecycle::tests::event_type_constants_use_ar_prefix ... ok
+test events::contracts::invoice_lifecycle::tests::invoice_opened_envelope_has_correct_metadata ... ok
+test events::contracts::invoice_lifecycle::tests::invoice_paid_envelope_has_correct_metadata ... ok
+test events::contracts::progress_billing::tests::milestone_invoice_created_envelope_has_correct_metadata ... ok
+test events::contracts::recon_allocation::tests::payment_allocated_envelope_has_correct_metadata ... ok
+test events::contracts::recon_allocation::tests::recon_allocation_event_type_constants_use_ar_prefix ... ok
+test events::contracts::recon_allocation::tests::recon_exception_kind_serializes_as_snake_case ... ok
+test events::contracts::aging_dunning::tests::dunning_state_serializes_as_snake_case ... ok
+test events::contracts::credit_writeoff::tests::credit_note_envelope_has_correct_metadata ... ok
+test events::contracts::aging_dunning::tests::aging_buckets_total_fields_present ... ok
+test envelope_validation::tests::test_missing_event_id ... ok
+test envelope_validation::tests::test_invalid_event_id ... ok
+test credit_notes::tests::credit_note_error_display ... ok
+test events::contracts::recon_allocation::tests::recon_exception_raised_envelope_has_correct_metadata ... ok
+test events::contracts::recon_allocation::tests::recon_match_applied_envelope_has_correct_metadata ... ok
+test events::contracts::recon_allocation::tests::recon_run_started_envelope_has_data_mutation_class ... ok
+test envelope_validation::tests::test_invalid_occurred_at ... ok
+test envelope_validation::tests::test_empty_tenant_id ... ok
+test envelope_validation::tests::test_missing_payload ... ok
+test envelope_validation::tests::test_invalid_payload_type ... ok
+test events::contracts::tax_fx::tests::invoice_settled_fx_envelope_has_data_mutation_class ... ok
+test events::contracts::recon_allocation::tests::payment_allocated_payload_has_allocation_lines ... ok
+test events::contracts::tax_fx::tests::invoice_settled_fx_event_type_uses_ar_prefix ... ok
+test events::contracts::tax_fx::tests::tax_committed_envelope_has_data_mutation_class ... ok
+test events::contracts::tax_fx::tests::invoice_settled_fx_payload_serializes_correctly ... ok
+test events::contracts::tax_fx::tests::tax_event_type_constants_use_tax_prefix ... ok
+test events::contracts::tax_fx::tests::tax_line_detail_serializes_correctly ... ok
+test events::contracts::tax_fx::tests::tax_quoted_envelope_has_data_mutation_class ... ok
+test events::contracts::tax_fx::tests::tax_voided_envelope_has_reversal_class ... ok
+test events::contracts::tests::all_event_type_constants_use_ar_prefix ... ok
+test events::contracts::usage::tests::usage_captured_envelope_has_correct_type_and_class ... ok
+test events::contracts::usage::tests::usage_captured_payload_serializes_correctly ... ok
+test events::contracts::usage::tests::usage_invoiced_envelope_has_correct_metadata ... ok
+test finalization::tests::test_finalization_error_display ... ok
+test finalization::tests::test_finalization_result_variants ... ok
+test idempotency_keys::tests::test_invoice_attempt_key_all_retry_windows ... ok
+test events::contracts::tests::all_envelopes_have_stable_schema_version ... ok
+test http::webhooks::tests::test_missing_header_rejected ... ok
+test idempotency_keys::tests::test_invoice_attempt_key_empty_app_id ... ok
+test envelope_validation::tests::test_valid_envelope ... ok
+test envelope_validation::tests::test_valid_envelope_with_optional_fields ... ok
+test idempotency_keys::tests::test_invoice_attempt_key_format ... ok
+test idempotency_keys::tests::test_invoice_attempt_key_invalid_attempt_no_negative ... ok
+test idempotency_keys::tests::test_invoice_attempt_key_invalid_invoice_id ... ok
+test idempotency_keys::tests::test_invoice_attempt_key_invalid_attempt_no_too_high ... ok
+test idempotency_keys::tests::test_invoice_generation_key_empty_app_id ... ok
+test idempotency_keys::tests::test_invoice_generation_key_format ... ok
+test idempotency_keys::tests::test_invoice_generation_key_invalid_subscription_id ... ok
+test integrations::party_client::tests::test_party_master_url_defaults ... ok
+test invariants::tests::test_invariant_violation_display ... ok
+test idempotency_keys::tests::test_invoice_attempt_key_determinism ... ok
+test idempotency_keys::tests::test_invoice_generation_key_determinism ... ok
+test idempotency_keys::tests::test_invoice_attempt_key_uniqueness_across_attempts ... ok
+test idempotency_keys::tests::test_invoice_attempt_key_uniqueness_across_invoices ... ok
+test lifecycle::tests::test_invoice_not_found_error ... ok
+test lifecycle::tests::test_transition_error_display ... ok
+test integrations::party_client::tests::test_party_client_error_display ... ok
+test http::webhooks::tests::test_malformed_header_rejected ... ok
+test invariants::tests::test_invariant_violation_from_sqlx_error ... ok
+test middleware::ratelimit::tests::test_fallback_path_detection ... ok
+test models::customer::tests::create_customer_request_accepts_party_id ... ok
+test models::customer::tests::create_customer_request_party_id_is_optional ... ok
+test models::customer::tests::update_customer_request_party_id_is_optional ... ok
+test middleware::ratelimit::tests::test_extract_tenant_id_from_path ... ok
+test models::invoice::tests::create_invoice_request_accepts_party_id ... ok
+test http::webhooks::tests::test_invalid_signature_rejected ... ok
+test http::webhooks::tests::test_old_timestamp_rejected ... ok
+test models::invoice::tests::create_invoice_request_party_id_is_optional ... ok
+test http::webhooks::tests::test_valid_signature_fresh_timestamp ... ok
+test models::subscription::tests::create_subscription_request_accepts_party_id ... ok
+test models::subscription::tests::create_subscription_request_party_id_is_optional ... ok
+test progress_billing::tests::error_display_contract_not_found ... ok
+test progress_billing::tests::error_display_invalid_amount ... ok
+test progress_billing::tests::error_display_invalid_percentage ... ok
+test progress_billing::tests::error_display_over_billing ... ok
+test recon_scheduler::tests::error_display ... ok
+test recon_scheduler::tests::scheduled_run_result_serializes_correctly ... ok
+test reconciliation::matching::tests::empty_inputs_produce_no_output ... ok
+test reconciliation::matching::tests::currency_mismatch_prevents_match ... ok
+test reconciliation::matching::tests::exact_match_single_payment_single_invoice ... ok
+test reconciliation::matching::tests::already_matched_invoice_not_reused ... ok
+test reconciliation::matching::tests::determinism_across_runs ... ok
+test reconciliation::matching::tests::exception_kind_to_str_roundtrip ... ok
+test reconciliation::matching::tests::multiple_payments_matched_correctly ... ok
+test integrations::party_client::tests::test_party_verify_invalid_id_returns_not_found ... ok
+test reconciliation::matching::tests::reference_match_when_no_exact_match ... ok
+test reconciliation::matching::tests::unmatched_payment_raises_exception ... ok
+test retry::tests::test_calculate_retry_windows ... ok
+test retry::tests::test_determine_current_window_attempt_1 ... ok
+test retry::tests::test_determine_current_window_before_due ... ok
+test retry::tests::test_determine_current_window_attempt_0 ... ok
+test retry::tests::test_determine_current_window_attempt_2 ... ok
+test retry::tests::test_is_eligible_for_retry ... ok
+test retry::tests::test_retry_error_display ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test tax::jurisdiction::tests::resolution_hash_changes_with_state ... ok
+test metrics::tests::metrics_slo_no_pii_in_labels ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test tax::jurisdiction::tests::resolution_hash_changes_with_tax_code ... ok
+test tax::cache::tests::request_hash_changes_with_amount ... ok
+test tax::cache::tests::request_hash_is_deterministic ... ok
+test tax::jurisdiction::tests::resolution_hash_is_deterministic ... ok
+test tax::providers::tests::local_provider_california_rate ... ok
+test tax::providers::tests::local_provider_commit_rejects_unknown_ref ... ok
+test tax::providers::tests::local_provider_default_rate ... ok
+test tax::providers::tests::local_provider_empty_lines_rejected ... ok
+test tax::providers::tests::local_provider_multi_line ... ok
+test tax::providers::tests::local_provider_new_york_rate ... ok
+test tax::providers::tests::local_provider_non_us_exempt ... ok
+test reconciliation::matching::tests::ambiguous_match_raises_exception ... ok
+test tax::providers::tests::local_provider_void_rejects_unknown_ref ... ok
+test tax::providers::tests::zero_tax_provider_commit_succeeds ... ok
+test tax::providers::tests::zero_tax_provider_returns_zero_tax ... ok
+test tax::reporting::tests::render_csv_deterministic ... ok
+test tax::providers::tests::zero_tax_provider_void_succeeds ... ok
+test tax::reporting::tests::render_csv_handles_empty ... ok
+test tax::reporting::tests::render_csv_handles_null_state ... ok
+test tax::reporting::tests::summary_row_json_roundtrip ... ok
+test tilled::accounts::tests::add_capability_request_serializes ... ok
+test tilled::accounts::tests::pagination_params_include_only_present_values ... ok
+test tilled::accounts::tests::update_account_request_omits_none_fields ... ok
+test tilled::accounts::tests::update_account_request_supports_null_metadata_keys ... ok
+test tilled::accounts::tests::update_capability_request_serializes ... ok
+test tilled::api_keys::tests::api_key_deserializes_full ... ok
+test tilled::api_keys::tests::api_key_deserializes_minimal ... ok
+test tilled::api_keys::tests::create_request_omits_none_name ... ok
+test tilled::api_keys::tests::create_request_serializes ... ok
+test tilled::api_keys::tests::update_request_omits_none_name ... ok
+test tilled::apple_pay_domains::tests::apple_pay_domain_deserializes_full ... ok
+test tilled::apple_pay_domains::tests::apple_pay_domain_deserializes_minimal ... ok
+test tilled::apple_pay_domains::tests::create_request_serializes ... ok
+test tilled::auth_links::tests::auth_link_deserializes_full_response ... ok
+test tilled::auth_links::tests::auth_link_deserializes_minimal ... ok
+test tilled::auth_links::tests::create_auth_link_request_omits_none_fields ... ok
+test tilled::balance_transaction::tests::pagination_params_include_offset_and_limit ... ok
+test tilled::balance_transaction::tests::pagination_params_none_when_absent ... ok
+test tilled::balance_transaction::tests::summary_flattens_unknown_payload_fields ... ok
+test tilled::dispute::tests::evidence_payload_serializes_file_objects ... ok
+test tilled::documents::tests::bulk_submit_body_serializes ... ok
+test tilled::documents::tests::document_deserializes_full ... ok
+test tilled::documents::tests::document_deserializes_minimal ... ok
+test tilled::documents::tests::submit_body_serializes_with_file ... ok
+test tilled::documents::tests::submit_body_serializes_without_file ... ok
+test tilled::files::tests::file_object_deserializes_type_alias ... ok
+test tilled::health::tests::health_status_deserializes_full ... ok
+test tilled::health::tests::health_status_deserializes_minimal ... ok
+test tilled::merchant_application::tests::merchant_application_deserializes_minimal ... ok
+test tilled::merchant_application::tests::merchant_application_deserializes_with_optional_fields ... ok
+test tilled::merchant_application::tests::update_request_omits_none_fields ... ok
+test tilled::onboarding::tests::onboarding_application_deserializes_minimal ... ok
+test tilled::onboarding::tests::onboarding_application_deserializes_with_optional_fields ... ok
+test tilled::onboarding::tests::update_onboarding_request_omits_none_fields ... ok
+test tilled::payment_intent::tests::create_payment_intent_payload_includes_required_payment_method_types ... ok
+test tilled::payment_method::tests::list_payment_methods_query_includes_customer_and_type ... ok
+test tilled::payouts::tests::pagination_params_include_offset_and_limit ... ok
+test tilled::platform_fees::tests::platform_fee_deserializes_full ... ok
+test tilled::platform_fees::tests::platform_fee_deserializes_minimal ... ok
+test tilled::platform_fees::tests::platform_fee_refund_deserializes_full ... ok
+test tilled::platform_fees::tests::platform_fee_refund_deserializes_minimal ... ok
+test tilled::pricing_templates::tests::pricing_template_deserializes_card ... ok
+test tilled::pricing_templates::tests::pricing_template_deserializes_eft ... ok
+test tilled::pricing_templates::tests::pricing_template_deserializes_minimal ... ok
+test tilled::product_codes::tests::product_code_deserializes_full ... ok
+test tilled::product_codes::tests::product_code_deserializes_minimal ... ok
+test tilled::refund::tests::refund_payload_uses_payment_intent_id_field ... ok
+test tilled::report_runs::tests::create_params_serializes_correctly ... ok
+test tilled::report_runs::tests::report_run_deserializes_full ... ok
+test tilled::report_runs::tests::report_run_deserializes_minimal ... ok
+test tilled::subscription::tests::subscription_payload_serializes_billing_cycle_anchor_as_string ... ok
+test tilled::terminal_readers::tests::connection_status_deserializes ... ok
+test tilled::terminal_readers::tests::terminal_reader_deserializes_full ... ok
+test tilled::terminal_readers::tests::terminal_reader_deserializes_minimal ... ok
+test tilled::terminal_readers::tests::update_request_includes_label ... ok
+test tilled::terminal_readers::tests::update_request_omits_none_label ... ok
+test tilled::types::tests::amount_conversion_round_trips_within_bounds ... ok
+test tilled::types::tests::amount_conversion_rejects_out_of_range_i64 ... ok
+test tilled::types::tests::account_capability_deserializes ... ok
+test tilled::types::tests::balance_transaction_serialization_round_trip ... ok
+test tilled::types::tests::account_deserializes_minimal ... ok
+test tilled::types::tests::account_deserializes_with_capabilities ... ok
+test tilled::types::tests::charge_supports_get_charge_shape ... ok
+test tilled::tests::auth_headers_include_expected_names_and_values ... ok
+test tilled::types::tests::connected_account_serialization_round_trip ... ok
+test tilled::tests::config_falls_back_to_global_credentials_when_scoped_missing ... ok
+test tilled::types::tests::currency_normalizes_to_lowercase_usd ... ok
+test tilled::tests::config_prefers_app_scoped_credentials_over_global ... ok
+test tilled::types::tests::currency_rejects_unsupported_values ... ok
+test tilled::types::tests::dispute_alias_payment_intent_id_maps_to_charge_id ... ok
+test tilled::types::tests::dispute_serialization_with_charge_id ... ok
+test tilled::types::tests::payment_intent_charges_array_deserializes ... ok
+test tilled::types::tests::payment_intent_empty_charges_defaults ... ok
+test tilled::types::tests::payout_serialization_round_trip ... ok
+test tilled::types::tests::user_serialization_round_trip ... ok
+test tilled::user_invitations::tests::create_user_invitation_payload_serializes ... ok
+test tilled::user_invitations::tests::user_invitation_deserializes_minimal ... ok
+test tilled::user_invitations::tests::user_invitation_deserializes_with_optional_fields ... ok
+test middleware::auth::tests::test_missing_auth_header ... ok
+test middleware::auth::tests::test_invalid_bearer_format ... ok
+test middleware::auth::tests::test_valid_token_passes ... ok
+test tilled::users::tests::create_user_payload_serializes_expected_fields ... ok
+test tilled::users::tests::update_user_payload_omits_none_fields ... ok
+test tilled::webhook::tests::test_webhook_signature_verification_invalid ... ok
+test tilled::webhook::tests::test_webhook_signature_verification_expired ... ok
+test tilled::webhook_endpoint::tests::create_webhook_endpoint_payload_serializes_expected_fields ... ok
+test tilled::webhook_endpoint::tests::update_webhook_endpoint_payload_omits_none_fields ... ok
+test tilled::webhook_endpoint::tests::webhook_endpoint_deserializes_minimal ... ok
+test tilled::webhook_endpoint::tests::webhook_endpoint_deserializes_with_optional_fields ... ok
+test write_offs::tests::write_off_error_display ... ok
+test write_offs::tests::write_off_request_validates_amount ... ok
+test write_offs::tests::write_off_result_variants ... ok
+test tilled::webhook::tests::test_webhook_signature_verification ... ok
+test http::admin::tests::test_admin_router_builds ... ok
+test integrations::party_client::tests::test_party_verify_unreachable_url_returns_service_unavailable ... ok
+
+test result: ok. 239 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.06s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/ar_rs-344e9aa3d2f33b5f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/credit_memo_e2e.rs (target-slot-1/debug/deps/credit_memo_e2e-7f36906aa4464b0a)
+
+running 2 tests
+test credit_memo_tenant_scope_enforced ... ok
+test credit_memo_lifecycle_create_approve_issue_with_idempotency ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/customer_tests.rs (target-slot-1/debug/deps/customer_tests-9c87f1b7c3762585)
+
+running 8 tests
+test test_update_customer_success ... ok
+test test_create_customer_duplicate_email ... ok
+test test_get_customer_not_found ... ok
+test test_create_customer_missing_email ... ok
+test test_list_customers_by_external_id ... ok
+test test_list_customers_with_pagination ... ok
+test test_create_customer_success ... ok
+test test_get_customer_success ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+
+     Running tests/dispute_tests.rs (target-slot-1/debug/deps/dispute_tests-3d7e6ea619be6141)
+
+running 9 tests
+test test_list_disputes_by_status ... ok
+test test_submit_dispute_evidence_success ... ok
+test test_list_disputes_with_pagination ... ok
+test test_get_dispute_success ... ok
+test test_list_disputes_by_customer ... ok
+test test_get_dispute_not_found ... ok
+test test_list_disputes_by_charge ... ok
+test test_submit_dispute_evidence_invalid_dispute ... ok
+test test_submit_evidence_for_closed_dispute ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.89s
+
+     Running tests/e2e_workflows.rs (target-slot-1/debug/deps/e2e_workflows-580f99731344da0f)
+
+running 7 tests
+test test_payment_workflow ... ok
+test test_subscription_workflow ... ok
+test test_customer_lifecycle_workflow ... ok
+test test_webhook_workflow ... ok
+test test_multi_tenant_isolation ... ok
+test test_invoice_workflow ... ok
+test test_error_recovery_workflow ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.85s
+
+     Running tests/event_tests.rs (target-slot-1/debug/deps/event_tests-50202af6a871a729)
+
+running 8 tests
+test test_get_event_not_found ... ok
+test test_list_events_by_type ... ok
+test test_get_event_success ... ok
+test test_list_events_combined_filters ... ok
+test test_list_events_by_customer ... ok
+test test_list_events_pagination ... ok
+test test_list_events_by_entity_type ... ok
+test test_list_events_by_source ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.78s
+
+     Running tests/finalization_tests.rs (target-slot-1/debug/deps/finalization_tests-42016e1e5d88b4e5)
+
+running 7 tests
+test test_finalize_invoice_idempotency_key_format ... ok
+test test_finalize_invoice_duplicate_attempt ... ok
+test test_finalize_invoice_not_found ... ok
+test test_finalize_invoice_concurrent_attempts ... ok
+test test_finalize_invoice_concurrent_different_attempts ... ok
+test test_finalize_invoice_multiple_attempts ... ok
+test test_finalize_invoice_new_attempt ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.15s
+
+     Running tests/idempotency_test.rs (target-slot-1/debug/deps/idempotency_test-8d0bfede3c3d857f)
+
+running 3 tests
+test test_idempotency_key_storage ... ok
+test test_event_logging ... ok
+test test_duplicate_idempotency_key ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/invoice_attempt_tests.rs (target-slot-1/debug/deps/invoice_attempt_tests-30c74549f88dc47f)
+
+running 4 tests
+test test_invoice_attempt_status_enum ... ok
+test test_invoice_attempt_unique_constraint ... ok
+test test_invoice_attempt_sequence ... ok
+test test_invoice_attempt_different_invoices ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests/invoice_lifecycle_events_test.rs (target-slot-1/debug/deps/invoice_lifecycle_events_test-5e4a49d2b130b7ea)
+
+running 2 tests
+test test_invoice_opened_emitted_exactly_once ... ok
+test test_invoice_paid_emitted_exactly_once ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
+
+     Running tests/invoice_tests.rs (target-slot-1/debug/deps/invoice_tests-2b3dce4fca02bd42)
+
+running 9 tests
+test test_finalize_invoice_emits_event ... ok
+test test_finalize_invoice_success ... ok
+test test_get_invoice_success ... ok
+test test_get_invoice_not_found ... ok
+test test_list_invoices_by_customer ... ok
+test test_create_invoice_success ... ok
+test test_update_invoice_success ... ok
+test test_finalize_invoice_already_finalized ... ok
+test test_create_invoice_missing_customer ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.93s
+
+     Running tests/lifecycle_tests.rs (target-slot-1/debug/deps/lifecycle_tests-0029c145e3009748)
+
+running 9 tests
+test test_transition_open_to_attempting ... ok
+test test_transition_failed_final_is_terminal ... ok
+test test_transition_attempting_to_failed_final ... ok
+test test_transition_invoice_not_found ... ok
+test test_transition_open_to_void ... ok
+test test_guard_has_zero_side_effects_on_rejection ... ok
+test test_transition_paid_is_terminal ... ok
+test test_transition_open_to_paid_rejected ... ok
+test test_transition_attempting_to_paid ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s
+
+     Running tests/outbox_inbox_tests.rs (target-slot-1/debug/deps/outbox_inbox_tests-ebdbffc01ea95c07)
+
+running 6 tests
+test test_event_envelope_with_causation ... ok
+test test_idempotent_consumer_first_processing ... ok
+test test_idempotent_consumer_duplicate_detection ... ok
+test test_batch_event_enqueue ... ok
+test test_publisher_with_inmemory_bus ... ok
+test test_enqueue_event_to_outbox ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+
+     Running tests/payment_loop_e2e.rs (target-slot-1/debug/deps/payment_loop_e2e-f3c40d97fa3f4319)
+
+running 3 tests
+test test_payment_loop_multiple_replays_single_record ... ok
+test test_payment_loop_invoice_marked_paid ... ok
+test test_payment_loop_webhook_replay_is_idempotent ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/payment_method_tests.rs (target-slot-1/debug/deps/payment_method_tests-d3ca9a555cbc31e0)
+
+running 12 tests
+test test_list_payment_methods_by_status ... ok
+test test_delete_payment_method_not_found ... ok
+test test_get_payment_method_success ... ok
+test test_update_payment_method_success ... ok
+test test_get_payment_method_not_found ... ok
+test test_list_payment_methods_with_pagination ... ok
+test test_set_default_payment_method_already_default ... ok
+test test_list_payment_methods_by_customer ... ok
+test test_set_default_payment_method_success ... ok
+test test_delete_payment_method_reaches_provider ... ok
+test test_add_payment_method_invalid_customer ... ok
+test test_add_payment_method_success ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s
+
+     Running tests/payment_tests.rs (target-slot-1/debug/deps/payment_tests-9660c6b39c2afb92)
+
+running 16 tests
+test test_capture_charge_partial_amount_reaches_provider ... ok
+test test_create_charge_zero_amount ... ok
+test test_capture_charge_not_found ... ok
+test test_list_charges_by_customer ... ok
+test test_get_charge_success ... ok
+test test_create_refund_reaches_provider ... ok
+test test_capture_charge_invalid_amount ... ok
+test test_capture_charge_already_captured ... ok
+test test_capture_charge_reaches_provider ... ok
+test test_get_refund_success ... ok
+test test_create_charge_invalid_amount ... ok
+test test_list_refunds_by_charge ... ok
+test test_list_refunds_by_customer ... ok
+test test_create_charge_success ... ok
+test test_create_refund_partial_reaches_provider ... ok
+test test_create_refund_exceeds_charge ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.52s
+
+     Running tests/progress_billing_e2e.rs (target-slot-1/debug/deps/progress_billing_e2e-a6be73f3f284c0b3)
+
+running 6 tests
+test tenant_isolation ... ok
+test idempotency_no_duplicate_invoice ... ok
+test over_billing_guard ... ok
+test outbox_event_emitted ... ok
+test milestone_invoice_e2e ... ok
+test progress_billing_cumulative ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/retry_tests.rs (target-slot-1/debug/deps/retry_tests-f4ea3d712fa94b4a)
+
+running 16 tests
+test test_is_eligible_for_retry ... ok
+test test_calculate_retry_windows ... ok
+test test_determine_current_window_on_retry_1 ... ok
+test test_determine_current_window_between_1_and_2 ... ok
+test test_determine_current_window_before_due ... ok
+test test_determine_current_window_after_all_windows ... ok
+test test_determine_current_window_between_0_and_1 ... ok
+test test_determine_current_window_on_due_date ... ok
+test test_determine_current_window_on_retry_2 ... ok
+test test_window_offsets ... ok
+test test_get_invoices_for_retry_excludes_existing_attempt ... ok
+test test_get_invoices_for_retry_excludes_terminal_status ... ok
+test test_get_invoices_for_retry_empty ... ok
+test test_retry_window_exactly_once_enforcement ... ok
+test test_get_invoices_for_retry_multiple_windows ... ok
+test test_get_invoices_for_retry_single_invoice ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+     Running tests/subscription_tests.rs (target-slot-1/debug/deps/subscription_tests-3038bbcc25e413b6)
+
+running 8 tests
+test test_list_subscriptions_by_status ... ok
+test test_update_subscription_price ... ok
+test test_cancel_subscription_immediately ... ok
+test test_cancel_subscription_at_period_end ... ok
+test test_get_subscription_success ... ok
+test test_list_subscriptions_by_customer ... ok
+test test_create_subscription_success ... ok
+test test_create_subscription_invalid_customer ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s
+
+     Running tests/tilled_sandbox_tests.rs (target-slot-1/debug/deps/tilled_sandbox_tests-002759552fad3199)
+
+running 107 tests
+SKIP: merchant sandbox creds not set
+SKIP: sandbox creds not set
+SKIP: merchant sandbox creds not set
+SKIP: partner creds not set
+SKIP: merchant sandbox creds not set
+SKIP: sandbox creds not set
+SKIP: merchant sandbox creds not set
+SKIP: merchant sandbox creds not set
+SKIP: partner creds not set
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+SKIP: merchant sandbox creds not set
+test tilled_sandbox::scenarios_account_self::tests::scenario_as03_update_account_metadata ... ok
+test tilled_sandbox::scenarios_api_keys::tests::scenario_ak2_create_update_delete_publishable_key ... ok
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_account_self::tests::scenario_as07_capability_delete_guard ... ok
+test tilled_sandbox::scenarios::tests::scenario_03_capture_success_and_double_capture_failure ... ok
+test tilled_sandbox::scenarios_api_keys::tests::scenario_ak1_list_api_keys ... ok
+test tilled_sandbox::scenarios_account_self::tests::scenario_as06_capability_update ... ok
+test tilled_sandbox::scenarios::tests::scenario_04_refund_success_and_over_refund_failure ... ok
+test tilled_sandbox::scenarios_account_self::tests::scenario_as02_get_self_account_partner ... ok
+test tilled_sandbox::scenarios_account_self::tests::scenario_as05_capability_add_guard ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_account_self::tests::scenario_as01_get_self_account_merchant ... SKIP: sandbox creds not set
+ok
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_account_self::tests::scenario_as04_inspect_capabilities ... ok
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios::tests::scenario_02_payment_method_create_attach_list ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios::tests::scenario_01_customer_create_and_get ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_api_keys::tests::scenario_ak3_list_api_keys_partner_scope ... ok
+test tilled_sandbox::scenarios_apple_pay_domains::tests::scenario_apd1_list_apple_pay_domains ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_apple_pay_domains::tests::scenario_apd2_create_get_delete_lifecycle ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_checkout::tests::scenario_cs1_create_checkout_session ... ok
+test tilled_sandbox::scenarios_checkout::tests::scenario_cs3_list_checkout_sessions ... ok
+test tilled_sandbox::scenarios_checkout::tests::scenario_cs2_get_checkout_session ... ok
+SKIP: TILLED_PARTNER_ACCOUNT_ID not set
+test tilled_sandbox::scenarios_balance::tests::scenario_b3_list_payouts ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_balance::tests::scenario_b4_get_payout_by_id ... ok
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_checkout::tests::scenario_cs4_expire_checkout_session ... ok
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_balance::tests::scenario_b2_balance_transaction_after_charge ... ok
+SKIP: sandbox creds not set
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_balance::tests::scenario_b1_list_balance_transactions ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_checkout::tests::scenario_cs5_create_with_customer ... ok
+test tilled_sandbox::scenarios_coverage_gaps::tests::gap_02_confirm_payment_intent_standalone ... ok
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_coverage_gaps::tests::gap_03_get_payment_method ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_coverage_gaps::tests::gap_06_list_connected_accounts ... ok
+test tilled_sandbox::scenarios_disputes::tests::scenario_08_trigger_dispute_for_known_amount ... ok
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_disputes::tests::scenario_09_submit_dispute_evidence_reversal ... ok
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_coverage_gaps::tests::gap_04_list_refunds ... SKIP: partner creds not set
+ok
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_coverage_gaps::tests::gap_01_update_customer ... ok
+test tilled_sandbox::scenarios_coverage_gaps::tests::gap_05_get_dispute ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_disputes::tests::scenario_10_submit_dispute_evidence_loss ... ok
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_documents::tests::scenario_doc1_list_documents_merchant ... ok
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_documents::tests::scenario_doc2_list_documents_partner ... ok
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_events::tests::scenario_e1_list_events ... ok
+SKIP: merchant sandbox creds not set
+test tilled_sandbox::scenarios_events::tests::scenario_e2_get_event ... ok
+test tilled_sandbox::scenarios_events::tests::scenario_e3_get_balance_transaction ... ok
+test tilled_sandbox::scenarios_events::tests::scenario_e4_get_balance_transaction_summary ... ok
+test tilled_sandbox::scenarios_files::tests::scenario_f1_list_files_after_upload ... ok
+test tilled_sandbox::scenarios_files::tests::scenario_f2_get_file_metadata ... ok
+test tilled_sandbox::scenarios_files::tests::scenario_f3_file_contents_url_and_error ... ok
+test tilled_sandbox::scenarios_files::tests::scenario_f4_delete_file ... ok
+test tilled_sandbox::scenarios_files::tests::scenario_f5_update_user ... ok
+test tilled_sandbox::scenarios_merchants::tests::scenario_m01_list_connected_accounts ... ok
+test tilled_sandbox::scenarios_merchants::tests::scenario_m02_get_specific_account ... ok
+test tilled_sandbox::scenarios_merchants::tests::scenario_m03_create_connected_account ... ok
+test tilled_sandbox::scenarios_merchants::tests::scenario_m04_multi_merchant_isolation ... ok
+test tilled_sandbox::scenarios_misc_gaps::tests::d4_create_payment_method_via_helper ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_misc_gaps::tests::d4_get_charge_by_id ... ok
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_misc_gaps::tests::d4_list_customers ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_misc_gaps::tests::d4_list_customers_with_filter_fallback ... ok
+test tilled_sandbox::scenarios_misc_gaps::tests::d4_update_payment_method ... ok
+SKIP: sandbox creds not set
+SKIP: TILLED_PARTNER_ACCOUNT_ID not set — partner-scope test skipped.
+SKIP: TILLED_PARTNER_ACCOUNT_ID not set — partner-scope test skipped.
+SKIP: TILLED_SECRET_KEY / TILLED_ACCOUNT_ID not set — sandbox test skipped. Set these env vars to run.
+test tilled_sandbox::scenarios_payment_intents::tests::scenario_pi1_list_payment_intents ... ok
+SKIP: sandbox creds not set
+SKIP: TILLED_PARTNER_ACCOUNT_ID not set — partner-scope test skipped.
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_payment_intents::tests::scenario_pi2_get_payment_intent ... okSKIP: sandbox creds not set
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+
+test tilled_sandbox::scenarios_payment_intents::tests::scenario_pi3_update_payment_intent ... ok
+test tilled_sandbox::scenarios_payment_intents::tests::scenario_pi4_cancel_payment_intent ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_payment_intents::tests::scenario_pi5_list_with_status_filter ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_onboarding::onboarding_lifecycle_get_app_and_auth_link ... okSKIP: partner creds not set
+
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_onboarding::create_auth_link_returns_url ... ok
+test tilled_sandbox::scenarios_onboarding::get_onboarding_returns_application ... ok
+test tilled_sandbox::scenarios_ops::tests::scenario_06_subscription_lifecycle ... ok
+test tilled_sandbox::scenarios_onboarding::get_merchant_application_returns_data ... ok
+test tilled_sandbox::scenarios_ops::tests::scenario_05_dispute_evidence_submission ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_ops::tests::scenario_07_detach_guard_behavior ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_payments::tests::scenario_p3_manual_capture_partial_amount ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_payments::tests::scenario_p1_decline_insufficient_funds ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_payments::tests::scenario_p2_auto_capture_and_full_refund ... ok
+test tilled_sandbox::scenarios_payments::tests::scenario_p4_multiple_charges_same_customer ... ok
+test tilled_sandbox::scenarios_platform_fees::tests::scenario_pf1_list_platform_fees_merchant ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_platform_fees::tests::scenario_pf2_list_platform_fees_partner ... ok
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_pricing::tests::scenario_pt1_list_pricing_templates ... SKIP: partner creds not set
+ok
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_subscription_lifecycle::tests::scenario_sl1_pause_and_resume ... ok
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_subscription_lifecycle::tests::scenario_sl2_confirm_subscription ... ok
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_subscription_lifecycle::tests::scenario_sl3_retry_subscription ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_subscription_lifecycle::tests::scenario_sl4_pause_already_paused ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_subscriptions::tests::scenario_s3_multiple_subscriptions_per_customer ... ok
+test tilled_sandbox::scenarios_reports::tests::scenario_rr2_get_report_run ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_reports::tests::scenario_rr1_create_and_list_report_runs ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_terminal_readers::tests::scenario_tr1_list_terminal_readers ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_pricing::tests::scenario_pt2_get_pricing_template ... ok
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_terminal_readers::tests::scenario_tr2_get_and_status_if_readers_exist ... ok
+SKIP: partner creds not set
+test tilled_sandbox::scenarios_subscriptions::tests::scenario_s4_subscription_with_trial ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_subscriptions::tests::scenario_s2_update_subscription_metadata ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_terminal_readers::tests::scenario_tr3_update_label_if_readers_exist ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_subscriptions::tests::scenario_s1_create_verify_cancel_with_metadata ... SKIP: sandbox creds not set
+ok
+test tilled_sandbox::scenarios_users::tests::scenario_u1_users_create_list_get_delete ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_utility::tests::scenario_util1_health_check ... ok
+SKIP: sandbox creds not set
+test tilled_sandbox::scenarios_utility::tests::scenario_util2_list_product_codes ... ok
+test tilled_sandbox::scenarios_utility::tests::scenario_util3_list_product_codes_partner ... ok
+test tilled_sandbox::scenarios_utility::tests::scenario_util4_platform_fee_refund_probe ... ok
+test tilled_sandbox::scenarios_webhooks::tests::scenario_wh1_create_webhook_endpoint ... ok
+test tilled_sandbox::scenarios_webhooks::tests::scenario_wh2_list_webhook_endpoints ... ok
+test tilled_sandbox::scenarios_webhooks::tests::scenario_wh3_get_webhook_endpoint ... ok
+test tilled_sandbox::scenarios_webhooks::tests::scenario_wh4_update_webhook_endpoint ... ok
+test tilled_sandbox::scenarios_webhooks::tests::scenario_wh5_delete_webhook_endpoint ... ok
+test tilled_sandbox::scenarios_webhooks::tests::scenario_wh6_full_lifecycle ... ok
+test tilled_sandbox::tests::try_sandbox_client_returns_none_without_creds ... ok
+test tilled_sandbox::tests::try_partner_client_returns_none_without_partner_account ... ok
+test tilled_sandbox::tests::retry_policy_returns_ok_on_first_success ... ok
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+SKIP: sandbox creds not set
+test tilled_sandbox::tests::unique_email_generates_uuid_based_address ... ok
+test tilled_sandbox::tests::retry_policy_fails_fast_on_client_error ... ok
+test tilled_sandbox::scenarios_user_invitations::tests::scenario_ui1_invitation_full_lifecycle ... ok
+test tilled_sandbox::tests::unique_metadata_contains_test_run_key ... ok
+test tilled_sandbox::scenarios_user_invitations::tests::scenario_ui3_reset_mfa_and_unlock ... ok
+test tilled_sandbox::scenarios_user_invitations::tests::scenario_ui2_impersonate_user ... ok
+
+test result: ok. 107 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/webhook_tests.rs (target-slot-1/debug/deps/webhook_tests-1cea7106797b6c24)
+
+running 12 tests
+test test_replay_webhook_failed ... ok
+test test_receive_webhook_duplicate_event_id ... ok
+test test_list_webhooks_by_event_type ... ok
+test test_receive_webhooks_out_of_order ... ok
+test test_replay_webhook_already_processed ... ok
+test test_replay_webhook_with_force ... ok
+test test_list_webhooks_by_status ... ok
+test test_get_webhook_success ... ok
+test test_receive_webhook_invalid_signature ... ok
+test test_receive_webhook_valid_signature ... ok
+test test_receive_webhook_missing_signature_header ... ok
+test test_receive_webhook_stale_timestamp_rejected ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.04s
+
+   Doc-tests ar_rs
+
+running 10 tests
+test modules/ar/src/credit_notes.rs - credit_notes (line 24) ... ignored
+test modules/ar/src/finalization.rs - finalization::finalize_invoice (line 122) ... ignored
+test modules/ar/src/invariants.rs - invariants (line 14) ... ignored
+test modules/ar/src/lifecycle.rs - lifecycle::transition_to_attempting (line 202) ... ignored
+test modules/ar/src/middleware/auth.rs - middleware::auth::service_auth_middleware (line 27) ... ignored
+test modules/ar/src/middleware/ratelimit.rs - middleware::ratelimit::ratelimit_middleware (line 35) ... ignored
+test modules/ar/src/write_offs.rs - write_offs (line 26) ... ignored
+test modules/ar/src/idempotency_keys.rs - idempotency_keys (line 13) - compile ... ok
+test modules/ar/src/retry.rs - retry::determine_current_window (line 132) - compile ... ok
+test modules/ar/src/retry.rs - retry::calculate_retry_windows (line 109) - compile ... ok
+
+test result: ok. 3 passed; 0 failed; 7 ignored; 0 measured; 0 filtered out; finished in 1.74s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T19:10:21Z

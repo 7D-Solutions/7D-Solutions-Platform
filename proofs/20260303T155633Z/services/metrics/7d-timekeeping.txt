@@ -1,0 +1,15 @@
+## url=http://localhost:8097/metrics
+## fetched_at_utc=2026-03-03T15:56:35Z
+
+# HELP tk_active_timesheets_count Current count of active (open) timesheets
+# TYPE tk_active_timesheets_count gauge
+tk_active_timesheets_count 0
+# HELP tk_approvals_total Total timesheet approvals processed
+# TYPE tk_approvals_total counter
+tk_approvals_total 0
+# HELP tk_exports_total Total timesheet export runs
+# TYPE tk_exports_total counter
+tk_exports_total 0
+# HELP tk_time_entries_created_total Total time entries created
+# TYPE tk_time_entries_created_total counter
+tk_time_entries_created_total 0

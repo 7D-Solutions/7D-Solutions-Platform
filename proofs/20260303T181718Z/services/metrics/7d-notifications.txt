@@ -1,0 +1,8 @@
+## url=http://localhost:8089/metrics
+## fetched_at_utc=2026-03-03T18:17:19Z
+
+# HELP notifications_event_consumer_lag_messages Event consumer lag in messages
+# TYPE notifications_event_consumer_lag_messages gauge
+notifications_event_consumer_lag_messages{consumer_group="notifications_invoice_issued_consumer"} 0
+notifications_event_consumer_lag_messages{consumer_group="notifications_payment_failed_consumer"} 0
+notifications_event_consumer_lag_messages{consumer_group="notifications_payment_succeeded_consumer"} 0

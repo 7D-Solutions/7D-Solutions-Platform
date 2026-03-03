@@ -1,0 +1,12 @@
+## url=http://localhost:8087/metrics
+## fetched_at_utc=2026-03-03T15:33:55Z
+
+# HELP subscriptions_churn_total Total number of subscription cancellations
+# TYPE subscriptions_churn_total counter
+subscriptions_churn_total 0
+# HELP subscriptions_cycles_attempted_total Total number of billing cycles attempted
+# TYPE subscriptions_cycles_attempted_total counter
+subscriptions_cycles_attempted_total 0
+# HELP subscriptions_cycles_completed_total Total number of billing cycles completed successfully
+# TYPE subscriptions_cycles_completed_total counter
+subscriptions_cycles_completed_total 0

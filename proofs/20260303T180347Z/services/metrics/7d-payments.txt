@@ -1,0 +1,20 @@
+## url=http://localhost:8088/metrics
+## fetched_at_utc=2026-03-03T18:03:49Z
+
+# HELP payment_attempts_total Total number of payment attempts by status.
+# TYPE payment_attempts_total counter
+# HELP unknown_duration_seconds Duration of UNKNOWN state in seconds.
+# TYPE unknown_duration_seconds histogram
+unknown_duration_seconds_sum 0.0
+unknown_duration_seconds_count 0
+unknown_duration_seconds_bucket{le="60.0"} 0
+unknown_duration_seconds_bucket{le="300.0"} 0
+unknown_duration_seconds_bucket{le="600.0"} 0
+unknown_duration_seconds_bucket{le="1800.0"} 0
+unknown_duration_seconds_bucket{le="3600.0"} 0
+unknown_duration_seconds_bucket{le="+Inf"} 0
+# HELP retry_attempts_total Total number of retry attempts.
+# TYPE retry_attempts_total counter
+retry_attempts_total_total 0
+# EOF
+

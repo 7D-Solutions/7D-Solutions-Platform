@@ -1,0 +1,14 @@
+{
+  "service_name": "ttp",
+  "version": "1.0.0",
+  "status": "ready",
+  "degraded": false,
+  "checks": [
+    {
+      "name": "database",
+      "status": "up",
+      "latency_ms": 21
+    }
+  ],
+  "timestamp": "2026-03-03T12:47:10.378162425+00:00"
+}

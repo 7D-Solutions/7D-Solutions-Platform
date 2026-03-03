@@ -1,0 +1,19 @@
+## crate test: payments-rs
+## started_at_utc=2026-03-03T12:56:54Z
+## cmd=./scripts/cargo-slot.sh test -p payments-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+   Compiling payments-rs v1.1.13 (/Users/james/Projects/7D-Solutions Platform/modules/payments)
+error[E0433]: failed to resolve: could not find `routes` in the crate root
+  --> modules/payments/src/http/payments.rs:18:12
+   |
+18 | use crate::routes::checkout_sessions::extract_tenant;
+   |            ^^^^^^ could not find `routes` in the crate root
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `payments-rs` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `payments-rs` (lib test) due to 1 previous error
+
+## exit_code=101
+## finished_at_utc=2026-03-03T12:56:57Z

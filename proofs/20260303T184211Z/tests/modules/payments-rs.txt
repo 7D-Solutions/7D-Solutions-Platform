@@ -1,0 +1,226 @@
+## crate test: payments-rs
+## started_at_utc=2026-03-03T18:52:15Z
+## cmd=./scripts/cargo-slot.sh test -p payments-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+warning: unused variable: `metadata`
+   --> modules/payments/tests/payment_collection_tests.rs:165:9
+    |
+165 |     let metadata = payments_rs::handlers::EnvelopeMetadata {
+    |         ^^^^^^^^ help: if this is intentional, prefix it with an underscore: `_metadata`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `payments-rs` (test "payment_collection_tests") generated 1 warning (run `cargo fix --test "payment_collection_tests" -p payments-rs` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.35s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/payments_rs-e61c9228632a1a1d)
+
+running 58 tests
+test envelope_validation::tests::test_missing_event_id ... ok
+test config::tests::test_bus_type_from_str ... ok
+test config::tests::test_validate_empty_database_url ... ok
+test config::tests::test_validate_nats_requires_url ... ok
+test config::tests::test_validate_success ... ok
+test config::tests::test_payments_provider_from_str ... ok
+test config::tests::test_validate_tilled_requires_credentials ... ok
+test idempotency_keys::tests::test_payment_attempt_key_empty_app_id ... ok
+test envelope_validation::tests::test_invalid_event_id ... ok
+test idempotency_keys::tests::test_payment_attempt_key_invalid_attempt_no_negative ... ok
+test idempotency_keys::tests::test_payment_attempt_key_invalid_attempt_no_too_high ... ok
+test envelope_validation::tests::test_invalid_occurred_at ... ok
+test idempotency_keys::tests::test_payment_attempt_key_determinism ... ok
+test idempotency_keys::tests::test_payment_attempt_key_uniqueness_across_attempts ... ok
+test idempotency_keys::tests::test_payment_attempt_key_uniqueness_across_payments ... ok
+test idempotency_keys::tests::test_payment_attempt_key_stable_uuid ... ok
+test idempotency_keys::tests::test_payment_attempt_key_format ... ok
+test idempotency_keys::tests::test_payment_attempt_key_all_retry_windows ... ok
+test envelope_validation::tests::test_empty_tenant_id ... ok
+test envelope_validation::tests::test_invalid_payload_type ... ok
+test envelope_validation::tests::test_missing_payload ... ok
+test lifecycle::tests::test_status_constants ... ok
+test envelope_validation::tests::test_valid_envelope ... ok
+test lifecycle::tests::test_attempt_not_found_error ... ok
+test envelope_validation::tests::test_valid_envelope_with_optional_fields ... ok
+test envelope_validation::tests::test_valid_ar_envelope ... ok
+test retry::tests::test_calculate_retry_windows ... ok
+test retry::tests::test_determine_current_window_attempt_0 ... ok
+test retry::tests::test_determine_current_window_attempt_1 ... ok
+test retry::tests::test_determine_current_window_attempt_2 ... ok
+test retry::tests::test_determine_current_window_before_due ... ok
+test retry::tests::test_is_eligible_for_retry ... ok
+test retry::tests::test_unknown_blocks_retry ... ok
+test metrics::tests::test_record_retry_attempt ... ok
+test lifecycle::tests::test_transition_error_display ... ok
+test reconciliation::tests::test_reconciliation_result_equality ... ok
+test reconciliation::tests::test_psp_payment_status_variants ... ok
+test metrics::tests::test_record_unknown_duration ... ok
+test retry::tests::test_window_constants_match_ar ... ok
+test invariants::tests::test_invariant_violation_from_sqlx_error ... ok
+test webhook_handler::tests::test_webhook_error_display ... ok
+test webhook_signature::tests::test_internal_webhook_always_valid ... ok
+test webhook_signature::tests::test_signature_error_display ... ok
+test webhook_signature::tests::test_stripe_webhook_unsupported ... ok
+test webhook_signature::tests::test_tilled_missing_header ... ok
+test metrics::tests::test_record_payment_attempt ... ok
+test reconciliation::tests::test_reconciliation_error_display ... ok
+test retry::tests::test_retry_error_display ... ok
+test invariants::tests::test_invariant_violation_display ... ok
+test webhook_signature::tests::test_tilled_no_secret_configured ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test webhook_signature::tests::test_tilled_valid_signature ... ok
+test webhook_signature::tests::test_tilled_invalid_signature ... ok
+test webhook_signature::tests::test_tilled_rotation_overlap_accepts_prev_secret ... ok
+test webhook_signature::tests::test_tilled_rotation_overlap_rejects_unknown_secret ... ok
+test webhook_signature::tests::test_tilled_replay_rejected ... ok
+test http::admin::tests::test_admin_router_builds ... ok
+
+test result: ok. 58 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/payments_rs-f945e0d40b604bd8)
+
+running 2 tests
+test tests::cors_specific_origins_parse ... ok
+test tests::cors_wildcard_parses ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/checkout_tests.rs (target-slot-1/debug/deps/checkout_tests-6f263259d0d30515)
+
+running 7 tests
+test test_get_checkout_session_by_id ... ok
+test test_present_transition_created_to_presented ... ok
+test test_webhook_does_not_update_terminal_session ... ok
+test test_checkout_session_created_with_mock ... ok
+test test_present_transition_is_idempotent ... ok
+test test_webhook_updates_checkout_session_to_completed ... ok
+test test_webhook_replay_is_idempotent ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+
+     Running tests/contract_tests.rs (target-slot-1/debug/deps/contract_tests-03ef575d77335f57)
+
+running 5 tests
+test test_refund_succeeded_example_has_valid_envelope ... ok
+test test_payment_succeeded_example_has_valid_envelope ... ok
+test test_refund_failed_example_has_valid_envelope ... ok
+test test_payment_failed_example_has_valid_envelope ... ok
+test test_all_payment_examples_use_minor_currency_units ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/payment_attempt_tests.rs (target-slot-1/debug/deps/payment_attempt_tests-7c54651c31bafeb3)
+
+running 5 tests
+test test_payment_attempt_unknown_protocol ... ok
+test test_payment_attempt_different_payments ... ok
+test test_payment_attempt_status_enum ... ok
+test test_payment_attempt_unique_constraint ... ok
+test test_payment_attempt_sequence ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+     Running tests/payment_collection_tests.rs (target-slot-1/debug/deps/payment_collection_tests-561beb00d8cba701)
+
+running 3 tests
+test test_mock_processor_generates_payment_ids ... ok
+test test_payment_collection_handler ... ok
+test test_idempotent_event_processing ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+     Running tests/reconciliation_tests.rs (target-slot-1/debug/deps/reconciliation_tests-8c1514501e6fd314)
+
+running 9 tests
+test test_reconcile_unknown_to_succeeded ... ok
+test test_reconcile_idempotency ... ok
+test test_reconcile_unknown_to_failed_final ... ok
+test test_reconcile_already_resolved ... ok
+test test_attempt_not_found ... ok
+test test_missing_processor_payment_id ... ok
+test test_psp_still_unknown ... ok
+Resolved: 5, Already resolved: 0, Errors: 5
+Error in call 2: Lifecycle error: Transition error: Illegal transition from 'succeeded' to 'succeeded': State machine does not allow transition from succeeded to succeeded
+Error in call 6: Lifecycle error: Transition error: Illegal transition from 'succeeded' to 'succeeded': State machine does not allow transition from succeeded to succeeded
+Error in call 7: Lifecycle error: Transition error: Illegal transition from 'succeeded' to 'succeeded': State machine does not allow transition from succeeded to succeeded
+Error in call 8: Lifecycle error: Transition error: Illegal transition from 'succeeded' to 'succeeded': State machine does not allow transition from succeeded to succeeded
+Error in call 9: Lifecycle error: Transition error: Illegal transition from 'succeeded' to 'succeeded': State machine does not allow transition from succeeded to succeeded
+test test_concurrent_reconciliation_safety ... ok
+test test_reconcile_unknown_to_failed_retry ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.62s
+
+     Running tests/retry_integration_test.rs (target-slot-1/debug/deps/retry_integration_test-723f6b0c1de813df)
+
+running 9 tests
+test test_eligibility_checks ... ok
+test test_retry_windows_calculation ... ok
+test test_unknown_status_blocks_retry ... ok
+test test_multi_window_progression ... ok
+test test_failed_retry_is_eligible ... ok
+test test_payment_with_no_attempt_zero_excluded ... ok
+test test_unique_constraint_prevents_duplicates ... ok
+test test_no_duplicate_attempts_per_window ... ok
+test test_retry_scheduling_uses_attempted_at_anchor ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/tilled_signature_tests.rs (target-slot-1/debug/deps/tilled_signature_tests-23dbc26811ed97b2)
+
+running 11 tests
+test test_missing_header_produces_error ... ok
+test test_provider_selection_tilled ... ok
+test test_provider_selection_mock ... ok
+test test_provider_selection_invalid ... ok
+test test_malformed_header_rejected ... ok
+test test_no_secret_configured ... ok
+test test_replay_rejected_old_timestamp ... ok
+test test_replay_rejected_future_timestamp ... ok
+test test_tampered_body_rejected ... ok
+test test_valid_tilled_signature_accepted ... ok
+test test_wrong_secret_rejected ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/webhook_signature_edge_tests.rs (target-slot-1/debug/deps/webhook_signature_edge_tests-da00c58e6aa081fb)
+
+running 16 tests
+test test_empty_header_value_rejected ... ok
+test test_header_missing_timestamp_rejected ... ok
+test test_header_missing_v1_rejected ... ok
+test test_internal_always_passes ... ok
+test test_empty_v1_value_rejected ... ok
+test test_future_timestamp_just_outside_boundary_rejected ... ok
+test test_non_numeric_timestamp_rejected ... ok
+test test_header_with_extra_components_accepted ... ok
+test test_case_insensitive_header_tilled_signature ... ok
+test test_stripe_unsupported ... ok
+test test_empty_body_valid_signature ... ok
+test test_secret_rotation_new_secret_accepted ... ok
+test test_secret_rotation_old_secret_accepted ... ok
+test test_secret_rotation_unknown_rejected ... ok
+test test_timestamp_just_outside_boundary_rejected ... ok
+test test_timestamp_at_boundary_accepted ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests payments_rs
+
+running 11 tests
+test modules/payments/src/events/consumer.rs - events::consumer::EventConsumer::process_idempotent (line 74) ... ignored
+test modules/payments/src/idempotency_keys.rs - idempotency_keys (line 13) ... ignored
+test modules/payments/src/invariants.rs - invariants (line 15) ... ignored
+test modules/payments/src/lifecycle.rs - lifecycle::transition_to_succeeded (line 228) ... ignored
+test modules/payments/src/processor.rs - processor::MockPaymentProcessor::query_payment_status (line 273) ... ignored
+test modules/payments/src/reconciliation.rs - reconciliation::poll_psp_status_with_retry (line 275) ... ignored
+test modules/payments/src/reconciliation.rs - reconciliation::reconcile_unknown_attempt (line 144) ... ignored
+test modules/payments/src/reconciliation.rs - reconciliation::resolve_unknown_to_terminal (line 318) ... ignored
+test modules/payments/src/retry.rs - retry::calculate_retry_windows (line 130) ... ignored
+test modules/payments/src/retry.rs - retry::determine_current_window (line 150) ... ignored
+test modules/payments/src/webhook_handler.rs - webhook_handler::update_payment_status_from_webhook (line 100) ... ignored
+
+test result: ok. 0 passed; 0 failed; 11 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T18:52:29Z

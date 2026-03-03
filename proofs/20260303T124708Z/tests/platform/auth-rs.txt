@@ -1,0 +1,93 @@
+## crate test: auth-rs
+## started_at_utc=2026-03-03T12:50:12Z
+## cmd=./scripts/cargo-slot.sh test -p auth-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+   Compiling sqlx-core v0.8.6
+   Compiling axum v0.8.8
+   Compiling reqwest v0.12.28
+   Compiling async-nats v0.38.0
+   Compiling jsonschema v0.18.3
+   Compiling sqlx-postgres v0.8.6
+   Compiling tonic v0.14.5
+   Compiling health v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/health)
+   Compiling sqlx-macros-core v0.8.6
+   Compiling tower_governor v0.8.0
+   Compiling sqlx-macros v0.8.6
+   Compiling sqlx v0.8.6
+   Compiling auth-rs v1.3.10 (/Users/james/Projects/7D-Solutions Platform/platform/identity-auth)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 27.01s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/auth_rs-645f7aa6c09cf063)
+
+running 31 tests
+test auth::jwt::tests::claims_version_is_set ... ok
+test auth::jwt::tests::claims_service_actor_type ... ok
+test auth::jwt::tests::claims_empty_roles_perms ... ok
+test clients::tenant_registry::tests::entitlement_live_fetch_from_registry ... ignored
+test auth::jwt::tests::rotation_overlap_ends_old_token_rejected ... ok
+test clients::tenant_registry::tests::gate_active_is_allow ... ok
+test clients::tenant_registry::tests::gate_deleted_is_deny ... ok
+test clients::tenant_registry::tests::gate_past_due_is_deny_new_login ... ok
+test clients::tenant_registry::tests::gate_suspended_is_deny ... ok
+test clients::tenant_registry::tests::gate_trial_is_allow ... ok
+test auth::jwt::tests::claims_expired_token_rejected ... ok
+test clients::tenant_registry::tests::past_due_status_from_cache_returns_deny_new_login ... ok
+test clients::tenant_registry::tests::cache_hit_within_ttl_returns_immediately ... ok
+test clients::tenant_registry::tests::status_cache_hit_within_ttl_returns_immediately ... ok
+test clients::tenant_registry::tests::expired_cache_fail_closed_when_registry_down ... ok
+test clients::tenant_registry::tests::stale_cache_within_grace_used_during_outage ... ok
+test clients::tenant_registry::tests::no_cache_fail_closed_when_registry_down ... ok
+test clients::tenant_registry::tests::status_expired_beyond_grace_fail_closed ... ok
+test clients::tenant_registry::tests::suspended_status_from_cache_returns_deny ... ok
+test clients::tenant_registry::tests::status_stale_cache_within_grace_used_during_outage ... ok
+test clients::tenant_registry::tests::status_no_cache_fail_closed_when_registry_down ... ok
+test auth::jwt::tests::jwks_includes_both_keys_during_overlap ... ok
+test auth::jwt::tests::claims_round_trip ... ok
+test auth::jwt::tests::rotation_overlap_accepts_token_signed_by_prev_key ... ok
+
+thread 'auth::password_reset_repo::tests::test_claim_is_single_use' (73811527) panicked at platform/identity-auth/src/auth/password_reset_repo.rs:66:14:
+connect to test DB: PoolTimedOut
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'auth::concurrency::tests::test_create_and_count_lease' (73811515) panicked at platform/identity-auth/src/auth/concurrency.rs:158:14:
+connect to test DB: PoolTimedOut
+
+thread 'auth::password_reset_repo::tests::test_concurrent_claim_exactly_one_wins' (73811528) panicked at platform/identity-auth/src/auth/password_reset_repo.rs:66:14:
+connect to test DB: PoolTimedOut
+
+thread 'auth::password_reset_repo::tests::test_expired_token_returns_none' (73811529) panicked at platform/identity-auth/src/auth/password_reset_repo.rs:66:14:
+connect to test DB: PoolTimedOut
+
+thread 'auth::concurrency::tests::test_seat_limit_enforced_atomically' (73811518) panicked at platform/identity-auth/src/auth/concurrency.rs:158:14:
+connect to test DB: PoolTimedOut
+
+thread 'auth::concurrency::tests::test_rotate_lease_updates_session_and_heartbeat' (73811517) panicked at platform/identity-auth/src/auth/concurrency.rs:158:14:
+connect to test DB: PoolTimedOut
+
+thread 'auth::concurrency::tests::test_revoke_lease_by_token_hash' (73811516) panicked at platform/identity-auth/src/auth/concurrency.rs:158:14:
+connect to test DB: PoolTimedOut
+test auth::concurrency::tests::test_revoke_lease_by_token_hash ... FAILED
+test auth::password_reset_repo::tests::test_expired_token_returns_none ... FAILED
+test auth::password_reset_repo::tests::test_claim_is_single_use ... FAILED
+test auth::password_reset_repo::tests::test_concurrent_claim_exactly_one_wins ... FAILED
+test auth::concurrency::tests::test_create_and_count_lease ... FAILED
+test auth::concurrency::tests::test_rotate_lease_updates_session_and_heartbeat ... FAILED
+test auth::concurrency::tests::test_seat_limit_enforced_atomically ... FAILED
+
+failures:
+
+failures:
+    auth::concurrency::tests::test_create_and_count_lease
+    auth::concurrency::tests::test_revoke_lease_by_token_hash
+    auth::concurrency::tests::test_rotate_lease_updates_session_and_heartbeat
+    auth::concurrency::tests::test_seat_limit_enforced_atomically
+    auth::password_reset_repo::tests::test_claim_is_single_use
+    auth::password_reset_repo::tests::test_concurrent_claim_exactly_one_wins
+    auth::password_reset_repo::tests::test_expired_token_returns_none
+
+test result: FAILED. 23 passed; 7 failed; 1 ignored; 0 measured; 0 filtered out; finished in 30.01s
+
+error: test failed, to rerun pass `-p auth-rs --lib`
+
+## exit_code=101
+## finished_at_utc=2026-03-03T12:51:15Z

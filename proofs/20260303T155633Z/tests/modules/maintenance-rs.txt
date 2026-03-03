@@ -1,0 +1,267 @@
+## crate test: maintenance-rs
+## started_at_utc=2026-03-03T16:05:27Z
+## cmd=./scripts/cargo-slot.sh test -p maintenance-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.50s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/maintenance_rs-7b6e256f87be32cf)
+
+running 63 tests
+test domain::meters::tests::rollover_boundary_exactly_90_percent ... ok
+test domain::meters::tests::valid_rollover_accepted ... ok
+test domain::meters::tests::first_reading_always_valid ... ok
+test domain::meters::tests::increasing_reading_valid ... ok
+test domain::meters::tests::rollover_prev_not_near_max_rejected ... ok
+test domain::meters::tests::rollover_new_not_near_zero_rejected ... ok
+test domain::meters::tests::rollover_boundary_exactly_10_percent ... ok
+test domain::meters::tests::decreasing_without_rollover_rejected ... ok
+test config::tests::bus_type_from_str_valid ... ok
+test domain::plans::tests::calendar_recompute_from_last_completed ... ok
+test domain::assets::tests::asset_type_roundtrip ... ok
+test domain::assets::tests::asset_status_roundtrip ... ok
+test domain::plans::tests::both_recompute ... ok
+test config::tests::bus_type_from_str_invalid ... ok
+test domain::plans::tests::calendar_recompute_from_now ... ok
+test domain::plans::tests::meter_recompute_from_last_meter_reading ... ok
+test domain::plans::tests::meter_recompute_from_latest_reading ... ok
+test domain::plans::tests::meter_recompute_no_readings ... ok
+test domain::scheduler::tests::classify_both_date_only ... ok
+test domain::scheduler::tests::classify_both_meter_only ... ok
+test domain::scheduler::tests::classify_both_triggers ... ok
+test domain::scheduler::tests::classify_calendar_trigger ... ok
+test domain::scheduler::tests::classify_meter_trigger ... ok
+test domain::work_orders::guards::tests::close_passes_with_closed_at ... ok
+test domain::work_orders::guards::tests::close_requires_closed_at ... ok
+test domain::work_orders::guards::tests::completion_accepts_zero_downtime ... ok
+test domain::work_orders::guards::tests::completion_passes_with_both_fields ... ok
+test domain::work_orders::guards::tests::completion_requires_completed_at ... ok
+test domain::work_orders::guards::tests::completion_requires_downtime_minutes ... ok
+test domain::work_orders::guards::tests::run_guards_dispatches_to_close ... ok
+test domain::work_orders::guards::tests::run_guards_dispatches_to_completion ... ok
+test domain::work_orders::guards::tests::run_guards_passes_for_non_guarded_status ... ok
+test domain::work_orders::state_machine::tests::all_transitions_are_deterministic ... ok
+test domain::work_orders::state_machine::tests::awaiting_approval_to_cancelled ... ok
+test domain::work_orders::state_machine::tests::awaiting_approval_to_scheduled ... ok
+test domain::work_orders::state_machine::tests::cancelled_is_terminal ... ok
+test domain::work_orders::state_machine::tests::closed_is_terminal ... ok
+test domain::work_orders::state_machine::tests::completed_cannot_go_to_cancelled ... ok
+test domain::work_orders::state_machine::tests::completed_cannot_go_to_in_progress ... ok
+test domain::work_orders::state_machine::tests::completed_to_closed ... ok
+test domain::work_orders::state_machine::tests::draft_cannot_go_to_closed ... ok
+test domain::work_orders::state_machine::tests::draft_cannot_go_to_completed ... ok
+test domain::work_orders::state_machine::tests::draft_cannot_go_to_in_progress ... ok
+test domain::work_orders::state_machine::tests::draft_to_awaiting_approval ... ok
+test domain::work_orders::state_machine::tests::draft_to_cancelled ... ok
+test domain::work_orders::state_machine::tests::draft_to_scheduled ... ok
+test domain::work_orders::state_machine::tests::every_non_terminal_can_be_cancelled ... ok
+test domain::work_orders::state_machine::tests::in_progress_to_cancelled ... ok
+test domain::work_orders::state_machine::tests::in_progress_to_completed ... ok
+test domain::work_orders::state_machine::tests::in_progress_to_on_hold ... ok
+test domain::work_orders::state_machine::tests::no_op_same_status ... ok
+test domain::work_orders::state_machine::tests::on_hold_cannot_go_to_completed ... ok
+test domain::work_orders::state_machine::tests::on_hold_to_cancelled ... ok
+test domain::work_orders::state_machine::tests::on_hold_to_in_progress ... ok
+test domain::work_orders::state_machine::tests::scheduled_cannot_go_to_completed ... ok
+test domain::work_orders::state_machine::tests::scheduled_to_cancelled ... ok
+test domain::work_orders::state_machine::tests::scheduled_to_in_progress ... ok
+test domain::work_orders::state_machine::tests::terminal_states_have_no_outgoing_edges ... ok
+test events::subjects::tests::all_subjects_count ... ok
+test events::subjects::tests::all_subjects_start_with_maintenance ... ok
+test events::subjects::tests::no_duplicate_subjects ... ok
+test metrics::tests::metrics_slo_no_pii_in_labels ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+
+test result: ok. 63 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/bench.rs (target-slot-1/debug/deps/bench-380783bf2b79b883)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/maintenance_rs-df3a9d04110457bd)
+
+running 2 tests
+test tests::cors_wildcard_parses ... ok
+test tests::cors_specific_origins_parse ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/asset_downtime_integration.rs (target-slot-1/debug/deps/asset_downtime_integration-da753b1254832c10)
+
+running 6 tests
+test test_idempotency ... ok
+test test_asset_downtime_relationship ... ok
+test test_downtime_event_e2e ... ok
+test test_asset_crud_e2e ... ok
+test test_tenant_isolation ... ok
+test test_outbox_events ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+
+     Running tests/asset_meter_integration.rs (target-slot-1/debug/deps/asset_meter_integration-2a79f70e47956038)
+
+running 13 tests
+test test_create_and_get_asset ... ok
+test test_update_asset ... ok
+test test_list_readings_for_asset ... ok
+test test_meter_reading_invalid_rollover_rejected ... ok
+test test_tenant_isolation_meter_readings ... ok
+test test_tenant_isolation_assets ... ok
+test test_meter_reading_rollover_accepted ... ok
+test test_duplicate_meter_type_rejected ... ok
+test test_create_and_list_meter_types ... ok
+test test_list_assets_with_filters ... ok
+test test_duplicate_asset_tag_rejected ... ok
+test test_meter_readings_monotonic_increasing ... ok
+test test_meter_reading_decrease_rejected ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
+
+     Running tests/auto_create_integration.rs (target-slot-1/debug/deps/auto_create_integration-66db377608c50e13)
+
+running 5 tests
+test test_auto_create_scheduled ... ok
+test test_auto_create_disabled_no_wo ... ok
+test test_auto_create_awaiting_approval ... ok
+test test_auto_create_idempotent ... ok
+test test_auto_create_inherits_checklist ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+
+     Running tests/calibration_integration.rs (target-slot-1/debug/deps/calibration_integration-05ede04c14fb0ef8)
+
+running 6 tests
+test test_idempotency ... ok
+test test_calibration_completion ... ok
+test test_tenant_isolation ... ok
+test test_overdue_detection ... ok
+test test_outbox_events ... ok
+test test_calibration_record_e2e ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+
+     Running tests/event_subjects_integration.rs (target-slot-1/debug/deps/event_subjects_integration-268d3992851b386c)
+
+running 5 tests
+test all_subjects_are_stable_and_prefixed ... ok
+test test_wo_transition_subject_and_envelope ... ok
+test test_meter_reading_subject_and_envelope ... ok
+test test_envelope_source_version ... ok
+test test_wo_created_subject_and_envelope ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/gl_cost_payload_integration.rs (target-slot-1/debug/deps/gl_cost_payload_integration-50b62b27019940d3)
+
+running 3 tests
+test test_non_completed_transition_has_no_cost_fields ... ok
+test test_completed_event_zero_cost_when_no_parts_labor ... ok
+test test_completed_event_has_cost_totals ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/overdue_detection_integration.rs (target-slot-1/debug/deps/overdue_detection_integration-be31da5458fcf649)
+
+running 5 tests
+test test_wo_without_scheduled_date_skipped ... ok
+test test_overdue_idempotent_same_day ... ok
+test test_overdue_wo_emits_event ... ok
+test test_overdue_event_payload ... ok
+test test_non_overdue_statuses_skipped ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+     Running tests/parts_labor_integration.rs (target-slot-1/debug/deps/parts_labor_integration-29c4f3277df51658)
+
+running 9 tests
+test test_remove_labor ... ok
+test test_cannot_add_labor_after_closed ... ok
+test test_add_part_to_in_progress_wo ... ok
+test test_list_parts ... ok
+test test_list_labor ... ok
+test test_cannot_add_part_after_completed ... ok
+test test_add_labor_to_in_progress_wo ... ok
+test test_remove_part ... ok
+test test_cannot_remove_part_after_cancelled ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s
+
+     Running tests/plan_assignment_integration.rs (target-slot-1/debug/deps/plan_assignment_integration-9265d82d28767e31)
+
+running 6 tests
+test test_assign_both_plan_computes_both_due_fields ... ok
+test test_assign_calendar_plan_computes_next_due_date ... ok
+test test_assign_meter_plan_no_readings_base_zero ... ok
+test test_list_assignments_with_filters ... ok
+test test_duplicate_assignment_rejected ... ok
+test test_assign_meter_plan_computes_next_due_meter ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running tests/plan_crud_integration.rs (target-slot-1/debug/deps/plan_crud_integration-37b538ca73c0a6ee)
+
+running 7 tests
+test test_calendar_plan_requires_interval_days ... ok
+test test_create_both_plan ... ok
+test test_create_calendar_plan ... ok
+test test_tenant_isolation_plans ... ok
+test test_list_and_update_plans ... ok
+test test_meter_plan_requires_meter_fields ... ok
+test test_create_meter_plan ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+
+     Running tests/scheduler_tick_integration.rs (target-slot-1/debug/deps/scheduler_tick_integration-845322be667c1e9d)
+
+running 6 tests
+test test_meter_due_emits_event ... ok
+test test_calendar_due_emits_event ... ok
+test test_inactive_plan_skipped ... ok
+test test_paused_assignment_skipped ... ok
+test test_idempotent_no_double_emission ... ok
+test test_both_schedule_calendar_trigger ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+
+     Running tests/tenant_boundary_test.rs (target-slot-1/debug/deps/tenant_boundary_test-a77e1271a9a950f3)
+
+running 4 tests
+test find_by_id_respects_tenant_boundary ... ok
+test all_core_tables_scope_by_tenant ... ok
+test parts_respect_tenant_boundary ... ok
+test concurrent_work_orders_are_tenant_isolated ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+
+     Running tests/work_order_integration.rs (target-slot-1/debug/deps/work_order_integration-7151f8d8bd99578e)
+
+running 4 tests
+test test_wo_numbers_sequential ... ok
+test test_tenant_isolation ... ok
+test test_create_adhoc_work_order ... ok
+test test_list_with_status_filter ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+
+     Running tests/work_order_transitions_integration.rs (target-slot-1/debug/deps/work_order_transitions_integration-b7522370f108300d)
+
+running 6 tests
+test test_cancel_from_draft ... ok
+test test_invalid_transition_rejected ... ok
+test test_close_requires_closed_at ... ok
+test test_cannot_transition_from_terminal ... ok
+test test_completion_requires_guard_fields ... ok
+test test_full_transition_chain ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+   Doc-tests maintenance_rs
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T16:05:59Z

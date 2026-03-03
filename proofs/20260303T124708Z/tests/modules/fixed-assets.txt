@@ -1,0 +1,122 @@
+## crate test: fixed-assets
+## started_at_utc=2026-03-03T12:54:11Z
+## cmd=./scripts/cargo-slot.sh test -p fixed-assets -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+   Compiling fixed-assets v0.1.0 (/Users/james/Projects/7D-Solutions Platform/modules/fixed-assets)
+error[E0425]: cannot find type `PgPool` in this scope
+  --> modules/fixed-assets/src/domain/depreciation/gl_entries.rs:65:29
+   |
+65 |     async fn test_pool() -> PgPool {
+   |                             ^^^^^^ not found in this scope
+   |
+   = note: type alias `crate::http::admin::tests::PgPool` exists but is inaccessible
+help: consider importing this type alias
+   |
+53 +     use sqlx::PgPool;
+   |
+
+error[E0433]: failed to resolve: use of undeclared type `PgPool`
+  --> modules/fixed-assets/src/domain/depreciation/gl_entries.rs:66:9
+   |
+66 |         PgPool::connect(&test_db_url())
+   |         ^^^^^^ use of undeclared type `PgPool`
+   |
+   = note: type alias `crate::http::admin::tests::PgPool` exists but is inaccessible
+help: consider importing this type alias
+   |
+53 +     use sqlx::PgPool;
+   |
+
+error[E0425]: cannot find type `PgPool` in this scope
+  --> modules/fixed-assets/src/domain/depreciation/gl_entries.rs:73:29
+   |
+73 |     async fn cleanup(pool: &PgPool) {
+   |                             ^^^^^^ not found in this scope
+   |
+   = note: type alias `crate::http::admin::tests::PgPool` exists but is inaccessible
+help: consider importing this type alias
+   |
+53 +     use sqlx::PgPool;
+   |
+
+error[E0425]: cannot find type `PgPool` in this scope
+  --> modules/fixed-assets/src/domain/depreciation/gl_entries.rs:85:47
+   |
+85 |     async fn insert_category_and_asset(pool: &PgPool, in_service: NaiveDate) -> (Uuid, Uuid) {
+   |                                               ^^^^^^ not found in this scope
+   |
+   = note: type alias `crate::http::admin::tests::PgPool` exists but is inaccessible
+help: consider importing this type alias
+   |
+53 +     use sqlx::PgPool;
+   |
+
+error[E0282]: type annotations needed
+  --> modules/fixed-assets/src/domain/depreciation/gl_entries.rs:66:9
+   |
+66 | /         PgPool::connect(&test_db_url())
+67 | |             .await
+   | |__________________^ cannot infer type
+
+error[E0282]: type annotations needed
+  --> modules/fixed-assets/src/domain/depreciation/gl_entries.rs:81:13
+   |
+81 |             sqlx::query(q).bind(TEST_TENANT).execute(pool).await.ok();
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ cannot infer type
+
+error[E0282]: type annotations needed
+   --> modules/fixed-assets/src/domain/depreciation/gl_entries.rs:88:9
+    |
+ 88 | /         sqlx::query(
+ 89 | |             r#"
+ 90 | |             INSERT INTO fa_categories
+ 91 | |                 (id, tenant_id, code, name,
+...   |
+102 | |         .execute(pool)
+103 | |         .await
+    | |______________^ cannot infer type
+
+error[E0282]: type annotations needed
+   --> modules/fixed-assets/src/domain/depreciation/gl_entries.rs:108:9
+    |
+108 | /         sqlx::query(
+109 | |             r#"
+110 | |             INSERT INTO fa_assets
+111 | |                 (id, tenant_id, category_id, asset_tag, name,
+...   |
+126 | |         .execute(pool)
+127 | |         .await
+    | |______________^ cannot infer type
+
+error[E0282]: type annotations needed
+   --> modules/fixed-assets/src/domain/depreciation/gl_entries.rs:145:9
+    |
+145 | /         sqlx::query(
+146 | |             r#"
+147 | |             INSERT INTO fa_depreciation_schedules
+148 | |                 (id, tenant_id, asset_id, period_number,
+...   |
+162 | |         .execute(&pool)
+163 | |         .await
+    | |______________^ cannot infer type
+
+error[E0282]: type annotations needed
+   --> modules/fixed-assets/src/domain/depreciation/gl_entries.rs:166:22
+    |
+166 |         let mut tx = pool.begin().await.expect("begin tx");
+    |                      ^^^^^^^^^^^^^^^^^^ cannot infer type
+
+error[E0282]: type annotations needed
+   --> modules/fixed-assets/src/domain/depreciation/gl_entries.rs:170:9
+    |
+170 |         tx.rollback().await.ok();
+    |         ^^^^^^^^^^^^^^^^^^^ cannot infer type
+
+Some errors have detailed explanations: E0282, E0425, E0433.
+For more information about an error, try `rustc --explain E0282`.
+error: could not compile `fixed-assets` (lib test) due to 11 previous errors
+warning: build failed, waiting for other jobs to finish...
+
+## exit_code=101
+## finished_at_utc=2026-03-03T12:54:14Z

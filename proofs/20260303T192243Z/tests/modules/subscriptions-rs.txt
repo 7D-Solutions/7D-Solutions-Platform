@@ -1,0 +1,154 @@
+## crate test: subscriptions-rs
+## started_at_utc=2026-03-03T19:29:19Z
+## cmd=bash -lc DATABASE_URL=postgres://subscriptions_user:subscriptions_pass@localhost:5435/subscriptions_db?sslmode=disable&connect_timeout=5 "./scripts/cargo-slot.sh" test -p "subscriptions-rs" -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/subscriptions_rs-f0587d9e69c0d219)
+
+running 29 tests
+test config::tests::test_bus_type_from_str ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_january ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_leap_year ... ok
+test cycle_gating::tests::test_generate_cycle_key ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_february ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_december ... ok
+test cycle_gating::tests::test_generate_cycle_key_december ... ok
+test cycle_gating::tests::test_cycle_key_determinism ... ok
+test cycle_gating::tests::test_generate_cycle_key_january ... ok
+test config::tests::test_validate_empty_database_url ... ok
+test config::tests::test_validate_success ... ok
+test config::tests::test_validate_nats_requires_url ... ok
+test lifecycle::state_machine::tests::test_status_from_str_invalid ... ok
+test lifecycle::state_machine::tests::test_status_roundtrip ... ok
+test lifecycle::state_machine::tests::test_guard_idempotent_transitions ... ok
+test lifecycle::state_machine::tests::test_guard_past_due_to_suspended ... ok
+test lifecycle::state_machine::tests::test_guard_active_to_suspended ... ok
+test lifecycle::state_machine::tests::test_guard_active_to_past_due ... ok
+test lifecycle::state_machine::tests::test_guard_illegal_suspended_to_past_due ... ok
+test lifecycle::state_machine::tests::test_guard_past_due_to_active ... ok
+test lifecycle::state_machine::tests::test_guard_suspended_to_active ... ok
+test cycle_gating::tests::test_advisory_lock_key_cycle_uniqueness ... ok
+test cycle_gating::tests::test_advisory_lock_key_uniqueness ... ok
+test cycle_gating::tests::test_advisory_lock_key_determinism ... ok
+test invariants::tests::test_invariant_violation_from_sqlx_error ... ok
+test invariants::tests::test_invariant_violation_display ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test admin::tests::test_admin_router_builds ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/subscriptions_rs-38dd9e92be5c1d2e)
+
+running 39 tests
+test config::tests::test_bus_type_from_str ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_january ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_leap_year ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_december ... ok
+test cycle_gating::tests::test_calculate_cycle_boundaries_february ... ok
+test config::tests::test_validate_nats_requires_url ... ok
+test config::tests::test_validate_success ... ok
+test config::tests::test_validate_empty_database_url ... ok
+test cycle_gating::tests::test_generate_cycle_key ... ok
+test cycle_gating::tests::test_generate_cycle_key_december ... ok
+test cycle_gating::tests::test_generate_cycle_key_january ... ok
+test cycle_gating::tests::test_cycle_key_determinism ... ok
+test cycle_gating::tests::test_advisory_lock_key_uniqueness ... ok
+test cycle_gating::tests::test_advisory_lock_key_cycle_uniqueness ... ok
+test cycle_gating::tests::test_advisory_lock_key_determinism ... ok
+test invariants::tests::test_invariant_violation_display ... ok
+test lifecycle::state_machine::tests::test_guard_illegal_suspended_to_past_due ... ok
+test lifecycle::state_machine::tests::test_guard_idempotent_transitions ... ok
+test lifecycle::state_machine::tests::test_guard_active_to_suspended ... ok
+test lifecycle::state_machine::tests::test_guard_active_to_past_due ... ok
+test lifecycle::state_machine::tests::test_guard_past_due_to_active ... ok
+test lifecycle::state_machine::tests::test_guard_past_due_to_suspended ... ok
+test invariants::tests::test_invariant_violation_from_sqlx_error ... ok
+test lifecycle::state_machine::tests::test_guard_suspended_to_active ... ok
+test lifecycle::state_machine::tests::test_status_from_str_invalid ... ok
+test lifecycle::state_machine::tests::test_status_roundtrip ... ok
+test envelope_validation::tests::test_missing_event_id ... ok
+test envelope_validation::tests::test_invalid_event_id ... ok
+test envelope_validation::tests::test_invalid_occurred_at ... ok
+test envelope_validation::tests::test_empty_tenant_id ... ok
+test envelope_validation::tests::test_missing_payload ... ok
+test envelope_validation::tests::test_invalid_payload_type ... ok
+test envelope_validation::tests::test_valid_envelope_with_optional_fields ... ok
+test envelope_validation::tests::test_valid_envelope ... ok
+test tests::cors_wildcard_parses ... ok
+test tests::cors_specific_origins_parse ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test admin::tests::test_admin_router_builds ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/cycle_gating_integration_test.rs (target-slot-1/debug/deps/cycle_gating_integration_test-d7073ef20d0d4701)
+
+running 9 tests
+test test_cycle_boundaries ... ok
+test test_cycle_key_determinism ... ok
+test test_mark_attempt_succeeded ... ok
+test test_duplicate_cycle_attempt_fails ... ok
+test test_advisory_lock_basic ... ok
+test test_mark_attempt_failed ... ok
+test test_cycle_attempt_exists ... ok
+test test_record_cycle_attempt ... ok
+test test_different_cycles_dont_block ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/lifecycle_integration_test.rs (target-slot-1/debug/deps/lifecycle_integration_test-e407a2d96708db04)
+
+running 14 tests
+test test_idempotent_transition_active_to_active ... ok
+test test_transition_past_due_to_active ... ok
+test test_transition_past_due_to_suspended ... ok
+test test_transition_suspended_to_active ... ok
+test test_illegal_transition_suspended_to_past_due ... ok
+test test_illegal_transition_active_to_suspended ... ok
+test test_lifecycle_function_subscription_not_found ... ok
+test test_lifecycle_function_active_to_past_due ... ok
+test test_lifecycle_function_past_due_to_suspended ... ok
+test test_transition_active_to_past_due ... ok
+test test_lifecycle_function_past_due_to_active ... ok
+test test_lifecycle_function_suspended_to_active ... ok
+test test_lifecycle_function_rejects_illegal_transition ... ok
+test test_lifecycle_function_idempotent ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+     Running tests/lifecycle_state_machine_test.rs (target-slot-1/debug/deps/lifecycle_state_machine_test-7d2c4224ff5397e4)
+
+running 14 tests
+test test_consumer_no_matching_subscriptions ... ok
+test test_nonexistent_subscription_transition_fails ... ok
+test test_direct_active_to_suspended_dunning_escalation ... ok
+test test_full_dunning_lifecycle_and_recovery ... ok
+test test_past_due_recovery_without_suspension ... ok
+test test_double_suspension_is_idempotent ... ok
+test test_transition_to_suspended_emits_outbox_event ... ok
+test test_consumer_skips_already_suspended_subscription ... ok
+test test_consumer_suspends_past_due_subscription ... ok
+test test_transition_to_past_due_emits_outbox_event ... ok
+test test_consumer_idempotent_duplicate_event ... ok
+test test_suspended_to_past_due_rejected_via_lifecycle_fn ... ok
+test test_failed_transition_does_not_emit_outbox_event ... ok
+test test_consumer_suspends_active_subscription ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+
+   Doc-tests subscriptions_rs
+
+running 4 tests
+test modules/subscriptions/src/invariants.rs - invariants (line 13) - compile ... ok
+test modules/subscriptions/src/cycle_gating.rs - cycle_gating::acquire_cycle_lock (line 135) - compile ... ok
+test modules/subscriptions/src/cycle_gating.rs - cycle_gating::generate_cycle_key (line 60) ... ok
+test modules/subscriptions/src/cycle_gating.rs - cycle_gating::calculate_cycle_boundaries (line 76) ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.35s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T19:29:26Z

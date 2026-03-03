@@ -1,0 +1,182 @@
+## crate test: integrations-rs
+## started_at_utc=2026-03-03T18:06:56Z
+## cmd=./scripts/cargo-slot.sh test -p integrations-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.14s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/integrations_rs-f64fe4d530304c4e)
+
+running 37 tests
+test config::tests::test_bus_type_case_insensitive ... ok
+test config::tests::test_bus_type_from_str ... ok
+test domain::webhooks::routing::tests::test_internal_passthrough ... ok
+test domain::webhooks::routing::tests::test_no_event_type ... ok
+test domain::webhooks::routing::tests::test_stripe_invoice_paid ... ok
+test domain::webhooks::routing::tests::test_stripe_payment_intent_succeeded ... ok
+test domain::webhooks::routing::tests::test_unknown_stripe_event_not_routed ... ok
+test db::tests::test_database_url_sanitizes_app_id ... ok
+test db::tests::test_database_url_for_app ... ok
+test db::tests::test_database_url_trailing_slash ... ok
+DATABASE_URL_INTEGRATIONS not set — skipping migration integration test
+test db::tests::test_migration_applies_and_schema_is_correct ... ok
+test domain::webhooks::verify::tests::test_internal_system_always_passes ... ok
+test domain::webhooks::verify::tests::test_unknown_system_rejected ... ok
+test events::edi_transaction_created::tests::edi_transaction_created_envelope_metadata ... ok
+test events::edi_transaction_status_changed::tests::edi_transaction_status_changed_envelope_metadata ... ok
+test events::external_ref_created::tests::external_ref_created_envelope_metadata ... ok
+test events::file_job_created::tests::file_job_created_envelope_metadata ... ok
+test events::file_job_status_changed::tests::file_job_status_changed_envelope_metadata ... ok
+test http::webhooks::tests::test_extract_event_type_stripe ... ok
+test http::webhooks::tests::test_extract_event_type_unknown ... ok
+test http::webhooks::tests::test_extract_stripe_event_id ... ok
+test http::webhooks::tests::test_extract_stripe_event_id_not_stripe ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test domain::external_refs::service::tests::test_external_refs_delete ... ok
+test domain::webhooks::service::tests::test_webhook_idempotency_prevents_duplicate ... ok
+test domain::external_refs::service::tests::test_external_refs_delete_wrong_tenant_fails ... ok
+test domain::external_refs::service::tests::test_external_refs_idempotent_create ... ok
+test domain::external_refs::service::tests::test_external_refs_create_and_get ... ok
+test domain::external_refs::service::tests::test_external_refs_tenant_isolation ... ok
+test domain::external_refs::service::tests::test_external_refs_list_by_entity ... ok
+test domain::external_refs::service::tests::test_external_refs_outbox_event_on_create ... ok
+test domain::external_refs::service::tests::test_external_refs_get_by_external ... ok
+test domain::external_refs::service::tests::test_external_refs_update ... ok
+test domain::webhooks::service::tests::test_webhook_ingest_persists_payload ... ok
+test domain::webhooks::service::tests::test_webhook_routed_event_in_outbox ... ok
+test domain::webhooks::service::tests::test_webhook_unsupported_system_rejected ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.06s
+
+     Running unittests src/bin/bench.rs (target-slot-1/debug/deps/bench-719440c89fe9cf24)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/dlq_replay_drill.rs (target-slot-1/debug/deps/dlq_replay_drill-02da1c5116f4932a)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/integrations-3ab5368f2f31e00f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/auth_hardening_test.rs (target-slot-1/debug/deps/auth_hardening_test-f2fe8deb6a1f9e8c)
+
+running 10 tests
+test router_builds_with_expected_state ... ok
+test permission_constants_valid_and_distinct ... ok
+test guard_mutation_outbox_atomicity_external_ref_create ... ok
+test migration_schema_validation ... ok
+test guard_rejection_no_outbox_external_ref_empty_entity_type ... ok
+test concurrent_external_ref_tenant_isolation ... ok
+test guard_mutation_outbox_atomicity_connector_register ... ok
+test guard_mutation_outbox_atomicity_external_ref_update_delete ... ok
+test guard_rejection_no_outbox_connector_unknown_type ... ok
+test concurrent_connector_tenant_isolation ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.97s
+
+     Running tests/connectors_integration.rs (target-slot-1/debug/deps/connectors_integration-f2ea79a0d1aca072)
+
+running 9 tests
+test test_connector_get_not_found ... ok
+test test_connector_list ... ok
+test test_connector_register_echo ... ok
+test test_connector_register_unknown_type ... ok
+test test_connector_run_test_action_echo ... ok
+test test_connector_register_duplicate_name ... ok
+test test_connector_run_test_action_disabled ... ok
+test test_connector_get ... ok
+test test_connector_tenant_isolation ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+     Running tests/edi_transactions_integration.rs (target-slot-1/debug/deps/edi_transactions_integration-224a358809398714)
+
+running 6 tests
+test test_edi_tenant_isolation ... ok
+test test_edi_idempotency ... ok
+test test_outbound_edi_e2e ... ok
+test test_validation_rejection ... ok
+test test_inbound_edi_e2e ... ok
+test test_edi_outbox_events ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+
+     Running tests/external_refs_integration.rs (target-slot-1/debug/deps/external_refs_integration-9815b11918fc5d89)
+
+running 9 tests
+test test_external_ref_idempotent_upsert ... ok
+test test_external_ref_delete ... ok
+test test_external_ref_get_by_external ... ok
+test test_external_ref_update_not_found ... ok
+test test_external_ref_list_by_entity ... ok
+test test_external_ref_create_and_get ... ok
+test test_external_ref_tenant_isolation ... ok
+test test_external_ref_update ... ok
+test test_external_ref_get_not_found ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+
+     Running tests/file_jobs_integration.rs (target-slot-1/debug/deps/file_jobs_integration-c2a7750efc37e25a)
+
+running 5 tests
+test test_file_job_idempotency ... ok
+test test_file_job_lifecycle_completed ... ok
+test test_file_job_outbox_events ... ok
+test test_file_job_lifecycle_failed ... ok
+test test_file_job_tenant_isolation ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+     Running tests/outbound_webhooks_integration.rs (target-slot-1/debug/deps/outbound_webhooks_integration-5ec40e5c928daa24)
+
+running 6 tests
+test test_outbound_webhook_crud_e2e ... ok
+test test_outbound_webhook_delivery_failure ... ok
+test test_outbound_webhook_idempotency ... ok
+test test_outbound_webhook_delivery_log_success ... ok
+test test_outbound_webhook_tenant_isolation ... ok
+test test_outbound_webhook_outbox_event ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+
+     Running tests/webhooks_integration.rs (target-slot-1/debug/deps/webhooks_integration-c73fa4dad2388070)
+
+running 18 tests
+test test_webhook_routing_internal_passthrough ... ok
+test test_webhook_distinct_keys_separate_rows ... ok
+test test_webhook_stripe_missing_header ... ok
+test test_webhook_routing_stripe_payment_received ... ok
+test test_webhook_idempotency_duplicate_key ... ok
+test test_webhook_github_bad_signature ... ok
+test test_webhook_outbox_routed_event ... ok
+test test_webhook_stripe_expired_timestamp ... ok
+test test_webhook_outbox_received_event ... ok
+test test_webhook_no_idempotency_key_allows_duplicates ... ok
+test test_webhook_ingest_internal_happy_path ... ok
+test test_webhook_stripe_bad_signature ... ok
+test test_webhook_processed_at_set ... ok
+test test_webhook_github_valid_signature ... ok
+test test_webhook_tenant_isolation ... ok
+test test_webhook_unknown_event_not_routed ... ok
+test test_webhook_unsupported_system ... ok
+test test_webhook_stripe_valid_signature ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.36s
+
+   Doc-tests integrations_rs
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T18:07:04Z

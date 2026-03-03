@@ -1,0 +1,62 @@
+## crate test: subscriptions-rs
+## started_at_utc=2026-03-03T12:59:05Z
+## cmd=./scripts/cargo-slot.sh test -p subscriptions-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+   Compiling subscriptions-rs v0.1.0 (/Users/james/Projects/7D-Solutions Platform/modules/subscriptions)
+error: error canonicalizing migration directory /Users/james/Projects/7D-Solutions Platform/modules/subscriptions/./migrations: No such file or directory (os error 2)
+  --> modules/subscriptions/tests/cycle_gating_integration_test.rs:28:5
+   |
+28 |     sqlx::migrate!("./migrations")
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::migrate` which comes from the expansion of the macro `sqlx::migrate` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error canonicalizing migration directory /Users/james/Projects/7D-Solutions Platform/modules/subscriptions/./migrations: No such file or directory (os error 2)
+  --> modules/subscriptions/tests/lifecycle_state_machine_test.rs:31:5
+   |
+31 |     sqlx::migrate!("./migrations")
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::migrate` which comes from the expansion of the macro `sqlx::migrate` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: error canonicalizing migration directory /Users/james/Projects/7D-Solutions Platform/modules/subscriptions/./migrations: No such file or directory (os error 2)
+  --> modules/subscriptions/tests/lifecycle_integration_test.rs:27:5
+   |
+27 |     sqlx::migrate!("./migrations")
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the macro `$crate::sqlx_macros::migrate` which comes from the expansion of the macro `sqlx::migrate` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0282]: type annotations needed
+  --> modules/subscriptions/tests/lifecycle_state_machine_test.rs:31:5
+   |
+31 | /     sqlx::migrate!("./migrations")
+32 | |         .run(&pool)
+33 | |         .await
+   | |______________^ cannot infer type
+
+error[E0282]: type annotations needed
+  --> modules/subscriptions/tests/cycle_gating_integration_test.rs:28:5
+   |
+28 | /     sqlx::migrate!("./migrations")
+29 | |         .run(&pool)
+30 | |         .await
+   | |______________^ cannot infer type
+
+error[E0282]: type annotations needed
+  --> modules/subscriptions/tests/lifecycle_integration_test.rs:27:5
+   |
+27 | /     sqlx::migrate!("./migrations")
+28 | |         .run(&pool)
+29 | |         .await
+   | |______________^ cannot infer type
+
+For more information about this error, try `rustc --explain E0282`.
+error: could not compile `subscriptions-rs` (test "lifecycle_integration_test") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `subscriptions-rs` (test "cycle_gating_integration_test") due to 2 previous errors
+error: could not compile `subscriptions-rs` (test "lifecycle_state_machine_test") due to 2 previous errors
+
+## exit_code=101
+## finished_at_utc=2026-03-03T12:59:12Z

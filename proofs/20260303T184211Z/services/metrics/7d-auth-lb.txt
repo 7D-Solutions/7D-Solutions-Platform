@@ -1,0 +1,91 @@
+## url=http://localhost:8080/metrics
+## fetched_at_utc=2026-03-03T18:42:14Z
+
+# HELP auth_dependency_up Dependency up gauge
+# TYPE auth_dependency_up gauge
+auth_dependency_up{dep="db"} 1
+auth_dependency_up{dep="nats"} 1
+auth_dependency_up{dep="ready"} 1
+# HELP auth_entitlement_cache_hit_total Entitlement cache hits (within TTL)
+# TYPE auth_entitlement_cache_hit_total counter
+auth_entitlement_cache_hit_total 0
+# HELP auth_login_total Total login attempts
+# TYPE auth_login_total counter
+auth_login_total{reason="ok",result="success"} 1
+# HELP auth_password_verify_duration_seconds Argon2 password verify duration seconds
+# TYPE auth_password_verify_duration_seconds histogram
+auth_password_verify_duration_seconds_bucket{result="ok",le="0.005"} 0
+auth_password_verify_duration_seconds_bucket{result="ok",le="0.01"} 0
+auth_password_verify_duration_seconds_bucket{result="ok",le="0.025"} 0
+auth_password_verify_duration_seconds_bucket{result="ok",le="0.05"} 0
+auth_password_verify_duration_seconds_bucket{result="ok",le="0.1"} 1
+auth_password_verify_duration_seconds_bucket{result="ok",le="0.25"} 1
+auth_password_verify_duration_seconds_bucket{result="ok",le="0.5"} 1
+auth_password_verify_duration_seconds_bucket{result="ok",le="1"} 1
+auth_password_verify_duration_seconds_bucket{result="ok",le="2.5"} 1
+auth_password_verify_duration_seconds_bucket{result="ok",le="5"} 1
+auth_password_verify_duration_seconds_bucket{result="ok",le="10"} 1
+auth_password_verify_duration_seconds_bucket{result="ok",le="+Inf"} 1
+auth_password_verify_duration_seconds_sum{result="ok"} 0.091480375
+auth_password_verify_duration_seconds_count{result="ok"} 1
+# HELP auth_tenant_status_cache_hit_total Tenant status cache hits (within TTL)
+# TYPE auth_tenant_status_cache_hit_total counter
+auth_tenant_status_cache_hit_total 0
+# HELP http_request_duration_seconds HTTP request duration seconds
+# TYPE http_request_duration_seconds histogram
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.005"} 621
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.01"} 626
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.025"} 632
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.05"} 632
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.1"} 632
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.25"} 632
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="0.5"} 632
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="1"} 632
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="2.5"} 632
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="5"} 632
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="10"} 632
+http_request_duration_seconds_bucket{method="GET",path="/api/ready",status="200",le="+Inf"} 632
+http_request_duration_seconds_sum{method="GET",path="/api/ready",status="200"} 0.4633283720000002
+http_request_duration_seconds_count{method="GET",path="/api/ready",status="200"} 632
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.005"} 3
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.01"} 3
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.025"} 3
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.05"} 3
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.1"} 3
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.25"} 3
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="0.5"} 3
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="1"} 3
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="2.5"} 3
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="5"} 3
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="10"} 3
+http_request_duration_seconds_bucket{method="GET",path="/healthz",status="200",le="+Inf"} 3
+http_request_duration_seconds_sum{method="GET",path="/healthz",status="200"} 0.0006979989999999999
+http_request_duration_seconds_count{method="GET",path="/healthz",status="200"} 3
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.005"} 418
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.01"} 422
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.025"} 422
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.05"} 422
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.1"} 423
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.25"} 423
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="0.5"} 423
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="1"} 423
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="2.5"} 423
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="5"} 423
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="10"} 423
+http_request_duration_seconds_bucket{method="GET",path="/metrics",status="200",le="+Inf"} 423
+http_request_duration_seconds_sum{method="GET",path="/metrics",status="200"} 0.1482472809999999
+http_request_duration_seconds_count{method="GET",path="/metrics",status="200"} 423
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="0.005"} 0
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="0.01"} 0
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="0.025"} 0
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="0.05"} 0
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="0.1"} 0
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="0.25"} 1
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="0.5"} 1
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="1"} 1
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="2.5"} 1
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="5"} 1
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="10"} 1
+http_request_duration_seconds_bucket{method="POST",path="/api/auth/login",status="200",le="+Inf"} 1
+http_request_duration_seconds_sum{method="POST",path="/api/auth/login",status="200"} 0.152307459
+http_request_duration_seconds_count{method="POST",path="/api/auth/login",status="200"} 1

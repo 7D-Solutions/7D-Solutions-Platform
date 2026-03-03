@@ -1,0 +1,652 @@
+## crate test: inventory-rs
+## started_at_utc=2026-03-03T16:04:00Z
+## cmd=bash -lc DATABASE_URL=postgres://inventory_user:inventory_pass@localhost:5442/inventory_db?connect_timeout=5 "./scripts/cargo-slot.sh" test -p "inventory-rs" -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+warning: unused imports: `IssueResult` and `ReceiptResult`
+  --> modules/inventory/tests/location_integration.rs:13:50
+   |
+13 |     issue_service::{process_issue, IssueRequest, IssueResult},
+   |                                                  ^^^^^^^^^^^
+...
+16 |     receipt_service::{process_receipt, ReceiptRequest, ReceiptResult},
+   |                                                        ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: `inventory-rs` (test "location_integration") generated 1 warning (run `cargo fix --test "location_integration" -p inventory-rs` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.40s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/inventory_rs-225c481502a6120e)
+
+running 228 tests
+test domain::adjust_service::tests::validate_accepts_positive_delta ... ok
+test domain::adjust_service::tests::validate_accepts_negative_delta ... ok
+test domain::adjust_service::tests::validate_rejects_zero_delta ... ok
+test domain::adjust_service::tests::validate_rejects_empty_tenant ... ok
+test domain::adjust_service::tests::validate_rejects_empty_idempotency_key ... ok
+test domain::adjust_service::tests::validate_rejects_empty_reason ... ok
+test domain::classifications::tests::no_commodity_fields_is_valid ... ok
+test config::tests::config_requires_database_url ... ok
+test config::tests::config_default_port_is_8092 ... ok
+test domain::classifications::tests::commodity_code_without_system_rejected ... ok
+test domain::classifications::tests::commodity_system_without_code_rejected ... ok
+test domain::classifications::tests::valid_request_passes ... ok
+test domain::cycle_count::approve_service::tests::validate_rejects_empty_tenant ... ok
+test domain::cycle_count::approve_service::tests::validate_accepts_valid_request ... ok
+test domain::classifications::tests::empty_classification_code_rejected ... ok
+test domain::classifications::tests::empty_tenant_id_rejected ... ok
+test domain::classifications::tests::empty_idempotency_key_rejected ... ok
+test domain::cycle_count::approve_service::tests::validate_rejects_empty_idempotency_key ... ok
+test domain::classifications::tests::empty_classification_system_rejected ... ok
+test domain::cycle_count::submit_service::tests::validate_accepts_valid_request ... ok
+test domain::cycle_count::submit_service::tests::validate_rejects_empty_idempotency_key ... ok
+test domain::cycle_count::submit_service::tests::validate_rejects_empty_tenant ... ok
+test domain::cycle_count::submit_service::tests::build_result_lines_computes_variance_correctly ... ok
+test domain::cycle_count::submit_service::tests::build_result_lines_defaults_unsubmitted_to_zero ... ok
+test domain::fifo::tests::consume_exact_across_three_layers ... ok
+test domain::fifo::tests::consume_across_two_layers ... ok
+test domain::fifo::tests::consume_partial_single_layer ... ok
+test domain::fifo::tests::consume_single_layer_exact ... ok
+test domain::fifo::tests::empty_layers_with_nonzero_demand_errors ... ok
+test domain::fifo::tests::fifo_respects_layer_order ... ok
+test domain::fifo::tests::insufficient_quantity_returns_error ... ok
+test domain::fifo::tests::total_cost_equals_sum_of_extended_costs ... ok
+test domain::fulfill_service::tests::fulfill_accepts_none_quantity_uses_full_reserved ... ok
+test domain::fulfill_service::tests::fulfill_accepts_valid_request ... ok
+test domain::fulfill_service::tests::fulfill_rejects_empty_idempotency_key ... ok
+test domain::cycle_count::task_service::tests::validate_accepts_partial_with_items ... ok
+test domain::cycle_count::task_service::tests::validate_rejects_empty_tenant ... ok
+test domain::cycle_count::task_service::tests::validate_rejects_partial_with_no_items ... ok
+test domain::cycle_count::task_service::tests::validate_accepts_full_with_no_items ... ok
+test domain::fulfill_service::tests::fulfill_rejects_empty_tenant ... ok
+test domain::fulfill_service::tests::fulfill_rejects_zero_quantity ... ok
+test domain::genealogy::merge::tests::merge_accepts_valid_request ... ok
+test domain::genealogy::split::tests::split_accepts_valid_request ... ok
+test domain::genealogy::split::tests::split_rejects_empty_children ... ok
+test domain::genealogy::merge::tests::merge_rejects_empty_tenant ... ok
+test domain::genealogy::merge::tests::merge_rejects_empty_parents ... ok
+test domain::genealogy::split::tests::split_rejects_empty_idempotency_key ... ok
+test domain::genealogy::split::tests::split_rejects_empty_tenant ... ok
+test domain::guards::tests::cost_present_accepts_positive ... ok
+test domain::guards::tests::cost_present_rejects_negative ... ok
+test domain::genealogy::merge::tests::merge_rejects_zero_quantity ... ok
+test domain::guards::tests::cost_present_rejects_zero ... ok
+test domain::guards::tests::quantity_positive_accepts_positive ... ok
+test domain::guards::tests::quantity_positive_rejects_negative ... ok
+test domain::guards::tests::quantity_positive_rejects_zero ... ok
+test domain::genealogy::split::tests::split_rejects_zero_quantity ... ok
+test domain::guards::tests::serial_quantity_accepts_positive_for_serial ... ok
+test domain::guards::tests::serial_quantity_noop_for_none_and_lot ... ok
+test domain::guards::tests::serial_quantity_rejects_negative_for_serial ... ok
+test domain::guards::tests::serial_quantity_rejects_zero_for_serial ... ok
+test domain::issue_service::tests::validate_rejects_empty_source_id ... ok
+test domain::issue_service::tests::validate_rejects_empty_currency ... ok
+test domain::issue_service::tests::validate_accepts_valid_request ... ok
+test domain::issue_service::tests::validate_rejects_zero_quantity ... ok
+test domain::issue_service::tests::validate_rejects_empty_tenant ... ok
+test domain::issue_service::tests::validate_rejects_negative_quantity ... ok
+test domain::issue_service::tests::validate_skips_quantity_check_for_serial_items ... ok
+test domain::issue_service::tests::validate_rejects_empty_idempotency_key ... ok
+test domain::issue_service::tests::build_consumed_from_serials_groups_by_layer ... ok
+test domain::items::tests::create_request_empty_cogs_rejected ... ok
+test domain::items::tests::create_request_valid ... ok
+test domain::items::tests::create_request_empty_variance_account_rejected ... ok
+test domain::items::tests::create_request_empty_inventory_account_rejected ... ok
+test domain::history::change_history::tests::valid_request_passes_validation ... ok
+test domain::history::change_history::tests::empty_tenant_id_rejected ... ok
+test domain::history::change_history::tests::empty_actor_id_rejected ... ok
+test domain::items::tests::create_request_empty_sku_rejected ... ok
+test domain::history::change_history::tests::empty_idempotency_key_rejected ... ok
+test domain::history::change_history::tests::invalid_change_type_rejected ... ok
+test domain::items::tests::tracking_mode_roundtrip ... ok
+test domain::items::tests::update_request_empty_name_rejected ... ok
+test domain::items::tests::update_request_none_fields_valid ... ok
+test domain::labels::tests::empty_tenant_rejected ... ok
+test domain::labels::tests::lot_label_type_accepted ... ok
+test domain::labels::tests::empty_idempotency_key_rejected ... ok
+test domain::items::tests::tracking_mode_display ... ok
+test domain::labels::tests::valid_request_passes_validation ... ok
+test domain::labels::tests::qr_format_accepted ... ok
+test domain::locations::tests::create_request_validates_empty_code ... ok
+test domain::lots_serials::issue::tests::locked_serial_struct_is_constructable ... ok
+test domain::lots_serials::models::tests::serial_status_roundtrip ... ok
+test domain::lots_serials::receipt::tests::serial_instance_insert_is_per_code ... ok
+test domain::lots_serials::models::tests::serial_status_display ... ok
+test domain::lots_serials::issue::tests::lot_serial_error_debug ... ok
+test domain::receipt_service::tests::tracking_lot_requires_lot_code ... ok
+test domain::receipt_service::tests::tracking_none_is_a_noop ... ok
+test domain::receipt_service::tests::tracking_serial_rejects_count_mismatch ... ok
+test domain::lots_serials::models::tests::serial_status_invalid_rejected ... ok
+test domain::receipt_service::tests::tracking_serial_requires_serial_codes ... ok
+test domain::receipt_service::tests::tracking_lot_accepts_lot_code ... ok
+test domain::receipt_service::tests::validate_accepts_valid_request ... ok
+test domain::receipt_service::tests::validate_rejects_empty_currency ... ok
+test domain::labels::tests::payload_merges_extra_data ... ok
+test domain::receipt_service::tests::validate_rejects_empty_idempotency_key ... ok
+test domain::receipt_service::tests::validate_rejects_empty_tenant ... ok
+test domain::receipt_service::tests::validate_rejects_zero_cost ... ok
+test domain::receipt_service::tests::validate_rejects_zero_quantity ... ok
+test domain::receipt_service::tests::tracking_serial_accepts_matching_count ... ok
+test domain::reorder::models::tests::negative_reorder_point_is_invalid ... ok
+test domain::reservation_service::tests::release_accepts_valid_request ... ok
+test domain::reservation_service::tests::release_rejects_empty_idempotency_key ... ok
+test domain::reservation_service::tests::release_rejects_empty_tenant ... ok
+test domain::reservation_service::tests::reserve_accepts_valid_request ... ok
+test domain::reservation_service::tests::reserve_rejects_empty_idempotency_key ... ok
+test domain::reservation_service::tests::reserve_rejects_empty_tenant ... ok
+test domain::reservation_service::tests::reserve_rejects_negative_quantity ... ok
+test domain::locations::tests::location_serializes_correctly ... ok
+test domain::reservation_service::tests::reserve_rejects_zero_quantity ... ok
+test domain::revisions::tests::activate_request_valid ... ok
+test domain::revisions::tests::create_request_empty_change_reason_rejected ... ok
+test domain::revisions::tests::activate_request_rejects_inverted_window ... ok
+test domain::revisions::tests::create_request_empty_idempotency_key_rejected ... ok
+test domain::labels::tests::deterministic_payload_generation ... ok
+test domain::revisions::tests::create_request_empty_name_rejected ... ok
+test domain::revisions::tests::create_request_rejects_invalid_traceability_level ... ok
+test domain::revisions::tests::create_request_rejects_shelf_life_enforced_without_days ... ok
+test domain::revisions::tests::create_request_valid ... ok
+test domain::reorder::models::tests::reorder_policy_serializes ... ok
+test domain::status::models::tests::status_display ... ok
+test domain::labels::tests::invalid_label_type_rejected ... ok
+test domain::labels::tests::invalid_barcode_format_rejected ... ok
+test domain::status::transfer_service::tests::validate_accepts_valid_request ... ok
+test domain::status::transfer_service::tests::validate_rejects_empty_idempotency_key ... ok
+test domain::status::transfer_service::tests::validate_rejects_empty_tenant ... ok
+test domain::status::transfer_service::tests::validate_rejects_same_status ... ok
+test domain::status::transfer_service::tests::validate_rejects_zero_quantity ... ok
+test domain::transfer_service::tests::accepts_valid_request ... ok
+test domain::transfer_service::tests::rejects_empty_currency ... ok
+test domain::status::models::tests::status_roundtrip ... ok
+test domain::transfer_service::tests::rejects_empty_idempotency_key ... ok
+test domain::transfer_service::tests::rejects_empty_tenant ... ok
+test domain::transfer_service::tests::rejects_negative_quantity ... ok
+test domain::transfer_service::tests::rejects_same_warehouse ... ok
+test domain::transfer_service::tests::rejects_zero_quantity ... ok
+test domain::uom::convert::tests::conversion_not_found_for_unknown_pair ... ok
+test domain::uom::convert::tests::direct_conversion_whole_factor ... ok
+test domain::uom::convert::tests::fractional_factor_rounds_half_away_from_zero ... ok
+test domain::uom::convert::tests::identity_returns_unchanged ... ok
+test domain::uom::convert::tests::large_quantity_conversion ... ok
+test domain::uom::convert::tests::no_conversions_in_table_returns_not_found ... ok
+test domain::uom::convert::tests::rounds_to_zero_rejected ... ok
+test domain::uom::convert::tests::wrong_direction_not_found ... ok
+test domain::uom::models::tests::conversion_negative_factor_rejected ... ok
+test domain::uom::models::tests::conversion_same_uom_rejected ... ok
+test domain::uom::models::tests::conversion_valid ... ok
+test domain::uom::models::tests::conversion_zero_factor_rejected ... ok
+test domain::uom::models::tests::create_uom_empty_code_rejected ... ok
+test domain::uom::models::tests::create_uom_empty_name_rejected ... ok
+test domain::uom::models::tests::create_uom_valid ... ok
+test domain::valuation::methods::tests::fifo_all_consumed_returns_none ... ok
+test domain::valuation::methods::tests::fifo_empty_returns_none ... ok
+test domain::valuation::methods::tests::fifo_partial_consumption ... ok
+test domain::valuation::methods::tests::fifo_single_layer_no_consumption ... ok
+test domain::valuation::methods::tests::lifo_empty_returns_none ... ok
+test domain::valuation::methods::tests::method_display ... ok
+test domain::valuation::methods::tests::method_roundtrip ... ok
+test domain::valuation::methods::tests::standard_cost_basic ... ok
+test domain::valuation::methods::tests::standard_cost_empty_returns_none ... ok
+test domain::valuation::methods::tests::standard_cost_positive_variance ... ok
+test domain::valuation::methods::tests::lifo_all_consumed_from_newest ... ok
+test domain::valuation::methods::tests::methods_produce_different_values ... ok
+test domain::valuation::methods::tests::wac_empty_returns_none ... ok
+test domain::valuation::methods::tests::lifo_consumes_newest_first ... ok
+test domain::valuation::methods::tests::wac_mixed_costs ... ok
+test domain::valuation::methods::tests::wac_single_cost ... ok
+test domain::valuation::models::tests::location_id_none_is_warehouse_level ... ok
+test domain::valuation::models::tests::snapshot_total_equals_sum_of_lines ... ok
+test domain::valuation::models::tests::total_value_minor_is_qty_times_cost ... ok
+test domain::valuation::run_service::tests::fnv_key_is_deterministic ... ok
+test domain::valuation::run_service::tests::validate_accepts_valid_request ... ok
+test domain::valuation::run_service::tests::validate_rejects_empty_idempotency_key ... ok
+test domain::valuation::run_service::tests::validate_rejects_empty_tenant ... ok
+test domain::valuation::snapshot_service::tests::fnv_key_is_deterministic ... ok
+test domain::valuation::snapshot_service::tests::validate_rejects_empty_idempotency_key ... ok
+test domain::valuation::snapshot_service::tests::validate_rejects_empty_tenant ... ok
+test events::contracts::tests::no_cogs_post_required_event_type_defined ... ok
+test events::contracts::tests::item_issued_payload_serializes_correctly ... ok
+test events::cycle_count_approved::tests::zero_variance_line_has_no_adjustment_id ... ok
+test events::contracts::tests::transfer_completed_envelope_has_correct_metadata ... ok
+test events::contracts::tests::adjusted_envelope_has_correct_metadata ... ok
+test events::contracts::tests::item_issued_envelope_has_correct_metadata ... ok
+test events::classification_assigned::tests::classification_assigned_envelope_has_correct_metadata ... ok
+test events::cycle_count_approved::tests::payload_serializes_correctly ... ok
+test events::cycle_count_approved::tests::causation_id_propagated ... ok
+test events::contracts::tests::item_received_envelope_has_correct_metadata ... ok
+test events::cycle_count_approved::tests::envelope_has_correct_metadata ... ok
+test events::cycle_count_submitted::tests::causation_id_propagated ... ok
+test events::cycle_count_submitted::tests::envelope_has_correct_metadata ... ok
+test events::cycle_count_submitted::tests::payload_serializes_correctly ... ok
+test events::cycle_count_submitted::tests::variance_qty_is_counted_minus_expected ... ok
+test events::item_change_recorded::tests::item_change_recorded_envelope_has_correct_metadata ... ok
+test events::label_generated::tests::label_generated_envelope_has_correct_metadata ... ok
+test events::lot_merged::tests::lot_merged_envelope_has_correct_metadata ... ok
+test events::lot_split::tests::lot_split_envelope_has_correct_metadata ... ok
+test events::low_stock_triggered::tests::envelope_has_correct_source_module ... ok
+test events::low_stock_triggered::tests::event_type_constant_matches_spec ... ok
+test events::low_stock_triggered::tests::payload_serializes_with_null_location ... ok
+test events::revision_activated::tests::revision_activated_envelope_has_correct_metadata ... ok
+test events::revision_created::tests::revision_created_envelope_has_correct_metadata ... ok
+test events::revision_policy_updated::tests::revision_policy_updated_envelope_has_correct_metadata ... ok
+test events::status_changed::tests::causation_id_propagated ... ok
+test events::status_changed::tests::envelope_has_correct_metadata ... ok
+test events::status_changed::tests::payload_serializes_correctly ... ok
+test events::valuation_run_completed::tests::envelope_has_correct_event_type ... ok
+test events::valuation_snapshot_created::tests::envelope_has_correct_event_type ... ok
+test http::issues::tests::placeholder_issues_module_compiles ... ok
+test http::items::tests::placeholder_route_module_compiles ... ok
+test http::locations::tests::placeholder_location_routes_compile ... ok
+test http::receipts::tests::placeholder_receipts_module_compiles ... ok
+test domain::valuation::snapshot_service::tests::aggregate_lines_empty_returns_empty ... ok
+test http::reorder::tests::placeholder_reorder_routes_compile ... ok
+test http::reservations::tests::placeholder_reservations_module_compiles ... ok
+test http::uom::tests::placeholder_uom_routes_compile ... ok
+test domain::valuation::snapshot_service::tests::aggregate_lines_computes_weighted_average ... ok
+test domain::valuation::snapshot_service::tests::aggregate_lines_two_items ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test http::admin::tests::test_admin_router_builds ... ok
+
+test result: ok. 228 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/bin/bench.rs (target-slot-1/debug/deps/bench-c82ddd19a9d5ea29)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/dlq_replay_drill.rs (target-slot-1/debug/deps/dlq_replay_drill-22c87b3e1fc24d28)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/inventory_rs-99cb30792a6684fa)
+
+running 2 tests
+test tests::cors_wildcard_parses ... ok
+test tests::cors_specific_origins_parse ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/adjustment_integration.rs (target-slot-1/debug/deps/adjustment_integration-07ea9e343ad7233b)
+
+running 9 tests
+test test_idempotency_conflict ... ok
+test test_allow_negative_bypasses_guard ... ok
+test test_negative_adjustment_decreases_on_hand ... ok
+test test_zero_delta_rejected ... ok
+test test_idempotency_replay ... ok
+test test_empty_reason_rejected ... ok
+test test_inactive_item_rejected ... ok
+test test_positive_adjustment_increases_on_hand ... ok
+test test_no_negative_guard_blocks_excess_negative ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.97s
+
+     Running tests/change_history_integration.rs (target-slot-1/debug/deps/change_history_integration-f52a8153ed991415)
+
+running 6 tests
+test change_history_idempotent_no_duplicates ... ok
+test change_history_tenant_isolation ... ok
+test change_history_chronological_ordering ... ok
+test change_history_policy_change_before_after ... ok
+test change_history_outbox_event_emitted ... ok
+test change_history_e2e_create_and_activate ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+
+     Running tests/classification_integration.rs (target-slot-1/debug/deps/classification_integration-c954b18ec86a4f8f)
+
+running 7 tests
+test classification_outbox_verification ... ok
+test classification_happy_path_e2e ... ok
+test classification_idempotency ... ok
+test classification_query_filter ... ok
+test classification_without_commodity_code ... ok
+test classification_duplicate_assignment_rejected ... ok
+test classification_tenant_isolation ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s
+
+     Running tests/cycle_count_approve_integration.rs (target-slot-1/debug/deps/cycle_count_approve_integration-2b09518eec40d27a)
+
+running 9 tests
+test test_approve_non_submitted_task_errors ... ok
+test test_approve_updates_on_hand_for_shrinkage ... ok
+test test_approve_missing_task_errors ... ok
+test test_approve_creates_adjustment_for_variance ... ok
+test test_approve_idempotency_conflict ... ok
+test test_approve_zero_variance_no_adjustment ... ok
+test test_approve_emits_adjusted_event_for_variance ... ok
+test test_approve_idempotent_replay ... ok
+test test_approve_emits_cycle_count_approved_event ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.93s
+
+     Running tests/cycle_count_integration.rs (target-slot-1/debug/deps/cycle_count_integration-37bd007381a6eef6)
+
+running 8 tests
+test test_empty_tenant_rejected ... ok
+test test_partial_empty_item_ids_rejected ... ok
+test test_partial_unknown_item_gets_zero_expected ... ok
+test test_partial_scope_uses_caller_item_list ... ok
+test test_wrong_tenant_location_rejected ... ok
+test test_missing_location_rejected ... ok
+test test_full_scope_populates_lines_from_on_hand ... ok
+test test_full_scope_empty_location_creates_zero_lines ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+
+     Running tests/cycle_count_submit_integration.rs (target-slot-1/debug/deps/cycle_count_submit_integration-06f49238793d5922)
+
+running 10 tests
+test test_submit_already_submitted_task ... ok
+test test_submit_zero_line_task ... ok
+test test_submit_open_task_computes_variance ... ok
+test test_submit_idempotent_replay ... ok
+test test_submit_emits_outbox_event ... ok
+test test_submit_wrong_tenant ... ok
+test test_submit_unknown_line_id ... ok
+test test_submit_conflicting_idempotency_key ... ok
+test test_submit_nonexistent_task ... ok
+test test_submit_negative_counted_qty ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.88s
+
+     Running tests/event_contract_test.rs (target-slot-1/debug/deps/event_contract_test-b2961fd8781150d5)
+
+running 16 tests
+test event_type_constants_follow_inventory_dot_convention ... ok
+test causation_id_none_leaves_field_absent ... ok
+test expiry_set_full_contract ... ok
+test expiry_alert_full_contract ... ok
+test low_stock_triggered_null_location_round_trips ... ok
+test status_changed_full_contract ... ok
+test item_revision_policy_updated_full_contract ... ok
+test low_stock_triggered_full_contract ... ok
+test cycle_count_approved_full_contract ... ok
+test item_issued_full_contract ... ok
+test adjusted_full_contract ... ok
+test item_received_full_contract ... ok
+test full_envelope_json_round_trip ... ok
+test cycle_count_submitted_full_contract ... ok
+test transfer_completed_full_contract ... ok
+test valuation_snapshot_created_full_contract ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/expiry_integration.rs (target-slot-1/debug/deps/expiry_integration-625f487edd57356b)
+
+running 3 tests
+test alert_scan_dedupes_and_is_tenant_scoped ... ok
+test manual_expiry_set_is_idempotent ... ok
+test receipt_computes_expiry_from_active_revision_policy ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+
+     Running tests/genealogy_integration.rs (target-slot-1/debug/deps/genealogy_integration-d72f6bc607c356da)
+
+running 10 tests
+test test_tenant_isolation ... ok
+test test_multilevel_genealogy_trace ... ok
+test test_quantity_conservation_guard ... ok
+test test_split_creates_edges_and_outbox_event ... ok
+test test_merge_creates_edges_and_outbox_event ... ok
+test test_self_reference_rejected ... ok
+test test_graph_integrity_split_then_merge ... ok
+test test_split_idempotency_replay ... ok
+test test_idempotency_key_conflict ... ok
+test test_split_lot_not_found ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.17s
+
+     Running tests/history_integration.rs (target-slot-1/debug/deps/history_integration-a4586d8777becdc1)
+
+running 4 tests
+test history_ordered_after_receipts ... ok
+test history_location_filter ... ok
+test history_location_none_all_movements ... ok
+test history_empty_for_new_item ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+
+     Running tests/issue_integration.rs (target-slot-1/debug/deps/issue_integration-cecb37ff16463e69)
+
+running 7 tests
+test issue_guard_rejects_zero_quantity ... ok
+test issue_outbox_event_contains_consumed_layers_and_source_ref ... ok
+test issue_consumes_fifo_layers_oldest_first ... ok
+test issue_guard_rejects_inactive_item ... ok
+test issue_creates_ledger_consumptions_onhand_outbox_atomically ... ok
+test issue_idempotency_replay_returns_stored_result ... ok
+test issue_guard_rejects_insufficient_quantity ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.65s
+
+     Running tests/label_integration.rs (target-slot-1/debug/deps/label_integration-b5a589401a4e099c)
+
+running 10 tests
+test label_guard_rejects_mismatched_revision ... ok
+test label_event_emitted_to_outbox ... ok
+test label_idempotent_replay ... ok
+test label_multiple_for_same_item ... ok
+test label_guard_rejects_inactive_item ... ok
+test label_payload_is_deterministic ... ok
+test label_generate_happy_path ... ok
+test label_idempotency_conflict ... ok
+test label_tenant_isolation ... ok
+test label_lot_with_extra_data ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.99s
+
+     Running tests/location_integration.rs (target-slot-1/debug/deps/location_integration-1b7861fb92a8bf8a)
+
+running 10 tests
+test test_receipt_without_location_creates_null_location_row ... ok
+test test_null_location_issue_backward_compat ... ok
+test test_update_and_deactivate_location ... ok
+test test_issue_with_location_deducts_from_location_on_hand ... ok
+test test_issue_from_location_rejects_insufficient_stock ... ok
+test test_create_and_get_location ... ok
+test test_receipts_into_different_locations_create_separate_on_hand_rows ... ok
+test test_receipt_with_location_creates_location_on_hand_row ... ok
+test test_duplicate_location_code_rejected ... ok
+test test_list_locations_for_warehouse ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+
+     Running tests/lots_serial_integration.rs (target-slot-1/debug/deps/lots_serial_integration-045af28a13cb26a4)
+
+running 6 tests
+test test_tenant_isolation_lots ... ok
+test test_list_lots_returns_lots_for_item ... ok
+test test_trace_serial_returns_receipt_and_issue_movements ... ok
+test test_empty_results_for_item_with_no_lots ... ok
+test test_list_serials_returns_instances_for_item ... ok
+test test_trace_lot_returns_receipt_and_issue_movements ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+
+     Running tests/low_stock_integration.rs (target-slot-1/debug/deps/low_stock_integration-252694505bb06d8d)
+
+running 5 tests
+test test_adjustment_crossing_below_emits_signal ... ok
+test test_recovery_and_rearm ... ok
+test test_issue_crossing_below_emits_signal ... ok
+test test_second_issue_while_below_no_duplicate ... ok
+test test_no_policy_no_signal ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+     Running tests/migration_safety_test.rs (target-slot-1/debug/deps/migration_safety_test-79092583917b421c)
+
+running 3 tests
+test migrations_apply_cleanly ... ok
+test all_data_tables_have_tenant_id ... ok
+test forward_fix_rollback_and_reapply ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+
+     Running tests/receipt_integration.rs (target-slot-1/debug/deps/receipt_integration-a8634124f4ffa62f)
+
+running 9 tests
+test receipt_guard_rejects_zero_cost ... ok
+test receipt_guard_rejects_zero_quantity ... ok
+test receipt_serial_tracked_rejects_count_mismatch ... ok
+test receipt_idempotency_replay_returns_stored_result ... ok
+test receipt_lot_tracked_rejects_missing_lot_code ... ok
+test receipt_serial_tracked_creates_serial_instances ... ok
+test receipt_lot_tracked_creates_lot_and_associates_layer ... ok
+test receipt_creates_ledger_layer_outbox_atomically ... ok
+test receipt_guard_rejects_inactive_item ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+
+     Running tests/reorder_policy_integration.rs (target-slot-1/debug/deps/reorder_policy_integration-4077a5e8abd8435d)
+
+running 8 tests
+test test_create_global_reorder_policy ... ok
+test test_get_reorder_policy_by_id ... ok
+test test_duplicate_global_policy_rejected ... ok
+test test_update_reorder_policy ... ok
+test test_duplicate_location_policy_rejected ... ok
+test test_create_location_scoped_reorder_policy ... ok
+test test_negative_reorder_point_rejected ... ok
+test test_list_reorder_policies_for_item ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+
+     Running tests/reservation_integration.rs (target-slot-1/debug/deps/reservation_integration-45dd54f799e548d5)
+
+running 9 tests
+test reserve_guard_rejects_zero_quantity ... ok
+test release_idempotency_replay_returns_stored_result ... ok
+test release_creates_compensating_row_and_decrements_projection ... ok
+test available_equals_on_hand_minus_reserved ... ok
+test reserve_guard_rejects_inactive_item ... ok
+test reserve_creates_reservation_projection_outbox_atomically ... ok
+test release_guard_rejects_double_release ... ok
+test reserve_idempotency_replay_returns_stored_result ... ok
+test release_guard_rejects_unknown_reservation ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+
+     Running tests/revision_integration.rs (target-slot-1/debug/deps/revision_integration-3d89629da1cb5482)
+
+running 11 tests
+test revision_policy_flags_resolve_at_time_t ... ok
+test revision_tenant_isolation ... ok
+test revision_activation_supersedes_predecessor ... ok
+test revision_create_idempotent_replay ... ok
+test revision_numbers_auto_increment ... ok
+test revision_concurrent_creation ... ok
+test revision_double_activation_rejected ... ok
+test revision_bounded_effective_window ... ok
+test revision_policy_update_idempotent_and_tenant_scoped ... ok
+test revision_create_activate_query_happy_path ... ok
+test revision_guard_rejects_inactive_item ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.17s
+
+     Running tests/status_transfer_integration.rs (target-slot-1/debug/deps/status_transfer_integration-927f751ea1f8ab3e)
+
+running 9 tests
+test test_transfer_same_status_rejected ... ok
+test test_transfer_idempotency_conflict ... ok
+test test_transfer_available_to_quarantine ... ok
+test test_transfer_quarantine_to_damaged ... ok
+test test_transfer_idempotency ... ok
+test test_transfer_inactive_item_rejected ... ok
+test test_transfer_zero_quantity_rejected ... ok
+test test_transfer_quarantine_back_to_available ... ok
+test test_transfer_insufficient_available ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.78s
+
+     Running tests/tenant_boundary_test.rs (target-slot-1/debug/deps/tenant_boundary_test-835589240562ef84)
+
+running 3 tests
+test concurrent_receipts_are_tenant_isolated ... ok
+test reads_during_writes_are_tenant_isolated ... ok
+test all_core_tables_scope_queries_by_tenant ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.92s
+
+     Running tests/transfer_integration.rs (target-slot-1/debug/deps/transfer_integration-6b3e040a1f0f35a6)
+
+running 7 tests
+test transfer_fifo_multi_layer_oldest_first ... ok
+test transfer_happy_path_paired_ledger_fifo_layer_outbox ... ok
+test transfer_insufficient_quantity_rejected ... ok
+test transfer_idempotency_replay_returns_same_result ... ok
+test transfer_same_warehouse_rejected ... ok
+test transfer_reserved_qty_not_transferable ... ok
+test transfer_inactive_item_rejected ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.77s
+
+     Running tests/valuation_integration.rs (target-slot-1/debug/deps/valuation_integration-3f817bc2b26a984a)
+
+running 5 tests
+test test_idempotency_replay_returns_stored_result ... ok
+test test_empty_warehouse_snapshot_has_zero_total ... ok
+test test_snapshot_creates_header_and_lines ... ok
+test test_outbox_contains_snapshot_event ... ok
+test test_idempotency_conflict_returns_error ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+     Running tests/valuation_methods_integration.rs (target-slot-1/debug/deps/valuation_methods_integration-e4c8dfbaab4aa246)
+
+running 7 tests
+test test_idempotency ... ok
+test test_wac_valuation_e2e ... ok
+test test_tenant_isolation ... ok
+test test_standard_cost_e2e ... ok
+test test_method_comparison ... ok
+test test_outbox_event ... ok
+test test_lifo_valuation_e2e ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+
+     Running tests/valuation_query_integration.rs (target-slot-1/debug/deps/valuation_query_integration-0bddfbe38f5694f9)
+
+running 8 tests
+test test_list_snapshots_pagination ... ok
+test test_list_snapshots_tenant_isolation ... ok
+test test_get_snapshot_returns_header ... ok
+test test_get_snapshot_tenant_isolation ... ok
+test test_get_snapshot_lines_empty_warehouse ... ok
+test test_get_snapshot_lines_returns_ordered_lines ... ok
+test test_list_snapshots_returns_tenant_snapshots ... ok
+test test_list_snapshots_warehouse_filter ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+
+     Running tests/valuation_snapshot_integration.rs (target-slot-1/debug/deps/valuation_snapshot_integration-9c009c929d9d2c5a)
+
+running 9 tests
+test test_snapshot_tenant_isolation ... ok
+test test_snapshot_outbox_event_emitted ... ok
+test test_snapshot_reflects_consumption ... ok
+test test_snapshot_idempotent_replay ... ok
+test test_snapshot_conflicting_idempotency_key ... ok
+test test_snapshot_multiple_items_totals ... ok
+test test_snapshot_missing_tenant ... ok
+test test_snapshot_single_item_correct_value ... ok
+test test_snapshot_empty_warehouse ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+
+   Doc-tests inventory_rs
+
+running 1 test
+test modules/inventory/src/events/mod.rs - events (line 17) - compile ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.88s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T16:05:27Z

@@ -1,0 +1,149 @@
+## crate test: treasury
+## started_at_utc=2026-03-03T13:00:47Z
+## cmd=./scripts/cargo-slot.sh test -p treasury -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+   Compiling health v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/health)
+   Compiling security v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/security)
+   Compiling treasury v0.1.0 (/Users/james/Projects/7D-Solutions Platform/modules/treasury)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.14s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/treasury-4f901b13c4bb7876)
+
+running 109 tests
+test config::tests::test_bus_type_case_insensitive ... ok
+test config::tests::test_bus_type_from_str ... ok
+test db::tests::test_database_url_trailing_slash ... ok
+test db::tests::test_database_url_sanitizes_app_id ... ok
+test db::tests::test_database_url_alphanumeric_preserved ... ok
+test db::tests::test_database_url_for_app ... ok
+test domain::accounts::tests::bank_bad_currency_rejected ... ok
+test domain::accounts::tests::bank_create_valid ... ok
+test domain::accounts::tests::bank_empty_name_rejected ... ok
+test domain::accounts::tests::bank_last4_too_long_rejected ... ok
+test domain::accounts::tests::bank_numeric_currency_rejected ... ok
+test domain::accounts::tests::cc_closing_day_32_rejected ... ok
+test domain::accounts::tests::cc_closing_day_zero_rejected ... ok
+test domain::accounts::tests::cc_create_valid ... ok
+test domain::accounts::tests::cc_empty_name_rejected ... ok
+test domain::accounts::tests::update_all_none_is_valid ... ok
+test domain::accounts::tests::cc_no_closing_day_is_valid ... ok
+test domain::accounts::tests::update_empty_name_rejected ... ok
+test domain::accounts::tests::update_invalid_closing_day_rejected ... ok
+test domain::import::adapters::amex::tests::parse_amex_bad_date ... ok
+test domain::import::adapters::amex::tests::parse_amex_basic_3col ... ok
+test domain::import::adapters::amex::tests::parse_amex_missing_columns ... ok
+test domain::import::adapters::amex::tests::parse_amex_skips_blank_rows ... ok
+test domain::import::adapters::amex::tests::parse_amex_with_reference ... ok
+test domain::import::adapters::chase::tests::parse_chase_bad_date ... ok
+test domain::import::adapters::chase::tests::parse_chase_missing_headers ... ok
+test domain::import::adapters::chase::tests::parse_chase_basic ... ok
+test domain::import::adapters::chase::tests::parse_chase_skips_blank_rows ... ok
+test domain::import::adapters::tests::detect_amex_format ... ok
+test domain::import::adapters::tests::detect_amex_with_reference ... ok
+test domain::import::adapters::tests::detect_chase_format ... ok
+test domain::import::adapters::tests::detect_generic_fallback ... ok
+test domain::import::parser::tests::parse_amount_basic ... ok
+test domain::import::parser::tests::parse_amount_edge_cases ... ok
+test domain::import::parser::tests::parse_csv_basic ... ok
+test domain::import::parser::tests::parse_csv_missing_headers ... ok
+test domain::import::parser::tests::parse_csv_us_date_format ... ok
+test domain::import::parser::tests::parse_csv_skips_blank_rows ... ok
+test domain::import::parser::tests::parse_csv_with_errors ... ok
+test domain::import::parser::tests::parse_date_formats ... ok
+
+thread 'consumers::payments::tests::test_payment_succeeded_no_account_skips_gracefully' (74035676) panicked at modules/treasury/src/consumers/payments_tests.rs:21:10:
+Failed to connect to treasury test DB: PoolTimedOut
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test consumers::payments::tests::test_payment_succeeded_no_account_skips_gracefully ... FAILED
+test consumers::payments::tests::test_ap_payment_executed_creates_debit_txn has been running for over 60 seconds
+test consumers::payments::tests::test_ap_payment_executed_idempotent_on_replay has been running for over 60 seconds
+test consumers::payments::tests::test_payment_succeeded_creates_credit_txn has been running for over 60 seconds
+test consumers::payments::tests::test_payment_succeeded_idempotent_on_replay has been running for over 60 seconds
+test consumers::payments::tests::test_tenant_isolation has been running for over 60 seconds
+test domain::accounts::service::tests::test_create_bank_account has been running for over 60 seconds
+test domain::accounts::service::tests::test_create_credit_card_account has been running for over 60 seconds
+test domain::accounts::service::tests::test_idempotent_create has been running for over 60 seconds
+test domain::accounts::service::tests::test_list_accounts_active_only has been running for over 60 seconds
+test domain::accounts::service::tests::test_update_account has been running for over 60 seconds
+test domain::accounts::service::tests::test_wrong_app_returns_none has been running for over 60 seconds
+test domain::import::service::tests::test_auto_detect_chase_format has been running for over 60 seconds
+test domain::import::service::tests::test_cc_reimport_idempotent has been running for over 60 seconds
+
+thread 'domain::accounts::service::tests::test_list_accounts_active_only' (74035685) panicked at modules/treasury/src/domain/accounts/service.rs:492:14:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::accounts::service::tests::test_list_accounts_active_only ... FAILED
+
+thread 'domain::import::service::tests::test_import_amex_cc_statement' (74042931) panicked at modules/treasury/src/domain/import/service.rs:248:14:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::import::service::tests::test_import_amex_cc_statement has been running for over 60 seconds
+test domain::import::service::tests::test_import_amex_cc_statement ... FAILED
+
+thread 'domain::import::service::tests::test_import_chase_cc_statement' (74050564) panicked at modules/treasury/src/domain/import/service.rs:248:14:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::import::service::tests::test_import_chase_cc_statement has been running for over 60 seconds
+test domain::import::service::tests::test_import_chase_cc_statement ... FAILED
+test domain::import::service::tests::test_import_creates_statement_and_lines has been running for over 60 seconds
+
+thread 'domain::import::service::tests::test_import_creates_statement_and_lines' (74057924) panicked at modules/treasury/src/domain/import/service.rs:248:14:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::import::service::tests::test_import_creates_statement_and_lines ... FAILED
+
+thread 'domain::import::service::tests::test_import_invalid_rows_reported' (74065393) panicked at modules/treasury/src/domain/import/service.rs:248:14:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::import::service::tests::test_import_invalid_rows_reported has been running for over 60 seconds
+test domain::import::service::tests::test_import_invalid_rows_reported ... FAILED
+
+thread 'consumers::payments::tests::test_ap_payment_executed_creates_debit_txn' (74035672) panicked at modules/treasury/src/consumers/payments_tests.rs:21:10:
+Failed to connect to treasury test DB: PoolTimedOut
+test domain::import::service::tests::test_import_nonexistent_account has been running for over 60 seconds
+test consumers::payments::tests::test_ap_payment_executed_creates_debit_txn ... FAILED
+test domain::recon::engine::tests::amount_mismatch_produces_no_match ... ok
+test domain::recon::engine::tests::exact_match_scores_highest ... ok
+test domain::recon::engine::tests::greedy_one_to_one ... ok
+test domain::recon::engine::tests::stable_output_for_same_input ... ok
+test domain::recon::engine::tests::strategy_dispatches_correctly ... ok
+test domain::import::service::tests::test_reimport_same_file_is_idempotent has been running for over 60 seconds
+
+thread 'domain::import::service::tests::test_reimport_same_file_is_idempotent' (74082314) panicked at modules/treasury/src/domain/import/service.rs:248:14:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::import::service::tests::test_reimport_same_file_is_idempotent ... FAILED
+
+thread 'domain::recon::gl_link::tests::test_link_creates_gl_only_match' (74089131) panicked at modules/treasury/src/domain/recon/gl_link_tests.rs:25:10:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::recon::gl_link::tests::test_link_creates_gl_only_match has been running for over 60 seconds
+test domain::recon::gl_link::tests::test_link_creates_gl_only_match ... FAILED
+
+thread 'domain::recon::gl_link::tests::test_link_is_idempotent' (74098675) panicked at modules/treasury/src/domain/recon/gl_link_tests.rs:25:10:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::recon::gl_link::tests::test_link_is_idempotent has been running for over 60 seconds
+test domain::recon::gl_link::tests::test_link_is_idempotent ... FAILED
+test domain::recon::gl_link::tests::test_link_rejects_nonexistent_txn has been running for over 60 seconds
+
+thread 'domain::recon::gl_link::tests::test_link_rejects_nonexistent_txn' (74113723) panicked at modules/treasury/src/domain/recon/gl_link_tests.rs:25:10:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::recon::gl_link::tests::test_link_rejects_nonexistent_txn ... FAILED
+test domain::recon::gl_link::tests::test_link_updates_existing_match_without_gl has been running for over 60 seconds
+
+thread 'domain::recon::gl_link::tests::test_link_updates_existing_match_without_gl' (74121852) panicked at modules/treasury/src/domain/recon/gl_link_tests.rs:25:10:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::recon::gl_link::tests::test_link_updates_existing_match_without_gl ... FAILED
+test domain::recon::gl_link::tests::test_unmatched_bank_txns_for_gl has been running for over 60 seconds
+
+thread 'domain::import::service::tests::test_import_nonexistent_account' (74075446) panicked at modules/treasury/src/domain/import/service.rs:248:14:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::import::service::tests::test_import_nonexistent_account ... FAILED
+test domain::recon::gl_link::tests::test_unmatched_gl_entries has been running for over 60 seconds
+
+thread 'consumers::payments::tests::test_ap_payment_executed_idempotent_on_replay' (74035673) panicked at modules/treasury/src/consumers/payments_tests.rs:21:10:
+Failed to connect to treasury test DB: PoolTimedOut
+test consumers::payments::tests::test_ap_payment_executed_idempotent_on_replay ... FAILED
+test domain::recon::gl_link::tests::test_unmatched_gl_entries_empty_input has been running for over 60 seconds
+
+thread 'consumers::payments::tests::test_payment_succeeded_idempotent_on_replay' (74035675) panicked at modules/treasury/src/consumers/payments_tests.rs:21:10:
+Failed to connect to treasury test DB: PoolTimedOut
+test consumers::payments::tests::test_payment_succeeded_idempotent_on_replay ... FAILED
+test domain::recon::service::tests::test_auto_match_exact has been running for over 60 seconds
+
+thread 'domain::recon::service::tests::test_auto_match_exact' (74161328) panicked at modules/treasury/src/domain/recon/service_tests.rs:21:10:
+Failed to connect to treasury test database: PoolTimedOut
+test domain::recon::service::tests::test_auto_match_exact ... FAILED

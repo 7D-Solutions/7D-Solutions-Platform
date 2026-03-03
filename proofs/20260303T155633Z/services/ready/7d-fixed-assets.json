@@ -1,0 +1,19 @@
+{
+  "service_name": "fixed-assets",
+  "version": "0.1.0",
+  "status": "ready",
+  "degraded": false,
+  "checks": [
+    {
+      "name": "database",
+      "status": "up",
+      "latency_ms": 1,
+      "pool": {
+        "size": 2,
+        "idle": 1,
+        "active": 1
+      }
+    }
+  ],
+  "timestamp": "2026-03-03T15:56:34.935519884+00:00"
+}

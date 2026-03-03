@@ -1,0 +1,129 @@
+## crate test: tax-core
+## started_at_utc=2026-03-03T19:29:26Z
+## cmd=./scripts/cargo-slot.sh test -p tax-core -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.15s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/tax_core-38ca9c0b5c91fa87)
+
+running 23 tests
+test jurisdiction::tests::expired_rule_excluded ... ok
+test jurisdiction::tests::tax_code_filters_to_matching_rules ... ok
+test local_tax::tests::rounding_at_boundary ... ok
+test jurisdiction::tests::configured_jurisdiction_resolves ... ok
+test local_tax::tests::ca_8_5_pct_on_100_dollars ... ok
+test local_tax::tests::provider_quote_ref_includes_version ... ok
+test local_tax::tests::rounding_half_up ... ok
+test local_tax::tests::rounding_fractional_amount ... ok
+test local_tax::tests::exempt_line_zero_tax ... ok
+test jurisdiction::tests::no_nexus_returns_unknown ... ok
+test jurisdiction::tests::unconfigured_country_returns_unknown ... ok
+test jurisdiction::tests::unconfigured_state_returns_unknown ... ok
+test local_tax::tests::multi_line_breakdown ... ok
+test local_tax::tests::unknown_jurisdiction_zero_with_warning ... ok
+test models::tests::jurisdiction_snapshot_serializes ... ok
+test models::tests::resolved_rule_serializes ... ok
+test models::tests::tax_address_serializes ... ok
+test models::tests::tax_line_item_serializes ... ok
+test models::tests::tax_quote_request_serializes ... ok
+test zero_tax::tests::commit_succeeds ... ok
+test zero_tax::tests::multiple_lines_all_zero ... ok
+test zero_tax::tests::single_line_returns_zero ... ok
+test zero_tax::tests::void_succeeds ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/error_handling.rs (target-slot-1/debug/deps/error_handling-a15f8cabafd00587)
+
+running 13 tests
+test error_is_send_sync ... ok
+test error_display_invalid_request ... ok
+test error_display_void_rejected ... ok
+test error_display_commit_rejected ... ok
+test error_display_unavailable ... ok
+test error_display_provider ... ok
+test empty_config_returns_zero_with_warning ... ok
+test multiple_lines_all_unknown_all_warned ... ok
+test provider_still_ok_even_with_all_unknown ... ok
+test unknown_state_graceful_zero ... ok
+test negative_amount_produces_negative_tax ... ok
+test unknown_country_graceful_zero ... ok
+test zero_amount_line_produces_zero_tax ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/jurisdiction_resolution.rs (target-slot-1/debug/deps/jurisdiction_resolution-dfd5e486adcf8b94)
+
+running 22 tests
+test before_effective_from_returns_unknown ... ok
+test country_level_matches_different_german_state ... ok
+test empty_config_returns_unknown ... ok
+test country_level_jurisdiction_matches_any_state ... ok
+test country_code_case_insensitive ... ok
+test empty_nexus_list_skips_nexus_check ... ok
+test expired_rule_active_during_valid_period ... ok
+test germany_food_tax_code_gets_reduced_rate ... ok
+test jurisdiction_with_only_expired_rules_returns_unknown ... ok
+test multiple_nexus_addresses_one_matching ... ok
+test nexus_in_same_state_allows_resolution ... ok
+test no_nexus_in_destination_state_returns_unknown ... ok
+test resolves_california_by_ship_to_address ... ok
+test resolves_new_york_by_ship_to_address ... ok
+test rule_day_after_expiry_returns_unknown ... ok
+test rule_on_exact_effective_from_date ... ok
+test rule_on_exact_effective_to_date ... ok
+test specific_tax_code_overrides_generic_rule ... ok
+test state_code_case_insensitive ... ok
+test unconfigured_country_returns_unknown ... ok
+test unconfigured_state_returns_unknown ... ok
+test unmatched_tax_code_falls_back_to_generic ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/tax_computation.rs (target-slot-1/debug/deps/tax_computation-42aacee966955ad4)
+
+running 15 tests
+test commit_returns_reference ... ok
+test rounding_sub_cent_to_zero ... ok
+test flat_fee_plus_rate_computation ... ok
+test multi_line_totals_and_ids_correct ... ok
+test rounding_half_up_at_boundary ... ok
+test exempt_food_line_zero_tax ... ok
+test rounding_fractional_333_cents ... ok
+test unknown_jurisdiction_zero_tax_with_warning ... ok
+test standard_rate_computation_100_dollars ... ok
+test mixed_taxable_and_exempt_lines ... ok
+test provider_quote_ref_includes_invoice_id_and_version ... ok
+test rounding_large_amount ... ok
+test config_version_accessor ... ok
+test no_nexus_in_destination_produces_warning ... ok
+test void_returns_success ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/zero_tax_provider.rs (target-slot-1/debug/deps/zero_tax_provider-bef66047218a9bfe)
+
+running 11 tests
+test void_returns_success ... ok
+test commit_returns_reference_with_invoice_id ... ok
+test large_amount_still_zero ... ok
+test expires_at_is_none ... ok
+test provider_quote_ref_includes_invoice_id ... ok
+test quoted_at_is_recent ... ok
+test warning_always_present ... ok
+test full_lifecycle_quote_commit_void ... ok
+test line_ids_preserved_in_breakdown ... ok
+test multiple_lines_all_zero ... ok
+test single_line_always_zero ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests tax_core
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T19:29:27Z

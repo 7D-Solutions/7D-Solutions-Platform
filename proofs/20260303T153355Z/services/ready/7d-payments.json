@@ -1,0 +1,19 @@
+{
+  "service_name": "payments",
+  "version": "1.1.11",
+  "status": "ready",
+  "degraded": false,
+  "checks": [
+    {
+      "name": "database",
+      "status": "up",
+      "latency_ms": 11,
+      "pool": {
+        "size": 1,
+        "idle": 0,
+        "active": 1
+      }
+    }
+  ],
+  "timestamp": "2026-03-03T15:33:56.792125753+00:00"
+}

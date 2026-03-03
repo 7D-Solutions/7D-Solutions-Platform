@@ -1,0 +1,127 @@
+## crate test: auth-rs
+## started_at_utc=2026-03-03T19:00:54Z
+## cmd=bash -lc DATABASE_URL=postgres://auth_user:auth_pass@localhost:5433/auth_db?sslmode=disable&connect_timeout=5 RUST_TEST_THREADS=1 "./scripts/cargo-slot.sh" test -p "auth-rs" -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.31s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/auth_rs-645f7aa6c09cf063)
+
+running 31 tests
+test auth::concurrency::tests::test_create_and_count_lease ... ok
+test auth::concurrency::tests::test_revoke_lease_by_token_hash ... ok
+test auth::concurrency::tests::test_rotate_lease_updates_session_and_heartbeat ... ok
+test auth::concurrency::tests::test_seat_limit_enforced_atomically ... ok
+test auth::jwt::tests::claims_empty_roles_perms ... ok
+test auth::jwt::tests::claims_expired_token_rejected ... ok
+test auth::jwt::tests::claims_round_trip ... ok
+test auth::jwt::tests::claims_service_actor_type ... ok
+test auth::jwt::tests::claims_version_is_set ... ok
+test auth::jwt::tests::jwks_includes_both_keys_during_overlap ... ok
+test auth::jwt::tests::rotation_overlap_accepts_token_signed_by_prev_key ... ok
+test auth::jwt::tests::rotation_overlap_ends_old_token_rejected ... ok
+test auth::password_reset_repo::tests::test_claim_is_single_use ... ok
+test auth::password_reset_repo::tests::test_concurrent_claim_exactly_one_wins ... ok
+test auth::password_reset_repo::tests::test_expired_token_returns_none ... ok
+test clients::tenant_registry::tests::cache_hit_within_ttl_returns_immediately ... ok
+test clients::tenant_registry::tests::entitlement_live_fetch_from_registry ... ignored
+test clients::tenant_registry::tests::expired_cache_fail_closed_when_registry_down ... ok
+test clients::tenant_registry::tests::gate_active_is_allow ... ok
+test clients::tenant_registry::tests::gate_deleted_is_deny ... ok
+test clients::tenant_registry::tests::gate_past_due_is_deny_new_login ... ok
+test clients::tenant_registry::tests::gate_suspended_is_deny ... ok
+test clients::tenant_registry::tests::gate_trial_is_allow ... ok
+test clients::tenant_registry::tests::no_cache_fail_closed_when_registry_down ... ok
+test clients::tenant_registry::tests::past_due_status_from_cache_returns_deny_new_login ... ok
+test clients::tenant_registry::tests::stale_cache_within_grace_used_during_outage ... ok
+test clients::tenant_registry::tests::status_cache_hit_within_ttl_returns_immediately ... ok
+test clients::tenant_registry::tests::status_expired_beyond_grace_fail_closed ... ok
+test clients::tenant_registry::tests::status_no_cache_fail_closed_when_registry_down ... ok
+test clients::tenant_registry::tests::status_stale_cache_within_grace_used_during_outage ... ok
+test clients::tenant_registry::tests::suspended_status_from_cache_returns_deny ... ok
+
+test result: ok. 30 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 39.43s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/identity_auth-ded5d934c4ff21a3)
+
+running 31 tests
+test auth::concurrency::tests::test_create_and_count_lease ... ok
+test auth::concurrency::tests::test_revoke_lease_by_token_hash ... ok
+test auth::concurrency::tests::test_rotate_lease_updates_session_and_heartbeat ... ok
+test auth::concurrency::tests::test_seat_limit_enforced_atomically ... ok
+test auth::jwt::tests::claims_empty_roles_perms ... ok
+test auth::jwt::tests::claims_expired_token_rejected ... ok
+test auth::jwt::tests::claims_round_trip ... ok
+test auth::jwt::tests::claims_service_actor_type ... ok
+test auth::jwt::tests::claims_version_is_set ... ok
+test auth::jwt::tests::jwks_includes_both_keys_during_overlap ... ok
+test auth::jwt::tests::rotation_overlap_accepts_token_signed_by_prev_key ... ok
+test auth::jwt::tests::rotation_overlap_ends_old_token_rejected ... ok
+test auth::password_reset_repo::tests::test_claim_is_single_use ... ok
+test auth::password_reset_repo::tests::test_concurrent_claim_exactly_one_wins ... ok
+test auth::password_reset_repo::tests::test_expired_token_returns_none ... ok
+test clients::tenant_registry::tests::cache_hit_within_ttl_returns_immediately ... ok
+test clients::tenant_registry::tests::entitlement_live_fetch_from_registry ... ignored
+test clients::tenant_registry::tests::expired_cache_fail_closed_when_registry_down ... ok
+test clients::tenant_registry::tests::gate_active_is_allow ... ok
+test clients::tenant_registry::tests::gate_deleted_is_deny ... ok
+test clients::tenant_registry::tests::gate_past_due_is_deny_new_login ... ok
+test clients::tenant_registry::tests::gate_suspended_is_deny ... ok
+test clients::tenant_registry::tests::gate_trial_is_allow ... ok
+test clients::tenant_registry::tests::no_cache_fail_closed_when_registry_down ... ok
+test clients::tenant_registry::tests::past_due_status_from_cache_returns_deny_new_login ... ok
+test clients::tenant_registry::tests::stale_cache_within_grace_used_during_outage ... ok
+test clients::tenant_registry::tests::status_cache_hit_within_ttl_returns_immediately ... ok
+test clients::tenant_registry::tests::status_expired_beyond_grace_fail_closed ... ok
+test clients::tenant_registry::tests::status_no_cache_fail_closed_when_registry_down ... ok
+test clients::tenant_registry::tests::status_stale_cache_within_grace_used_during_outage ... ok
+test clients::tenant_registry::tests::suspended_status_from_cache_returns_deny ... ok
+
+test result: ok. 30 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 25.78s
+
+     Running tests/forgot_password_e2e.rs (target-slot-1/debug/deps/forgot_password_e2e-2256f87fa2980432)
+
+running 3 tests
+test test_known_email_token_row_created_with_hash ... ok
+test test_nats_event_contains_raw_token ... ok
+test test_unknown_email_no_token_row_created ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+
+     Running tests/password_reset_repo.rs (target-slot-1/debug/deps/password_reset_repo-150205e7d113417f)
+
+running 3 tests
+test test_claim_is_single_use ... ok
+test test_concurrent_claim_exactly_one_wins ... ok
+test test_expired_token_returns_none ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/real_e2e.rs (target-slot-1/debug/deps/real_e2e-9bd04b0f1f1846f1)
+
+running 3 tests
+test replay_safety_duplicate_idempotency_key_does_not_duplicate_audit_rows ... ok
+test sod_forbidden_combo_denies_high_risk_action_and_logs_idempotently ... ok
+test timeline_ordering_for_user_lifecycle_events ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+
+     Running tests/reset_password_e2e.rs (target-slot-1/debug/deps/reset_password_e2e-27649ac07abcd378)
+
+running 5 tests
+test test_expired_token_no_changes ... ok
+test test_invalid_token_no_changes ... ok
+test test_nats_completion_event_published ... ok
+test test_token_single_use_second_call_rejected ... ok
+test test_valid_token_resets_password_and_revokes_sessions ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+   Doc-tests auth_rs
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T19:02:03Z

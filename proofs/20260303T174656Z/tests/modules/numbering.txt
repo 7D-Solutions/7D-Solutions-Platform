@@ -1,0 +1,106 @@
+## crate test: numbering
+## started_at_utc=2026-03-03T17:54:48Z
+## cmd=./scripts/cargo-slot.sh test -p numbering -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.34s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/numbering-3154b6b6c4d7f4b3)
+
+running 13 tests
+test config::tests::bus_type_from_str_invalid ... ok
+test config::tests::bus_type_from_str_valid ... ok
+test format::tests::golden_large_number_exceeds_padding ... ok
+test format::tests::golden_literal_text_passthrough ... ok
+test format::tests::golden_no_padding ... ok
+test format::tests::golden_full_date ... ok
+test format::tests::golden_no_prefix_with_date ... ok
+test format::tests::golden_padded_number ... ok
+test format::tests::golden_prefix_dash_number ... ok
+test format::tests::golden_prefix_year_number ... ok
+test format::tests::golden_prefix_yearmonth_number ... ok
+test format::tests::golden_simple_number_only ... ok
+test format::tests::golden_year_boundary ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/bench.rs (target-slot-1/debug/deps/bench-b54d9515ad33f508)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/dlq_replay_drill.rs (target-slot-1/debug/deps/dlq_replay_drill-a662880c30797a45)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/numbering-ef97219e008b39fa)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hardening_integration.rs (target-slot-1/debug/deps/hardening_integration-d412878a21661438)
+
+running 21 tests
+test authz::authz_no_token_allocate_returns_401 ... ok
+test migration_safety_all_tables_exist ... ok
+test concurrent_multi_tenant_no_sequence_leaks ... ok
+test atomicity_policy_upsert_creates_outbox ... ok
+test authz::authz_no_token_get_policy_returns_401 ... ok
+test authz::authz_correct_perms_allocate_succeeds ... ok
+test atomicity_sequence_and_issued_consistent ... ok
+test migration_safety_primary_keys_and_indexes ... ok
+test migration_safety_rollback_plan_is_valid_sql ... ok
+test migration_safety_sequences_columns ... ok
+test tenant_boundary_issued_numbers_isolated ... ok
+test tenant_boundary_outbox_events_carry_correct_tenant ... ok
+test tenant_boundary_policies_isolated ... ok
+test migration_safety_issued_numbers_columns ... ok
+test authz::authz_no_token_confirm_returns_401 ... ok
+test authz::authz_wrong_perms_allocate_returns_403 ... ok
+test concurrent_multi_tenant_isolation ... ok
+test authz::authz_no_token_upsert_policy_returns_401 ... ok
+test authz::authz_health_accessible_without_token ... ok
+test atomicity_allocate_and_outbox_in_same_transaction ... ok
+test tenant_boundary_sequences_isolated ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 24.00s
+
+     Running tests/real_e2e.rs (target-slot-1/debug/deps/real_e2e-c234469831959e18)
+
+running 21 tests
+test test_gap_free_confirm_idempotent ... ok
+test test_gap_free_reserve_and_confirm ... ok
+test test_concurrent_allocations_no_duplicates ... ok
+test test_gap_free_concurrent_no_duplicates ... ok
+test test_gap_free_expired_reservation_recycled ... ok
+test test_policy_change_does_not_affect_allocation ... ok
+test test_policy_read ... ok
+test test_policy_tenant_isolation ... ok
+test test_policy_upsert_create_and_update ... ok
+test test_gap_free_idempotent_reserve ... ok
+test test_allocate_idempotent ... ok
+test test_allocate_first_number ... ok
+test test_gap_free_confirm_creates_outbox_event ... ok
+test test_allocate_sequential ... ok
+test test_allocate_creates_outbox_event ... ok
+test test_gap_free_crash_retry_no_gaps ... ok
+test test_allocate_with_policy_returns_formatted ... ok
+test test_standard_mode_status_confirmed ... ok
+test test_tenant_isolation ... ok
+test test_entity_isolation ... ok
+test test_policy_upsert_creates_outbox_event ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.35s
+
+   Doc-tests numbering
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T17:55:21Z

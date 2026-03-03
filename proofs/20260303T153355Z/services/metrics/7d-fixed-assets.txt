@@ -1,0 +1,15 @@
+## url=http://localhost:8104/metrics
+## fetched_at_utc=2026-03-03T15:33:56Z
+
+# HELP fa_active_assets_count Current count of active fixed assets
+# TYPE fa_active_assets_count gauge
+fa_active_assets_count 0
+# HELP fa_assets_created_total Total fixed assets created
+# TYPE fa_assets_created_total counter
+fa_assets_created_total 0
+# HELP fa_depreciation_runs_total Total depreciation runs executed
+# TYPE fa_depreciation_runs_total counter
+fa_depreciation_runs_total 0
+# HELP fa_disposals_total Total asset disposals recorded
+# TYPE fa_disposals_total counter
+fa_disposals_total 0

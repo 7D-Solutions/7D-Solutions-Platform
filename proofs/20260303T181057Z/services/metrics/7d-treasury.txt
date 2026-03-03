@@ -1,0 +1,90 @@
+## url=http://localhost:8094/metrics
+## fetched_at_utc=2026-03-03T18:10:58Z
+
+# HELP treasury_accounts_count Current count of treasury accounts
+# TYPE treasury_accounts_count gauge
+treasury_accounts_count 0
+# HELP treasury_accounts_created_total Total treasury accounts created
+# TYPE treasury_accounts_created_total counter
+treasury_accounts_created_total 0
+# HELP treasury_http_request_duration_seconds HTTP request duration in seconds
+# TYPE treasury_http_request_duration_seconds histogram
+treasury_http_request_duration_seconds_bucket{endpoint="/api/health",method="GET",le="0.005"} 450
+treasury_http_request_duration_seconds_bucket{endpoint="/api/health",method="GET",le="0.01"} 450
+treasury_http_request_duration_seconds_bucket{endpoint="/api/health",method="GET",le="0.025"} 450
+treasury_http_request_duration_seconds_bucket{endpoint="/api/health",method="GET",le="0.05"} 450
+treasury_http_request_duration_seconds_bucket{endpoint="/api/health",method="GET",le="0.1"} 450
+treasury_http_request_duration_seconds_bucket{endpoint="/api/health",method="GET",le="0.25"} 450
+treasury_http_request_duration_seconds_bucket{endpoint="/api/health",method="GET",le="0.5"} 450
+treasury_http_request_duration_seconds_bucket{endpoint="/api/health",method="GET",le="1"} 450
+treasury_http_request_duration_seconds_bucket{endpoint="/api/health",method="GET",le="2.5"} 450
+treasury_http_request_duration_seconds_bucket{endpoint="/api/health",method="GET",le="5"} 450
+treasury_http_request_duration_seconds_bucket{endpoint="/api/health",method="GET",le="+Inf"} 450
+treasury_http_request_duration_seconds_sum{endpoint="/api/health",method="GET"} 0.009188674000000006
+treasury_http_request_duration_seconds_count{endpoint="/api/health",method="GET"} 450
+treasury_http_request_duration_seconds_bucket{endpoint="/api/ready",method="GET",le="0.005"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/api/ready",method="GET",le="0.01"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/api/ready",method="GET",le="0.025"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/api/ready",method="GET",le="0.05"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/api/ready",method="GET",le="0.1"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/api/ready",method="GET",le="0.25"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/api/ready",method="GET",le="0.5"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/api/ready",method="GET",le="1"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/api/ready",method="GET",le="2.5"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/api/ready",method="GET",le="5"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/api/ready",method="GET",le="+Inf"} 3
+treasury_http_request_duration_seconds_sum{endpoint="/api/ready",method="GET"} 0.005688875
+treasury_http_request_duration_seconds_count{endpoint="/api/ready",method="GET"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/healthz",method="GET",le="0.005"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/healthz",method="GET",le="0.01"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/healthz",method="GET",le="0.025"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/healthz",method="GET",le="0.05"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/healthz",method="GET",le="0.1"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/healthz",method="GET",le="0.25"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/healthz",method="GET",le="0.5"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/healthz",method="GET",le="1"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/healthz",method="GET",le="2.5"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/healthz",method="GET",le="5"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/healthz",method="GET",le="+Inf"} 3
+treasury_http_request_duration_seconds_sum{endpoint="/healthz",method="GET"} 0.0014442919999999998
+treasury_http_request_duration_seconds_count{endpoint="/healthz",method="GET"} 3
+treasury_http_request_duration_seconds_bucket{endpoint="/metrics",method="GET",le="0.005"} 292
+treasury_http_request_duration_seconds_bucket{endpoint="/metrics",method="GET",le="0.01"} 295
+treasury_http_request_duration_seconds_bucket{endpoint="/metrics",method="GET",le="0.025"} 300
+treasury_http_request_duration_seconds_bucket{endpoint="/metrics",method="GET",le="0.05"} 301
+treasury_http_request_duration_seconds_bucket{endpoint="/metrics",method="GET",le="0.1"} 301
+treasury_http_request_duration_seconds_bucket{endpoint="/metrics",method="GET",le="0.25"} 302
+treasury_http_request_duration_seconds_bucket{endpoint="/metrics",method="GET",le="0.5"} 303
+treasury_http_request_duration_seconds_bucket{endpoint="/metrics",method="GET",le="1"} 303
+treasury_http_request_duration_seconds_bucket{endpoint="/metrics",method="GET",le="2.5"} 303
+treasury_http_request_duration_seconds_bucket{endpoint="/metrics",method="GET",le="5"} 303
+treasury_http_request_duration_seconds_bucket{endpoint="/metrics",method="GET",le="+Inf"} 303
+treasury_http_request_duration_seconds_sum{endpoint="/metrics",method="GET"} 0.9741378709999997
+treasury_http_request_duration_seconds_count{endpoint="/metrics",method="GET"} 303
+# HELP treasury_import_fail_total Failed statement imports
+# TYPE treasury_import_fail_total counter
+treasury_import_fail_total 0
+# HELP treasury_import_success_total Successful statement imports
+# TYPE treasury_import_success_total counter
+treasury_import_success_total 0
+# HELP treasury_open_transactions_count Current count of unreconciled treasury transactions
+# TYPE treasury_open_transactions_count gauge
+treasury_open_transactions_count 0
+# HELP treasury_recon_match_rate Ratio of matched lines to total imported lines (0.0-1.0)
+# TYPE treasury_recon_match_rate gauge
+treasury_recon_match_rate 0.875
+# HELP treasury_recon_matched_total Active (non-superseded) recon matches
+# TYPE treasury_recon_matched_total gauge
+treasury_recon_matched_total 70
+# HELP treasury_recon_unmatched_lines Unmatched imported statement lines
+# TYPE treasury_recon_unmatched_lines gauge
+treasury_recon_unmatched_lines 10
+# HELP treasury_recon_unmatched_txns Unmatched payment transactions
+# TYPE treasury_recon_unmatched_txns gauge
+treasury_recon_unmatched_txns 80
+# HELP treasury_statements_imported_total Total bank statements imported
+# TYPE treasury_statements_imported_total counter
+treasury_statements_imported_total 0
+# HELP treasury_transactions_recorded_total Total treasury transactions recorded
+# TYPE treasury_transactions_recorded_total counter
+treasury_transactions_recorded_total 0

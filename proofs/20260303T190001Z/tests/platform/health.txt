@@ -1,0 +1,49 @@
+## crate test: health
+## started_at_utc=2026-03-03T19:03:29Z
+## cmd=./scripts/cargo-slot.sh test -p health -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.24s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/health-8bf0b34254f47b79)
+
+running 6 tests
+test tests::ready_response_all_up ... ok
+test tests::ready_response_db_down ... ok
+test tests::healthz_serializes_correctly ... ok
+test tests::db_check_without_pool_omits_pool_field ... ok
+test tests::db_check_with_pool_includes_metrics ... ok
+test tests::ready_response_serializes_correctly ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/readiness_contract.rs (target-slot-1/debug/deps/readiness_contract-f86c57b3dbe050fa)
+
+running 16 tests
+test nats_check_connected ... ok
+test db_check_up_has_no_error ... ok
+test nats_check_disconnected ... ok
+test build_ready_response_mixed_checks ... ok
+test ready_response_to_axum_returns_err_for_down ... ok
+test ready_response_to_axum_returns_ok_for_ready ... ok
+test db_check_down_has_error ... ok
+test healthz_body_matches_contract ... ok
+test healthz_returns_200 ... ok
+test ready_all_up_returns_200 ... ok
+test ready_db_down_error_field_present ... ok
+test ready_all_up_no_error_fields ... ok
+test ready_db_down_returns_503 ... ok
+test ready_all_up_json_shape_matches_contract ... ok
+test ready_db_down_status_is_down ... ok
+test ready_all_up_timestamp_is_iso8601 ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests health
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T19:03:31Z

@@ -1,0 +1,4 @@
+## url=http://localhost:3000/metrics
+## fetched_at_utc=2026-03-03T18:17:21Z
+
+/login?redirect=%2Fmetrics

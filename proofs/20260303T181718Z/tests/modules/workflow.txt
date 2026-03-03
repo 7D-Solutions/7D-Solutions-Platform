@@ -1,0 +1,112 @@
+## crate test: workflow
+## started_at_utc=2026-03-03T18:37:29Z
+## cmd=./scripts/cargo-slot.sh test -p workflow -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.65s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/workflow-a1d1c2c5960087a8)
+
+running 14 tests
+test events::subjects::tests::all_subjects_count ... ok
+test config::tests::bus_type_from_str_valid ... ok
+test config::tests::bus_type_from_str_invalid ... ok
+test domain::types::tests::instance_status_invalid ... ok
+test domain::types::tests::instance_status_roundtrip ... ok
+test events::subjects::tests::all_subjects_start_with_workflow ... ok
+test domain::routing::tests::condition_in_operator ... ok
+test events::subjects::tests::no_duplicate_subjects ... ok
+test domain::routing::tests::condition_no_match_no_default_fails ... ok
+test domain::routing::tests::extract_parallel_mode ... ok
+test domain::routing::tests::extract_sequential_default ... ok
+test domain::routing::tests::condition_evaluation_eq ... ok
+test domain::routing::tests::condition_evaluation_gte ... ok
+test domain::routing::tests::extract_conditional_mode ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/bench.rs (target-slot-1/debug/deps/bench-19b9b3900006b455)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/dlq_replay_drill.rs (target-slot-1/debug/deps/dlq_replay_drill-a9de256c520a25ec)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/workflow-4fa9d96ba3b3fa7b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hardening_integration.rs (target-slot-1/debug/deps/hardening_integration-fb620954f107921f)
+
+running 10 tests
+test test_authz_advance_instance_denied_without_jwt ... ok
+test test_guard_mutation_outbox_definition_created ... ok
+test test_guard_mutation_outbox_instance_started ... ok
+test test_authz_create_definition_denied_without_jwt ... ok
+test test_authz_start_instance_denied_without_jwt ... ok
+test test_migration_safety_all_tables_present ... ok
+test test_concurrent_tenant_isolation_definitions ... ok
+test test_tenant_boundary_instances ... ok
+test test_tenant_boundary_definitions ... ok
+test test_concurrent_tenant_isolation_instances ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.56s
+
+     Running tests/real_e2e.rs (target-slot-1/debug/deps/real_e2e-1eea8e0c87fb0c58)
+
+running 37 tests
+test test_conditional_no_match_no_default_fails ... ok
+test test_duplicate_active_hold_rejected ... ok
+test test_create_definition_rejects_empty_steps ... ok
+test test_advance_through_steps_records_transitions ... ok
+test test_conditional_branch_high_amount ... ok
+test test_delegation_delegatee_decides_for_delegator ... ok
+test test_create_definition_rejects_missing_initial_step ... ok
+test test_apply_hold_persists_and_emits_event ... ok
+test test_create_definition_persists_and_enqueues_event ... ok
+test test_delegation_revoke_stops_resolution ... ok
+test test_duplicate_definition_rejected ... ok
+test test_escalation_arm_timer_idempotent ... ok
+test test_escalation_cancel_timers_on_advance ... ok
+test test_escalation_timer_fires_once_when_due ... ok
+test test_hold_tenant_isolation ... ok
+test test_idempotent_advance ... ok
+test test_idempotent_apply_hold ... ok
+test test_idempotent_release_hold ... ok
+test test_idempotent_start ... ok
+test test_complete_workflow_via_terminal_step ... ok
+test test_conditional_branch_default_fallback ... ok
+test test_list_definitions_with_filter ... ok
+test test_list_holds_with_filters ... ok
+test test_list_instances_with_filters ... ok
+test test_multiple_hold_types_independent ... ok
+test test_parallel_duplicate_actor_rejected ... ok
+test test_parallel_threshold_auto_advance ... ok
+test test_reject_advance_on_completed_instance ... ok
+test test_reject_invalid_step_id ... ok
+test test_release_already_released_hold_fails ... ok
+test test_release_hold_sets_timestamp_and_emits_event ... ok
+test test_delegation_create_and_resolve ... ok
+test test_cancel_workflow_via_terminal_step ... ok
+test test_start_instance_creates_at_initial_step ... ok
+test test_tenant_isolation ... ok
+test test_reapply_after_release_allowed ... ok
+test test_release_nonexistent_hold_fails ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.42s
+
+   Doc-tests workflow
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-03T18:37:58Z
