@@ -45,6 +45,7 @@
 //! assert_eq!(envelope.source_module, "inventory");
 //! ```
 
+pub mod classification_assigned;
 pub mod contracts;
 pub mod cycle_count_approved;
 pub mod cycle_count_submitted;
@@ -145,6 +146,11 @@ pub use item_change_recorded::{
 pub use valuation_run_completed::{
     build_valuation_run_completed_envelope, ValuationRunCompletedLine,
     ValuationRunCompletedPayload, EVENT_TYPE_VALUATION_RUN_COMPLETED,
+};
+
+pub use classification_assigned::{
+    build_classification_assigned_envelope, ClassificationAssignedPayload,
+    EVENT_TYPE_CLASSIFICATION_ASSIGNED,
 };
 
 // ============================================================================

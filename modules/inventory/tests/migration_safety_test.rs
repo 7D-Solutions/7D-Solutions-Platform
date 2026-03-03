@@ -73,6 +73,7 @@ async fn migrations_apply_cleanly() {
         "item_valuation_configs",
         "valuation_runs",
         "valuation_run_lines",
+        "item_classifications",
     ];
 
     for table in &expected_tables {
@@ -117,6 +118,7 @@ async fn forward_fix_rollback_and_reapply() {
 
     // Execute full rollback (reverse dependency order)
     let rollback_sql = r#"
+        DROP TABLE IF EXISTS item_classifications CASCADE;
         DROP TABLE IF EXISTS inv_lot_genealogy CASCADE;
         DROP TABLE IF EXISTS inv_labels CASCADE;
         DROP TABLE IF EXISTS inv_lot_expiry_alert_state CASCADE;
@@ -252,6 +254,7 @@ async fn all_data_tables_have_tenant_id() {
         "item_change_history",
         "item_valuation_configs",
         "valuation_runs",
+        "item_classifications",
     ];
 
     for table in &tenant_tables {

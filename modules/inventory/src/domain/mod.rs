@@ -1,4 +1,5 @@
 pub mod adjust_service;
+pub mod classifications;
 pub mod cycle_count;
 pub mod expiry;
 pub mod fifo;

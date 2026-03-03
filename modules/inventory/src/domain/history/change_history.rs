@@ -98,10 +98,13 @@ fn validate_request(req: &RecordChangeRequest) -> Result<(), ChangeHistoryError>
 
     if !matches!(
         req.change_type.as_str(),
-        "revision_created" | "revision_activated" | "policy_updated"
+        "revision_created"
+            | "revision_activated"
+            | "policy_updated"
+            | "classification_assigned"
     ) {
         return Err(ChangeHistoryError::Validation(format!(
-            "change_type must be one of: revision_created, revision_activated, policy_updated; got '{}'",
+            "change_type must be one of: revision_created, revision_activated, policy_updated, classification_assigned; got '{}'",
             req.change_type
         )));
     }
