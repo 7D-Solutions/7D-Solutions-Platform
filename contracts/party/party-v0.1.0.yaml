@@ -403,8 +403,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
     delete:
-      summary: Delete a contact
-      operationId: deleteContact
+      summary: Deactivate a contact (soft-delete)
+      operationId: deactivateContact
       tags: [contacts]
       parameters:
         - name: id
@@ -415,13 +415,83 @@ paths:
             format: uuid
       responses:
         '204':
-          description: Contact deleted
+          description: Contact deactivated
         '404':
           description: Contact not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorBody'
+
+  # ── Contact Extensions (Phase 67) ───────────────────────────────────────
+  /api/party/parties/{party_id}/contacts/{id}/set-primary:
+    post:
+      summary: Set a contact as primary for a given role
+      operationId: setContactPrimary
+      tags: [contacts]
+      parameters:
+        - name: party_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/AppId'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPrimaryRequest'
+      responses:
+        '200':
+          description: Contact set as primary for role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Contact'
+        '404':
+          description: Party or contact not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+        '422':
+          description: Validation error (empty role)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBody'
+
+  /api/party/parties/{party_id}/primary-contacts:
+    get:
+      summary: Get primary contacts map (role → contact)
+      operationId: getPrimaryContacts
+      tags: [contacts]
+      parameters:
+        - name: party_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/AppId'
+      responses:
+        '200':
+          description: List of role → primary contact mappings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PrimaryContactEntry'
 
   # ── Address CRUD ─────────────────────────────────────────────────────────
   /api/party/parties/{party_id}/addresses:
@@ -654,6 +724,11 @@ components:
         country:
           type: string
           nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          description: Free-form tags for categorization
         metadata:
           type: object
           nullable: true
@@ -880,6 +955,12 @@ components:
         website:
           type: string
           nullable: true
+        tags:
+          type: array
+          items:
+            type: string
+          description: Replace party tags (full replacement, not merge)
+          nullable: true
         metadata:
           type: object
           nullable: true
@@ -917,6 +998,11 @@ components:
           type: object
           nullable: true
           additionalProperties: true
+        deactivated_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Set when contact is soft-deleted via DELETE endpoint
         created_at:
           type: string
           format: date-time
@@ -1082,3 +1168,21 @@ components:
         is_primary:
           type: boolean
           nullable: true
+
+    # ── Extension schemas (Phase 67) ─────────────────────────────────────────
+    SetPrimaryRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          type: string
+          description: The role to set this contact as primary for (e.g. "billing", "technical")
+
+    PrimaryContactEntry:
+      type: object
+      required: [role, contact]
+      properties:
+        role:
+          type: string
+        contact:
+          $ref: '#/components/schemas/Contact'

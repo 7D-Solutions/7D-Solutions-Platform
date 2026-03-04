@@ -732,6 +732,182 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  # ── Calibration (Phase 67) ───────────────────────────────────────────
+  /api/maintenance/assets/{asset_id}/calibration-events:
+    parameters:
+      - $ref: '#/components/parameters/AssetId'
+    post:
+      summary: Record a calibration event
+      operationId: recordCalibrationEvent
+      tags: [calibration]
+      description: |
+        Record a calibration event for an asset. Results: pass, fail, conditional.
+        Idempotent — duplicate idempotency_key returns existing event with 200.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordCalibrationRequest'
+      responses:
+        '201':
+          description: Calibration event recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalibrationEvent'
+        '200':
+          description: Idempotent duplicate — existing event returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalibrationEvent'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/maintenance/assets/{asset_id}/calibration-status:
+    parameters:
+      - $ref: '#/components/parameters/AssetId'
+    get:
+      summary: Get derived calibration status for an asset
+      operationId: getCalibrationStatus
+      tags: [calibration]
+      description: |
+        Returns the derived calibration status: in_cal, due, overdue, or out_of_service.
+        Computed from the latest calibration event + due date + asset out_of_service flag.
+      responses:
+        '200':
+          description: Calibration status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalibrationStatusResponse'
+        '404':
+          description: Asset not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Downtime Events (Phase 67) ───────────────────────────────────────
+  /api/maintenance/downtime-events:
+    post:
+      summary: Record a downtime event
+      operationId: createDowntimeEvent
+      tags: [downtime]
+      description: |
+        Record asset or workcenter downtime. Idempotent on idempotency_key.
+        Impact classification: none, minor, major, critical.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDowntimeRequest'
+      responses:
+        '201':
+          description: Downtime event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DowntimeEvent'
+        '200':
+          description: Idempotent duplicate — existing event returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DowntimeEvent'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    get:
+      summary: List downtime events
+      operationId: listDowntimeEvents
+      tags: [downtime]
+      parameters:
+        - name: asset_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Offset'
+      responses:
+        '200':
+          description: List of downtime events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DowntimeEvent'
+
+  /api/maintenance/downtime-events/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      summary: Get downtime event detail
+      operationId: getDowntimeEvent
+      tags: [downtime]
+      responses:
+        '200':
+          description: Downtime event details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DowntimeEvent'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/maintenance/assets/{asset_id}/downtime:
+    parameters:
+      - $ref: '#/components/parameters/AssetId'
+    get:
+      summary: List downtime events for a specific asset
+      operationId: listAssetDowntime
+      tags: [downtime]
+      responses:
+        '200':
+          description: List of downtime events for asset
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DowntimeEvent'
+
 components:
   parameters:
     TenantId:
@@ -1446,6 +1622,160 @@ components:
           type: string
         description:
           type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Calibration (Phase 67) ──────────────────────────────────────────
+    RecordCalibrationRequest:
+      type: object
+      required: [performed_at, due_at, result]
+      properties:
+        performed_at:
+          type: string
+          format: date-time
+        due_at:
+          type: string
+          format: date-time
+          description: Next calibration due date
+        result:
+          type: string
+          enum: [pass, fail, conditional]
+        doc_revision_id:
+          type: string
+          format: uuid
+          nullable: true
+          description: Link to a document revision (compliance proof)
+        idempotency_key:
+          type: string
+          nullable: true
+
+    CalibrationEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        asset_id:
+          type: string
+          format: uuid
+        performed_at:
+          type: string
+          format: date-time
+        due_at:
+          type: string
+          format: date-time
+        result:
+          type: string
+          enum: [pass, fail, conditional]
+        doc_revision_id:
+          type: string
+          format: uuid
+          nullable: true
+        idempotency_key:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    CalibrationStatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [in_cal, due, overdue, out_of_service]
+          description: Derived calibration status
+        last_calibrated_at:
+          type: string
+          format: date-time
+          nullable: true
+        next_due_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    # ── Downtime (Phase 67) ─────────────────────────────────────────────
+    CreateDowntimeRequest:
+      type: object
+      required: [start_time, reason, impact_classification]
+      properties:
+        asset_id:
+          type: string
+          format: uuid
+          nullable: true
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          type: string
+        impact_classification:
+          type: string
+          enum: [none, minor, major, critical]
+        notes:
+          type: string
+          nullable: true
+        workcenter_id:
+          type: string
+          format: uuid
+          nullable: true
+        reason_code:
+          type: string
+          nullable: true
+        wo_ref:
+          type: string
+          nullable: true
+          description: Work order reference
+        idempotency_key:
+          type: string
+          nullable: true
+
+    DowntimeEvent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+        asset_id:
+          type: string
+          format: uuid
+          nullable: true
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+        reason:
+          type: string
+        impact_classification:
+          type: string
+          enum: [none, minor, major, critical]
+        notes:
+          type: string
+          nullable: true
+        workcenter_id:
+          type: string
+          format: uuid
+          nullable: true
+        reason_code:
+          type: string
+          nullable: true
+        wo_ref:
+          type: string
+          nullable: true
+        idempotency_key:
+          type: string
+          nullable: true
         created_at:
           type: string
           format: date-time

@@ -132,6 +132,110 @@ paths:
               schema:
                 type: object
 
+  # ── Separation of Duties (Phase 67) ──────────────────────────────────
+  /api/auth/sod/policies:
+    post:
+      summary: Create or upsert a Separation of Duties policy
+      operationId: upsertSodPolicy
+      description: |
+        Upsert a SoD rule that prevents users with conflicting roles from performing
+        a given action. Idempotent on idempotency_key.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SodPolicyUpsert"
+      responses:
+        "200":
+          description: Policy upserted (or idempotent replay)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SodPolicyUpsertResult"
+        "400":
+          description: Validation error
+        "500":
+          description: Internal error
+
+  /api/auth/sod/policies/{tenant_id}/{action_key}:
+    get:
+      summary: List SoD policies for a tenant and action
+      operationId: listSodPolicies
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: action_key
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of SoD policies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SodPolicy"
+
+  /api/auth/sod/policies/{tenant_id}/{rule_id}:
+    delete:
+      summary: Delete a SoD policy
+      operationId: deleteSodPolicy
+      description: Idempotent delete. Requires idempotency headers.
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: rule_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Policy deleted (or idempotent replay)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SodPolicyDeleteResult"
+        "500":
+          description: Internal error
+
+  /api/auth/sod/evaluate:
+    post:
+      summary: Evaluate SoD decision for an action
+      operationId: evaluateSod
+      description: |
+        Check whether an actor's role set conflicts with SoD policies for a given action.
+        Returns allow, deny, or allow_with_override + rationale.
+        Idempotent on idempotency_key — replays return the original decision.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SodDecisionRequest"
+      responses:
+        "200":
+          description: SoD evaluation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SodDecisionResult"
+        "500":
+          description: Internal error
+
 components:
 
   schemas:
@@ -184,3 +288,141 @@ components:
         token_type:
           type: string
           example: Bearer
+
+    # ── Separation of Duties (Phase 67) ──────────────────────────────────
+    SodPolicy:
+      type: object
+      required: [id, tenant_id, action_key, primary_role_id, conflicting_role_id]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        action_key:
+          type: string
+          description: The action this policy governs (e.g. "approve_po")
+        primary_role_id:
+          type: string
+          format: uuid
+        conflicting_role_id:
+          type: string
+          format: uuid
+        allow_override:
+          type: boolean
+          description: Whether an override can bypass this conflict
+        override_requires_approval:
+          type: boolean
+          description: Whether override needs explicit approval
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SodPolicyUpsert:
+      type: object
+      required: [tenant_id, action_key, primary_role_id, conflicting_role_id, idempotency_key, trace_id, producer]
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        action_key:
+          type: string
+        primary_role_id:
+          type: string
+          format: uuid
+        conflicting_role_id:
+          type: string
+          format: uuid
+        allow_override:
+          type: boolean
+          default: false
+        override_requires_approval:
+          type: boolean
+          default: false
+        actor_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        idempotency_key:
+          type: string
+        trace_id:
+          type: string
+        causation_id:
+          type: string
+          format: uuid
+          nullable: true
+        producer:
+          type: string
+
+    SodPolicyUpsertResult:
+      type: object
+      properties:
+        policy:
+          $ref: "#/components/schemas/SodPolicy"
+        idempotent_replay:
+          type: boolean
+
+    SodDecisionRequest:
+      type: object
+      required: [tenant_id, action_key, actor_user_id, idempotency_key, trace_id, producer]
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        action_key:
+          type: string
+        actor_user_id:
+          type: string
+          format: uuid
+        subject_user_id:
+          type: string
+          format: uuid
+          nullable: true
+        override_granted_by:
+          type: string
+          format: uuid
+          nullable: true
+          description: If present, indicates an override has been granted
+        override_ticket:
+          type: string
+          nullable: true
+          description: Reference to approval ticket
+        idempotency_key:
+          type: string
+        trace_id:
+          type: string
+        causation_id:
+          type: string
+          format: uuid
+          nullable: true
+        producer:
+          type: string
+
+    SodDecisionResult:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [allow, deny, allow_with_override]
+        reason:
+          type: string
+          description: Machine-readable reason code
+        matched_policy_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        idempotent_replay:
+          type: boolean
+
+    SodPolicyDeleteResult:
+      type: object
+      properties:
+        deleted:
+          type: boolean
+        idempotent_replay:
+          type: boolean

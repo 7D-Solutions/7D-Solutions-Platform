@@ -3,17 +3,21 @@ info:
   title: Notifications API
   version: 0.1.0
   description: |
-    Notifications module delivers outbound communications via email, SMS, and webhooks.
+    Notifications module — compliance-grade notification infrastructure with
+    versioned templates, delivery receipts, and full audit trail.
 
     **Ownership Boundaries:**
-    - Owns: templates, notification_preferences, outbox, delivery_attempts, provider_configs
+    - Owns: notification_templates (versioned), notification_sends, delivery_receipts
     - Does NOT own: financial logic, customer master data, invoice state
 
     **Key Principles:**
     - Never drives financial decisions
     - No cross-module DB access
-    - Idempotent delivery on retry
-    - Event-driven consumption from AR, Payments, Subscriptions
+    - Compliance proof via rendered content hash + delivery receipts
+    - Template versioning: publishing always creates a new version
+    - Event-driven: all mutations emit outbox events atomically
+
+    **Auth model:** JWT-based. Tenant ID extracted from verified claims.
 
 servers:
   - url: https://notifications.7dsolutions.io
@@ -26,6 +30,7 @@ paths:
     get:
       summary: Health check
       operationId: getHealth
+      tags: [ops]
       responses:
         '200':
           description: Service is healthy
@@ -44,139 +49,16 @@ paths:
                     type: string
                     example: 0.1.0
 
-  /api/notifications/send:
-    post:
-      summary: Send notification
-      operationId: sendNotification
-      description: |
-        Request delivery of a notification via email, SMS, or webhook.
-        Delivery is asynchronous. Use GET /api/notifications/{id} to check status.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/SendNotificationRequest'
-      responses:
-        '200':
-          description: Notification queued for delivery
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationResponse'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /api/notifications/{notification_id}:
-    get:
-      summary: Get notification status
-      operationId: getNotification
-      parameters:
-        - name: notification_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Notification identifier
-      responses:
-        '200':
-          description: Notification details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Notification'
-        '404':
-          description: Notification not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-  /api/preferences:
-    get:
-      summary: Get notification preferences
-      operationId: getPreferences
-      parameters:
-        - name: tenant_id
-          in: query
-          required: true
-          schema:
-            type: string
-        - name: user_id
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: User notification preferences
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationPreferences'
-        '404':
-          description: Preferences not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
-    put:
-      summary: Update notification preferences
-      operationId: updatePreferences
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdatePreferencesRequest'
-      responses:
-        '200':
-          description: Preferences updated
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/NotificationPreferences'
-        '400':
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-
+  # ── Versioned Templates (Phase 67) ──────────────────────────────────────
   /api/templates:
-    get:
-      summary: List notification templates
-      operationId: listTemplates
-      parameters:
-        - name: tenant_id
-          in: query
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: List of templates
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/Template'
-
     post:
-      summary: Create notification template
-      operationId: createTemplate
+      summary: Publish a new template version
+      operationId: publishTemplate
+      tags: [templates]
+      description: |
+        Create a new version of a notification template. Each template_key can have
+        multiple versions. The latest version is resolved automatically on send.
+        Emits notifications.events.template.published event.
       requestBody:
         required: true
         content:
@@ -184,91 +66,368 @@ paths:
             schema:
               $ref: '#/components/schemas/CreateTemplateRequest'
       responses:
-        '200':
-          description: Template created
+        '201':
+          description: Template version published
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Template'
+                $ref: '#/components/schemas/TemplateResponse'
         '400':
-          description: Invalid request
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /api/templates/{key}:
+    get:
+      summary: Get template (latest version + version history)
+      operationId: getTemplate
+      tags: [templates]
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Template key (e.g. "invoice_reminder")
+      responses:
+        '200':
+          description: Template with latest version and version history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TemplateDetailResponse'
+        '404':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Notification Sends (Phase 67) ───────────────────────────────────────
+  /api/notifications/send:
+    post:
+      summary: Send a notification
+      operationId: sendNotification
+      tags: [sends]
+      description: |
+        Send a notification to one or more recipients using a versioned template.
+        Resolves the latest template version, renders content, creates compliance
+        records (send + delivery receipts per recipient), and emits delivery events.
+        Returns 201 with the send record including rendered content hash.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendRequest'
+      responses:
+        '201':
+          description: Notification sent with delivery receipts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendResponse'
+        '400':
+          description: Template not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Template validation failed (missing required variables)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/notifications/{id}:
+    get:
+      summary: Get send detail with delivery receipts
+      operationId: getSendDetail
+      tags: [sends]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Notification send ID
+      responses:
+        '200':
+          description: Send detail with all delivery receipts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendDetailResponse'
+        '404':
+          description: Send not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  # ── Delivery Receipts (Phase 67) ────────────────────────────────────────
+  /api/deliveries:
+    get:
+      summary: Query delivery receipts
+      operationId: queryDeliveries
+      tags: [deliveries]
+      description: |
+        Query delivery receipts with optional filters by correlation ID, recipient,
+        and time range. Returns compliance-grade proof of who was notified, when,
+        via which channel, and the outcome.
+      parameters:
+        - name: correlation_id
+          in: query
+          schema:
+            type: string
+          description: Filter by correlation ID
+        - name: recipient
+          in: query
+          schema:
+            type: string
+          description: Filter by recipient address
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Start of time range
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: End of time range
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 200
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of delivery receipts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeliveryListResponse'
+
 components:
   schemas:
-    SendNotificationRequest:
+    # ── Template schemas ──────────────────────────────────────────────────
+    CreateTemplateRequest:
       type: object
-      required:
-        - tenant_id
-        - channel
-        - to
+      required: [template_key, channel, subject, body, required_vars]
       properties:
-        tenant_id:
+        template_key:
           type: string
+          description: Unique key for this template family (e.g. "invoice_reminder")
         channel:
           type: string
-          enum: [email, sms, webhook]
-        to:
-          type: string
-          description: Recipient (email address, phone number, or webhook URL)
-        template_id:
-          type: string
-          description: Template identifier (optional)
+          enum: [email, sms, inbox, webhook]
         subject:
           type: string
-          description: Message subject (for email)
+          description: Template subject line (supports {{variable}} interpolation)
         body:
           type: string
-          description: Message body (plain text or template variables)
-        variables:
-          type: object
-          description: Template variable substitutions
-          additionalProperties:
+          description: Template body (supports {{variable}} interpolation)
+        required_vars:
+          type: array
+          items:
             type: string
+          description: List of variable names required for rendering
 
-    NotificationResponse:
+    TemplateResponse:
       type: object
       properties:
-        notification_id:
+        id:
           type: string
-        tenant_id:
+          format: uuid
+        template_key:
           type: string
+        version:
+          type: integer
+          description: Auto-incremented version number
         channel:
           type: string
-        status:
+        subject:
           type: string
-          enum: [queued, sending, succeeded, failed]
+        body:
+          type: string
+        required_vars:
+          type: array
+          items:
+            type: string
         created_at:
           type: string
           format: date-time
 
-    Notification:
+    TemplateDetailResponse:
       type: object
       properties:
-        notification_id:
+        latest:
+          $ref: '#/components/schemas/TemplateResponse'
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemplateVersionSummary'
+
+    TemplateVersionSummary:
+      type: object
+      properties:
+        version:
+          type: integer
+        created_at:
           type: string
+          format: date-time
+        created_by:
+          type: string
+          nullable: true
+
+    # ── Send schemas ──────────────────────────────────────────────────────
+    SendRequest:
+      type: object
+      required: [template_key, channel, recipients, payload_json]
+      properties:
+        template_key:
+          type: string
+          description: Template to use (latest version resolved automatically)
+        channel:
+          type: string
+          enum: [email, sms, inbox, webhook]
+        recipients:
+          type: array
+          items:
+            type: string
+          description: List of recipient addresses
+        payload_json:
+          type: object
+          additionalProperties: true
+          description: Template variable values for rendering
+        correlation_id:
+          type: string
+          nullable: true
+          description: Optional correlation ID for tracing
+        causation_id:
+          type: string
+          nullable: true
+          description: Optional causation ID for event chain tracking
+
+    SendResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, delivering, delivered, partially_failed, failed]
+        template_key:
+          type: string
+        template_version:
+          type: integer
+        channel:
+          type: string
+        rendered_hash:
+          type: string
+          nullable: true
+          description: Hash of rendered content for compliance proof
+        receipt_count:
+          type: integer
+          description: Number of delivery receipts created
+
+    SendDetailResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        status:
+          type: string
+        template_key:
+          type: string
+        template_version:
+          type: integer
+        channel:
+          type: string
+        rendered_hash:
+          type: string
+          nullable: true
+        correlation_id:
+          type: string
+          nullable: true
+        receipts:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeliveryReceipt'
+        created_at:
+          type: string
+          format: date-time
+
+    # ── Delivery Receipt schemas ──────────────────────────────────────────
+    DeliveryReceipt:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
         tenant_id:
+          type: string
+        send_id:
+          type: string
+          format: uuid
+        recipient:
           type: string
         channel:
           type: string
-          enum: [email, sms, webhook]
-        to:
-          type: string
         status:
           type: string
-          enum: [queued, sending, succeeded, failed]
-        failure_code:
+          enum: [pending, attempted, succeeded, failed, dlq]
+        provider_id:
           type: string
-          description: Error code if failed
-        failure_message:
-          type: string
-          description: Error details if failed
-        attempts:
+          nullable: true
+          description: External provider message reference
+        attempt_count:
           type: integer
-          description: Number of delivery attempts
+        last_attempt_at:
+          type: string
+          format: date-time
+          nullable: true
+        succeeded_at:
+          type: string
+          format: date-time
+          nullable: true
+        failed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_class:
+          type: string
+          nullable: true
+        error_message:
+          type: string
+          nullable: true
         created_at:
           type: string
           format: date-time
@@ -276,109 +435,22 @@ components:
           type: string
           format: date-time
 
-    NotificationPreferences:
+    DeliveryListResponse:
       type: object
       properties:
-        tenant_id:
-          type: string
-        user_id:
-          type: string
-        email_enabled:
-          type: boolean
-          default: true
-        sms_enabled:
-          type: boolean
-          default: false
-        webhook_enabled:
-          type: boolean
-          default: false
-        email_address:
-          type: string
-        phone_number:
-          type: string
-
-    UpdatePreferencesRequest:
-      type: object
-      required:
-        - tenant_id
-        - user_id
-      properties:
-        tenant_id:
-          type: string
-        user_id:
-          type: string
-        email_enabled:
-          type: boolean
-        sms_enabled:
-          type: boolean
-        webhook_enabled:
-          type: boolean
-        email_address:
-          type: string
-        phone_number:
-          type: string
-
-    Template:
-      type: object
-      properties:
-        template_id:
-          type: string
-        tenant_id:
-          type: string
-        name:
-          type: string
-        channel:
-          type: string
-          enum: [email, sms, webhook]
-        subject:
-          type: string
-        body:
-          type: string
-        variables:
+        receipts:
           type: array
           items:
-            type: string
-          description: List of variable names used in template
-        created_at:
-          type: string
-          format: date-time
+            $ref: '#/components/schemas/DeliveryReceipt'
 
-    CreateTemplateRequest:
-      type: object
-      required:
-        - tenant_id
-        - name
-        - channel
-        - body
-      properties:
-        tenant_id:
-          type: string
-        name:
-          type: string
-        channel:
-          type: string
-          enum: [email, sms, webhook]
-        subject:
-          type: string
-        body:
-          type: string
-        variables:
-          type: array
-          items:
-            type: string
-
+    # ── Common ────────────────────────────────────────────────────────────
     Error:
       type: object
-      required:
-        - error
-        - message
+      required: [error, message]
       properties:
         error:
           type: string
-          description: Error code
+          description: Machine-readable error code
         message:
           type: string
           description: Human-readable error message
-        details:
-          type: object
-          description: Additional error context (optional)
