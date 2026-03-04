@@ -15,8 +15,9 @@ use uuid::Uuid;
 
 use crate::events::{
     build_party_created_envelope, build_party_deactivated_envelope, build_party_updated_envelope,
-    PartyCreatedPayload, PartyDeactivatedPayload, PartyUpdatedPayload, EVENT_TYPE_PARTY_CREATED,
-    EVENT_TYPE_PARTY_DEACTIVATED, EVENT_TYPE_PARTY_UPDATED,
+    build_tags_updated_envelope, PartyCreatedPayload, PartyDeactivatedPayload,
+    PartyUpdatedPayload, TagsUpdatedPayload, EVENT_TYPE_PARTY_CREATED, EVENT_TYPE_PARTY_DEACTIVATED,
+    EVENT_TYPE_PARTY_UPDATED, EVENT_TYPE_TAGS_UPDATED,
 };
 use crate::outbox::enqueue_event_tx;
 
@@ -40,7 +41,7 @@ pub async fn get_party(
         SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                display_name, email, phone, website,
                address_line1, address_line2, city, state, postal_code, country,
-               metadata, created_at, updated_at
+               metadata, tags, created_at, updated_at
         FROM party_parties
         WHERE id = $1 AND app_id = $2
         "#,
@@ -121,7 +122,7 @@ pub async fn list_parties(
             SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                    display_name, email, phone, website,
                    address_line1, address_line2, city, state, postal_code, country,
-                   metadata, created_at, updated_at
+                   metadata, tags, created_at, updated_at
             FROM party_parties
             WHERE app_id = $1
             ORDER BY display_name ASC
@@ -136,7 +137,7 @@ pub async fn list_parties(
             SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                    display_name, email, phone, website,
                    address_line1, address_line2, city, state, postal_code, country,
-                   metadata, created_at, updated_at
+                   metadata, tags, created_at, updated_at
             FROM party_parties
             WHERE app_id = $1 AND status = 'active'
             ORDER BY display_name ASC
@@ -201,7 +202,7 @@ pub async fn search_parties(
         SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                display_name, email, phone, website,
                address_line1, address_line2, city, state, postal_code, country,
-               metadata, created_at, updated_at
+               metadata, tags, created_at, updated_at
         FROM party_parties
         WHERE app_id = $1
           AND ($2::TEXT IS NULL OR status::TEXT = $2)
@@ -254,7 +255,7 @@ pub async fn create_company(
         RETURNING id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                   display_name, email, phone, website,
                   address_line1, address_line2, city, state, postal_code, country,
-                  metadata, created_at, updated_at
+                  metadata, tags, created_at, updated_at
         "#,
     )
     .bind(party_id)
@@ -370,7 +371,7 @@ pub async fn create_individual(
         RETURNING id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                   display_name, email, phone, website,
                   address_line1, address_line2, city, state, postal_code, country,
-                  metadata, created_at, updated_at
+                  metadata, tags, created_at, updated_at
         "#,
     )
     .bind(party_id)
@@ -475,7 +476,7 @@ pub async fn update_party(
         SELECT id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                display_name, email, phone, website,
                address_line1, address_line2, city, state, postal_code, country,
-               metadata, created_at, updated_at
+               metadata, tags, created_at, updated_at
         FROM party_parties
         WHERE id = $1 AND app_id = $2
         FOR UPDATE
@@ -511,6 +512,11 @@ pub async fn update_party(
     let new_postal = req.postal_code.as_ref().or(current.postal_code.as_ref());
     let new_country = req.country.as_ref().or(current.country.as_ref());
     let new_metadata = req.metadata.as_ref().or(current.metadata.as_ref());
+    let new_tags = req
+        .tags
+        .as_ref()
+        .cloned()
+        .unwrap_or_else(|| current.tags.clone());
 
     // Mutation
     let _updated: Party = sqlx::query_as(
@@ -518,12 +524,13 @@ pub async fn update_party(
         UPDATE party_parties
         SET display_name = $1, email = $2, phone = $3, website = $4,
             address_line1 = $5, address_line2 = $6, city = $7, state = $8,
-            postal_code = $9, country = $10, metadata = $11, updated_at = $12
-        WHERE id = $13 AND app_id = $14
+            postal_code = $9, country = $10, metadata = $11, tags = $12,
+            updated_at = $13
+        WHERE id = $14 AND app_id = $15
         RETURNING id, app_id, party_type::TEXT AS party_type, status::TEXT AS status,
                   display_name, email, phone, website,
                   address_line1, address_line2, city, state, postal_code, country,
-                  metadata, created_at, updated_at
+                  metadata, tags, created_at, updated_at
         "#,
     )
     .bind(&new_name)
@@ -537,6 +544,7 @@ pub async fn update_party(
     .bind(new_postal)
     .bind(new_country)
     .bind(new_metadata)
+    .bind(&new_tags)
     .bind(now)
     .bind(party_id)
     .bind(app_id)
@@ -553,8 +561,13 @@ pub async fn update_party(
         updated_at: now,
     };
 
-    let envelope =
-        build_party_updated_envelope(event_id, app_id.to_string(), correlation_id, None, payload);
+    let envelope = build_party_updated_envelope(
+        event_id,
+        app_id.to_string(),
+        correlation_id.clone(),
+        None,
+        payload,
+    );
 
     enqueue_event_tx(
         &mut tx,
@@ -566,6 +579,35 @@ pub async fn update_party(
         &envelope,
     )
     .await?;
+
+    // Outbox: tags.updated (only when tags actually changed)
+    if req.tags.is_some() && req.tags.as_ref() != Some(&current.tags) {
+        let tags_event_id = Uuid::new_v4();
+        let tags_payload = TagsUpdatedPayload {
+            party_id,
+            app_id: app_id.to_string(),
+            tags: new_tags.clone(),
+        };
+
+        let tags_envelope = build_tags_updated_envelope(
+            tags_event_id,
+            app_id.to_string(),
+            correlation_id,
+            None,
+            tags_payload,
+        );
+
+        enqueue_event_tx(
+            &mut tx,
+            tags_event_id,
+            EVENT_TYPE_TAGS_UPDATED,
+            "party",
+            &party_id.to_string(),
+            app_id,
+            &tags_envelope,
+        )
+        .await?;
+    }
 
     tx.commit().await?;
 
@@ -821,6 +863,7 @@ mod tests {
             postal_code: None,
             country: None,
             metadata: None,
+            tags: None,
             updated_by: Some("user-42".to_string()),
         };
 

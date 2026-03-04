@@ -6,6 +6,7 @@
 //! - mutation_class: DATA_MUTATION or LIFECYCLE
 //! - replay_safe: true
 
+pub mod contact;
 pub mod envelope;
 pub mod party;
 pub mod vendor;
@@ -26,6 +27,15 @@ pub use party::{
     build_party_created_envelope, build_party_deactivated_envelope, build_party_updated_envelope,
     PartyCreatedPayload, PartyDeactivatedPayload, PartyUpdatedPayload, EVENT_TYPE_PARTY_CREATED,
     EVENT_TYPE_PARTY_DEACTIVATED, EVENT_TYPE_PARTY_UPDATED,
+};
+
+pub use contact::{
+    build_contact_created_envelope, build_contact_deactivated_envelope,
+    build_contact_primary_set_envelope, build_contact_updated_envelope,
+    build_tags_updated_envelope, ContactDeactivatedPayload, ContactPayload,
+    ContactPrimarySetPayload, TagsUpdatedPayload, EVENT_TYPE_CONTACT_CREATED,
+    EVENT_TYPE_CONTACT_DEACTIVATED, EVENT_TYPE_CONTACT_PRIMARY_SET, EVENT_TYPE_CONTACT_UPDATED,
+    EVENT_TYPE_TAGS_UPDATED,
 };
 
 pub use vendor::{

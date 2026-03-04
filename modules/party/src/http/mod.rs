@@ -32,6 +32,10 @@ pub fn router(state: Arc<AppState>) -> Router {
         )
         .route("/api/party/contacts/{id}", put(contacts::update_contact))
         .route("/api/party/contacts/{id}", delete(contacts::delete_contact))
+        .route(
+            "/api/party/parties/{party_id}/contacts/{id}/set-primary",
+            post(contacts::set_primary),
+        )
         // Address — write
         .route(
             "/api/party/parties/{party_id}/addresses",
@@ -62,6 +66,10 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(contacts::list_contacts),
         )
         .route("/api/party/contacts/{id}", get(contacts::get_contact))
+        .route(
+            "/api/party/parties/{party_id}/primary-contacts",
+            get(contacts::primary_contacts),
+        )
         // Address — read
         .route(
             "/api/party/parties/{party_id}/addresses",

@@ -46,6 +46,7 @@ pub struct Party {
     pub postal_code: Option<String>,
     pub country: Option<String>,
     pub metadata: Option<serde_json::Value>,
+    pub tags: Vec<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -232,6 +233,7 @@ pub struct UpdatePartyRequest {
     pub postal_code: Option<String>,
     pub country: Option<String>,
     pub metadata: Option<serde_json::Value>,
+    pub tags: Option<Vec<String>>,
     pub updated_by: Option<String>,
 }
 

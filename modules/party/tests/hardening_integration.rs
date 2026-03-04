@@ -303,6 +303,7 @@ async fn test_tenant_boundary_contacts() {
         &app_a,
         party.party.id,
         &base_contact_req("Alice", "Boundary"),
+        corr(),
     )
     .await
     .unwrap();
@@ -316,13 +317,13 @@ async fn test_tenant_boundary_contacts() {
         "Tenant B must not see tenant A's contact"
     );
 
-    // Tenant B cannot delete tenant A's contact
-    let err = contact_service::delete_contact(&pool, &app_b, contact.id)
+    // Tenant B cannot deactivate tenant A's contact
+    let err = contact_service::deactivate_contact(&pool, &app_b, contact.id, corr())
         .await
         .unwrap_err();
     assert!(
         matches!(err, party_rs::domain::party::PartyError::NotFound(_)),
-        "Tenant B delete must fail with NotFound"
+        "Tenant B deactivate must fail with NotFound"
     );
 
     // Tenant B cannot update tenant A's contact
@@ -339,6 +340,7 @@ async fn test_tenant_boundary_contacts() {
             is_primary: None,
             metadata: None,
         },
+        corr(),
     )
     .await
     .unwrap_err();
@@ -564,6 +566,7 @@ async fn test_guard_mutation_outbox_party_update() {
             postal_code: None,
             country: None,
             metadata: None,
+            tags: None,
             updated_by: Some("test-agent".to_string()),
         },
         corr(),

@@ -24,6 +24,7 @@ pub struct Contact {
     pub metadata: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub deactivated_at: Option<DateTime<Utc>>,
 }
 
 // ============================================================================
@@ -62,6 +63,36 @@ impl CreateContactRequest {
         }
         Ok(())
     }
+}
+
+// ============================================================================
+// Set-Primary Request
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetPrimaryRequest {
+    pub role: String,
+}
+
+impl SetPrimaryRequest {
+    pub fn validate(&self) -> Result<(), PartyError> {
+        if self.role.trim().is_empty() {
+            return Err(PartyError::Validation(
+                "role cannot be empty".to_string(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+// ============================================================================
+// Primary Contact Map Entry
+// ============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrimaryContactEntry {
+    pub role: String,
+    pub contact: Contact,
 }
 
 // ============================================================================

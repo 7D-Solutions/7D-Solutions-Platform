@@ -101,7 +101,7 @@ async fn make_contact(pool: &sqlx::PgPool, app: &str, party_id: Uuid) -> Uuid {
         is_primary: Some(false),
         metadata: None,
     };
-    let contact = create_contact(pool, app, party_id, &req)
+    let contact = create_contact(pool, app, party_id, &req, corr())
         .await
         .expect("make_contact failed");
     contact.id
@@ -309,7 +309,7 @@ async fn test_contact_roles_e2e() {
         is_primary: Some(false),
         metadata: None,
     };
-    let contact2 = create_contact(&pool, &app, party_id, &contact2_req)
+    let contact2 = create_contact(&pool, &app, party_id, &contact2_req, corr())
         .await
         .expect("create contact2 failed");
 
