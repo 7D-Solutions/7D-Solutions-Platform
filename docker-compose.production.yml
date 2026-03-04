@@ -1,11 +1,16 @@
-# docker-compose.production.yml — Production secrets overlay for application services.
+# docker-compose.production.yml — Production overlay for application services.
 #
 # Usage:
-#   docker compose -f docker-compose.services.yml -f docker-compose.production.yml up -d
-#   docker compose -f docker-compose.platform.yml -f docker-compose.production.yml up -d
+#   docker compose --env-file .env.release \
+#     -f docker-compose.services.yml -f docker-compose.production.yml up -d
 #
-# Overrides application services to read secrets from Docker-mounted files
-# instead of plaintext environment variables. See docs/SECRETS.md.
+# This overlay does two things:
+#   1. Pins every service to an immutable image tag (from .env.release / release manifest)
+#   2. Overrides services to read secrets from Docker-mounted files (see docs/SECRETS.md)
+#
+# Image tags are supplied via env vars (e.g. AUTH_IMAGE, AR_IMAGE) loaded from
+# .env.release, which is generated from deploy/production/compose-release-manifest.json:
+#   ./scripts/release/manifest_to_env.sh
 #
 # For the data stack (NATS + Postgres), use docker-compose.production-data.yml.
 
@@ -62,6 +67,7 @@ secrets:
 
 services:
   auth-1:
+    image: ${AUTH_IMAGE:?Set AUTH_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["identity-auth"]
     volumes:
@@ -77,6 +83,7 @@ services:
         target: JWT_PUBLIC_KEY_PEM
 
   auth-2:
+    image: ${AUTH_IMAGE:?Set AUTH_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["identity-auth"]
     volumes:
@@ -91,7 +98,14 @@ services:
       - source: jwt_public_key_pem
         target: JWT_PUBLIC_KEY_PEM
 
+  auth-lb:
+    image: ${NGINX_AUTH_LB_IMAGE:?Set NGINX_AUTH_LB_IMAGE in .env.release}
+
+  gateway:
+    image: ${NGINX_GATEWAY_IMAGE:?Set NGINX_GATEWAY_IMAGE in .env.release}
+
   control-plane:
+    image: ${CONTROL_PLANE_IMAGE:?Set CONTROL_PLANE_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["control-plane"]
     volumes:
@@ -103,6 +117,7 @@ services:
         target: AR_DATABASE_URL
 
   ar:
+    image: ${AR_IMAGE:?Set AR_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["ar-rs"]
     volumes:
@@ -116,6 +131,7 @@ services:
         target: TILLED_WEBHOOK_SECRET
 
   subscriptions:
+    image: ${SUBSCRIPTIONS_IMAGE:?Set SUBSCRIPTIONS_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["subscriptions-rs"]
     volumes:
@@ -127,6 +143,7 @@ services:
         target: NATS_URL
 
   payments:
+    image: ${PAYMENTS_IMAGE:?Set PAYMENTS_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["payments-rs"]
     volumes:
@@ -138,6 +155,7 @@ services:
         target: NATS_URL
 
   notifications:
+    image: ${NOTIFICATIONS_IMAGE:?Set NOTIFICATIONS_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["notifications-rs"]
     volumes:
@@ -149,6 +167,7 @@ services:
         target: NATS_URL
 
   gl:
+    image: ${GL_IMAGE:?Set GL_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["gl-rs"]
     volumes:
@@ -162,6 +181,7 @@ services:
         target: JWT_PUBLIC_KEY
 
   inventory:
+    image: ${INVENTORY_IMAGE:?Set INVENTORY_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["inventory-rs"]
     volumes:
@@ -173,6 +193,7 @@ services:
         target: NATS_URL
 
   ap:
+    image: ${AP_IMAGE:?Set AP_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["ap-rs"]
     volumes:
@@ -184,6 +205,7 @@ services:
         target: NATS_URL
 
   treasury:
+    image: ${TREASURY_IMAGE:?Set TREASURY_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["treasury-rs"]
     volumes:
@@ -195,6 +217,7 @@ services:
         target: NATS_URL
 
   fixed-assets:
+    image: ${FIXED_ASSETS_IMAGE:?Set FIXED_ASSETS_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["fixed-assets-rs"]
     volumes:
@@ -206,6 +229,7 @@ services:
         target: NATS_URL
 
   consolidation:
+    image: ${CONSOLIDATION_IMAGE:?Set CONSOLIDATION_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["consolidation-rs"]
     volumes:
@@ -217,6 +241,7 @@ services:
         target: NATS_URL
 
   timekeeping:
+    image: ${TIMEKEEPING_IMAGE:?Set TIMEKEEPING_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["timekeeping-rs"]
     volumes:
@@ -228,6 +253,7 @@ services:
         target: NATS_URL
 
   party:
+    image: ${PARTY_IMAGE:?Set PARTY_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["party-rs"]
     volumes:
@@ -241,6 +267,7 @@ services:
         target: JWT_PUBLIC_KEY
 
   integrations:
+    image: ${INTEGRATIONS_IMAGE:?Set INTEGRATIONS_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["integrations-rs"]
     volumes:
@@ -252,6 +279,7 @@ services:
         target: NATS_URL
 
   ttp:
+    image: ${TTP_IMAGE:?Set TTP_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["ttp-rs"]
     volumes:
@@ -263,6 +291,7 @@ services:
         target: NATS_URL
 
   pdf-editor:
+    image: ${PDF_EDITOR_IMAGE:?Set PDF_EDITOR_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["pdf-editor-rs"]
     volumes:
@@ -274,6 +303,7 @@ services:
         target: NATS_URL
 
   maintenance:
+    image: ${MAINTENANCE_IMAGE:?Set MAINTENANCE_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["maintenance-rs"]
     volumes:
@@ -287,6 +317,7 @@ services:
         target: JWT_PUBLIC_KEY
 
   shipping-receiving:
+    image: ${SHIPPING_RECEIVING_IMAGE:?Set SHIPPING_RECEIVING_IMAGE in .env.release}
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["shipping-receiving-rs"]
     volumes:
