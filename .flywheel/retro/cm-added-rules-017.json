@@ -1,0 +1,37 @@
+[
+  {
+    "id": "b-mmc9yxyt-pni23m",
+    "content": "When using cap_drop: ALL on nginx containers, always add cap_add for SETGID, SETUID, and CHOWN — nginx needs these to fork workers and manage cache directories",
+    "category": "integration"
+  },
+  {
+    "id": "b-mmc9yxyt-4086md",
+    "content": "Always update OpenAPI contract YAMLs in the same commit as API endpoint changes — downstream consumers symlink to contracts/ and will hit stale specs otherwise",
+    "category": "documentation"
+  },
+  {
+    "id": "b-mmc9yxyt-ukb90h",
+    "content": "When a feature bead adds or changes API endpoints, include consumer guide and contract YAML updates in the bead scope — never defer docs to a separate follow-up",
+    "category": "workflow"
+  },
+  {
+    "id": "b-mmc9yxyt-qrgvrf",
+    "content": "When a bead scope grows to cover both prose docs and contract YAMLs, split into two beads — one-bead-one-concern prevents sloppy combined deliverables",
+    "category": "workflow"
+  },
+  {
+    "id": "b-mmc9yxyt-ngntct",
+    "content": "For critical decisions like architecture reviews or scope expansions, assign the same brief to multiple independent reviewers with no cross-talk — synthesis happens after",
+    "category": "collaboration"
+  },
+  {
+    "id": "b-mmc9yxyt-jdkynj",
+    "content": "When hardening Docker containers with cap_drop ALL, enumerate every Linux capability the entrypoint process uses by checking capability documentation first",
+    "category": "security"
+  },
+  {
+    "id": "b-mmc9yxyt-byahsv",
+    "content": "Process retro beads briskly — they are pipeline maintenance, not feature work. Extract the learning and close within one session",
+    "category": "workflow"
+  }
+]
