@@ -16,6 +16,11 @@
 
 # DR drill reports (generated artifacts)
 /dr-reports/
+
+# Dev TLS certificates (generated per machine, not committed)
+infra/postgres/tls/ca.crt
+infra/postgres/tls/server.crt
+infra/postgres/tls/server.key
 **/target/
 **/*.rs.bk
 *.pdb
