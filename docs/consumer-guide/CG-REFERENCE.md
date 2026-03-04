@@ -19,6 +19,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-20 | Platform Orchestrator | Extracted from PLATFORM-CONSUMER-GUIDE.md. Environment variables, Cargo.toml deps, local dev instructions, reference E2E test index, source file index. |
+| 2.0 | 2026-03-04 | MaroonHarbor | Added complete service port table (21 services), extension module base URLs, updated NATS_URL with auth token, added source file index entries for maintenance/notifications/SoD. |
 
 ---
 
@@ -31,7 +32,9 @@ Required env vars for any module that uses platform crates. Set these in your `d
 DATABASE_URL=postgres://postgres:postgres@your-app-postgres:5432/your_app_db
 
 # NATS event bus (JetStream enabled)
-NATS_URL=nats://nats:4222
+# Note: when NATS auth is enabled, use token format:
+# NATS_URL=nats://platform:${NATS_AUTH_TOKEN}@7d-nats:4222
+NATS_URL=nats://7d-nats:4222
 
 # JWT public key for RS256 verification (from identity-auth)
 # In Docker: read from volume or env. In tests: set to test key.
@@ -49,6 +52,13 @@ APP_ID=<your-app-id>
 PARTY_BASE_URL=http://7d-party:8098
 AR_BASE_URL=http://7d-ar:8086
 AUTH_BASE_URL=http://7d-auth-lb:8080
+MAINTENANCE_BASE_URL=http://7d-maintenance:8101
+NOTIFICATIONS_BASE_URL=http://7d-notifications:8089
+INTEGRATIONS_BASE_URL=http://7d-integrations:8099
+GL_BASE_URL=http://7d-gl:8090
+PAYMENTS_BASE_URL=http://7d-payments:8088
+SUBSCRIPTIONS_BASE_URL=http://7d-subscriptions:8087
+INVENTORY_BASE_URL=http://7d-inventory:8092
 
 # Log level
 RUST_LOG=info
@@ -67,6 +77,35 @@ export JWT_PUBLIC_KEY="$(cat /tmp/jwt-test-pub.pem)"
 ```
 
 In E2E tests against real platform, read the public key from the identity-auth JWKS endpoint (`GET /.well-known/jwks.json`) or from the platform ops team.
+
+### Complete Service Port Table
+
+All platform services and their ports. In Docker Compose, use the container name. On localhost, use the mapped port.
+
+| Container Name | Port | Module |
+|---------------|------|--------|
+| `7d-auth-lb` | 8080 | Identity & Auth (nginx load balancer) |
+| `7d-gateway` | 8000 | API Gateway (nginx) |
+| `7d-control-plane` | 8091 | Tenant Registry / Control Plane |
+| `7d-ar` | 8086 | Accounts Receivable |
+| `7d-subscriptions` | 8087 | Subscriptions |
+| `7d-payments` | 8088 | Payments |
+| `7d-notifications` | 8089 | Notifications |
+| `7d-gl` | 8090 | General Ledger |
+| `7d-inventory` | 8092 | Inventory |
+| `7d-ap` | 8093 | Accounts Payable |
+| `7d-treasury` | 8094 | Treasury |
+| `7d-timekeeping` | 8097 | Timekeeping |
+| `7d-party` | 8098 | Party Master |
+| `7d-integrations` | 8099 | Integrations |
+| `7d-ttp` | 8100 | Tenant Provisioning |
+| `7d-maintenance` | 8101 | Maintenance |
+| `7d-pdf-editor` | 8102 | PDF Editor / Document Mgmt |
+| `7d-shipping-receiving` | 8103 | Shipping & Receiving |
+| `7d-fixed-assets` | 8104 | Fixed Assets |
+| `7d-consolidation` | 8105 | Consolidation |
+
+**Auth instances:** `7d-auth-1` and `7d-auth-2` run behind `7d-auth-lb`. Connect to the load balancer, not directly.
 
 ---
 
@@ -206,6 +245,27 @@ For re-verification or deeper reading:
 | AR outbox metadata migration | `modules/ar/db/migrations/20260216000001_add_envelope_metadata_to_outbox.sql` |
 | NATS subjects (AR) | `modules/ar/src/events/publisher.rs` line 51-57 |
 | NATS subjects (auth) | `platform/identity-auth/src/auth/handlers.rs` |
+| SoD policy CRUD | `platform/identity-auth/src/db/sod.rs` |
+| SoD HTTP handlers | `platform/identity-auth/src/auth/handlers.rs` (lines 201-340) |
+| SoD event subjects | `auth.sod.policy.upserted`, `auth.sod.policy.deleted`, `auth.sod.decision.recorded` |
+| Party contacts endpoints | `modules/party/src/http/contacts.rs` |
+| Party contact model | `modules/party/src/domain/contact.rs` |
+| Party contact events | `modules/party/src/events/contact.rs` |
+| Party addresses endpoints | `modules/party/src/http/addresses.rs` |
+| Party router (all routes) | `modules/party/src/http/mod.rs` |
+| Maintenance router (all routes) | `modules/maintenance/src/main.rs` (lines 109-248) |
+| Maintenance asset model | `modules/maintenance/src/domain/assets.rs` |
+| Maintenance event subjects | `modules/maintenance/src/events/subjects.rs` |
+| Maintenance work orders | `modules/maintenance/src/http/work_orders.rs` |
+| Maintenance calibration | `modules/maintenance/src/http/calibration_events.rs` |
+| Maintenance downtime | `modules/maintenance/src/http/downtime.rs` |
+| Notifications router (all routes) | `modules/notifications/src/main.rs` (lines 156-208) |
+| Notifications templates | `modules/notifications/src/http/templates.rs` |
+| Notifications sends | `modules/notifications/src/http/sends.rs` |
+| Notifications inbox | `modules/notifications/src/http/inbox.rs` |
+| Notifications DLQ | `modules/notifications/src/http/dlq.rs` |
+| Notifications template model | `modules/notifications/src/template_store/models.rs` |
+| Notifications send model | `modules/notifications/src/sends/models.rs` |
 | Tenant status endpoint | `platform/tenant-registry/src/routes.rs` |
 | Tenant lifecycle states | `platform/tenant-registry/src/lifecycle.rs` |
 

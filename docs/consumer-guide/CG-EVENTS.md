@@ -17,6 +17,7 @@
 | Rev | Date | Changed By | Summary |
 |-----|------|-----------|---------|
 | 1.0 | 2026-02-20 | Platform Orchestrator | Extracted from PLATFORM-CONSUMER-GUIDE.md. NATS subjects, EventEnvelope, MerchantContext, outbox migration + enqueue + background publisher, Integrations module. |
+| 2.0 | 2026-03-04 | MaroonHarbor | Added all Phase 57+67 event subjects: party contacts/tags, maintenance (17 subjects), auth SoD, notifications (templates, delivery, inbox, DLQ, broadcast). |
 
 ---
 
@@ -145,15 +146,101 @@ All events are deduplicated by `event_id`. Your consumer must check and skip alr
 
 ### Known NATS Subjects
 
-| Subject | Published by | Trigger |
-|---------|-------------|---------|
-| `auth.events.user.registered` | identity-auth | User registered |
-| `auth.events.user.logged_in` | identity-auth | Successful login |
-| `ar.events.invoice.created` | AR | Invoice created |
-| `ar.events.payment.collection.requested` | AR | Collection triggered |
-| `gl.events.journal.posted` | AR (cross-module) | GL posting |
-| `payments.events.payment.succeeded` | Payments | Payment gateway success |
-| `tenant.provisioned` | Tenant Control Plane (TCP) | New tenant created — subscribe to trigger DB creation |
+#### Auth (identity-auth)
+
+| Subject | Trigger |
+|---------|---------|
+| `auth.events.user.registered` | User registered |
+| `auth.events.user.logged_in` | Successful login |
+| `auth.events.token.refreshed` | JWT token refreshed |
+| `auth.events.password_reset_requested` | Forgot-password initiated |
+| `auth.events.password_reset_completed` | Password reset completed |
+| `auth.sod.policy.upserted` | SoD policy created or updated |
+| `auth.sod.policy.deleted` | SoD policy deleted |
+| `auth.sod.decision.recorded` | SoD evaluation decision logged |
+
+#### AR
+
+| Subject | Trigger |
+|---------|---------|
+| `ar.events.invoice.created` | Invoice created |
+| `ar.events.payment.collection.requested` | Collection triggered |
+| `gl.events.journal.posted` | GL posting (cross-module) |
+
+#### Payments
+
+| Subject | Trigger |
+|---------|---------|
+| `payments.events.payment.succeeded` | Payment gateway success |
+
+#### Party Master
+
+| Subject | Trigger |
+|---------|---------|
+| `party.created` | Party created (company or individual) |
+| `party.updated` | Party updated |
+| `party.deactivated` | Party deactivated |
+| `party.events.contact.created` | Contact created on a party |
+| `party.events.contact.updated` | Contact updated |
+| `party.events.contact.deactivated` | Contact soft-deleted |
+| `party.events.contact.primary_set` | Contact set as primary for a role |
+| `party.events.tags.updated` | Party tags updated |
+| `party.vendor_qualification.created` | Vendor qualification created |
+| `party.vendor_qualification.updated` | Vendor qualification updated |
+| `party.credit_terms.created` | Credit terms created |
+| `party.credit_terms.updated` | Credit terms updated |
+| `party.contact_role.created` | Contact role created |
+| `party.contact_role.updated` | Contact role updated |
+| `party.scorecard.created` | Vendor scorecard created |
+| `party.scorecard.updated` | Vendor scorecard updated |
+
+#### Maintenance (17 subjects)
+
+Source: `modules/maintenance/src/events/subjects.rs`
+
+| Subject | Trigger |
+|---------|---------|
+| `maintenance.work_order.created` | Work order created |
+| `maintenance.work_order.status_changed` | Work order status transitioned |
+| `maintenance.work_order.completed` | Work order completed |
+| `maintenance.work_order.closed` | Work order closed |
+| `maintenance.work_order.cancelled` | Work order cancelled |
+| `maintenance.work_order.overdue` | Work order marked overdue |
+| `maintenance.meter_reading.recorded` | Meter reading recorded |
+| `maintenance.plan.due` | Maintenance plan due |
+| `maintenance.plan.assigned` | Plan assigned to asset |
+| `maintenance.asset.created` | Asset created |
+| `maintenance.asset.updated` | Asset updated |
+| `maintenance.downtime.recorded` | Downtime event recorded |
+| `maintenance.calibration.created` | Calibration created |
+| `maintenance.calibration.completed` | Calibration completed |
+| `maintenance.calibration.event_recorded` | Calibration event recorded |
+| `maintenance.calibration.status_changed` | Calibration status changed |
+| `maintenance.asset.out_of_service_changed` | Asset out-of-service status changed |
+
+#### Notifications
+
+| Subject | Trigger |
+|---------|---------|
+| `notifications.events.template.published` | New template version published |
+| `notifications.events.delivery.attempted` | Delivery attempt made |
+| `notifications.events.delivery.succeeded` | Delivery succeeded |
+| `notifications.delivery.failed` | Delivery failed (exhausted retries) |
+| `notifications.events.inbox.message_created` | Inbox message created |
+| `notifications.events.inbox.message_read` | Inbox message marked read |
+| `notifications.events.inbox.message_unread` | Inbox message marked unread |
+| `notifications.events.inbox.message_dismissed` | Inbox message dismissed |
+| `notifications.events.inbox.message_undismissed` | Inbox message undismissed |
+| `notifications.events.broadcast.created` | Broadcast notification created |
+| `notifications.events.broadcast.delivered` | Broadcast delivered |
+| `notifications.events.dlq.replayed` | DLQ item replayed |
+| `notifications.events.dlq.abandoned` | DLQ item abandoned |
+
+#### Tenant
+
+| Subject | Trigger |
+|---------|---------|
+| `tenant.provisioned` | New tenant created — subscribe to trigger DB creation |
 
 ### Event Evolution Rules
 
