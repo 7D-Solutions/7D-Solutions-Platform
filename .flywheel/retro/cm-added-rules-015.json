@@ -1,0 +1,30 @@
+[
+  {
+    "content": "Use compose override files (docker-compose.production.yml) for production-specific config like pinned images — never modify the base compose files that developers use daily",
+    "category": "architecture"
+  },
+  {
+    "content": "After changing compose structure (build: to image:, adding overrides), verify container names with docker compose ps — compose may generate unexpected prefixed names",
+    "category": "debugging"
+  },
+  {
+    "content": "When enabling TLS on any database, grep ALL connection strings including test fixtures and CI scripts — hardcoded sslmode=disable in tests bypasses encryption silently",
+    "category": "security"
+  },
+  {
+    "content": "Create a small housekeeping bead to commit accumulated pending changes (Cargo.lock, proof artifacts, infra files) rather than letting uncommitted changes pile up across agents",
+    "category": "workflow"
+  },
+  {
+    "content": "Structure security hardening as independent beads touching separate file sets (Dockerfiles, compose-data, compose-services) to enable parallel agent execution without file conflicts",
+    "category": "collaboration"
+  },
+  {
+    "content": "Always set explicit container_name in compose services to prevent naming drift when switching between build: and image: directives or adding compose overrides",
+    "category": "integration"
+  },
+  {
+    "content": "When pinning production images, create a release manifest script that generates version env files from git tags — enables reproducible deploys and rollback by changing one env file",
+    "category": "architecture"
+  }
+]

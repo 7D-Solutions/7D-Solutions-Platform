@@ -1,0 +1,22 @@
+{
+  "run_number": 15,
+  "trigger": "count",
+  "timestamp": "2026-03-04T13:00:00Z",
+  "runner": "PurpleCliff",
+  "bead_id": "bd-2n4ai",
+  "window": {
+    "from_retro_seq": 410,
+    "to_retro_seq": 416,
+    "closes_analyzed": 7
+  },
+  "beads_analyzed": [
+    "bd-1qztq", "bd-fzruv", "bd-3h3c7", "bd-1etu5", "bd-yeg06", "bd-1abes", "bd-2pbf6"
+  ],
+  "patterns_count": 6,
+  "signals": {
+    "avg_commits_code_beads": 2.75,
+    "agent_spread": {"MaroonHarbor": 2, "CopperRiver": 2, "PurpleCliff": 1, "BrightHill": 1},
+    "reopen_count": 0,
+    "zero_commit_beads": ["bd-fzruv", "bd-1etu5", "bd-yeg06"]
+  }
+}
