@@ -231,9 +231,9 @@ pub async fn get_ttp_pool() -> PgPool {
 /// Setup NATS client connection
 pub async fn setup_nats_client() -> NatsClient {
     let nats_url =
-        std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".to_string());
+        std::env::var("NATS_URL").unwrap_or_else(|_| "nats://platform:dev-nats-token@localhost:4222".to_string());
 
-    async_nats::connect(&nats_url)
+    event_bus::connect_nats(&nats_url)
         .await
         .expect("Failed to connect to NATS")
 }

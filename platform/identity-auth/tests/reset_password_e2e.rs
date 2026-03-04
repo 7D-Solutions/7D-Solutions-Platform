@@ -23,7 +23,8 @@ fn db_url() -> String {
 }
 
 fn nats_url() -> String {
-    std::env::var("NATS_URL").unwrap_or_else(|_| "nats://localhost:4222".into())
+    std::env::var("NATS_URL")
+        .unwrap_or_else(|_| "nats://platform:dev-nats-token@localhost:4222".into())
 }
 
 async fn test_pool() -> sqlx::PgPool {
@@ -397,7 +398,7 @@ async fn test_token_single_use_second_call_rejected() {
 
 #[tokio::test]
 async fn test_nats_completion_event_published() {
-    let nats = async_nats::connect(&nats_url())
+    let nats = event_bus::connect_nats(&nats_url())
         .await
         .expect("connect to NATS");
 
