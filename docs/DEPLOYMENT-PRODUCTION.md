@@ -133,60 +133,56 @@ bash scripts/production/deploy_stack.sh --manifest deploy/production/MODULE-MANI
 
 ## Environment Contract
 
-Application secrets are stored on the VPS at a root-owned location. They are
-**never committed to the repository** and never appear in CI logs.
+Production secrets are stored as **individual files** under `/etc/7d/production/secrets/`
+on the VPS. Docker Compose mounts them into containers via the `secrets:` mechanism,
+so sensitive values never appear in `docker inspect`, process listings, or CI logs.
 
-### Secrets directory on the VPS
+**Full documentation:** See **[docs/SECRETS.md](./SECRETS.md)** for the complete
+secrets management workflow including rotation, validation, and migration.
 
-| Property | Value |
-|----------|-------|
-| Path | `/etc/7d/production/secrets.env` |
-| Owner | `root:root` |
-| Mode | `0600` |
-| Readable by | root only (the deploy user uses `sudo` to load via `export_env.sh`) |
-
-### Creating the secrets file (first-time, on the VPS)
+### Quick setup (first-time, on the VPS)
 
 ```bash
-# SSH into the VPS as deploy user
+# SSH into the VPS
 ssh -p 22 deploy@prod.7dsolutions.example.com
 
-# Create the secrets directory and file as root
-sudo mkdir -p /etc/7d/production
-sudo install -m 0600 -o root /dev/null /etc/7d/production/secrets.env
+# Generate all secret files with random values
+sudo bash /opt/7d-platform/scripts/production/secrets_init.sh
 
-# Populate — paste contents adapted from scripts/production/env.example
-# (provisioning vars are not needed here; only DB passwords, JWT keys, JWT_SECRET)
-sudo nano /etc/7d/production/secrets.env
+# Validate
+sudo bash /opt/7d-platform/scripts/production/secrets_check.sh
 ```
 
-### Loading secrets before a deploy
+### How it works
 
-On the VPS, source `export_env.sh` with `sudo -E` so the deploy user's shell
-receives the exported variables:
-
-```bash
-sudo -E bash -c 'source /opt/7d-platform/scripts/production/export_env.sh && \
-  bash /opt/7d-platform/scripts/production/deploy_stack.sh \
-    --manifest /opt/7d-platform/deploy/production/MODULE-MANIFEST.md'
-```
+1. `secrets_init.sh` creates `/etc/7d/production/secrets/` with one file per secret
+   (root:root 0600, directory 0700).
+2. `deploy_stack.sh` auto-detects the secrets directory and includes
+   `docker-compose.production.yml` as a compose overlay.
+3. The overlay mounts secret files into containers at `/run/secrets/` and uses an
+   entrypoint wrapper to export them as environment variables.
+4. Postgres containers use the native `POSTGRES_PASSWORD_FILE` mechanism.
 
 ### Validating secrets before deploying
 
 ```bash
-# Run the secrets check (must be root or sudo to read the 0600 file)
 sudo bash scripts/production/secrets_check.sh
 ```
 
-The script asserts:
-- File exists at `/etc/7d/production/secrets.env`
-- Owner is `root` (uid 0)
-- Mode is `0600`
-- No `CHANGE_ME` placeholders remain
-- No test/development secret patterns
-- All 30 required variables are present and non-empty
+The script auto-detects the format (directory or legacy single-file) and asserts:
+- Correct ownership (root) and permissions (0700 dir, 0600 files)
+- No `CHANGE_ME` placeholders or test/development patterns
+- All required secret files are present and non-empty
+- All DATABASE_URL values start with `postgres://`
 
 Exit code 0 = ready to deploy. Non-zero = fix the reported issues first.
+
+### Legacy format
+
+The old single-file format (`/etc/7d/production/secrets.env`) is still supported
+for backward compatibility. When the secrets directory doesn't exist, `deploy_stack.sh`
+falls back to env-var injection. See [docs/SECRETS.md — Migration](./SECRETS.md#migration-from-secretsenv)
+for how to migrate.
 
 ### Required secrets (full list)
 
