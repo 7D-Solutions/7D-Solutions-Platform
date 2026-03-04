@@ -213,19 +213,22 @@ fi
 # ---------------------------------------------------------------------------
 # Step 2b: Detect secrets overlay
 # ---------------------------------------------------------------------------
-PROD_OVERLAY=""
+PROD_SVC_OVERLAY=""
+PROD_DATA_OVERLAY=""
 if ! $DRY_RUN; then
     HAS_SECRETS="$(ssh $SSH_OPTS "$SSH_TARGET" \
         "test -d /etc/7d/production/secrets && echo yes || echo no")"
     if [[ "$HAS_SECRETS" == "yes" ]]; then
-        PROD_OVERLAY="-f docker-compose.production.yml"
+        PROD_SVC_OVERLAY="-f docker-compose.production.yml"
+        PROD_DATA_OVERLAY="-f docker-compose.production-data.yml"
         log "Docker secrets overlay: ENABLED"
     else
         log "Docker secrets overlay: DISABLED (no /etc/7d/production/secrets/)"
         log "  Falling back to env-var injection. See docs/SECRETS.md to migrate."
     fi
 else
-    PROD_OVERLAY="-f docker-compose.production.yml"
+    PROD_SVC_OVERLAY="-f docker-compose.production.yml"
+    PROD_DATA_OVERLAY="-f docker-compose.production-data.yml"
 fi
 
 # ---------------------------------------------------------------------------
@@ -234,18 +237,18 @@ fi
 banner "Restarting stacks"
 
 # Data stack (NATS + Postgres) — --no-recreate to avoid losing in-flight data.
-run_remote "docker compose -f docker-compose.data.yml ${PROD_OVERLAY} up -d --no-recreate"
+run_remote "docker compose -f docker-compose.data.yml ${PROD_DATA_OVERLAY} up -d --no-recreate"
 
 if $USE_MANIFEST; then
     # Platform stack
-    run_remote "docker compose -f docker-compose.platform.yml ${PROD_OVERLAY} up -d --no-build --pull never"
+    run_remote "docker compose -f docker-compose.platform.yml ${PROD_SVC_OVERLAY} up -d --no-build --pull never"
     # Backend modules
-    run_remote "docker compose ${PROD_OVERLAY} up -d --no-build --pull never"
+    run_remote "docker compose ${PROD_SVC_OVERLAY} up -d --no-build --pull never"
     # Frontend
     run_remote "docker compose -f docker-compose.frontend.yml up -d --no-build --pull never"
 else
-    run_remote "IMAGE_TAG=${TAG} docker compose -f docker-compose.platform.yml ${PROD_OVERLAY} up -d --no-build --pull never"
-    run_remote "IMAGE_TAG=${TAG} docker compose ${PROD_OVERLAY} up -d --no-build --pull never"
+    run_remote "IMAGE_TAG=${TAG} docker compose -f docker-compose.platform.yml ${PROD_SVC_OVERLAY} up -d --no-build --pull never"
+    run_remote "IMAGE_TAG=${TAG} docker compose ${PROD_SVC_OVERLAY} up -d --no-build --pull never"
     run_remote "IMAGE_TAG=${TAG} docker compose -f docker-compose.frontend.yml up -d --no-build --pull never"
 fi
 

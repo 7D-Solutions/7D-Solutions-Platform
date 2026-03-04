@@ -158,10 +158,11 @@ sudo bash /opt/7d-platform/scripts/production/secrets_check.sh
 1. `secrets_init.sh` creates `/etc/7d/production/secrets/` with one file per secret
    (root:root 0600, directory 0700).
 2. `deploy_stack.sh` auto-detects the secrets directory and includes
-   `docker-compose.production.yml` as a compose overlay.
-3. The overlay mounts secret files into containers at `/run/secrets/` and uses an
-   entrypoint wrapper to export them as environment variables.
-4. Postgres containers use the native `POSTGRES_PASSWORD_FILE` mechanism.
+   `docker-compose.production.yml` (application services) and
+   `docker-compose.production-data.yml` (NATS + Postgres) as compose overlays.
+3. The service overlay mounts secret files into containers at `/run/secrets/` and uses
+   an entrypoint wrapper to export them as environment variables.
+4. Postgres containers use the native `POSTGRES_PASSWORD_FILE` mechanism via the data overlay.
 
 ### Validating secrets before deploying
 

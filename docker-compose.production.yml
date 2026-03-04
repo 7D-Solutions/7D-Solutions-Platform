@@ -1,32 +1,24 @@
-# docker-compose.production.yml — Production secrets overlay.
+# docker-compose.production.yml — Production secrets overlay for application services.
 #
-# Usage (always combined with base compose files):
-#   docker compose -f docker-compose.data.yml    -f docker-compose.production.yml up -d
+# Usage:
 #   docker compose -f docker-compose.services.yml -f docker-compose.production.yml up -d
+#   docker compose -f docker-compose.platform.yml -f docker-compose.production.yml up -d
 #
-# This overlay:
-#   1. Defines Docker secrets sourced from /etc/7d/production/secrets/
-#   2. Mounts relevant secrets into each service at /run/secrets/<ENV_VAR_NAME>
-#   3. Overrides the entrypoint to read secret files into env vars before exec
+# Overrides application services to read secrets from Docker-mounted files
+# instead of plaintext environment variables. See docs/SECRETS.md.
 #
-# Secret files are individual files, one value per file, stored at:
-#   /etc/7d/production/secrets/<name>
-# Each file is root:root 0600. See docs/SECRETS.md for the full workflow.
-#
-# Local dev is UNAFFECTED — this file is only used in production deploys.
+# For the data stack (NATS + Postgres), use docker-compose.production-data.yml.
 
 secrets:
-  # --- Shared secrets ---
   jwt_private_key_pem:
     file: /etc/7d/production/secrets/jwt_private_key_pem
   jwt_public_key_pem:
     file: /etc/7d/production/secrets/jwt_public_key_pem
-  nats_auth_token:
-    file: /etc/7d/production/secrets/nats_auth_token
   nats_url:
     file: /etc/7d/production/secrets/nats_url
+  tilled_webhook_secret:
+    file: /etc/7d/production/secrets/tilled_webhook_secret
 
-  # --- Per-service database URLs (contain credentials) ---
   auth_database_url:
     file: /etc/7d/production/secrets/auth_database_url
   ar_database_url:
@@ -68,283 +60,7 @@ secrets:
   control_plane_ar_database_url:
     file: /etc/7d/production/secrets/control_plane_ar_database_url
 
-  # --- Per-Postgres container passwords ---
-  auth_postgres_password:
-    file: /etc/7d/production/secrets/auth_postgres_password
-  ar_postgres_password:
-    file: /etc/7d/production/secrets/ar_postgres_password
-  subscriptions_postgres_password:
-    file: /etc/7d/production/secrets/subscriptions_postgres_password
-  payments_postgres_password:
-    file: /etc/7d/production/secrets/payments_postgres_password
-  notifications_postgres_password:
-    file: /etc/7d/production/secrets/notifications_postgres_password
-  gl_postgres_password:
-    file: /etc/7d/production/secrets/gl_postgres_password
-  projections_postgres_password:
-    file: /etc/7d/production/secrets/projections_postgres_password
-  audit_postgres_password:
-    file: /etc/7d/production/secrets/audit_postgres_password
-  tenant_registry_postgres_password:
-    file: /etc/7d/production/secrets/tenant_registry_postgres_password
-  inventory_postgres_password:
-    file: /etc/7d/production/secrets/inventory_postgres_password
-  ap_postgres_password:
-    file: /etc/7d/production/secrets/ap_postgres_password
-  treasury_postgres_password:
-    file: /etc/7d/production/secrets/treasury_postgres_password
-  fixed_assets_postgres_password:
-    file: /etc/7d/production/secrets/fixed_assets_postgres_password
-  consolidation_postgres_password:
-    file: /etc/7d/production/secrets/consolidation_postgres_password
-  timekeeping_postgres_password:
-    file: /etc/7d/production/secrets/timekeeping_postgres_password
-  party_postgres_password:
-    file: /etc/7d/production/secrets/party_postgres_password
-  integrations_postgres_password:
-    file: /etc/7d/production/secrets/integrations_postgres_password
-  ttp_postgres_password:
-    file: /etc/7d/production/secrets/ttp_postgres_password
-  pdf_editor_postgres_password:
-    file: /etc/7d/production/secrets/pdf_editor_postgres_password
-  maintenance_postgres_password:
-    file: /etc/7d/production/secrets/maintenance_postgres_password
-  shipping_receiving_postgres_password:
-    file: /etc/7d/production/secrets/shipping_receiving_postgres_password
-  numbering_postgres_password:
-    file: /etc/7d/production/secrets/numbering_postgres_password
-  doc_mgmt_postgres_password:
-    file: /etc/7d/production/secrets/doc_mgmt_postgres_password
-  workflow_postgres_password:
-    file: /etc/7d/production/secrets/workflow_postgres_password
-  wc_postgres_password:
-    file: /etc/7d/production/secrets/wc_postgres_password
-
-  # --- Application-specific secrets ---
-  tilled_webhook_secret:
-    file: /etc/7d/production/secrets/tilled_webhook_secret
-  seed_admin_password:
-    file: /etc/7d/production/secrets/seed_admin_password
-
 services:
-  # =====================================================================
-  # NATS — entrypoint wrapper reads token into env for nats.conf
-  # =====================================================================
-  nats:
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["-c", "/etc/nats/nats.conf"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: nats_auth_token
-        target: NATS_AUTH_TOKEN
-
-  # =====================================================================
-  # POSTGRES CONTAINERS — use POSTGRES_PASSWORD_FILE (native support)
-  # =====================================================================
-  auth-postgres:
-    secrets:
-      - source: auth_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  ar-postgres:
-    secrets:
-      - source: ar_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  subscriptions-postgres:
-    secrets:
-      - source: subscriptions_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  payments-postgres:
-    secrets:
-      - source: payments_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  notifications-postgres:
-    secrets:
-      - source: notifications_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  gl-postgres:
-    secrets:
-      - source: gl_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  projections-postgres:
-    secrets:
-      - source: projections_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  audit-postgres:
-    secrets:
-      - source: audit_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  tenant-registry-postgres:
-    secrets:
-      - source: tenant_registry_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  inventory-postgres:
-    secrets:
-      - source: inventory_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  ap-postgres:
-    secrets:
-      - source: ap_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  treasury-postgres:
-    secrets:
-      - source: treasury_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  fixed-assets-postgres:
-    secrets:
-      - source: fixed_assets_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  consolidation-postgres:
-    secrets:
-      - source: consolidation_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  timekeeping-postgres:
-    secrets:
-      - source: timekeeping_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  party-postgres:
-    secrets:
-      - source: party_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  integrations-postgres:
-    secrets:
-      - source: integrations_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  ttp-postgres:
-    secrets:
-      - source: ttp_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  maintenance-postgres:
-    secrets:
-      - source: maintenance_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  pdf-editor-postgres:
-    secrets:
-      - source: pdf_editor_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  shipping-receiving-postgres:
-    secrets:
-      - source: shipping_receiving_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  numbering-postgres:
-    secrets:
-      - source: numbering_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  doc-mgmt-postgres:
-    secrets:
-      - source: doc_mgmt_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  workflow-postgres:
-    secrets:
-      - source: workflow_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  workforce-competence-postgres:
-    secrets:
-      - source: wc_postgres_password
-        target: pg_password
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/pg_password
-      POSTGRES_PASSWORD: ""
-
-  # =====================================================================
-  # APPLICATION SERVICES — entrypoint wrapper reads secrets into env vars
-  # =====================================================================
   auth-1:
     entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
     command: ["identity-auth"]
