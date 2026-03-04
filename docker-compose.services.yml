@@ -122,6 +122,52 @@ services:
       com.7dsolutions.env: "dev"
 
   # =========================
+  # API GATEWAY (edge rate limiting)
+  # =========================
+  gateway:
+    container_name: 7d-gateway
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./nginx/gateway.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "127.0.0.1:8000:80"
+    networks:
+      - 7d-platform
+    depends_on:
+      - auth-1
+      - auth-2
+      - control-plane
+      - ar
+      - gl
+      - payments
+      - subscriptions
+      - notifications
+      - inventory
+      - ap
+      - treasury
+      - fixed-assets
+      - consolidation
+      - timekeeping
+      - party
+      - integrations
+      - ttp
+      - pdf-editor
+      - maintenance
+      - shipping-receiving
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/api/gateway/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "platform"
+      com.7dsolutions.component: "gateway"
+      com.7dsolutions.type: "proxy"
+      com.7dsolutions.env: "dev"
+
+  # =========================
   # CONTROL PLANE
   # =========================
   control-plane:
