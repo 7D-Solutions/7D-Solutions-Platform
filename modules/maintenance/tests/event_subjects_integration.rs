@@ -255,8 +255,8 @@ fn all_subjects_are_stable_and_prefixed() {
             subject
         );
     }
-    // Exactly 14 stable subjects
-    assert_eq!(subjects::ALL_SUBJECTS.len(), 14);
+    // 17 stable subjects (14 original + 3 added in bd-20rpu)
+    assert_eq!(subjects::ALL_SUBJECTS.len(), 17);
 }
 
 // ============================================================================
