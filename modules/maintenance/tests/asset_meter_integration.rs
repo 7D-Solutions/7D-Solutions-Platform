@@ -304,6 +304,8 @@ async fn test_update_asset() {
             fixed_asset_ref: None,
             metadata: None,
             maintenance_schedule: None,
+            out_of_service: None,
+            out_of_service_reason: None,
         },
     )
     .await

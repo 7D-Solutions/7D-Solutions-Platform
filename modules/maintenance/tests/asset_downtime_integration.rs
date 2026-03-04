@@ -107,6 +107,8 @@ async fn test_asset_crud_e2e() {
             status: Some("inactive".into()),
             metadata: None,
             maintenance_schedule: None,
+            out_of_service: None,
+            out_of_service_reason: None,
         },
     )
     .await
@@ -151,20 +153,23 @@ async fn test_downtime_event_e2e() {
         &pool,
         &CreateDowntimeRequest {
             tenant_id: tid.clone(),
-            asset_id: asset.id,
+            asset_id: Some(asset.id),
             start_time: start,
             end_time: Some(end),
             reason: "Bearing replacement".into(),
             impact_classification: "major".into(),
             idempotency_key: None,
             notes: Some("Scheduled maintenance".into()),
+            workcenter_id: None,
+            reason_code: None,
+            wo_ref: None,
         },
     )
     .await
     .unwrap();
 
     assert_eq!(dt.tenant_id, tid);
-    assert_eq!(dt.asset_id, asset.id);
+    assert_eq!(dt.asset_id, Some(asset.id));
     assert_eq!(dt.reason, "Bearing replacement");
     assert_eq!(dt.impact_classification, "major");
     assert!(dt.end_time.is_some());
@@ -183,13 +188,16 @@ async fn test_downtime_event_e2e() {
         &pool,
         &CreateDowntimeRequest {
             tenant_id: tid.clone(),
-            asset_id: asset.id,
+            asset_id: Some(asset.id),
             start_time: end,
             end_time: Some(start), // end before start
             reason: "Bad times".into(),
             impact_classification: "minor".into(),
             idempotency_key: None,
             notes: None,
+            workcenter_id: None,
+            reason_code: None,
+            wo_ref: None,
         },
     )
     .await;
@@ -217,13 +225,16 @@ async fn test_asset_downtime_relationship() {
         &pool,
         &CreateDowntimeRequest {
             tenant_id: tid.clone(),
-            asset_id: asset.id,
+            asset_id: Some(asset.id),
             start_time: now - Duration::hours(6),
             end_time: Some(now - Duration::hours(5)),
             reason: "Oil change".into(),
             impact_classification: "none".into(),
             idempotency_key: None,
             notes: None,
+            workcenter_id: None,
+            reason_code: None,
+            wo_ref: None,
         },
     )
     .await
@@ -233,13 +244,16 @@ async fn test_asset_downtime_relationship() {
         &pool,
         &CreateDowntimeRequest {
             tenant_id: tid.clone(),
-            asset_id: asset.id,
+            asset_id: Some(asset.id),
             start_time: now - Duration::hours(3),
             end_time: Some(now - Duration::hours(2)),
             reason: "Belt replacement".into(),
             impact_classification: "minor".into(),
             idempotency_key: None,
             notes: None,
+            workcenter_id: None,
+            reason_code: None,
+            wo_ref: None,
         },
     )
     .await
@@ -249,13 +263,16 @@ async fn test_asset_downtime_relationship() {
         &pool,
         &CreateDowntimeRequest {
             tenant_id: tid.clone(),
-            asset_id: asset.id,
+            asset_id: Some(asset.id),
             start_time: now - Duration::hours(1),
             end_time: None, // ongoing
             reason: "Motor failure".into(),
             impact_classification: "critical".into(),
             idempotency_key: None,
             notes: None,
+            workcenter_id: None,
+            reason_code: None,
+            wo_ref: None,
         },
     )
     .await
@@ -280,6 +297,8 @@ async fn test_asset_downtime_relationship() {
             asset_id: Some(asset.id),
             limit: None,
             offset: None,
+            from: None,
+            to: None,
         },
     )
     .await
@@ -312,13 +331,16 @@ async fn test_tenant_isolation() {
         &pool,
         &CreateDowntimeRequest {
             tenant_id: tid_a.clone(),
-            asset_id: asset_a.id,
+            asset_id: Some(asset_a.id),
             start_time: now - Duration::hours(1),
             end_time: Some(now),
             reason: "Tenant A downtime".into(),
             impact_classification: "minor".into(),
             idempotency_key: None,
             notes: None,
+            workcenter_id: None,
+            reason_code: None,
+            wo_ref: None,
         },
     )
     .await
@@ -328,13 +350,16 @@ async fn test_tenant_isolation() {
         &pool,
         &CreateDowntimeRequest {
             tenant_id: tid_b.clone(),
-            asset_id: asset_b.id,
+            asset_id: Some(asset_b.id),
             start_time: now - Duration::hours(1),
             end_time: Some(now),
             reason: "Tenant B downtime".into(),
             impact_classification: "major".into(),
             idempotency_key: None,
             notes: None,
+            workcenter_id: None,
+            reason_code: None,
+            wo_ref: None,
         },
     )
     .await
@@ -395,6 +420,8 @@ async fn test_tenant_isolation() {
             asset_id: None,
             limit: None,
             offset: None,
+            from: None,
+            to: None,
         },
     )
     .await
@@ -409,6 +436,8 @@ async fn test_tenant_isolation() {
             asset_id: None,
             limit: None,
             offset: None,
+            from: None,
+            to: None,
         },
     )
     .await
@@ -456,13 +485,16 @@ async fn test_idempotency() {
         &pool,
         &CreateDowntimeRequest {
             tenant_id: tid.clone(),
-            asset_id: asset.id,
+            asset_id: Some(asset.id),
             start_time: now - Duration::hours(1),
             end_time: Some(now),
             reason: "First submission".into(),
             impact_classification: "minor".into(),
             idempotency_key: Some(dt_ikey.clone()),
             notes: None,
+            workcenter_id: None,
+            reason_code: None,
+            wo_ref: None,
         },
     )
     .await
@@ -473,13 +505,16 @@ async fn test_idempotency() {
         &pool,
         &CreateDowntimeRequest {
             tenant_id: tid.clone(),
-            asset_id: asset.id,
+            asset_id: Some(asset.id),
             start_time: now - Duration::hours(1),
             end_time: Some(now),
             reason: "Duplicate submission".into(),
             impact_classification: "minor".into(),
             idempotency_key: Some(dt_ikey.clone()),
             notes: None,
+            workcenter_id: None,
+            reason_code: None,
+            wo_ref: None,
         },
     )
     .await;
@@ -558,6 +593,8 @@ async fn test_outbox_events() {
             status: Some("inactive".into()),
             metadata: None,
             maintenance_schedule: None,
+            out_of_service: None,
+            out_of_service_reason: None,
         },
     )
     .await
@@ -580,13 +617,16 @@ async fn test_outbox_events() {
         &pool,
         &CreateDowntimeRequest {
             tenant_id: tid.clone(),
-            asset_id: asset.id,
+            asset_id: Some(asset.id),
             start_time: now - Duration::hours(1),
             end_time: Some(now),
             reason: "Outbox test downtime".into(),
             impact_classification: "critical".into(),
             idempotency_key: None,
             notes: None,
+            workcenter_id: None,
+            reason_code: None,
+            wo_ref: None,
         },
     )
     .await
