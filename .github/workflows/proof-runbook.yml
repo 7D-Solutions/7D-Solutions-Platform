@@ -28,6 +28,8 @@ name: Proof Runbook
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   schedule:
     # Nightly at 3 AM UTC (after other nightly jobs at 2 AM)
     - cron: '0 3 * * *'
@@ -75,7 +77,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
+            target-slot-*
           key: ${{ runner.os }}-cargo-proof-runbook-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-proof-runbook-

@@ -30,6 +30,12 @@ set -Euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT_DIR"
+SLOT_SCRIPT="$ROOT_DIR/scripts/cargo-slot.sh"
+
+if [[ ! -x "$SLOT_SCRIPT" ]]; then
+  echo "ERROR: slot script not found or not executable: $SLOT_SCRIPT" >&2
+  exit 1
+fi
 
 RUN_TS="$(date -u +"%Y%m%dT%H%M%SZ")"
 PROOFS_ROOT="${PROOFS_OUTPUT_DIR:-$ROOT_DIR/proofs}"
@@ -114,8 +120,8 @@ log "Runbook start (CI mode). proofs_dir=$PROOFS_DIR"
 contracts_out="$PROOFS_DIR/cross-phase/platform-contracts.txt"
 contracts_rc=0
 log "Running platform contract tests"
-safe_run "platform_contracts: cargo test" "$contracts_out" \
-  cargo test -p platform_contracts -- --nocapture || contracts_rc=$?
+safe_run "platform_contracts: cargo-slot test" "$contracts_out" \
+  "$SLOT_SCRIPT" test -p platform_contracts -- --nocapture || contracts_rc=$?
 log "Contract tests: exit_code=$contracts_rc"
 
 # ── Phase 2: NATS health check ──────────────────────────────────────────────
@@ -182,10 +188,10 @@ for name in $(echo "${!crate_manifest[@]}" | tr ' ' '\n' | sort); do
   env_prefix="$(crate_test_env "$name")"
   if [[ -n "$env_prefix" ]]; then
     safe_run "crate test: $name" "$out" \
-      bash -c "env $env_prefix cargo test -p \"$name\" -- --nocapture" || rc=$?
+      bash -c "env $env_prefix \"$SLOT_SCRIPT\" test -p \"$name\" -- --nocapture" || rc=$?
   else
     safe_run "crate test: $name" "$out" \
-      cargo test -p "$name" -- --nocapture || rc=$?
+      "$SLOT_SCRIPT" test -p "$name" -- --nocapture || rc=$?
   fi
   crate_rc["$name"]="$rc"
   log "crate test: $name → exit_code=$rc"
