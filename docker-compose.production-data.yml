@@ -1,10 +1,18 @@
-# docker-compose.production-data.yml — Production secrets overlay for data stack.
+# docker-compose.production-data.yml — Production secrets + TLS overlay for data stack.
 #
 # Usage:
 #   docker compose -f docker-compose.data.yml -f docker-compose.production-data.yml up -d
 #
-# Overrides NATS and Postgres containers to read secrets from files instead
-# of plaintext environment variables. See docs/SECRETS.md.
+# Overrides NATS and Postgres containers to:
+#   1. Read secrets from files instead of plaintext environment variables
+#   2. Mount production TLS certificates for Postgres (overrides dev certs)
+#
+# TLS certificate paths (deploy to /etc/7d/production/tls/ on the host):
+#   - ca.crt:      CA certificate (used by clients for verify-full)
+#   - server.crt:  Server certificate signed by the CA
+#   - server.key:  Server private key (mode 600, readable by postgres)
+#
+# See docs/SECRETS.md and docs/POSTGRES-TLS.md.
 
 secrets:
   nats_auth_token:
@@ -73,6 +81,9 @@ services:
         target: NATS_AUTH_TOKEN
 
   # Postgres containers — use native POSTGRES_PASSWORD_FILE
+  # TLS certs are mounted from ./infra/postgres/tls/ in the base compose.
+  # For production: deploy CA-signed certs to infra/postgres/tls/ on the host,
+  # replacing the dev self-signed certs. See docs/POSTGRES-TLS.md.
   auth-postgres:
     secrets:
       - source: auth_postgres_password

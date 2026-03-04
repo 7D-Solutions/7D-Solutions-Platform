@@ -234,7 +234,7 @@ mod tests {
 
     fn test_db_url() -> String {
         std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-            "postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db?sslmode=disable"
+            "postgres://fixed_assets_user:fixed_assets_pass@localhost:5445/fixed_assets_db?sslmode=require"
                 .to_string()
         })
     }
