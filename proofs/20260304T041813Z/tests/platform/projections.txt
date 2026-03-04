@@ -1,0 +1,102 @@
+## crate test: projections
+## started_at_utc=2026-03-04T04:34:12Z
+## cmd=./scripts/cargo-slot.sh test -p projections -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.83s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/projections-dd5a12a016278c5d)
+
+running 39 tests
+test admin::tests::test_admin_token_rejects_missing_header ... ok
+test admin::tests::test_admin_token_accepts_correct_token ... ok
+test admin::tests::test_admin_token_rejects_wrong_token ... ok
+test admin::tests::test_admin_token_rejects_when_not_configured ... ok
+test fallback::tests::test_circuit_breaker_open_close ... ok
+test fallback::tests::test_circuit_breaker_reset ... ok
+test digest::tests::test_versioned_digest_from_string ... ok
+test cursor::tests::test_cursor_not_found_error ... ok
+test admin::tests::test_default_order_by ... ok
+test cursor::tests::test_cursor_error_display ... ok
+test admin::tests::test_consistency_request_deserialize ... ok
+test admin::tests::test_projection_status_request_deserialize ... ok
+test digest::tests::test_versioned_digest_to_string ... ok
+test digest::tests::test_versioned_digest_display ... ok
+test digest::tests::test_versioned_digest_roundtrip ... ok
+test fallback::tests::test_policy_is_stale ... ok
+test rebuild::tests::test_rebuild_error_display ... ok
+test rebuild::tests::test_rebuild_summary_creation ... ok
+test fallback::tests::test_execute_with_circuit_open ... ok
+test metrics::tests::test_metrics_labels ... ok
+test metrics::tests::test_record_backlog ... ok
+test fallback::tests::test_execute_with_budget_success ... ok
+test metrics::tests::test_record_cursor_state ... ok
+test admin::tests::test_consistency_request_rejects_sql_injection ... ok
+test validate::tests::rejects_unknown_column ... ok
+test validate::tests::rejects_sql_injection_semicolon ... ok
+test validate::tests::rejects_sql_in_order_by ... ok
+test validate::tests::rejects_quoted_identifier ... ok
+test validate::tests::rejects_schema_qualified_name ... ok
+test validate::tests::rejects_empty_string ... ok
+test validate::tests::rejects_spaces ... ok
+test validate::tests::rejects_leading_digit ... ok
+test admin::tests::test_consistency_request_rejects_unknown_table ... ok
+test admin::tests::test_consistency_request_accepts_allowlisted_table ... ok
+test validate::tests::rejects_uppercase ... ok
+test validate::tests::valid_allowlisted_table ... ok
+test validate::tests::valid_order_column ... ok
+test validate::tests::rejects_unknown_but_valid_format ... ok
+test fallback::tests::test_execute_with_budget_timeout ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/cursor_and_rebuild.rs (target-slot-1/debug/deps/cursor_and_rebuild-631d0af85922c893)
+
+running 12 tests
+test drop_shadow_is_idempotent ... ok
+test swap_fails_when_no_shadow ... ok
+test cursor_is_processed_detects_duplicate ... ok
+test cursor_save_and_load ... ok
+test shadow_table_create_and_swap ... ok
+test cursor_load_returns_none_when_missing ... ok
+test shadow_table_create_fails_if_exists ... ok
+test cursor_save_increments_events_processed ... ok
+test try_apply_event_sequence_tracks_position ... ok
+test shadow_cursor_save_and_load ... ok
+test try_apply_event_applies_new_event ... ok
+test try_apply_event_skips_duplicate ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.16s
+
+     Running tests/digest_and_admin.rs (target-slot-1/debug/deps/digest_and_admin-b7f132aa158ec1a4)
+
+running 12 tests
+test admin_consistency_check_missing_table ... ok
+test admin_projection_status_empty_when_no_cursors ... ok
+test admin_consistency_check_for_cursors_table ... ok
+test compute_digest_empty_table ... ok
+test admin_projection_status_filters_by_tenant ... ok
+test admin_projection_list_returns_known_projections ... ok
+test compute_digest_changes_with_data ... ok
+test versioned_digest_format ... ok
+test admin_projection_list_shows_tenant_count ... ok
+test compute_digest_is_deterministic ... ok
+test versioned_digest_detects_stale_projection ... ok
+test admin_projection_status_returns_cursors ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.97s
+
+   Doc-tests projections
+
+running 6 tests
+test platform/projections/src/metrics.rs - metrics (line 10) - compile ... ok
+test platform/projections/src/metrics.rs - metrics::ProjectionMetrics::record_backlog (line 153) - compile ... ok
+test platform/projections/src/fallback/mod.rs - fallback (line 15) - compile ... ok
+test platform/projections/src/rebuild.rs - rebuild::create_shadow_table (line 111) - compile ... ok
+test platform/projections/src/cursor.rs - cursor::try_apply_event (line 172) - compile ... ok
+test platform/projections/src/lib.rs - (line 18) - compile ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.46s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-04T04:34:19Z

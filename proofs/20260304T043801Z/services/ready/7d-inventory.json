@@ -1,0 +1,14 @@
+{
+  "service_name": "inventory",
+  "version": "0.1.0",
+  "status": "ready",
+  "degraded": false,
+  "checks": [
+    {
+      "name": "database",
+      "status": "up",
+      "latency_ms": 9
+    }
+  ],
+  "timestamp": "2026-03-04T04:38:07.232630764+00:00"
+}

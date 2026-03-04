@@ -1,0 +1,103 @@
+## crate test: ttp-rs
+## started_at_utc=2026-03-04T04:52:42Z
+## cmd=./scripts/cargo-slot.sh test -p ttp-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.78s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/ttp_rs-4dc85a4025323265)
+
+running 29 tests
+test clients::tenant_registry::tests::integration_get_app_id_unknown_tenant_returns_not_found ... ignored
+test domain::billing::tests::integration_billing_run_is_idempotent ... ignored
+test config::tests::test_bus_type_from_str ... ok
+test domain::metering::tests::parse_period_invalid_format ... ok
+test db::tests::test_database_url_sanitizes_app_id ... ok
+test db::tests::test_database_url_for_app ... ok
+test db::tests::test_database_url_trailing_slash ... ok
+test domain::metering::tests::parse_period_invalid_month ... ok
+test domain::metering::tests::parse_period_december_wraps_year ... ok
+test domain::metering::tests::parse_period_valid ... ok
+test events::tests::all_event_variants_serialize_without_error ... ok
+test domain::billing::tests::compute_trace_hash_is_deterministic ... ok
+test http::billing::tests::billing_period_validation_accepts_valid_periods ... ok
+test domain::billing::tests::derive_item_key_unit_test_passes_without_db ... ok
+test domain::billing::tests::derive_item_key_is_deterministic ... ok
+test domain::billing::tests::derive_item_key_differs_by_party ... ok
+test http::billing::tests::billing_period_validation_rejects_invalid_formats ... ok
+test events::tests::envelope_carries_tenant_merchant_context ... ok
+test http::billing::tests::integration_unknown_tenant_returns_404 ... ignored
+test http::metering::tests::ingest_request_deserializes ... ok
+test http::metering::tests::trace_query_deserializes ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test http::billing::tests::missing_claims_returns_401 ... ok
+test clients::tenant_registry::tests::client_preserves_url_without_trailing_slash ... ok
+test clients::tenant_registry::tests::client_strips_trailing_slash_from_base_url ... ok
+test clients::ar::tests::client_strips_trailing_slash ... ok
+test http::billing::tests::empty_idempotency_key_returns_400 ... ok
+test http::billing::tests::bad_billing_period_returns_400 ... ok
+
+test result: ok. 26 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/ttp-5f0dacf2b518219e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/billing_metering_integration.rs (target-slot-1/debug/deps/billing_metering_integration-ea2ee17678bd888f)
+
+running 2 tests
+test non_metering_items_have_null_trace_hash ... ignored
+test trace_to_invoice_equivalence ... ignored
+
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/billing_run_integration.rs (target-slot-1/debug/deps/billing_run_integration-4cbf1721d30783e5)
+
+running 9 tests
+test collect_parties_agreement_only ... ignored
+test collect_parties_charges_only_no_agreement ... ignored
+test collect_parties_empty_tenant ... ignored
+test collect_parties_skips_already_invoiced ... ignored
+test collect_parties_suspended_agreement_excluded ... ignored
+test collect_parties_with_one_time_charges ... ignored
+test fetch_run_summary_empty_run ... ignored
+test fetch_run_summary_returns_correct_totals ... ignored
+test multiple_agreements_same_party_summed ... ignored
+
+test result: ok. 0 passed; 0 failed; 9 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/metering_integration.rs (target-slot-1/debug/deps/metering_integration-60e7ed639abebb9c)
+
+running 5 tests
+test batch_ingestion_handles_duplicates ... ignored
+test events_outside_period_excluded ... ignored
+test ingestion_is_idempotent ... ignored
+test price_trace_is_deterministic ... ignored
+test trace_empty_period_returns_zero ... ignored
+
+test result: ok. 0 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/service_agreement_integration.rs (target-slot-1/debug/deps/service_agreement_integration-df0cd28276a8de46)
+
+running 7 tests
+test list_active_agreements_default_filter ... ignored
+test list_all_agreements ... ignored
+test list_empty_tenant_returns_empty_array ... ignored
+test list_suspended_agreements ... ignored
+test results_sorted_by_plan_code ... ignored
+test invalid_status_returns_400 ... ok
+test missing_claims_returns_401 ... ok
+
+test result: ok. 2 passed; 0 failed; 5 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+   Doc-tests ttp_rs
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-04T04:52:43Z

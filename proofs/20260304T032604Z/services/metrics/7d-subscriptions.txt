@@ -1,0 +1,15 @@
+## url=http://localhost:8087/metrics
+## fetched_at_utc=2026-03-04T03:26:06Z
+
+# HELP subscriptions_churn_total Total number of subscription cancellations
+# TYPE subscriptions_churn_total counter
+subscriptions_churn_total 0
+# HELP subscriptions_cycles_attempted_total Total number of billing cycles attempted
+# TYPE subscriptions_cycles_attempted_total counter
+subscriptions_cycles_attempted_total 0
+# HELP subscriptions_cycles_completed_total Total number of billing cycles completed successfully
+# TYPE subscriptions_cycles_completed_total counter
+subscriptions_cycles_completed_total 0
+# HELP subscriptions_outbox_queue_depth Number of unpublished events in outbox
+# TYPE subscriptions_outbox_queue_depth gauge
+subscriptions_outbox_queue_depth 0

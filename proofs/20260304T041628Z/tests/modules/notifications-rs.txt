@@ -1,0 +1,201 @@
+## crate test: notifications-rs
+## started_at_utc=2026-03-04T04:26:31Z
+## cmd=./scripts/cargo-slot.sh test -p notifications-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.61s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/notifications_rs-37b9800cfc01b5f9)
+
+running 32 tests
+test config::tests::test_bus_type_from_str ... ok
+test config::tests::test_validate_nats_requires_url ... ok
+test config::tests::test_validate_empty_database_url ... ok
+test consumers::close_calendar::tests::test_reminder_type_as_str ... ok
+test config::tests::test_validate_success ... ok
+test envelope_validation::tests::test_invalid_occurred_at ... ok
+test consumers::close_calendar::tests::test_build_overdue_reminder_payload ... ok
+test consumers::close_calendar::tests::test_build_upcoming_reminder_payload ... ok
+test envelope_validation::tests::test_invalid_event_id ... ok
+test envelope_validation::tests::test_missing_payload ... ok
+test envelope_validation::tests::test_missing_event_id ... ok
+test envelope_validation::tests::test_empty_tenant_id ... ok
+test envelope_validation::tests::test_invalid_payload_type ... ok
+test envelope_validation::tests::test_valid_envelope_with_optional_fields ... ok
+test envelope_validation::tests::test_valid_ar_envelope ... ok
+test envelope_validation::tests::test_valid_envelope ... ok
+test templates::tests::boolean_variable_renders ... ok
+test templates::tests::error_null_variable_treated_as_missing ... ok
+test templates::tests::error_payload_not_object ... ok
+test templates::tests::error_non_scalar_variable ... ok
+test templates::tests::error_missing_variable ... ok
+test templates::tests::deterministic_same_inputs_same_outputs ... ok
+test templates::tests::error_unknown_template ... ok
+test templates::tests::golden_invoice_due_soon ... ok
+test templates::tests::golden_low_stock_alert ... ok
+test templates::tests::golden_payment_retry ... ok
+test templates::tests::string_variable_renders_verbatim ... ok
+test templates::tests::golden_payment_succeeded ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test metrics::tests::metrics_slo_no_pii_in_labels ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test http::admin::tests::test_admin_router_builds ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running unittests src/bin/bench.rs (target-slot-1/debug/deps/bench-a448828af65e128f)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/dlq_replay_drill.rs (target-slot-1/debug/deps/dlq_replay_drill-cc09e3585d764474)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/notifications_rs-96b62efaa130758c)
+
+running 2 tests
+test tests::cors_wildcard_parses ... ok
+test tests::cors_specific_origins_parse ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/broadcast_e2e.rs (target-slot-1/debug/deps/broadcast_e2e-b1e1bae3cfc187d3)
+
+running 6 tests
+test idempotent_broadcast_no_duplicate_fanout ... ok
+test broadcast_creates_outbox_events ... ok
+test empty_audience_creates_broadcast_with_zero_recipients ... ok
+test tenant_broadcast_creates_individual_recipients ... ok
+test tenant_isolation_broadcast ... ok
+test role_based_broadcast_targets_only_matching_users ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.95s
+
+     Running tests/contract_tests.rs (target-slot-1/debug/deps/contract_tests-bd257305d8e36843)
+
+running 5 tests
+test test_delivery_succeeded_has_valid_channels ... ok
+test test_delivery_failed_example_has_valid_envelope ... ok
+test test_all_notification_examples_have_unique_event_ids ... ok
+test test_delivery_succeeded_example_has_valid_envelope ... ok
+test test_delivery_failed_has_valid_channels ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/dispatcher_once_due_send.rs (target-slot-1/debug/deps/dispatcher_once_due_send-4d8bb8c7f3026545)
+
+running 1 test
+test test_dispatch_once_due_send ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s
+
+     Running tests/dispatcher_once_orphan.rs (target-slot-1/debug/deps/dispatcher_once_orphan-09e9ec3f29a0a34f)
+
+running 1 test
+test test_dispatch_once_orphan_recovery ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+
+     Running tests/dispatcher_once_retry.rs (target-slot-1/debug/deps/dispatcher_once_retry-189aa8e584ef1175)
+
+running 1 test
+test test_dispatch_once_retry_backoff ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+
+     Running tests/escalation_rules.rs (target-slot-1/debug/deps/escalation_rules-20ccd53e769a5bc5)
+
+running 6 tests
+test escalation_fires_after_timeout ... ok
+test tenant_isolation_escalation_rules ... ok
+test idempotent_escalation_no_duplicates ... ok
+test no_escalation_when_acknowledged_before_timeout ... ok
+test escalation_creates_outbox_event ... ok
+test multi_level_escalation_chain ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.18s
+
+     Running tests/handlers_schedule.rs (target-slot-1/debug/deps/handlers_schedule-a9b0b2d9c2390cb7)
+
+running 3 tests
+test test_invoice_issued_no_due_date_skips_insert ... ok
+test test_payment_failed_inserts_retry_row ... ok
+test test_invoice_issued_inserts_due_soon_row ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.91s
+
+     Running tests/inbox_e2e.rs (target-slot-1/debug/deps/inbox_e2e-261356a2b0fd4558)
+
+running 10 tests
+test duplicate_insert_returns_none ... ok
+test outbox_events_emitted_on_read_and_dismiss ... ok
+test outbox_event_emitted_on_create ... ok
+test mark_read_then_unread ... ok
+test dismiss_then_undismiss ... ok
+test get_message_returns_details ... ok
+test create_inbox_message_returns_new_row ... ok
+test list_messages_pagination_works ... ok
+test tenant_cannot_see_other_tenant_inbox ... ok
+test unread_only_filter ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.62s
+
+     Running tests/real_e2e.rs (target-slot-1/debug/deps/real_e2e-82672a2104c1b912)
+
+running 9 tests
+test e2e_render_idempotent_across_calls ... ok
+test e2e_dlq_replay_resets_to_pending_and_delivers ... ok
+test e2e_dlq_list_returns_dead_lettered_items ... ok
+test e2e_dlq_abandon_marks_terminal ... ok
+test e2e_rendered_content_persisted_on_successful_dispatch ... ok
+test e2e_dlq_replay_idempotent_no_double_send ... ok
+test e2e_render_failure_records_permanent_failure ... ok
+test e2e_http_sender_success_and_invalid_recipient_classification ... ok
+test e2e_idempotency_key_reuses_stored_outcome ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.70s
+
+     Running tests/replay_safety.rs (target-slot-1/debug/deps/replay_safety-386feba05bb28163)
+
+running 1 test
+test test_replay_safety_exactly_one_scheduled_row ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+
+     Running tests/sms_sender_integration.rs (target-slot-1/debug/deps/sms_sender_integration-aeb2a31e2eac109f)
+
+running 6 tests
+test sms_retryable_failure_e2e ... ok
+test sms_idempotency_no_duplicate_delivery ... ok
+test sms_success_path_e2e ... ok
+test sms_non_retryable_failure_e2e ... ok
+test sms_outbox_event_has_correct_fields ... ok
+test sms_tenant_isolation ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.67s
+
+     Running tests/tenant_boundary.rs (target-slot-1/debug/deps/tenant_boundary-fe4c56d053b1e337)
+
+running 6 tests
+test tenant_a_cannot_see_tenant_b_dlq_items ... ok
+test tenant_scoped_dlq_count_is_accurate ... ok
+test tenant_a_cannot_fetch_tenant_b_dlq_detail ... ok
+test tenant_a_cannot_abandon_tenant_b_dlq_item ... ok
+test tenant_a_cannot_replay_tenant_b_dlq_item ... ok
+test tenant_can_replay_own_dlq_item ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.97s
+
+   Doc-tests notifications_rs
+
+running 1 test
+test modules/notifications/src/consumers/mod.rs - consumers::EventConsumer::process_idempotent (line 72) ... ignored
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-04T04:27:27Z

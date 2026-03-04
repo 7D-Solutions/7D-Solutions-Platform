@@ -1,0 +1,15 @@
+## crate test: customer-portal
+## started_at_utc=2026-03-04T03:38:56Z
+## cmd=./scripts/cargo-slot.sh test -p customer-portal -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+   Compiling event-bus v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/event-bus)
+   Compiling platform_contracts v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/platform-contracts)
+   Compiling security v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/security)
+   Compiling customer-portal v0.1.0 (/Users/james/Projects/7D-Solutions Platform/modules/customer-portal)
+error: error writing dependencies to `/Users/james/Projects/7D-Solutions Platform/target-slot-1/debug/deps/real_e2e-bddc90cc22b344c0.d`: No such file or directory (os error 2)
+
+error: could not compile `customer-portal` (test "real_e2e") due to 1 previous error
+
+## exit_code=101
+## finished_at_utc=2026-03-04T03:39:29Z

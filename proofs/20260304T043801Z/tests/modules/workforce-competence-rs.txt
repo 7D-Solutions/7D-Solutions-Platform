@@ -1,0 +1,61 @@
+## crate test: workforce-competence-rs
+## started_at_utc=2026-03-04T04:52:58Z
+## cmd=./scripts/cargo-slot.sh test -p workforce-competence-rs -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.76s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/workforce_competence_rs-ff123fe20621a2a6)
+
+running 5 tests
+test domain::service::tests::artifact_type_roundtrip ... ok
+test domain::service::tests::register_accepts_valid_fields ... ok
+test domain::service::tests::register_rejects_empty_code ... ok
+test domain::service::tests::assign_rejects_empty_tenant ... ok
+test domain::service::tests::register_rejects_empty_tenant ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/workforce_competence_rs-917d57453aca50a6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/acceptance_authority_test.rs (target-slot-1/debug/deps/acceptance_authority_test-73dea252b5613c05)
+
+running 7 tests
+test tenant_isolation_test ... ok
+test grant_authority_e2e ... ok
+test outbox_event_test ... ok
+test time_window_test ... ok
+test authorization_query_combos ... ok
+test idempotency_test ... ok
+test revocation_test ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.69s
+
+     Running tests/integration_test.rs (target-slot-1/debug/deps/integration_test-e9b9685d565aaa9d)
+
+running 10 tests
+test register_artifact_happy_path ... ok
+test authorization_check_before_award ... ok
+test authorization_check_revoked ... ok
+test register_artifact_idempotency_conflict ... ok
+test authorization_check_wrong_tenant ... ok
+test authorization_check_expired ... ok
+test register_artifact_idempotency_replay ... ok
+test authorization_check_authorized ... ok
+test assign_competence_happy_path ... ok
+test assign_competence_idempotency_replay ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.31s
+
+   Doc-tests workforce_competence_rs
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-04T04:53:03Z

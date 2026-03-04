@@ -1,0 +1,12 @@
+## url=http://localhost:8090/metrics
+## fetched_at_utc=2026-03-04T04:38:08Z
+
+# HELP gl_journal_entries_total Total number of journal entries created
+# TYPE gl_journal_entries_total counter
+gl_journal_entries_total 0
+# HELP gl_outbox_queue_depth Number of unpublished events in outbox
+# TYPE gl_outbox_queue_depth gauge
+gl_outbox_queue_depth 17
+# HELP gl_posting_errors_total Total number of posting errors encountered
+# TYPE gl_posting_errors_total counter
+gl_posting_errors_total 0

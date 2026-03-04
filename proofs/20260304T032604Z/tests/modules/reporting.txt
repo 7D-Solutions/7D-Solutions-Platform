@@ -1,0 +1,240 @@
+## crate test: reporting
+## started_at_utc=2026-03-04T03:45:57Z
+## cmd=./scripts/cargo-slot.sh test -p reporting -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Blocking waiting for file lock on artifact directory
+warning: function `seed_trial_balance` is never used
+   --> modules/reporting/tests/helpers/mod.rs:129:14
+    |
+129 | pub async fn seed_trial_balance(
+    |              ^^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `seed_ar_aging` is never used
+   --> modules/reporting/tests/helpers/mod.rs:163:14
+    |
+163 | pub async fn seed_ar_aging(pool: &sqlx::PgPool, tenant_id: &str, as_of: &str, customer_id: &str) {
+    |              ^^^^^^^^^^^^^
+
+warning: function `seed_ap_aging` is never used
+   --> modules/reporting/tests/helpers/mod.rs:180:14
+    |
+180 | pub async fn seed_ap_aging(pool: &sqlx::PgPool, tenant_id: &str, as_of: &str, vendor_id: &str) {
+    |              ^^^^^^^^^^^^^
+
+warning: function `seed_cashflow` is never used
+   --> modules/reporting/tests/helpers/mod.rs:197:14
+    |
+197 | pub async fn seed_cashflow(
+    |              ^^^^^^^^^^^^^
+
+warning: function `seed_kpi_cache` is never used
+   --> modules/reporting/tests/helpers/mod.rs:220:14
+    |
+220 | pub async fn seed_kpi_cache(
+    |              ^^^^^^^^^^^^^^
+
+warning: function `inject_claims` is never used
+  --> modules/reporting/tests/helpers/mod.rs:46:10
+   |
+46 | async fn inject_claims(req: Request, next: Next) -> Response {
+   |          ^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `build_test_app` is never used
+  --> modules/reporting/tests/helpers/mod.rs:79:8
+   |
+79 | pub fn build_test_app(pool: sqlx::PgPool) -> Router {
+   |        ^^^^^^^^^^^^^^
+
+warning: function `body_json` is never used
+   --> modules/reporting/tests/helpers/mod.rs:122:14
+    |
+122 | pub async fn body_json(response: Response<Body>) -> serde_json::Value {
+    |              ^^^^^^^^^
+
+warning: function `seed_trial_balance` is never used
+   --> modules/reporting/tests/helpers/mod.rs:129:14
+    |
+129 | pub async fn seed_trial_balance(
+    |              ^^^^^^^^^^^^^^^^^^
+
+warning: function `seed_open_invoice` is never used
+   --> modules/reporting/tests/helpers/mod.rs:245:14
+    |
+245 | pub async fn seed_open_invoice(
+    |              ^^^^^^^^^^^^^^^^^
+
+warning: function `seed_payment_history` is never used
+   --> modules/reporting/tests/helpers/mod.rs:273:14
+    |
+273 | pub async fn seed_payment_history(
+    |              ^^^^^^^^^^^^^^^^^^^^
+
+warning: function `seed_open_invoice` is never used
+   --> modules/reporting/tests/helpers/mod.rs:245:14
+    |
+245 | pub async fn seed_open_invoice(
+    |              ^^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused import: `start_consumer`
+   --> modules/reporting/src/ingest/gl/trial_balance.rs:114:25
+    |
+114 |     use crate::ingest::{start_consumer, IngestConsumer};
+    |                         ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `seed_kpi_cache` is never used
+   --> modules/reporting/tests/helpers/mod.rs:220:14
+    |
+220 | pub async fn seed_kpi_cache(
+    |              ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `reporting` (test "forecast_tests") generated 5 warnings
+warning: `reporting` (test "dashboard_layout_tests") generated 10 warnings (4 duplicates)
+warning: `reporting` (test "schedule_delivery_tests") generated 9 warnings (9 duplicates)
+warning: `reporting` (test "admin_tests") generated 7 warnings (7 duplicates)
+warning: `reporting` (test "kpi_tests") generated 2 warnings (1 duplicate)
+warning: `reporting` (lib test) generated 1 warning (run `cargo fix --lib -p reporting --tests` to apply 1 suggestion)
+warning: `reporting` (test "export_tests") generated 9 warnings (9 duplicates)
+warning: `reporting` (test "reporting_integration") generated 3 warnings (2 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.20s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/reporting-e7aad8c14a8ef2f5)
+
+running 98 tests
+test db::tests::test_database_url_trailing_slash ... ok
+test db::tests::test_database_url_for_app ... ok
+test db::tests::test_database_url_sanitizes_app_id ... ok
+test domain::aging::ar_aging::tests::test_get_aging_for_tenant_empty_returns_empty ... ok
+test domain::forecast::probability::tests::test_conditional_p_aged_invoice ... ok
+test domain::forecast::probability::tests::test_conditional_p_all_past ... ok
+test domain::forecast::probability::tests::test_conditional_p_fresh_invoice ... ok
+test domain::forecast::probability::tests::test_conditional_p_partial ... ok
+test domain::forecast::probability::tests::test_empirical_cdf_at_boundaries ... ok
+test domain::forecast::probability::tests::test_empty_profile ... ok
+test domain::forecast::timing_profile::tests::test_percentile_even ... ok
+test domain::forecast::timing_profile::tests::test_percentile_p25 ... ok
+test domain::forecast::timing_profile::tests::test_percentile_p75 ... ok
+test domain::forecast::timing_profile::tests::test_percentile_single ... ok
+test domain::aging::ar_aging::tests::test_get_aging_summary_aggregates_currencies ... ok
+
+thread 'domain::aging::ap_aging::tests::test_query_empty_returns_no_rows' (88364888) panicked at modules/reporting/src/domain/aging/ap_aging.rs:200:9:
+assertion failed: report.vendors.is_empty()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test domain::aging::ap_aging::tests::test_query_empty_returns_no_rows ... FAILED
+test domain::aging::ap_aging::tests::test_query_returns_vendor_rows ... ok
+test domain::aging::ap_aging::tests::test_query_multi_currency_summary ... ok
+test config::tests::test_config_default_port_is_8096 ... ok
+test config::tests::test_config_requires_database_url ... ok
+test domain::forecast::cash_forecast::tests::test_at_risk_populated_for_low_p30 ... ok
+test domain::aging::ar_aging::tests::test_get_aging_for_tenant_returns_rows ... ok
+test domain::forecast::cash_forecast::tests::test_conditional_probability_accounts_for_age ... ok
+test domain::forecast::cash_forecast::tests::test_customer_with_3_history_uses_per_customer_profile ... ok
+test domain::forecast::cash_forecast::tests::test_customer_with_fewer_than_3_uses_tenant_fallback ... ok
+test domain::forecast::cash_forecast::tests::test_empty_forecast ... ok
+test domain::jobs::snapshot_runner::tests::test_snapshot_from_gt_to_returns_error ... ok
+test domain::jobs::snapshot_runner::tests::test_snapshot_runner_is_idempotent ... ok
+test domain::jobs::snapshot_runner::tests::test_snapshot_runner_persists_rows ... ok
+test domain::kpis::tests::test_kpis_all_zero_when_no_cache_data ... ok
+
+thread 'domain::kpis::tests::test_kpis_ap_totals_populated' (88365141) panicked at modules/reporting/src/domain/kpis/mod.rs:348:9:
+assertion `left == right` failed
+  left: 0
+ right: 20000
+test domain::kpis::tests::test_kpis_ap_totals_populated ... FAILED
+test domain::statements::balance_sheet::tests::test_bs_excludes_pl_accounts ... ok
+test domain::statements::balance_sheet::tests::test_bs_multi_currency ... ok
+test domain::statements::cashflow::tests::test_cashflow_collections_only ... ok
+test http::admin::tests::test_admin_router_builds ... ok
+test domain::statements::cashflow::tests::test_cashflow_combined_gl_and_payments ... ok
+test domain::statements::cashflow::tests::test_cashflow_date_range_filter ... ok
+test domain::statements::cashflow::tests::test_cashflow_gl_net_income ... ok
+test domain::statements::cashflow::tests::test_cashflow_multi_currency ... ok
+test domain::statements::pl::tests::test_pl_basic_revenue_and_expense ... ok
+test domain::kpis::tests::test_kpis_ar_totals_populated ... ok
+test domain::statements::balance_sheet::tests::test_bs_cumulative_as_of ... ok
+test domain::statements::pl::tests::test_pl_date_range_filter ... ok
+test domain::statements::pl::tests::test_pl_multi_currency ... ok
+test domain::forecast::cash_forecast::tests::test_multi_currency_grouped ... ok
+test ingest::ap::tests::test_bill_created_populates_current_bucket ... ok
+test ingest::ap::tests::test_bill_voided_subtracts_from_aging ... ok
+test ingest::ap::tests::test_multi_currency_isolation ... ok
+test ingest::ap::tests::test_multi_vendor_isolation ... ok
+test ingest::ap::tests::test_payment_subtracts_from_aging ... ok
+test domain::kpis::tests::test_kpis_inventory_value_from_cache ... ok
+test ingest::ar::invoice_opened::tests::test_invoice_opened_creates_cache_entry ... ok
+test domain::statements::pl::tests::test_pl_ignores_balance_sheet_accounts ... ok
+test ingest::ar::invoice_paid::tests::test_invoice_paid_checkpoint_dedup ... ok
+test ingest::ap::tests::test_bill_created_accumulates_multiple_bills ... ok
+test ingest::ar::invoice_paid::tests::test_invoice_paid_replay_safe ... ok
+test ingest::ar::invoice_paid::tests::test_opened_then_paid_transitions_cache ... ok
+test ingest::ar::tests::test_handle_creates_aging_cache_entry ... ok
+test ingest::ar::tests::test_handle_replaces_on_conflict ... ok
+test ingest::ar::tests::test_idempotent_on_redelivery ... ok
+test domain::statements::balance_sheet::tests::test_bs_basic_sections ... ok
+test ingest::ar::invoice_opened::tests::test_invoice_opened_checkpoint_dedup ... ok
+test ingest::ar::tests::test_multi_currency_aging_isolated ... ok
+test ingest::checkpoints::tests::test_is_processed_false_for_new_event ... ok
+test ingest::ar::invoice_opened::tests::test_invoice_opened_replay_safe ... ok
+test ingest::checkpoints::tests::test_load_returns_none_for_fresh_consumer ... ok
+test ingest::ar::invoice_paid::tests::test_invoice_paid_creates_payment_history ... ok
+test ingest::metrics::tests::ingest_timer_measures_elapsed ... ok
+test ingest::metrics::tests::ingest_timer_sequential_timers ... ok
+test ingest::checkpoints::tests::test_reset_removes_checkpoint ... ok
+test ingest::checkpoints::tests::test_save_and_load_roundtrip ... ok
+test ingest::checkpoints::tests::test_save_is_idempotent_last_write_wins ... ok
+test ingest::gl::trial_balance::tests::test_handle_accumulates_multiple_postings ... ok
+test ingest::gl::trial_balance::tests::test_handle_creates_trial_balance_entries ... ok
+
+thread 'ingest::gl::trial_balance::tests::test_idempotent_on_redelivery_via_checkpoint' (88366279) panicked at modules/reporting/src/ingest/gl/trial_balance.rs:353:9:
+re-delivery must be skipped by checkpoint gate
+test ingest::gl::trial_balance::tests::test_idempotent_on_redelivery_via_checkpoint ... FAILED
+test ingest::gl::trial_balance::tests::test_multi_currency_postings_isolated ... ok
+test ingest::gl::trial_balance::tests::test_trial_balance_reconciles_debits_equal_credits ... ok
+test ingest::inventory::tests::test_multi_currency_inventory_snapshots ... ok
+test ingest::checkpoints::tests::test_is_processed_true_for_last_event_id ... ok
+test ingest::inventory::tests::test_valuation_snapshot_idempotent_update ... ok
+test ingest::inventory::tests::test_valuation_snapshot_stored_in_kpi_cache ... ok
+test metrics::tests::metrics_exports_cache_rows_total ... ok
+test metrics::tests::metrics_exports_ingestion_lag_seconds ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test ingest::payments::tests::test_multi_currency_payments_isolated ... ok
+test ingest::payments::tests::test_payment_succeeded_creates_cashflow_entry ... ok
+
+thread 'ingest::runner::tests::test_checkpoint_count_and_list_consumers' (88366522) panicked at modules/reporting/src/ingest/runner.rs:261:9:
+assertion failed: consumers.len() >= initial_consumers.len() + 1
+test ingest::runner::tests::test_checkpoint_count_and_list_consumers ... FAILED
+test ingest::runner::tests::test_reset_all_does_not_affect_other_consumers ... ok
+test ingest::runner::tests::test_reset_all_removes_all_consumer_checkpoints ... ok
+test ingest::runner::tests::test_reset_tenant_removes_checkpoint ... ok
+test ingest::runner::tests::test_reset_tenant_returns_false_when_nothing_to_reset ... ok
+test ingest::tests::test_process_message_calls_handler_once ... ok
+test ingest::tests::test_process_message_handles_different_tenants_independently ... ok
+test ingest::tests::test_process_message_skips_duplicate_event_id ... ok
+test ingest::tests::test_start_consumer_delivers_message_via_bus ... ok
+test ingest::payments::tests::test_multiple_payments_accumulate ... ok
+test ingest::checkpoints::tests::test_reset_all_removes_all_tenant_checkpoints ... ok
+
+failures:
+
+failures:
+    domain::aging::ap_aging::tests::test_query_empty_returns_no_rows
+    domain::kpis::tests::test_kpis_ap_totals_populated
+    ingest::gl::trial_balance::tests::test_idempotent_on_redelivery_via_checkpoint
+    ingest::runner::tests::test_checkpoint_count_and_list_consumers
+
+test result: FAILED. 94 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.31s
+
+error: test failed, to rerun pass `-p reporting --lib`
+
+## exit_code=101
+## finished_at_utc=2026-03-04T03:46:14Z

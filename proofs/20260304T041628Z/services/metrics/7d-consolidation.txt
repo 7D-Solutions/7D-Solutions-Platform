@@ -1,0 +1,6 @@
+## url=http://localhost:8105/metrics
+## fetched_at_utc=2026-03-04T04:16:30Z
+
+# HELP consolidation_runs_total Total number of consolidation runs executed
+# TYPE consolidation_runs_total counter
+consolidation_runs_total 0

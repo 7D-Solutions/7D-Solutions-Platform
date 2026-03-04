@@ -1,0 +1,125 @@
+## crate test: doc_mgmt
+## started_at_utc=2026-03-04T12:22:38Z
+## cmd=./scripts/cargo-slot.sh test -p doc_mgmt -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.25s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/doc_mgmt-e18d0f57c71b74f7)
+
+running 5 tests
+test render::tests::apply_template_preserves_non_string_values ... ok
+test render::tests::apply_template_replaces_placeholders ... ok
+test render::tests::canonical_json_sorts_keys ... ok
+test render::tests::compute_hash_differs_for_different_values ... ok
+test render::tests::compute_hash_is_deterministic ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/bench.rs (target-slot-1/debug/deps/bench-db30713d4f9cf075)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/bin/dlq_replay_drill.rs (target-slot-1/debug/deps/dlq_replay_drill-31ad74b1def8a4c2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/doc_mgmt-36858bbd3794d539)
+
+running 5 tests
+test render::tests::apply_template_preserves_non_string_values ... ok
+test render::tests::apply_template_replaces_placeholders ... ok
+test render::tests::canonical_json_sorts_keys ... ok
+test render::tests::compute_hash_differs_for_different_values ... ok
+test render::tests::compute_hash_is_deterministic ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/authz_gate_a.rs (target-slot-1/debug/deps/authz_gate_a-87af4202bbba9b51)
+
+running 5 tests
+test create_document_requires_mutate_permission ... ok
+test read_endpoint_requires_read_permission ... ok
+test distribute_requires_mutate_permission ... ok
+test admin_mutation_endpoint_requires_mutate_permission ... ok
+test release_requires_mutate_permission ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/gate_a_hardening.rs (target-slot-1/debug/deps/gate_a_hardening-0915438b01d21802)
+
+running 1 test
+test tenant_isolation_holds_under_concurrent_doc_ops ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests/real_e2e.rs (target-slot-1/debug/deps/real_e2e-f041f407efe9da44)
+
+running 52 tests
+test event_envelope_document_superseded_complete ... ok
+test event_envelope_document_disposed_complete ... ok
+test distribution_tables_exist ... ok
+test event_envelope_validates_and_serializes ... ok
+test event_envelope_document_released_complete ... ok
+test artifact_requires_valid_template ... ok
+test draft_revision_update_allowed ... ok
+test apply_hold_creates_active_record ... ok
+test duplicate_active_hold_same_reason_blocked ... ok
+test delete_document_with_active_hold_blocked ... ok
+test event_envelope_document_created_complete ... ok
+test disposal_of_superseded_document_with_hold_lifecycle ... ok
+test event_envelope_legal_hold_applied_complete ... ok
+test event_envelope_legal_hold_released_complete ... ok
+test event_envelope_revision_created_complete ... ok
+test delivery_status_flow_and_replay_safety ... ok
+test hold_blocks_disposal_via_trigger ... ok
+test full_lifecycle_outbox_events_atomic ... ok
+test idempotency_key_prevents_duplicates ... ok
+test lifecycle_draft_to_released ... ok
+test render_deterministic_same_inputs_same_hash ... ok
+test multiple_holds_different_reasons_allowed ... ok
+test outbox_event_ids_are_unique_across_events ... ok
+test no_retention_policy_allows_disposal ... ok
+test re_hold_after_release_allowed ... ok
+test partial_hold_release_still_blocks_disposal ... ok
+test release_marks_revisions_as_released ... ok
+test release_hold_then_disposal_succeeds ... ok
+test released_revision_body_immutable_verification ... ok
+test released_revision_delete_blocked_by_trigger ... ok
+test released_revision_update_blocked_by_trigger ... ok
+test render_idempotency_key_prevents_duplicates ... ok
+test outbox_event_written_atomically ... ok
+test render_produces_artifact_with_hashes ... ok
+test render_writes_outbox_event ... ok
+test retention_period_blocks_disposal ... ok
+test retention_policy_upsert_and_read ... ok
+test retention_policy_unique_per_tenant_doc_type ... ok
+test distribution_request_is_idempotent_and_outbox_backed ... ok
+test guard_mutation_outbox_atomicity_on_rollback ... ok
+test schema_tables_exist ... ok
+test schema_unique_constraint_on_doc_number ... ok
+test revisions_increment_correctly ... ok
+test supersede_rejects_draft_document ... ok
+test template_create_and_query ... ok
+test supersede_creates_new_doc_and_links ... ok
+test template_same_name_different_version_allowed ... ok
+test template_full_e2e_create_render_query ... ok
+test template_tables_exist ... ok
+test template_tenant_isolation ... ok
+test template_unique_name_version_per_tenant ... ok
+test tenant_isolation_enforced ... ok
+
+test result: ok. 52 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+
+   Doc-tests doc_mgmt
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-04T12:22:41Z

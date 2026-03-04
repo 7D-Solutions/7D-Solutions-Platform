@@ -1,0 +1,6 @@
+## url=http://localhost:8103/metrics
+## fetched_at_utc=2026-03-04T04:16:29Z
+
+# HELP shipping_receiving_operations_total Total number of shipping/receiving operations processed
+# TYPE shipping_receiving_operations_total counter
+shipping_receiving_operations_total 0

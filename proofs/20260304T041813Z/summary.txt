@@ -1,0 +1,63 @@
+7D Platform Proofs Runbook Summary
+==================================
+run_ts_utc=20260304T041813Z
+proofs_dir=/Users/james/Projects/7D-Solutions Platform/proofs/20260304T041813Z
+
+== Services discovered ==
+count=51
+service_status_json=/Users/james/Projects/7D-Solutions Platform/proofs/20260304T041813Z/services/service_status.json
+
+== Contract tests ==
+platform_contracts_exit_code=0
+platform_contracts_output=/Users/james/Projects/7D-Solutions Platform/proofs/20260304T041813Z/cross-phase/platform-contracts.txt
+
+== NATS checks (via HTTP monitoring API) ==
+nats_exit_code=0
+nats_server_check=/Users/james/Projects/7D-Solutions Platform/proofs/20260304T041813Z/nats/nats_server_check.txt
+nats_stream_ls=/Users/james/Projects/7D-Solutions Platform/proofs/20260304T041813Z/nats/nats_stream_ls.txt
+nats_consumers=/Users/james/Projects/7D-Solutions Platform/proofs/20260304T041813Z/nats/nats_consumers.txt
+
+== Crate tests ==
+crate                                    exit_code
+-----                                    ---------
+ap                                       0
+ar-rs                                    0
+audit                                    0
+auth-rs                                  0
+consolidation                            0
+control-plane                            0
+customer-portal                          0
+doc_mgmt                                 0
+event-bus                                0
+fixed-assets                             0
+gl-rs                                    0
+health                                   0
+integrations-rs                          0
+inventory-rs                             0
+maintenance-rs                           0
+notifications-rs                         0
+numbering                                0
+party-rs                                 0
+payments-rs                              0
+pdf-editor-rs                            0
+platform_contracts                       0
+projections                              0
+reporting                                0
+security                                 0
+shipping-receiving-rs                    0
+subscriptions-rs                         0
+tax-core                                 0
+tenant-registry                          0
+timekeeping                              0
+treasury                                 0
+ttp-rs                                   0
+workflow                                 0
+workforce-competence-rs                  0
+
+== Totals ==
+crates_pass=33
+crates_fail=0
+crates_total=33
+
+NOTE: This runbook does NOT execute tenant meta-tests or performance benchmarks (handled separately).
+NOTE: Readiness checks are unauthenticated: /healthz, /api/ready, /metrics only.

@@ -1,0 +1,10 @@
+## url=http://localhost:8080/metrics
+## fetched_at_utc=2026-03-04T12:20:03Z
+
+<html>
+<head><title>502 Bad Gateway</title></head>
+<body>
+<center><h1>502 Bad Gateway</h1></center>
+<hr><center>nginx/1.27.5</center>
+</body>
+</html>

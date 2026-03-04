@@ -1,0 +1,128 @@
+## crate test: event-bus
+## started_at_utc=2026-03-04T04:43:22Z
+## cmd=./scripts/cargo-slot.sh test -p event-bus -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.28s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/event_bus-6e753c176081440c)
+
+running 58 tests
+test connect::tests::parse_token ... ok
+test connect::tests::parse_user_pass ... ok
+test connect::tests::parse_no_auth ... ok
+test envelope::tests::test_financial_event_rejects_empty_tenant_id_in_merchant_context ... ok
+test envelope::tests::test_envelope_with_actor ... ok
+test envelope::tests::test_all_financial_modules_require_merchant_context ... ok
+test envelope::tests::test_financial_event_accepts_tenant_merchant_context ... ok
+test envelope::tests::test_envelope_with_builder ... ok
+test envelope::tests::test_financial_event_accepts_platform_merchant_context ... ok
+test envelope::tests::test_envelope_creation ... ok
+test envelope::tests::test_financial_event_rejects_invalid_merchant_context_type ... ok
+test envelope::tests::test_financial_event_requires_merchant_context ... ok
+test envelope::tests::test_merchant_context_deserializes_platform ... ok
+test envelope::tests::test_merchant_context_deserializes_tenant ... ok
+test envelope::tests::test_merchant_context_serializes_platform ... ok
+test envelope::tests::test_merchant_context_serializes_tenant ... ok
+test envelope::tests::test_non_financial_module_skips_merchant_context_check ... ok
+test envelope::tests::test_non_financial_mutation_class_skips_merchant_context_check ... ok
+test envelope::tests::test_validate_envelope_fields_empty_actor_type ... ok
+test envelope::tests::test_validate_envelope_fields_empty_event_type ... ok
+test envelope::tests::test_validate_envelope_fields_empty_mutation_class ... ok
+test envelope::tests::test_validate_envelope_fields_empty_schema_version ... ok
+test envelope::tests::test_validate_envelope_fields_empty_tenant_id ... ok
+test envelope::tests::test_validate_envelope_fields_empty_trace_id ... ok
+test envelope::tests::test_envelope_merchant_context_omitted_when_none ... ok
+test envelope::tests::test_envelope_carries_merchant_context ... ok
+test envelope::tests::test_validate_envelope_fields_missing_event_type ... ok
+test envelope::tests::test_validate_envelope_fields_invalid_mutation_class ... ok
+test consumer_retry::tests::test_retry_succeeds_first_attempt ... ok
+test envelope::tests::test_validate_envelope_fields_invalid_actor_type ... ok
+test envelope::tests::test_validate_envelope_fields_missing_mutation_class ... ok
+test envelope::tests::test_validate_envelope_fields_missing_replay_safe ... ok
+test envelope::tests::test_validate_envelope_fields_missing_schema_version ... ok
+test envelope::tests::test_validate_envelope_fields_missing_tenant_id ... ok
+test envelope::tests::test_validate_envelope_fields_valid ... ok
+test envelope::tests::test_validate_envelope_fields_valid_actor_types ... ok
+test envelope::tests::test_validate_envelope_fields_valid_with_optional_fields ... ok
+test envelope::tests::test_validate_envelope_fields_valid_mutation_classes ... ok
+test envelope::tracing_context::tests::test_tracing_context_builder ... ok
+test envelope::tracing_context::tests::test_tracing_context_from_envelope ... ok
+test envelope::tracing_context::tests::test_tracing_context_default_is_empty ... ok
+test envelope::tracing_context::tests::test_tracing_context_from_envelope_sparse ... ok
+test envelope::tracing_context::tests::test_tracing_context_from_json ... ok
+test envelope::tracing_context::tests::test_tracing_context_roundtrip_envelope ... ok
+test nats_bus::tests::test_nats_bus_publish_subscribe ... ignored
+test outbox::tests::test_validate_and_serialize_envelope_accepts_none_optional_fields ... ok
+test outbox::tests::test_validate_and_serialize_envelope_rejects_empty_mutation_class ... ok
+test outbox::tests::test_validate_and_serialize_envelope_rejects_empty_trace_id ... ok
+test outbox::tests::test_validate_and_serialize_envelope_valid ... ok
+test outbox::tests::test_validate_and_serialize_envelope_with_optional_fields ... ok
+test inmemory_bus::tests::test_multiple_subscribers ... ok
+test inmemory_bus::tests::test_publish_and_subscribe ... ok
+test inmemory_bus::tests::test_pattern_matching ... ok
+test inmemory_bus::tests::test_multiple_messages_in_order ... ok
+test consumer_retry::tests::test_retry_fails_after_max_attempts ... ok
+test consumer_retry::tests::test_exponential_backoff ... ok
+test inmemory_bus::tests::test_wildcard_filtering ... ok
+test consumer_retry::tests::test_retry_succeeds_after_failures ... ok
+
+test result: ok. 57 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/consumer.rs (target-slot-1/debug/deps/consumer-abb507bd3bc35061)
+
+running 4 tests
+test multiple_consumers_each_get_a_copy ... ok
+test consumer_processes_payload_correctly ... ok
+test consumer_receives_deep_wildcard_events ... ok
+test consumer_receives_matching_events_only ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running tests/dlq_routing.rs (target-slot-1/debug/deps/dlq_routing-02d1f9b4be352c2f)
+
+running 4 tests
+test handler_failure_exhausts_retries_then_routes_to_dlq ... ok
+test retry_exhaustion_takes_expected_attempts ... ok
+test mixed_success_and_failure_routes_only_failures_to_dlq ... ok
+test handler_recovers_on_retry_no_dlq ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/idempotency.rs (target-slot-1/debug/deps/idempotency-f67016e240d528a2)
+
+running 3 tests
+test duplicate_event_id_is_skipped_by_consumer ... ok
+test mixed_duplicates_and_unique_events ... ok
+test distinct_event_ids_are_all_processed ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/outbox_relay.rs (target-slot-1/debug/deps/outbox_relay-1334cc43c4803c20)
+
+running 3 tests
+test outbox_rejects_invalid_envelope_before_publish ... ok
+test outbox_validates_serializes_and_publishes ... ok
+test outbox_relay_publishes_multiple_events_in_order ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests event_bus
+
+running 11 tests
+test platform/event-bus/src/envelope/tracing_context.rs - envelope::tracing_context (line 7) - compile ... ok
+test platform/event-bus/src/envelope/tracing_context.rs - envelope::tracing_context (line 28) - compile ... ok
+test platform/event-bus/src/envelope/tracing_context.rs - envelope::tracing_context (line 18) - compile ... ok
+test platform/event-bus/src/outbox.rs - outbox::validate_and_serialize_envelope (line 68) - compile ... ok
+test platform/event-bus/src/outbox.rs - outbox (line 23) - compile ... ok
+test platform/event-bus/src/lib.rs - EventBus::subscribe (line 159) - compile ... ok
+test platform/event-bus/src/nats_bus.rs - nats_bus::NatsBus (line 14) - compile ... ok
+test platform/event-bus/src/lib.rs - (line 20) - compile ... ok
+test platform/event-bus/src/envelope/mod.rs - envelope::EventEnvelope (line 79) ... ok
+test platform/event-bus/src/inmemory_bus.rs - inmemory_bus::InMemoryBus (line 20) ... ok
+test platform/event-bus/src/consumer_retry.rs - consumer_retry::retry_with_backoff (line 43) ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.89s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-04T04:43:27Z

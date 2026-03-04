@@ -1,0 +1,116 @@
+## crate test: shipping-receiving-rs
+## started_at_utc=2026-03-04T03:47:16Z
+## cmd=bash -lc DATABASE_URL=postgres://shipping_receiving_user:shipping_receiving_pass@localhost:5454/shipping_receiving_db?sslmode=disable&connect_timeout=5 "./scripts/cargo-slot.sh" test -p "shipping-receiving-rs" -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Blocking waiting for file lock on artifact directory
+warning: unused variable: `lines_b`
+   --> modules/shipping-receiving/tests/tenant_concurrency_test.rs:187:19
+    |
+187 |     let (lines_a, lines_b) = tokio::join!(
+    |                   ^^^^^^^ help: if this is intentional, prefix it with an underscore: `_lines_b`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `shipping-receiving-rs` (test "tenant_concurrency_test") generated 1 warning (run `cargo fix --test "tenant_concurrency_test" -p shipping-receiving-rs` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.86s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/shipping_receiving_rs-bf809bc30952a3e8)
+
+running 73 tests
+test config::tests::bus_type_from_str_invalid ... ok
+test config::tests::bus_type_from_str_valid ... ok
+test domain::rma::state_machine::tests::allowed_transitions ... ok
+test domain::rma::state_machine::tests::all_transitions_are_deterministic ... ok
+test domain::rma::state_machine::tests::forbidden_transitions ... ok
+test domain::rma::state_machine::tests::terminal_states_reject_transitions ... ok
+test domain::rma::state_machine::tests::terminal_states_have_no_outgoing_edges ... ok
+test domain::shipments::guards::tests::inbound_arrived_requires_arrived_at ... ok
+test domain::rma::state_machine::tests::no_op_same_status ... ok
+test domain::shipments::guards::tests::inbound_arrived_passes_with_timestamp ... ok
+test domain::shipments::guards::tests::inbound_close_passes_with_valid_lines ... ok
+test domain::shipments::guards::tests::inbound_close_passes_with_zero_quantities ... ok
+test domain::shipments::guards::tests::inbound_close_qty_accepted_plus_rejected_must_equal_received ... ok
+test domain::shipments::guards::tests::inbound_close_qty_received_cannot_exceed_expected ... ok
+test domain::shipments::guards::tests::inbound_close_requires_closed_at ... ok
+test domain::shipments::guards::tests::inbound_close_requires_lines ... ok
+test domain::shipments::guards::tests::inbound_non_guarded_statuses_pass ... ok
+test domain::shipments::guards::tests::outbound_close_passes_with_timestamp ... ok
+test domain::shipments::guards::tests::outbound_close_requires_closed_at ... ok
+test domain::shipments::guards::tests::outbound_delivered_passes_with_timestamp ... ok
+test domain::shipments::guards::tests::outbound_delivered_requires_delivered_at ... ok
+test domain::shipments::guards::tests::outbound_non_guarded_statuses_pass ... ok
+test domain::shipments::guards::tests::outbound_ship_passes_with_valid_lines ... ok
+test domain::shipments::guards::tests::outbound_ship_prevents_double_ship ... ok
+test domain::shipments::guards::tests::outbound_ship_qty_shipped_cannot_exceed_expected ... ok
+test domain::shipments::guards::tests::outbound_ship_qty_shipped_must_be_positive ... ok
+test domain::shipments::guards::tests::outbound_ship_requires_lines ... ok
+test domain::shipments::guards::tests::outbound_ship_requires_shipped_at ... ok
+test domain::shipments::state_machine::tests::inbound_all_transitions_are_deterministic ... ok
+test domain::shipments::state_machine::tests::inbound_allowed_transitions ... ok
+test domain::shipments::state_machine::tests::inbound_cancelled_is_terminal ... ok
+test domain::shipments::state_machine::tests::inbound_closed_is_terminal ... ok
+test domain::shipments::state_machine::tests::inbound_every_non_terminal_can_be_cancelled ... ok
+test domain::shipments::state_machine::tests::inbound_forbidden_skips ... ok
+test domain::shipments::state_machine::tests::inbound_no_op_same_status ... ok
+test domain::shipments::state_machine::tests::inbound_terminal_states_have_no_outgoing_edges ... ok
+test domain::shipments::state_machine::tests::outbound_all_transitions_are_deterministic ... ok
+test domain::shipments::state_machine::tests::outbound_allowed_transitions ... ok
+test domain::shipments::state_machine::tests::outbound_cancelled_is_terminal ... ok
+test domain::shipments::state_machine::tests::outbound_closed_is_terminal ... ok
+test domain::shipments::state_machine::tests::outbound_every_non_terminal_can_be_cancelled ... ok
+test domain::shipments::state_machine::tests::outbound_forbidden_skips ... ok
+test domain::shipments::state_machine::tests::outbound_no_op_same_status ... ok
+test domain::shipments::state_machine::tests::outbound_terminal_states_have_no_outgoing_edges ... ok
+test events::contracts::tests::all_envelopes_have_required_contract_fields ... ok
+test events::contracts::tests::event_type_constants_are_unique ... ok
+test events::contracts::tests::all_event_types_conform_to_platform_naming ... ok
+test events::contracts::tests::inbound_closed_envelope_has_correct_metadata ... ok
+test events::contracts::tests::mutation_class_is_valid_platform_class ... ok
+test events::contracts::tests::outbound_delivered_envelope_has_correct_metadata ... ok
+test events::contracts::tests::outbound_shipped_envelope_has_correct_metadata ... ok
+test events::contracts::tests::shipment_created_envelope_has_correct_metadata ... ok
+test events::contracts::tests::outbound_shipped_payload_round_trip ... ok
+test events::contracts::tests::outbound_delivered_payload_round_trip ... ok
+test events::contracts::tests::inbound_closed_payload_round_trip ... ok
+test events::contracts::tests::shipment_created_payload_round_trip ... ok
+test events::contracts::tests::status_changed_envelope_has_correct_metadata ... ok
+test events::contracts::tests::status_changed_payload_round_trip ... ok
+test integrations::inventory_client::tests::derive_id_differs_for_different_keys ... ok
+test integrations::inventory_client::tests::derive_id_is_stable ... ok
+test integrations::inventory_client::tests::deterministic_client_creates_stable_issue ... ok
+test integrations::inventory_client::tests::deterministic_client_creates_stable_receipt ... ok
+test integrations::inventory_client::tests::idempotency_key_differs_by_action ... ok
+test integrations::inventory_client::tests::receipt_and_issue_ids_differ_for_same_line ... ok
+test integrations::inventory_client::tests::idempotency_key_is_deterministic ... ok
+test metrics::tests::metrics_all_four_families_present ... ok
+test metrics::tests::metrics_exports_operations_total ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test consumers::so_released::tests::test_so_released_idempotent ... ok
+test consumers::po_approved::tests::test_po_approved_idempotent ... ok
+
+thread 'consumers::so_released::tests::test_so_released_creates_outbound_shipment' (88405177) panicked at modules/shipping-receiving/src/consumers/so_released.rs:261:9:
+assertion `left == right` failed
+  left: 2
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test consumers::so_released::tests::test_so_released_creates_outbound_shipment ... FAILED
+
+thread 'consumers::po_approved::tests::test_po_approved_creates_inbound_shipment' (88405171) panicked at modules/shipping-receiving/src/consumers/po_approved.rs:274:9:
+assertion `left == right` failed
+  left: 2
+ right: 1
+test consumers::po_approved::tests::test_po_approved_creates_inbound_shipment ... FAILED
+
+failures:
+
+failures:
+    consumers::po_approved::tests::test_po_approved_creates_inbound_shipment
+    consumers::so_released::tests::test_so_released_creates_outbound_shipment
+
+test result: FAILED. 71 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+
+error: test failed, to rerun pass `-p shipping-receiving-rs --lib`
+
+## exit_code=101
+## finished_at_utc=2026-03-04T03:47:25Z

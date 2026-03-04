@@ -1,0 +1,88 @@
+## crate test: control-plane
+## started_at_utc=2026-03-04T04:42:57Z
+## cmd=./scripts/cargo-slot.sh test -p control-plane -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.05s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/control_plane-8937387ed0e1a081)
+
+running 23 tests
+test handlers::create_tenant::tests::create_tenant_request_deserialises_with_defaults ... ok
+test handlers::create_tenant::tests::derive_app_id_fits_varchar50 ... ok
+test handlers::create_tenant::tests::derive_app_id_is_stable ... ok
+test clients::ar::tests::billing_correlation_id_is_deterministic ... ok
+test handlers::create_tenant::tests::derive_app_id_is_unique_per_tenant ... ok
+test handlers::create_tenant::tests::create_tenant_request_deserialises_with_explicit_limit ... ok
+test handlers::platform_billing_run::tests::period_validation_rejects_invalid_formats ... ok
+test handlers::platform_billing_run::tests::period_validation_accepts_valid_formats ... ok
+test clients::ar::tests::period_start_parses_correctly ... ok
+test clients::ar::tests::period_end_parses_last_day ... ok
+test clients::ar::tests::period_end_leap_year ... ok
+test clients::ar::tests::period_end_december_wraps ... ok
+test handlers::retention::retention_tests::retention_set_request_partial_deserialises ... ok
+test handlers::retention::retention_tests::retention_tombstone_requires_deleted_status ... ok
+test handlers::retention::retention_tests::retention_config_defaults_are_sane ... ok
+test handlers::retention::retention_tests::retention_config_serialises ... ok
+test handlers::retention::retention_tests::retention_tombstone_unknown_tenant_is_not_found ... ok
+test handlers::retention::retention_tests::retention_get_unknown_tenant_has_no_policy ... ok
+test handlers::create_tenant::tests::create_tenant_full_flow_against_real_db ... ok
+test clients::tenant_registry::tests::fetch_plan_fee_minor_returns_correct_prices ... ok
+test clients::tenant_registry::tests::fetch_eligible_tenants_returns_only_active_and_trial ... ok
+test clients::ar::tests::platform_billing_full_flow_against_real_db ... ok
+test handlers::platform_billing_run::tests::platform_billing_run_integration_test ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+
+     Running unittests src/main.rs (target-slot-1/debug/deps/control_plane-901e48bf28193023)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/bff_handlers.rs (target-slot-1/debug/deps/bff_handlers-1ab40011d12a81aa)
+
+running 16 tests
+test healthz_returns_200 ... ok
+test create_tenant_validation_errors_return_422 ... ok
+test get_retention_returns_404_for_missing_tenant ... ok
+test set_retention_returns_404_for_missing_tenant ... ok
+test ready_returns_200_with_db_check ... ok
+test tombstone_returns_404_for_missing_tenant ... ok
+test set_retention_rejects_invalid_values ... ok
+test create_tenant_returns_202_with_correct_fields ... ok
+test create_tenant_duplicate_id_returns_409 ... ok
+test get_retention_returns_defaults_for_existing_tenant ... ok
+test tombstone_requires_deleted_status ... ok
+test tombstone_is_idempotent ... ok
+test create_tenant_idempotency_replays_200 ... ok
+test create_tenant_with_explicit_id_and_limit ... ok
+test set_retention_upserts_and_returns_config ... ok
+test tombstone_succeeds_for_deleted_tenant ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.87s
+
+     Running tests/tenant_list_detail.rs (target-slot-1/debug/deps/tenant_list_detail-9f6ad7811fa0d9c8)
+
+running 10 tests
+test tenant_detail_returns_404_for_nonexistent ... ok
+test app_id_resolution_returns_404_for_missing_tenant ... ok
+test tenant_detail_returns_full_dto ... ok
+test app_id_resolution_returns_correct_mapping ... ok
+test tenant_detail_returns_null_seat_limit_without_entitlements ... ok
+test tenant_list_includes_seeded_tenant ... ok
+test tenant_list_filters_by_plan ... ok
+test tenant_list_filters_by_status ... ok
+test tenant_list_returns_paginated_response ... ok
+test plans_catalog_returns_seeded_plans ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+
+   Doc-tests control_plane
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-04T04:43:02Z

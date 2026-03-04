@@ -1,0 +1,231 @@
+## crate test: platform_contracts
+## started_at_utc=2026-03-04T03:58:23Z
+## cmd=./scripts/cargo-slot.sh test -p platform_contracts -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.45s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/platform_contracts-34bf5ac1025c6b43)
+
+running 17 tests
+test mutation_classes::tests::invalid_classes ... ok
+test consumer::tests::processor_name_is_stable ... ok
+test mutation_classes::tests::valid_classes ... ok
+test event_naming::tests::nats_subject_format ... ok
+test portal_identity::tests::all_scopes_are_valid ... ok
+test idempotency::tests::build_key_with_qualifier ... ok
+test event_naming::tests::invalid_event_types ... ok
+test idempotency::tests::validate_bad_keys ... ok
+test idempotency::tests::build_key_without_qualifier ... ok
+test event_naming::tests::valid_event_types ... ok
+test idempotency::tests::validate_good_key ... ok
+test portal_identity::tests::claims_version_is_set ... ok
+test portal_identity::tests::portal_actor_type_differs_from_internal ... ok
+test portal_identity::tests::portal_audience_differs_from_internal ... ok
+test portal_identity::tests::portal_issuer_differs_from_internal ... ok
+test portal_identity::tests::unknown_scope_is_invalid ... ok
+test portal_identity::tests::portal_claims_roundtrip ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/ap_contracts.rs (target-slot-1/debug/deps/ap_contracts-4158efad0105a7a4)
+
+running 25 tests
+test ap_all_subjects_have_contract_tests ... ok
+test ap_po_created_envelope_completeness ... ok
+test ap_po_closed_envelope_completeness ... ok
+test ap_payment_executed_envelope_completeness ... ok
+test ap_payment_run_created_envelope_completeness ... ok
+test ap_po_approved_envelope_completeness ... ok
+test ap_vendor_bill_approved_envelope_completeness ... ok
+test ap_po_line_received_linked_envelope_completeness ... ok
+test ap_vendor_bill_created_envelope_completeness ... ok
+test ap_vendor_bill_matched_envelope_completeness ... ok
+test ap_vendor_bill_voided_envelope_completeness ... ok
+test ap_vendor_created_envelope_completeness ... ok
+test ap_vendor_updated_envelope_completeness ... ok
+test ap_po_closed_schema_validation ... ok
+test ap_vendor_bill_created_schema_validation ... ok
+test ap_vendor_updated_schema_validation ... ok
+test ap_vendor_bill_matched_schema_validation ... ok
+test ap_po_approved_schema_validation ... ok
+test ap_vendor_bill_voided_schema_validation ... ok
+test ap_vendor_created_schema_validation ... ok
+test ap_vendor_bill_approved_schema_validation ... ok
+test ap_po_line_received_linked_schema_validation ... ok
+test ap_payment_executed_schema_validation ... ok
+test ap_po_created_schema_validation ... ok
+test ap_payment_run_created_schema_validation ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/consumer_contracts.rs (target-slot-1/debug/deps/consumer_contracts-91de8995c8117eae)
+
+running 154 tests
+test all_phase57_nats_subjects_have_correct_prefix ... ok
+test all_phase57_event_types_follow_naming_convention ... ok
+test financial_modules_require_merchant_context ... ok
+test doc_mgmt_revision_created_envelope_completeness ... ok
+test doc_mgmt_document_created_envelope_completeness ... ok
+test doc_mgmt_distribution_status_updated_envelope_completeness ... ok
+test doc_mgmt_document_released_envelope_completeness ... ok
+test gl_accrual_created_envelope_completeness ... ok
+test doc_mgmt_distribution_requested_envelope_completeness ... ok
+test gl_accrual_reversed_envelope_completeness ... ok
+test gl_fx_rate_updated_envelope_completeness ... ok
+test gl_fx_realized_posted_envelope_completeness ... ok
+test gl_fx_revaluation_posted_envelope_completeness ... ok
+test gl_gate_b_schemas_exist_on_disk ... ok
+test gl_gate_b_schemas_require_envelope_fields ... ok
+test identity_access_review_recorded_envelope_completeness ... ok
+test identity_role_assigned_envelope_completeness ... ok
+test all_phase57_schemas_have_schema_version_field ... ok
+test all_phase57_schemas_exist_on_disk ... ok
+test identity_role_revoked_envelope_completeness ... ok
+test identity_user_created_envelope_completeness ... ok
+test identity_role_assigned_schema_validation ... ok
+test doc_mgmt_document_released_schema_validation ... ok
+test identity_user_created_schema_validation ... ok
+test doc_mgmt_distribution_status_updated_schema_validation ... ok
+test doc_mgmt_document_created_schema_validation ... ok
+test doc_mgmt_distribution_requested_schema_validation ... ok
+test doc_mgmt_revision_created_schema_validation ... ok
+test identity_role_revoked_schema_validation ... ok
+test integrations_event_types_follow_naming_convention ... ok
+test identity_access_review_recorded_schema_validation ... ok
+test integrations_external_ref_created_envelope_completeness ... ok
+test integrations_external_ref_updated_envelope_completeness ... ok
+test integrations_is_not_financial_module ... ok
+test integrations_nats_subjects_have_correct_prefix ... ok
+test integrations_external_ref_deleted_envelope_completeness ... ok
+test integrations_webhook_received_envelope_completeness ... ok
+test integrations_webhook_routed_envelope_completeness ... ok
+test maintenance_all_subjects_have_contract_tests ... ok
+test maintenance_meter_reading_recorded_envelope_completeness ... ok
+test maintenance_plan_assigned_envelope_completeness ... ok
+test gl_fx_realized_posted_schema_validation ... ok
+test gl_fx_rate_updated_schema_validation ... ok
+test maintenance_plan_due_envelope_completeness ... ok
+test gl_accrual_created_schema_validation ... ok
+test integrations_gate_b_schemas_require_envelope_fields ... ok
+test maintenance_wo_cancelled_envelope_completeness ... ok
+test gl_fx_revaluation_posted_schema_validation ... ok
+test gl_accrual_reversed_schema_validation ... ok
+test maintenance_wo_closed_envelope_completeness ... ok
+test integrations_gate_b_schemas_exist_on_disk ... ok
+test maintenance_wo_completed_envelope_completeness ... ok
+test maintenance_wo_created_envelope_completeness ... ok
+test maintenance_wo_overdue_envelope_completeness ... ok
+test integrations_webhook_routed_schema_validation ... ok
+test maintenance_wo_status_changed_envelope_completeness ... ok
+test integrations_webhook_received_schema_validation ... ok
+test integrations_external_ref_updated_schema_validation ... ok
+test integrations_external_ref_deleted_schema_validation ... ok
+test non_financial_modules_do_not_require_merchant_context ... ok
+test integrations_external_ref_created_schema_validation ... ok
+test notifications_delivery_failed_envelope_completeness ... ok
+test maintenance_meter_reading_recorded_schema_validation ... ok
+test notifications_delivery_succeeded_envelope_completeness ... ok
+test maintenance_plan_assigned_schema_validation ... ok
+test maintenance_plan_due_schema_validation ... ok
+test maintenance_wo_closed_schema_validation ... ok
+test notifications_close_calendar_reminder_schema_validation ... ok
+test maintenance_wo_overdue_schema_validation ... ok
+test maintenance_wo_status_changed_schema_validation ... ok
+test notifications_delivery_failed_schema_validation ... ok
+test maintenance_wo_created_schema_validation ... ok
+test notifications_delivery_succeeded_schema_validation ... ok
+test notifications_dlq_abandoned_schema_validation ... ok
+test numbering_all_events_have_contract_tests ... ok
+test maintenance_wo_cancelled_schema_validation ... ok
+test numbering_number_allocated_envelope_completeness ... ok
+test maintenance_wo_completed_schema_validation ... ok
+test numbering_number_confirmed_envelope_completeness ... ok
+test notifications_gate_b_schemas_exist_on_disk ... ok
+test numbering_gate_b_schemas_exist_on_disk ... ok
+test numbering_policy_updated_envelope_completeness ... ok
+test numbering_gate_b_schemas_require_envelope_fields ... ok
+test notifications_dlq_replayed_schema_validation ... ok
+test notifications_gate_b_schemas_require_envelope_fields ... ok
+test party_all_subjects_have_contract_tests ... ok
+test notifications_inbox_message_read_schema_validation ... ok
+test party_created_envelope_completeness ... ok
+test notifications_inbox_message_unread_schema_validation ... ok
+test party_is_not_financial_module ... ok
+test party_deactivated_envelope_completeness ... ok
+test notifications_inbox_message_undismissed_schema_validation ... ok
+test party_updated_envelope_completeness ... ok
+test pdf_editor_all_subjects_have_contract_tests ... ok
+test pdf_editor_event_types_follow_naming_convention ... ok
+test pdf_editor_form_generated_envelope_completeness ... ok
+test pdf_editor_form_submitted_envelope_completeness ... ok
+test notifications_low_stock_alert_created_schema_validation ... ok
+test pdf_editor_gate_b_schemas_exist_on_disk ... ok
+test pdf_editor_is_not_financial_module ... ok
+test notifications_inbox_message_dismissed_schema_validation ... ok
+test timekeeping_all_subjects_have_contract_tests ... ok
+test numbering_number_allocated_schema_validation ... ok
+test timekeeping_entry_corrected_envelope_completeness ... ok
+test notifications_inbox_message_created_schema_validation ... ok
+test timekeeping_entry_created_envelope_completeness ... ok
+test reporting_consumed_payment_succeeded_schema_valid ... ok
+test timekeeping_entry_voided_envelope_completeness ... ok
+test numbering_number_confirmed_schema_validation ... ok
+test timekeeping_is_not_financial_module ... ok
+test pdf_editor_gate_b_schemas_require_envelope_fields ... ok
+test reporting_consumed_gl_posting_request_schema_valid ... ok
+test numbering_policy_updated_schema_validation ... ok
+test timekeeping_timesheet_approved_envelope_completeness ... ok
+test timekeeping_timesheet_recalled_envelope_completeness ... ok
+test reporting_has_no_published_event_schemas ... ok
+test timekeeping_timesheet_rejected_envelope_completeness ... ok
+test timekeeping_timesheet_submitted_envelope_completeness ... ok
+test workflow_definition_created_envelope_completeness ... ok
+test workflow_delegation_created_envelope_completeness ... ok
+test pdf_editor_form_generated_schema_validation ... ok
+test party_deactivated_schema_validation ... ok
+test party_updated_schema_validation ... ok
+test party_created_schema_validation ... ok
+test pdf_editor_form_submitted_schema_validation ... ok
+test workflow_delegation_revoked_envelope_completeness ... ok
+test timekeeping_entry_corrected_schema_validation ... ok
+test workflow_escalation_fired_envelope_completeness ... ok
+test workflow_hold_applied_envelope_completeness ... ok
+test workflow_hold_released_envelope_completeness ... ok
+test timekeeping_entry_created_schema_validation ... ok
+test workflow_instance_advanced_envelope_completeness ... ok
+test timekeeping_entry_voided_schema_validation ... ok
+test workflow_definition_created_schema_validation ... ok
+test timekeeping_timesheet_approved_schema_validation ... ok
+test timekeeping_timesheet_recalled_schema_validation ... ok
+test timekeeping_timesheet_submitted_schema_validation ... ok
+test timekeeping_timesheet_rejected_schema_validation ... ok
+test workflow_instance_cancelled_envelope_completeness ... ok
+test workflow_instance_completed_envelope_completeness ... ok
+test workflow_instance_started_envelope_completeness ... ok
+test workflow_step_decision_recorded_envelope_completeness ... ok
+test workflow_step_parallel_threshold_met_envelope_completeness ... ok
+test workflow_delegation_created_schema_validation ... ok
+test workflow_hold_released_schema_validation ... ok
+test workflow_hold_applied_schema_validation ... ok
+test workflow_escalation_fired_schema_validation ... ok
+test workflow_delegation_revoked_schema_validation ... ok
+test workflow_instance_cancelled_schema_validation ... ok
+test workflow_instance_advanced_schema_validation ... ok
+test workflow_instance_completed_schema_validation ... ok
+test workflow_instance_started_schema_validation ... ok
+test workflow_step_decision_recorded_schema_validation ... ok
+test workflow_step_parallel_threshold_met_schema_validation ... ok
+
+test result: ok. 154 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+   Doc-tests platform_contracts
+
+running 2 tests
+test platform/platform-contracts/src/event_naming.rs - event_naming::nats_subject (line 42) ... ok
+test platform/platform-contracts/src/idempotency.rs - idempotency::build_key (line 72) ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.29s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-04T03:58:26Z

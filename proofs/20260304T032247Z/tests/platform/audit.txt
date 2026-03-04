@@ -1,0 +1,101 @@
+## crate test: audit
+## started_at_utc=2026-03-04T03:28:11Z
+## cmd=./scripts/cargo-slot.sh test -p audit -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.47s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/audit-5e04abacc4951bfb)
+
+running 23 tests
+test actor::tests::test_service_actor_unique_per_service ... ok
+test actor::tests::test_system_actor ... ok
+test diff::tests::test_diff_no_changes ... ok
+test actor::tests::test_user_actor ... ok
+test diff::tests::test_diff_complex_values ... ok
+test diff::tests::test_diff_creation ... ok
+test diff::tests::test_diff_deletion ... ok
+test diff::tests::test_diff_deterministic_ordering ... ok
+test diff::tests::test_diff_field_addition ... ok
+test diff::tests::test_diff_field_removal ... ok
+test diff::tests::test_diff_modification_multiple_fields ... ok
+test diff::tests::test_diff_modification_single_field ... ok
+test outbox_bridge::tests::test_classify_event_types ... ok
+test actor::tests::test_service_actor_deterministic ... ok
+test outbox_bridge::tests::test_module_audit_result_clean ... ok
+test outbox_bridge::tests::test_module_audit_result_with_gaps ... ok
+test policy::tests::test_compensating_requires_linkage ... ok
+test policy::tests::test_creates_always_allowed ... ok
+test policy::tests::test_deletes_blocked_for_strict_immutable ... ok
+test policy::tests::test_mutable_standard_allows_updates ... ok
+test policy::tests::test_mutable_with_audit_requires_diff ... ok
+test policy::tests::test_strict_immutable_blocks_updates ... ok
+test writer::tests::test_audit_request_builder ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/diff_integration.rs (target-slot-1/debug/deps/diff_integration-ecab9cf2fe4eb074)
+
+running 14 tests
+test diff_deletion_has_no_field_changes ... ok
+test diff_detects_field_addition ... ok
+test diff_detects_single_field_modification ... ok
+test diff_field_ordering_is_deterministic ... ok
+test diff_handles_nested_objects_as_opaque ... ok
+test diff_handles_non_object_values_gracefully ... ok
+test diff_mixed_add_modify_remove ... ok
+test diff_no_changes_when_identical ... ok
+test diff_none_none_produces_empty ... ok
+test diff_preserves_full_snapshots ... ok
+test field_change_classification ... ok
+test diff_creation_has_no_field_changes ... ok
+test diff_detects_field_removal ... ok
+test diff_detects_multiple_field_modifications ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/helpers.rs (target-slot-1/debug/deps/helpers-cd64ff4a5da05962)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/outbox_bridge_integration.rs (target-slot-1/debug/deps/outbox_bridge_integration-9a97b14da7955593)
+
+running 9 tests
+test classify_creates ... ok
+test classify_updates ... ok
+test classify_reversals ... ok
+test classify_state_transitions ... ok
+test classify_deletes ... ok
+
+thread 'backfill_creates_missing_audit_records' (87965887) panicked at platform/audit/tests/helpers.rs:35:21:
+Audit DB not ready after 10s. URL: postgresql://audit_user:audit_pass@localhost:5440/audit_db. Last error: pool timed out while waiting for an open connection
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'completeness_reports_clean_when_all_covered' (87965894) panicked at platform/audit/tests/helpers.rs:35:21:
+Audit DB not ready after 10s. URL: postgresql://audit_user:audit_pass@localhost:5440/audit_db. Last error: pool timed out while waiting for an open connection
+
+thread 'backfill_records_have_correct_metadata' (87965888) panicked at platform/audit/tests/helpers.rs:35:21:
+Audit DB not ready after 10s. URL: postgresql://audit_user:audit_pass@localhost:5440/audit_db. Last error: pool timed out while waiting for an open connection
+test backfill_records_have_correct_metadata ... FAILED
+test completeness_reports_clean_when_all_covered ... FAILED
+
+thread 'completeness_reports_gaps_for_uncovered_events' (87965895) panicked at platform/audit/tests/helpers.rs:35:21:
+Audit DB not ready after 10s. URL: postgresql://audit_user:audit_pass@localhost:5440/audit_db. Last error: pool timed out while waiting for an open connection
+test backfill_creates_missing_audit_records ... FAILED
+test completeness_reports_gaps_for_uncovered_events ... FAILED
+
+failures:
+
+failures:
+    backfill_creates_missing_audit_records
+    backfill_records_have_correct_metadata
+    completeness_reports_clean_when_all_covered
+    completeness_reports_gaps_for_uncovered_events
+
+test result: FAILED. 5 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.75s
+
+error: test failed, to rerun pass `-p audit --test outbox_bridge_integration`
+
+## exit_code=101
+## finished_at_utc=2026-03-04T03:28:29Z

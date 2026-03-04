@@ -1,0 +1,19 @@
+{
+  "service_name": "control-plane",
+  "version": "1.0.3",
+  "status": "ready",
+  "degraded": false,
+  "checks": [
+    {
+      "name": "database",
+      "status": "up",
+      "latency_ms": 1,
+      "pool": {
+        "size": 1,
+        "idle": 0,
+        "active": 1
+      }
+    }
+  ],
+  "timestamp": "2026-03-04T03:26:06.993275209+00:00"
+}

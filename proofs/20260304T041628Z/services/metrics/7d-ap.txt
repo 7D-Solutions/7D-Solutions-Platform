@@ -1,0 +1,30 @@
+## url=http://localhost:8093/metrics
+## fetched_at_utc=2026-03-04T04:16:29Z
+
+# HELP ap_allocations_created Total AP payment allocations created (all time)
+# TYPE ap_allocations_created gauge
+ap_allocations_created 1
+# HELP ap_bills_approved_total Total AP bills approved
+# TYPE ap_bills_approved_total counter
+ap_bills_approved_total 0
+# HELP ap_bills_created_total Total AP bills created
+# TYPE ap_bills_created_total counter
+ap_bills_created_total 0
+# HELP ap_open_bills_count Current count of open (unpaid) AP bills
+# TYPE ap_open_bills_count gauge
+ap_open_bills_count 29
+# HELP ap_outbox_queue_depth Number of unpublished events in outbox
+# TYPE ap_outbox_queue_depth gauge
+ap_outbox_queue_depth 0
+# HELP ap_overdue_bills_count Current count of AP bills past their due date
+# TYPE ap_overdue_bills_count gauge
+ap_overdue_bills_count 2
+# HELP ap_payment_runs_created Total AP payment runs created (all time)
+# TYPE ap_payment_runs_created gauge
+ap_payment_runs_created 3
+# HELP ap_payments_initiated_total Total AP payments initiated
+# TYPE ap_payments_initiated_total counter
+ap_payments_initiated_total 0
+# HELP ap_total_open_amount_minor Sum of total_minor for all open (unpaid) AP bills
+# TYPE ap_total_open_amount_minor gauge
+ap_total_open_amount_minor 345000

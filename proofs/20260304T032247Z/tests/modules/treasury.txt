@@ -1,0 +1,267 @@
+## crate test: treasury
+## started_at_utc=2026-03-04T03:48:18Z
+## cmd=bash -lc DATABASE_URL=postgres://treasury_user:treasury_pass@localhost:5444/treasury_db?sslmode=disable&connect_timeout=5 RUST_TEST_THREADS=1 "./scripts/cargo-slot.sh" test -p "treasury" -- --nocapture
+
+[cargo-slot] Using slot 2 → /Users/james/Projects/7D-Solutions Platform/target-slot-2
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling crypto-common v0.1.7
+   Compiling bytes v1.11.1
+   Compiling ring v0.17.14
+   Compiling log v0.4.29
+   Compiling futures-util v0.3.32
+   Compiling tracing-core v0.1.36
+   Compiling crossbeam-utils v0.8.21
+   Compiling arrayvec v0.7.6
+   Compiling rust_decimal v1.40.0
+   Compiling regex-automata v0.4.14
+   Compiling chrono v0.4.44
+   Compiling digest v0.10.7
+   Compiling sha1_smol v1.0.1
+   Compiling sha2 v0.10.9
+   Compiling tracing v0.1.44
+   Compiling hmac v0.12.1
+   Compiling tokio v1.49.0
+   Compiling http v1.4.0
+   Compiling signature v2.2.0
+   Compiling concurrent-queue v2.5.0
+   Compiling crossbeam-queue v0.3.12
+   Compiling hkdf v0.12.4
+   Compiling event-listener v5.4.1
+   Compiling uuid v1.21.0
+   Compiling md-5 v0.10.6
+   Compiling deranged v0.5.8
+   Compiling atoi v2.0.0
+   Compiling http-body v1.0.1
+   Compiling curve25519-dalek v4.1.3
+   Compiling ed25519 v2.2.3
+   Compiling rand v0.8.5
+   Compiling multer v3.1.0
+   Compiling protobuf v2.28.0
+   Compiling sync_wrapper v1.0.2
+   Compiling time v0.3.47
+   Compiling ed25519-dalek v2.2.0
+   Compiling signatory v0.27.1
+   Compiling http-body-util v0.1.3
+   Compiling num-integer v0.1.46
+   Compiling spin v0.9.8
+   Compiling prometheus v0.13.4
+   Compiling nkeys v0.4.5
+   Compiling axum-core v0.5.6
+   Compiling rustls v0.23.37
+   Compiling num-bigint v0.4.6
+   Compiling serde_nanos v0.1.4
+   Compiling pem v3.0.6
+   Compiling hashbrown v0.14.5
+   Compiling sharded-slab v0.1.7
+   Compiling tracing-log v0.2.0
+   Compiling csv-core v0.1.13
+   Compiling thread_local v1.1.9
+   Compiling futures-executor v0.3.32
+   Compiling futures v0.3.32
+   Compiling dashmap v6.1.0
+   Compiling nu-ansi-term v0.50.3
+   Compiling csv v1.4.0
+   Compiling regex v1.12.3
+   Compiling matchers v0.2.0
+   Compiling tower-http v0.6.8
+   Compiling simple_asn1 v0.6.4
+   Compiling tracing-subscriber v0.3.22
+   Compiling sdd v3.0.10
+   Compiling rustls-webpki v0.103.9
+   Compiling serial_test_derive v3.4.0
+   Compiling scc v2.4.0
+   Compiling rustls-webpki v0.102.8
+   Compiling jsonwebtoken v9.3.1
+   Compiling tokio-stream v0.1.18
+   Compiling serial_test v3.4.0
+   Compiling tokio-util v0.7.18
+   Compiling hyper v1.8.1
+   Compiling tower v0.5.3
+   Compiling tryhard v0.5.2
+   Compiling hyper-util v0.1.20
+   Compiling axum v0.8.8
+   Compiling sqlx-core v0.8.6
+   Compiling tokio-rustls v0.26.4
+   Compiling tokio-websockets v0.10.1
+   Compiling async-nats v0.38.0
+   Compiling sqlx-postgres v0.8.6
+   Compiling health v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/health)
+   Compiling event-bus v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/event-bus)
+   Compiling sqlx-macros-core v0.8.6
+   Compiling security v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/security)
+   Compiling sqlx-macros v0.8.6
+   Compiling sqlx v0.8.6
+   Compiling projections v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/projections)
+   Compiling treasury v0.1.0 (/Users/james/Projects/7D-Solutions Platform/modules/treasury)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.21s
+     Running unittests src/lib.rs (target-slot-2/debug/deps/treasury-4f901b13c4bb7876)
+
+running 109 tests
+test config::tests::test_bus_type_case_insensitive ... ok
+test config::tests::test_bus_type_from_str ... ok
+test consumers::payments::tests::test_ap_payment_executed_creates_debit_txn ... ok
+test consumers::payments::tests::test_ap_payment_executed_idempotent_on_replay ... ok
+test consumers::payments::tests::test_payment_succeeded_creates_credit_txn ... ok
+test consumers::payments::tests::test_payment_succeeded_idempotent_on_replay ... ok
+test consumers::payments::tests::test_payment_succeeded_no_account_skips_gracefully ... ok
+test consumers::payments::tests::test_tenant_isolation ... ok
+test db::tests::test_database_url_alphanumeric_preserved ... ok
+test db::tests::test_database_url_for_app ... ok
+test db::tests::test_database_url_sanitizes_app_id ... ok
+test db::tests::test_database_url_trailing_slash ... ok
+test domain::accounts::service::tests::test_create_bank_account ... ok
+test domain::accounts::service::tests::test_create_credit_card_account ... ok
+test domain::accounts::service::tests::test_idempotent_create ... ok
+test domain::accounts::service::tests::test_list_accounts_active_only ... ok
+test domain::accounts::service::tests::test_update_account ... ok
+test domain::accounts::service::tests::test_wrong_app_returns_none ... ok
+test domain::accounts::tests::bank_bad_currency_rejected ... ok
+test domain::accounts::tests::bank_create_valid ... ok
+test domain::accounts::tests::bank_empty_name_rejected ... ok
+test domain::accounts::tests::bank_last4_too_long_rejected ... ok
+test domain::accounts::tests::bank_numeric_currency_rejected ... ok
+test domain::accounts::tests::cc_closing_day_32_rejected ... ok
+test domain::accounts::tests::cc_closing_day_zero_rejected ... ok
+test domain::accounts::tests::cc_create_valid ... ok
+test domain::accounts::tests::cc_empty_name_rejected ... ok
+test domain::accounts::tests::cc_no_closing_day_is_valid ... ok
+test domain::accounts::tests::update_all_none_is_valid ... ok
+test domain::accounts::tests::update_empty_name_rejected ... ok
+test domain::accounts::tests::update_invalid_closing_day_rejected ... ok
+test domain::import::adapters::amex::tests::parse_amex_bad_date ... ok
+test domain::import::adapters::amex::tests::parse_amex_basic_3col ... ok
+test domain::import::adapters::amex::tests::parse_amex_missing_columns ... ok
+test domain::import::adapters::amex::tests::parse_amex_skips_blank_rows ... ok
+test domain::import::adapters::amex::tests::parse_amex_with_reference ... ok
+test domain::import::adapters::chase::tests::parse_chase_bad_date ... ok
+test domain::import::adapters::chase::tests::parse_chase_basic ... ok
+test domain::import::adapters::chase::tests::parse_chase_missing_headers ... ok
+test domain::import::adapters::chase::tests::parse_chase_skips_blank_rows ... ok
+test domain::import::adapters::tests::detect_amex_format ... ok
+test domain::import::adapters::tests::detect_amex_with_reference ... ok
+test domain::import::adapters::tests::detect_chase_format ... ok
+test domain::import::adapters::tests::detect_generic_fallback ... ok
+test domain::import::parser::tests::parse_amount_basic ... ok
+test domain::import::parser::tests::parse_amount_edge_cases ... ok
+test domain::import::parser::tests::parse_csv_basic ... ok
+test domain::import::parser::tests::parse_csv_missing_headers ... ok
+test domain::import::parser::tests::parse_csv_skips_blank_rows ... ok
+test domain::import::parser::tests::parse_csv_us_date_format ... ok
+test domain::import::parser::tests::parse_csv_with_errors ... ok
+test domain::import::parser::tests::parse_date_formats ... ok
+test domain::import::service::tests::test_auto_detect_chase_format ... ok
+test domain::import::service::tests::test_cc_reimport_idempotent ... ok
+test domain::import::service::tests::test_import_amex_cc_statement ... ok
+test domain::import::service::tests::test_import_chase_cc_statement ... ok
+test domain::import::service::tests::test_import_creates_statement_and_lines ... ok
+test domain::import::service::tests::test_import_invalid_rows_reported ... ok
+test domain::import::service::tests::test_import_nonexistent_account ... ok
+test domain::import::service::tests::test_reimport_same_file_is_idempotent ... ok
+test domain::recon::engine::tests::amount_mismatch_produces_no_match ... ok
+test domain::recon::engine::tests::exact_match_scores_highest ... ok
+test domain::recon::engine::tests::greedy_one_to_one ... ok
+test domain::recon::engine::tests::stable_output_for_same_input ... ok
+test domain::recon::engine::tests::strategy_dispatches_correctly ... ok
+test domain::recon::gl_link::tests::test_link_creates_gl_only_match ... ok
+test domain::recon::gl_link::tests::test_link_is_idempotent ... ok
+test domain::recon::gl_link::tests::test_link_rejects_nonexistent_txn ... ok
+test domain::recon::gl_link::tests::test_link_updates_existing_match_without_gl ... ok
+test domain::recon::gl_link::tests::test_unmatched_bank_txns_for_gl ... ok
+test domain::recon::gl_link::tests::test_unmatched_gl_entries ... ok
+test domain::recon::gl_link::tests::test_unmatched_gl_entries_empty_input ... ok
+test domain::recon::service::tests::test_auto_match_exact ... ok
+test domain::recon::service::tests::test_list_matches_excludes_superseded ... ok
+test domain::recon::service::tests::test_manual_match_creates_record ... ok
+test domain::recon::service::tests::test_manual_rematch_supersedes_old ... ok
+test domain::recon::strategies::credit_card::tests::cc_amount_mismatch_no_match ... ok
+test domain::recon::strategies::credit_card::tests::cc_auth_settle_window_outside ... ok
+test domain::recon::strategies::credit_card::tests::cc_auth_settle_window_within ... ok
+test domain::recon::strategies::credit_card::tests::cc_currency_mismatch_no_match ... ok
+test domain::recon::strategies::credit_card::tests::cc_deterministic_output ... ok
+test domain::recon::strategies::credit_card::tests::cc_exact_match_max_confidence ... ok
+test domain::recon::strategies::credit_card::tests::cc_fee_line_uses_reference_fallback ... ok
+test domain::recon::strategies::credit_card::tests::cc_merchant_partial_match ... ok
+test domain::recon::strategies::credit_card::tests::cc_no_date_bonus_beyond_5_days ... ok
+test domain::recon::strategies::credit_card::tests::cc_refund_matches_refund_only ... ok
+test domain::recon::strategies::credit_card::tests::cc_wider_date_tolerance ... ok
+test domain::reports::assumptions::tests::default_assumptions_are_reasonable ... ok
+test domain::reports::assumptions::tests::methodology_note_is_non_empty ... ok
+test domain::reports::cash_position::tests::cash_position_empty_returns_zero_summary ... ok
+test domain::reports::cash_position::tests::cash_position_includes_opening_balance_from_statement ... ok
+test domain::reports::cash_position::tests::cash_position_separates_bank_and_cc ... ok
+test domain::reports::cash_position::tests::cash_position_tenant_isolation ... ok
+test domain::reports::forecast::tests::all_aging_buckets_apply_decreasing_rates ... ok
+test domain::reports::forecast::tests::ap_only_produces_outflows ... ok
+test domain::reports::forecast::tests::apply_rate_rounds_correctly ... ok
+test domain::reports::forecast::tests::ar_only_produces_inflows ... ok
+test domain::reports::forecast::tests::assumptions_included_in_response ... ok
+test domain::reports::forecast::tests::empty_inputs_produce_empty_forecast ... ok
+test domain::reports::forecast::tests::mixed_ar_ap_net_calculation ... ok
+test domain::reports::forecast::tests::multi_currency_separation ... ok
+test domain::reports::forecast::tests::scheduled_payments_reduce_net ... ok
+test http::admin::tests::test_admin_router_builds ... ok
+test metrics::tests::metrics_registry_creates_successfully ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test metrics::tests::record_import_counters ... ok
+test metrics::tests::sanitize_path_preserves_non_uuid_segments ... ok
+test metrics::tests::sanitize_path_replaces_uuids ... ok
+
+test result: ok. 109 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.27s
+
+     Running unittests src/main.rs (target-slot-2/debug/deps/treasury-4d5aa1df9d3225f9)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/bank_accounts_integration.rs (target-slot-2/debug/deps/bank_accounts_integration-ad08b46f914e7d9d)
+
+running 7 tests
+test test_create_bank_account_empty_name_rejected ... ok
+test test_create_bank_account_happy_path ... ok
+test test_create_cc_account_happy_path ... ok
+test test_deactivate_nonexistent_returns_not_found ... ok
+test test_list_active_only_excludes_deactivated ... ok
+test test_tenant_isolation ... ok
+test test_update_account_fields ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+
+     Running tests/cash_position_integration.rs (target-slot-2/debug/deps/cash_position_integration-b9b9a409dfa74432)
+
+running 6 tests
+test test_cash_position_bank_and_cc_separated ... ok
+test test_cash_position_empty_returns_zeros ... ok
+test test_cash_position_includes_opening_balance ... ok
+test test_cash_position_tenant_isolation ... ok
+test test_forecast_ar_inflows_apply_rates ... ok
+test test_forecast_empty_inputs ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+
+     Running tests/recon_integration.rs (target-slot-2/debug/deps/recon_integration-adbc306a67fcc1a3)
+
+running 8 tests
+test test_auto_match_creates_match ... ok
+test test_auto_match_is_idempotent ... ok
+test test_gl_link_happy_path ... ok
+test test_gl_link_nonexistent_txn_rejected ... ok
+test test_list_matches_excludes_superseded ... ok
+test test_manual_match_happy_path ... ok
+test test_rematch_supersedes_old_match ... ok
+test test_tenant_isolation_matches ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.10s
+
+   Doc-tests treasury
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+## exit_code=0
+## finished_at_utc=2026-03-04T03:48:43Z

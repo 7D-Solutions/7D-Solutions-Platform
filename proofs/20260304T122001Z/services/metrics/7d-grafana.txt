@@ -1,0 +1,5 @@
+## url=http://localhost:3002/metrics
+## fetched_at_utc=2026-03-04T12:20:03Z
+
+<a href="http://localhost/grafana/metrics">Moved Permanently</a>.
+

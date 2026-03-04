@@ -1,0 +1,311 @@
+{
+  "services": [
+    {
+      "container": "7d-gateway",
+      "host_port": 8000,
+      "base_url": "http://localhost:8000",
+      "http": true
+    },
+    {
+      "container": "7d-timekeeping",
+      "host_port": 8097,
+      "base_url": "http://localhost:8097",
+      "http": true
+    },
+    {
+      "container": "7d-pdf-editor",
+      "host_port": 8102,
+      "base_url": "http://localhost:8102",
+      "http": true
+    },
+    {
+      "container": "7d-notifications",
+      "host_port": 8089,
+      "base_url": "http://localhost:8089",
+      "http": true
+    },
+    {
+      "container": "7d-integrations",
+      "host_port": 8099,
+      "base_url": "http://localhost:8099",
+      "http": true
+    },
+    {
+      "container": "7d-ap",
+      "host_port": 8093,
+      "base_url": "http://localhost:8093",
+      "http": true
+    },
+    {
+      "container": "7d-treasury",
+      "host_port": 8094,
+      "base_url": "http://localhost:8094",
+      "http": true
+    },
+    {
+      "container": "7d-shipping-receiving",
+      "host_port": 8103,
+      "base_url": "http://localhost:8103",
+      "http": true
+    },
+    {
+      "container": "7d-fixed-assets",
+      "host_port": 8104,
+      "base_url": "http://localhost:8104",
+      "http": true
+    },
+    {
+      "container": "7d-grafana",
+      "host_port": 3002,
+      "base_url": "http://localhost:3002",
+      "http": true
+    },
+    {
+      "container": "7d-prometheus",
+      "host_port": 9091,
+      "base_url": "http://localhost:9091",
+      "http": true
+    },
+    {
+      "container": "7d-alertmanager",
+      "host_port": 9094,
+      "base_url": "http://localhost:9094",
+      "http": true
+    },
+    {
+      "container": "7d-ttp",
+      "host_port": 8100,
+      "base_url": "http://localhost:8100",
+      "http": true
+    },
+    {
+      "container": "7d-consolidation",
+      "host_port": 8105,
+      "base_url": "http://localhost:8105",
+      "http": true
+    },
+    {
+      "container": "7d-inventory",
+      "host_port": 8092,
+      "base_url": "http://localhost:8092",
+      "http": true
+    },
+    {
+      "container": "7d-subscriptions",
+      "host_port": 8087,
+      "base_url": "http://localhost:8087",
+      "http": true
+    },
+    {
+      "container": "7d-payments",
+      "host_port": 8088,
+      "base_url": "http://localhost:8088",
+      "http": true
+    },
+    {
+      "container": "7d-control-plane",
+      "host_port": 8091,
+      "base_url": "http://localhost:8091",
+      "http": true
+    },
+    {
+      "container": "7d-gl",
+      "host_port": 8090,
+      "base_url": "http://localhost:8090",
+      "http": true
+    },
+    {
+      "container": "7d-party",
+      "host_port": 8098,
+      "base_url": "http://localhost:8098",
+      "http": true
+    },
+    {
+      "container": "7d-maintenance",
+      "host_port": 8101,
+      "base_url": "http://localhost:8101",
+      "http": true
+    },
+    {
+      "container": "7d-ar",
+      "host_port": 8086,
+      "base_url": "http://localhost:8086",
+      "http": true
+    },
+    {
+      "container": "7d-auth-lb",
+      "host_port": 8080,
+      "base_url": "http://localhost:8080",
+      "http": true
+    },
+    {
+      "container": "7d-auth-2",
+      "host_port": null,
+      "base_url": null,
+      "http": false
+    },
+    {
+      "container": "7d-auth-1",
+      "host_port": null,
+      "base_url": null,
+      "http": false
+    },
+    {
+      "container": "7d-audit-postgres",
+      "host_port": 5440,
+      "base_url": "http://localhost:5440",
+      "http": true
+    },
+    {
+      "container": "7d-party-postgres",
+      "host_port": 5448,
+      "base_url": "http://localhost:5448",
+      "http": true
+    },
+    {
+      "container": "7d-numbering-postgres",
+      "host_port": 5456,
+      "base_url": "http://localhost:5456",
+      "http": true
+    },
+    {
+      "container": "7d-workforce-competence-postgres",
+      "host_port": 5458,
+      "base_url": "http://localhost:5458",
+      "http": true
+    },
+    {
+      "container": "7d-workflow-postgres",
+      "host_port": 5457,
+      "base_url": "http://localhost:5457",
+      "http": true
+    },
+    {
+      "container": "7d-gl-postgres",
+      "host_port": 5438,
+      "base_url": "http://localhost:5438",
+      "http": true
+    },
+    {
+      "container": "7d-tenant-registry-postgres",
+      "host_port": 5441,
+      "base_url": "http://localhost:5441",
+      "http": true
+    },
+    {
+      "container": "7d-timekeeping-postgres",
+      "host_port": 5447,
+      "base_url": "http://localhost:5447",
+      "http": true
+    },
+    {
+      "container": "7d-shipping-receiving-postgres",
+      "host_port": 5454,
+      "base_url": "http://localhost:5454",
+      "http": true
+    },
+    {
+      "container": "7d-subscriptions-postgres",
+      "host_port": 5435,
+      "base_url": "http://localhost:5435",
+      "http": true
+    },
+    {
+      "container": "7d-projections-postgres",
+      "host_port": 5439,
+      "base_url": "http://localhost:5439",
+      "http": true
+    },
+    {
+      "container": "7d-integrations-postgres",
+      "host_port": 5449,
+      "base_url": "http://localhost:5449",
+      "http": true
+    },
+    {
+      "container": "7d-payments-postgres",
+      "host_port": 5436,
+      "base_url": "http://localhost:5436",
+      "http": true
+    },
+    {
+      "container": "7d-inventory-postgres",
+      "host_port": 5442,
+      "base_url": "http://localhost:5442",
+      "http": true
+    },
+    {
+      "container": "7d-ttp-postgres",
+      "host_port": 5451,
+      "base_url": "http://localhost:5451",
+      "http": true
+    },
+    {
+      "container": "7d-ap-postgres",
+      "host_port": 5443,
+      "base_url": "http://localhost:5443",
+      "http": true
+    },
+    {
+      "container": "7d-ar-postgres",
+      "host_port": 5434,
+      "base_url": "http://localhost:5434",
+      "http": true
+    },
+    {
+      "container": "7d-fixed-assets-postgres",
+      "host_port": 5445,
+      "base_url": "http://localhost:5445",
+      "http": true
+    },
+    {
+      "container": "7d-consolidation-postgres",
+      "host_port": 5446,
+      "base_url": "http://localhost:5446",
+      "http": true
+    },
+    {
+      "container": "7d-maintenance-postgres",
+      "host_port": 5452,
+      "base_url": "http://localhost:5452",
+      "http": true
+    },
+    {
+      "container": "7d-auth-postgres",
+      "host_port": 5433,
+      "base_url": "http://localhost:5433",
+      "http": true
+    },
+    {
+      "container": "7d-pdf-editor-postgres",
+      "host_port": 5453,
+      "base_url": "http://localhost:5453",
+      "http": true
+    },
+    {
+      "container": "7d-notifications-postgres",
+      "host_port": 5437,
+      "base_url": "http://localhost:5437",
+      "http": true
+    },
+    {
+      "container": "7d-treasury-postgres",
+      "host_port": 5444,
+      "base_url": "http://localhost:5444",
+      "http": true
+    },
+    {
+      "container": "7d-doc-mgmt-postgres",
+      "host_port": 5455,
+      "base_url": "http://localhost:5455",
+      "http": true
+    },
+    {
+      "container": "7d-nats",
+      "host_port": 4222,
+      "base_url": "http://localhost:4222",
+      "http": true
+    }
+  ],
+  "run_ts": "20260304T043801Z"
+}

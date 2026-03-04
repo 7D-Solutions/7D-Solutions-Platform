@@ -1,0 +1,97 @@
+## crate test: projections
+## started_at_utc=2026-03-04T03:45:48Z
+## cmd=./scripts/cargo-slot.sh test -p projections -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+   Compiling futures-sink v0.3.32
+   Compiling tokio v1.49.0
+   Compiling futures-channel v0.3.32
+   Compiling uuid v1.21.0
+   Compiling prometheus v0.13.4
+   Compiling sqlx-core v0.8.6
+   Compiling futures-util v0.3.32
+   Compiling futures-executor v0.3.32
+   Compiling sqlx-postgres v0.8.6
+   Compiling futures v0.3.32
+   Compiling tokio-stream v0.1.18
+   Compiling sqlx-macros-core v0.8.6
+   Compiling sqlx-macros v0.8.6
+   Compiling sqlx v0.8.6
+   Compiling projections v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/projections)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.67s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/projections-dd5a12a016278c5d)
+
+running 39 tests
+test admin::tests::test_admin_token_rejects_missing_header ... ok
+test admin::tests::test_admin_token_accepts_correct_token ... ok
+test admin::tests::test_admin_token_rejects_wrong_token ... ok
+test admin::tests::test_admin_token_rejects_when_not_configured ... ok
+test admin::tests::test_consistency_request_deserialize ... ok
+test admin::tests::test_default_order_by ... ok
+test admin::tests::test_projection_status_request_deserialize ... ok
+test cursor::tests::test_cursor_error_display ... ok
+test cursor::tests::test_cursor_not_found_error ... ok
+test digest::tests::test_versioned_digest_from_string ... ok
+test digest::tests::test_versioned_digest_display ... ok
+test digest::tests::test_versioned_digest_roundtrip ... ok
+test digest::tests::test_versioned_digest_to_string ... ok
+test fallback::tests::test_circuit_breaker_open_close ... ok
+test fallback::tests::test_circuit_breaker_reset ... ok
+test fallback::tests::test_policy_is_stale ... ok
+test rebuild::tests::test_rebuild_error_display ... ok
+test rebuild::tests::test_rebuild_summary_creation ... ok
+test fallback::tests::test_execute_with_circuit_open ... ok
+test fallback::tests::test_execute_with_budget_success ... ok
+test metrics::tests::test_record_backlog ... ok
+test metrics::tests::test_record_cursor_state ... ok
+test metrics::tests::test_metrics_labels ... ok
+test validate::tests::rejects_empty_string ... ok
+test validate::tests::rejects_schema_qualified_name ... ok
+test validate::tests::rejects_quoted_identifier ... ok
+test validate::tests::rejects_leading_digit ... ok
+test admin::tests::test_consistency_request_rejects_unknown_table ... ok
+test admin::tests::test_consistency_request_accepts_allowlisted_table ... ok
+test validate::tests::rejects_sql_in_order_by ... ok
+test validate::tests::rejects_spaces ... ok
+test admin::tests::test_consistency_request_rejects_sql_injection ... ok
+test validate::tests::rejects_sql_injection_semicolon ... ok
+test validate::tests::rejects_unknown_but_valid_format ... ok
+test validate::tests::rejects_unknown_column ... ok
+test validate::tests::rejects_uppercase ... ok
+test validate::tests::valid_allowlisted_table ... ok
+test validate::tests::valid_order_column ... ok
+test fallback::tests::test_execute_with_budget_timeout ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/cursor_and_rebuild.rs (target-slot-1/debug/deps/cursor_and_rebuild-631d0af85922c893)
+
+running 12 tests
+test drop_shadow_is_idempotent ... ok
+test swap_fails_when_no_shadow ... ok
+test cursor_load_returns_none_when_missing ... ok
+test cursor_save_and_load ... ok
+test cursor_is_processed_detects_duplicate ... ok
+test cursor_save_increments_events_processed ... ok
+
+thread 'shadow_cursor_save_and_load' (88358907) panicked at platform/projections/tests/cursor_and_rebuild.rs:362:10:
+create shadow cursor table: Database(Database(PgDatabaseError { severity: Error, code: "42710", message: "type \"projection_cursors_shadow\" already exists", detail: None, hint: None, position: None, where: None, schema: None, table: None, column: None, data_type: None, constraint: None, file: Some("pg_type.c"), line: Some(432), routine: Some("TypeCreate") }))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test shadow_cursor_save_and_load ... FAILED
+test shadow_table_create_fails_if_exists ... ok
+test try_apply_event_applies_new_event ... ok
+test try_apply_event_sequence_tracks_position ... ok
+test shadow_table_create_and_swap ... ok
+test try_apply_event_skips_duplicate ... ok
+
+failures:
+
+failures:
+    shadow_cursor_save_and_load
+
+test result: FAILED. 11 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+
+error: test failed, to rerun pass `-p projections --test cursor_and_rebuild`
+
+## exit_code=101
+## finished_at_utc=2026-03-04T03:45:55Z

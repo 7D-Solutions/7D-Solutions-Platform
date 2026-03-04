@@ -1,0 +1,24 @@
+## url=http://localhost:8086/metrics
+## fetched_at_utc=2026-03-04T04:16:31Z
+
+# HELP ar_invoice_age_seconds Time in seconds from invoice creation to payment
+# TYPE ar_invoice_age_seconds histogram
+ar_invoice_age_seconds_bucket{le="60"} 0
+ar_invoice_age_seconds_bucket{le="300"} 0
+ar_invoice_age_seconds_bucket{le="900"} 0
+ar_invoice_age_seconds_bucket{le="3600"} 0
+ar_invoice_age_seconds_bucket{le="86400"} 0
+ar_invoice_age_seconds_bucket{le="604800"} 0
+ar_invoice_age_seconds_bucket{le="2592000"} 0
+ar_invoice_age_seconds_bucket{le="+Inf"} 0
+ar_invoice_age_seconds_sum 0
+ar_invoice_age_seconds_count 0
+# HELP ar_invoices_created_total Total number of invoices created
+# TYPE ar_invoices_created_total counter
+ar_invoices_created_total 0
+# HELP ar_invoices_paid_total Total number of invoices marked as paid
+# TYPE ar_invoices_paid_total counter
+ar_invoices_paid_total 0
+# HELP ar_outbox_queue_depth Number of unpublished events in outbox
+# TYPE ar_outbox_queue_depth gauge
+ar_outbox_queue_depth 0

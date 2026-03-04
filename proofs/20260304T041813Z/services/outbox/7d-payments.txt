@@ -1,0 +1,3 @@
+# HELP payments_outbox_queue_depth Number of unpublished events in outbox
+# TYPE payments_outbox_queue_depth gauge
+payments_outbox_queue_depth 0

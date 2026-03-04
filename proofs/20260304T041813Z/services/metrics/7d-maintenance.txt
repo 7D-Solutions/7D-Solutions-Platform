@@ -1,0 +1,9 @@
+## url=http://localhost:8101/metrics
+## fetched_at_utc=2026-03-04T04:18:16Z
+
+# HELP maintenance_events_enqueued_total Total events enqueued to outbox (all time)
+# TYPE maintenance_events_enqueued_total counter
+maintenance_events_enqueued_total 0
+# HELP maintenance_outbox_queue_depth Number of unpublished events in outbox
+# TYPE maintenance_outbox_queue_depth gauge
+maintenance_outbox_queue_depth 0

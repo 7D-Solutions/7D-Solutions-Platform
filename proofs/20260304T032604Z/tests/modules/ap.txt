@@ -1,0 +1,271 @@
+## crate test: ap
+## started_at_utc=2026-03-04T03:33:15Z
+## cmd=./scripts/cargo-slot.sh test -p ap -- --nocapture
+
+Reclaiming stale slot 1 (dead PID 31348)
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.00s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/ap-36ba3f0f4129756c)
+
+running 229 tests
+test config::tests::test_bus_type_from_str ... ok
+test db::tests::test_database_url_sanitizes_app_id ... ok
+test db::tests::test_database_url_trailing_slash ... ok
+test db::tests::test_database_url_for_app ... ok
+test domain::allocations::tests::derive_status_full_payment_is_paid ... ok
+test domain::allocations::tests::derive_status_over_payment_is_paid ... ok
+test domain::allocations::tests::derive_status_partial_payment_is_partially_paid ... ok
+test domain::allocations::tests::validate_accepts_valid_request ... ok
+test domain::allocations::tests::validate_rejects_invalid_currency ... ok
+test domain::allocations::tests::validate_rejects_negative_amount ... ok
+test domain::allocations::tests::validate_rejects_zero_amount ... ok
+
+thread 'domain::allocations::service::tests::test_partial_allocation_marks_bill_partially_paid' (88044761) panicked at modules/ap/src/domain/bills/models.rs:111:42:
+DB connect failed: PoolTimedOut
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test domain::allocations::service::tests::test_partial_allocation_marks_bill_partially_paid ... FAILED
+
+thread 'consumers::inventory_item_received::tests::test_handle_idempotent_on_redelivery' (88044747) panicked at modules/ap/src/consumers/inventory_item_received.rs:226:14:
+Failed to connect to AP test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+test consumers::inventory_item_received::tests::test_handle_idempotent_on_redelivery ... FAILED
+test consumers::inventory_item_received::tests::test_handle_no_po_id_skips_gracefully has been running for over 60 seconds
+test consumers::inventory_item_received::tests::test_handle_single_line_po_creates_link has been running for over 60 seconds
+test consumers::inventory_item_received::tests::test_handle_unknown_po_id_skips_gracefully has been running for over 60 seconds
+test domain::allocations::service::tests::test_allocation_on_invalid_status_rejected has been running for over 60 seconds
+test domain::allocations::service::tests::test_full_allocation_marks_bill_paid has been running for over 60 seconds
+test domain::allocations::service::tests::test_get_allocations_returns_in_insertion_order has been running for over 60 seconds
+test domain::allocations::service::tests::test_get_bill_balance_reflects_allocations has been running for over 60 seconds
+test domain::allocations::service::tests::test_idempotent_duplicate_allocation_id_returns_existing has been running for over 60 seconds
+test domain::allocations::service::tests::test_over_allocation_rejected has been running for over 60 seconds
+test domain::allocations::service::tests::test_two_partial_allocations_sum_to_paid has been running for over 60 seconds
+test domain::allocations::service::tests::test_wrong_tenant_returns_not_found has been running for over 60 seconds
+test domain::bills::approve::tests::test_approve_event_carries_gl_lines_and_fx_rate has been running for over 60 seconds
+test domain::allocations::service::tests::test_get_bill_balance_reflects_allocations ... ok
+test domain::bills::approve::tests::test_approve_idempotent_no_double_event ... ok
+test domain::bills::approve::tests::test_approve_invalid_transition_from_paid ... ok
+test domain::allocations::service::tests::test_two_partial_allocations_sum_to_paid ... ok
+test domain::allocations::service::tests::test_over_allocation_rejected ... ok
+test domain::bills::approve::tests::test_approve_matched_within_tolerance_succeeds ... ok
+test domain::bills::approve::tests::test_approve_open_with_override_succeeds ... ok
+test domain::bills::approve::tests::test_approve_open_without_override_fails ... ok
+test domain::bills::approve::tests::test_approve_tolerance_violation_with_override_succeeds ... ok
+test domain::bills::approve::tests::test_approve_event_carries_gl_lines_and_fx_rate ... ok
+test consumers::inventory_item_received::tests::test_handle_single_line_po_creates_link ... ok
+test consumers::inventory_item_received::tests::test_handle_unknown_po_id_skips_gracefully ... ok
+test domain::bills::approve::tests::test_approve_tolerance_violation_without_override_fails ... ok
+test domain::bills::approve::tests::test_approve_wrong_tenant_returns_not_found ... ok
+test domain::bills::service::tests::test_create_bill_derives_due_date_from_terms ... ok
+test domain::bills::service::tests::test_create_bill_explicit_due_date ... ok
+test domain::bills::service::tests::test_duplicate_invoice_rejected ... ok
+test domain::bills::tests::approve_request_accepts_with_override ... ok
+test domain::bills::tests::approve_request_rejects_empty_approved_by ... ok
+test domain::bills::tests::line_total_minor_is_qty_times_price ... ok
+test domain::bills::tests::line_total_minor_rounds ... ok
+test domain::bills::tests::status_approved_to_partially_paid_allowed ... ok
+test domain::bills::tests::status_from_str_roundtrips ... ok
+test domain::bills::tests::status_from_str_unknown_errors ... ok
+test domain::bills::tests::status_open_to_approved_allowed ... ok
+test domain::bills::tests::status_open_to_matched_allowed ... ok
+test domain::bills::tests::status_open_to_voided_allowed ... ok
+test domain::bills::tests::status_paid_cannot_go_back_to_approved ... ok
+test domain::bills::tests::status_paid_cannot_go_to_open ... ok
+test domain::bills::tests::status_partially_paid_to_paid_allowed ... ok
+test domain::bills::tests::status_voided_cannot_transition_to_anything ... ok
+test domain::bills::tests::validate_accepts_valid_request ... ok
+test domain::bills::tests::validate_rejects_empty_invoice_ref ... ok
+test domain::bills::tests::validate_rejects_empty_lines ... ok
+test domain::bills::tests::validate_rejects_negative_quantity ... ok
+test domain::bills::tests::validate_rejects_negative_unit_price ... ok
+test domain::bills::tests::validate_rejects_numeric_currency ... ok
+test domain::bills::tests::validate_rejects_short_currency ... ok
+test domain::bills::tests::void_request_accepts_valid ... ok
+test domain::bills::tests::void_request_rejects_empty_void_reason ... ok
+test domain::bills::tests::void_request_rejects_empty_voided_by ... ok
+test domain::bills::service::tests::test_get_bill_returns_with_lines ... ok
+test domain::bills::service::tests::test_get_bill_wrong_tenant_returns_none ... ok
+test domain::allocations::service::tests::test_allocation_on_invalid_status_rejected ... ok
+test consumers::inventory_item_received::tests::test_handle_no_po_id_skips_gracefully ... ok
+test domain::allocations::service::tests::test_idempotent_duplicate_allocation_id_returns_existing ... ok
+test domain::bills::service::tests::test_list_bills_filter_by_vendor ... ok
+test domain::bills::service::tests::test_multi_currency_bill_stores_fx_rate_id ... ok
+test domain::bills::service::tests::test_vendor_bill_created_event_enqueued ... ok
+test domain::bills::service::tests::test_vendor_not_found_returns_error ... ok
+test domain::bills::void::tests::test_void_approved_bill ... ok
+test domain::bills::void::tests::test_void_event_carries_void_reason_and_total ... ok
+test domain::bills::void::tests::test_void_idempotent_no_double_event ... ok
+test domain::bills::void::tests::test_void_open_bill_transitions_status ... ok
+test domain::bills::void::tests::test_void_paid_bill_returns_invalid_transition ... ok
+test domain::allocations::service::tests::test_get_allocations_returns_in_insertion_order ... ok
+test domain::allocations::service::tests::test_full_allocation_marks_bill_paid ... ok
+test domain::payment_runs::builder::tests::test_creates_run_for_approved_bill ... ok
+test domain::payment_runs::builder::tests::test_due_on_or_before_filter ... ok
+test domain::payment_runs::builder::tests::test_groups_bills_by_vendor ... ok
+test domain::payment_runs::tests::blank_created_by_rejected ... ok
+test domain::payment_runs::tests::invalid_currency_rejected ... ok
+test domain::payment_runs::tests::invalid_payment_method_rejected ... ok
+test domain::payment_runs::tests::valid_payment_methods ... ok
+test domain::payment_runs::tests::valid_request_passes ... ok
+test domain::payment_terms::tests::compute_discount_amount_2_pct ... ok
+test domain::payment_terms::tests::compute_discount_amount_rounds ... ok
+test domain::payment_terms::tests::compute_discount_amount_zero_pct_returns_none ... ok
+test domain::payment_terms::tests::compute_discount_date_10_days ... ok
+test domain::payment_terms::tests::compute_discount_date_returns_none_for_zero ... ok
+test domain::payment_terms::tests::compute_due_date_net0_same_day ... ok
+test domain::payment_terms::tests::compute_due_date_net30 ... ok
+test domain::payment_terms::tests::compute_due_date_net60 ... ok
+test domain::payment_terms::tests::validate_accepts_valid_discount_terms ... ok
+test domain::payment_terms::tests::validate_rejects_discount_days_exceeding_due ... ok
+test domain::payment_terms::tests::validate_rejects_empty_term_code ... ok
+test domain::payment_terms::tests::validate_rejects_negative_days_due ... ok
+test domain::payment_runs::builder::tests::test_idempotent_same_run_id_returns_existing ... ok
+test domain::payment_runs::builder::tests::test_partially_paid_bill_uses_open_balance ... ok
+test domain::payment_runs::builder::tests::test_vendor_ids_filter ... ok
+test domain::payment_runs::execute::tests::test_execute_balance_reconciles_bill_total_minus_existing_allocations ... ok
+test domain::payment_runs::execute::tests::test_execute_completes_run_and_marks_bills_paid ... ok
+test domain::allocations::service::tests::test_wrong_tenant_returns_not_found ... ok
+test domain::payment_runs::execute::tests::test_execute_emits_payment_executed_event ... ok
+test domain::payment_runs::execute::tests::test_execute_idempotent_second_call_returns_same_state ... ok
+test domain::po::approve::tests::test_approve_cancelled_po_returns_invalid_transition ... ok
+test domain::payment_runs::builder::tests::test_no_eligible_bills_returns_error ... ok
+test domain::po::approve::tests::test_approve_emits_po_approved_event ... ok
+test domain::po::approve::tests::test_approve_idempotent_no_double_event ... ok
+test domain::po::approve::tests::test_approve_locks_editable_fields ... ok
+test domain::po::approve::tests::test_approve_records_status_audit_entry ... ok
+test domain::po::tests::approved_to_cancelled_allowed ... ok
+test domain::po::tests::approved_to_closed_allowed ... ok
+test domain::po::tests::cancelled_is_terminal ... ok
+test domain::po::tests::closed_is_terminal ... ok
+test domain::po::tests::create_req_accepts_valid ... ok
+test domain::po::tests::create_req_rejects_bad_currency ... ok
+test domain::po::tests::create_req_rejects_empty_created_by ... ok
+test domain::po::tests::create_req_rejects_empty_lines ... ok
+test domain::po::tests::draft_to_approved_allowed ... ok
+test domain::po::tests::draft_to_cancelled_allowed ... ok
+test domain::po::tests::draft_to_closed_not_allowed ... ok
+test domain::po::tests::line_description_takes_precedence_over_item_id ... ok
+test domain::po::tests::line_effective_description_uses_item_id ... ok
+test domain::po::tests::line_item_id_alone_is_valid ... ok
+test domain::po::tests::line_requires_description_when_no_item_id ... ok
+test domain::po::tests::line_total_is_qty_times_price ... ok
+test domain::po::tests::status_from_str_roundtrips ... ok
+test domain::po::tests::status_from_str_unknown_errors ... ok
+test domain::payment_runs::execute::tests::test_execute_creates_allocation_with_run_id ... ok
+test domain::po::service::tests::test_create_po_draft_with_lines ... ok
+test domain::payment_runs::execute::tests::test_execute_not_found_returns_error ... ok
+test domain::po::service::tests::test_create_po_vendor_not_found ... ok
+test domain::r#match::tests::match_status_as_str_roundtrips ... ok
+test domain::r#match::tests::validate_accepts_valid_request ... ok
+test domain::r#match::tests::validate_accepts_zero_tolerance ... ok
+test domain::r#match::tests::validate_rejects_empty_matched_by ... ok
+test domain::r#match::tests::validate_rejects_negative_tolerance ... ok
+test domain::r#match::tests::validate_rejects_tolerance_above_one ... ok
+test domain::po::service::tests::test_get_po_returns_with_lines ... ok
+test domain::po::service::tests::test_po_created_event_enqueued_in_outbox ... ok
+test domain::po::service::tests::test_update_po_lines_rejected_for_non_draft ... ok
+test domain::po::service::tests::test_update_po_lines_replaces_all_idempotent ... ok
+test domain::receipts_link::tests::validate_accepts_valid_request ... ok
+test domain::receipts_link::tests::validate_accepts_zero_unit_price ... ok
+test domain::receipts_link::tests::validate_rejects_bad_currency ... ok
+test domain::receipts_link::tests::validate_rejects_empty_received_by ... ok
+test domain::receipts_link::tests::validate_rejects_negative_quantity ... ok
+test domain::receipts_link::tests::validate_rejects_negative_unit_price ... ok
+test domain::receipts_link::tests::validate_rejects_zero_quantity ... ok
+test domain::r#match::engine::tests::test_idempotent_second_run_does_not_duplicate_records ... ok
+test domain::bills::service::tests::test_list_bills_excludes_voided_by_default ... ok
+test domain::bills::void::tests::test_void_wrong_tenant_returns_not_found ... ok
+test domain::r#match::engine::tests::test_three_way_match_with_receipt ... ok
+test domain::r#match::engine::tests::test_two_way_match_exact_produces_matched_status ... ok
+test domain::receipts_link::service::tests::test_different_receipt_ids_create_separate_rows ... ok
+test domain::po::approve::tests::test_approve_draft_po_transitions_status ... ok
+test domain::receipts_link::service::tests::test_ingest_receipt_link_persists_row ... ok
+test domain::reports::metrics::tests::test_fetch_snapshot_returns_without_error ... ok
+test domain::tax::models::tests::snapshot_serializes_roundtrip ... ok
+test domain::tax::models::tests::snapshot_status_values_match_db_check_constraint ... ok
+test domain::tax::reports::tests::render_csv_deterministic ... ok
+test domain::tax::reports::tests::render_csv_empty ... ok
+test domain::tax::reports::tests::summary_row_json_roundtrip ... ok
+test domain::tax::service::tests::quote_hash_changes_with_amount ... ok
+test domain::tax::service::tests::quote_hash_is_deterministic ... ok
+test domain::receipts_link::service::tests::test_ingest_stores_correct_fields ... ok
+test domain::reports::aging::tests::test_aging_buckets_correct ... ok
+test domain::reports::aging::tests::test_allocation_reduces_balance ... ok
+test domain::reports::aging::tests::test_balance_reconciles_with_bill_total_minus_allocations ... ok
+test domain::po::approve::tests::test_approve_wrong_tenant_returns_not_found ... ok
+test domain::reports::aging::tests::test_currency_grouping ... ok
+test domain::reports::aging::tests::test_current_bucket_bill_not_yet_due ... ok
+test domain::reports::aging::tests::test_empty_returns_no_buckets ... ok
+test domain::tax::tests::zero_tax_provider_commit_succeeds ... ok
+test domain::tax::tests::zero_tax_provider_returns_zero ... ok
+test domain::tax::tests::zero_tax_provider_void_succeeds ... ok
+test domain::reports::aging::tests::test_fully_paid_bill_excluded ... ok
+test domain::po::service::tests::test_get_po_wrong_tenant_returns_none ... ok
+test domain::reports::aging::tests::test_vendor_breakdown ... ok
+test domain::tax::service::tests::test_commit_bill_tax_updates_status ... ok
+test domain::tax::service::tests::test_commit_idempotent ... ok
+test domain::tax::service::tests::test_commit_without_quote_fails ... ok
+test domain::vendors::tests::compute_due_date_crosses_year_boundary ... ok
+test domain::vendors::tests::compute_due_date_net0_is_same_day ... ok
+test domain::vendors::tests::compute_due_date_net15 ... ok
+test domain::vendors::tests::compute_due_date_net30 ... ok
+test domain::vendors::tests::create_vendor_request_accepts_party_id ... ok
+test domain::vendors::tests::create_vendor_request_party_id_is_optional ... ok
+test domain::vendors::tests::create_vendor_request_valid ... ok
+test domain::vendors::tests::create_vendor_request_validates_currency ... ok
+test domain::vendors::tests::create_vendor_request_validates_name ... ok
+test domain::vendors::tests::create_vendor_request_validates_terms ... ok
+test domain::vendors::tests::create_vendor_validation_rejects_numeric_currency ... ok
+test domain::vendors::tests::payment_terms_preset_days ... ok
+test domain::vendors::tests::payment_terms_preset_from_days ... ok
+test domain::vendors::tests::update_vendor_request_party_id_is_optional ... ok
+test domain::vendors::tests::update_vendor_validation_rejects_numeric_currency ... ok
+test events::bill::tests::match_type_serializes_to_snake_case ... ok
+test events::bill::tests::vendor_bill_created_envelope_has_correct_metadata ... ok
+test events::bill::tests::vendor_bill_voided_uses_reversal_class_and_reverses_id ... ok
+test events::payment::tests::payment_executed_envelope_has_correct_metadata ... ok
+test events::payment::tests::payment_run_created_envelope_has_correct_metadata ... ok
+test events::payment::tests::payment_run_payload_serializes_bill_ids ... ok
+test events::payment_terms::tests::event_type_uses_ap_prefix ... ok
+test events::payment_terms::tests::payment_terms_created_envelope_has_correct_metadata ... ok
+test events::po::tests::po_close_reason_serializes_to_snake_case ... ok
+test events::po::tests::po_closed_uses_lifecycle_mutation_class ... ok
+test events::po::tests::po_created_envelope_has_correct_metadata ... ok
+test events::po::tests::po_line_received_linked_envelope_has_correct_type ... ok
+test events::tests::all_event_type_constants_use_ap_prefix ... ok
+test events::tests::schema_version_is_stable ... ok
+test events::vendor::tests::vendor_created_envelope_has_correct_metadata ... ok
+test events::vendor::tests::vendor_created_payload_serializes_correctly ... ok
+test events::vendor::tests::vendor_updated_envelope_has_correct_metadata ... ok
+test events::vendor_bill_approved::tests::approved_gl_line_po_backed_has_po_line_id ... ok
+test events::vendor_bill_approved::tests::approved_gl_line_serialises_round_trip ... ok
+test http::admin::tests::test_admin_router_builds ... ok
+test integrations::payments::tests::different_runs_produce_different_payment_ids ... ok
+test integrations::payments::tests::different_vendors_produce_different_payment_ids ... ok
+test integrations::payments::tests::payment_id_is_deterministic_for_same_run_and_vendor ... ok
+test metrics::tests::metrics_slo_exports_consumer_lag ... ok
+test metrics::tests::metrics_slo_exports_request_latency ... ok
+test domain::tax::service::tests::test_quote_bill_tax_persists_snapshot ... ok
+test domain::tax::service::tests::test_quote_idempotent_same_hash ... ok
+test domain::tax::service::tests::test_void_committed_tax ... ok
+test domain::tax::service::tests::test_void_no_snapshot_returns_none ... ok
+test domain::tax::service::tests::test_void_quoted_tax_skips_provider ... ok
+test domain::vendors::service::tests::test_create_and_get_vendor ... ok
+test domain::vendors::service::tests::test_deactivate_vendor ... ok
+test domain::vendors::service::tests::test_duplicate_vendor_name_rejected ... ok
+test domain::vendors::service::tests::test_get_vendor_wrong_tenant_returns_none ... ok
+test domain::vendors::service::tests::test_update_vendor ... ok
+test domain::vendors::service::tests::test_vendor_events_enqueued_in_outbox ... ok
+test domain::r#match::engine::tests::test_price_variance_detected ... ok
+test domain::receipts_link::service::tests::test_ingest_receipt_link_is_idempotent ... ok
+
+failures:
+
+failures:
+    consumers::inventory_item_received::tests::test_handle_idempotent_on_redelivery
+    domain::allocations::service::tests::test_partial_allocation_marks_bill_partially_paid
+
+test result: FAILED. 227 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 89.46s
+
+error: test failed, to rerun pass `-p ap --lib`
+
+## exit_code=101
+## finished_at_utc=2026-03-04T03:34:45Z

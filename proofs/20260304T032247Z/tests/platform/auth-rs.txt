@@ -1,0 +1,82 @@
+## crate test: auth-rs
+## started_at_utc=2026-03-04T03:28:41Z
+## cmd=bash -lc DATABASE_URL=postgres://auth_user:auth_pass@localhost:5433/auth_db?sslmode=disable&connect_timeout=5 RUST_TEST_THREADS=1 "./scripts/cargo-slot.sh" test -p "auth-rs" -- --nocapture
+
+[cargo-slot] Using slot 1 → /Users/james/Projects/7D-Solutions Platform/target-slot-1
+   Compiling event-bus v0.1.0 (/Users/james/Projects/7D-Solutions Platform/platform/event-bus)
+   Compiling auth-rs v1.3.11 (/Users/james/Projects/7D-Solutions Platform/platform/identity-auth)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 54s
+     Running unittests src/lib.rs (target-slot-1/debug/deps/auth_rs-2c5f0b9cc45d4e9e)
+
+running 31 tests
+test auth::concurrency::tests::test_create_and_count_lease ... 
+thread 'auth::concurrency::tests::test_create_and_count_lease' (88002126) panicked at platform/identity-auth/src/auth/concurrency.rs:158:14:
+connect to test DB: PoolTimedOut
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+FAILED
+test auth::concurrency::tests::test_revoke_lease_by_token_hash ... 
+thread 'auth::concurrency::tests::test_revoke_lease_by_token_hash' (88010236) panicked at platform/identity-auth/src/auth/concurrency.rs:158:14:
+connect to test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+FAILED
+test auth::concurrency::tests::test_rotate_lease_updates_session_and_heartbeat ... 
+thread 'auth::concurrency::tests::test_rotate_lease_updates_session_and_heartbeat' (88014314) panicked at platform/identity-auth/src/auth/concurrency.rs:158:14:
+connect to test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+FAILED
+test auth::concurrency::tests::test_seat_limit_enforced_atomically ... 
+thread 'auth::concurrency::tests::test_seat_limit_enforced_atomically' (88014387) panicked at platform/identity-auth/src/auth/concurrency.rs:158:14:
+connect to test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+FAILED
+test auth::jwt::tests::claims_empty_roles_perms ... ok
+test auth::jwt::tests::claims_expired_token_rejected ... ok
+test auth::jwt::tests::claims_round_trip ... ok
+test auth::jwt::tests::claims_service_actor_type ... ok
+test auth::jwt::tests::claims_version_is_set ... ok
+test auth::jwt::tests::jwks_includes_both_keys_during_overlap ... ok
+test auth::jwt::tests::rotation_overlap_accepts_token_signed_by_prev_key ... ok
+test auth::jwt::tests::rotation_overlap_ends_old_token_rejected ... ok
+test auth::password_reset_repo::tests::test_claim_is_single_use ... 
+thread 'auth::password_reset_repo::tests::test_claim_is_single_use' (88026517) panicked at platform/identity-auth/src/auth/password_reset_repo.rs:66:14:
+connect to test DB: PoolTimedOut
+FAILED
+test auth::password_reset_repo::tests::test_concurrent_claim_exactly_one_wins ... 
+thread 'auth::password_reset_repo::tests::test_concurrent_claim_exactly_one_wins' (88033878) panicked at platform/identity-auth/src/auth/password_reset_repo.rs:66:14:
+connect to test DB: Protocol("unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)")
+FAILED
+test auth::password_reset_repo::tests::test_expired_token_returns_none ... 
+thread 'auth::password_reset_repo::tests::test_expired_token_returns_none' (88035345) panicked at platform/identity-auth/src/auth/password_reset_repo.rs:66:14:
+connect to test DB: PoolTimedOut
+FAILED
+test clients::tenant_registry::tests::cache_hit_within_ttl_returns_immediately ... ok
+test clients::tenant_registry::tests::entitlement_live_fetch_from_registry ... ignored
+test clients::tenant_registry::tests::expired_cache_fail_closed_when_registry_down ... ok
+test clients::tenant_registry::tests::gate_active_is_allow ... ok
+test clients::tenant_registry::tests::gate_deleted_is_deny ... ok
+test clients::tenant_registry::tests::gate_past_due_is_deny_new_login ... ok
+test clients::tenant_registry::tests::gate_suspended_is_deny ... ok
+test clients::tenant_registry::tests::gate_trial_is_allow ... ok
+test clients::tenant_registry::tests::no_cache_fail_closed_when_registry_down ... ok
+test clients::tenant_registry::tests::past_due_status_from_cache_returns_deny_new_login ... ok
+test clients::tenant_registry::tests::stale_cache_within_grace_used_during_outage ... ok
+test clients::tenant_registry::tests::status_cache_hit_within_ttl_returns_immediately ... ok
+test clients::tenant_registry::tests::status_expired_beyond_grace_fail_closed ... ok
+test clients::tenant_registry::tests::status_no_cache_fail_closed_when_registry_down ... ok
+test clients::tenant_registry::tests::status_stale_cache_within_grace_used_during_outage ... ok
+test clients::tenant_registry::tests::suspended_status_from_cache_returns_deny ... ok
+
+failures:
+
+failures:
+    auth::concurrency::tests::test_create_and_count_lease
+    auth::concurrency::tests::test_revoke_lease_by_token_hash
+    auth::concurrency::tests::test_rotate_lease_updates_session_and_heartbeat
+    auth::concurrency::tests::test_seat_limit_enforced_atomically
+    auth::password_reset_repo::tests::test_claim_is_single_use
+    auth::password_reset_repo::tests::test_concurrent_claim_exactly_one_wins
+    auth::password_reset_repo::tests::test_expired_token_returns_none
+
+test result: FAILED. 23 passed; 7 failed; 1 ignored; 0 measured; 0 filtered out; finished in 161.34s
+
+error: test failed, to rerun pass `-p auth-rs --lib`
+
+## exit_code=101
+## finished_at_utc=2026-03-04T03:33:20Z
