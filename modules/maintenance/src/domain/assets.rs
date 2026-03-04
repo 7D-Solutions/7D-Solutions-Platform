@@ -40,6 +40,8 @@ pub struct Asset {
     pub metadata: Option<serde_json::Value>,
     pub maintenance_schedule: Option<serde_json::Value>,
     pub idempotency_key: Option<String>,
+    pub out_of_service: bool,
+    pub out_of_service_reason: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -78,6 +80,8 @@ pub struct UpdateAssetRequest {
     pub status: Option<String>,
     pub metadata: Option<serde_json::Value>,
     pub maintenance_schedule: Option<serde_json::Value>,
+    pub out_of_service: Option<bool>,
+    pub out_of_service_reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -325,6 +329,16 @@ impl AssetRepo {
 
         let mut tx = pool.begin().await?;
 
+        // Fetch current state to detect out_of_service changes
+        let before: Option<(bool,)> = sqlx::query_as(
+            "SELECT out_of_service FROM maintainable_assets WHERE id = $1 AND tenant_id = $2",
+        )
+        .bind(id)
+        .bind(tenant_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+        let before_oos = before.map(|b| b.0);
+
         // ── Mutation ──
         let asset = sqlx::query_as::<_, Asset>(
             r#"
@@ -340,6 +354,12 @@ impl AssetRepo {
                 status                = COALESCE($11, status),
                 metadata              = COALESCE($12, metadata),
                 maintenance_schedule  = COALESCE($13, maintenance_schedule),
+                out_of_service        = COALESCE($14, out_of_service),
+                out_of_service_reason = CASE
+                    WHEN $14 = TRUE THEN COALESCE($15, out_of_service_reason)
+                    WHEN $14 = FALSE THEN NULL
+                    ELSE COALESCE($15, out_of_service_reason)
+                END,
                 updated_at            = NOW()
             WHERE id = $1 AND tenant_id = $2
             RETURNING *
@@ -358,11 +378,13 @@ impl AssetRepo {
         .bind(req.status.as_deref())
         .bind(&req.metadata)
         .bind(&req.maintenance_schedule)
+        .bind(req.out_of_service)
+        .bind(req.out_of_service_reason.as_deref())
         .fetch_optional(&mut *tx)
         .await?
         .ok_or(AssetError::NotFound)?;
 
-        // ── Outbox ──
+        // ── Outbox: asset.updated ──
         let event_payload = serde_json::json!({
             "asset_id": id,
             "tenant_id": tenant_id,
@@ -386,6 +408,36 @@ impl AssetRepo {
             &env_json,
         )
         .await?;
+
+        // ── Outbox: out_of_service_changed (only if changed) ──
+        if let Some(before_val) = before_oos {
+            if req.out_of_service.is_some() && asset.out_of_service != before_val {
+                let oos_payload = serde_json::json!({
+                    "asset_id": id,
+                    "tenant_id": tenant_id,
+                    "out_of_service": asset.out_of_service,
+                    "out_of_service_reason": asset.out_of_service_reason,
+                });
+                let oos_event_id = Uuid::new_v4();
+                let oos_env = envelope::create_envelope(
+                    oos_event_id,
+                    tenant_id.to_string(),
+                    subjects::OUT_OF_SERVICE_CHANGED.to_string(),
+                    oos_payload,
+                );
+                let oos_env_json = envelope::validate_envelope(&oos_env)
+                    .map_err(|e| AssetError::Validation(format!("envelope: {}", e)))?;
+                outbox::enqueue_event_tx(
+                    &mut tx,
+                    oos_event_id,
+                    subjects::OUT_OF_SERVICE_CHANGED,
+                    "asset",
+                    &id.to_string(),
+                    &oos_env_json,
+                )
+                .await?;
+            }
+        }
 
         tx.commit().await?;
         Ok(asset)

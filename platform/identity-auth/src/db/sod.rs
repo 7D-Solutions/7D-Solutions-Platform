@@ -342,6 +342,97 @@ pub async fn evaluate_decision(
     })
 }
 
+pub struct SodPolicyDeleteRequest {
+    pub tenant_id: Uuid,
+    pub policy_id: Uuid,
+    pub actor_user_id: Option<Uuid>,
+    pub idempotency_key: String,
+    pub trace_id: String,
+    pub causation_id: Option<Uuid>,
+    pub producer: String,
+}
+
+pub struct SodPolicyDeleteResult {
+    pub deleted: bool,
+    pub idempotent_replay: bool,
+}
+
+pub async fn delete_policy(
+    pool: &sqlx::PgPool,
+    req: SodPolicyDeleteRequest,
+) -> Result<SodPolicyDeleteResult, sqlx::Error> {
+    let mut tx = pool.begin().await?;
+
+    let mutation = sqlx::query(
+        r#"
+        INSERT INTO sod_policy_mutations (
+            tenant_id,
+            idempotency_key,
+            policy_id,
+            actor_user_id,
+            mutation_type,
+            mutation_payload
+        )
+        VALUES ($1, $2, $3, $4, 'policy_delete', $5)
+        ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+        RETURNING id
+        "#,
+    )
+    .bind(req.tenant_id)
+    .bind(&req.idempotency_key)
+    .bind(req.policy_id)
+    .bind(req.actor_user_id)
+    .bind(json!({"policy_id": req.policy_id}))
+    .fetch_optional(&mut *tx)
+    .await?;
+
+    let replay = mutation.is_none();
+
+    if replay {
+        tx.commit().await?;
+        return Ok(SodPolicyDeleteResult {
+            deleted: false,
+            idempotent_replay: true,
+        });
+    }
+
+    let res = sqlx::query(
+        "DELETE FROM sod_policies WHERE id = $1 AND tenant_id = $2",
+    )
+    .bind(req.policy_id)
+    .bind(req.tenant_id)
+    .execute(&mut *tx)
+    .await?;
+
+    let deleted = res.rows_affected() > 0;
+
+    if deleted {
+        append_sod_outbox_event_tx(
+            &mut tx,
+            req.tenant_id,
+            req.policy_id,
+            "auth.sod.policy.deleted",
+            "auth.sod.policy.deleted/v1",
+            req.trace_id,
+            req.causation_id,
+            req.producer,
+            json!({
+                "policy_id": req.policy_id,
+                "tenant_id": req.tenant_id,
+                "idempotency_key": req.idempotency_key,
+            }),
+        )
+        .await?;
+    }
+
+    tx.commit().await?;
+
+    Ok(SodPolicyDeleteResult {
+        deleted,
+        idempotent_replay: false,
+    })
+}
+
 pub async fn list_policies(
     pool: &sqlx::PgPool,
     tenant_id: Uuid,

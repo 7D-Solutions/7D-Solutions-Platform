@@ -330,6 +330,49 @@ pub async fn list_sod_policies(
     Ok((StatusCode::OK, Json(policies)))
 }
 
+pub async fn delete_sod_policy(
+    State(state): State<Arc<AuthState>>,
+    headers: HeaderMap,
+    extensions: Extensions,
+    Path((tenant_id, rule_id)): Path<(Uuid, Uuid)>,
+) -> Result<impl IntoResponse, ApiErr> {
+    let trace_id = get_trace_id_from_extensions(&extensions);
+
+    let idempotency_key = headers
+        .get("x-idempotency-key")
+        .and_then(|v| v.to_str().ok())
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .map(ToOwned::to_owned)
+        .unwrap_or_else(|| format!("sod-delete:{tenant_id}:{rule_id}"));
+
+    let result = crate::db::sod::delete_policy(
+        &state.db,
+        crate::db::sod::SodPolicyDeleteRequest {
+            tenant_id,
+            policy_id: rule_id,
+            actor_user_id: None,
+            idempotency_key,
+            trace_id,
+            causation_id: None,
+            producer: state.producer.clone(),
+        },
+    )
+    .await
+    .map_err(|e| {
+        err(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("sod delete: {e}"),
+        )
+    })?;
+
+    if result.idempotent_replay || result.deleted {
+        Ok((StatusCode::OK, Json(serde_json::json!({"ok": true, "deleted": result.deleted, "idempotent_replay": result.idempotent_replay}))))
+    } else {
+        Err(err(StatusCode::NOT_FOUND, "policy not found"))
+    }
+}
+
 pub async fn get_user_lifecycle_timeline(
     State(state): State<Arc<AuthState>>,
     Path((tenant_id, user_id)): Path<(Uuid, Uuid)>,
@@ -778,24 +821,7 @@ pub async fn login(
             )
         })?;
 
-    let access = state
-        .jwt
-        .sign_access_token(
-            req.tenant_id,
-            user_id,
-            roles,
-            perms,
-            jwt::actor_type::USER,
-            state.access_ttl_minutes,
-        )
-        .map_err(|e| {
-            state
-                .metrics
-                .auth_login_total
-                .with_label_values(&["failure", "token_sign_error"])
-                .inc();
-            err(StatusCode::INTERNAL_SERVER_ERROR, e)
-        })?;
+    let role_snapshot_id = jwt::compute_role_snapshot_id(&roles);
 
     let refresh_raw = generate_refresh_token();
     let refresh_hash = hash_refresh_token(&refresh_raw);
@@ -986,6 +1012,27 @@ pub async fn login(
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("create lease: {e}"),
             )
+        })?;
+
+    let access = state
+        .jwt
+        .sign_access_token_enriched(
+            req.tenant_id,
+            user_id,
+            roles,
+            perms,
+            jwt::actor_type::USER,
+            state.access_ttl_minutes,
+            Some(new_token_id),
+            Some(role_snapshot_id),
+        )
+        .map_err(|e| {
+            state
+                .metrics
+                .auth_login_total
+                .with_label_values(&["failure", "token_sign_error"])
+                .inc();
+            err(StatusCode::INTERNAL_SERVER_ERROR, e)
         })?;
 
     tx.commit().await.map_err(|e| {

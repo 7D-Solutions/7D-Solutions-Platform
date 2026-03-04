@@ -1,5 +1,5 @@
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
 };
 use std::sync::Arc;
@@ -27,6 +27,10 @@ pub fn router(state: Arc<handlers::AuthState>) -> Router {
         .route(
             "/api/auth/sod/policies/{tenant_id}/{action_key}",
             get(handlers::list_sod_policies),
+        )
+        .route(
+            "/api/auth/sod/policies/{tenant_id}/{rule_id}",
+            delete(handlers::delete_sod_policy),
         )
         .route(
             "/api/auth/forgot-password",

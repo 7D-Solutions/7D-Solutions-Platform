@@ -29,6 +29,11 @@ pub const DOWNTIME_RECORDED: &str = "maintenance.downtime.recorded";
 // ── Calibration lifecycle ───────────────────────────────────
 pub const CALIBRATION_CREATED: &str = "maintenance.calibration.created";
 pub const CALIBRATION_COMPLETED: &str = "maintenance.calibration.completed";
+pub const CALIBRATION_EVENT_RECORDED: &str = "maintenance.calibration.event_recorded";
+pub const CALIBRATION_STATUS_CHANGED: &str = "maintenance.calibration.status_changed";
+
+// ── Out-of-service lifecycle ───────────────────────────────
+pub const OUT_OF_SERVICE_CHANGED: &str = "maintenance.asset.out_of_service_changed";
 
 /// All stable NATS subjects exported by the maintenance module.
 ///
@@ -48,6 +53,9 @@ pub const ALL_SUBJECTS: &[&str] = &[
     DOWNTIME_RECORDED,
     CALIBRATION_CREATED,
     CALIBRATION_COMPLETED,
+    CALIBRATION_EVENT_RECORDED,
+    CALIBRATION_STATUS_CHANGED,
+    OUT_OF_SERVICE_CHANGED,
 ];
 
 #[cfg(test)]
@@ -75,6 +83,6 @@ mod tests {
 
     #[test]
     fn all_subjects_count() {
-        assert_eq!(ALL_SUBJECTS.len(), 14);
+        assert_eq!(ALL_SUBJECTS.len(), 17);
     }
 }

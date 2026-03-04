@@ -11,7 +11,7 @@ use rsa::traits::PublicKeyParts;
 use rsa::RsaPublicKey;
 
 /// Current claims schema version. Bump when adding/removing fields.
-pub const CLAIMS_VERSION: &str = "1";
+pub const CLAIMS_VERSION: &str = "2";
 
 /// Actor type constants — aligned with EventEnvelope `actor_type`.
 #[allow(dead_code)]
@@ -48,8 +48,25 @@ pub struct AccessClaims {
     pub perms: Vec<String>,
     pub actor_type: String,
 
+    // ── Audit enrichment ──
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub role_snapshot_id: Option<String>,
+
     // ── Versioning ──
     pub ver: String,
+}
+
+/// Compute a deterministic snapshot ID from a sorted set of role names.
+/// Used to detect stale tokens when role assignments change.
+pub fn compute_role_snapshot_id(roles: &[String]) -> String {
+    use sha2::{Digest, Sha256};
+    let mut sorted = roles.to_vec();
+    sorted.sort();
+    let input = sorted.join(",");
+    let hash = Sha256::digest(input.as_bytes());
+    hex::encode(&hash[..8]) // 16-char hex, compact but sufficient
 }
 
 #[derive(Debug, Serialize)]
@@ -139,6 +156,22 @@ impl JwtKeys {
         actor_type: &str,
         ttl_minutes: i64,
     ) -> Result<String, String> {
+        self.sign_access_token_enriched(
+            tenant_id, user_id, roles, perms, actor_type, ttl_minutes, None, None,
+        )
+    }
+
+    pub fn sign_access_token_enriched(
+        &self,
+        tenant_id: Uuid,
+        user_id: Uuid,
+        roles: Vec<String>,
+        perms: Vec<String>,
+        actor_type: &str,
+        ttl_minutes: i64,
+        session_id: Option<Uuid>,
+        role_snapshot_id: Option<String>,
+    ) -> Result<String, String> {
         let now = Utc::now();
         let exp = now + Duration::minutes(ttl_minutes);
 
@@ -154,6 +187,8 @@ impl JwtKeys {
             roles,
             perms,
             actor_type: actor_type.to_string(),
+            session_id: session_id.map(|s| s.to_string()),
+            role_snapshot_id,
             ver: CLAIMS_VERSION.to_string(),
         };
 
@@ -263,11 +298,53 @@ mod tests {
         assert_eq!(decoded.iss, "auth-rs");
         assert_eq!(decoded.aud, "7d-platform");
         assert!(decoded.app_id.is_none());
+        // Basic sign_access_token doesn't set enriched fields
+        assert!(decoded.session_id.is_none());
+        assert!(decoded.role_snapshot_id.is_none());
+    }
+
+    #[test]
+    fn enriched_claims_include_session_and_snapshot() {
+        let keys = test_keys();
+        let tenant = Uuid::new_v4();
+        let user = Uuid::new_v4();
+        let session = Uuid::new_v4();
+        let roles = vec!["operator".to_string(), "admin".to_string()];
+        let perms = vec![];
+        let snapshot = compute_role_snapshot_id(&roles);
+
+        let token = keys
+            .sign_access_token_enriched(
+                tenant,
+                user,
+                roles.clone(),
+                perms,
+                actor_type::USER,
+                15,
+                Some(session),
+                Some(snapshot.clone()),
+            )
+            .unwrap();
+
+        let decoded = keys.validate_access_token(&token).unwrap();
+        assert_eq!(decoded.session_id.as_deref(), Some(session.to_string().as_str()));
+        assert_eq!(decoded.role_snapshot_id.as_deref(), Some(snapshot.as_str()));
+    }
+
+    #[test]
+    fn role_snapshot_is_deterministic_and_order_independent() {
+        let a = compute_role_snapshot_id(&["admin".into(), "operator".into()]);
+        let b = compute_role_snapshot_id(&["operator".into(), "admin".into()]);
+        assert_eq!(a, b, "snapshot must be order-independent");
+        assert_eq!(a.len(), 16, "snapshot must be 16-char hex");
+
+        let c = compute_role_snapshot_id(&["admin".into()]);
+        assert_ne!(a, c, "different role sets must produce different snapshots");
     }
 
     #[test]
     fn claims_version_is_set() {
-        assert_eq!(CLAIMS_VERSION, "1");
+        assert_eq!(CLAIMS_VERSION, "2");
     }
 
     #[test]
@@ -337,7 +414,9 @@ mod tests {
             roles: vec![],
             perms: vec![],
             actor_type: "user".to_string(),
-            ver: "1".to_string(),
+            session_id: None,
+            role_snapshot_id: None,
+            ver: "2".to_string(),
         };
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some("test-kid".to_string());

@@ -171,6 +171,10 @@ async fn main() {
                     "/api/maintenance/assets/{asset_id}/downtime",
                     get(http::downtime::list_asset_downtime),
                 )
+                .route(
+                    "/api/maintenance/assets/{asset_id}/calibration-status",
+                    get(http::calibration_events::get_calibration_status),
+                )
                 .route_layer(RequirePermissionsLayer::new(&[
                     permissions::MAINTENANCE_READ,
                 ])),
@@ -233,6 +237,10 @@ async fn main() {
                 .route(
                     "/api/maintenance/downtime-events",
                     post(http::downtime::create_downtime),
+                )
+                .route(
+                    "/api/maintenance/assets/{asset_id}/calibration-events",
+                    post(http::calibration_events::record_calibration_event),
                 )
                 .route_layer(RequirePermissionsLayer::new(&[
                     permissions::MAINTENANCE_MUTATE,

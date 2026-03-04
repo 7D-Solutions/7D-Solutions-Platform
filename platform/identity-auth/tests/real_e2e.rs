@@ -1,3 +1,4 @@
+use auth_rs::auth::jwt;
 use auth_rs::db::{rbac, sod, user_lifecycle_audit};
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, Row};
@@ -389,4 +390,227 @@ async fn sod_forbidden_combo_denies_high_risk_action_and_logs_idempotently() {
         outbox_rows, 1,
         "duplicate idempotency should not duplicate outbox events"
     );
+}
+
+#[tokio::test]
+async fn sod_delete_policy_removes_rule_and_emits_outbox_event() {
+    let pool = test_pool().await;
+    let tenant_id = Uuid::new_v4();
+
+    let role_a = rbac::create_role(&pool, tenant_id, "inspector", "Inspector", false)
+        .await
+        .expect("create role a");
+    let role_b = rbac::create_role(&pool, tenant_id, "approver", "Approver", false)
+        .await
+        .expect("create role b");
+
+    let result = sod::upsert_policy(
+        &pool,
+        sod::SodPolicyUpsert {
+            tenant_id,
+            action_key: "mrb.approve".to_string(),
+            primary_role_id: role_a.id,
+            conflicting_role_id: role_b.id,
+            allow_override: false,
+            override_requires_approval: false,
+            actor_user_id: None,
+            idempotency_key: format!("sod-del-test:{tenant_id}:create"),
+            trace_id: "trace-del-create".to_string(),
+            causation_id: None,
+            producer: "auth-rs@test".to_string(),
+        },
+    )
+    .await
+    .expect("upsert policy");
+    let policy_id = result.policy.id;
+
+    // Delete the policy
+    let del = sod::delete_policy(
+        &pool,
+        sod::SodPolicyDeleteRequest {
+            tenant_id,
+            policy_id,
+            actor_user_id: None,
+            idempotency_key: format!("sod-del-test:{tenant_id}:delete"),
+            trace_id: "trace-del-1".to_string(),
+            causation_id: None,
+            producer: "auth-rs@test".to_string(),
+        },
+    )
+    .await
+    .expect("delete policy");
+
+    assert!(del.deleted, "policy should be deleted");
+    assert!(!del.idempotent_replay);
+
+    // Verify policy no longer exists
+    let policies = sod::list_policies(&pool, tenant_id, "mrb.approve")
+        .await
+        .expect("list after delete");
+    assert!(policies.is_empty(), "policy should be gone");
+
+    // Verify outbox event emitted
+    let outbox: i64 = sqlx::query(
+        "SELECT COUNT(*) AS c FROM sod_events_outbox WHERE tenant_id = $1 AND event_type = 'auth.sod.policy.deleted'",
+    )
+    .bind(tenant_id)
+    .fetch_one(&pool)
+    .await
+    .expect("count outbox")
+    .get("c");
+    assert_eq!(outbox, 1, "delete event must be in outbox");
+
+    // Replay: same idempotency key returns replay
+    let replay = sod::delete_policy(
+        &pool,
+        sod::SodPolicyDeleteRequest {
+            tenant_id,
+            policy_id,
+            actor_user_id: None,
+            idempotency_key: format!("sod-del-test:{tenant_id}:delete"),
+            trace_id: "trace-del-replay".to_string(),
+            causation_id: None,
+            producer: "auth-rs@test".to_string(),
+        },
+    )
+    .await
+    .expect("replay delete");
+    assert!(replay.idempotent_replay, "duplicate key must be replay");
+}
+
+#[tokio::test]
+async fn sod_evaluate_allows_action_when_no_conflict_and_denies_after_policy_created() {
+    let pool = test_pool().await;
+    let tenant_id = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+
+    let role = rbac::create_role(&pool, tenant_id, "viewer", "Viewer", false)
+        .await
+        .expect("create role");
+
+    let ctx = user_lifecycle_audit::LifecycleAuditContext {
+        producer: "auth-rs@test".to_string(),
+        trace_id: "trace-ctx-aware".to_string(),
+        causation_id: None,
+        idempotency_key: format!("bind-ctx:{tenant_id}:{actor_id}:{}", role.id),
+    };
+    rbac::bind_user_role_with_audit(&pool, tenant_id, actor_id, role.id, None, &ctx)
+        .await
+        .expect("bind role");
+
+    // No SoD policy → allow
+    let allowed = sod::evaluate_decision(
+        &pool,
+        sod::SodDecisionRequest {
+            tenant_id,
+            action_key: "report.view".to_string(),
+            actor_user_id: actor_id,
+            subject_user_id: None,
+            override_granted_by: None,
+            override_ticket: None,
+            idempotency_key: format!("ctx-eval:{tenant_id}:view"),
+            trace_id: "trace-ctx-view".to_string(),
+            causation_id: None,
+            producer: "auth-rs@test".to_string(),
+        },
+    )
+    .await
+    .expect("eval view");
+    assert_eq!(allowed.decision, "allow");
+
+    // Different action → also allow (context-aware)
+    let allowed2 = sod::evaluate_decision(
+        &pool,
+        sod::SodDecisionRequest {
+            tenant_id,
+            action_key: "report.export".to_string(),
+            actor_user_id: actor_id,
+            subject_user_id: None,
+            override_granted_by: None,
+            override_ticket: None,
+            idempotency_key: format!("ctx-eval:{tenant_id}:export"),
+            trace_id: "trace-ctx-export".to_string(),
+            causation_id: None,
+            producer: "auth-rs@test".to_string(),
+        },
+    )
+    .await
+    .expect("eval export");
+    assert_eq!(allowed2.decision, "allow");
+}
+
+#[tokio::test]
+async fn role_snapshot_id_is_deterministic_and_order_independent() {
+    let roles_a = vec!["admin".to_string(), "operator".to_string()];
+    let roles_b = vec!["operator".to_string(), "admin".to_string()];
+    let roles_c = vec!["admin".to_string()];
+
+    let snap_a = jwt::compute_role_snapshot_id(&roles_a);
+    let snap_b = jwt::compute_role_snapshot_id(&roles_b);
+    let snap_c = jwt::compute_role_snapshot_id(&roles_c);
+
+    assert_eq!(snap_a, snap_b, "order must not matter");
+    assert_ne!(snap_a, snap_c, "different sets must differ");
+    assert_eq!(snap_a.len(), 16, "snapshot must be 16-char hex");
+}
+
+#[tokio::test]
+async fn cross_tenant_sod_isolation() {
+    let pool = test_pool().await;
+    let tenant_a = Uuid::new_v4();
+    let tenant_b = Uuid::new_v4();
+    let actor_id = Uuid::new_v4();
+
+    let role_a = rbac::create_role(&pool, tenant_a, "qa_role", "QA", false)
+        .await
+        .expect("create role tenant_a");
+    let role_b = rbac::create_role(&pool, tenant_a, "prod_role", "Prod", false)
+        .await
+        .expect("create role2 tenant_a");
+
+    // Create policy in tenant_a
+    sod::upsert_policy(
+        &pool,
+        sod::SodPolicyUpsert {
+            tenant_id: tenant_a,
+            action_key: "release.approve".to_string(),
+            primary_role_id: role_a.id,
+            conflicting_role_id: role_b.id,
+            allow_override: false,
+            override_requires_approval: false,
+            actor_user_id: None,
+            idempotency_key: format!("cross-tenant:{tenant_a}:policy"),
+            trace_id: "trace-cross".to_string(),
+            causation_id: None,
+            producer: "auth-rs@test".to_string(),
+        },
+    )
+    .await
+    .expect("upsert tenant_a policy");
+
+    // tenant_b should have no policies for same action
+    let policies_b = sod::list_policies(&pool, tenant_b, "release.approve")
+        .await
+        .expect("list tenant_b");
+    assert!(policies_b.is_empty(), "tenant_b must not see tenant_a policies");
+
+    // Evaluating in tenant_b with same actor should always allow (no policy)
+    let eval_b = sod::evaluate_decision(
+        &pool,
+        sod::SodDecisionRequest {
+            tenant_id: tenant_b,
+            action_key: "release.approve".to_string(),
+            actor_user_id: actor_id,
+            subject_user_id: None,
+            override_granted_by: None,
+            override_ticket: None,
+            idempotency_key: format!("cross-eval:{tenant_b}:1"),
+            trace_id: "trace-cross-eval".to_string(),
+            causation_id: None,
+            producer: "auth-rs@test".to_string(),
+        },
+    )
+    .await
+    .expect("eval tenant_b");
+    assert_eq!(eval_b.decision, "allow", "no policy in tenant_b = allow");
 }

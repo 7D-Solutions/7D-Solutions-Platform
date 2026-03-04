@@ -293,15 +293,19 @@ pub async fn refresh(
             )
         })?;
 
+    let role_snapshot_id = super::jwt::compute_role_snapshot_id(&roles);
+
     let access = state
         .jwt
-        .sign_access_token(
+        .sign_access_token_enriched(
             req.tenant_id,
             user_id,
             roles,
             perms,
             super::jwt::actor_type::USER,
             state.access_ttl_minutes,
+            Some(new_token_id),
+            Some(role_snapshot_id),
         )
         .map_err(|e| {
             state

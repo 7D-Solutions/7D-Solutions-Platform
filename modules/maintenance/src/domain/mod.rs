@@ -1,5 +1,6 @@
 pub mod assets;
 pub mod calibration;
+pub mod calibration_events;
 pub mod downtime;
 pub mod meters;
 pub mod overdue;

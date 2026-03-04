@@ -12,6 +12,7 @@ use axum::{
     response::IntoResponse,
     Extension, Json,
 };
+use chrono::{DateTime, Utc};
 use security::VerifiedClaims;
 use serde::Deserialize;
 use serde_json::json;
@@ -27,6 +28,8 @@ use crate::AppState;
 #[derive(Debug, Deserialize)]
 pub struct ListDowntimeParams {
     pub asset_id: Option<Uuid>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -99,6 +102,8 @@ pub async fn list_downtime(
     let q = ListDowntimeQuery {
         tenant_id,
         asset_id: params.asset_id,
+        from: params.from,
+        to: params.to,
         limit: params.limit,
         offset: params.offset,
     };

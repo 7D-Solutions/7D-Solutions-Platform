@@ -25,7 +25,7 @@ use crate::outbox;
 pub struct DowntimeEvent {
     pub id: Uuid,
     pub tenant_id: String,
-    pub asset_id: Uuid,
+    pub asset_id: Option<Uuid>,
     pub start_time: DateTime<Utc>,
     pub end_time: Option<DateTime<Utc>>,
     pub reason: String,
@@ -33,6 +33,9 @@ pub struct DowntimeEvent {
     pub idempotency_key: Option<String>,
     pub notes: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub workcenter_id: Option<Uuid>,
+    pub reason_code: Option<String>,
+    pub wo_ref: Option<String>,
 }
 
 // ============================================================================
@@ -60,19 +63,24 @@ fn validate_impact(s: &str) -> Result<(), DowntimeError> {
 #[derive(Debug, Deserialize)]
 pub struct CreateDowntimeRequest {
     pub tenant_id: String,
-    pub asset_id: Uuid,
+    pub asset_id: Option<Uuid>,
     pub start_time: DateTime<Utc>,
     pub end_time: Option<DateTime<Utc>>,
     pub reason: String,
     pub impact_classification: String,
     pub idempotency_key: Option<String>,
     pub notes: Option<String>,
+    pub workcenter_id: Option<Uuid>,
+    pub reason_code: Option<String>,
+    pub wo_ref: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct ListDowntimeQuery {
     pub tenant_id: String,
     pub asset_id: Option<Uuid>,
+    pub from: Option<DateTime<Utc>>,
+    pub to: Option<DateTime<Utc>>,
     pub limit: Option<i64>,
     pub offset: Option<i64>,
 }
@@ -118,6 +126,11 @@ impl DowntimeRepo {
         if req.reason.trim().is_empty() {
             return Err(DowntimeError::Validation("reason is required".into()));
         }
+        if req.asset_id.is_none() && req.workcenter_id.is_none() {
+            return Err(DowntimeError::Validation(
+                "at least one of asset_id or workcenter_id is required".into(),
+            ));
+        }
         validate_impact(&req.impact_classification)?;
 
         if let Some(ref end) = req.end_time {
@@ -145,15 +158,18 @@ impl DowntimeRepo {
 
         let mut tx = pool.begin().await?;
 
-        // Verify asset exists and belongs to tenant
-        let asset_exists: Option<(Uuid,)> =
-            sqlx::query_as("SELECT id FROM maintainable_assets WHERE id = $1 AND tenant_id = $2")
-                .bind(req.asset_id)
-                .bind(&req.tenant_id)
-                .fetch_optional(&mut *tx)
-                .await?;
-        if asset_exists.is_none() {
-            return Err(DowntimeError::AssetNotFound);
+        // Verify asset exists and belongs to tenant (if asset_id provided)
+        if let Some(aid) = req.asset_id {
+            let asset_exists: Option<(Uuid,)> = sqlx::query_as(
+                "SELECT id FROM maintainable_assets WHERE id = $1 AND tenant_id = $2",
+            )
+            .bind(aid)
+            .bind(&req.tenant_id)
+            .fetch_optional(&mut *tx)
+            .await?;
+            if asset_exists.is_none() {
+                return Err(DowntimeError::AssetNotFound);
+            }
         }
 
         // ── Mutation ──
@@ -163,8 +179,9 @@ impl DowntimeRepo {
             r#"
             INSERT INTO downtime_events
                 (id, tenant_id, asset_id, start_time, end_time, reason,
-                 impact_classification, idempotency_key, notes)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                 impact_classification, idempotency_key, notes,
+                 workcenter_id, reason_code, wo_ref)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
             RETURNING *
             "#,
         )
@@ -177,6 +194,9 @@ impl DowntimeRepo {
         .bind(&req.impact_classification)
         .bind(req.idempotency_key.as_deref())
         .bind(req.notes.as_deref())
+        .bind(req.workcenter_id)
+        .bind(req.reason_code.as_deref())
+        .bind(req.wo_ref.as_deref())
         .fetch_one(&mut *tx)
         .await?;
 
@@ -185,10 +205,13 @@ impl DowntimeRepo {
             "downtime_event_id": id,
             "tenant_id": &req.tenant_id,
             "asset_id": req.asset_id,
+            "workcenter_id": req.workcenter_id,
             "start_time": req.start_time,
             "end_time": req.end_time,
             "reason": req.reason.trim(),
+            "reason_code": req.reason_code,
             "impact_classification": &req.impact_classification,
+            "wo_ref": req.wo_ref,
         });
         let event_id = Uuid::new_v4();
         let env = envelope::create_envelope(
@@ -228,7 +251,7 @@ impl DowntimeRepo {
         .map_err(DowntimeError::Database)
     }
 
-    /// List downtime events for a tenant, optionally filtered by asset.
+    /// List downtime events for a tenant, optionally filtered by asset and date range.
     /// Results ordered by start_time DESC (most recent first).
     pub async fn list(
         pool: &PgPool,
@@ -245,12 +268,16 @@ impl DowntimeRepo {
             SELECT * FROM downtime_events
             WHERE tenant_id = $1
               AND ($2::UUID IS NULL OR asset_id = $2)
+              AND ($3::TIMESTAMPTZ IS NULL OR start_time >= $3)
+              AND ($4::TIMESTAMPTZ IS NULL OR start_time <= $4)
             ORDER BY start_time DESC
-            LIMIT $3 OFFSET $4
+            LIMIT $5 OFFSET $6
             "#,
         )
         .bind(&q.tenant_id)
         .bind(q.asset_id)
+        .bind(q.from)
+        .bind(q.to)
         .bind(limit)
         .bind(offset)
         .fetch_all(pool)
