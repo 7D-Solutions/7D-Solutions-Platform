@@ -18,4 +18,6 @@ pub mod metrics;
 pub mod models;
 pub mod http;
 pub mod scheduled;
+pub mod sends;
+pub mod template_store;
 pub mod templates;

@@ -182,7 +182,27 @@ async fn main() {
             ),
         )
         .merge(
-            http::inbox::inbox_mutate_router(db).route_layer(RequirePermissionsLayer::new(&[
+            http::inbox::inbox_mutate_router(db.clone()).route_layer(RequirePermissionsLayer::new(&[
+                permissions::NOTIFICATIONS_MUTATE,
+            ])),
+        )
+        .merge(
+            http::templates::templates_read_router(db.clone()).route_layer(
+                RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
+            ),
+        )
+        .merge(
+            http::templates::templates_mutate_router(db.clone()).route_layer(
+                RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_MUTATE]),
+            ),
+        )
+        .merge(
+            http::sends::sends_read_router(db.clone()).route_layer(
+                RequirePermissionsLayer::new(&[permissions::NOTIFICATIONS_READ]),
+            ),
+        )
+        .merge(
+            http::sends::sends_mutate_router(db).route_layer(RequirePermissionsLayer::new(&[
                 permissions::NOTIFICATIONS_MUTATE,
             ])),
         )
