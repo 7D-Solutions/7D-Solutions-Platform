@@ -1,0 +1,102 @@
+name: 7d-services-dev-build
+
+services:
+  auth-1:
+    build:
+      context: .
+      dockerfile: platform/identity-auth/Dockerfile.workspace
+
+  auth-2:
+    build:
+      context: .
+      dockerfile: platform/identity-auth/Dockerfile.workspace
+
+  control-plane:
+    build:
+      context: .
+      dockerfile: platform/control-plane/Dockerfile.workspace
+
+  ar:
+    build:
+      context: .
+      dockerfile: modules/ar/deploy/Dockerfile.workspace
+
+  subscriptions:
+    build:
+      context: .
+      dockerfile: modules/subscriptions/Dockerfile.workspace
+
+  payments:
+    build:
+      context: .
+      dockerfile: modules/payments/Dockerfile.workspace
+
+  notifications:
+    build:
+      context: .
+      dockerfile: modules/notifications/Dockerfile.workspace
+
+  gl:
+    build:
+      context: .
+      dockerfile: modules/gl/Dockerfile.workspace
+
+  inventory:
+    build:
+      context: .
+      dockerfile: modules/inventory/Dockerfile.workspace
+
+  ap:
+    build:
+      context: .
+      dockerfile: modules/ap/Dockerfile.workspace
+
+  treasury:
+    build:
+      context: .
+      dockerfile: modules/treasury/Dockerfile.workspace
+
+  fixed-assets:
+    build:
+      context: .
+      dockerfile: modules/fixed-assets/Dockerfile.workspace
+
+  consolidation:
+    build:
+      context: .
+      dockerfile: modules/consolidation/Dockerfile.workspace
+
+  timekeeping:
+    build:
+      context: .
+      dockerfile: modules/timekeeping/Dockerfile.workspace
+
+  party:
+    build:
+      context: .
+      dockerfile: modules/party/Dockerfile.workspace
+
+  integrations:
+    build:
+      context: .
+      dockerfile: modules/integrations/Dockerfile.workspace
+
+  ttp:
+    build:
+      context: .
+      dockerfile: modules/ttp/Dockerfile.workspace
+
+  pdf-editor:
+    build:
+      context: .
+      dockerfile: modules/pdf-editor/deploy/Dockerfile.workspace
+
+  maintenance:
+    build:
+      context: .
+      dockerfile: modules/maintenance/Dockerfile.workspace
+
+  shipping-receiving:
+    build:
+      context: .
+      dockerfile: modules/shipping-receiving/Dockerfile.workspace
