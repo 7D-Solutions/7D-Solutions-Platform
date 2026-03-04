@@ -2031,14 +2031,6 @@ async fn test_escalation_timer_fires_once_when_due() {
     let pool = setup_db().await;
     let tid = unique_tenant();
 
-    // Cancel stale unfired timers from prior test runs so tick() only sees ours
-    sqlx::query(
-        "UPDATE workflow_escalation_timers SET cancelled_at = now() WHERE fired_at IS NULL AND cancelled_at IS NULL",
-    )
-    .execute(&pool)
-    .await
-    .expect("cleanup stale timers");
-
     // Create definition with a review step
     let def = create_test_definition(&pool, &tid).await;
 
@@ -2112,8 +2104,8 @@ async fn test_escalation_timer_fires_once_when_due() {
     assert!(timer.fired_at.is_none());
     assert!(timer.cancelled_at.is_none());
 
-    // Tick — should fire exactly one escalation
-    let fired = EscalationRepo::tick(&pool, 10).await.expect("tick failed");
+    // Tick (tenant-scoped) — should fire exactly one escalation
+    let fired = EscalationRepo::tick_for_tenant(&pool, &tid, 10).await.expect("tick failed");
     assert_eq!(fired.len(), 1);
     assert_eq!(fired[0].id, timer.id);
     assert!(fired[0].fired_at.is_some());
@@ -2133,7 +2125,7 @@ async fn test_escalation_timer_fires_once_when_due() {
     );
 
     // Tick again — should fire nothing (already fired)
-    let fired2 = EscalationRepo::tick(&pool, 10).await.expect("tick2 failed");
+    let fired2 = EscalationRepo::tick_for_tenant(&pool, &tid, 10).await.expect("tick2 failed");
     assert_eq!(fired2.len(), 0);
 }
 
@@ -2274,8 +2266,8 @@ async fn test_escalation_cancel_timers_on_advance() {
         .expect("list failed");
     assert_eq!(remaining.len(), 0);
 
-    // Tick should not fire anything (cancelled)
-    let fired = EscalationRepo::tick(&pool, 10).await.expect("tick failed");
+    // Tick (tenant-scoped) should not fire anything (cancelled)
+    let fired = EscalationRepo::tick_for_tenant(&pool, &tid, 10).await.expect("tick failed");
     assert_eq!(fired.len(), 0);
 }
 

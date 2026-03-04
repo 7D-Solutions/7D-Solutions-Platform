@@ -293,26 +293,60 @@ impl EscalationRepo {
     }
 
     /// Tick: find and fire all due timers. Exactly-once via Guard→Mutation→Outbox.
-    /// Returns the number of escalations fired.
+    /// Returns the list of escalation timers that were fired.
     pub async fn tick(
         pool: &PgPool,
         limit: i64,
+    ) -> Result<Vec<EscalationTimer>, EscalationError> {
+        Self::tick_inner(pool, limit, None).await
+    }
+
+    /// Tick scoped to a single tenant. Same semantics as `tick()` but only
+    /// processes timers belonging to `tenant_id`. Prevents cross-tenant
+    /// interference when multiple callers share the same database.
+    pub async fn tick_for_tenant(
+        pool: &PgPool,
+        tenant_id: &str,
+        limit: i64,
+    ) -> Result<Vec<EscalationTimer>, EscalationError> {
+        Self::tick_inner(pool, limit, Some(tenant_id)).await
+    }
+
+    async fn tick_inner(
+        pool: &PgPool,
+        limit: i64,
+        tenant_id: Option<&str>,
     ) -> Result<Vec<EscalationTimer>, EscalationError> {
         let mut fired = Vec::new();
         let limit = limit.min(100);
 
         // Fetch due timers (not yet fired, not cancelled, due_at <= now)
-        let due_timers = sqlx::query_as::<_, EscalationTimer>(
-            r#"
-            SELECT * FROM workflow_escalation_timers
-            WHERE fired_at IS NULL AND cancelled_at IS NULL AND due_at <= now()
-            ORDER BY due_at ASC
-            LIMIT $1
-            "#,
-        )
-        .bind(limit)
-        .fetch_all(pool)
-        .await?;
+        let due_timers = if let Some(tid) = tenant_id {
+            sqlx::query_as::<_, EscalationTimer>(
+                r#"
+                SELECT * FROM workflow_escalation_timers
+                WHERE tenant_id = $1 AND fired_at IS NULL AND cancelled_at IS NULL AND due_at <= now()
+                ORDER BY due_at ASC
+                LIMIT $2
+                "#,
+            )
+            .bind(tid)
+            .bind(limit)
+            .fetch_all(pool)
+            .await?
+        } else {
+            sqlx::query_as::<_, EscalationTimer>(
+                r#"
+                SELECT * FROM workflow_escalation_timers
+                WHERE fired_at IS NULL AND cancelled_at IS NULL AND due_at <= now()
+                ORDER BY due_at ASC
+                LIMIT $1
+                "#,
+            )
+            .bind(limit)
+            .fetch_all(pool)
+            .await?
+        };
 
         for timer in due_timers {
             match Self::fire_timer(pool, &timer).await {
