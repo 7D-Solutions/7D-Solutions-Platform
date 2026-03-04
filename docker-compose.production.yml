@@ -1,329 +1,77 @@
-# docker-compose.production.yml — Production overlay for application services.
-#
+
+# Production overlay:
+# - leaves docker-compose.services.yml unchanged for dev build workflows
+# - pins runtime to immutable image tags for reproducible deploys/rollbacks
 # Usage:
-#   docker compose --env-file .env.release \
-#     -f docker-compose.services.yml -f docker-compose.production.yml up -d
-#
-# This overlay does two things:
-#   1. Pins every service to an immutable image tag (from .env.release / release manifest)
-#   2. Overrides services to read secrets from Docker-mounted files (see docs/SECRETS.md)
-#
-# Image tags are supplied via env vars (e.g. AUTH_IMAGE, AR_IMAGE) loaded from
-# .env.release, which is generated from deploy/production/compose-release-manifest.json:
-#   ./scripts/release/manifest_to_env.sh
-#
-# For the data stack (NATS + Postgres), use docker-compose.production-data.yml.
-
-secrets:
-  jwt_private_key_pem:
-    file: /etc/7d/production/secrets/jwt_private_key_pem
-  jwt_public_key_pem:
-    file: /etc/7d/production/secrets/jwt_public_key_pem
-  nats_url:
-    file: /etc/7d/production/secrets/nats_url
-  tilled_webhook_secret:
-    file: /etc/7d/production/secrets/tilled_webhook_secret
-
-  auth_database_url:
-    file: /etc/7d/production/secrets/auth_database_url
-  ar_database_url:
-    file: /etc/7d/production/secrets/ar_database_url
-  subscriptions_database_url:
-    file: /etc/7d/production/secrets/subscriptions_database_url
-  payments_database_url:
-    file: /etc/7d/production/secrets/payments_database_url
-  notifications_database_url:
-    file: /etc/7d/production/secrets/notifications_database_url
-  gl_database_url:
-    file: /etc/7d/production/secrets/gl_database_url
-  inventory_database_url:
-    file: /etc/7d/production/secrets/inventory_database_url
-  ap_database_url:
-    file: /etc/7d/production/secrets/ap_database_url
-  treasury_database_url:
-    file: /etc/7d/production/secrets/treasury_database_url
-  fixed_assets_database_url:
-    file: /etc/7d/production/secrets/fixed_assets_database_url
-  consolidation_database_url:
-    file: /etc/7d/production/secrets/consolidation_database_url
-  timekeeping_database_url:
-    file: /etc/7d/production/secrets/timekeeping_database_url
-  party_database_url:
-    file: /etc/7d/production/secrets/party_database_url
-  integrations_database_url:
-    file: /etc/7d/production/secrets/integrations_database_url
-  ttp_database_url:
-    file: /etc/7d/production/secrets/ttp_database_url
-  pdf_editor_database_url:
-    file: /etc/7d/production/secrets/pdf_editor_database_url
-  maintenance_database_url:
-    file: /etc/7d/production/secrets/maintenance_database_url
-  shipping_receiving_database_url:
-    file: /etc/7d/production/secrets/shipping_receiving_database_url
-  tenant_registry_database_url:
-    file: /etc/7d/production/secrets/tenant_registry_database_url
-  control_plane_ar_database_url:
-    file: /etc/7d/production/secrets/control_plane_ar_database_url
+#   docker compose -f docker-compose.services.yml -f docker-compose.production.yml up -d
 
 services:
   auth-1:
-    image: ${AUTH_IMAGE:?Set AUTH_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["identity-auth"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: auth_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
-      - source: jwt_private_key_pem
-        target: JWT_PRIVATE_KEY_PEM
-      - source: jwt_public_key_pem
-        target: JWT_PUBLIC_KEY_PEM
+    image: ${AUTH_IMAGE:-7dsolutions/identity-auth:phase66-d3b0e8932887}
 
   auth-2:
-    image: ${AUTH_IMAGE:?Set AUTH_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["identity-auth"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: auth_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
-      - source: jwt_private_key_pem
-        target: JWT_PRIVATE_KEY_PEM
-      - source: jwt_public_key_pem
-        target: JWT_PUBLIC_KEY_PEM
+    image: ${AUTH_IMAGE:-7dsolutions/identity-auth:phase66-d3b0e8932887}
 
   auth-lb:
-    image: ${NGINX_AUTH_LB_IMAGE:?Set NGINX_AUTH_LB_IMAGE in .env.release}
+    image: ${NGINX_AUTH_LB_IMAGE:-nginx:alpine}
+    cap_add:
+      - CHOWN
 
   gateway:
-    image: ${NGINX_GATEWAY_IMAGE:?Set NGINX_GATEWAY_IMAGE in .env.release}
+    image: ${NGINX_GATEWAY_IMAGE:-nginx:alpine}
+    cap_add:
+      - CHOWN
 
   control-plane:
-    image: ${CONTROL_PLANE_IMAGE:?Set CONTROL_PLANE_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["control-plane"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: tenant_registry_database_url
-        target: DATABASE_URL
-      - source: control_plane_ar_database_url
-        target: AR_DATABASE_URL
+    image: ${CONTROL_PLANE_IMAGE:-7dsolutions/control-plane:phase66-d3b0e8932887}
 
   ar:
-    image: ${AR_IMAGE:?Set AR_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["ar-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: ar_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
-      - source: tilled_webhook_secret
-        target: TILLED_WEBHOOK_SECRET
+    image: ${AR_IMAGE:-7dsolutions/ar:phase66-d3b0e8932887}
 
   subscriptions:
-    image: ${SUBSCRIPTIONS_IMAGE:?Set SUBSCRIPTIONS_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["subscriptions-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: subscriptions_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${SUBSCRIPTIONS_IMAGE:-7dsolutions/subscriptions:phase66-d3b0e8932887}
 
   payments:
-    image: ${PAYMENTS_IMAGE:?Set PAYMENTS_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["payments-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: payments_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${PAYMENTS_IMAGE:-7dsolutions/payments:phase66-d3b0e8932887}
 
   notifications:
-    image: ${NOTIFICATIONS_IMAGE:?Set NOTIFICATIONS_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["notifications-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: notifications_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${NOTIFICATIONS_IMAGE:-7dsolutions/notifications:phase66-d3b0e8932887}
 
   gl:
-    image: ${GL_IMAGE:?Set GL_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["gl-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: gl_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
-      - source: jwt_public_key_pem
-        target: JWT_PUBLIC_KEY
+    image: ${GL_IMAGE:-7dsolutions/gl:phase66-d3b0e8932887}
 
   inventory:
-    image: ${INVENTORY_IMAGE:?Set INVENTORY_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["inventory-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: inventory_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${INVENTORY_IMAGE:-7dsolutions/inventory:phase66-d3b0e8932887}
 
   ap:
-    image: ${AP_IMAGE:?Set AP_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["ap-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: ap_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${AP_IMAGE:-7dsolutions/ap:phase66-d3b0e8932887}
 
   treasury:
-    image: ${TREASURY_IMAGE:?Set TREASURY_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["treasury-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: treasury_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${TREASURY_IMAGE:-7dsolutions/treasury:phase66-d3b0e8932887}
 
   fixed-assets:
-    image: ${FIXED_ASSETS_IMAGE:?Set FIXED_ASSETS_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["fixed-assets-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: fixed_assets_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${FIXED_ASSETS_IMAGE:-7dsolutions/fixed-assets:phase66-d3b0e8932887}
 
   consolidation:
-    image: ${CONSOLIDATION_IMAGE:?Set CONSOLIDATION_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["consolidation-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: consolidation_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${CONSOLIDATION_IMAGE:-7dsolutions/consolidation:phase66-d3b0e8932887}
 
   timekeeping:
-    image: ${TIMEKEEPING_IMAGE:?Set TIMEKEEPING_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["timekeeping-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: timekeeping_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${TIMEKEEPING_IMAGE:-7dsolutions/timekeeping:phase66-d3b0e8932887}
 
   party:
-    image: ${PARTY_IMAGE:?Set PARTY_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["party-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: party_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
-      - source: jwt_public_key_pem
-        target: JWT_PUBLIC_KEY
+    image: ${PARTY_IMAGE:-7dsolutions/party:phase66-d3b0e8932887}
 
   integrations:
-    image: ${INTEGRATIONS_IMAGE:?Set INTEGRATIONS_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["integrations-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: integrations_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${INTEGRATIONS_IMAGE:-7dsolutions/integrations:phase66-d3b0e8932887}
 
   ttp:
-    image: ${TTP_IMAGE:?Set TTP_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["ttp-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: ttp_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${TTP_IMAGE:-7dsolutions/ttp:phase66-d3b0e8932887}
 
   pdf-editor:
-    image: ${PDF_EDITOR_IMAGE:?Set PDF_EDITOR_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["pdf-editor-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: pdf_editor_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${PDF_EDITOR_IMAGE:-7dsolutions/pdf-editor:phase66-d3b0e8932887}
 
   maintenance:
-    image: ${MAINTENANCE_IMAGE:?Set MAINTENANCE_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["maintenance-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: maintenance_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
-      - source: jwt_public_key_pem
-        target: JWT_PUBLIC_KEY
+    image: ${MAINTENANCE_IMAGE:-7dsolutions/maintenance:phase66-d3b0e8932887}
 
   shipping-receiving:
-    image: ${SHIPPING_RECEIVING_IMAGE:?Set SHIPPING_RECEIVING_IMAGE in .env.release}
-    entrypoint: ["/usr/local/bin/secrets-entrypoint.sh"]
-    command: ["shipping-receiving-rs"]
-    volumes:
-      - ./scripts/docker-secrets-entrypoint.sh:/usr/local/bin/secrets-entrypoint.sh:ro
-    secrets:
-      - source: shipping_receiving_database_url
-        target: DATABASE_URL
-      - source: nats_url
-        target: NATS_URL
+    image: ${SHIPPING_RECEIVING_IMAGE:-7dsolutions/shipping-receiving:phase66-d3b0e8932887}

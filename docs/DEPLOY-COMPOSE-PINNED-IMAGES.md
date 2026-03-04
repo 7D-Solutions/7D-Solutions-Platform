@@ -1,95 +1,50 @@
 # Compose Pinned Image Deploy
 
-Production uses an overlay (`docker-compose.production.yml`) on top of the base
-services file. The overlay pins every service to an immutable image tag and
-configures Docker secrets. `docker-compose.services.yml` is never modified — it
-stays as the source-build dev file.
+`docker-compose.services.yml` remains the dev source-build file (`build:`). Production uses an override file with pinned `image:` tags.
 
-## Source of truth
+## Files
 
+- Base (dev): `docker-compose.services.yml`
+- Production override: `docker-compose.production.yml`
 - Release manifest: `deploy/production/compose-release-manifest.json`
-- Image overlay: `docker-compose.production.yml` (image: + secrets)
-- Env var file: `.env.release` (generated from manifest)
 
-## Generate .env.release
+## Production deploy (no build step)
+
+```bash
+docker compose -f docker-compose.services.yml -f docker-compose.production.yml up -d
+```
+
+This must run without `--build`.
+
+## Optional env materialization
+
+If you want explicit env assignments from the manifest:
 
 ```bash
 ./scripts/release/manifest_to_env.sh deploy/production/compose-release-manifest.json .env.release
-```
 
-## Deploy (production)
-
-```bash
-# Generate env vars from manifest
-./scripts/release/manifest_to_env.sh
-
-# Start data layer
-docker compose -f docker-compose.data.yml \
-  -f docker-compose.production-data.yml up -d
-
-# Start services with pinned images + secrets overlay
 docker compose --env-file .env.release \
   -f docker-compose.services.yml \
   -f docker-compose.production.yml up -d
 ```
 
-When both `build:` (from base) and `image:` (from overlay) are present, Compose
-uses the existing image if it is available locally or in the registry, and skips
-building. Never pass `--build` in production.
-
-## Verify
+## Verification
 
 ```bash
-docker compose --env-file .env.release \
-  -f docker-compose.services.yml \
-  -f docker-compose.production.yml ps
+docker compose -f docker-compose.services.yml -f docker-compose.production.yml ps
+NATS_URL="nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@localhost:4222" ./scripts/proofs_runbook.sh
 ```
 
-All 22 containers should be running with `7d-` prefixed names.
-
-## Dev (build from source)
-
-No overlay needed — just use the base services file:
-
-```bash
-docker compose -f docker-compose.data.yml up -d
-docker compose -f docker-compose.services.yml up -d --build
-```
+Expected: clean `7d-*` container names, HTTP services healthy, NATS checks pass, and runbook `33/33` crate pass.
 
 ## Rollback
 
-1. Check out the previous manifest version.
-2. Regenerate `.env.release`.
-3. Re-deploy.
+1. Restore previous `deploy/production/compose-release-manifest.json`.
+2. Re-tag images (if needed) to the previous tags from the manifest.
+3. Re-run deploy command.
 
 ```bash
 git checkout <previous-sha> -- deploy/production/compose-release-manifest.json
-./scripts/release/manifest_to_env.sh
-docker compose --env-file .env.release \
-  -f docker-compose.services.yml \
-  -f docker-compose.production.yml up -d
+./scripts/release/manifest_to_env.sh deploy/production/compose-release-manifest.json .env.release
+docker compose --env-file .env.release -f docker-compose.services.yml -f docker-compose.production.yml up -d
 ```
-
-The previous images must still exist locally or in the registry. For safety,
-keep at least 3 previous release tags.
-
-## Cutting a new release
-
-1. Build all images from source:
-   ```bash
-   docker compose -f docker-compose.services.yml build
-   ```
-2. Tag with release identifier:
-   ```bash
-   GIT_SHA=$(git rev-parse --short HEAD)
-   TAG="release-${GIT_SHA}"
-   # For each Rust service:
-   docker tag 7d-services-ar:latest ghcr.io/7d-solutions/ar:${TAG}
-   # ... repeat for all services
-   ```
-3. Update `deploy/production/compose-release-manifest.json` with new tags and SHA.
-4. Regenerate `.env.release`:
-   ```bash
-   ./scripts/release/manifest_to_env.sh
-   ```
-5. Commit manifest + env file together.
