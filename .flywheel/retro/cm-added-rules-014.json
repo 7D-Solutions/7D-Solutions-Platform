@@ -1,0 +1,30 @@
+[
+  {
+    "content": "When making infrastructure changes (ports, auth, networking) in Docker Compose, grep ALL compose file variants (data, services, modules, platform, infrastructure, production) — never assume one file covers it",
+    "category": "integration"
+  },
+  {
+    "content": "When writing tests that use shared databases with cargo build slots, always scope operations by tenant_id or namespace — global queries cause flaky cross-test interference",
+    "category": "testing"
+  },
+  {
+    "content": "Use entrypoint wrapper scripts to convert Docker secrets to environment variables at container startup — avoids changing application code while securing production credentials",
+    "category": "security"
+  },
+  {
+    "content": "When infrastructure auth changes break test suites, create a child bead for test fixes rather than expanding the parent bead's scope",
+    "category": "workflow"
+  },
+  {
+    "content": "Always reserve shared files via reserve-files.sh before editing when multiple agents may be active — prevents merge conflicts on compose files and shared configs",
+    "category": "collaboration"
+  },
+  {
+    "content": "After rebasing or merging branches that touch migration files, verify _sqlx_migrations table consistency — removed or renamed migrations cause VersionMissing crash loops",
+    "category": "debugging"
+  },
+  {
+    "content": "When a prior bead misses file variants (legacy compose, production overlay), create a follow-up bead to sweep remaining files rather than reopening the closed bead",
+    "category": "workflow"
+  }
+]
