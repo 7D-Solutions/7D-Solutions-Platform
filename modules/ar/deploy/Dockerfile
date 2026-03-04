@@ -29,6 +29,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libssl3 curl \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
 COPY --from=builder /app/target/release/ar-rs /usr/local/bin/ar-rs
 COPY --from=builder /app/db/migrations /app/migrations
 
@@ -40,4 +42,5 @@ EXPOSE 8086
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
     CMD curl -f http://localhost:${PORT}/api/health || exit 1
 
+USER appuser
 CMD ["ar-rs"]

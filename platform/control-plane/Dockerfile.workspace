@@ -36,6 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libssl3 curl \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
 WORKDIR /app
 
 COPY --from=builder /app/target/release/control-plane /usr/local/bin/control-plane
@@ -50,5 +52,7 @@ EXPOSE 8091
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=60s \
     CMD curl -f http://localhost:${PORT}/api/ready || exit 1
+
+USER appuser
 
 CMD ["control-plane"]

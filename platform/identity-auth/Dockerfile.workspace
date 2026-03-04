@@ -36,6 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libssl3 curl \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
 WORKDIR /app
 
 COPY --from=builder /app/target/release/identity-auth /usr/local/bin/identity-auth
@@ -49,5 +51,7 @@ EXPOSE 8080
 
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=60s \
     CMD curl -f http://localhost:${PORT}/api/ready || exit 1
+
+USER appuser
 
 CMD ["identity-auth"]

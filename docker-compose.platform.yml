@@ -10,6 +10,11 @@ services:
       context: .
       dockerfile: platform/identity-auth/Dockerfile.workspace
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     environment:
       DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -58,6 +63,11 @@ services:
       context: .
       dockerfile: platform/identity-auth/Dockerfile.workspace
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     environment:
       DATABASE_URL: postgres://${AUTH_POSTGRES_USER:-auth_user}:${AUTH_POSTGRES_PASSWORD:-auth_pass}@7d-auth-postgres:5432/${AUTH_POSTGRES_DB:-auth_db}
       NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
@@ -109,6 +119,11 @@ services:
       context: .
       dockerfile: platform/control-plane/Dockerfile.workspace
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     ports:
       - "127.0.0.1:8091:8091"
     environment:
@@ -149,6 +164,13 @@ services:
     container_name: 7d-auth-lb
     image: nginx:alpine
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /run
     volumes:
       - ./nginx/auth-nginx.conf:/etc/nginx/nginx.conf:ro
     ports:

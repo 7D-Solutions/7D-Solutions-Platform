@@ -49,6 +49,8 @@ RUN set -e; \
         | tar -xzf - -C /usr/local/lib --strip-components=1 lib/libpdfium.so \
     && ldconfig
 
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
 COPY --from=builder /app/target/release/pdf-editor-rs /usr/local/bin/pdf-editor-rs
 COPY --from=builder /app/modules/pdf-editor/db/migrations /app/db/migrations
 
@@ -61,4 +63,5 @@ EXPOSE 8102
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
     CMD curl -f http://localhost:${PORT}/api/health || exit 1
 
+USER appuser
 CMD ["pdf-editor-rs"]

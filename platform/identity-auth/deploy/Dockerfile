@@ -13,6 +13,7 @@ RUN cargo build --release
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates libssl3 curl && rm -rf /var/lib/apt/lists/*
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
 WORKDIR /app
 
 COPY --from=builder /app/target/release/auth-rs /app/auth-rs
@@ -20,4 +21,5 @@ COPY --from=builder /app/db/migrations /app/migrations
 COPY --from=builder /app/src/events/schemas /app/schemas
 
 EXPOSE 8080
+USER appuser
 CMD ["/app/auth-rs"]

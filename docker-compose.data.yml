@@ -37,6 +37,8 @@ services:
   auth-postgres:
     container_name: 7d-auth-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5433:5432"
     environment:
@@ -45,6 +47,9 @@ services:
       POSTGRES_PASSWORD: ${AUTH_POSTGRES_PASSWORD:-auth_pass}
     volumes:
       - auth_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -63,6 +68,8 @@ services:
   ar-postgres:
     container_name: 7d-ar-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5434:5432"
     environment:
@@ -71,6 +78,9 @@ services:
       POSTGRES_PASSWORD: ${AR_POSTGRES_PASSWORD:-ar_pass}
     volumes:
       - ar_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -89,8 +99,8 @@ services:
   subscriptions-postgres:
     container_name: 7d-subscriptions-postgres
     image: postgres:16-alpine
-    entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
-    command: ["postgres"]
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5435:5432"
     environment:
@@ -99,6 +109,9 @@ services:
       POSTGRES_PASSWORD: ${SUBSCRIPTIONS_POSTGRES_PASSWORD:-subscriptions_pass}
     volumes:
       - subscriptions_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -117,6 +130,8 @@ services:
   payments-postgres:
     container_name: 7d-payments-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5436:5432"
     environment:
@@ -125,6 +140,9 @@ services:
       POSTGRES_PASSWORD: ${PAYMENTS_POSTGRES_PASSWORD:-payments_pass}
     volumes:
       - payments_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -143,6 +161,8 @@ services:
   notifications-postgres:
     container_name: 7d-notifications-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5437:5432"
     environment:
@@ -151,6 +171,9 @@ services:
       POSTGRES_PASSWORD: ${NOTIFICATIONS_POSTGRES_PASSWORD:-notifications_pass}
     volumes:
       - notifications_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -169,6 +192,8 @@ services:
   gl-postgres:
     container_name: 7d-gl-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5438:5432"
     environment:
@@ -177,6 +202,9 @@ services:
       POSTGRES_PASSWORD: ${GL_POSTGRES_PASSWORD:-gl_pass}
     volumes:
       - gl_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -198,6 +226,8 @@ services:
   projections-postgres:
     container_name: 7d-projections-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5439:5432"
     environment:
@@ -206,6 +236,9 @@ services:
       POSTGRES_PASSWORD: ${PROJECTIONS_POSTGRES_PASSWORD:-projections_pass}
     volumes:
       - projections_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -224,6 +257,8 @@ services:
   audit-postgres:
     container_name: 7d-audit-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5440:5432"
     environment:
@@ -232,6 +267,9 @@ services:
       POSTGRES_PASSWORD: ${AUDIT_POSTGRES_PASSWORD:-audit_pass}
     volumes:
       - audit_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -250,6 +288,8 @@ services:
   tenant-registry-postgres:
     container_name: 7d-tenant-registry-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5441:5432"
     environment:
@@ -258,6 +298,9 @@ services:
       POSTGRES_PASSWORD: ${TENANT_REGISTRY_POSTGRES_PASSWORD:-tenant_registry_pass}
     volumes:
       - tenant_registry_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -276,8 +319,8 @@ services:
   inventory-postgres:
     container_name: 7d-inventory-postgres
     image: postgres:16-alpine
-    entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
-    command: ["postgres"]
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5442:5432"
     environment:
@@ -286,6 +329,9 @@ services:
       POSTGRES_PASSWORD: ${INVENTORY_POSTGRES_PASSWORD:-inventory_pass}
     volumes:
       - inventory_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -304,6 +350,8 @@ services:
   ap-postgres:
     container_name: 7d-ap-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5443:5432"
     environment:
@@ -312,6 +360,9 @@ services:
       POSTGRES_PASSWORD: ${AP_POSTGRES_PASSWORD:-ap_pass}
     volumes:
       - ap_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -330,8 +381,8 @@ services:
   treasury-postgres:
     container_name: 7d-treasury-postgres
     image: postgres:16-alpine
-    entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
-    command: ["postgres"]
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5444:5432"
     environment:
@@ -340,6 +391,9 @@ services:
       POSTGRES_PASSWORD: ${TREASURY_POSTGRES_PASSWORD:-treasury_pass}
     volumes:
       - treasury_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -358,6 +412,8 @@ services:
   fixed-assets-postgres:
     container_name: 7d-fixed-assets-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5445:5432"
     environment:
@@ -366,6 +422,9 @@ services:
       POSTGRES_PASSWORD: ${FIXED_ASSETS_POSTGRES_PASSWORD:-fixed_assets_pass}
     volumes:
       - fixed_assets_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -384,6 +443,8 @@ services:
   consolidation-postgres:
     container_name: 7d-consolidation-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5446:5432"
     environment:
@@ -392,6 +453,9 @@ services:
       POSTGRES_PASSWORD: ${CONSOLIDATION_POSTGRES_PASSWORD:-consolidation_pass}
     volumes:
       - consolidation_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -410,8 +474,8 @@ services:
   timekeeping-postgres:
     container_name: 7d-timekeeping-postgres
     image: postgres:16-alpine
-    entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
-    command: ["postgres"]
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5447:5432"
     environment:
@@ -420,6 +484,9 @@ services:
       POSTGRES_PASSWORD: ${TIMEKEEPING_POSTGRES_PASSWORD:-timekeeping_pass}
     volumes:
       - timekeeping_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -438,6 +505,8 @@ services:
   party-postgres:
     container_name: 7d-party-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5448:5432"
     environment:
@@ -446,6 +515,9 @@ services:
       POSTGRES_PASSWORD: ${PARTY_POSTGRES_PASSWORD:-party_pass}
     volumes:
       - party_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -464,8 +536,8 @@ services:
   integrations-postgres:
     container_name: 7d-integrations-postgres
     image: postgres:16-alpine
-    entrypoint: ["sh", "-c", "rm -f /var/lib/postgresql/data/postmaster.pid && exec docker-entrypoint.sh \"$$@\"", "--"]
-    command: ["postgres"]
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5449:5432"
     environment:
@@ -474,6 +546,9 @@ services:
       POSTGRES_PASSWORD: ${INTEGRATIONS_POSTGRES_PASSWORD:-integrations_pass}
     volumes:
       - integrations_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -492,6 +567,8 @@ services:
   ttp-postgres:
     container_name: 7d-ttp-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5451:5432"
     environment:
@@ -500,6 +577,9 @@ services:
       POSTGRES_PASSWORD: ${TTP_POSTGRES_PASSWORD:-ttp_pass}
     volumes:
       - ttp_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -518,6 +598,8 @@ services:
   maintenance-postgres:
     container_name: 7d-maintenance-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5452:5432"
     environment:
@@ -526,6 +608,9 @@ services:
       POSTGRES_PASSWORD: ${MAINTENANCE_POSTGRES_PASSWORD:-maintenance_pass}
     volumes:
       - maintenance_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -544,6 +629,8 @@ services:
   pdf-editor-postgres:
     container_name: 7d-pdf-editor-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5453:5432"
     environment:
@@ -552,6 +639,9 @@ services:
       POSTGRES_PASSWORD: ${PDF_EDITOR_POSTGRES_PASSWORD:-pdf_editor_pass}
     volumes:
       - pdf_editor_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -570,6 +660,8 @@ services:
   shipping-receiving-postgres:
     container_name: 7d-shipping-receiving-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5454:5432"
     environment:
@@ -578,6 +670,9 @@ services:
       POSTGRES_PASSWORD: ${SHIPPING_RECEIVING_POSTGRES_PASSWORD:-shipping_receiving_pass}
     volumes:
       - shipping_receiving_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -596,6 +691,8 @@ services:
   numbering-postgres:
     container_name: 7d-numbering-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5456:5432"
     environment:
@@ -604,6 +701,9 @@ services:
       POSTGRES_PASSWORD: ${NUMBERING_POSTGRES_PASSWORD:-numbering_pass}
     volumes:
       - numbering_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -622,6 +722,8 @@ services:
   doc-mgmt-postgres:
     container_name: 7d-doc-mgmt-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5455:5432"
     environment:
@@ -630,6 +732,9 @@ services:
       POSTGRES_PASSWORD: ${DOC_MGMT_POSTGRES_PASSWORD:-doc_mgmt_pass}
     volumes:
       - doc_mgmt_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -648,6 +753,8 @@ services:
   workflow-postgres:
     container_name: 7d-workflow-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5457:5432"
     environment:
@@ -656,6 +763,9 @@ services:
       POSTGRES_PASSWORD: ${WORKFLOW_POSTGRES_PASSWORD:-workflow_pass}
     volumes:
       - workflow_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:
@@ -674,6 +784,8 @@ services:
   workforce-competence-postgres:
     container_name: 7d-workforce-competence-postgres
     image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
     ports:
       - "127.0.0.1:5458:5432"
     environment:
@@ -682,6 +794,9 @@ services:
       POSTGRES_PASSWORD: ${WC_POSTGRES_PASSWORD:-wc_pass}
     volumes:
       - workforce_competence_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
     networks:
       - 7d-platform
     healthcheck:

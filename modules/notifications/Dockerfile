@@ -27,6 +27,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates libssl3 curl \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd -r appuser && useradd -r -g appuser -d /app -s /sbin/nologin appuser
+
 COPY --from=builder /app/target/release/notifications-rs /usr/local/bin/notifications-rs
 
 ENV HOST=0.0.0.0
@@ -37,4 +39,5 @@ EXPOSE 8089
 HEALTHCHECK --interval=10s --timeout=5s --retries=5 --start-period=30s \
     CMD curl -f http://localhost:${PORT}/api/health || exit 1
 
+USER appuser
 CMD ["notifications-rs"]

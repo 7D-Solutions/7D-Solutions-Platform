@@ -28,6 +28,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -73,6 +78,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -117,6 +127,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -161,6 +176,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -205,6 +225,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -249,6 +274,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -292,6 +322,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -335,6 +370,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -378,6 +418,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -421,6 +466,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -464,6 +514,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -507,6 +562,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -550,6 +610,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -594,6 +659,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
@@ -638,6 +708,11 @@ services:
       retries: 5
       start_period: 30s
     restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
     labels:
       com.7dsolutions.project: "platform"
       com.7dsolutions.tier: "module"
