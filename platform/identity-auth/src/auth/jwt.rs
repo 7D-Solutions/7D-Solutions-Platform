@@ -259,13 +259,13 @@ mod tests {
         use rsa::RsaPrivateKey;
 
         let mut rng = rand::thread_rng();
-        let private_key = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let private_key = RsaPrivateKey::new(&mut rng, 2048).expect("test");
         let public_key = private_key.to_public_key();
 
-        let priv_pem = private_key.to_pkcs8_pem(LineEnding::LF).unwrap();
-        let pub_pem = public_key.to_public_key_pem(LineEnding::LF).unwrap();
+        let priv_pem = private_key.to_pkcs8_pem(LineEnding::LF).expect("test");
+        let pub_pem = public_key.to_public_key_pem(LineEnding::LF).expect("test");
 
-        JwtKeys::from_pem(&priv_pem, &pub_pem, "test-kid".to_string()).unwrap()
+        JwtKeys::from_pem(&priv_pem, &pub_pem, "test-kid".to_string()).expect("test")
     }
 
     #[test]
@@ -285,9 +285,9 @@ mod tests {
                 actor_type::USER,
                 15,
             )
-            .unwrap();
+            .expect("test");
 
-        let decoded = keys.validate_access_token(&token).unwrap();
+        let decoded = keys.validate_access_token(&token).expect("test");
 
         assert_eq!(decoded.sub, user.to_string());
         assert_eq!(decoded.tenant_id, tenant.to_string());
@@ -324,9 +324,9 @@ mod tests {
                 Some(session),
                 Some(snapshot.clone()),
             )
-            .unwrap();
+            .expect("test");
 
-        let decoded = keys.validate_access_token(&token).unwrap();
+        let decoded = keys.validate_access_token(&token).expect("test");
         assert_eq!(decoded.session_id.as_deref(), Some(session.to_string().as_str()));
         assert_eq!(decoded.role_snapshot_id.as_deref(), Some(snapshot.as_str()));
     }
@@ -359,9 +359,9 @@ mod tests {
                 actor_type::SERVICE,
                 5,
             )
-            .unwrap();
+            .expect("test");
 
-        let decoded = keys.validate_access_token(&token).unwrap();
+        let decoded = keys.validate_access_token(&token).expect("test");
         assert_eq!(decoded.actor_type, "service");
     }
 
@@ -377,9 +377,9 @@ mod tests {
                 actor_type::USER,
                 5,
             )
-            .unwrap();
+            .expect("test");
 
-        let decoded = keys.validate_access_token(&token).unwrap();
+        let decoded = keys.validate_access_token(&token).expect("test");
         assert!(decoded.roles.is_empty());
         assert!(decoded.perms.is_empty());
     }
@@ -397,7 +397,7 @@ mod tests {
                 actor_type::USER,
                 0,
             )
-            .unwrap();
+            .expect("test");
 
         // jsonwebtoken has a leeway of 0 by default, but iat == exp should fail
         // We need a truly expired token: use -1 minute hack via direct construction
@@ -420,7 +420,7 @@ mod tests {
         };
         let mut header = Header::new(Algorithm::RS256);
         header.kid = Some("test-kid".to_string());
-        let expired_token = jsonwebtoken::encode(&header, &claims, &keys.encoding).unwrap();
+        let expired_token = jsonwebtoken::encode(&header, &claims, &keys.encoding).expect("test");
 
         let result = keys.validate_access_token(&expired_token);
         assert!(result.is_err());
@@ -439,19 +439,19 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         // Generate OLD key pair (retiring)
-        let old_priv = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let old_priv = RsaPrivateKey::new(&mut rng, 2048).expect("test");
         let old_pub = old_priv.to_public_key();
-        let old_priv_pem = old_priv.to_pkcs8_pem(LineEnding::LF).unwrap();
-        let old_pub_pem = old_pub.to_public_key_pem(LineEnding::LF).unwrap();
+        let old_priv_pem = old_priv.to_pkcs8_pem(LineEnding::LF).expect("test");
+        let old_pub_pem = old_pub.to_public_key_pem(LineEnding::LF).expect("test");
 
         // Generate NEW key pair (current)
-        let new_priv = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let new_priv = RsaPrivateKey::new(&mut rng, 2048).expect("test");
         let new_pub = new_priv.to_public_key();
-        let new_priv_pem = new_priv.to_pkcs8_pem(LineEnding::LF).unwrap();
-        let new_pub_pem = new_pub.to_public_key_pem(LineEnding::LF).unwrap();
+        let new_priv_pem = new_priv.to_pkcs8_pem(LineEnding::LF).expect("test");
+        let new_pub_pem = new_pub.to_public_key_pem(LineEnding::LF).expect("test");
 
         // Old signer issues a token before rotation completes
-        let old_keys = JwtKeys::from_pem(&old_priv_pem, &old_pub_pem, "old-kid".into()).unwrap();
+        let old_keys = JwtKeys::from_pem(&old_priv_pem, &old_pub_pem, "old-kid".into()).expect("test");
         let token_from_old_key = old_keys
             .sign_access_token(
                 Uuid::new_v4(),
@@ -461,17 +461,17 @@ mod tests {
                 actor_type::USER,
                 15,
             )
-            .unwrap();
+            .expect("test");
 
         // New signer registers the old public key as prev during overlap
         let mut new_keys =
-            JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).unwrap();
+            JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).expect("test");
         new_keys
             .with_prev_key(&old_pub_pem, "old-kid".into())
-            .unwrap();
+            .expect("test");
 
         // Token issued by old key must be accepted during overlap
-        let claims = new_keys.validate_access_token(&token_from_old_key).unwrap();
+        let claims = new_keys.validate_access_token(&token_from_old_key).expect("test");
         assert_eq!(claims.actor_type, "user");
 
         // Token issued by new key must also be accepted
@@ -484,8 +484,8 @@ mod tests {
                 actor_type::USER,
                 15,
             )
-            .unwrap();
-        new_keys.validate_access_token(&token_from_new_key).unwrap();
+            .expect("test");
+        new_keys.validate_access_token(&token_from_new_key).expect("test");
     }
 
     /// After overlap ends (prev key removed), tokens signed by the old key
@@ -497,17 +497,17 @@ mod tests {
 
         let mut rng = rand::thread_rng();
 
-        let old_priv = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let old_priv = RsaPrivateKey::new(&mut rng, 2048).expect("test");
         let old_pub = old_priv.to_public_key();
-        let old_priv_pem = old_priv.to_pkcs8_pem(LineEnding::LF).unwrap();
-        let old_pub_pem = old_pub.to_public_key_pem(LineEnding::LF).unwrap();
+        let old_priv_pem = old_priv.to_pkcs8_pem(LineEnding::LF).expect("test");
+        let old_pub_pem = old_pub.to_public_key_pem(LineEnding::LF).expect("test");
 
-        let new_priv = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let new_priv = RsaPrivateKey::new(&mut rng, 2048).expect("test");
         let new_pub = new_priv.to_public_key();
-        let new_priv_pem = new_priv.to_pkcs8_pem(LineEnding::LF).unwrap();
-        let new_pub_pem = new_pub.to_public_key_pem(LineEnding::LF).unwrap();
+        let new_priv_pem = new_priv.to_pkcs8_pem(LineEnding::LF).expect("test");
+        let new_pub_pem = new_pub.to_public_key_pem(LineEnding::LF).expect("test");
 
-        let old_keys = JwtKeys::from_pem(&old_priv_pem, &old_pub_pem, "old-kid".into()).unwrap();
+        let old_keys = JwtKeys::from_pem(&old_priv_pem, &old_pub_pem, "old-kid".into()).expect("test");
         let token_from_old_key = old_keys
             .sign_access_token(
                 Uuid::new_v4(),
@@ -517,10 +517,10 @@ mod tests {
                 actor_type::USER,
                 15,
             )
-            .unwrap();
+            .expect("test");
 
         // New keys WITHOUT prev key (overlap ended)
-        let new_keys = JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).unwrap();
+        let new_keys = JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).expect("test");
 
         // Old token must now be rejected
         assert!(new_keys.validate_access_token(&token_from_old_key).is_err());
@@ -533,23 +533,23 @@ mod tests {
         use rsa::RsaPrivateKey;
 
         let mut rng = rand::thread_rng();
-        let old_priv = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let old_priv = RsaPrivateKey::new(&mut rng, 2048).expect("test");
         let old_pub_pem = old_priv
             .to_public_key()
             .to_public_key_pem(LineEnding::LF)
-            .unwrap();
+            .expect("test");
 
-        let new_priv = RsaPrivateKey::new(&mut rng, 2048).unwrap();
+        let new_priv = RsaPrivateKey::new(&mut rng, 2048).expect("test");
         let new_pub_pem = new_priv
             .to_public_key()
             .to_public_key_pem(LineEnding::LF)
-            .unwrap();
-        let new_priv_pem = new_priv.to_pkcs8_pem(LineEnding::LF).unwrap();
+            .expect("test");
+        let new_priv_pem = new_priv.to_pkcs8_pem(LineEnding::LF).expect("test");
 
-        let mut keys = JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).unwrap();
-        keys.with_prev_key(&old_pub_pem, "old-kid".into()).unwrap();
+        let mut keys = JwtKeys::from_pem(&new_priv_pem, &new_pub_pem, "new-kid".into()).expect("test");
+        keys.with_prev_key(&old_pub_pem, "old-kid".into()).expect("test");
 
-        let jwks = keys.to_jwks().unwrap();
+        let jwks = keys.to_jwks().expect("test");
         assert_eq!(
             jwks.keys.len(),
             2,
