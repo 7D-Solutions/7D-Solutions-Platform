@@ -1,4 +1,3 @@
-use chrono::Utc;
 use sqlx::PgPool;
 use thiserror::Error;
 use uuid::Uuid;
@@ -9,7 +8,8 @@ use crate::domain::guards::{
 use crate::domain::models::*;
 use crate::events::{self, BomEventType};
 
-const DEFAULT_MAX_DEPTH: i32 = 20;
+pub use crate::domain::bom_queries::{explode, where_used};
+use crate::domain::outbox::enqueue_event;
 
 #[derive(Debug, Error)]
 pub enum BomError {
@@ -23,9 +23,8 @@ pub enum BomError {
     Database(#[from] sqlx::Error),
 }
 
-// ============================================================================
 // BOM Header
-// ============================================================================
+// ---
 
 pub async fn create_bom(
     pool: &PgPool,
@@ -88,9 +87,8 @@ pub async fn get_bom(
     .ok_or_else(|| GuardError::NotFound("BOM not found".to_string()).into())
 }
 
-// ============================================================================
 // BOM Revisions
-// ============================================================================
+// ---
 
 pub async fn create_revision(
     pool: &PgPool,
@@ -268,9 +266,8 @@ pub async fn list_revisions(
     Ok(rows)
 }
 
-// ============================================================================
 // BOM Lines
-// ============================================================================
+// ---
 
 pub async fn add_line(
     pool: &PgPool,
@@ -498,212 +495,4 @@ async fn fetch_line(
     .fetch_optional(pool)
     .await?
     .ok_or_else(|| GuardError::NotFound("BOM line not found".to_string()).into())
-}
-
-// ============================================================================
-// Explosion (multi-level BOM flattening with depth guard + cycle detection)
-// ============================================================================
-
-pub async fn explode(
-    pool: &PgPool,
-    tenant_id: &str,
-    bom_id: Uuid,
-    query: &ExplosionQuery,
-) -> Result<Vec<ExplosionRow>, BomError> {
-    let max_depth = query.max_depth.unwrap_or(DEFAULT_MAX_DEPTH);
-    if max_depth < 1 || max_depth > 100 {
-        return Err(GuardError::Validation(
-            "max_depth must be between 1 and 100".to_string(),
-        )
-        .into());
-    }
-
-    let date = query.date.unwrap_or_else(Utc::now);
-
-    // Recursive CTE with cycle detection via path array
-    let rows = sqlx::query_as::<_, ExplosionDbRow>(
-        r#"
-        WITH RECURSIVE bom_tree AS (
-            -- Anchor: top-level BOM lines
-            SELECT
-                1 AS level,
-                h.part_id AS parent_part_id,
-                l.component_item_id,
-                l.quantity::FLOAT8 AS quantity,
-                l.uom,
-                COALESCE(l.scrap_factor::FLOAT8, 0) AS scrap_factor,
-                r.id AS revision_id,
-                r.revision_label,
-                ARRAY[h.part_id, l.component_item_id] AS path
-            FROM bom_headers h
-            JOIN bom_revisions r ON r.bom_id = h.id AND r.tenant_id = $1
-            JOIN bom_lines l ON l.revision_id = r.id AND l.tenant_id = $1
-            WHERE h.id = $2
-              AND h.tenant_id = $1
-              AND r.status = 'effective'
-              AND r.effective_from <= $3
-              AND (r.effective_to IS NULL OR r.effective_to > $3)
-
-            UNION ALL
-
-            -- Recursive: expand each component that itself has a BOM
-            SELECT
-                bt.level + 1,
-                h2.part_id,
-                l2.component_item_id,
-                l2.quantity::FLOAT8,
-                l2.uom,
-                COALESCE(l2.scrap_factor::FLOAT8, 0),
-                r2.id,
-                r2.revision_label,
-                bt.path || l2.component_item_id
-            FROM bom_tree bt
-            JOIN bom_headers h2 ON h2.part_id = bt.component_item_id AND h2.tenant_id = $1
-            JOIN bom_revisions r2 ON r2.bom_id = h2.id AND r2.tenant_id = $1
-            JOIN bom_lines l2 ON l2.revision_id = r2.id AND l2.tenant_id = $1
-            WHERE r2.status = 'effective'
-              AND r2.effective_from <= $3
-              AND (r2.effective_to IS NULL OR r2.effective_to > $3)
-              AND bt.level < $4
-              AND NOT (l2.component_item_id = ANY(bt.path))
-        )
-        SELECT level, parent_part_id, component_item_id, quantity, uom,
-               scrap_factor, revision_id, revision_label
-        FROM bom_tree
-        ORDER BY level, parent_part_id
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(bom_id)
-    .bind(date)
-    .bind(max_depth)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows.into_iter().map(Into::into).collect())
-}
-
-#[derive(sqlx::FromRow)]
-struct ExplosionDbRow {
-    level: i32,
-    parent_part_id: Uuid,
-    component_item_id: Uuid,
-    quantity: f64,
-    uom: Option<String>,
-    scrap_factor: f64,
-    revision_id: Uuid,
-    revision_label: String,
-}
-
-impl From<ExplosionDbRow> for ExplosionRow {
-    fn from(r: ExplosionDbRow) -> Self {
-        ExplosionRow {
-            level: r.level,
-            parent_part_id: r.parent_part_id,
-            component_item_id: r.component_item_id,
-            quantity: r.quantity,
-            uom: r.uom,
-            scrap_factor: r.scrap_factor,
-            revision_id: r.revision_id,
-            revision_label: r.revision_label,
-        }
-    }
-}
-
-// ============================================================================
-// Where-Used (reverse lookup)
-// ============================================================================
-
-pub async fn where_used(
-    pool: &PgPool,
-    tenant_id: &str,
-    item_id: Uuid,
-    query: &WhereUsedQuery,
-) -> Result<Vec<WhereUsedRow>, BomError> {
-    let date = query.date.unwrap_or_else(Utc::now);
-
-    let rows = sqlx::query_as::<_, WhereUsedDbRow>(
-        r#"
-        SELECT h.id AS bom_id, h.part_id, r.id AS revision_id,
-               r.revision_label, l.quantity::FLOAT8 AS quantity, l.uom
-        FROM bom_lines l
-        JOIN bom_revisions r ON r.id = l.revision_id AND r.tenant_id = $1
-        JOIN bom_headers h ON h.id = r.bom_id AND h.tenant_id = $1
-        WHERE l.component_item_id = $2
-          AND l.tenant_id = $1
-          AND r.status = 'effective'
-          AND r.effective_from <= $3
-          AND (r.effective_to IS NULL OR r.effective_to > $3)
-        ORDER BY h.part_id
-        "#,
-    )
-    .bind(tenant_id)
-    .bind(item_id)
-    .bind(date)
-    .fetch_all(pool)
-    .await?;
-
-    Ok(rows.into_iter().map(Into::into).collect())
-}
-
-#[derive(sqlx::FromRow)]
-struct WhereUsedDbRow {
-    bom_id: Uuid,
-    part_id: Uuid,
-    revision_id: Uuid,
-    revision_label: String,
-    quantity: f64,
-    uom: Option<String>,
-}
-
-impl From<WhereUsedDbRow> for WhereUsedRow {
-    fn from(r: WhereUsedDbRow) -> Self {
-        WhereUsedRow {
-            bom_id: r.bom_id,
-            part_id: r.part_id,
-            revision_id: r.revision_id,
-            revision_label: r.revision_label,
-            quantity: r.quantity,
-            uom: r.uom,
-        }
-    }
-}
-
-// ============================================================================
-// Outbox helper
-// ============================================================================
-
-async fn enqueue_event<T: serde::Serialize>(
-    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    tenant_id: &str,
-    event_type: BomEventType,
-    aggregate_type: &str,
-    aggregate_id: &str,
-    envelope: &event_bus::EventEnvelope<T>,
-    correlation_id: &str,
-    causation_id: Option<&str>,
-) -> Result<(), BomError> {
-    let envelope_json = serde_json::to_string(envelope)?;
-
-    sqlx::query(
-        r#"
-        INSERT INTO bom_outbox
-            (event_id, event_type, aggregate_type, aggregate_id, tenant_id,
-             payload, correlation_id, causation_id, schema_version)
-        VALUES
-            ($1, $2, $3, $4, $5, $6::JSONB, $7, $8, '1.0.0')
-        "#,
-    )
-    .bind(envelope.event_id)
-    .bind(event_type.as_str())
-    .bind(aggregate_type)
-    .bind(aggregate_id)
-    .bind(tenant_id)
-    .bind(&envelope_json)
-    .bind(correlation_id)
-    .bind(causation_id)
-    .execute(&mut **tx)
-    .await?;
-
-    Ok(())
 }
