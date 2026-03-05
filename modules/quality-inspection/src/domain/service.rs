@@ -223,6 +223,174 @@ pub async fn get_inspection(
 }
 
 // ============================================================================
+// Disposition state machine
+// ============================================================================
+
+fn validate_disposition_transition(current: &str, target: &str) -> Result<(), QiError> {
+    let allowed = match current {
+        "pending" => &["held"][..],
+        "held" => &["accepted", "rejected", "released"][..],
+        _ => &[][..],
+    };
+    if allowed.contains(&target) {
+        Ok(())
+    } else {
+        Err(QiError::Validation(format!(
+            "Cannot transition from '{}' to '{}'. Allowed transitions from '{}': {:?}",
+            current, target, current, allowed
+        )))
+    }
+}
+
+async fn transition_disposition(
+    pool: &PgPool,
+    tenant_id: &str,
+    inspection_id: Uuid,
+    target: &str,
+    event_type: QualityInspectionEventType,
+    inspector_id: Option<Uuid>,
+    reason: Option<&str>,
+    correlation_id: &str,
+    causation_id: Option<&str>,
+) -> Result<Inspection, QiError> {
+    let inspection = get_inspection(pool, tenant_id, inspection_id).await?;
+    validate_disposition_transition(&inspection.disposition, target)?;
+
+    let mut tx = pool.begin().await?;
+
+    let updated = sqlx::query_as::<_, Inspection>(
+        r#"
+        UPDATE inspections
+        SET disposition = $1, updated_at = NOW()
+        WHERE id = $2 AND tenant_id = $3
+        RETURNING *
+        "#,
+    )
+    .bind(target)
+    .bind(inspection_id)
+    .bind(tenant_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    enqueue_event(
+        &mut tx,
+        tenant_id,
+        event_type,
+        "inspection",
+        &inspection_id.to_string(),
+        &events::build_disposition_transition_envelope(
+            event_type,
+            inspection_id,
+            tenant_id.to_string(),
+            inspection.disposition.clone(),
+            target.to_string(),
+            inspector_id,
+            reason.map(String::from),
+            correlation_id.to_string(),
+            causation_id.map(String::from),
+        ),
+        correlation_id,
+        causation_id,
+    )
+    .await?;
+
+    tx.commit().await?;
+    Ok(updated)
+}
+
+pub async fn hold_inspection(
+    pool: &PgPool,
+    tenant_id: &str,
+    inspection_id: Uuid,
+    inspector_id: Option<Uuid>,
+    reason: Option<&str>,
+    correlation_id: &str,
+    causation_id: Option<&str>,
+) -> Result<Inspection, QiError> {
+    transition_disposition(
+        pool,
+        tenant_id,
+        inspection_id,
+        "held",
+        QualityInspectionEventType::InspectionHeld,
+        inspector_id,
+        reason,
+        correlation_id,
+        causation_id,
+    )
+    .await
+}
+
+pub async fn release_inspection(
+    pool: &PgPool,
+    tenant_id: &str,
+    inspection_id: Uuid,
+    inspector_id: Option<Uuid>,
+    reason: Option<&str>,
+    correlation_id: &str,
+    causation_id: Option<&str>,
+) -> Result<Inspection, QiError> {
+    transition_disposition(
+        pool,
+        tenant_id,
+        inspection_id,
+        "released",
+        QualityInspectionEventType::InspectionReleased,
+        inspector_id,
+        reason,
+        correlation_id,
+        causation_id,
+    )
+    .await
+}
+
+pub async fn accept_inspection(
+    pool: &PgPool,
+    tenant_id: &str,
+    inspection_id: Uuid,
+    inspector_id: Option<Uuid>,
+    reason: Option<&str>,
+    correlation_id: &str,
+    causation_id: Option<&str>,
+) -> Result<Inspection, QiError> {
+    transition_disposition(
+        pool,
+        tenant_id,
+        inspection_id,
+        "accepted",
+        QualityInspectionEventType::InspectionAccepted,
+        inspector_id,
+        reason,
+        correlation_id,
+        causation_id,
+    )
+    .await
+}
+
+pub async fn reject_inspection(
+    pool: &PgPool,
+    tenant_id: &str,
+    inspection_id: Uuid,
+    inspector_id: Option<Uuid>,
+    reason: Option<&str>,
+    correlation_id: &str,
+    causation_id: Option<&str>,
+) -> Result<Inspection, QiError> {
+    transition_disposition(
+        pool,
+        tenant_id,
+        inspection_id,
+        "rejected",
+        QualityInspectionEventType::InspectionRejected,
+        inspector_id,
+        reason,
+        correlation_id,
+        causation_id,
+    )
+    .await
+}
+
+// ============================================================================
 // Query: by part revision, by receipt
 // ============================================================================
 

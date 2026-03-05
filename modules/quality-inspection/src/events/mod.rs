@@ -9,6 +9,10 @@ pub enum QualityInspectionEventType {
     InspectionPlanCreated,
     InspectionRecorded,
     DispositionDecided,
+    InspectionHeld,
+    InspectionReleased,
+    InspectionAccepted,
+    InspectionRejected,
 }
 
 impl QualityInspectionEventType {
@@ -17,6 +21,10 @@ impl QualityInspectionEventType {
             Self::InspectionPlanCreated => "quality_inspection.plan_created",
             Self::InspectionRecorded => "quality_inspection.inspection_recorded",
             Self::DispositionDecided => "quality_inspection.disposition_decided",
+            Self::InspectionHeld => "quality_inspection.held",
+            Self::InspectionReleased => "quality_inspection.released",
+            Self::InspectionAccepted => "quality_inspection.accepted",
+            Self::InspectionRejected => "quality_inspection.rejected",
         }
     }
 }
@@ -41,6 +49,16 @@ pub struct InspectionRecordedPayload {
     pub part_id: Option<Uuid>,
     pub part_revision: Option<String>,
     pub result: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DispositionTransitionPayload {
+    pub inspection_id: Uuid,
+    pub tenant_id: String,
+    pub previous_disposition: String,
+    pub new_disposition: String,
+    pub inspector_id: Option<Uuid>,
+    pub reason: Option<String>,
 }
 
 // ============================================================================
@@ -120,6 +138,34 @@ pub fn build_inspection_recorded_envelope(
             part_id,
             part_revision,
             result,
+        },
+    )
+}
+
+pub fn build_disposition_transition_envelope(
+    event_type: QualityInspectionEventType,
+    inspection_id: Uuid,
+    tenant_id: String,
+    previous_disposition: String,
+    new_disposition: String,
+    inspector_id: Option<Uuid>,
+    reason: Option<String>,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<DispositionTransitionPayload> {
+    create_qi_envelope(
+        Uuid::new_v4(),
+        tenant_id.clone(),
+        event_type.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        DispositionTransitionPayload {
+            inspection_id,
+            tenant_id,
+            previous_disposition,
+            new_disposition,
+            inspector_id,
+            reason,
         },
     )
 }

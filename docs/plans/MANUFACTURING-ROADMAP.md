@@ -140,8 +140,8 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 | Inspection: module scaffold (quality-inspection-rs crate) | DONE | bd-2f1xv | 2026-03-05 |
 | Inspection: inspection plan model (characteristics, tolerances, sampling) | DONE | bd-1y2nc | 2026-03-05 |
 | Inspection: receiving inspection records | DONE | bd-1y2nc | 2026-03-05 |
-| Inspection: quarantine/hold before disposition | NOT STARTED | — | — |
-| Inspection: disposition outcomes (accept, reject-to-hold, release) | NOT STARTED | — | — |
+| Inspection: quarantine/hold before disposition | DONE | bd-16fy6 | 2026-03-05 |
+| Inspection: disposition outcomes (accept, reject-to-hold, release) | DONE | bd-16fy6 | 2026-03-05 |
 | Inspection: inspector authorization via Workforce-Competence | NOT STARTED | — | — |
 | Inspection: S-R event bridge (auto-create receiving inspection) | NOT STARTED | — | — |
 | Docker: quality-inspection-rs container with compose watch | DONE | bd-2f1xv | 2026-03-05 |
@@ -284,3 +284,4 @@ Items explicitly excluded from this roadmap. Will be addressed in future program
 | 2026-03-05 | C1 | Quality inspection scaffold complete (bd-2f1xv): quality-inspection-rs crate with Axum app, health/ready/version endpoints, Prometheus metrics, outbox pattern, migration (inspection_plans, inspections, dispositions, outbox, processed_events). Docker container + compose service on port 8106, DB on port 5459. Builds and passes all tests. | DarkOwl | modules/quality-inspection/ |
 | 2026-03-05 | A | Integration proof complete (bd-2g7el): 5 e2e tests against real Postgres — BOM structure/effectivity/where-used/explosion, production receipt with source_type, issue with source_type tagging, purchase receipt regression, depth guard. All Phase A exit criteria proven. | CopperRiver | e2e-tests/tests/manufacturing_phase_a_e2e.rs |
 | 2026-03-05 | C1 | Inspection plan model + receiving inspection core (bd-1y2nc): characteristics JSONB, tolerances, sampling method/size on plans. Receiving inspections with receipt_id/part_id/part_revision anchors. Query by part-rev and by receipt. Plan activation workflow. Events via outbox (plan_created, inspection_recorded). Permission constants added. 6 integration tests pass against real Postgres. | DarkOwl | modules/quality-inspection/tests/inspection_integration.rs |
+| 2026-03-05 | C1 | Quarantine/hold + disposition outcomes (bd-16fy6): disposition state machine on inspections (pending→held→accepted/rejected/released). Hold enforced before final disposition. 4 event types emitted (held, released, accepted, rejected) with full envelope metadata. Inspector ID + reason tracked. HTTP endpoints for all transitions. 5 new integration tests (valid transitions, illegal transitions rejected, event emission verified). 11 total tests pass. | DarkOwl | modules/quality-inspection/tests/inspection_integration.rs |

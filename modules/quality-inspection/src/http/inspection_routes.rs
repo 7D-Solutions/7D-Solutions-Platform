@@ -157,6 +157,114 @@ pub async fn get_inspection(
 }
 
 // ============================================================================
+// Disposition transitions
+// ============================================================================
+
+pub async fn post_hold_inspection(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path(inspection_id): Path<Uuid>,
+    Json(req): Json<DispositionTransitionRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::hold_inspection(
+        &state.pool,
+        &tenant_id,
+        inspection_id,
+        req.inspector_id,
+        req.reason.as_deref(),
+        &correlation_id(),
+        None,
+    )
+    .await
+    {
+        Ok(i) => Json(json!(i)).into_response(),
+        Err(e) => error_response(e).into_response(),
+    }
+}
+
+pub async fn post_release_inspection(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path(inspection_id): Path<Uuid>,
+    Json(req): Json<DispositionTransitionRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::release_inspection(
+        &state.pool,
+        &tenant_id,
+        inspection_id,
+        req.inspector_id,
+        req.reason.as_deref(),
+        &correlation_id(),
+        None,
+    )
+    .await
+    {
+        Ok(i) => Json(json!(i)).into_response(),
+        Err(e) => error_response(e).into_response(),
+    }
+}
+
+pub async fn post_accept_inspection(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path(inspection_id): Path<Uuid>,
+    Json(req): Json<DispositionTransitionRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::accept_inspection(
+        &state.pool,
+        &tenant_id,
+        inspection_id,
+        req.inspector_id,
+        req.reason.as_deref(),
+        &correlation_id(),
+        None,
+    )
+    .await
+    {
+        Ok(i) => Json(json!(i)).into_response(),
+        Err(e) => error_response(e).into_response(),
+    }
+}
+
+pub async fn post_reject_inspection(
+    State(state): State<Arc<AppState>>,
+    claims: Option<Extension<VerifiedClaims>>,
+    Path(inspection_id): Path<Uuid>,
+    Json(req): Json<DispositionTransitionRequest>,
+) -> impl IntoResponse {
+    let tenant_id = match extract_tenant(&claims) {
+        Ok(id) => id,
+        Err(e) => return e.into_response(),
+    };
+    match service::reject_inspection(
+        &state.pool,
+        &tenant_id,
+        inspection_id,
+        req.inspector_id,
+        req.reason.as_deref(),
+        &correlation_id(),
+        None,
+    )
+    .await
+    {
+        Ok(i) => Json(json!(i)).into_response(),
+        Err(e) => error_response(e).into_response(),
+    }
+}
+
+// ============================================================================
 // Queries
 // ============================================================================
 

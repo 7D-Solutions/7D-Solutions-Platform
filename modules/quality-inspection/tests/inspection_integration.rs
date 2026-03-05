@@ -7,7 +7,7 @@ use uuid::Uuid;
 async fn setup_db() -> sqlx::PgPool {
     dotenvy::dotenv().ok();
     let url = std::env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://quality_inspection_user:quality_inspection_pass@localhost:5459/quality_inspection_db".to_string()
+        "postgres://quality_inspection_user:quality_inspection_pass@localhost:5459/quality_inspection_db?sslmode=require".to_string()
     });
 
     let pool = PgPoolOptions::new()
@@ -326,6 +326,327 @@ async fn events_emitted_to_outbox() {
     assert!(payload.0["event_id"].is_string());
     assert!(payload.0["correlation_id"].is_string());
     assert_eq!(payload.0["mutation_class"], "DATA_MUTATION");
+}
+
+// ============================================================================
+// Disposition state machine: hold -> accept
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn disposition_hold_then_accept() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+    let inspector = Uuid::new_v4();
+
+    let inspection = service::create_receiving_inspection(
+        &pool,
+        &tenant,
+        &CreateReceivingInspectionRequest {
+            plan_id: None,
+            receipt_id: Some(Uuid::new_v4()),
+            lot_id: None,
+            part_id: Some(Uuid::new_v4()),
+            part_revision: Some("A".to_string()),
+            inspector_id: None,
+            result: Some("pending".to_string()),
+            notes: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(inspection.disposition, "pending");
+
+    // Hold
+    let held = service::hold_inspection(
+        &pool,
+        &tenant,
+        inspection.id,
+        Some(inspector),
+        Some("Awaiting further review"),
+        &corr,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(held.disposition, "held");
+
+    // Accept from held
+    let accepted = service::accept_inspection(
+        &pool,
+        &tenant,
+        inspection.id,
+        Some(inspector),
+        Some("All criteria met"),
+        &corr,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(accepted.disposition, "accepted");
+}
+
+// ============================================================================
+// Disposition state machine: hold -> reject
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn disposition_hold_then_reject() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let inspection = service::create_receiving_inspection(
+        &pool,
+        &tenant,
+        &CreateReceivingInspectionRequest {
+            plan_id: None,
+            receipt_id: Some(Uuid::new_v4()),
+            lot_id: None,
+            part_id: Some(Uuid::new_v4()),
+            part_revision: Some("A".to_string()),
+            inspector_id: None,
+            result: Some("pending".to_string()),
+            notes: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let held = service::hold_inspection(&pool, &tenant, inspection.id, None, None, &corr, None)
+        .await
+        .unwrap();
+    assert_eq!(held.disposition, "held");
+
+    let rejected = service::reject_inspection(
+        &pool,
+        &tenant,
+        inspection.id,
+        None,
+        Some("Out of tolerance"),
+        &corr,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(rejected.disposition, "rejected");
+}
+
+// ============================================================================
+// Disposition state machine: hold -> release
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn disposition_hold_then_release() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let inspection = service::create_receiving_inspection(
+        &pool,
+        &tenant,
+        &CreateReceivingInspectionRequest {
+            plan_id: None,
+            receipt_id: Some(Uuid::new_v4()),
+            lot_id: None,
+            part_id: Some(Uuid::new_v4()),
+            part_revision: Some("A".to_string()),
+            inspector_id: None,
+            result: Some("pending".to_string()),
+            notes: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .unwrap();
+
+    let held = service::hold_inspection(&pool, &tenant, inspection.id, None, None, &corr, None)
+        .await
+        .unwrap();
+    assert_eq!(held.disposition, "held");
+
+    let released = service::release_inspection(
+        &pool,
+        &tenant,
+        inspection.id,
+        None,
+        Some("Released for production use"),
+        &corr,
+        None,
+    )
+    .await
+    .unwrap();
+    assert_eq!(released.disposition, "released");
+}
+
+// ============================================================================
+// Disposition: reject illegal transitions
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn disposition_rejects_illegal_transitions() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+
+    let inspection = service::create_receiving_inspection(
+        &pool,
+        &tenant,
+        &CreateReceivingInspectionRequest {
+            plan_id: None,
+            receipt_id: Some(Uuid::new_v4()),
+            lot_id: None,
+            part_id: Some(Uuid::new_v4()),
+            part_revision: Some("A".to_string()),
+            inspector_id: None,
+            result: Some("pending".to_string()),
+            notes: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Cannot accept directly from pending (must hold first)
+    let err = service::accept_inspection(&pool, &tenant, inspection.id, None, None, &corr, None)
+        .await;
+    assert!(err.is_err());
+    assert!(err.unwrap_err().to_string().contains("Cannot transition"));
+
+    // Cannot reject directly from pending
+    let err = service::reject_inspection(&pool, &tenant, inspection.id, None, None, &corr, None)
+        .await;
+    assert!(err.is_err());
+
+    // Cannot release directly from pending
+    let err = service::release_inspection(&pool, &tenant, inspection.id, None, None, &corr, None)
+        .await;
+    assert!(err.is_err());
+
+    // Hold it
+    service::hold_inspection(&pool, &tenant, inspection.id, None, None, &corr, None)
+        .await
+        .unwrap();
+
+    // Cannot hold again
+    let err = service::hold_inspection(&pool, &tenant, inspection.id, None, None, &corr, None)
+        .await;
+    assert!(err.is_err());
+
+    // Accept it
+    service::accept_inspection(&pool, &tenant, inspection.id, None, None, &corr, None)
+        .await
+        .unwrap();
+
+    // Cannot transition from accepted
+    let err = service::hold_inspection(&pool, &tenant, inspection.id, None, None, &corr, None)
+        .await;
+    assert!(err.is_err());
+    let err = service::release_inspection(&pool, &tenant, inspection.id, None, None, &corr, None)
+        .await;
+    assert!(err.is_err());
+}
+
+// ============================================================================
+// Disposition events emitted to outbox
+// ============================================================================
+
+#[tokio::test]
+#[serial]
+async fn disposition_events_emitted() {
+    let pool = setup_db().await;
+    let tenant = unique_tenant();
+    let corr = Uuid::new_v4().to_string();
+    let inspector = Uuid::new_v4();
+
+    let inspection = service::create_receiving_inspection(
+        &pool,
+        &tenant,
+        &CreateReceivingInspectionRequest {
+            plan_id: None,
+            receipt_id: Some(Uuid::new_v4()),
+            lot_id: None,
+            part_id: Some(Uuid::new_v4()),
+            part_revision: Some("A".to_string()),
+            inspector_id: Some(inspector),
+            result: Some("pending".to_string()),
+            notes: None,
+        },
+        &corr,
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Hold then release
+    service::hold_inspection(
+        &pool,
+        &tenant,
+        inspection.id,
+        Some(inspector),
+        Some("Quality hold"),
+        &corr,
+        None,
+    )
+    .await
+    .unwrap();
+
+    service::release_inspection(
+        &pool,
+        &tenant,
+        inspection.id,
+        Some(inspector),
+        Some("Cleared"),
+        &corr,
+        None,
+    )
+    .await
+    .unwrap();
+
+    // Verify outbox: inspection_recorded + held + released
+    let event_types: Vec<(String,)> = sqlx::query_as(
+        "SELECT event_type FROM quality_inspection_outbox WHERE tenant_id = $1 ORDER BY created_at",
+    )
+    .bind(&tenant)
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+
+    let types: Vec<&str> = event_types.iter().map(|r| r.0.as_str()).collect();
+    assert_eq!(
+        types,
+        vec![
+            "quality_inspection.inspection_recorded",
+            "quality_inspection.held",
+            "quality_inspection.released",
+        ]
+    );
+
+    // Verify the release event payload
+    let payload: (serde_json::Value,) = sqlx::query_as(
+        "SELECT payload FROM quality_inspection_outbox WHERE tenant_id = $1 AND event_type = 'quality_inspection.released'",
+    )
+    .bind(&tenant)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    assert_eq!(payload.0["source_module"], "quality-inspection");
+    assert_eq!(payload.0["payload"]["previous_disposition"], "held");
+    assert_eq!(payload.0["payload"]["new_disposition"], "released");
+    assert_eq!(payload.0["payload"]["reason"], "Cleared");
+    assert_eq!(payload.0["replay_safe"], true);
 }
 
 // ============================================================================

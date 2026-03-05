@@ -16,8 +16,9 @@ use quality_inspection_rs::{
         health::{health as health_fn, ready, version},
         inspection_routes::{
             get_inspection, get_inspection_plan, get_inspections_by_part_rev,
-            get_inspections_by_receipt, post_activate_plan, post_inspection_plan,
-            post_receiving_inspection,
+            get_inspections_by_receipt, post_accept_inspection, post_activate_plan,
+            post_hold_inspection, post_inspection_plan, post_receiving_inspection,
+            post_reject_inspection, post_release_inspection,
         },
     },
     metrics::{metrics_handler, QualityInspectionMetrics},
@@ -69,6 +70,22 @@ async fn main() {
         .route(
             "/api/quality-inspection/inspections",
             axum::routing::post(post_receiving_inspection),
+        )
+        .route(
+            "/api/quality-inspection/inspections/{inspection_id}/hold",
+            axum::routing::post(post_hold_inspection),
+        )
+        .route(
+            "/api/quality-inspection/inspections/{inspection_id}/release",
+            axum::routing::post(post_release_inspection),
+        )
+        .route(
+            "/api/quality-inspection/inspections/{inspection_id}/accept",
+            axum::routing::post(post_accept_inspection),
+        )
+        .route(
+            "/api/quality-inspection/inspections/{inspection_id}/reject",
+            axum::routing::post(post_reject_inspection),
         )
         .route_layer(RequirePermissionsLayer::new(&[
             permissions::QUALITY_INSPECTION_MUTATE,

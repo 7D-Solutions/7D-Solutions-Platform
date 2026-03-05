@@ -36,6 +36,7 @@ pub struct Inspection {
     pub receipt_id: Option<Uuid>,
     pub part_id: Option<Uuid>,
     pub part_revision: Option<String>,
+    pub disposition: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -74,6 +75,12 @@ pub struct CreateReceivingInspectionRequest {
     pub inspector_id: Option<Uuid>,
     pub result: Option<String>,
     pub notes: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DispositionTransitionRequest {
+    pub inspector_id: Option<Uuid>,
+    pub reason: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
