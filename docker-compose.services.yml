@@ -187,6 +187,7 @@ services:
       - pdf-editor
       - maintenance
       - shipping-receiving
+      - bom
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost/api/gateway/health || exit 1"]
       interval: 10s
@@ -1111,6 +1112,54 @@ services:
       watch:
         - action: rebuild
           path: modules/quality-inspection/src
+        - action: rebuild
+          path: Cargo.lock
+        - action: rebuild
+          path: platform/health/src
+        - action: rebuild
+          path: platform/security/src
+
+  # =========================
+  # BOM MODULE
+  # =========================
+  bom:
+    container_name: 7d-bom
+    build:
+      context: .
+      dockerfile: modules/bom/Dockerfile.workspace
+    environment:
+      DATABASE_URL: postgres://${BOM_POSTGRES_USER:-bom_user}:${BOM_POSTGRES_PASSWORD:-bom_pass}@7d-bom-postgres:5432/${BOM_POSTGRES_DB:-bom_db}?sslmode=require
+      NATS_URL: nats://platform:${NATS_AUTH_TOKEN:-dev-nats-token}@7d-nats:4222
+      BUS_TYPE: nats
+      HOST: 0.0.0.0
+      PORT: 8107
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "127.0.0.1:8107:8107"
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8107/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "module"
+      com.7dsolutions.component: "bom"
+      com.7dsolutions.type: "api"
+      com.7dsolutions.env: "dev"
+    develop:
+      watch:
+        - action: rebuild
+          path: modules/bom/src
         - action: rebuild
           path: Cargo.lock
         - action: rebuild
