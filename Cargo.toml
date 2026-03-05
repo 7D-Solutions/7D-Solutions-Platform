@@ -34,6 +34,8 @@ members = [
   "modules/customer-portal",
   "modules/workforce-competence",
   "modules/bom",
+  "modules/production",
+  "modules/quality-inspection",
   "tools/contract-tests",
   "tools/simulation",
   "tools/tenantctl",

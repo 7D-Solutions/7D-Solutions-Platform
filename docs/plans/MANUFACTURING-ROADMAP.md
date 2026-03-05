@@ -135,14 +135,14 @@ These constraints apply to ALL phases. They don't change without orchestrator + 
 
 | Deliverable | Status | Bead | Date |
 |-------------|--------|------|------|
-| Inspection: module scaffold (quality-inspection-rs crate) | NOT STARTED | — | — |
+| Inspection: module scaffold (quality-inspection-rs crate) | DONE | bd-2f1xv | 2026-03-05 |
 | Inspection: inspection plan model (characteristics, tolerances, sampling) | NOT STARTED | — | — |
 | Inspection: receiving inspection records | NOT STARTED | — | — |
 | Inspection: quarantine/hold before disposition | NOT STARTED | — | — |
 | Inspection: disposition outcomes (accept, reject-to-hold, release) | NOT STARTED | — | — |
 | Inspection: inspector authorization via Workforce-Competence | NOT STARTED | — | — |
 | Inspection: S-R event bridge (auto-create receiving inspection) | NOT STARTED | — | — |
-| Docker: quality-inspection-rs container with compose watch | NOT STARTED | — | — |
+| Docker: quality-inspection-rs container with compose watch | DONE | bd-2f1xv | 2026-03-05 |
 
 **Not in this phase:** In-process/final inspection (Phase C2), NCR/CAPA lifecycle, special process catalogs, automated sampling rule libraries.
 
@@ -278,3 +278,4 @@ Items explicitly excluded from this roadmap. Will be addressed in future program
 | 2026-03-05 | A | Inventory retrofit complete (bd-194cd): source_type on receipts + ledger + events, production/return receipt paths, make/buy classification with Guard→Mutation→Outbox pattern, event contract extended. 237 unit tests pass. Integration tests blocked by pre-existing DB TLS issue (bd-194cd.1). | MaroonHarbor | modules/inventory/tests/phase_a_integration.rs |
 | 2026-03-05 | A | BOM core module complete (bd-1uy2l): scaffold, header/revision/line CRUD, date-based effectivity with exclusion constraint, multi-level explosion with depth guard + cycle detection, where-used reverse lookup, outbox events (6 event types). 5 unit + 7 integration tests pass against real Postgres. | PurpleCliff | modules/bom/tests/bom_integration.rs |
 | 2026-03-05 | A | GL consumer source_type branching (bd-2vc9u): item_issued branches purchase→COGS / production→WIP, item_received production→FG receipt (DR INVENTORY / CR WIP). Unknown source_type hard-fails. New SourceDocType variants (ProductionIssue, ProductionReceipt). 5 integration tests pass against real GL DB. | CopperRiver | modules/gl/tests/gl_inventory_source_type_test.rs |
+| 2026-03-05 | C1 | Quality inspection scaffold complete (bd-2f1xv): quality-inspection-rs crate with Axum app, health/ready/version endpoints, Prometheus metrics, outbox pattern, migration (inspection_plans, inspections, dispositions, outbox, processed_events). Docker container + compose service on port 8106, DB on port 5459. Builds and passes all tests. | DarkOwl | modules/quality-inspection/ |

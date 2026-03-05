@@ -42,6 +42,8 @@ No version bump discipline required yet.
 | numbering | numbering | 0.1.0 |  | 127.0.0.1 | Numbering service: tenant-scoped, idempotent, atomic sequence allocation |  |
 | party | party-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Party master: companies, individuals, contacts, and addresses | [Vision](docs/architecture/PARTY-VISION.md), [CG](docs/consumer-guide/CG-MODULE-APIS.md) |
 | pdf-editor | pdf-editor-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | PDF template management, form submissions, annotations, and document generation | [Vision](docs/architecture/PDF-EDITOR-VISION.md) |
+| production | production-rs | 0.1.0 |  | 127.0.0.1 | Production execution: work orders, operations, workcenters, routing, and component issue/receipt workflows |  |
+| quality-inspection | quality-inspection-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Quality Inspection: receiving inspection, in-process inspection, disposition tracking |  |
 | reporting | reporting | 0.1.0 |  |  | Financial reporting: aging, KPIs, statements, and cash flow forecasts | [Vision](docs/architecture/REPORTING-VISION.md) |
 | shipping-receiving | shipping-receiving-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Inbound and outbound shipment tracking with inventory integration | [Vision](docs/architecture/SHIPPING-RECEIVING-VISION.md) |
 | subscriptions | subscriptions-rs | 0.1.0 | 127.0.0.1 | 127.0.0.1 | Subscription lifecycle management, billing cycles, and usage gating | [CG](docs/consumer-guide/CG-MODULE-APIS.md) |

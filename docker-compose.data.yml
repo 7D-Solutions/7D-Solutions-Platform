@@ -843,6 +843,68 @@ services:
       com.7dsolutions.type: "database"
       com.7dsolutions.env: "dev"
 
+  production-postgres:
+    container_name: 7d-production-postgres
+    image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    ports:
+      - "127.0.0.1:5460:5432"
+    environment:
+      POSTGRES_DB: ${PRODUCTION_POSTGRES_DB:-production_db}
+      POSTGRES_USER: ${PRODUCTION_POSTGRES_USER:-production_user}
+      POSTGRES_PASSWORD: ${PRODUCTION_POSTGRES_PASSWORD:-production_pass}
+    volumes:
+      - production_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PRODUCTION_POSTGRES_USER:-production_user} -d ${PRODUCTION_POSTGRES_DB:-production_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "production-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
+  quality-inspection-postgres:
+    container_name: 7d-quality-inspection-postgres
+    image: postgres:16-alpine
+    entrypoint: ["/usr/local/bin/pg-entrypoint-tls.sh"]
+    command: ["postgres", "-c", "ssl=on", "-c", "ssl_cert_file=/var/lib/postgresql/tls/server.crt", "-c", "ssl_key_file=/var/lib/postgresql/tls/server.key", "-c", "hba_file=/etc/postgresql/pg_hba.conf"]
+    ports:
+      - "127.0.0.1:5459:5432"
+    environment:
+      POSTGRES_DB: ${QUALITY_INSPECTION_POSTGRES_DB:-quality_inspection_db}
+      POSTGRES_USER: ${QUALITY_INSPECTION_POSTGRES_USER:-quality_inspection_user}
+      POSTGRES_PASSWORD: ${QUALITY_INSPECTION_POSTGRES_PASSWORD:-quality_inspection_pass}
+    volumes:
+      - quality_inspection_pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/docker-entrypoint-tls.sh:/usr/local/bin/pg-entrypoint-tls.sh:ro
+      - ./infra/postgres/tls:/etc/postgresql/tls:ro
+      - ./infra/postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks:
+      - 7d-platform
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${QUALITY_INSPECTION_POSTGRES_USER:-quality_inspection_user} -d ${QUALITY_INSPECTION_POSTGRES_DB:-quality_inspection_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    labels:
+      com.7dsolutions.project: "platform"
+      com.7dsolutions.tier: "infrastructure"
+      com.7dsolutions.component: "quality-inspection-db"
+      com.7dsolutions.type: "database"
+      com.7dsolutions.env: "dev"
+
 networks:
   7d-platform:
     name: 7d-platform
@@ -929,4 +991,10 @@ volumes:
     external: true
   bom_pgdata:
     name: 7d-bom-pgdata
+    external: true
+  production_pgdata:
+    name: 7d-production-pgdata
+    external: true
+  quality_inspection_pgdata:
+    name: 7d-quality-inspection-pgdata
     external: true
