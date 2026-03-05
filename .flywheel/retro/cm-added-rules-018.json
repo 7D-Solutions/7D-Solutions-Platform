@@ -1,0 +1,37 @@
+[
+  {
+    "id": "b-mmdfulf3-cpiltr",
+    "content": "When writing design lock documents with one-way-door decisions, require at least two independent review rounds before sign-off",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mmdfulf3-cf6fla",
+    "content": "Never rename established ERP terminology (Engineering, Production, Quality) without explicit user request — industry-standard names prevent churn",
+    "category": "workflow"
+  },
+  {
+    "id": "b-mmdfulf3-dq0qkl",
+    "content": "NATS subjects in this platform are plain event_type strings like inventory.item_issued — never use hierarchical module.events.event_type patterns",
+    "category": "integration"
+  },
+  {
+    "id": "b-mmdfulf3-3gol5z",
+    "content": "WIP exists only as a GL account balance — Inventory has no WIP state, items are tracked as issued or received only",
+    "category": "architecture"
+  },
+  {
+    "id": "b-mmdfulf3-wkndfx",
+    "content": "When a rename or refactor is immediately reverted, treat the pair as a single no-op — avoid creating separate beads for rename+revert",
+    "category": "workflow"
+  },
+  {
+    "id": "b-mmdfulf3-8nzxi5",
+    "content": "Always validate NATS subject patterns against actual codebase subscriber filters before documenting them in design locks",
+    "category": "documentation"
+  },
+  {
+    "id": "b-mmdfulf3-3y41s6",
+    "content": "Design lock documents should explicitly distinguish event_type field values from NATS subject strings to prevent consumer confusion",
+    "category": "documentation"
+  }
+]

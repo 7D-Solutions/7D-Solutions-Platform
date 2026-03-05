@@ -1,0 +1,23 @@
+{
+  "run_number": 18,
+  "trigger": "count",
+  "timestamp": "2026-03-05T12:30:00Z",
+  "runner": "CopperRiver",
+  "bead_id": "bd-296zo",
+  "window": {
+    "from_retro_seq": 430,
+    "to_retro_seq": 435,
+    "closes_analyzed": 6
+  },
+  "beads_analyzed": [
+    "bd-1odbc", "bd-2ilnj", "bd-87f5a", "bd-d8xl4", "bd-zsw4m", "bd-p4mx2"
+  ],
+  "patterns_count": 5,
+  "signals": {
+    "avg_commits_code_beads": 1.5,
+    "agent_spread": {"BrightHill": 3, "CopperRiver": 1, "PurpleCliff": 1, "MaroonHarbor": 1},
+    "reopen_count": 0,
+    "zero_commit_beads": ["bd-2ilnj"],
+    "revert_pairs": [["bd-d8xl4", "bd-zsw4m"]]
+  }
+}
