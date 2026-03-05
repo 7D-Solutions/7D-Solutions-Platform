@@ -147,3 +147,101 @@ pub fn build_workcenter_deactivated_envelope(
         },
     )
 }
+
+// ============================================================================
+// Work order event payloads
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkOrderCreatedPayload {
+    pub work_order_id: Uuid,
+    pub tenant_id: String,
+    pub order_number: String,
+    pub item_id: Uuid,
+    pub bom_revision_id: Uuid,
+    pub planned_quantity: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkOrderReleasedPayload {
+    pub work_order_id: Uuid,
+    pub tenant_id: String,
+    pub order_number: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WorkOrderClosedPayload {
+    pub work_order_id: Uuid,
+    pub tenant_id: String,
+    pub order_number: String,
+}
+
+// ============================================================================
+// Work order envelope builders
+// ============================================================================
+
+pub fn build_work_order_created_envelope(
+    work_order_id: Uuid,
+    tenant_id: String,
+    order_number: String,
+    item_id: Uuid,
+    bom_revision_id: Uuid,
+    planned_quantity: i32,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<WorkOrderCreatedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::WorkOrderCreated.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        WorkOrderCreatedPayload {
+            work_order_id,
+            tenant_id,
+            order_number,
+            item_id,
+            bom_revision_id,
+            planned_quantity,
+        },
+    )
+}
+
+pub fn build_work_order_released_envelope(
+    work_order_id: Uuid,
+    tenant_id: String,
+    order_number: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<WorkOrderReleasedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::WorkOrderReleased.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        WorkOrderReleasedPayload {
+            work_order_id,
+            tenant_id,
+            order_number,
+        },
+    )
+}
+
+pub fn build_work_order_closed_envelope(
+    work_order_id: Uuid,
+    tenant_id: String,
+    order_number: String,
+    correlation_id: String,
+    causation_id: Option<String>,
+) -> event_bus::EventEnvelope<WorkOrderClosedPayload> {
+    create_production_envelope(
+        tenant_id.clone(),
+        ProductionEventType::WorkOrderClosed.as_str().to_string(),
+        correlation_id,
+        causation_id,
+        WorkOrderClosedPayload {
+            work_order_id,
+            tenant_id,
+            order_number,
+        },
+    )
+}

@@ -13,6 +13,7 @@ use tracing_subscriber::EnvFilter;
 use production_rs::{
     db::resolver::resolve_pool,
     http::health::{health as health_fn, ready, version},
+    http::work_orders,
     http::workcenters,
     metrics::{metrics_handler, ProductionMetrics},
     AppState, Config,
@@ -63,6 +64,10 @@ async fn main() {
         .route("/api/production/workcenters", get(workcenters::list_workcenters).post(workcenters::create_workcenter))
         .route("/api/production/workcenters/{id}", get(workcenters::get_workcenter).put(workcenters::update_workcenter))
         .route("/api/production/workcenters/{id}/deactivate", post(workcenters::deactivate_workcenter))
+        .route("/api/production/work-orders", post(work_orders::create_work_order))
+        .route("/api/production/work-orders/{id}", get(work_orders::get_work_order))
+        .route("/api/production/work-orders/{id}/release", post(work_orders::release_work_order))
+        .route("/api/production/work-orders/{id}/close", post(work_orders::close_work_order))
         .with_state(app_state)
         .layer(DefaultBodyLimit::max(DEFAULT_BODY_LIMIT))
         .layer(axum::middleware::from_fn(
